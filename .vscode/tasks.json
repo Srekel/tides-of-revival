@@ -12,7 +12,7 @@
                 "$gcc"
             ],
             "presentation": {
-                // "clear": true,
+                "clear": true,
                 "revealProblems": "onProblem"
             }
         }

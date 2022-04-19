@@ -9,11 +9,11 @@ pub const Hash = u64;
 pub const VariantType = union(enum) {
     unknown: void,
     int64: i64,
-    unt64: u64,
+    uint64: u64,
     boolean: bool,
     tag: Tag,
     hash: Hash,
-    ptr_ssingle: *anyopaque,
+    ptr_single: *anyopaque,
     ptr_array: *anyopaque,
 };
 
@@ -28,13 +28,17 @@ pub const Variant = struct {
     array_count: u16 = 0,
     elem_size: u16 = 0,
 
+    pub fn isUnset(self: Variant) bool {
+        return self.value == .unknown;
+    }
+
     pub fn createPtr(ptr: anytype, tag: Tag) Variant {
         assert(tag != 0);
         return Variant{
-            .valuse = .{ .ptr_single = @ptrToInt(ptr) },
+            .value = .{ .ptr_single = ptr },
             .tag = tag,
             .array_count = 1,
-            .elem_size = @intCast(u16, @sizeOf(ptr.*)),
+            .elem_size = @intCast(u16, @sizeOf(@TypeOf(ptr.*))),
         };
     }
 
@@ -51,6 +55,12 @@ pub const Variant = struct {
     pub fn createInt64(int: anytype) Variant {
         return Variant{
             .value = .{ .int64 = @intCast(i64, int) },
+            .tag = 0, // TODO
+        };
+    }
+    pub fn createUInt64(int: anytype) Variant {
+        return Variant{
+            .value = .{ .uint64 = @intCast(u64, int) },
             .tag = 0, // TODO
         };
     }
@@ -71,11 +81,11 @@ pub const Variant = struct {
     }
 
     pub fn setInt64(self: *Variant, int: anytype) void {
+        self = .{ .value = .{ .int64 = @intCast(i64, int) } };
+    }
 
-        // var v = VariantType{ .int64 = @intCast(i64, int) };
-        self = .{
-            .value = .{ .int64 = @intCast(i64, int) },
-        };
+    pub fn setUInt64(self: *Variant, int: anytype) void {
+        self = .{ .value = .{ .uint64 = @intCast(u64, int) } };
     }
 
     pub fn getPtr(self: Variant, comptime T: type, tag: Tag) *T {
@@ -91,5 +101,12 @@ pub const Variant = struct {
 
     pub fn getInt64(self: Variant) i64 {
         return self.value.int64;
+    }
+
+    pub fn getUInt64(self: Variant) u64 {
+        const v = self.value;
+        const u = v.uint64;
+        return u;
+        // return self.value.uint64;
     }
 };

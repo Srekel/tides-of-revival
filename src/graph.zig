@@ -1,6 +1,10 @@
 const std = @import("std");
 const v = @import("variant.zig");
 
+pub const GraphContext = struct {
+    frame_allocator: std.mem.Allocator,
+};
+
 pub const IdLocal = struct {
     str: [191]u8 = .{0} ** 191,
     strlen: u8 = 0,
@@ -72,7 +76,7 @@ pub const Graph = struct {
                 }
 
                 std.debug.print("..i1:{s}, ref:{s}\n", .{ input1.template.?.name.toString(), input1.reference.toString() });
-                for (self.nodes.items) |*node2, ni2| {
+                outer: for (self.nodes.items) |*node2, ni2| {
                     if (ni1 == ni2) {
                         continue;
                     }
@@ -93,7 +97,12 @@ pub const Graph = struct {
 
                         std.debug.print("....Connected {s}:{s} to {s}:{s}\n", .{ node2.name.toString(), output2.template.?.name.toString(), node1.name.toString(), input1.template.?.name.toString() });
                         input1.source = output2;
+                        break :outer;
                     }
+                } else {
+                    // unreachable;
+                    std.log.warn("Couldn't connect {s}:{s} to anything.", .{ node1.name.toString(), input1.template.?.name.toString() });
+                    // std.debug.assert(false);
                 }
             }
         }
@@ -130,6 +139,12 @@ pub const Graph = struct {
         std.debug.print("Running graph...\n", .{});
         while (!allFinished) {
             allFinished = true;
+            var frame_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            var context: GraphContext = .{
+                .frame_allocator = frame_allocator.allocator(),
+            };
+            defer frame_allocator.deinit();
+
             for (self.nodes.items) |*node| {
                 for (node.outputs) |*output| {
                     // std.debug.print("Node {s} had output {s} with reference {s}\n", .{ node.name.toString(), output.template.?.name.toString(), output.reference.toString() });
@@ -140,7 +155,7 @@ pub const Graph = struct {
                         std.debug.print("Node {s} had output {s} with reference {s}\n", .{ node.name.toString(), output.template.?.name.toString(), output.reference.toString() });
                         continue;
                     }
-                    const res = node.template.func.func.*(node, output, &.{});
+                    const res = node.template.func.func.*(node, output, &context, &.{});
                     std.debug.print(".. outputted {}\n", .{res.success});
                 }
                 // if (!lol) {
@@ -203,12 +218,10 @@ pub const NodeFuncTemplate = struct {
 
 pub const NodeInputTemplate = struct {
     name: IdLocal = .{},
-    data_type: u8 = 0, // fix
 };
 
 pub const NodeOutputTemplate = struct {
     name: IdLocal = .{},
-    data_type: u8 = 0, // fix
 };
 
 pub const Node = struct {
@@ -310,4 +323,4 @@ pub const NodeFuncParam = struct {
     value: v.Variant = .{},
 };
 
-pub const NodeFunc = fn (node: *Node, output: *NodeOutput, params: []NodeFuncParam) NodeFuncResult;
+pub const NodeFunc = fn (node: *Node, output: *NodeOutput, context: *GraphContext, params: []NodeFuncParam) NodeFuncResult;

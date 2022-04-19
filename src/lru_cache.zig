@@ -33,8 +33,7 @@ pub const LRUCache = struct {
                 return true;
             }
         }
-        unreachable;
-        // return false;
+        return false;
     }
 
     pub fn try_get(self: *LRUCache, key: LRUKey, evict_key: *?LRUKey, evict_value: *?LRUValue) ?*LRUValue {
@@ -73,7 +72,7 @@ pub const LRUCache = struct {
             .value = value,
             .timestamp = time.nanoTimestamp(),
         };
-        self.entries.append(entry);
+        self.entries.append(self.allocator, entry) catch unreachable;
     }
 
     pub fn remove(self: *LRUCache, key: LRUKey) *LRUValue {
