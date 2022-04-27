@@ -2,6 +2,12 @@
 
 This blog is dedicated to the game The Elvengroin Legacy.
 
+EGL, as I like to abbreviate it, is a game in very early development, technically speaking, but I started thinking about and writing down thoughts for it in my teens. So I am very happy to finally have started to actually work on it in my spare time! 
+
+EGL is, in short, a first-person RPG with a very large - but decidedly not unlimited - world, with massive amount of procedurally generated content, both "offline" and during play. 
+
+It's going to blow you away. This blog is how I'll try to explain how. And I will out of necessity start by talking about cheese puffs.
+
 ### Unprocessed Cheese Puffs
 
 It seems, when you go to the snack shelves in a grocery store, there are a few categories. Generally the largest will be potato chips, but there are also flavored nuts, pretzels or the like, maybe something exotic, and cheese puffs.
@@ -24,6 +30,7 @@ Here are a few guidelines I'll be using to guide me to find these unprocessed ch
  * Abstractions must be transparent
  * The world must be concrete
  * Simulation builds gameplay
+ * Procedural generation provides breadth and fidelity
  * Feelings comes first
  * Balance comes last
 
