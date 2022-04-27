@@ -52,9 +52,9 @@ pub const LRUCache = struct {
             return null;
         }
 
-        var last_timestamp: i128 = 0;
+        var last_timestamp: i128 = std.math.maxInt(i128);
         for (timestamps) |entry_timestamp, i| {
-            if (entry_timestamp > last_timestamp) {
+            if (entry_timestamp < last_timestamp) {
                 last_timestamp = timestamps[i];
                 evict_key.* = keys[i];
                 evict_value.* = values[i];

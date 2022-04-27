@@ -232,6 +232,7 @@ pub const Node = struct {
     order: u32 = 0,
     data: ?*anyopaque = null,
     allocator: ?std.mem.Allocator = null,
+    output_artifacts: bool = false,
 
     pub fn init(self: *Node) void {
         for (self.template.func.inputs) |*input, ni| {

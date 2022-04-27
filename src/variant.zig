@@ -32,6 +32,14 @@ pub const Variant = struct {
         return self.value == .unknown;
     }
 
+    pub fn clear(self: *Variant) *Variant {
+        self.value = .unknown;
+        self.tag = 0;
+        self.array_count = 0;
+        self.elem_size = 0;
+        return self;
+    }
+
     pub fn createPtr(ptr: anytype, tag: Tag) Variant {
         assert(tag != 0);
         return Variant{
@@ -67,7 +75,7 @@ pub const Variant = struct {
 
     pub fn setPtr(self: *Variant, ptr: anytype, tag: Tag) void {
         assert(tag != 0);
-        self.value = .{ .ptr_singler = @ptrToInt(ptr) };
+        self.value = .{ .ptr_single = ptr };
         self.tag = tag;
         self.elem_size = @intCast(u16, @sizeOf(ptr.*));
     }
@@ -90,7 +98,7 @@ pub const Variant = struct {
 
     pub fn getPtr(self: Variant, comptime T: type, tag: Tag) *T {
         assert(tag == self.tag);
-        return @intToPtr(*T, self.value.ptr_single);
+        return @ptrCast(*T, @alignCast(@alignOf(T), self.value.ptr_single));
     }
 
     pub fn getSlice(self: Variant, comptime T: type, tag: Tag) []T {

@@ -1,13 +1,21 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
+const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
+const znoise = @import("external/zig-gamedev/libs/znoise/build.zig");
+
 pub fn build(b: *Builder) void {
     const exe = b.addExecutable("ElvengroinLegacy", "src/main.zig");
 
     exe.setTarget(b.standardTargetOptions(.{}));
     exe.setBuildMode(b.standardReleaseOptions());
 
+    exe.addPackage(zmath.pkg);
+    exe.addPackage(znoise.pkg);
+    znoise.link(exe);
+    // exe.addPackagePath("znoise", "external/zig-gamedev/libs/zmath/zmath.zig");
     // exe.addPackagePath("zmath", "external/zig-gamedev/libs/zmath/zmath.zig");
+    exe.addPackagePath("zigimg", "external/zigimg/zigimg.zig");
     exe.install();
 
     // const compile_step = b.step("compile", "Compiles src/main.zig");
