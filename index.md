@@ -24,7 +24,9 @@ What if... we have yet to invent the next **category of snack**. Maybe there's o
 
 That's a bit mind boggling to me.
 
-Now, The Elvengroin Legacy is not a new category of games, nor a new genre. But my intent is to invent new mechanics, new features, new possibilities that no-one else has done. I think there are two main games that it will be compared to - Daggerfall, and to some extent, Caves of Cud. I fully believe this design space is both large enough, and unexplored enough, that there are entire categories of mechanics that haven't been attempted in a real game (and by that I mean, not a tech demo, not in an academic paper, not as a proof of concept).
+Now, The Elvengroin Legacy is not a new category of games, nor a new genre. But my intent is to invent new mechanics, new features, new possibilities that no-one else has done. 
+
+I think there are two main games that it will be compared to - Daggerfall, and to some extent, Caves of Cud. I fully believe this design space is both large enough, and unexplored enough, that there are entire categories of mechanics that haven't been attempted in a real game (and by that I mean, not a tech demo, not in an academic paper, not as a proof of concept).
 
 Here are a few guidelines I'll be using to guide me to find these unprocessed cheese puffs of game design:
  * Abstractions must be transparent
@@ -33,6 +35,8 @@ Here are a few guidelines I'll be using to guide me to find these unprocessed ch
  * Procedural generation provides breadth and fidelity
  * Feelings comes first
  * Balance comes last
+ * Rough edges are preferable to perfection
+ * Gameplay loops should be at the back of the mind, not at the front.
 
 My plan is to expand on these in future posts! 
 
