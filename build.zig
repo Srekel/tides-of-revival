@@ -16,6 +16,7 @@ pub fn build(b: *Builder) void {
     // exe.addPackagePath("znoise", "external/zig-gamedev/libs/zmath/zmath.zig");
     // exe.addPackagePath("zmath", "external/zig-gamedev/libs/zmath/zmath.zig");
     exe.addPackagePath("zigimg", "external/zigimg/zigimg.zig");
+    exe.addPackagePath("qoi", "external/zig-qoi/src/qoi.zig");
     exe.install();
 
     // const compile_step = b.step("compile", "Compiles src/main.zig");
