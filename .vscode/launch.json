@@ -10,6 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/ElvengroinLegacy.exe",
             "args": [],
+            // "args": ["--offlinegen"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
