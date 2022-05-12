@@ -19,7 +19,7 @@ pub fn build(b: *Builder) void {
     exe.addPackagePath("args", "external/zig-args/args.zig");
 
     exe.addPackage(glfw.pkg);
-    // exe.addPackage(zgpu.pkg);
+    exe.addPackage(zgpu.pkg);
     exe.addPackage(zmath.pkg);
     exe.addPackage(zmesh.pkg);
     exe.addPackage(znoise.pkg);

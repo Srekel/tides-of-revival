@@ -4,6 +4,7 @@ const flecs = @import("flecs");
 
 const offline = @import("offline_generation.zig");
 const window = @import("window.zig");
+const gfx = @import("gfx_wgpu.zig");
 
 // pub const Velocity = struct { x: f32, y: f32 };
 // pub const Position = struct { x: f32, y: f32 };
@@ -18,7 +19,11 @@ pub fn run() void {
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
-    _ = window.createWindow("The Elvengroin Legacy") catch unreachable;
+    const main_window = window.createWindow("The Elvengroin Legacy") catch unreachable;
+
+    var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
+    defer gfx.deinit(&gfx_state);
+
     // _ = window.createWindow("Debug") catch unreachable;
 
     while (true) {
@@ -26,5 +31,8 @@ pub fn run() void {
         if (window_status == .no_windows) {
             break;
         }
+
+        gfx.update(&gfx_state);
+        gfx.draw(&gfx_state);
     }
 }
