@@ -15,7 +15,7 @@ pub fn build(b: *Builder) void {
     exe.setBuildMode(b.standardReleaseOptions());
 
     exe.addPackagePath("zigimg", "external/zigimg/zigimg.zig");
-    exe.addPackagePath("qoi", "external/zig-qoi/src/qoi.zig");
+    // exe.addPackagePath("qoi", "external/zig-qoi/src/qoi.zig");
     exe.addPackagePath("args", "external/zig-args/args.zig");
 
     exe.addPackage(glfw.pkg);
