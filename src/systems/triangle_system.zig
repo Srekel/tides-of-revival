@@ -3,7 +3,6 @@ const math = std.math;
 const glfw = @import("glfw");
 const zgpu = @import("zgpu");
 const gpu = zgpu.gpu;
-const c = zgpu.cimgui;
 const zm = @import("zmath");
 const gfx = @import("../gfx_wgpu.zig");
 
@@ -133,7 +132,6 @@ pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState) !SystemStat
     const index_data = [_]u32{ 0, 1, 2 };
     gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, u32, index_data[0..]);
 
-
     return SystemState{
         .allocator = allocator,
         .gfx = gfxstate,
@@ -147,8 +145,6 @@ pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState) !SystemStat
 
 pub fn destroy(state: *SystemState) void {
     _ = state;
-    // zgpu.gui.deinit();
-    // state.gctx.deinit(state.allocator);
 }
 
 pub fn update(state: *SystemState) void {
@@ -233,23 +229,6 @@ pub fn update(state: *SystemState) void {
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
                 pass.drawIndexed(3, 1, 0, 0, 0);
             }
-        }
-        {
-            const color_attachment = gpu.RenderPassColorAttachment{
-                .view = back_buffer_view,
-                .load_op = .load,
-                .store_op = .store,
-            };
-            const render_pass_info = gpu.RenderPassEncoder.Descriptor{
-                .color_attachments = &.{color_attachment},
-            };
-            const pass = encoder.beginRenderPass(&render_pass_info);
-            defer {
-                pass.end();
-                pass.release();
-            }
-
-            zgpu.gui.draw(pass);
         }
 
         break :commands encoder.finish(null);

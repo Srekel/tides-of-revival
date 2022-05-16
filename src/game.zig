@@ -6,6 +6,7 @@ const offline = @import("offline_generation.zig");
 const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
 const triangle_system = @import("systems/triangle_system.zig");
+const gui_system = @import("systems/gui_system.zig");
 
 // pub const Velocity = struct { x: f32, y: f32 };
 // pub const Position = struct { x: f32, y: f32 };
@@ -29,9 +30,11 @@ pub fn run() void {
 
     var ts = try triangle_system.create(std.heap.page_allocator, &gfx_state);
     defer triangle_system.destroy(&ts);
+    var gs = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
+    defer gui_system.destroy(&gs);
 
-    var sys = world.newWrappedRunSystem("MoveWrap", .on_update, ComponentData, moveWrapped);
-    sys
+    // var sys = world.newWrappedRunSystem("MoveWrap", .on_update, ComponentData, moveWrapped);
+    // sys
 
     while (true) {
         const window_status = window.update() catch unreachable;
@@ -40,11 +43,13 @@ pub fn run() void {
         }
 
         gfx.update(&gfx_state);
-        const stats = gfx_state.gctx.stats;
-        const dt = @floatCast(f32, stats.delta_time);
+        gui_system.preUpdate(&gs);
+        // const stats = gfx_state.gctx.stats;
+        // const dt = @floatCast(f32, stats.delta_time);
 
-        world.progress(dt);
+        // world.progress(dt);
         triangle_system.update(&ts);
+        gui_system.update(&gs);
         gfx.draw(&gfx_state);
     }
 }
