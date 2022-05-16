@@ -5,27 +5,28 @@ const zgpu = @import("zgpu");
 const gpu = zgpu.gpu;
 const c = zgpu.cimgui;
 const zm = @import("zmath");
+const gfx = @import("../gfx_wgpu.zig");
 
 // zig fmt: off
 const wgsl_vs =
-\\  @group(0) @binding(0) var<uniform> object_to_clip : mat4x4<f32>;
+\\  @group(0) @binding(0) var<uniform> object_to_clip: mat4x4<f32>;
 \\  struct VertexOut {
-\\      @builtin(position) position_clip : vec4<f32>,
-\\      @location(0) color : vec3<f32>,
+\\      @builtin(position) position_clip: vec4<f32>,
+\\      @location(0) color: vec3<f32>,
 \\  }
 \\  @stage(vertex) fn main(
-\\      @location(0) position : vec3<f32>,
-\\      @location(1) color : vec3<f32>,
+\\      @location(0) position: vec3<f32>,
+\\      @location(1) color: vec3<f32>,
 \\  ) -> VertexOut {
-\\      var output : VertexOut;
+\\      var output: VertexOut;
 \\      output.position_clip = vec4(position, 1.0) * object_to_clip;
 \\      output.color = color;
 \\      return output;
-\\ }
+\\  }
 ;
 const wgsl_fs =
 \\  @stage(fragment) fn main(
-\\      @location(0) color : vec3<f32>,
+\\      @location(0) color: vec3<f32>,
 \\  ) -> @location(0) vec4<f32> {
 \\      return vec4(color, 1.0);
 \\  }
@@ -40,7 +41,8 @@ const Vertex = struct {
 const SystemState = struct {
     allocator: std.mem.Allocator,
 
-    gfx_ctx: *zgpu.GraphicsContext,
+    gfx: *gfx.GfxState,
+    gctx: *zgpu.GraphicsContext,
     pipeline: zgpu.RenderPipelineHandle,
     bind_group: zgpu.BindGroupHandle,
 
@@ -48,28 +50,22 @@ const SystemState = struct {
     index_buffer: zgpu.BufferHandle,
 };
 
-pub fn create(allocator: std.mem.Allocator, gfx_ctx: *zgpu.GraphicsContext) !SystemState {
-
+pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState) !SystemState {
+    const gctx = gfxstate.gctx;
     // Create a bind group layout needed for our render pipeline.
-    const bgl = gfx_ctx.createBindGroupLayout(
-        gpu.BindGroupLayout.Descriptor{
-            .entries = &.{
-                gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true }, .uniform, true, 0),
-            },
-        },
-    );
-    defer gfx_ctx.destroyResource(bgl);
-
-    const pl = gfx_ctx.device.createPipelineLayout(&gpu.PipelineLayout.Descriptor{
-        .bind_group_layouts = &.{gfx_ctx.lookupResource(bgl).?},
+    const bind_group_layout = gctx.createBindGroupLayout(&.{
+        zgpu.bglBuffer(0, .{ .vertex = true }, .uniform, true, 0),
     });
-    defer pl.release();
+    defer gctx.destroyResource(bind_group_layout);
+
+    const pipeline_layout = gctx.createPipelineLayout(&.{bind_group_layout});
+    defer gctx.destroyResource(bind_group_layout);
 
     const pipeline = pipline: {
-        const vs_module = gfx_ctx.device.createShaderModule(&.{ .label = "vs", .code = .{ .wgsl = wgsl_vs } });
+        const vs_module = gctx.device.createShaderModule(&.{ .label = "vs", .code = .{ .wgsl = wgsl_vs } });
         defer vs_module.release();
 
-        const fs_module = gfx_ctx.device.createShaderModule(&.{ .label = "fs", .code = .{ .wgsl = wgsl_fs } });
+        const fs_module = gctx.device.createShaderModule(&.{ .label = "fs", .code = .{ .wgsl = wgsl_fs } });
         defer fs_module.release();
 
         const color_target = gpu.ColorTargetState{
@@ -79,7 +75,7 @@ pub fn create(allocator: std.mem.Allocator, gfx_ctx: *zgpu.GraphicsContext) !Sys
 
         const vertex_attributes = [_]gpu.VertexAttribute{
             .{ .format = .float32x3, .offset = 0, .shader_location = 0 },
-            .{ .format = .float32x3, .offset = @sizeOf([3]f32), .shader_location = 1 },
+            .{ .format = .float32x3, .offset = @offsetOf(Vertex, "color"), .shader_location = 1 },
         };
         const vertex_buffer_layout = gpu.VertexBufferLayout{
             .array_stride = @sizeOf(Vertex),
@@ -89,7 +85,6 @@ pub fn create(allocator: std.mem.Allocator, gfx_ctx: *zgpu.GraphicsContext) !Sys
         };
 
         const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
-            .layout = pl,
             .vertex = gpu.VertexState{
                 .module = vs_module,
                 .entry_point = "main",
@@ -111,15 +106,15 @@ pub fn create(allocator: std.mem.Allocator, gfx_ctx: *zgpu.GraphicsContext) !Sys
                 .targets = &.{color_target},
             },
         };
-        break :pipline gfx_ctx.createRenderPipeline(pipeline_descriptor);
+        break :pipline gctx.createRenderPipeline(pipeline_layout, pipeline_descriptor);
     };
 
-    const bind_group = gfx_ctx.createBindGroup(bgl, &[_]zgpu.BindGroupEntryInfo{
-        .{ .binding = 0, .buffer_handle = gfx_ctx.uniforms.buffer, .offset = 0, .size = @sizeOf(zm.Mat) },
+    const bind_group = gctx.createBindGroup(bind_group_layout, &[_]zgpu.BindGroupEntryInfo{
+        .{ .binding = 0, .buffer_handle = gctx.uniforms.buffer, .offset = 0, .size = @sizeOf(zm.Mat) },
     });
 
     // Create a vertex buffer.
-    const vertex_buffer = gfx_ctx.createBuffer(.{
+    const vertex_buffer = gctx.createBuffer(.{
         .usage = .{ .copy_dst = true, .vertex = true },
         .size = 3 * @sizeOf(Vertex),
     });
@@ -128,19 +123,21 @@ pub fn create(allocator: std.mem.Allocator, gfx_ctx: *zgpu.GraphicsContext) !Sys
         .{ .position = [3]f32{ -0.5, -0.5, 0.0 }, .color = [3]f32{ 0.0, 1.0, 0.0 } },
         .{ .position = [3]f32{ 0.5, -0.5, 0.0 }, .color = [3]f32{ 0.0, 0.0, 1.0 } },
     };
-    gfx_ctx.queue.writeBuffer(gfx_ctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data[0..]);
+    gctx.queue.writeBuffer(gctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data[0..]);
 
     // Create an index buffer.
-    const index_buffer = gfx_ctx.createBuffer(.{
+    const index_buffer = gctx.createBuffer(.{
         .usage = .{ .copy_dst = true, .index = true },
         .size = 3 * @sizeOf(u32),
     });
     const index_data = [_]u32{ 0, 1, 2 };
-    gfx_ctx.queue.writeBuffer(gfx_ctx.lookupResource(index_buffer).?, 0, u32, index_data[0..]);
+    gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, u32, index_data[0..]);
+
 
     return SystemState{
         .allocator = allocator,
-        .gfx_ctx = gfx_ctx,
+        .gfx = gfxstate,
+        .gctx = gctx,
         .pipeline = pipeline,
         .bind_group = bind_group,
         .vertex_buffer = vertex_buffer,
@@ -148,16 +145,17 @@ pub fn create(allocator: std.mem.Allocator, gfx_ctx: *zgpu.GraphicsContext) !Sys
     };
 }
 
-pub fn deinit(state: *SystemState) void {
+pub fn destroy(state: *SystemState) void {
+    _ = state;
     // zgpu.gui.deinit();
-    // state.gfx_ctx.deinit(state.allocator);
+    // state.gctx.deinit(state.allocator);
 }
 
 pub fn update(state: *SystemState) void {
-    const gfx_ctx = state.gfx_ctx;
-    const fb_width = gfx_ctx.swapchain_descriptor.width;
-    const fb_height = gfx_ctx.swapchain_descriptor.height;
-    const t = @floatCast(f32, gfx_ctx.stats.time);
+    const gctx = state.gctx;
+    const fb_width = gctx.swapchain_descriptor.width;
+    const fb_height = gctx.swapchain_descriptor.height;
+    const t = @floatCast(f32, gctx.stats.time);
 
     const cam_world_to_view = zm.lookAtLh(
         zm.f32x4(3.0, 3.0, -3.0, 1.0),
@@ -172,18 +170,19 @@ pub fn update(state: *SystemState) void {
     );
     const cam_world_to_clip = zm.mul(cam_world_to_view, cam_view_to_clip);
 
-    const back_buffer_view = gfx_ctx.swapchain.getCurrentTextureView();
+    const back_buffer_view = gctx.swapchain.getCurrentTextureView();
     defer back_buffer_view.release();
 
-    const commands = commands_blk: {
-        const encoder = gfx_ctx.device.createCommandEncoder(null);
+    const commands = commands: {
+        const encoder = gctx.device.createCommandEncoder(null);
         defer encoder.release();
 
-        pass_blk: {
-            const vb_info = gfx_ctx.lookupResourceInfo(state.vertex_buffer) orelse break :pass;
-            const ib_info = gfx_ctx.lookupResourceInfo(state.index_buffer) orelse break :pass;
-            const pipeline = gfx_ctx.lookupResource(state.pipeline) orelse break :pass;
-            const bind_group = gfx_ctx.lookupResource(state.bind_group) orelse break :pass;
+        pass: {
+            const vb_info = gctx.lookupResourceInfo(state.vertex_buffer) orelse break :pass;
+            const ib_info = gctx.lookupResourceInfo(state.index_buffer) orelse break :pass;
+            const pipeline = gctx.lookupResource(state.pipeline) orelse break :pass;
+            const bind_group = gctx.lookupResource(state.bind_group) orelse break :pass;
+            const depth_view = gctx.lookupResource(state.gfx.*.depth_texture_view) orelse break :pass;
 
             const color_attachment = gpu.RenderPassColorAttachment{
                 .view = back_buffer_view,
@@ -216,7 +215,7 @@ pub fn update(state: *SystemState) void {
                 const object_to_world = zm.mul(zm.rotationY(t), zm.translation(-1.0, 0.0, 0.0));
                 const object_to_clip = zm.mul(object_to_world, cam_world_to_clip);
 
-                const mem = gfx_ctx.uniformsAllocate(zm.Mat, 1);
+                const mem = gctx.uniformsAllocate(zm.Mat, 1);
                 mem.slice[0] = zm.transpose(object_to_clip);
 
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
@@ -228,7 +227,7 @@ pub fn update(state: *SystemState) void {
                 const object_to_world = zm.mul(zm.rotationY(0.75 * t), zm.translation(1.0, 0.0, 0.0));
                 const object_to_clip = zm.mul(object_to_world, cam_world_to_clip);
 
-                const mem = gfx_ctx.uniformsAllocate(zm.Mat, 1);
+                const mem = gctx.uniformsAllocate(zm.Mat, 1);
                 mem.slice[0] = zm.transpose(object_to_clip);
 
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
@@ -249,9 +248,13 @@ pub fn update(state: *SystemState) void {
                 pass.end();
                 pass.release();
             }
+
+            zgpu.gui.draw(pass);
         }
 
-        break :commands_blk encoder.finish(null);
+        break :commands encoder.finish(null);
     };
     defer commands.release();
+
+    gctx.submit(&.{commands});
 }

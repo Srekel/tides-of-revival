@@ -39,7 +39,7 @@ const Vertex = struct {
     color: [3]f32,
 };
 
-const GfxState = struct {
+pub const GfxState = struct {
     allocator: std.mem.Allocator,
 
     gctx: *zgpu.GraphicsContext,
