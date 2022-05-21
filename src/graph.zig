@@ -1,58 +1,9 @@
 const std = @import("std");
 const v = @import("variant.zig");
+const IdLocal = v.IdLocal;
 
 pub const GraphContext = struct {
     frame_allocator: std.mem.Allocator,
-};
-
-pub const IdLocal = struct {
-    str: [191]u8 = .{0} ** 191,
-    strlen: u8 = 0,
-    hash: u64 = 0,
-
-    pub fn init(id: []const u8) IdLocal {
-        var res: IdLocal = undefined;
-        res.set(id);
-        return res;
-    }
-
-    pub fn set(id: *IdLocal, str: []const u8) void {
-        if (str[0] == 0) {
-            id.*.clear();
-            return;
-        }
-        id.strlen = @intCast(u8, str.len);
-        id.hash = std.hash.Wyhash.hash(0, str);
-        std.mem.copy(u8, id.str[0..id.str.len], str);
-    }
-
-    pub fn toString(self: IdLocal) []const u8 {
-        return self.str[0..self.strlen];
-    }
-
-    pub fn debugPrint(self: IdLocal) void {
-        std.debug.print("id: {s}:{}:{}\n", .{ self.str[0..self.strlen], self.strlen, self.hash });
-    }
-
-    pub fn clear(self: *IdLocal) void {
-        self.hash = 0;
-        self.strlen = 0;
-        std.mem.set(u8, &self.str, 0);
-    }
-
-    pub fn isUnset(self: IdLocal) bool {
-        return self.hash == 0;
-    }
-
-    pub fn eql(self: IdLocal, other: IdLocal) bool {
-        return self.hash == other.hash;
-    }
-
-    pub fn eqlStr(self: IdLocal, other: []const u8) bool {
-        // todo memcmp
-        const hash = std.hash.Wyhash(0, other);
-        return self.hash == hash;
-    }
 };
 
 pub const Graph = struct {

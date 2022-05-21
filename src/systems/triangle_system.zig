@@ -6,6 +6,10 @@ const gpu = zgpu.gpu;
 const zm = @import("zmath");
 const gfx = @import("../gfx_wgpu.zig");
 
+const flecs = @import("flecs");
+const fd = @import("../flecs_data.zig");
+const IdLocal = @import("../variant.zig").IdLocal;
+
 // zig fmt: off
 const wgsl_vs =
 \\  @group(0) @binding(0) var<uniform> object_to_clip: mat4x4<f32>;
@@ -39,6 +43,8 @@ const Vertex = struct {
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
+    world: *flecs.World,
+    sys: flecs.EntityId,
 
     gfx: *gfx.GfxState,
     gctx: *zgpu.GraphicsContext,
@@ -47,9 +53,13 @@ const SystemState = struct {
 
     vertex_buffer: zgpu.BufferHandle,
     index_buffer: zgpu.BufferHandle,
+
+    lol: f32,
 };
 
-pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState) !SystemState {
+var lol: f32 = 0;
+
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, world: *flecs.World) !*SystemState {
     const gctx = gfxstate.gctx;
     // Create a bind group layout needed for our render pipeline.
     const bind_group_layout = gctx.createBindGroupLayout(&.{
@@ -132,22 +142,31 @@ pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState) !SystemStat
     const index_data = [_]u32{ 0, 1, 2 };
     gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, u32, index_data[0..]);
 
-    return SystemState{
+    var state = allocator.create(SystemState) catch unreachable;
+    var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.ComponentData, update, .{ .ctx = state });
+    state.* = .{
         .allocator = allocator,
+        .world = world,
+        .sys = sys,
         .gfx = gfxstate,
         .gctx = gctx,
         .pipeline = pipeline,
         .bind_group = bind_group,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
+        .lol = lol,
     };
+    lol += 0.2;
+    return state;
 }
 
 pub fn destroy(state: *SystemState) void {
-    _ = state;
+    state.allocator.destroy(state);
 }
 
-pub fn update(state: *SystemState) void {
+fn update(iter: *flecs.Iterator(fd.ComponentData)) void {
+    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+
     const gctx = state.gctx;
     const fb_width = gctx.swapchain_descriptor.width;
     const fb_height = gctx.swapchain_descriptor.height;
@@ -182,12 +201,13 @@ pub fn update(state: *SystemState) void {
 
             const color_attachment = gpu.RenderPassColorAttachment{
                 .view = back_buffer_view,
-                .load_op = .clear,
+                // .load_op = .clear,
+                .load_op = .load,
                 .store_op = .store,
             };
             const depth_attachment = gpu.RenderPassDepthStencilAttachment{
                 .view = depth_view,
-                .depth_load_op = .clear,
+                .depth_load_op = if (state.lol == 0) .clear else .load,
                 .depth_store_op = .store,
                 .depth_clear_value = 1.0,
             };
@@ -206,21 +226,12 @@ pub fn update(state: *SystemState) void {
 
             pass.setPipeline(pipeline);
 
-            // Draw triangle 1.
-            {
-                const object_to_world = zm.mul(zm.rotationY(t), zm.translation(-1.0, 0.0, 0.0));
-                const object_to_clip = zm.mul(object_to_world, cam_world_to_clip);
-
-                const mem = gctx.uniformsAllocate(zm.Mat, 1);
-                mem.slice[0] = zm.transpose(object_to_clip);
-
-                pass.setBindGroup(0, bind_group, &.{mem.offset});
-                pass.drawIndexed(3, 1, 0, 0, 0);
-            }
-
-            // Draw triangle 2.
-            {
-                const object_to_world = zm.mul(zm.rotationY(0.75 * t), zm.translation(1.0, 0.0, 0.0));
+            while (iter.next()) |e| {
+                e.pos.x += e.vel.x * iter.iter.delta_time;
+                e.pos.y += e.vel.y * iter.iter.delta_time;
+                e.pos.z += e.vel.z * iter.iter.delta_time;
+                // std.debug.print("Move wrapped: p: {d}, v: {d} - {s}\n", .{ e.pos, e.vel, iter.entity().getName() });
+                const object_to_world = zm.mul(zm.rotationY(t + state.lol), zm.translation(e.pos.x + state.lol, e.pos.y, e.pos.z));
                 const object_to_clip = zm.mul(object_to_world, cam_world_to_clip);
 
                 const mem = gctx.uniformsAllocate(zm.Mat, 1);

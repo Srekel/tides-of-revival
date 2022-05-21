@@ -2,22 +2,23 @@ const std = @import("std");
 const args = @import("args");
 const flecs = @import("flecs");
 
-const offline = @import("offline_generation.zig");
 const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const gui_system = @import("systems/gui_system.zig");
-
-// pub const Velocity = struct { x: f32, y: f32 };
-// pub const Position = struct { x: f32, y: f32 };
-// pub const Acceleration = struct { x: f32, y: f32 };
-
-// const ComponentData = struct { pos: *Position, vel: *Velocity };
-// const AccelComponentData = struct { pos: *Position, vel: *Velocity, accel: *Acceleration };
+const fd = @import("flecs_data.zig");
+const IdLocal = @import("variant.zig").IdLocal;
 
 pub fn run() void {
     var world = flecs.World.init();
     defer world.deinit();
+
+    const entity1 = world.newEntity();
+    entity1.set(fd.Position{ .x = -1, .y = 1, .z = 0 });
+    entity1.set(fd.Velocity{ .x = 1, .y = 0.1, .z = 0 });
+    const entity2 = world.newEntity();
+    entity2.set(fd.Position{ .x = 1, .y = 0, .z = 0 });
+    entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -26,15 +27,12 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state);
 
-    // _ = window.createWindow("Debug") catch unreachable;
-
-    var ts = try triangle_system.create(std.heap.page_allocator, &gfx_state);
-    defer triangle_system.destroy(&ts);
+    var ts = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
+    defer triangle_system.destroy(ts);
+    var ts2 = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{1}), std.heap.page_allocator, &gfx_state, &world);
+    defer triangle_system.destroy(ts2);
     var gs = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
     defer gui_system.destroy(&gs);
-
-    // var sys = world.newWrappedRunSystem("MoveWrap", .on_update, ComponentData, moveWrapped);
-    // sys
 
     while (true) {
         const window_status = window.update() catch unreachable;
@@ -44,11 +42,10 @@ pub fn run() void {
 
         gfx.update(&gfx_state);
         gui_system.preUpdate(&gs);
-        // const stats = gfx_state.gctx.stats;
-        // const dt = @floatCast(f32, stats.delta_time);
+        const stats = gfx_state.gctx.stats;
+        const dt = @floatCast(f32, stats.delta_time);
 
-        // world.progress(dt);
-        triangle_system.update(&ts);
+        world.progress(dt);
         gui_system.update(&gs);
         gfx.draw(&gfx_state);
     }

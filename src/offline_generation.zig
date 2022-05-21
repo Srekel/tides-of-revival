@@ -3,6 +3,7 @@ const std = @import("std");
 const g = @import("graph.zig");
 const lru = @import("lru_cache.zig");
 const v = @import("variant.zig");
+const IdLocal = v.IdLocal;
 
 const img = @import("zigimg");
 
@@ -65,7 +66,7 @@ fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContex
         const prevNodeOutput = node.inputs[0].source orelse unreachable;
         const prevNode = prevNodeOutput.node orelse unreachable;
         const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{.{
-            .name = g.IdLocal.init("number"),
+            .name = IdLocal.init("number"),
             .value = v.Variant.createUInt64(0),
         }}));
         if (res != .success) {
@@ -81,7 +82,7 @@ fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContex
         const prevNodeOutput = node.inputs[1].source orelse unreachable;
         const prevNode = prevNodeOutput.node orelse unreachable;
         const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{.{
-            .name = g.IdLocal.init("number"),
+            .name = IdLocal.init("number"),
             .value = v.Variant.createUInt64(0),
         }}));
         if (res != .success) {
@@ -320,19 +321,19 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
                 const prevNode = prevNodeOutput.node orelse unreachable;
                 const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
                     .{
-                        .name = g.IdLocal.init("world_x"),
+                        .name = IdLocal.init("world_x"),
                         .value = v.Variant.createUInt64(world_x - CITY_WIDTH_MAX),
                     },
                     .{
-                        .name = g.IdLocal.init("world_y"),
+                        .name = IdLocal.init("world_y"),
                         .value = v.Variant.createUInt64(world_y - CITY_WIDTH_MAX),
                     },
                     .{
-                        .name = g.IdLocal.init("width"),
+                        .name = IdLocal.init("width"),
                         .value = v.Variant.createUInt64(CITY_WIDTH_MAX * 2),
                     },
                     .{
-                        .name = g.IdLocal.init("height"),
+                        .name = IdLocal.init("height"),
                         .value = v.Variant.createUInt64(CITY_WIDTH_MAX * 2),
                     },
                 }));
@@ -499,19 +500,19 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
                     const prevNode = prevNodeOutput.node orelse unreachable;
                     const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
                         .{
-                            .name = g.IdLocal.init("world_x"),
+                            .name = IdLocal.init("world_x"),
                             .value = v.Variant.createUInt64(world_x),
                         },
                         .{
-                            .name = g.IdLocal.init("world_y"),
+                            .name = IdLocal.init("world_y"),
                             .value = v.Variant.createUInt64(world_y),
                         },
                         .{
-                            .name = g.IdLocal.init("width"),
+                            .name = IdLocal.init("width"),
                             .value = v.Variant.createUInt64(patch_width),
                         },
                         .{
-                            .name = g.IdLocal.init("height"),
+                            .name = IdLocal.init("height"),
                             .value = v.Variant.createUInt64(patch_width),
                         },
                     }));
@@ -622,190 +623,190 @@ pub fn generate() void {
     std.debug.print("LOL\n", .{});
 
     const numberFunc = g.NodeFuncTemplate{
-        .name = g.IdLocal.init("number"),
+        .name = IdLocal.init("number"),
         .version = 0,
         .func = &funcTemplateNumber,
-        .inputs = ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("value") }}) //
+        .inputs = ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("value") }}) //
             ++ //
             ([_]g.NodeInputTemplate{.{}} ** 15),
-        .outputs = ([_]g.NodeOutputTemplate{.{ .name = g.IdLocal.init("value") }}) //
+        .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("value") }}) //
             ++ //
             ([_]g.NodeOutputTemplate{.{}} ** 15),
     };
 
     const addFunc = g.NodeFuncTemplate{
-        .name = g.IdLocal.init("add"),
+        .name = IdLocal.init("add"),
         .version = 0,
         .func = &funcTemplateAdd,
-        .inputs = ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("valueA") }}) //
+        .inputs = ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("valueA") }}) //
             ++
-            ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("valueB") }}) //
+            ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("valueB") }}) //
             ++ //
             ([_]g.NodeInputTemplate{.{}} ** 14),
-        .outputs = ([_]g.NodeOutputTemplate{.{ .name = g.IdLocal.init("value") }}) //
+        .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("value") }}) //
             ++ //
             ([_]g.NodeOutputTemplate{.{}} ** 15),
     };
 
     const heightmapFunc = g.NodeFuncTemplate{
-        .name = g.IdLocal.init("heightmap"),
+        .name = IdLocal.init("heightmap"),
         .version = 0,
         .func = &funcTemplateHeightmap,
-        .inputs = ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("Heightmap Patch Width") }}) //
+        .inputs = ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Heightmap Patch Width") }}) //
             ++
-            ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("Seed") }}) //
+            ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Seed") }}) //
             ++ //
-            ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("World Width") }}) //
+            ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
             ++ //
             ([_]g.NodeInputTemplate{.{}} ** 13),
-        .outputs = ([_]g.NodeOutputTemplate{.{ .name = g.IdLocal.init("Patches") }}) //
+        .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Patches") }}) //
             ++ //
             ([_]g.NodeOutputTemplate{.{}} ** 15),
     };
 
     const cityFunc = g.NodeFuncTemplate{
-        .name = g.IdLocal.init("city"),
+        .name = IdLocal.init("city"),
         .version = 0,
         .func = &funcTemplateCity,
-        .inputs = ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("Heightmap Patches") }}) //
+        .inputs = ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Heightmap Patches") }}) //
             ++
-            ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("Seed") }}) //
+            ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Seed") }}) //
             ++ //
-            ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("World Width") }}) //
+            ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
             ++ //
             ([_]g.NodeInputTemplate{.{}} ** 13),
-        .outputs = ([_]g.NodeOutputTemplate{.{ .name = g.IdLocal.init("Cities") }}) //
+        .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Cities") }}) //
             ++ //
             ([_]g.NodeOutputTemplate{.{}} ** 15),
     };
 
     // const imageSamplerFunc = g.NodeFuncTemplate{
-    //     .name = g.IdLocal.init("imageSampler"),
+    //     .name = IdLocal.init("imageSampler"),
     //     .version = 0,
     //     .func = &funcTemplateImageSampler,
-    //     .inputs = ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("Images") }}) //
+    //     .inputs = ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Images") }}) //
     //         ++
-    //         ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("Sample Span") }}) //
+    //         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Sample Span") }}) //
     //         ++ //
-    //         ([_]g.NodeInputTemplate{.{ .name = g.IdLocal.init("World Width") }}) //
+    //         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
     //         ++ //
     //         ([_]g.NodeInputTemplate{.{}} ** 13),
-    //     .outputs = ([_]g.NodeOutputTemplate{.{ .name = g.IdLocal.init("Patches") }}) //
+    //     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Patches") }}) //
     //         ++ //
     //         ([_]g.NodeOutputTemplate{.{}} ** 15),
     // };
 
     const numberNodeTemplate = g.NodeTemplate{
-        .name = g.IdLocal.init("Number"),
+        .name = IdLocal.init("Number"),
         .version = 0,
         .func = numberFunc,
     };
     const addNodeTemplate = g.NodeTemplate{
-        .name = g.IdLocal.init("Add"),
+        .name = IdLocal.init("Add"),
         .version = 0,
         .func = addFunc,
     };
     _ = addNodeTemplate;
 
     const heightmapNodeTemplate = g.NodeTemplate{
-        .name = g.IdLocal.init("Heightmap"),
+        .name = IdLocal.init("Heightmap"),
         .version = 0,
         .func = heightmapFunc,
     };
 
     const cityNodeTemplate = g.NodeTemplate{
-        .name = g.IdLocal.init("City"),
+        .name = IdLocal.init("City"),
         .version = 0,
         .func = cityFunc,
     };
 
     //
     var seedNode = g.Node{
-        .name = g.IdLocal.init("Seed"),
+        .name = IdLocal.init("Seed"),
         .template = numberNodeTemplate,
     };
     seedNode.init();
-    var seedInputValue = seedNode.getInput(g.IdLocal.init("value"));
+    var seedInputValue = seedNode.getInput(IdLocal.init("value"));
     seedInputValue.value = v.Variant.createUInt64(1);
-    var seedOutputValue = seedNode.getOutput(g.IdLocal.init("value"));
+    var seedOutputValue = seedNode.getOutput(IdLocal.init("value"));
     seedOutputValue.reference.set("seed");
 
     //
     var worldWidthNode = g.Node{
-        .name = g.IdLocal.init("World Width"),
+        .name = IdLocal.init("World Width"),
         .template = numberNodeTemplate,
     };
     worldWidthNode.init();
-    var worldWidthInputValue = worldWidthNode.getInput(g.IdLocal.init("value"));
+    var worldWidthInputValue = worldWidthNode.getInput(IdLocal.init("value"));
     worldWidthInputValue.value = v.Variant.createUInt64(1024 * 64);
     worldWidthInputValue.value = v.Variant.createUInt64(1024 * 8);
-    var worldWidthOutputValue = worldWidthNode.getOutput(g.IdLocal.init("value"));
+    var worldWidthOutputValue = worldWidthNode.getOutput(IdLocal.init("value"));
     worldWidthOutputValue.reference.set("worldWidth");
 
     //
     var patchWidthNode = g.Node{
-        .name = g.IdLocal.init("Patch Width"),
+        .name = IdLocal.init("Patch Width"),
         .template = numberNodeTemplate,
     };
     patchWidthNode.init();
-    var patchWidthInputValue = patchWidthNode.getInput(g.IdLocal.init("value"));
+    var patchWidthInputValue = patchWidthNode.getInput(IdLocal.init("value"));
     // patchWidthInputValue.value = v.Variant.createUInt64(256);
     patchWidthInputValue.value = v.Variant.createUInt64(1024);
-    var patchWidthOutputValue = patchWidthNode.getOutput(g.IdLocal.init("value"));
+    var patchWidthOutputValue = patchWidthNode.getOutput(IdLocal.init("value"));
     patchWidthOutputValue.reference.set("heightmapPatchWidth");
 
     //
     var heightmapNode = g.Node{
-        .name = g.IdLocal.init("Heightmap"),
+        .name = IdLocal.init("Heightmap"),
         .template = heightmapNodeTemplate,
         .allocator = std.heap.page_allocator,
         // .output_artifacts = true,
     };
     heightmapNode.init();
-    var heightmapPatchWidthInputValue = heightmapNode.getInput(g.IdLocal.init("Heightmap Patch Width"));
-    heightmapPatchWidthInputValue.reference = g.IdLocal.init("heightmapPatchWidth");
-    var heightmapSeedInputValue = heightmapNode.getInput(g.IdLocal.init("Seed"));
-    heightmapSeedInputValue.reference = g.IdLocal.init("seed");
-    var heightmapWorldWidthInputValue = heightmapNode.getInput(g.IdLocal.init("World Width"));
-    heightmapWorldWidthInputValue.reference = g.IdLocal.init("worldWidth");
-    var heightmapOutputValue = heightmapNode.getOutput(g.IdLocal.init("Patches"));
+    var heightmapPatchWidthInputValue = heightmapNode.getInput(IdLocal.init("Heightmap Patch Width"));
+    heightmapPatchWidthInputValue.reference = IdLocal.init("heightmapPatchWidth");
+    var heightmapSeedInputValue = heightmapNode.getInput(IdLocal.init("Seed"));
+    heightmapSeedInputValue.reference = IdLocal.init("seed");
+    var heightmapWorldWidthInputValue = heightmapNode.getInput(IdLocal.init("World Width"));
+    heightmapWorldWidthInputValue.reference = IdLocal.init("worldWidth");
+    var heightmapOutputValue = heightmapNode.getOutput(IdLocal.init("Patches"));
     heightmapOutputValue.reference.set("heightmapPatches");
 
     //
     var cityNode = g.Node{
-        .name = g.IdLocal.init("City"),
+        .name = IdLocal.init("City"),
         .template = cityNodeTemplate,
         .allocator = std.heap.page_allocator,
         .output_artifacts = true,
     };
     cityNode.init();
-    var cityPatchesInputValue = cityNode.getInput(g.IdLocal.init("Heightmap Patches"));
-    cityPatchesInputValue.reference = g.IdLocal.init("heightmapPatches");
-    var citySeedInputValue = cityNode.getInput(g.IdLocal.init("Seed"));
-    citySeedInputValue.reference = g.IdLocal.init("seed");
-    var cityWorldWidthInputValue = cityNode.getInput(g.IdLocal.init("World Width"));
-    cityWorldWidthInputValue.reference = g.IdLocal.init("worldWidth");
-    // var cityOutputValue = cityNode.getOutput(g.IdLocal.init("Cities"));
+    var cityPatchesInputValue = cityNode.getInput(IdLocal.init("Heightmap Patches"));
+    cityPatchesInputValue.reference = IdLocal.init("heightmapPatches");
+    var citySeedInputValue = cityNode.getInput(IdLocal.init("Seed"));
+    citySeedInputValue.reference = IdLocal.init("seed");
+    var cityWorldWidthInputValue = cityNode.getInput(IdLocal.init("World Width"));
+    cityWorldWidthInputValue.reference = IdLocal.init("worldWidth");
+    // var cityOutputValue = cityNode.getOutput(IdLocal.init("Cities"));
     // cityOutputValue.reference.set("cities");
 
     // var pcgNode = g.Node{
-    //     .name = g.IdLocal.init("pcg"),
+    //     .name = IdLocal.init("pcg"),
     //     .template = numberNodeTemplate,
     // };
     // pcgNode.init();
-    // var pcgInputValue = pcgNode.getInput(g.IdLocal.init("value"));
+    // var pcgInputValue = pcgNode.getInput(IdLocal.init("value"));
     // pcgInputValue.reference.set("seed");
-    // var pcgOutputValue = pcgNode.getOutput(g.IdLocal.init("value"));
+    // var pcgOutputValue = pcgNode.getOutput(IdLocal.init("value"));
     // pcgOutputValue.reference.set("pcg");
 
     // var addNode = g.Node{
-    //     .name = g.IdLocal.init("add"),
+    //     .name = IdLocal.init("add"),
     //     .template = addNodeTemplate,
     // };
     // addNode.init();
-    // var addInputValueA = addNode.getInput(g.IdLocal.init("valueA"));
+    // var addInputValueA = addNode.getInput(IdLocal.init("valueA"));
     // addInputValueA.value = 2;
-    // var addInputValueB = addNode.getInput(g.IdLocal.init("valueB"));
+    // var addInputValueB = addNode.getInput(IdLocal.init("valueB"));
     // addInputValueB.reference.set("pcg");
 
     var allocator = std.heap.page_allocator;

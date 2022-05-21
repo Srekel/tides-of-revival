@@ -18,7 +18,7 @@ const SystemState = struct {
 
 pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, window: glfw.Window) !SystemState {
     const gctx = gfxstate.gctx;
-    zgpu.gui.init(window, gctx.device, "content/", font, 12.0);
+    zgpu.gui.init(window, gctx.device, "content/", font, 20.0);
     return SystemState{
         .allocator = allocator,
         .gfx = gfxstate,
