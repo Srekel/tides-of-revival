@@ -42,7 +42,7 @@ pub fn draw(state: *GfxState) void {
     const gctx = state.gctx;
     if (gctx.present() == .swap_chain_resized) {
         // Release old depth texture.
-        gctx.destroyResource(state.depth_texture_view);
+        gctx.releaseResource(state.depth_texture_view);
         gctx.destroyResource(state.depth_texture);
 
         // Create a new depth texture to match the new window size.
