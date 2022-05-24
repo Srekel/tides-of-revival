@@ -4,6 +4,7 @@ const flecs = @import("flecs");
 
 const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
+const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const gui_system = @import("systems/gui_system.zig");
 const fd = @import("flecs_data.zig");
@@ -31,6 +32,8 @@ pub fn run() void {
     defer triangle_system.destroy(ts);
     var ts2 = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{1}), std.heap.page_allocator, &gfx_state, &world);
     defer triangle_system.destroy(ts2);
+    var pms = try procmesh_system.create(IdLocal.initFormat("procmesh_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
+    defer procmesh_system.destroy(pms);
     var gs = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
     defer gui_system.destroy(&gs);
 
