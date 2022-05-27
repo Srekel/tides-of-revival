@@ -52,7 +52,8 @@ const SystemState = struct {
     index_buffer: zgpu.BufferHandle,
 
     meshes: std.ArrayList(Mesh),
-    query: flecs.Query,
+    query_mesh: flecs.Query,
+    query_camera: flecs.Query,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -60,11 +61,7 @@ const SystemState = struct {
         pitch: f32 = 0.15 * math.pi,
         yaw: f32 = 0.0,
     } = .{},
-
-    lol: f32,
 };
-
-var lol: f32 = 0;
 
 fn appendMesh(
     mesh: zmesh.Shape,
@@ -218,11 +215,15 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     var state = allocator.create(SystemState) catch unreachable;
     var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
 
-    var query_builder = flecs.QueryBuilder.init(world.*)
+    // Queries
+    var query_builder_camera = flecs.QueryBuilder.init(world.*)
+        .withReadonly(fd.Camera);
+    var query_builder_mesh = flecs.QueryBuilder.init(world.*)
         .withReadonly(fd.Position)
         .withReadonly(fd.Mesh);
 
-    var query = query_builder.buildQuery();
+    var query_camera = query_builder_camera.buildQuery();
+    var query_mesh = query_builder_mesh.buildQuery();
 
     state.* = .{
         .allocator = allocator,
@@ -234,11 +235,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .bind_group = bind_group,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
-        .lol = lol,
         .meshes = meshes,
-        .query = query,
+        .query_mesh = query_mesh,
+        .query_camera = query_camera,
     };
-    lol += 0.2;
 
     world.observer(ObserverCallback, .on_set, state);
 
@@ -246,7 +246,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 }
 
 pub fn destroy(state: *SystemState) void {
-    state.query.deinit();
+    state.query_camera.deinit();
+    state.query_mesh.deinit();
     state.meshes.deinit();
     state.allocator.destroy(state);
 }
@@ -262,21 +263,29 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
     const gctx = state.gctx;
-    const fb_width = gctx.swapchain_descriptor.width;
-    const fb_height = gctx.swapchain_descriptor.height;
+    // const fb_width = gctx.swapchain_descriptor.width;
+    // const fb_height = gctx.swapchain_descriptor.height;
 
-    const cam_world_to_view = zm.lookAtLh(
-        zm.f32x4(3.0, 3.0, -3.0, 1.0),
-        zm.f32x4(0.0, 0.0, 0.0, 1.0),
-        zm.f32x4(0.0, 1.0, 0.0, 0.0),
-    );
-    const cam_view_to_clip = zm.perspectiveFovLh(
-        0.25 * math.pi,
-        @intToFloat(f32, fb_width) / @intToFloat(f32, fb_height),
-        0.01,
-        200.0,
-    );
-    const cam_world_to_clip = zm.mul(cam_world_to_view, cam_view_to_clip);
+    // const cam_world_to_view = zm.lookAtLh(
+    //     zm.f32x4(3.0, 3.0, -3.0, 1.0),
+    //     zm.f32x4(0.0, 0.0, 0.0, 1.0),
+    //     zm.f32x4(0.0, 1.0, 0.0, 0.0),
+    // );
+    // const cam_view_to_clip = zm.perspectiveFovLh(
+    //     0.25 * math.pi,
+    //     @intToFloat(f32, fb_width) / @intToFloat(f32, fb_height),
+    //     0.01,
+    //     200.0,
+    // );
+    // const cam_world_to_clip = zm.mul(cam_world_to_view, cam_view_to_clip);
+
+    var entity_iter_camera = state.query_camera.iterator(struct { cam: *const fd.Camera });
+    const camera_comps = entity_iter_camera.next().?;
+    _ = camera_comps;
+    const cam = camera_comps.cam;
+    // const cam_world_to_view = zm.loadMat(cam.world_to_view[0..]);
+    // const cam_view_to_clip = zm.loadMat(cam.view_to_clip[0..]);
+    const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
 
     const back_buffer_view = gctx.swapchain.getCurrentTextureView();
     defer back_buffer_view.release();
@@ -299,7 +308,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             };
             const depth_attachment = gpu.RenderPassDepthStencilAttachment{
                 .view = depth_view,
-                .depth_load_op = if (state.lol == 0) .clear else .load,
+                .depth_load_op = .clear, // else .load,
                 .depth_store_op = .store,
                 .depth_clear_value = 1.0,
             };
@@ -331,8 +340,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
             }
 
-            var entity_iter = state.query.iterator(struct { pos: *const fd.Position, mesh: *const fd.Mesh });
-            while (entity_iter.next()) |comps| {
+            var entity_iter_mesh = state.query_mesh.iterator(struct { pos: *const fd.Position, mesh: *const fd.Mesh });
+            while (entity_iter_mesh.next()) |comps| {
                 const object_to_world = zm.translationV(zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3));
 
                 const mem = gctx.uniformsAllocate(DrawUniforms, 1);
@@ -369,10 +378,9 @@ const ObserverCallback = struct {
     pub const run = onSetCIMesh;
 };
 
-// Observer that triggers when the component is actually removed
 fn onSetCIMesh(it: *flecs.Iterator(ObserverCallback)) void {
-    var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+    // var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
+    // var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
     while (it.next()) |_| {
         const mdptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CIMesh), @intCast(i32, it.index)).?;
         var md = @ptrCast(*fd.CIMesh, @alignCast(@alignOf(fd.CIMesh), mdptr));
