@@ -21,14 +21,13 @@ pub fn build(b: *Builder) void {
     exe.addPackage(glfw.pkg);
     exe.addPackage(zgpu.pkg);
     exe.addPackage(zmath.pkg);
-    exe.addPackage(zmesh.pkg);
     exe.addPackage(znoise.pkg);
 
     zgpu.link(exe, .{
         .glfw_options = .{},
         .gpu_dawn_options = .{ .from_source = true },
     });
-    zmesh.link(exe);
+    zmesh.link(exe, .{});
     znoise.link(exe);
 
     exe.install();
