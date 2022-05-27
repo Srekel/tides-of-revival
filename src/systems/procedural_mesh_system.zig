@@ -220,6 +220,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .withReadonly(fd.Camera);
     var query_builder_mesh = flecs.QueryBuilder.init(world.*)
         .withReadonly(fd.Position)
+        .withReadonly(fd.Scale)
         .withReadonly(fd.Mesh);
 
     var query_camera = query_builder_camera.buildQuery();
@@ -263,28 +264,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
     const gctx = state.gctx;
-    // const fb_width = gctx.swapchain_descriptor.width;
-    // const fb_height = gctx.swapchain_descriptor.height;
-
-    // const cam_world_to_view = zm.lookAtLh(
-    //     zm.f32x4(3.0, 3.0, -3.0, 1.0),
-    //     zm.f32x4(0.0, 0.0, 0.0, 1.0),
-    //     zm.f32x4(0.0, 1.0, 0.0, 0.0),
-    // );
-    // const cam_view_to_clip = zm.perspectiveFovLh(
-    //     0.25 * math.pi,
-    //     @intToFloat(f32, fb_width) / @intToFloat(f32, fb_height),
-    //     0.01,
-    //     200.0,
-    // );
-    // const cam_world_to_clip = zm.mul(cam_world_to_view, cam_view_to_clip);
-
     var entity_iter_camera = state.query_camera.iterator(struct { cam: *const fd.Camera });
     const camera_comps = entity_iter_camera.next().?;
     _ = camera_comps;
     const cam = camera_comps.cam;
-    // const cam_world_to_view = zm.loadMat(cam.world_to_view[0..]);
-    // const cam_view_to_clip = zm.loadMat(cam.view_to_clip[0..]);
     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
 
     const back_buffer_view = gctx.swapchain.getCurrentTextureView();
@@ -340,9 +323,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
             }
 
-            var entity_iter_mesh = state.query_mesh.iterator(struct { pos: *const fd.Position, mesh: *const fd.Mesh });
+            var entity_iter_mesh = state.query_mesh.iterator(struct { pos: *const fd.Position, scale: *const fd.Scale, mesh: *const fd.Mesh });
             while (entity_iter_mesh.next()) |comps| {
-                const object_to_world = zm.translationV(zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3));
+                const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
+                const object_to_world = zm.mul(zm.translationV(zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3)), scale_matrix);
 
                 const mem = gctx.uniformsAllocate(DrawUniforms, 1);
                 mem.slice[0].object_to_world = zm.transpose(object_to_world);

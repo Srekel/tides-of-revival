@@ -43,9 +43,13 @@ pub const Rotation = struct {
 };
 
 pub const Scale = struct {
-    x: f32,
-    y: f32,
-    z: f32,
+    x: f32 = 1,
+    y: f32 = 1,
+    z: f32 = 1,
+
+    pub fn createScalar(scale: f32) Scale {
+        return .{ .x = scale, .y = scale, .z = scale };
+    }
     pub fn elems(self: *Scale) *[3]f32 {
         return @ptrCast(*[3]f32, &self.x);
     }

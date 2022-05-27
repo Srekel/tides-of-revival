@@ -34,25 +34,29 @@ pub fn run() void {
     defer gui_system.destroy(&gui_sys);
 
     const entity1 = world.newEntity();
-    entity1.set(fd.Position{ .x = -1, .y = 1, .z = 0 });
-    entity1.set(fd.Velocity{ .x = 10, .y = 0.1, .z = 0 });
+    entity1.set(fd.Position{ .x = -1, .y = 0, .z = 0 });
+    entity1.set(fd.Scale{});
+    entity1.set(fd.Velocity{ .x = 10, .y = 0, .z = 0 });
     entity1.set(fd.CIMesh{
         .mesh_type = 0,
         .basecolor_roughness = .{ .r = 0.1, .g = 1.0, .b = 0.0, .roughness = 0.1 },
     });
+
     const entity2 = world.newEntity();
     entity2.set(fd.Position{ .x = 1, .y = 0, .z = 0 });
     entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
+
     const entity3 = world.newEntity();
-    entity3.set(fd.Position{ .x = 3, .y = 1, .z = 0 });
+    entity3.set(fd.Position{ .x = 3, .y = 0, .z = 0 });
+    entity3.set(fd.Scale.createScalar(2));
+    entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
     entity3.set(fd.CIMesh{
         .mesh_type = 0,
         .basecolor_roughness = .{ .r = 0.7, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     });
-    entity3.set(fd.Velocity{ .x = -10, .y = 1, .z = 0 });
 
     const camera_ent = world.newEntity();
-    camera_ent.set(fd.Position{ .x = 0, .y = 0, .z = 0 });
+    camera_ent.set(fd.Position{ .x = 0, .y = 0, .z = -10 });
     camera_ent.set(fd.CICamera{
         .lookat = .{ .x = 0, .y = 0, .z = 0 },
         .near = 0.1,
