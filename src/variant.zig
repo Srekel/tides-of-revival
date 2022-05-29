@@ -22,6 +22,10 @@ pub const IdLocal = struct {
         return res;
     }
 
+    pub fn id64(id: []const u8) u64 {
+        return std.hash.Wyhash.hash(0, id);
+    }
+
     pub fn set(id: *IdLocal, str: []const u8) void {
         if (str[0] == 0) {
             id.*.clear();
@@ -62,6 +66,9 @@ pub const IdLocal = struct {
         // todo memcmp
         const hash = std.hash.Wyhash(0, other);
         return self.hash == hash;
+    }
+    pub fn eqlHash(self: IdLocal, other: u64) bool {
+        return self.hash == other;
     }
 };
 

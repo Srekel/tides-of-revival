@@ -73,7 +73,7 @@ pub const ShapeMeshDefinition = struct {
 };
 
 pub const CIShapeMeshInstance = struct {
-    id: IdLocal,
+    id: u64,
     basecolor_roughness: ColorRGBRoughness,
 };
 pub const ShapeMeshInstance = struct {

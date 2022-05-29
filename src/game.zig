@@ -28,8 +28,10 @@ pub fn run() void {
     defer triangle_system.destroy(triangle_sys);
     // var ts2 = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{1}), std.heap.page_allocator, &gfx_state, &world);
     // defer triangle_system.destroy(ts2);
+
     var procmesh_sys = try procmesh_system.create(IdLocal.initFormat("procmesh_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
     defer procmesh_system.destroy(procmesh_sys);
+
     var gui_sys = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
     defer gui_system.destroy(&gui_sys);
 
@@ -38,7 +40,7 @@ pub fn run() void {
     entity1.set(fd.Scale{});
     entity1.set(fd.Velocity{ .x = 10, .y = 0, .z = 0 });
     entity1.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.init("sphere"),
+        .id = IdLocal.id64("sphere"),
         .basecolor_roughness = .{ .r = 0.1, .g = 1.0, .b = 0.0, .roughness = 0.1 },
     });
 
@@ -51,7 +53,7 @@ pub fn run() void {
     entity3.set(fd.Scale.createScalar(2));
     entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
     entity3.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.init("sphere"),
+        .id = IdLocal.id64("sphere"),
         .basecolor_roughness = .{ .r = 0.7, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     });
 
