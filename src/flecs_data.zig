@@ -1,6 +1,9 @@
 const zmath = @import("zmath");
 const window = @import("window.zig");
 const glfw = @import("glfw");
+const zmesh = @import("zmesh");
+
+const IdLocal = @import("variant.zig").IdLocal;
 
 pub const ColorRGB = struct { r: f32, g: f32, b: f32 };
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
@@ -60,11 +63,20 @@ pub const Scale = struct {
 
 pub const Velocity = struct { x: f32, y: f32, z: f32 };
 
-pub const CIMesh = struct {
-    mesh_type: u64,
+pub const CIShapeMeshDefinition = struct {
+    id: IdLocal,
+    shape: zmesh.Shape,
+};
+pub const ShapeMeshDefinition = struct {
+    id: IdLocal,
+    mesh_index: u64,
+};
+
+pub const CIShapeMeshInstance = struct {
+    id: IdLocal,
     basecolor_roughness: ColorRGBRoughness,
 };
-pub const Mesh = struct {
+pub const ShapeMeshInstance = struct {
     mesh_index: u64,
     basecolor_roughness: ColorRGBRoughness,
 };

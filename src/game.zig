@@ -37,8 +37,8 @@ pub fn run() void {
     entity1.set(fd.Position{ .x = -1, .y = 0, .z = 0 });
     entity1.set(fd.Scale{});
     entity1.set(fd.Velocity{ .x = 10, .y = 0, .z = 0 });
-    entity1.set(fd.CIMesh{
-        .mesh_type = 0,
+    entity1.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.init("sphere"),
         .basecolor_roughness = .{ .r = 0.1, .g = 1.0, .b = 0.0, .roughness = 0.1 },
     });
 
@@ -50,8 +50,8 @@ pub fn run() void {
     entity3.set(fd.Position{ .x = 3, .y = 0, .z = 0 });
     entity3.set(fd.Scale.createScalar(2));
     entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
-    entity3.set(fd.CIMesh{
-        .mesh_type = 0,
+    entity3.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.init("sphere"),
         .basecolor_roughness = .{ .r = 0.7, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     });
 
