@@ -24,8 +24,8 @@ pub fn run() void {
 
     var camera_sys = try camera_system.create(IdLocal.init("camera_system"), std.heap.page_allocator, &gfx_state, &world);
     defer camera_system.destroy(camera_sys);
-    var triangle_sys = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
-    defer triangle_system.destroy(triangle_sys);
+    // var triangle_sys = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
+    // defer triangle_system.destroy(triangle_sys);
     // var ts2 = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{1}), std.heap.page_allocator, &gfx_state, &world);
     // defer triangle_system.destroy(ts2);
 
@@ -72,10 +72,10 @@ pub fn run() void {
             break;
         }
 
-        gfx.update(&gfx_state);
-        gui_system.preUpdate(&gui_sys);
         const stats = gfx_state.gctx.stats;
         const dt = @floatCast(f32, stats.delta_time);
+        gfx.update(&gfx_state);
+        gui_system.preUpdate(&gui_sys);
 
         world.progress(dt);
         gui_system.update(&gui_sys);

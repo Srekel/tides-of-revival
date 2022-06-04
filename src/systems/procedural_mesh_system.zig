@@ -4,7 +4,7 @@ const math = std.math;
 
 const glfw = @import("glfw");
 const zgpu = @import("zgpu");
-const gpu = zgpu.gpu;
+const gpu = @import("gpu");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const flecs = @import("flecs");
@@ -248,6 +248,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    // var sys_post = world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
     var query_builder_camera = flecs.QueryBuilder.init(world.*)

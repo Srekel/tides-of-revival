@@ -2,7 +2,7 @@ const std = @import("std");
 const math = std.math;
 const glfw = @import("glfw");
 const zgpu = @import("zgpu");
-const gpu = zgpu.gpu;
+const gpu = @import("gpu");
 const zm = @import("zmath");
 
 pub const GfxState = struct {

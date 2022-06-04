@@ -32,7 +32,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     var query = query_builder.buildQuery();
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.ComponentData, update, .{ .ctx = state });
+    var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
         .world = world,
@@ -98,7 +98,7 @@ fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F
     zm.store(pos.elems()[0..], cpos, 3);
 }
 
-fn update(iter: *flecs.Iterator(fd.ComponentData)) void {
+fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     const dt4 = zm.f32x4s(iter.iter.delta_time);
 
@@ -158,6 +158,6 @@ fn onSetCICamera(it: *flecs.Iterator(ObserverCallback)) void {
             .near = ci.near,
             .window = ci.window,
         });
-        ent.set(fd.Forward{ .x = 0, .y = 0, .z = 0 });
+        ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
     }
 }

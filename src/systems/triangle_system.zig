@@ -143,7 +143,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, u32, index_data[0..]);
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.ComponentData, update, .{ .ctx = state });
+    var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
         .world = world,
@@ -164,7 +164,7 @@ pub fn destroy(state: *SystemState) void {
     state.allocator.destroy(state);
 }
 
-fn update(iter: *flecs.Iterator(fd.ComponentData)) void {
+fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
     const gctx = state.gctx;
