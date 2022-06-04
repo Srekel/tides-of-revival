@@ -5,6 +5,7 @@ const flecs = @import("flecs");
 const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
 const camera_system = @import("systems/camera_system.zig");
+const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const gui_system = @import("systems/gui_system.zig");
@@ -32,35 +33,60 @@ pub fn run() void {
     var procmesh_sys = try procmesh_system.create(IdLocal.initFormat("procmesh_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
     defer procmesh_system.destroy(procmesh_sys);
 
+    var physics_sys = try physics_system.create(IdLocal.init("physics_system_{}"), std.heap.page_allocator, &world);
+    defer physics_system.destroy(physics_sys);
+
     var gui_sys = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
     defer gui_system.destroy(&gui_sys);
 
-    const entity1 = world.newEntity();
-    entity1.set(fd.Position{ .x = -1, .y = 0, .z = 0 });
-    entity1.set(fd.Scale{});
-    entity1.set(fd.Velocity{ .x = 10, .y = 0, .z = 0 });
-    entity1.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("sphere"),
-        .basecolor_roughness = .{ .r = 0.1, .g = 1.0, .b = 0.0, .roughness = 0.1 },
-    });
+    // const entity1 = world.newEntity();
+    // entity1.set(fd.Position{ .x = -1, .y = 0, .z = 0 });
+    // entity1.set(fd.Scale{});
+    // entity1.set(fd.Velocity{ .x = 10, .y = 0, .z = 0 });
+    // entity1.set(fd.CIShapeMeshInstance{
+    //     .id = IdLocal.id64("sphere"),
+    //     .basecolor_roughness = .{ .r = 0.1, .g = 1.0, .b = 0.0, .roughness = 0.1 },
+    // });
 
-    const entity2 = world.newEntity();
-    entity2.set(fd.Position{ .x = 1, .y = 0, .z = 0 });
-    entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
+    // const entity2 = world.newEntity();
+    // entity2.set(fd.Position{ .x = 1, .y = 0, .z = 0 });
+    // entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
 
     const entity3 = world.newEntity();
-    entity3.set(fd.Position{ .x = 3, .y = 0, .z = 0 });
-    entity3.set(fd.Scale.createScalar(2));
-    entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
+    entity3.set(fd.Transform.init(3.5, 10, 0.5));
+    // entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
     entity3.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("sphere"),
         .basecolor_roughness = .{ .r = 0.7, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     });
+    entity3.set(fd.CIPhysicsBody{
+        .shape_type = .sphere,
+        .mass = 1,
+        .sphere = .{ .radius = 1 },
+    });
+
+    var x: f32 = -1;
+    while (x < 10) : (x += 1) {
+        var z: f32 = -1;
+        while (z < 10) : (z += 1) {
+            const entity = world.newEntity();
+            entity.set(fd.Transform.init(x, 0, z));
+            entity.set(fd.CIShapeMeshInstance{
+                .id = IdLocal.id64("sphere"),
+                .basecolor_roughness = .{ .r = 0.3, .g = 0.5, .b = 0.2, .roughness = 0.8 },
+            });
+            entity.set(fd.CIPhysicsBody{
+                .shape_type = .sphere,
+                .mass = 0,
+                .sphere = .{ .radius = 1 },
+            });
+        }
+    }
 
     const camera_ent = world.newEntity();
-    camera_ent.set(fd.Position{ .x = 0, .y = 0, .z = -10 });
+    camera_ent.set(fd.Position{ .x = 0, .y = 2, .z = -30 });
     camera_ent.set(fd.CICamera{
-        .lookat = .{ .x = 0, .y = 0, .z = 0 },
+        .lookat = .{ .x = 0, .y = 1, .z = 30 },
         .near = 0.1,
         .far = 1000,
         .window = main_window,

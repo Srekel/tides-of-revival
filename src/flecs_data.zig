@@ -1,9 +1,11 @@
-const zmath = @import("zmath");
 const window = @import("window.zig");
 const glfw = @import("glfw");
+const zbt = @import("zbullet");
+const zmath = @import("zmath");
 const zmesh = @import("zmesh");
 
 const IdLocal = @import("variant.zig").IdLocal;
+pub const NOCOMP = struct {};
 
 pub const ColorRGB = struct { r: f32, g: f32, b: f32 };
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
@@ -61,7 +63,38 @@ pub const Scale = struct {
     }
 };
 
+pub const Transform = struct {
+    matrix: [12]f32 = undefined,
+
+    pub fn init(x: f32, y: f32, z: f32) Transform {
+        return .{
+            .matrix = [_]f32{
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
+                x,   y,   z,
+            },
+        };
+    }
+    // pub fn createScalar(scale: f32) Scale {
+    //     return .{ .x = scale, .y = scale, .z = scale };
+    // }
+    // pub fn elems(self: *Scale) *[3]f32 {
+    //     return @ptrCast(*[3]f32, &self.x);
+    // }
+    // pub fn elemsConst(self: *const Scale) *const [3]f32 {
+    //     return @ptrCast(*const [3]f32, &self.x);
+    // }
+};
+
 pub const Velocity = struct { x: f32, y: f32, z: f32 };
+
+// ███╗   ███╗███████╗███████╗██╗  ██╗
+// ████╗ ████║██╔════╝██╔════╝██║  ██║
+// ██╔████╔██║█████╗  ███████╗███████║
+// ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║
+// ██║ ╚═╝ ██║███████╗███████║██║  ██║
+// ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
 pub const CIShapeMeshDefinition = struct {
     id: IdLocal,
@@ -99,5 +132,25 @@ pub const Camera = struct {
     cursor_known: glfw.Window.CursorPos = .{ .xpos = 0.0, .ypos = 0.0 },
 };
 
-pub const NOCOMP = struct {};
-pub const ComponentData = struct { pos: *Position, vel: *Velocity };
+// ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
+// ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝
+// ██████╔╝███████║ ╚████╔╝ ███████╗██║██║     ███████╗
+// ██╔═══╝ ██╔══██║  ╚██╔╝  ╚════██║██║██║     ╚════██║
+// ██║     ██║  ██║   ██║   ███████║██║╚██████╗███████║
+// ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝ ╚═════╝╚══════╝
+
+pub const CIPhysicsBody = struct {
+    mass: f32,
+    shape_type: enum {
+        box,
+        sphere,
+    },
+
+    box: struct { size: f32 } = undefined,
+    sphere: struct { radius: f32 } = undefined,
+};
+pub const PhysicsBody = struct {
+    body: *const zbt.Body,
+};
+
+// pub const ComponentData = struct { pos: *Position, vel: *Velocity };
