@@ -68,7 +68,5 @@ pub fn update(state: *SystemState) void {
 
         break :commands encoder.finish(null);
     };
-    defer commands.release();
-
-    gctx.submit(&.{commands});
+    state.gfx.command_buffers.append(commands) catch unreachable;
 }

@@ -10,6 +10,7 @@ pub const GfxState = struct {
     gctx: *zgpu.GraphicsContext,
     depth_texture: zgpu.TextureHandle,
     depth_texture_view: zgpu.TextureViewHandle,
+    command_buffers: std.ArrayList(gpu.CommandBuffer),
 };
 
 pub fn init(allocator: std.mem.Allocator, window: glfw.Window) !GfxState {
@@ -24,6 +25,7 @@ pub fn init(allocator: std.mem.Allocator, window: glfw.Window) !GfxState {
         .gctx = gctx,
         .depth_texture = depth.texture,
         .depth_texture_view = depth.view,
+        .command_buffers = std.ArrayList(gpu.CommandBuffer).init(allocator),
     };
 }
 
@@ -40,6 +42,12 @@ pub fn update(state: *GfxState) void {
 
 pub fn draw(state: *GfxState) void {
     const gctx = state.gctx;
+    gctx.submit(state.command_buffers.items);
+    for (state.command_buffers.items) |cmd| {
+        cmd.release();
+    }
+    state.command_buffers.clearRetainingCapacity();
+
     if (gctx.present() == .swap_chain_resized) {
         // Release old depth texture.
         gctx.releaseResource(state.depth_texture_view);
