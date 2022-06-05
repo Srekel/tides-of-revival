@@ -1,6 +1,7 @@
 const std = @import("std");
 const args = @import("args");
 const flecs = @import("flecs");
+const RndGen = std.rand.DefaultPrng;
 
 const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
@@ -23,6 +24,9 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state);
 
+    var physics_sys = try physics_system.create(IdLocal.init("physics_system_{}"), std.heap.page_allocator, &world);
+    defer physics_system.destroy(physics_sys);
+
     var camera_sys = try camera_system.create(IdLocal.init("camera_system"), std.heap.page_allocator, &gfx_state, &world);
     defer camera_system.destroy(camera_sys);
     // var triangle_sys = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
@@ -32,9 +36,6 @@ pub fn run() void {
 
     var procmesh_sys = try procmesh_system.create(IdLocal.initFormat("procmesh_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
     defer procmesh_system.destroy(procmesh_sys);
-
-    var physics_sys = try physics_system.create(IdLocal.init("physics_system_{}"), std.heap.page_allocator, &world);
-    defer physics_system.destroy(physics_sys);
 
     var gui_sys = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
     defer gui_system.destroy(&gui_sys);
@@ -53,7 +54,8 @@ pub fn run() void {
     // entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
 
     const entity3 = world.newEntity();
-    entity3.set(fd.Transform.init(3.5, 10, 0.5));
+    entity3.set(fd.Transform.init(3.4, 10, 0.6));
+    entity3.set(fd.Scale.createScalar(0.5));
     // entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
     entity3.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("sphere"),
@@ -62,15 +64,21 @@ pub fn run() void {
     entity3.set(fd.CIPhysicsBody{
         .shape_type = .sphere,
         .mass = 1,
-        .sphere = .{ .radius = 1 },
+        .sphere = .{ .radius = 0.5 },
     });
 
+    var rnd = RndGen.init(0);
     var x: f32 = -1;
     while (x < 10) : (x += 1) {
         var z: f32 = -1;
         while (z < 10) : (z += 1) {
             const entity = world.newEntity();
-            entity.set(fd.Transform.init(x, 0, z));
+            entity.set(fd.Transform.init(
+                x + rnd.random().float(f32) * 0.5,
+                0 + rnd.random().float(f32) * 0.5,
+                z + rnd.random().float(f32) * 0.5,
+            ));
+            entity.set(fd.Scale.createScalar(1));
             entity.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("sphere"),
                 .basecolor_roughness = .{ .r = 0.3, .g = 0.5, .b = 0.2, .roughness = 0.8 },

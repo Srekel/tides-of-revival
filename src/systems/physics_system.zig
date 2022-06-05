@@ -75,7 +75,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     while (entity_iter.next()) |comps| {
         var body_comp = comps.PhysicsBody;
         var body = body_comp.body;
-        // _ = body;
+        _ = body;
         // body = body;
         // var transform: [12]f32 = undefined;
         body.getGraphicsWorldTransform(&comps.transform.matrix);
@@ -127,6 +127,8 @@ fn onSetCIPhysicsBody(it: *flecs.Iterator(ObserverCallback)) void {
         );
 
         body.setDamping(0.1, 0.1);
+        body.setRestitution(0.5);
+        body.setFriction(0.2);
 
         state.physics_world.addBody(body);
 

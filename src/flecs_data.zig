@@ -76,6 +76,16 @@ pub const Transform = struct {
             },
         };
     }
+    pub fn initWithScale(x: f32, y: f32, z: f32, scale: f32) Transform {
+        return .{
+            .matrix = [_]f32{
+                scale, 0.0,   0.0,
+                0.0,   scale, 0.0,
+                0.0,   0.0,   scale,
+                x,     y,     z,
+            },
+        };
+    }
     // pub fn createScalar(scale: f32) Scale {
     //     return .{ .x = scale, .y = scale, .z = scale };
     // }

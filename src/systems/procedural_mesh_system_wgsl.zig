@@ -129,6 +129,7 @@ pub const fs = common ++
 \\      var color = ambient + lo;
 \\      color = color / (color + 1.0);
 \\      color = pow(color, vec3(1.0 / 2.2));
+\\      return vec4(color, 1.0);
 \\
 \\      // wireframe
 \\      var barys = barycentrics;

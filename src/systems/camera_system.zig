@@ -69,7 +69,7 @@ fn updateLook(cam: *fd.Camera) void {
 
 fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F32x4) void {
     const window = cam.window;
-    var speed_scalar: f32 = 500.0;
+    var speed_scalar: f32 = 5.0;
     if (window.getKey(.left_shift) == .press) {
         speed_scalar *= 10;
     }
