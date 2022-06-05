@@ -69,16 +69,17 @@ pub fn run() void {
 
     var rnd = RndGen.init(0);
     var x: f32 = -1;
-    while (x < 10) : (x += 1) {
+    while (x < 20) : (x += 1) {
         var z: f32 = -1;
-        while (z < 10) : (z += 1) {
+        while (z < 20) : (z += 1) {
+            const scale = 0.5 + rnd.random().float(f32) * 5;
             const entity = world.newEntity();
             entity.set(fd.Transform.init(
-                x + rnd.random().float(f32) * 0.5,
-                0 + rnd.random().float(f32) * 0.5,
-                z + rnd.random().float(f32) * 0.5,
+                x * 1.5 + rnd.random().float(f32) * 0.5,
+                0 * 1.5 + rnd.random().float(f32) * 0.5 + 0.5 - scale,
+                z * 1.5 + rnd.random().float(f32) * 0.5,
             ));
-            entity.set(fd.Scale.createScalar(1));
+            entity.set(fd.Scale.createScalar(scale));
             entity.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("sphere"),
                 .basecolor_roughness = .{ .r = 0.3, .g = 0.5, .b = 0.2, .roughness = 0.8 },
@@ -86,7 +87,7 @@ pub fn run() void {
             entity.set(fd.CIPhysicsBody{
                 .shape_type = .sphere,
                 .mass = 0,
-                .sphere = .{ .radius = 1 },
+                .sphere = .{ .radius = scale },
             });
         }
     }
