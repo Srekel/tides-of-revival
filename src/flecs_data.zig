@@ -14,6 +14,9 @@ pub const Position = struct {
     x: f32,
     y: f32,
     z: f32,
+    pub fn init(x: f32, y: f32, z: f32) Position {
+        return .{ .x = x, .y = y, .z = z };
+    }
     pub fn elems(self: *Position) *[3]f32 {
         return @ptrCast(*[3]f32, &self.x);
     }

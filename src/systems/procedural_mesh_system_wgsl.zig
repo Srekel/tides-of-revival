@@ -86,20 +86,20 @@ pub const fs = common ++
 \\      f0 = mix(f0, base_color, metallic);
 \\
 \\      let light_positions = array<vec3<f32>, 4>(
-\\          vec3(25.0, 15.0, 25.0),
+\\          vec3(5.0, 100.0, 15.0),
 \\          vec3(-25.0, 15.0, 25.0),
 \\          vec3(25.0, 15.0, -25.0),
 \\          vec3(-25.0, 15.0, -25.0),
 \\      );
 \\      let light_radiance = array<vec3<f32>, 4>(
-\\          4.0 * vec3(0.0, 100.0, 250.0),
-\\          8.0 * vec3(200.0, 150.0, 250.0),
-\\          3.0 * vec3(200.0, 0.0, 0.0),
-\\          9.0 * vec3(200.0, 150.0, 0.0),
+\\          40.0 * vec3(200.0, 200.0, 250.0),
+\\          4.0 * vec3(200.0, 200.0, 250.0),
+\\          4.0 * vec3(200.0, 200.0, 250.0),
+\\          4.0 * vec3(200.0, 200.0, 250.0),
 \\      );
 \\
 \\      var lo = vec3(0.0);
-\\      for (var light_index: i32 = 0; light_index < 4; light_index = light_index + 1) {
+\\      for (var light_index: i32 = 0; light_index < 1; light_index = light_index + 1) {
 \\          let lvec = light_positions[light_index] - position;
 \\
 \\          let l = normalize(lvec);

@@ -5,13 +5,15 @@ const gfx = @import("../gfx_wgpu.zig");
 const zgpu = @import("zgpu");
 const glfw = @import("glfw");
 const zm = @import("zmath");
+const zbt = @import("zbullet");
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    world: *flecs.World,
+    flecs_world: *flecs.World,
+    physics_world: *const zbt.World,
     sys: flecs.EntityId,
 
     // gfx: *gfx.GfxState,
@@ -21,10 +23,10 @@ const SystemState = struct {
     // Camera movement, TODO move to other system
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, world: *flecs.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: *const zbt.World) !*SystemState {
     const gctx = gfxstate.gctx;
 
-    var query_builder = flecs.QueryBuilder.init(world.*)
+    var query_builder = flecs.QueryBuilder.init(flecs_world.*)
         .with(fd.Camera)
         .with(fd.Position)
         .with(fd.Forward);
@@ -32,16 +34,17 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     var query = query_builder.buildQuery();
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
-        .world = world,
+        .flecs_world = flecs_world,
+        .physics_world = physics_world,
         .sys = sys,
         .gctx = gctx,
         .query = query,
     };
 
-    world.observer(ObserverCallback, .on_set, state);
+    flecs_world.observer(ObserverCallback, .on_set, state);
 
     return state;
 }
@@ -73,6 +76,9 @@ fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F
     if (window.getKey(.left_shift) == .press) {
         speed_scalar *= 10;
     }
+    if (window.getKey(.left_control) == .press) {
+        speed_scalar *= 0.1;
+    }
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.mul(zm.rotationX(cam.pitch), zm.rotationY(cam.yaw));
     var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
@@ -98,6 +104,24 @@ fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F
     zm.store(pos.elems()[0..], cpos, 3);
 }
 
+fn updateSnapToTerrain(state: *SystemState, pos: *fd.Position) void {
+    var ray_result: zbt.RayCastResult = undefined;
+    const ray_origin = pos;
+    const ray_end = fd.Position.init(pos.x, pos.y - 10, pos.z);
+    const hit = state.physics_world.rayTestClosest(
+        ray_origin.elems()[0..],
+        ray_end.elemsConst()[0..],
+        .{ .default = true }, // zbt.CBT_COLLISION_FILTER_DEFAULT,
+        -1, // zbt.CBT_COLLISION_FILTER_ALL,
+        .{ .use_gjk_convex_test = true }, // zbt.CBT_RAYCAST_FLAG_USE_GJK_CONVEX_TEST,
+        &ray_result,
+    );
+
+    if (hit) {
+        pos.y = ray_result.hit_point_world[1] + 0.2;
+    }
+}
+
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     const dt4 = zm.f32x4s(iter.iter.delta_time);
@@ -117,6 +141,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
         updateLook(cam);
         updateMovement(cam, comps.pos, comps.fwd, dt4);
+        updateSnapToTerrain(state, comps.pos);
 
         const world_to_view = zm.lookToLh(
             zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3),

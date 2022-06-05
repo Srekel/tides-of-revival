@@ -27,8 +27,9 @@ pub fn run() void {
     var physics_sys = try physics_system.create(IdLocal.init("physics_system_{}"), std.heap.page_allocator, &world);
     defer physics_system.destroy(physics_sys);
 
-    var camera_sys = try camera_system.create(IdLocal.init("camera_system"), std.heap.page_allocator, &gfx_state, &world);
+    var camera_sys = try camera_system.create(IdLocal.init("camera_system"), std.heap.page_allocator, &gfx_state, &world, physics_sys.physics_world);
     defer camera_system.destroy(camera_sys);
+
     // var triangle_sys = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &world);
     // defer triangle_system.destroy(triangle_sys);
     // var ts2 = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{1}), std.heap.page_allocator, &gfx_state, &world);
@@ -76,13 +77,18 @@ pub fn run() void {
             const entity = world.newEntity();
             entity.set(fd.Transform.init(
                 x * 1.5 + rnd.random().float(f32) * 0.5,
-                0 * 1.5 + rnd.random().float(f32) * 0.5 + 0.5 - scale,
+                0 * 1.5 + rnd.random().float(f32) * 1 + 0.5 - scale + @sin(x * 0.4) + @cos(z * 0.25),
                 z * 1.5 + rnd.random().float(f32) * 0.5,
             ));
             entity.set(fd.Scale.createScalar(scale));
             entity.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("sphere"),
-                .basecolor_roughness = .{ .r = 0.3, .g = 0.5, .b = 0.2, .roughness = 0.8 },
+                .basecolor_roughness = .{
+                    .r = 0.1 + rnd.random().float(f32) * 0.3,
+                    .g = 0.3 + rnd.random().float(f32) * 0.5,
+                    .b = 0.1 + rnd.random().float(f32) * 0.1,
+                    .roughness = 1.0,
+                },
             });
             entity.set(fd.CIPhysicsBody{
                 .shape_type = .sphere,
