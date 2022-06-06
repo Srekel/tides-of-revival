@@ -67,7 +67,7 @@ const Mesh = struct {
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    world: *flecs.World,
+    flecs_world: *flecs.World,
     sys: flecs.EntityId,
     // init: SystemInit,
 
@@ -142,7 +142,7 @@ fn initScene(
     }
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, world: *flecs.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World) !*SystemState {
     const gctx = gfxstate.gctx;
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -247,13 +247,13 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, IndexType, meshes_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
-    // var sys_post = world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
+    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    // var sys_post = flecs_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_camera = flecs.QueryBuilder.init(world.*)
+    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
         .withReadonly(fd.Camera);
-    var query_builder_mesh = flecs.QueryBuilder.init(world.*)
+    var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*)
         .withReadonly(fd.Transform)
         .withReadonly(fd.Scale)
         .withReadonly(fd.ShapeMeshInstance);
@@ -263,7 +263,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
     state.* = .{
         .allocator = allocator,
-        .world = world,
+        .flecs_world = flecs_world,
         .sys = sys,
         .gfx = gfxstate,
         .gctx = gctx,
@@ -276,8 +276,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .query_camera = query_camera,
     };
 
-    // world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
-    world.observer(ShapeMeshInstanceObserverCallback, .on_set, state);
+    // flecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
+    flecs_world.observer(ShapeMeshInstanceObserverCallback, .on_set, state);
 
     return state;
 }
