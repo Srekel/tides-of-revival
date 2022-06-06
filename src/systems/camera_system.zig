@@ -112,7 +112,7 @@ fn updateSnapToTerrain(state: *SystemState, pos: *fd.Position) void {
         ray_origin.elems()[0..],
         ray_end.elemsConst()[0..],
         .{ .default = true }, // zbt.CBT_COLLISION_FILTER_DEFAULT,
-        -1, // zbt.CBT_COLLISION_FILTER_ALL,
+        zbt.CollisionFilter.all,
         .{ .use_gjk_convex_test = true }, // zbt.CBT_RAYCAST_FLAG_USE_GJK_CONVEX_TEST,
         &ray_result,
     );
