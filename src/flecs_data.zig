@@ -166,4 +166,21 @@ pub const PhysicsBody = struct {
     body: *const zbt.Body,
 };
 
+// ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗
+// ╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔══██╗██║████╗  ██║
+//    ██║   █████╗  ██████╔╝██████╔╝███████║██║██╔██╗ ██║
+//    ██║   ██╔══╝  ██╔══██╗██╔══██╗██╔══██║██║██║╚██╗██║
+//    ██║   ███████╗██║  ██║██║  ██║██║  ██║██║██║ ╚████║
+//    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
+
+pub const patch_width = 512;
+
+pub const TerrainPatchLookup = struct {
+    lookup: u8 = undefined,
+};
+
+pub const WorldLoader = struct {
+    range: i32 = undefined,
+};
+
 // pub const ComponentData = struct { pos: *Position, vel: *Velocity };
