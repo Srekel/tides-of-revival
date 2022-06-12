@@ -243,11 +243,11 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
 
                 if (node.output_artifacts) {
                     // const hm = output_data.patches[0];
-                    const hmimg = img.image.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.Grayscale8, img.ImageFormat.Pgm) catch unreachable;
+                    const hmimg = img.image.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8, img.ImageFormat.pgm) catch unreachable;
                     // _ = hm;
                     _ = hmimg;
                     for (heightmap) |pixel, i| {
-                        hmimg.pixels.?.Grayscale8[i].value = @intCast(u8, pixel / 255);
+                        hmimg.pixels.?.grayscale8[i].value = @intCast(u8, pixel / 255);
                     }
 
                     var namebuf: [256]u8 = undefined;
@@ -485,8 +485,8 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
 
         const image_width = 8192;
         const stride = @intCast(i64, @divExact(world_width, image_width));
-        const hmimg = img.image.Image.create(context.frame_allocator, image_width, image_width, img.PixelFormat.Rgba32, img.ImageFormat.Qoi) catch unreachable;
-        const pixels = hmimg.pixels.?.Rgba32;
+        const hmimg = img.image.Image.create(context.frame_allocator, image_width, image_width, img.PixelFormat.rgba32, img.ImageFormat.qoi) catch unreachable;
+        const pixels = hmimg.pixels.?.rgba32;
         var pixels_index: u64 = 0;
 
         world_y = 0;
@@ -535,32 +535,32 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
                     while (world_patch_x < patch_width) : (world_patch_x += stride) {
                         pixels_index = @intCast(u64, @divFloor(world_x + world_patch_x, stride) + @divFloor((world_y + world_patch_y) * image_width, stride));
                         const height = @intCast(u8, patches.getHeight(world_x + world_patch_x, world_y + world_patch_y) / 255);
-                        pixels[pixels_index].R = height;
-                        pixels[pixels_index].G = height;
-                        pixels[pixels_index].B = height;
-                        pixels[pixels_index].A = 255;
+                        pixels[pixels_index].r = height;
+                        pixels[pixels_index].g = height;
+                        pixels[pixels_index].b = height;
+                        pixels[pixels_index].a = 255;
                         if (height < 80) {
-                            pixels[pixels_index].R = 50 + height / 2;
-                            pixels[pixels_index].G = 50 + height / 2;
-                            pixels[pixels_index].B = 90 + height * 2;
+                            pixels[pixels_index].r = 50 + height / 2;
+                            pixels[pixels_index].g = 50 + height / 2;
+                            pixels[pixels_index].b = 90 + height * 2;
                         } else if (height > 200) {
-                            pixels[pixels_index].R = 140 + (height - 200) * 2;
-                            pixels[pixels_index].G = 140 + (height - 200) * 2;
-                            pixels[pixels_index].B = 140 + (height - 200) * 2;
+                            pixels[pixels_index].r = 140 + (height - 200) * 2;
+                            pixels[pixels_index].g = 140 + (height - 200) * 2;
+                            pixels[pixels_index].b = 140 + (height - 200) * 2;
                         } else {
-                            pixels[pixels_index].R = 20 + height / 2;
-                            pixels[pixels_index].G = 50 + height / 2;
-                            pixels[pixels_index].B = 20 + height / 2;
+                            pixels[pixels_index].r = 20 + height / 2;
+                            pixels[pixels_index].g = 50 + height / 2;
+                            pixels[pixels_index].b = 20 + height / 2;
                         }
 
                         if (@intCast(u64, (world_x + world_patch_x)) % (patch_width * 4) < 32 or @intCast(u64, (world_y + world_patch_y)) % (patch_width * 4) < 32) {
-                            pixels[pixels_index].R -= 5;
-                            pixels[pixels_index].G -= 5;
-                            pixels[pixels_index].B -= 5;
+                            pixels[pixels_index].r -= 5;
+                            pixels[pixels_index].g -= 5;
+                            pixels[pixels_index].b -= 5;
                         } else if (@intCast(u64, (world_x + world_patch_x)) % patch_width < 4 or @intCast(u64, (world_y + world_patch_y)) % patch_width < 4) {
-                            pixels[pixels_index].R -= 5;
-                            pixels[pixels_index].G -= 5;
-                            pixels[pixels_index].B -= 5;
+                            pixels[pixels_index].r -= 5;
+                            pixels[pixels_index].g -= 5;
+                            pixels[pixels_index].b -= 5;
                         }
                     }
                 }
@@ -580,13 +580,13 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
                         pixels_index = @intCast(u64, @divFloor(pos[0] + city_x, stride) + @divFloor((pos[1] + city_y) * image_width, stride));
                         // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[1] + 0) * image_width, stride));
                         // const height = patches.getHeight(pos[0],pos[1]);
-                        const height = pixels[pixels_index].R;
+                        const height = pixels[pixels_index].r;
                         const add = std.math.min(100, 255 - height);
-                        const sub = std.math.min(add, std.math.min(20, pixels[pixels_index].B));
-                        pixels[pixels_index].R += if (is_border) add else add / 2;
+                        const sub = std.math.min(add, std.math.min(20, pixels[pixels_index].b));
+                        pixels[pixels_index].r += if (is_border) add else add / 2;
                         // pixels[pixels_index].R = pixels[pixels_index].R / 2;
-                        pixels[pixels_index].G -= sub;
-                        pixels[pixels_index].B -= sub;
+                        pixels[pixels_index].g -= sub;
+                        pixels[pixels_index].b -= sub;
                     }
                 }
             }
