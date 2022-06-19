@@ -21,6 +21,7 @@ const TerrainGfxState = struct {
     vertex_buffer: zgpu.BufferHandle,
     index_buffer: zgpu.BufferHandle,
     meshes: std.ArrayList(Mesh),
+    base_vertices: [fd.patch_width * fd.patch_width]f32,
 
     pub fn init(allocator: Allocator) void {
         var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -51,15 +52,38 @@ const TerrainGfxState = struct {
                 .blend = &.{ .color = .{}, .alpha = .{} },
             };
 
-            const vertex_attributes = [_]gpu.VertexAttribute{
-                .{ .format = .float32x3, .offset = 0, .shader_location = 0 },
+            // Specs_guy — 06/10/2022
+            // Separate heights/normals is probably better, since the positions will likely stay in cache for reuse.  If you set it up for instancing, that's extra good, because then you could do culling on the GPU if you have lots of them.
+            // It also generalizes nicely to mesh shaders 😛
+            // Srekel — 06/10/2022
+            // Do you mean as separate buffers?
+            // Specs_guy — 06/10/2022
+            // Yeah, you have:
+            // - index buffer: shared between all meshes
+            // - xy position buffer: shared between all meshes
+            // - height/normal buffer: unique for each mesh OR shared with instance offsets
+            // If you're targeting mobile, separate the height and normal buffers for faster binning.
+
+            const base_vertex_attributes = [_]gpu.VertexAttribute{
+                .{ .format = .float32x2, .offset = 0, .shader_location = 0 },
                 .{ .format = .float32x3, .offset = @offsetOf(Vertex, "normal"), .shader_location = 1 },
             };
-            const vertex_buffer_layout = gpu.VertexBufferLayout{
-                .array_stride = @sizeOf(Vertex),
-                .step_mode = .instanced,
-                .attribute_count = vertex_attributes.len,
-                .attributes = &vertex_attributes,
+            const base_vertex_buffer_layout = gpu.VertexBufferLayout{
+                .array_stride = 2 * @sizeOf(f32),
+                // .step_mode = .instanced,
+                .attribute_count = base_vertex_attributes.len,
+                .attributes = &base_vertex_attributes,
+            };
+
+            const patch_vertex_attributes = [_]gpu.VertexAttribute{
+                .{ .format = .float32, .offset = 0, .shader_location = 1 },
+                // .{ .format = .float32x33 .offset = @offsetOf(Vertex, "normal"), .shader_location = 1 },
+            };
+            const patch_vertex_buffer_layout = gpu.VertexBufferLayout{
+                .array_stride = @sizeOf(f32),
+                // .step_mode = .instanced,
+                .attribute_count = patch_vertex_attributes.len,
+                .attributes = &patch_vertex_attributes,
             };
 
             // Create a render pipeline.
@@ -67,7 +91,10 @@ const TerrainGfxState = struct {
                 .vertex = gpu.VertexState{
                     .module = vs_module,
                     .entry_point = "main",
-                    .buffers = &.{vertex_buffer_layout},
+                    .buffers = &.{
+                        base_vertex_attributes,
+                        patch_vertex_attributes,
+                    },
                 },
                 .primitive = gpu.PrimitiveState{
                     .front_face = .cw,
@@ -89,17 +116,14 @@ const TerrainGfxState = struct {
         };
 
         const bind_group = gctx.createBindGroup(bind_group_layout, &[_]zgpu.BindGroupEntryInfo{
-            .{ .binding = 0, .buffer_handle = gctx.uniforms.buffer, .offset = 0, .size = 256 },
+            .{
+                .binding = 0,
+                .buffer_handle = gctx.uniforms.buffer,
+                .offset = 0,
+                // .size = 256,
+                .size = math.max(@sizeOf(FrameUniforms), @sizeOf(DrawUniforms)),
+            },
         });
-
-        var meshes = std.ArrayList(Mesh).init(allocator);
-        var meshes_indices = std.ArrayList(IndexType).init(arena);
-        var meshes_positions = std.ArrayList([3]f32).init(arena);
-        var meshes_normals = std.ArrayList([3]f32).init(arena);
-        initScene(allocator, &meshes, &meshes_indices, &meshes_positions, &meshes_normals);
-
-        const total_num_vertices = @intCast(u32, meshes_positions.items.len);
-        const total_num_indices = @intCast(u32, meshes_indices.items.len);
 
         // Create a vertex buffer.
         const vertex_buffer = gctx.createBuffer(.{
@@ -115,7 +139,7 @@ const TerrainGfxState = struct {
                 vertex_data.items[i].position = meshes_positions.items[i];
                 vertex_data.items[i].normal = meshes_normals.items[i];
             }
-            gctx.queue.writeBuffer(gctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data.items);
+            gctx.queue.n me(gctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data.items);
         }
 
         // Create an index buffer.
@@ -222,14 +246,16 @@ const TerrainGfxState = struct {
                     pass.setBindGroup(1, bind_group, &.{mem.offset});
 
                     // Draw.
-                    pass.drawIndexed(
-                        state.meshes.items[comps.mesh.mesh_index].num_indices,
-                        1,
-                        state.meshes.items[comps.mesh.mesh_index].index_offset,
-                        state.meshes.items[comps.mesh.mesh_index].vertex_offset,
-                        0,
-                    );
                 }
+
+                const instance_count = 1;
+                pass.drawIndexed(
+                    state.terrain_gfx_state.base_vertices,
+                    instance_count,
+                    0,
+                    0,
+                    0,
+                );
             }
 
             break :commands encoder.finish(null);

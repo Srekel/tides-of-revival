@@ -9,7 +9,7 @@ const camera_system = @import("systems/camera_system.zig");
 const gui_system = @import("systems/gui_system.zig");
 const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
-const terrain_system = @import("systems/terrain_system.zig");
+// const terrain_system = @import("systems/terrain_system.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const fd = @import("flecs_data.zig");
 const IdLocal = @import("variant.zig").IdLocal;
@@ -39,8 +39,8 @@ pub fn run() void {
     var procmesh_sys = try procmesh_system.create(IdLocal.initFormat("procmesh_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &flecs_world);
     defer procmesh_system.destroy(procmesh_sys);
 
-    var terrain_sys = try terrain_system.create(IdLocal.init("terrain_system"), std.heap.page_allocator, &flecs_world, physics_sys.physics_world);
-    defer terrain_system.destroy(terrain_sys);
+    // var terrain_sys = try terrain_system.create(IdLocal.init("terrain_system"), std.heap.page_allocator, &flecs_world, physics_sys.physics_world);
+    // defer terrain_system.destroy(terrain_sys);
 
     var gui_sys = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
     defer gui_system.destroy(&gui_sys);
