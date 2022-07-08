@@ -139,7 +139,7 @@ const TerrainGfxState = struct {
                 vertex_data.items[i].position = meshes_positions.items[i];
                 vertex_data.items[i].normal = meshes_normals.items[i];
             }
-            gctx.queue.n me(gctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data.items);
+            // gctx.queue.n me(gctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data.items);
         }
 
         // Create an index buffer.
@@ -288,7 +288,7 @@ const max_loaded_patches = 64;
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
-    physics_world: *const zbt.World,
+    physics_world: zbt.World,
     sys: flecs.EntityId,
     terrain_gfx_state: TerrainGfxState,
 
@@ -302,7 +302,7 @@ const SystemState = struct {
     noise: znoise.FnlGenerator,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World, physics_world: *const zbt.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
     var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*)
         .with(fd.WorldLoader)
         .with(fd.Position);

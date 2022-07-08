@@ -3,7 +3,7 @@ const math = std.math;
 const glfw = @import("glfw");
 const gpu = @import("gpu");
 const zgpu = @import("zgpu");
-const c = zgpu.cimgui;
+const zgui = zgpu.zgui;
 const zm = @import("zmath");
 const gfx = @import("../gfx_wgpu.zig");
 
@@ -36,7 +36,7 @@ pub fn preUpdate(state: *SystemState) void {
         state.gctx.swapchain_descriptor.width,
         state.gctx.swapchain_descriptor.height,
     );
-    c.igShowDemoWindow(null);
+    // c.igShowDemoWindow(null);
 }
 
 pub fn update(state: *SystemState) void {

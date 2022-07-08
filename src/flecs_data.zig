@@ -163,7 +163,7 @@ pub const CIPhysicsBody = struct {
     sphere: struct { radius: f32 } = undefined,
 };
 pub const PhysicsBody = struct {
-    body: *const zbt.Body,
+    body: zbt.Body,
 };
 
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗

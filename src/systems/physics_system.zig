@@ -10,7 +10,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
-    physics_world: *const zbt.World,
+    physics_world: zbt.World,
     sys: flecs.EntityId,
 
     // bodies: std.ArrayList(zbt.Body),
@@ -24,7 +24,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.W
     var comp_query = query_builder.buildQuery();
 
     zbt.init(allocator);
-    const physics_world = zbt.World.init(.{});
+    const physics_world = zbt.initWorld();
     physics_world.setGravity(&.{ 0.0, -10.0, 0.0 });
 
     var state = allocator.create(SystemState) catch unreachable;
@@ -117,10 +117,10 @@ fn onSetCIPhysicsBody(it: *flecs.Iterator(ObserverCallback)) void {
         // };
 
         const shape = switch (ci.shape_type) {
-            .box => zbt.BoxShape.init(&.{ ci.box.size, ci.box.size, ci.box.size }).asShape(),
-            .sphere => zbt.SphereShape.init(ci.sphere.radius).asShape(),
+            .box => zbt.initBoxShape(&.{ ci.box.size, ci.box.size, ci.box.size }).asShape(),
+            .sphere => zbt.initSphereShape(ci.sphere.radius).asShape(),
         };
-        const body = zbt.Body.init(
+        const body = zbt.initBody(
             ci.mass,
             &transform.matrix,
             shape,

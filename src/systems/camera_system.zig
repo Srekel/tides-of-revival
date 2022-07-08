@@ -13,7 +13,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
-    physics_world: *const zbt.World,
+    physics_world: zbt.World,
     sys: flecs.EntityId,
 
     // gfx: *gfx.GfxState,
@@ -23,7 +23,7 @@ const SystemState = struct {
     // Camera movement, TODO move to other system
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: *const zbt.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
     const gctx = gfxstate.gctx;
 
     var query_builder = flecs.QueryBuilder.init(flecs_world.*)
