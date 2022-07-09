@@ -1,267 +1,47 @@
 const std = @import("std");
 const math = std.math;
 const flecs = @import("flecs");
+const gfx = @import("../gfx_wgpu.zig");
 const zbt = @import("zbullet");
 const zm = @import("zmath");
 const znoise = @import("znoise");
 
+const glfw = @import("glfw");
+const zgpu = @import("zgpu");
+const gpu = @import("gpu");
+const zm = @import("zmath");
+const zmesh = @import("zmesh");
+const flecs = @import("flecs");
+const wgsl = @import("procedural_mesh_system_wgsl.zig");
+
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 
-const TerrainGfxState = struct {
-    const Vertex = struct {
-        height: f32,
-        normal: [3]f32,
-    };
+const IndexType = u16;
+const patches_on_side = 3;
+const patch_count = patches_on_side * patches_on_side;
+const patch_side_vertex_count = fd.patch_width + 1;
 
-    gfx: *gfx.GfxState,
-    gctx: *zgpu.GraphicsContext,
-    pipeline: zgpu.RenderPipelineHandle,
-    bind_group: zgpu.BindGroupHandle,
-    vertex_buffer: zgpu.BufferHandle,
-    index_buffer: zgpu.BufferHandle,
-    meshes: std.ArrayList(Mesh),
-    base_vertices: [fd.patch_width * fd.patch_width]f32,
+const Vertex = struct {
+    position: [3]f32,
+    normal: [3]f32,
+};
+const FrameUniforms = struct {
+    world_to_clip: zm.Mat,
+    camera_position: [3]f32,
+};
 
-    pub fn init(allocator: Allocator) void {
-        var arena_state = std.heap.ArenaAllocator.init(allocator);
-        defer arena_state.deinit();
-        const arena = arena_state.allocator();
+const DrawUniforms = struct {
+    object_to_world: zm.Mat,
+    basecolor_roughness: [4]f32,
+};
 
-        // Create a bind group layout needed for our render pipeline.
-        const bind_group_layout = gctx.createBindGroupLayout(&.{
-            zgpu.bglBuffer(0, .{ .vertex = true, .fragment = true }, .uniform, true, 0),
-        });
-        defer gctx.releaseResource(bind_group_layout);
-
-        const pipeline_layout = gctx.createPipelineLayout(&.{
-            bind_group_layout,
-            bind_group_layout,
-        });
-        defer gctx.releaseResource(pipeline_layout);
-
-        const pipeline = pipeline: {
-            const vs_module = gctx.device.createShaderModule(&.{ .label = "vs", .code = .{ .wgsl = wgsl.vs } });
-            defer vs_module.release();
-
-            const fs_module = gctx.device.createShaderModule(&.{ .label = "fs", .code = .{ .wgsl = wgsl.fs } });
-            defer fs_module.release();
-
-            const color_target = gpu.ColorTargetState{
-                .format = zgpu.GraphicsContext.swapchain_format,
-                .blend = &.{ .color = .{}, .alpha = .{} },
-            };
-
-            // Specs_guy — 06/10/2022
-            // Separate heights/normals is probably better, since the positions will likely stay in cache for reuse.  If you set it up for instancing, that's extra good, because then you could do culling on the GPU if you have lots of them.
-            // It also generalizes nicely to mesh shaders 😛
-            // Srekel — 06/10/2022
-            // Do you mean as separate buffers?
-            // Specs_guy — 06/10/2022
-            // Yeah, you have:
-            // - index buffer: shared between all meshes
-            // - xy position buffer: shared between all meshes
-            // - height/normal buffer: unique for each mesh OR shared with instance offsets
-            // If you're targeting mobile, separate the height and normal buffers for faster binning.
-
-            const base_vertex_attributes = [_]gpu.VertexAttribute{
-                .{ .format = .float32x2, .offset = 0, .shader_location = 0 },
-                .{ .format = .float32x3, .offset = @offsetOf(Vertex, "normal"), .shader_location = 1 },
-            };
-            const base_vertex_buffer_layout = gpu.VertexBufferLayout{
-                .array_stride = 2 * @sizeOf(f32),
-                // .step_mode = .instanced,
-                .attribute_count = base_vertex_attributes.len,
-                .attributes = &base_vertex_attributes,
-            };
-
-            const patch_vertex_attributes = [_]gpu.VertexAttribute{
-                .{ .format = .float32, .offset = 0, .shader_location = 1 },
-                // .{ .format = .float32x33 .offset = @offsetOf(Vertex, "normal"), .shader_location = 1 },
-            };
-            const patch_vertex_buffer_layout = gpu.VertexBufferLayout{
-                .array_stride = @sizeOf(f32),
-                // .step_mode = .instanced,
-                .attribute_count = patch_vertex_attributes.len,
-                .attributes = &patch_vertex_attributes,
-            };
-
-            // Create a render pipeline.
-            const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
-                .vertex = gpu.VertexState{
-                    .module = vs_module,
-                    .entry_point = "main",
-                    .buffers = &.{
-                        base_vertex_attributes,
-                        patch_vertex_attributes,
-                    },
-                },
-                .primitive = gpu.PrimitiveState{
-                    .front_face = .cw,
-                    .cull_mode = .back,
-                    .topology = .triangle_list,
-                },
-                .depth_stencil = &gpu.DepthStencilState{
-                    .format = .depth32_float,
-                    .depth_write_enabled = true,
-                    .depth_compare = .less,
-                },
-                .fragment = &gpu.FragmentState{
-                    .module = fs_module,
-                    .entry_point = "main",
-                    .targets = &.{color_target},
-                },
-            };
-            break :pipeline gctx.createRenderPipeline(pipeline_layout, pipeline_descriptor);
-        };
-
-        const bind_group = gctx.createBindGroup(bind_group_layout, &[_]zgpu.BindGroupEntryInfo{
-            .{
-                .binding = 0,
-                .buffer_handle = gctx.uniforms.buffer,
-                .offset = 0,
-                // .size = 256,
-                .size = math.max(@sizeOf(FrameUniforms), @sizeOf(DrawUniforms)),
-            },
-        });
-
-        // Create a vertex buffer.
-        const vertex_buffer = gctx.createBuffer(.{
-            .usage = .{ .copy_dst = true, .vertex = true },
-            .size = total_num_vertices * @sizeOf(Vertex),
-        });
-        {
-            var vertex_data = std.ArrayList(Vertex).init(arena);
-            defer vertex_data.deinit();
-            vertex_data.resize(total_num_vertices) catch unreachable;
-
-            for (meshes_positions.items) |_, i| {
-                vertex_data.items[i].position = meshes_positions.items[i];
-                vertex_data.items[i].normal = meshes_normals.items[i];
-            }
-            // gctx.queue.n me(gctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data.items);
-        }
-
-        // Create an index buffer.
-        const index_buffer = gctx.createBuffer(.{
-            .usage = .{ .copy_dst = true, .index = true },
-            .size = total_num_indices * @sizeOf(IndexType),
-        });
-        gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, IndexType, meshes_indices.items);
-
-        return .{
-            .gfx = gfxstate,
-            .gctx = gctx,
-            .pipeline = pipeline,
-            .bind_group = bind_group,
-            .vertex_buffer = vertex_buffer,
-            .index_buffer = index_buffer,
-            .meshes = meshes,
-        };
-    }
-
-    pub fn deinit(self: *TerrainGfxState) void {
-        self.meshes.deinit();
-    }
-
-    pub fn update(self: *TerrainGfxState) void {
-        const gctx = self.gctx;
-        var entity_iter_camera = state.query_camera.iterator(struct { cam: *const fd.Camera });
-        const camera_comps = entity_iter_camera.next().?;
-        _ = camera_comps;
-        const cam = camera_comps.cam;
-        const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
-
-        const back_buffer_view = gctx.swapchain.getCurrentTextureView();
-        defer back_buffer_view.release();
-
-        const commands = commands: {
-            const encoder = gctx.device.createCommandEncoder(null);
-            defer encoder.release();
-
-            pass: {
-                const vb_info = gctx.lookupResourceInfo(state.vertex_buffer) orelse break :pass;
-                const ib_info = gctx.lookupResourceInfo(state.index_buffer) orelse break :pass;
-                const pipeline = gctx.lookupResource(state.pipeline) orelse break :pass;
-                const bind_group = gctx.lookupResource(state.bind_group) orelse break :pass;
-                const depth_view = gctx.lookupResource(state.gfx.*.depth_texture_view) orelse break :pass;
-
-                const color_attachment = gpu.RenderPassColorAttachment{
-                    .view = back_buffer_view,
-                    .load_op = .load,
-                    .store_op = .store,
-                };
-                const depth_attachment = gpu.RenderPassDepthStencilAttachment{
-                    .view = depth_view,
-                    .depth_load_op = .clear, // else .load,
-                    .depth_store_op = .store,
-                    .depth_clear_value = 1.0,
-                };
-                const render_pass_info = gpu.RenderPassEncoder.Descriptor{
-                    .color_attachments = &.{color_attachment},
-                    .depth_stencil_attachment = &depth_attachment,
-                };
-                const pass = encoder.beginRenderPass(&render_pass_info);
-                defer {
-                    pass.end();
-                    pass.release();
-                }
-
-                pass.setVertexBuffer(0, vb_info.gpuobj.?, 0, vb_info.size);
-                pass.setIndexBuffer(
-                    ib_info.gpuobj.?,
-                    if (IndexType == u16) .uint16 else .uint32,
-                    0,
-                    ib_info.size,
-                );
-
-                pass.setPipeline(pipeline);
-
-                {
-                    const mem = gctx.uniformsAllocate(FrameUniforms, 1);
-                    mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-                    mem.slice[0].camera_position = state.camera.position; // wut
-
-                    pass.setBindGroup(0, bind_group, &.{mem.offset});
-                }
-
-                var entity_iter_mesh = state.query_mesh.iterator(struct {
-                    transform: *const fd.Transform,
-                    scale: *const fd.Scale,
-                    mesh: *const fd.ShapeMeshInstance,
-                });
-                while (entity_iter_mesh.next()) |comps| {
-                    const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
-                    const transform = zm.loadMat43(comps.transform.matrix[0..]);
-                    const object_to_world = zm.mul(scale_matrix, transform);
-                    // const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
-
-                    const mem = gctx.uniformsAllocate(DrawUniforms, 1);
-                    mem.slice[0].object_to_world = zm.transpose(object_to_world);
-                    mem.slice[0].basecolor_roughness[0] = comps.mesh.basecolor_roughness.r;
-                    mem.slice[0].basecolor_roughness[1] = comps.mesh.basecolor_roughness.g;
-                    mem.slice[0].basecolor_roughness[2] = comps.mesh.basecolor_roughness.b;
-                    mem.slice[0].basecolor_roughness[3] = comps.mesh.basecolor_roughness.roughness;
-
-                    pass.setBindGroup(1, bind_group, &.{mem.offset});
-
-                    // Draw.
-                }
-
-                const instance_count = 1;
-                pass.drawIndexed(
-                    state.terrain_gfx_state.base_vertices,
-                    instance_count,
-                    0,
-                    0,
-                    0,
-                );
-            }
-
-            break :commands encoder.finish(null);
-        };
-        state.gfx.command_buffers.append(commands) catch unreachable;
-    }
+const Mesh = struct {
+    // entity: flecs.EntityId,
+    index_offset: u32,
+    vertex_offset: i32,
+    num_indices: u32,
+    num_vertices: u32,
 };
 
 const Patch = struct {
@@ -290,17 +70,163 @@ const SystemState = struct {
     flecs_world: *flecs.World,
     physics_world: zbt.World,
     sys: flecs.EntityId,
-    terrain_gfx_state: TerrainGfxState,
+
+    gfx: *gfx.GfxState,
+    gctx: *zgpu.GraphicsContext,
+    pipeline: zgpu.RenderPipelineHandle,
+    bind_group: zgpu.BindGroupHandle,
+    vertex_buffer: zgpu.BufferHandle,
+    index_buffer: zgpu.BufferHandle,
+    meshes: std.ArrayList(Mesh),
 
     patches: std.ArrayList(Patch),
     // meshes: std.ArrayList(Mesh),
-    vertices: [max_loaded_patches][fd.patch_width]Vertex = undefined,
+    // vertices: [max_loaded_patches][fd.patch_width]Vertex = undefined,
     // heights: std.ArrayList([patch_width]f32),
     // entity_to_lookup: std.ArrayList(struct { id: EntityId, lookup: u32 }),
 
     query_loader: flecs.Query,
     noise: znoise.FnlGenerator,
 };
+
+fn initPatches(
+    allocator: std.mem.Allocator,
+    // state: *SystemState,
+    meshes: *std.ArrayList(Mesh),
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_positions: *std.ArrayList([3]f32),
+    meshes_normals: *std.ArrayList([3]f32),
+) void {
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    // meshes.resize(patch_count);
+    const indices_per_patch = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
+    const vertices_per_patch = patch_side_vertex_count * patch_side_vertex_count;
+
+    // var indices = std.ArrayList(IndexType).init(arena);
+
+    var patch_vertex_positions = allocator.allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
+    var patch_vertex_normals = allocator.allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
+    defer allocator.allocator.free(patch_vertex_positions);
+    defer allocator.allocator.free(patch_vertex_normals);
+    {
+        var z: usize = 0;
+        while (z < patch_side_vertex_count) : (z += 1) {
+            var x: usize = 0;
+            while (x < patch_side_vertex_count) : (x += 1) {
+                var i = x + z * patch_side_vertex_count;
+                var pos = &patch_vertex_positions[i];
+                var normal = &patch_vertex_normals[i];
+                pos[0] = x;
+                pos[1] = 0;
+                pos[2] = z;
+                normal[0] = 0;
+                normal[1] = 1;
+                normal[2] = 0;
+            }
+        }
+    }
+
+    var patch_indices = arena.allocator.alloc(u32, indices_per_patch) catch unreachable;
+    defer allocator.allocator.free(patch_indices);
+    {
+        var i: u32 = 0;
+        var y: u32 = 0;
+        const width = @intCast(u32, fd.patch_width);
+        const height = @intCast(u32, fd.patch_width);
+        while (y < height - 1) : (y += 1) {
+            var x: u32 = 0;
+            while (x < width - 1) : (x += 1) {
+                const indices_quad = [_]u32{
+                    x + y * width,
+                    x + (y + 1) * width,
+                    x + 1 + y * width,
+                    x + 1 + (y + 1) * width,
+                };
+
+                patch_indices[i + 0] = indices_quad[0];
+                patch_indices[i + 1] = indices_quad[1];
+                patch_indices[i + 2] = indices_quad[2];
+
+                patch_indices[i + 3] = indices_quad[2];
+                patch_indices[i + 4] = indices_quad[1];
+                patch_indices[i + 5] = indices_quad[3];
+                // std.debug.print("quad: {any}\n", .{indices_quad});
+                // std.debug.print("indices: {any}\n", .{patch_indices[i .. i + 6]});
+                // std.debug.print("tri: {any} {any} {any}\n", .{
+                //     patch_vertex_positions[patch_indices[i + 0]],
+                //     patch_vertex_positions[patch_indices[i + 1]],
+                //     patch_vertex_positions[patch_indices[i + 2]],
+                // });
+                // std.debug.print("tri: {any} {any} {any}\n", .{
+                //     patch_vertex_positions[patch_indices[i + 3]],
+                //     patch_vertex_positions[patch_indices[i + 4]],
+                //     patch_vertex_positions[patch_indices[i + 5]],
+                // });
+                i += 6;
+            }
+        }
+    }
+
+    var patch_indices = arena.allocator.alloc(u32, indices_per_patch) catch unreachable;
+    defer allocator.allocator.free(patch_indices);
+    {
+        var i: u32 = 0;
+        var y: u32 = 0;
+        const width = @intCast(u32, fd.patch_width);
+        const height = @intCast(u32, fd.patch_width);
+        while (y < height - 1) : (y += 1) {
+            var x: u32 = 0;
+            while (x < width - 1) : (x += 1) {
+                const indices_quad = [_]u32{
+                    x + y * width,
+                    x + (y + 1) * width,
+                    x + 1 + y * width,
+                    x + 1 + (y + 1) * width,
+                };
+
+                patch_indices[i + 0] = indices_quad[0];
+                patch_indices[i + 1] = indices_quad[1];
+                patch_indices[i + 2] = indices_quad[2];
+
+                patch_indices[i + 3] = indices_quad[2];
+                patch_indices[i + 4] = indices_quad[1];
+                patch_indices[i + 5] = indices_quad[3];
+                // std.debug.print("quad: {any}\n", .{indices_quad});
+                // std.debug.print("indices: {any}\n", .{patch_indices[i .. i + 6]});
+                // std.debug.print("tri: {any} {any} {any}\n", .{
+                //     patch_vertex_positions[patch_indices[i + 0]],
+                //     patch_vertex_positions[patch_indices[i + 1]],
+                //     patch_vertex_positions[patch_indices[i + 2]],
+                // });
+                // std.debug.print("tri: {any} {any} {any}\n", .{
+                //     patch_vertex_positions[patch_indices[i + 3]],
+                //     patch_vertex_positions[patch_indices[i + 4]],
+                //     patch_vertex_positions[patch_indices[i + 5]],
+                // });
+                i += 6;
+            }
+        }
+    }
+
+    var patch_i = 0;
+    while (patch_i < patch_count) : (patch_i += 1) {
+        meshes.append(.{
+            // .id = id,
+            // .entity = entity,
+            .index_offset = @intCast(u32, meshes_indices.items.len),
+            .vertex_offset = @intCast(i32, meshes_positions.items.len),
+            .num_indices = @intCast(u32, indices_per_patch),
+            .num_vertices = @intCast(u32, vertices_per_patch),
+        }) catch unreachable;
+
+        meshes_indices.appendSlice(patch_indices);
+        meshes_positions.appendSlice(patch_vertex_positions) catch unreachable;
+        meshes_normals.appendSlice(patch_vertex_normals) catch unreachable;
+    }
+}
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
     var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*)
