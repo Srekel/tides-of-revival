@@ -354,7 +354,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             {
                 const mem = gctx.uniformsAllocate(FrameUniforms, 1);
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-                mem.slice[0].camera_position = state.camera.position; // wut
+                // mem.slice[0].camera_position = state.camera.position; // wut
 
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
             }

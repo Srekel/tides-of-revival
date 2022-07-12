@@ -15,7 +15,7 @@ const wgsl = @import("procedural_mesh_system_wgsl.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 
-const IndexType = u16;
+const IndexType = u32;
 const patches_on_side = 3;
 const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = fd.patch_width;
@@ -86,7 +86,15 @@ const SystemState = struct {
     // entity_to_lookup: std.ArrayList(struct { id: EntityId, lookup: u32 }),
 
     query_loader: flecs.Query,
+    query_camera: flecs.Query,
     noise: znoise.FnlGenerator,
+
+    camera: struct {
+        position: [3]f32 = .{ 0.0, 4.0, -4.0 },
+        forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
+        pitch: f32 = 0.15 * math.pi,
+        yaw: f32 = 0.0,
+    } = .{},
 };
 
 fn initPatches(
@@ -102,15 +110,15 @@ fn initPatches(
     const arena = arena_state.allocator();
 
     // meshes.resize(patch_count);
-    const indices_per_patch = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
-    const vertices_per_patch = patch_side_vertex_count * patch_side_vertex_count;
+    var indices_per_patch: u32 = (fd.patch_width) * (fd.patch_width) * 6;
+    var vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
 
     // var indices = std.ArrayList(IndexType).init(arena);
 
-    var patch_vertex_positions = allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
-    var patch_vertex_normals = allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
-    defer allocator.free(patch_vertex_positions);
-    defer allocator.free(patch_vertex_normals);
+    var patch_vertex_positions = arena.alloc([3]f32, vertices_per_patch) catch unreachable;
+    var patch_vertex_normals = arena.alloc([3]f32, vertices_per_patch) catch unreachable;
+    defer arena.free(patch_vertex_positions);
+    defer arena.free(patch_vertex_normals);
     {
         var z: usize = 0;
         while (z < patch_side_vertex_count) : (z += 1) {
@@ -129,17 +137,17 @@ fn initPatches(
         }
     }
 
-    var patch_indices = arena.alloc(u16, indices_per_patch) catch unreachable;
-    defer allocator.free(patch_indices);
+    var patch_indices = arena.alloc(u32, indices_per_patch) catch unreachable;
+    defer arena.free(patch_indices);
     {
-        var i: u16 = 0;
-        var y: u16 = 0;
-        const width = @intCast(u16, fd.patch_width);
-        const height = @intCast(u16, fd.patch_width);
+        var i: u32 = 0;
+        var y: u32 = 0;
+        const width = @intCast(u32, fd.patch_width);
+        const height = @intCast(u32, fd.patch_width);
         while (y < height - 1) : (y += 1) {
-            var x: u16 = 0;
+            var x: u32 = 0;
             while (x < width - 1) : (x += 1) {
-                const indices_quad = [_]u16{
+                const indices_quad = [_]u32{
                     x + y * width,
                     x + (y + 1) * width,
                     x + 1 + y * width,
@@ -192,6 +200,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .with(fd.WorldLoader)
         .with(fd.Position);
     var query_loader = query_builder_loader.buildQuery();
+
+    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
+        .withReadonly(fd.Camera);
+    var query_camera = query_builder_camera.buildQuery();
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -304,15 +316,18 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .physics_world = physics_world,
         .sys = sys,
 
+        .gfx = gfxstate,
         .gctx = gctx,
         .pipeline = pipeline,
         .bind_group = bind_group,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
+        .meshes = meshes,
 
         .patches = std.ArrayList(Patch).init(allocator),
         // .bodies = std.ArrayList(zbt.Body).init(),
         .query_loader = query_loader,
+        .query_camera = query_camera,
         .noise = .{
             .seed = @intCast(i32, 1234),
             .fractal_type = .fbm,
@@ -334,7 +349,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
 pub fn destroy(state: *SystemState) void {
     // state.comp_query.deinit();
-    state.terrain_gfx_state.deinit();
+    state.query_loader.deinit();
+    state.query_camera.deinit();
+    state.meshes.deinit();
     state.allocator.destroy(state);
 }
 
@@ -359,7 +376,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     const world_y = @floatToInt(i32, comps.position.y) + y * fd.patch_width;
                     const patch_hash = @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_y, fd.patch_width);
 
-                    for (state.patches.items) |patch| {
+                    for (state.patches.items) |*patch| {
                         if (patch.hash == patch_hash) {
                             break;
                         }
@@ -434,17 +451,119 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 break :blk .writing_gfx;
             },
             .writing_gfx => blk: {
-                state.gfx.queue.writeBuffer(
-                    state.gfx.lookupResource(state.vertex_buffer).?,
-                    patch.index * fd.patch_width * fd.patch_width,
+                state.gctx.queue.writeBuffer(
+                    state.gctx.lookupResource(state.vertex_buffer).?,
+                    patch.lookup * fd.patch_width * fd.patch_width,
                     Vertex,
-                    patch.vertices,
+                    patch.vertices[0..],
                 );
 
                 break :blk .loaded;
             },
         };
     }
+
+    const gctx = state.gctx;
+    var entity_iter_camera = state.query_camera.iterator(struct { cam: *const fd.Camera });
+    const camera_comps = entity_iter_camera.next().?;
+    _ = camera_comps;
+    const cam = camera_comps.cam;
+    const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
+
+    const back_buffer_view = gctx.swapchain.getCurrentTextureView();
+    defer back_buffer_view.release();
+
+    const commands = commands: {
+        const encoder = gctx.device.createCommandEncoder(null);
+        defer encoder.release();
+
+        pass: {
+            const vb_info = gctx.lookupResourceInfo(state.vertex_buffer) orelse break :pass;
+            const ib_info = gctx.lookupResourceInfo(state.index_buffer) orelse break :pass;
+            const pipeline = gctx.lookupResource(state.pipeline) orelse break :pass;
+            const bind_group = gctx.lookupResource(state.bind_group) orelse break :pass;
+            const depth_view = gctx.lookupResource(state.gfx.*.depth_texture_view) orelse break :pass;
+
+            const color_attachment = gpu.RenderPassColorAttachment{
+                .view = back_buffer_view,
+                .load_op = .load,
+                .store_op = .store,
+            };
+            const depth_attachment = gpu.RenderPassDepthStencilAttachment{
+                .view = depth_view,
+                .depth_load_op = .clear, // else .load,
+                .depth_store_op = .store,
+                .depth_clear_value = 1.0,
+            };
+            const render_pass_info = gpu.RenderPassEncoder.Descriptor{
+                .color_attachments = &.{color_attachment},
+                .depth_stencil_attachment = &depth_attachment,
+            };
+            const pass = encoder.beginRenderPass(&render_pass_info);
+            defer {
+                pass.end();
+                pass.release();
+            }
+
+            pass.setVertexBuffer(0, vb_info.gpuobj.?, 0, vb_info.size);
+            pass.setIndexBuffer(
+                ib_info.gpuobj.?,
+                if (IndexType == u16) .uint16 else .uint32,
+                0,
+                ib_info.size,
+            );
+
+            pass.setPipeline(pipeline);
+
+            {
+                const mem = gctx.uniformsAllocate(FrameUniforms, 1);
+                mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
+                mem.slice[0].camera_position = state.camera.position; // wut
+
+                pass.setBindGroup(0, bind_group, &.{mem.offset});
+            }
+
+            // var entity_iter_mesh = state.query_mesh.iterator(struct {
+            //     transform: *const fd.Transform,
+            //     scale: *const fd.Scale,
+            //     mesh: *const fd.ShapeMeshInstance,
+            // });
+            // while (entity_iter_mesh.next()) |comps| {
+
+            for (state.patches.items) |*patch| {
+                if (patch.status == .loaded) {
+                    // const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
+                    // const transform = zm.loadMat43(comps.transform.matrix[0..]);
+                    // const object_to_world = zm.mul(scale_matrix, transform);
+                    const posmat = zm.translation(patch.pos[0], 0, patch.pos[1]);
+                    // const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
+
+                    const mem = gctx.uniformsAllocate(DrawUniforms, 1);
+                    mem.slice[0].object_to_world = zm.transpose(posmat);
+                    mem.slice[0].basecolor_roughness[0] = 1;
+                    mem.slice[0].basecolor_roughness[1] = 1;
+                    mem.slice[0].basecolor_roughness[2] = 1;
+                    mem.slice[0].basecolor_roughness[3] = 1;
+
+                    pass.setBindGroup(1, bind_group, &.{mem.offset});
+
+                    // Draw.
+                    var indices_per_patch: u32 = (fd.patch_width) * (fd.patch_width) * 6;
+                    // var vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
+                    pass.drawIndexed(
+                        indices_per_patch,
+                        1,
+                        patch.index_offset,
+                        patch.vertex_offset,
+                        0,
+                    );
+                }
+            }
+        }
+
+        break :commands encoder.finish(null);
+    };
+    state.gfx.command_buffers.append(commands) catch unreachable;
 }
 
 // const ObserverCallback = struct {
