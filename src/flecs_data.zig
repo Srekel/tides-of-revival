@@ -176,7 +176,8 @@ pub const PhysicsBody = struct {
 pub const patch_width = 512;
 
 pub const TerrainPatchLookup = struct {
-    lookup: u8 = undefined,
+    lookup: u16 = undefined,
+    // lod: u8 = 0,
 };
 
 pub const WorldLoader = struct {

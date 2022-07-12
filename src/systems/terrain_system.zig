@@ -9,9 +9,7 @@ const znoise = @import("znoise");
 const glfw = @import("glfw");
 const zgpu = @import("zgpu");
 const gpu = @import("gpu");
-const zm = @import("zmath");
 const zmesh = @import("zmesh");
-const flecs = @import("flecs");
 const wgsl = @import("procedural_mesh_system_wgsl.zig");
 
 const fd = @import("../flecs_data.zig");
@@ -20,7 +18,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const IndexType = u16;
 const patches_on_side = 3;
 const patch_count = patches_on_side * patches_on_side;
-const patch_side_vertex_count = fd.patch_width + 1;
+const patch_side_vertex_count = fd.patch_width;
 
 const Vertex = struct {
     position: [3]f32,
@@ -51,16 +49,18 @@ const Patch = struct {
         generating_heights,
         generating_normals,
         generating_physics,
+        writing_gfx,
         loaded,
     } = .not_used,
     lod: enum {
         low,
         full,
     } = .full,
-    // heights: [patch_width]f32,
     pos: [2]i32 = undefined,
     lookup: u32 = undefined,
     hash: i32 = 0,
+    heights: [fd.patch_width * fd.patch_width]f32,
+    vertices: [patch_side_vertex_count * patch_side_vertex_count]Vertex,
 };
 
 const max_loaded_patches = 64;
@@ -82,7 +82,7 @@ const SystemState = struct {
     patches: std.ArrayList(Patch),
     // meshes: std.ArrayList(Mesh),
     // vertices: [max_loaded_patches][fd.patch_width]Vertex = undefined,
-    // heights: std.ArrayList([patch_width]f32),
+    // heights: [patch_count][fd.patch_width * fd.patch_width]f32,
     // entity_to_lookup: std.ArrayList(struct { id: EntityId, lookup: u32 }),
 
     query_loader: flecs.Query,
@@ -107,10 +107,10 @@ fn initPatches(
 
     // var indices = std.ArrayList(IndexType).init(arena);
 
-    var patch_vertex_positions = allocator.allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
-    var patch_vertex_normals = allocator.allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
-    defer allocator.allocator.free(patch_vertex_positions);
-    defer allocator.allocator.free(patch_vertex_normals);
+    var patch_vertex_positions = allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
+    var patch_vertex_normals = allocator.alloc([3]f32, vertices_per_patch) catch unreachable;
+    defer allocator.free(patch_vertex_positions);
+    defer allocator.free(patch_vertex_normals);
     {
         var z: usize = 0;
         while (z < patch_side_vertex_count) : (z += 1) {
@@ -119,9 +119,9 @@ fn initPatches(
                 var i = x + z * patch_side_vertex_count;
                 var pos = &patch_vertex_positions[i];
                 var normal = &patch_vertex_normals[i];
-                pos[0] = x;
+                pos[0] = @intToFloat(f32, x);
                 pos[1] = 0;
-                pos[2] = z;
+                pos[2] = @intToFloat(f32, z);
                 normal[0] = 0;
                 normal[1] = 1;
                 normal[2] = 0;
@@ -129,17 +129,17 @@ fn initPatches(
         }
     }
 
-    var patch_indices = arena.allocator.alloc(u32, indices_per_patch) catch unreachable;
-    defer allocator.allocator.free(patch_indices);
+    var patch_indices = arena.alloc(u16, indices_per_patch) catch unreachable;
+    defer allocator.free(patch_indices);
     {
-        var i: u32 = 0;
-        var y: u32 = 0;
-        const width = @intCast(u32, fd.patch_width);
-        const height = @intCast(u32, fd.patch_width);
+        var i: u16 = 0;
+        var y: u16 = 0;
+        const width = @intCast(u16, fd.patch_width);
+        const height = @intCast(u16, fd.patch_width);
         while (y < height - 1) : (y += 1) {
-            var x: u32 = 0;
+            var x: u16 = 0;
             while (x < width - 1) : (x += 1) {
-                const indices_quad = [_]u32{
+                const indices_quad = [_]u16{
                     x + y * width,
                     x + (y + 1) * width,
                     x + 1 + y * width,
@@ -170,48 +170,7 @@ fn initPatches(
         }
     }
 
-    var patch_indices = arena.allocator.alloc(u32, indices_per_patch) catch unreachable;
-    defer allocator.allocator.free(patch_indices);
-    {
-        var i: u32 = 0;
-        var y: u32 = 0;
-        const width = @intCast(u32, fd.patch_width);
-        const height = @intCast(u32, fd.patch_width);
-        while (y < height - 1) : (y += 1) {
-            var x: u32 = 0;
-            while (x < width - 1) : (x += 1) {
-                const indices_quad = [_]u32{
-                    x + y * width,
-                    x + (y + 1) * width,
-                    x + 1 + y * width,
-                    x + 1 + (y + 1) * width,
-                };
-
-                patch_indices[i + 0] = indices_quad[0];
-                patch_indices[i + 1] = indices_quad[1];
-                patch_indices[i + 2] = indices_quad[2];
-
-                patch_indices[i + 3] = indices_quad[2];
-                patch_indices[i + 4] = indices_quad[1];
-                patch_indices[i + 5] = indices_quad[3];
-                // std.debug.print("quad: {any}\n", .{indices_quad});
-                // std.debug.print("indices: {any}\n", .{patch_indices[i .. i + 6]});
-                // std.debug.print("tri: {any} {any} {any}\n", .{
-                //     patch_vertex_positions[patch_indices[i + 0]],
-                //     patch_vertex_positions[patch_indices[i + 1]],
-                //     patch_vertex_positions[patch_indices[i + 2]],
-                // });
-                // std.debug.print("tri: {any} {any} {any}\n", .{
-                //     patch_vertex_positions[patch_indices[i + 3]],
-                //     patch_vertex_positions[patch_indices[i + 4]],
-                //     patch_vertex_positions[patch_indices[i + 5]],
-                // });
-                i += 6;
-            }
-        }
-    }
-
-    var patch_i = 0;
+    var patch_i: u32 = 0;
     while (patch_i < patch_count) : (patch_i += 1) {
         meshes.append(.{
             // .id = id,
@@ -222,19 +181,121 @@ fn initPatches(
             .num_vertices = @intCast(u32, vertices_per_patch),
         }) catch unreachable;
 
-        meshes_indices.appendSlice(patch_indices);
+        meshes_indices.appendSlice(patch_indices) catch unreachable;
         meshes_positions.appendSlice(patch_vertex_positions) catch unreachable;
         meshes_normals.appendSlice(patch_vertex_normals) catch unreachable;
     }
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
     var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*)
         .with(fd.WorldLoader)
         .with(fd.Position);
     var query_loader = query_builder_loader.buildQuery();
 
-    var terrain_gfx_state = TerrainGfxState.init(allocator);
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    // Create a bind group layout needed for our render pipeline.
+    const gctx = gfxstate.gctx;
+    const bind_group_layout = gctx.createBindGroupLayout(&.{
+        zgpu.bglBuffer(0, .{ .vertex = true, .fragment = true }, .uniform, true, 0),
+    });
+    defer gctx.releaseResource(bind_group_layout);
+
+    const pipeline_layout = gctx.createPipelineLayout(&.{
+        bind_group_layout,
+        bind_group_layout,
+    });
+    defer gctx.releaseResource(pipeline_layout);
+
+    const pipeline = pipeline: {
+        const vs_module = gctx.device.createShaderModule(&.{ .label = "vs", .code = .{ .wgsl = wgsl.vs } });
+        defer vs_module.release();
+
+        const fs_module = gctx.device.createShaderModule(&.{ .label = "fs", .code = .{ .wgsl = wgsl.fs } });
+        defer fs_module.release();
+
+        const color_target = gpu.ColorTargetState{
+            .format = zgpu.GraphicsContext.swapchain_format,
+            .blend = &.{ .color = .{}, .alpha = .{} },
+        };
+
+        const vertex_attributes = [_]gpu.VertexAttribute{
+            .{ .format = .float32x3, .offset = 0, .shader_location = 0 },
+            .{ .format = .float32x3, .offset = @offsetOf(Vertex, "normal"), .shader_location = 1 },
+        };
+        const vertex_buffer_layout = gpu.VertexBufferLayout{
+            .array_stride = @sizeOf(Vertex),
+            .attribute_count = vertex_attributes.len,
+            .attributes = &vertex_attributes,
+        };
+
+        // Create a render pipeline.
+        const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
+            .vertex = gpu.VertexState{
+                .module = vs_module,
+                .entry_point = "main",
+                .buffers = &.{vertex_buffer_layout},
+            },
+            .primitive = gpu.PrimitiveState{
+                .front_face = .cw,
+                .cull_mode = .back,
+                .topology = .triangle_list,
+            },
+            .depth_stencil = &gpu.DepthStencilState{
+                .format = .depth32_float,
+                .depth_write_enabled = true,
+                .depth_compare = .less,
+            },
+            .fragment = &gpu.FragmentState{
+                .module = fs_module,
+                .entry_point = "main",
+                .targets = &.{color_target},
+            },
+        };
+        break :pipeline gctx.createRenderPipeline(pipeline_layout, pipeline_descriptor);
+    };
+
+    const bind_group = gctx.createBindGroup(bind_group_layout, &[_]zgpu.BindGroupEntryInfo{
+        .{ .binding = 0, .buffer_handle = gctx.uniforms.buffer, .offset = 0, .size = 256 },
+    });
+
+    var meshes = std.ArrayList(Mesh).init(allocator);
+    var meshes_indices = std.ArrayList(IndexType).init(arena);
+    var meshes_positions = std.ArrayList([3]f32).init(arena);
+    var meshes_normals = std.ArrayList([3]f32).init(arena);
+    initPatches(allocator, &meshes, &meshes_indices, &meshes_positions, &meshes_normals);
+
+    const total_num_vertices = @intCast(u32, meshes_positions.items.len);
+    const total_num_indices = @intCast(u32, meshes_indices.items.len);
+
+    // Create a vertex buffer.
+    const vertex_buffer = gctx.createBuffer(.{
+        .usage = .{ .copy_dst = true, .vertex = true },
+        .size = total_num_vertices * @sizeOf(Vertex),
+    });
+    {
+        var vertex_data = std.ArrayList(Vertex).init(arena);
+        defer vertex_data.deinit();
+        vertex_data.resize(total_num_vertices) catch unreachable;
+
+        for (meshes_positions.items) |_, i| {
+            vertex_data.items[i].position = meshes_positions.items[i];
+            vertex_data.items[i].normal = meshes_normals.items[i];
+        }
+        gctx.queue.writeBuffer(gctx.lookupResource(vertex_buffer).?, 0, Vertex, vertex_data.items);
+    }
+
+    // Create an index buffer.
+    const index_buffer = gctx.createBuffer(.{
+        .usage = .{ .copy_dst = true, .index = true },
+        .size = total_num_indices * @sizeOf(IndexType),
+    });
+    gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, IndexType, meshes_indices.items);
+
+    // State
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
@@ -242,7 +303,12 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.W
         .flecs_world = flecs_world,
         .physics_world = physics_world,
         .sys = sys,
-        .terrain_gfx_state = terrain_gfx_state,
+
+        .gctx = gctx,
+        .pipeline = pipeline,
+        .bind_group = bind_group,
+        .vertex_buffer = vertex_buffer,
+        .index_buffer = index_buffer,
 
         .patches = std.ArrayList(Patch).init(allocator),
         // .bodies = std.ArrayList(zbt.Body).init(),
@@ -330,7 +396,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                         const world_y = @intToFloat(f32, patch.pos[1]) + y;
                         const height = state.noise.noise2(world_x, world_y);
                         const index = @floatToInt(u32, world_x) + @floatToInt(u32, world_y) * fd.patch_width;
-                        state.vertices[patch.lookup][index].height = height;
+                        // state.heights[patch.lookup][index] = height;
+                        patch.heights[index] = height;
+                        patch.vertices[index].position[1] = height;
                     }
                 }
                 break :blk .generating_normals;
@@ -350,7 +418,31 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 // }
                 break :blk .generating_physics;
             },
-            .generating_physics => continue,
+            .generating_physics => blk: {
+                // var x: f32 = 0;
+                // while (x < fd.patch_width) : (x += 1) {
+                //     var y: f32 = 0;
+                //     while (y < fd.patch_width) : (y += 1) {
+                //         const world_x = @intToFloat(f32, patch.pos[0]) + x;
+                //         const world_y = @intToFloat(f32, patch.pos[0]) + y;
+                //         //     const world_y = @floatToInt(i32, comps.position.y) + y * fd.patch_width;
+                //         const height = state.noise.noise2(world_x, world_y);
+                //         const index = @intToFloat(i32, world_x) + @intToFloat(i32, world_y) * fd.patch_width;
+                //         state.vertices[patch.lookup][index].height = height;
+                //     }
+                // }
+                break :blk .writing_gfx;
+            },
+            .writing_gfx => blk: {
+                state.gfx.queue.writeBuffer(
+                    state.gfx.lookupResource(state.vertex_buffer).?,
+                    patch.index * fd.patch_width * fd.patch_width,
+                    Vertex,
+                    patch.vertices,
+                );
+
+                break :blk .loaded;
+            },
         };
     }
 }

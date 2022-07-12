@@ -9,7 +9,7 @@ const camera_system = @import("systems/camera_system.zig");
 const gui_system = @import("systems/gui_system.zig");
 const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
-// const terrain_system = @import("systems/terrain_system.zig");
+const terrain_system = @import("systems/terrain_system.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const fd = @import("flecs_data.zig");
 const IdLocal = @import("variant.zig").IdLocal;
@@ -25,10 +25,20 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state);
 
-    var physics_sys = try physics_system.create(IdLocal.init("physics_system_{}"), std.heap.page_allocator, &flecs_world);
+    var physics_sys = try physics_system.create(
+        IdLocal.init("physics_system_{}"),
+        std.heap.page_allocator,
+        &flecs_world,
+    );
     defer physics_system.destroy(physics_sys);
 
-    var camera_sys = try camera_system.create(IdLocal.init("camera_system"), std.heap.page_allocator, &gfx_state, &flecs_world, physics_sys.physics_world);
+    var camera_sys = try camera_system.create(
+        IdLocal.init("camera_system"),
+        std.heap.page_allocator,
+        &gfx_state,
+        &flecs_world,
+        physics_sys.physics_world,
+    );
     defer camera_system.destroy(camera_sys);
 
     // var triangle_sys = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &flecs_world);
@@ -36,13 +46,28 @@ pub fn run() void {
     // var ts2 = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{1}), std.heap.page_allocator, &gfx_state, &flecs_world);
     // defer triangle_system.destroy(ts2);
 
-    var procmesh_sys = try procmesh_system.create(IdLocal.initFormat("procmesh_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &flecs_world);
+    var procmesh_sys = try procmesh_system.create(
+        IdLocal.initFormat("procmesh_system_{}", .{0}),
+        std.heap.page_allocator,
+        &gfx_state,
+        &flecs_world,
+    );
     defer procmesh_system.destroy(procmesh_sys);
 
-    // var terrain_sys = try terrain_system.create(IdLocal.init("terrain_system"), std.heap.page_allocator, &flecs_world, physics_sys.physics_world);
-    // defer terrain_system.destroy(terrain_sys);
+    var terrain_sys = try terrain_system.create(
+        IdLocal.init("terrain_system"),
+        std.heap.page_allocator,
+        &gfx_state,
+        &flecs_world,
+        physics_sys.physics_world,
+    );
+    defer terrain_system.destroy(terrain_sys);
 
-    var gui_sys = try gui_system.create(std.heap.page_allocator, &gfx_state, main_window);
+    var gui_sys = try gui_system.create(
+        std.heap.page_allocator,
+        &gfx_state,
+        main_window,
+    );
     defer gui_system.destroy(&gui_sys);
 
     // const entity1 = flecs_world.newEntity();
