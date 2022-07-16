@@ -10,15 +10,18 @@ const glfw = @import("glfw");
 const zgpu = @import("zgpu");
 const gpu = @import("gpu");
 const zmesh = @import("zmesh");
-const wgsl = @import("procedural_mesh_system_wgsl.zig");
+const wgsl = @import("terrain_wgsl.zig");
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
+const assert = std.debug.assert;
 
 const IndexType = u32;
-const patches_on_side = 3;
+const patches_on_side = 9;
 const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = fd.patch_width;
+const indices_per_patch: u32 = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
+const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
 
 const Vertex = struct {
     position: [3]f32,
@@ -58,6 +61,8 @@ const Patch = struct {
     } = .full,
     pos: [2]i32 = undefined,
     lookup: u32 = undefined,
+    index_offset: u32 = undefined,
+    vertex_offset: i32 = undefined,
     hash: i32 = 0,
     heights: [fd.patch_width * fd.patch_width]f32,
     vertices: [patch_side_vertex_count * patch_side_vertex_count]Vertex,
@@ -110,8 +115,6 @@ fn initPatches(
     const arena = arena_state.allocator();
 
     // meshes.resize(patch_count);
-    var indices_per_patch: u32 = (fd.patch_width) * (fd.patch_width) * 6;
-    var vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
 
     // var indices = std.ArrayList(IndexType).init(arena);
 
@@ -141,26 +144,27 @@ fn initPatches(
     defer arena.free(patch_indices);
     {
         var i: u32 = 0;
-        var y: u32 = 0;
+        var z: u32 = 0;
         const width = @intCast(u32, fd.patch_width);
         const height = @intCast(u32, fd.patch_width);
-        while (y < height - 1) : (y += 1) {
+        while (z < height - 1) : (z += 1) {
             var x: u32 = 0;
             while (x < width - 1) : (x += 1) {
                 const indices_quad = [_]u32{
-                    x + y * width,
-                    x + (y + 1) * width,
-                    x + 1 + y * width,
-                    x + 1 + (y + 1) * width,
+                    x + z * width, //           0
+                    x + (z + 1) * width, //     4
+                    x + 1 + z * width, //       1
+                    x + 1 + (z + 1) * width, // 5
                 };
 
-                patch_indices[i + 0] = indices_quad[0];
-                patch_indices[i + 1] = indices_quad[1];
-                patch_indices[i + 2] = indices_quad[2];
+                patch_indices[i + 0] = indices_quad[0]; // 0
+                patch_indices[i + 1] = indices_quad[1]; // 4
+                patch_indices[i + 2] = indices_quad[2]; // 1
 
-                patch_indices[i + 3] = indices_quad[2];
-                patch_indices[i + 4] = indices_quad[1];
-                patch_indices[i + 5] = indices_quad[3];
+                patch_indices[i + 3] = indices_quad[2]; // 1
+                patch_indices[i + 4] = indices_quad[1]; // 4
+                patch_indices[i + 5] = indices_quad[3]; // 5
+
                 // std.debug.print("quad: {any}\n", .{indices_quad});
                 // std.debug.print("indices: {any}\n", .{patch_indices[i .. i + 6]});
                 // std.debug.print("tri: {any} {any} {any}\n", .{
@@ -176,7 +180,13 @@ fn initPatches(
                 i += 6;
             }
         }
+        std.debug.assert(i == indices_per_patch);
+        std.debug.assert(i == indices_per_patch);
+        std.debug.assert(i == indices_per_patch);
+        std.debug.assert(i == indices_per_patch);
     }
+
+    std.debug.assert(patch_indices.len == indices_per_patch);
 
     var patch_i: u32 = 0;
     while (patch_i < patch_count) : (patch_i += 1) {
@@ -282,6 +292,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
     const total_num_vertices = @intCast(u32, meshes_positions.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
+    assert(total_num_indices == indices_per_patch * patch_count);
 
     // Create a vertex buffer.
     const vertex_buffer = gctx.createBuffer(.{
@@ -336,11 +347,13 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         },
     };
 
-    state.patches.resize(9 * 9) catch unreachable;
+    state.patches.resize(100) catch unreachable;
     for (state.patches.items) |*patch, i| {
         patch.status = .not_used;
         patch.hash = 0;
         patch.lookup = @intCast(u32, i);
+        patch.index_offset = @intCast(u32, i) * indices_per_patch;
+        patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
     }
     // flecs_world.observer(ObserverCallback, .on_set, state);
 
@@ -368,13 +381,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     while (entity_iter.next()) |comps| {
         var range: i32 = 0;
         while (range < comps.loader.range) : (range += 1) {
-            var x: i32 = 0;
-            while (x < range * 2 + 1) : (x += 1) {
-                var y: i32 = 0;
-                while (y < range * 2 + 1) : (y += 1) {
-                    const world_x = @floatToInt(i32, comps.position.x) + x * fd.patch_width;
-                    const world_y = @floatToInt(i32, comps.position.y) + y * fd.patch_width;
-                    const patch_hash = @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_y, fd.patch_width);
+            var x: i32 = -range;
+            while (x <= range) : (x += 1) {
+                var z: i32 = -range;
+                while (z <= range) : (z += 1) {
+                    const world_x = @divFloor(@floatToInt(i32, comps.position.x), fd.patch_width) * fd.patch_width + x * fd.patch_width;
+                    const world_z = @divFloor(@floatToInt(i32, comps.position.z), fd.patch_width) * fd.patch_width + z * fd.patch_width;
+                    const patch_hash = @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_z, fd.patch_width);
 
                     for (state.patches.items) |*patch| {
                         if (patch.hash == patch_hash) {
@@ -387,7 +400,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                             }
 
                             patch.hash = patch_hash;
-                            patch.pos = [_]i32{ world_x, world_y };
+                            patch.pos = [_]i32{ world_x, world_z };
+                            patch.status = .generating_heights;
                             break;
                         } else {
                             unreachable;
@@ -411,11 +425,16 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     while (y < fd.patch_width) : (y += 1) {
                         const world_x = @intToFloat(f32, patch.pos[0]) + x;
                         const world_y = @intToFloat(f32, patch.pos[1]) + y;
-                        const height = state.noise.noise2(world_x, world_y);
-                        const index = @floatToInt(u32, world_x) + @floatToInt(u32, world_y) * fd.patch_width;
+                        const height = 100 * state.noise.noise2(world_x * 10, world_y * 10);
+                        const index = @floatToInt(u32, x) + @floatToInt(u32, y) * fd.patch_width;
                         // state.heights[patch.lookup][index] = height;
                         patch.heights[index] = height;
+                        patch.vertices[index].position[0] = x;
                         patch.vertices[index].position[1] = height;
+                        patch.vertices[index].position[2] = y;
+                        patch.vertices[index].normal[0] = 0;
+                        patch.vertices[index].normal[1] = 1;
+                        patch.vertices[index].normal[2] = 0;
                     }
                 }
                 break :blk .generating_normals;
@@ -451,9 +470,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 break :blk .writing_gfx;
             },
             .writing_gfx => blk: {
+                std.debug.print("patch {} x{} y{}\n", .{ patch.lookup, patch.pos[0], patch.pos[1] });
                 state.gctx.queue.writeBuffer(
                     state.gctx.lookupResource(state.vertex_buffer).?,
-                    patch.lookup * fd.patch_width * fd.patch_width,
+                    patch.lookup * fd.patch_width * fd.patch_width * @sizeOf(Vertex),
                     Vertex,
                     patch.vertices[0..],
                 );
@@ -535,20 +555,23 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     // const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
                     // const transform = zm.loadMat43(comps.transform.matrix[0..]);
                     // const object_to_world = zm.mul(scale_matrix, transform);
-                    const posmat = zm.translation(patch.pos[0], 0, patch.pos[1]);
+                    const posmat = zm.translation(
+                        @intToFloat(f32, patch.pos[0]),
+                        @intToFloat(f32, 0),
+                        @intToFloat(f32, patch.pos[1]),
+                    );
                     // const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
 
                     const mem = gctx.uniformsAllocate(DrawUniforms, 1);
                     mem.slice[0].object_to_world = zm.transpose(posmat);
                     mem.slice[0].basecolor_roughness[0] = 1;
                     mem.slice[0].basecolor_roughness[1] = 1;
-                    mem.slice[0].basecolor_roughness[2] = 1;
+                    mem.slice[0].basecolor_roughness[2] = 0;
                     mem.slice[0].basecolor_roughness[3] = 1;
 
                     pass.setBindGroup(1, bind_group, &.{mem.offset});
 
                     // Draw.
-                    var indices_per_patch: u32 = (fd.patch_width) * (fd.patch_width) * 6;
                     // var vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
                     pass.drawIndexed(
                         indices_per_patch,

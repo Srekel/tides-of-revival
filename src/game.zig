@@ -97,33 +97,35 @@ pub fn run() void {
         .sphere = .{ .radius = 0.5 },
     });
 
-    var rnd = RndGen.init(0);
-    var x: f32 = -1;
-    while (x < 20) : (x += 1) {
-        var z: f32 = -1;
-        while (z < 20) : (z += 1) {
-            const scale = 0.5 + rnd.random().float(f32) * 5;
-            const entity = flecs_world.newEntity();
-            entity.set(fd.Transform.init(
-                x * 1.5 + rnd.random().float(f32) * 0.5,
-                0 * 1.5 + rnd.random().float(f32) * 1 + 0.5 - scale + @sin(x * 0.4) + @cos(z * 0.25),
-                z * 1.5 + rnd.random().float(f32) * 0.5,
-            ));
-            entity.set(fd.Scale.createScalar(scale));
-            entity.set(fd.CIShapeMeshInstance{
-                .id = IdLocal.id64("sphere"),
-                .basecolor_roughness = .{
-                    .r = 0.1 + rnd.random().float(f32) * 0.3,
-                    .g = 0.3 + rnd.random().float(f32) * 0.5,
-                    .b = 0.1 + rnd.random().float(f32) * 0.1,
-                    .roughness = 1.0,
-                },
-            });
-            entity.set(fd.CIPhysicsBody{
-                .shape_type = .sphere,
-                .mass = 0,
-                .sphere = .{ .radius = scale },
-            });
+    if (false) {
+        var rnd = RndGen.init(0);
+        var x: f32 = -1;
+        while (x < 20) : (x += 1) {
+            var z: f32 = -1;
+            while (z < 20) : (z += 1) {
+                const scale = 0.5 + rnd.random().float(f32) * 5;
+                const entity = flecs_world.newEntity();
+                entity.set(fd.Transform.init(
+                    x * 1.5 + rnd.random().float(f32) * 0.5,
+                    0 * 1.5 + rnd.random().float(f32) * 1 + 0.5 - scale + @sin(x * 0.4) + @cos(z * 0.25),
+                    z * 1.5 + rnd.random().float(f32) * 0.5,
+                ));
+                entity.set(fd.Scale.createScalar(scale));
+                entity.set(fd.CIShapeMeshInstance{
+                    .id = IdLocal.id64("sphere"),
+                    .basecolor_roughness = .{
+                        .r = 0.1 + rnd.random().float(f32) * 0.3,
+                        .g = 0.3 + rnd.random().float(f32) * 0.5,
+                        .b = 0.1 + rnd.random().float(f32) * 0.1,
+                        .roughness = 1.0,
+                    },
+                });
+                entity.set(fd.CIPhysicsBody{
+                    .shape_type = .sphere,
+                    .mass = 0,
+                    .sphere = .{ .radius = scale },
+                });
+            }
         }
     }
 
@@ -132,7 +134,7 @@ pub fn run() void {
     camera_ent.set(fd.CICamera{
         .lookat = .{ .x = 0, .y = 1, .z = 30 },
         .near = 0.1,
-        .far = 1000,
+        .far = 10000,
         .window = main_window,
     });
     camera_ent.set(fd.WorldLoader{
