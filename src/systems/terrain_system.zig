@@ -17,7 +17,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const assert = std.debug.assert;
 
 const IndexType = u32;
-const patches_on_side = 9;
+const patches_on_side = 5;
 const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = fd.patch_width;
 const indices_per_patch: u32 = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
@@ -348,10 +348,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         },
     };
 
-    state.patches.resize(100) catch unreachable;
+    state.patches.resize(patch_count) catch unreachable;
     for (state.patches.items) |*patch, i| {
         patch.status = .not_used;
-        patch.hash = 0;
+        patch.hash = std.math.maxInt(i32);
         patch.lookup = @intCast(u32, i);
         patch.index_offset = @intCast(u32, i) * indices_per_patch;
         patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
@@ -383,33 +383,63 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         if (state.loading_patch) {
             break;
         }
+
+        // TODO: Rewrite this to be smart and fast instead of slow and dumb? :D
+
+        const comp_pos_i_x = @floatToInt(i32, comps.position.x);
+        const comp_pos_i_z = @floatToInt(i32, comps.position.z);
         var range: i32 = 0;
         while (range < comps.loader.range) : (range += 1) {
             var x: i32 = -range;
             while (x <= range) : (x += 1) {
                 var z: i32 = -range;
                 while (z <= range) : (z += 1) {
-                    const world_x = @divFloor(@floatToInt(i32, comps.position.x), fd.patch_width) * fd.patch_width + x * fd.patch_width;
-                    const world_z = @divFloor(@floatToInt(i32, comps.position.z), fd.patch_width) * fd.patch_width + z * fd.patch_width;
-                    const patch_hash = 3 + @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_z, fd.patch_width);
+                    const world_x = @divFloor(comp_pos_i_x, fd.patch_width) * fd.patch_width + x * fd.patch_width;
+                    const world_z = @divFloor(comp_pos_i_z, fd.patch_width) * fd.patch_width + z * fd.patch_width;
+                    const patch_hash = @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_z, fd.patch_width);
 
                     for (state.patches.items) |*patch| {
                         if (patch.hash == patch_hash) {
                             break;
                         }
                     } else {
-                        for (state.patches.items) |*patch| {
-                            if (patch.status != .not_used) {
-                                continue;
-                            }
+                        finding_patch: {
+                            while (true) {
+                                for (state.patches.items) |*patch| {
+                                    if (patch.status != .not_used) {
+                                        continue;
+                                    }
 
-                            patch.hash = patch_hash;
-                            patch.pos = [_]i32{ world_x, world_z };
-                            patch.status = .generating_heights;
-                            state.loading_patch = true;
-                            break;
-                        } else {
-                            unreachable;
+                                    patch.hash = patch_hash;
+                                    patch.pos = [_]i32{ world_x, world_z };
+                                    patch.status = .generating_heights;
+                                    state.loading_patch = true;
+                                    break :finding_patch;
+                                }
+
+                                var unload_patch = &state.patches.items[0];
+                                var dist_best = (unload_patch.pos[0] - comp_pos_i_x) + (unload_patch.pos[1] - comp_pos_i_z);
+                                for (state.patches.items) |*patch| {
+                                    // if (patch.status != .not_used) {
+                                    //     continue;
+                                    // }
+
+                                    var dist = (patch.pos[0] - comp_pos_i_x) + (patch.pos[1] - comp_pos_i_z);
+                                    if (dist <= dist_best) {
+                                        continue;
+                                    }
+
+                                    dist_best = dist;
+                                    unload_patch = patch;
+                                }
+
+                                if (unload_patch.status != .loaded) {
+                                    state.loading_patch = false;
+                                }
+
+                                unload_patch.status = .not_used;
+                                unload_patch.hash = std.math.maxInt(i32);
+                            }
                         }
                     }
                 }
@@ -489,7 +519,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 break :blk .writing_gfx;
             },
             .writing_gfx => blk: {
-                std.debug.print("patch {} x{} y{}\n", .{ patch.lookup, patch.pos[0], patch.pos[1] });
+                std.debug.print("patch {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
                 state.gctx.queue.writeBuffer(
                     state.gctx.lookupResource(state.vertex_buffer).?,
                     patch.lookup * fd.patch_width * fd.patch_width * @sizeOf(Vertex),
