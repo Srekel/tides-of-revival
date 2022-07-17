@@ -72,7 +72,28 @@ pub const fs = common ++
 \\      let v = normalize(frame_uniforms.camera_position - position);
 \\      let n = normalize(normal);
 \\
-\\      let base_color = draw_uniforms.basecolor_roughness.xyz;
+\\      let colors = array<vec3<f32>, 5>(
+\\          vec3(0.0, 0.1, 0.7),
+\\          vec3(1.0, 1.0, 0.0),
+\\          vec3(0.0, 0.7, 0.0),
+\\          vec3(0.7, 0.7, 0.7),
+\\          vec3(0.95, 0.95, 0.95),
+\\      );
+\\      let color_heights = array<f32, 5>(
+\\          25.0,
+\\          100.0,
+\\          150.0,
+\\          250.0,
+\\          300.0,
+\\      );
+\\
+\\      var base_color = colors[0];
+\\      base_color = mix(base_color, colors[1], step(0.05, position.y * 0.01));
+\\      base_color = mix(base_color, colors[2], step(0.2, position.y * 0.01));
+\\      base_color = mix(base_color, colors[3], step(0.5, position.y * 0.01));
+\\      base_color = mix(base_color, colors[4], step(0.7, position.y * 0.01));
+\\
+\\
 \\      let ao = 1.0;
 \\      var roughness = draw_uniforms.basecolor_roughness.a;
 \\      var metallic: f32;

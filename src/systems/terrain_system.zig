@@ -85,6 +85,7 @@ const SystemState = struct {
     meshes: std.ArrayList(Mesh),
 
     patches: std.ArrayList(Patch),
+    loading_patch: bool = false,
     // meshes: std.ArrayList(Mesh),
     // vertices: [max_loaded_patches][fd.patch_width]Vertex = undefined,
     // heights: [patch_count][fd.patch_width * fd.patch_width]f32,
@@ -379,6 +380,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     });
 
     while (entity_iter.next()) |comps| {
+        if (state.loading_patch) {
+            break;
+        }
         var range: i32 = 0;
         while (range < comps.loader.range) : (range += 1) {
             var x: i32 = -range;
@@ -387,7 +391,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 while (z <= range) : (z += 1) {
                     const world_x = @divFloor(@floatToInt(i32, comps.position.x), fd.patch_width) * fd.patch_width + x * fd.patch_width;
                     const world_z = @divFloor(@floatToInt(i32, comps.position.z), fd.patch_width) * fd.patch_width + z * fd.patch_width;
-                    const patch_hash = @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_z, fd.patch_width);
+                    const patch_hash = 3 + @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_z, fd.patch_width);
 
                     for (state.patches.items) |*patch| {
                         if (patch.hash == patch_hash) {
@@ -402,6 +406,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                             patch.hash = patch_hash;
                             patch.pos = [_]i32{ world_x, world_z };
                             patch.status = .generating_heights;
+                            state.loading_patch = true;
                             break;
                         } else {
                             unreachable;
@@ -415,43 +420,57 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     for (state.patches.items) |*patch| {
         patch.status =
             switch (patch.status) {
-            .loaded => continue,
             .not_used => continue,
             .in_queue => continue,
             .generating_heights => blk: {
-                var x: f32 = 0;
-                while (x < fd.patch_width) : (x += 1) {
-                    var y: f32 = 0;
-                    while (y < fd.patch_width) : (y += 1) {
+                var z: f32 = 0;
+                while (z < fd.patch_width) : (z += 1) {
+                    var x: f32 = 0;
+                    while (x < fd.patch_width) : (x += 1) {
                         const world_x = @intToFloat(f32, patch.pos[0]) + x;
-                        const world_y = @intToFloat(f32, patch.pos[1]) + y;
-                        const height = 100 * state.noise.noise2(world_x * 10, world_y * 10);
-                        const index = @floatToInt(u32, x) + @floatToInt(u32, y) * fd.patch_width;
+                        const world_z = @intToFloat(f32, patch.pos[1]) + z;
+                        const height = 100 * state.noise.noise2(world_x * 10, world_z * 10);
+                        const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
                         // state.heights[patch.lookup][index] = height;
                         patch.heights[index] = height;
-                        patch.vertices[index].position[0] = x;
-                        patch.vertices[index].position[1] = height;
-                        patch.vertices[index].position[2] = y;
-                        patch.vertices[index].normal[0] = 0;
-                        patch.vertices[index].normal[1] = 1;
-                        patch.vertices[index].normal[2] = 0;
+                        // patch.vertices[index].position[0] = x;
+                        // patch.vertices[index].position[1] = height;
+                        // patch.vertices[index].position[2] = y;
+                        // patch.vertices[index].normal[0] = 0;
+                        // patch.vertices[index].normal[1] = 1;
+                        // patch.vertices[index].normal[2] = 0;
                     }
                 }
                 break :blk .generating_normals;
             },
             .generating_normals => blk: {
-                // var x: f32 = 0;
-                // while (x < fd.patch_width) : (x += 1) {
-                //     var y: f32 = 0;
-                //     while (y < fd.patch_width) : (y += 1) {
-                //         const world_x = @intToFloat(f32, patch.pos[0]) + x;
-                //         const world_y = @intToFloat(f32, patch.pos[0]) + y;
-                //         //     const world_y = @floatToInt(i32, comps.position.y) + y * fd.patch_width;
-                //         const height = state.noise.noise2(world_x, world_y);
-                //         const index = @intToFloat(i32, world_x) + @intToFloat(i32, world_y) * fd.patch_width;
-                //         state.vertices[patch.lookup][index].height = height;
-                //     }
-                // }
+                var z: i32 = 0;
+                while (z < fd.patch_width) : (z += 1) {
+                    var x: i32 = 0;
+                    while (x < fd.patch_width) : (x += 1) {
+                        // const world_x = patch.pos[0] + x;
+                        // const world_z = patch.pos[1] + z;
+                        //     const world_z = @floatToInt(i32, comps.position.z) + z * fd.patch_width;
+                        const index = @intCast(u32, x + z * fd.patch_width);
+                        const height = patch.heights[index];
+
+                        // const indexn = math.min(vertices_per_patch, world_x + (world_z + 1) * fd.patch_width);
+                        // const indexs = math.max(0, math.world_x + (world_z - 1) * fd.patch_width);
+                        // const indexe = math.min(vertices_per_patch, math.world_x + 1 + world_z * fd.patch_width);
+                        // const indexw = math.max(0, math.world_x - 1 + world_z * fd.patch_width);
+                        // const heightn = patch.heights[indexn];
+                        // const heights = patch.heights[indexs];
+                        // const heighte = patch.heights[indexe];
+                        // const heightw = patch.heights[indexw];
+                        // state.vertices[patch.lookup][index].height = height;
+                        patch.vertices[index].position[0] = @intToFloat(f32, x);
+                        patch.vertices[index].position[1] = height;
+                        patch.vertices[index].position[2] = @intToFloat(f32, z);
+                        patch.vertices[index].normal[0] = 0;
+                        patch.vertices[index].normal[1] = 1;
+                        patch.vertices[index].normal[2] = 0;
+                    }
+                }
                 break :blk .generating_physics;
             },
             .generating_physics => blk: {
@@ -478,6 +497,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     patch.vertices[0..],
                 );
 
+                break :blk .loaded;
+            },
+            .loaded => blk: {
+                state.loading_patch = false;
                 break :blk .loaded;
             },
         };
