@@ -369,6 +369,40 @@ pub fn destroy(state: *SystemState) void {
     state.allocator.destroy(state);
 }
 
+const ThreadContextGenerateHeights = struct {
+    patch: *Patch,
+    state: *SystemState,
+};
+
+fn generateHeights(ctx: ThreadContextGenerateHeights) !void {
+    _ = ctx;
+    // ctx.patch.
+    var patch = ctx.patch;
+    var state = ctx.state;
+    var z: f32 = 0;
+    while (z < fd.patch_width) : (z += 1) {
+        var x: f32 = 0;
+        while (x < fd.patch_width) : (x += 1) {
+            const world_x = @intToFloat(f32, patch.pos[0]) + x;
+            const world_z = @intToFloat(f32, patch.pos[1]) + z;
+            const height = 100 * state.noise.noise2(world_x * 10, world_z * 10);
+            _ = world_x;
+            _ = world_z;
+            // const height = 100;
+            const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
+            // state.heights[patch.lookup][index] = height;
+            patch.heights[index] = height;
+            // patch.vertices[index].position[0] = x;
+            // patch.vertices[index].position[1] = height;
+            // patch.vertices[index].position[2] = y;
+            // patch.vertices[index].normal[0] = 0;
+            // patch.vertices[index].normal[1] = 1;
+            // patch.vertices[index].normal[2] = 0;
+        }
+    }
+    patch.status = .generating_normals;
+}
+
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
@@ -412,13 +446,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                                     patch.hash = patch_hash;
                                     patch.pos = [_]i32{ world_x, world_z };
-                                    patch.status = .generating_heights;
+                                    patch.status = .in_queue;
                                     state.loading_patch = true;
                                     break :finding_patch;
                                 }
 
                                 var unload_patch = &state.patches.items[0];
-                                var dist_best = (unload_patch.pos[0] - comp_pos_i_x) + (unload_patch.pos[1] - comp_pos_i_z);
+                                var dist_best: i32 = -1; //(unload_patch.pos[0] - comp_pos_i_x) + (unload_patch.pos[1] - comp_pos_i_z);
                                 for (state.patches.items) |*patch| {
                                     // if (patch.status != .not_used) {
                                     //     continue;
@@ -451,27 +485,39 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         patch.status =
             switch (patch.status) {
             .not_used => continue,
-            .in_queue => continue,
+            .in_queue => blk: {
+                const threadConfig = .{};
+                var threadArgs: ThreadContextGenerateHeights = .{ .patch = patch, .state = state };
+                _ = threadArgs;
+                const thread = std.Thread.spawn(threadConfig, generateHeights, .{threadArgs}) catch unreachable;
+                thread.detach();
+                _ = thread;
+                break :blk .generating_heights;
+            },
             .generating_heights => blk: {
-                var z: f32 = 0;
-                while (z < fd.patch_width) : (z += 1) {
-                    var x: f32 = 0;
-                    while (x < fd.patch_width) : (x += 1) {
-                        const world_x = @intToFloat(f32, patch.pos[0]) + x;
-                        const world_z = @intToFloat(f32, patch.pos[1]) + z;
-                        const height = 100 * state.noise.noise2(world_x * 10, world_z * 10);
-                        const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
-                        // state.heights[patch.lookup][index] = height;
-                        patch.heights[index] = height;
-                        // patch.vertices[index].position[0] = x;
-                        // patch.vertices[index].position[1] = height;
-                        // patch.vertices[index].position[2] = y;
-                        // patch.vertices[index].normal[0] = 0;
-                        // patch.vertices[index].normal[1] = 1;
-                        // patch.vertices[index].normal[2] = 0;
-                    }
-                }
-                break :blk .generating_normals;
+                break :blk .generating_heights;
+                // var z: f32 = 0;
+                // while (z < fd.patch_width) : (z += 1) {
+                //     var x: f32 = 0;
+                //     while (x < fd.patch_width) : (x += 1) {
+                //         const world_x = @intToFloat(f32, patch.pos[0]) + x;
+                //         const world_z = @intToFloat(f32, patch.pos[1]) + z;
+                //         // const height = 100 * state.noise.noise2(world_x * 10, world_z * 10);
+                //         _ = world_x;
+                //         _ = world_z;
+                //         const height = 100;
+                //         const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
+                //         // state.heights[patch.lookup][index] = height;
+                //         patch.heights[index] = height;
+                //         // patch.vertices[index].position[0] = x;
+                //         // patch.vertices[index].position[1] = height;
+                //         // patch.vertices[index].position[2] = y;
+                //         // patch.vertices[index].normal[0] = 0;
+                //         // patch.vertices[index].normal[1] = 1;
+                //         // patch.vertices[index].normal[2] = 0;
+                //     }
+                // }
+                // break :blk .generating_normals;
             },
             .generating_normals => blk: {
                 var z: i32 = 0;

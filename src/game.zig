@@ -130,7 +130,7 @@ pub fn run() void {
     }
 
     const camera_ent = flecs_world.newEntity();
-    camera_ent.set(fd.Position{ .x = 0, .y = 2, .z = -30 });
+    camera_ent.set(fd.Position{ .x = 50, .y = 200, .z = 50 });
     camera_ent.set(fd.CICamera{
         .lookat = .{ .x = 0, .y = 1, .z = 30 },
         .near = 0.1,
