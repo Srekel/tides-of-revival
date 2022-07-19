@@ -5,6 +5,7 @@ const gfx = @import("../gfx_wgpu.zig");
 const zbt = @import("zbullet");
 const zm = @import("zmath");
 const znoise = @import("znoise");
+const zpool = @import("zpool");
 
 const glfw = @import("glfw");
 const zgpu = @import("zgpu");
@@ -17,11 +18,14 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const assert = std.debug.assert;
 
 const IndexType = u32;
-const patches_on_side = 5;
+const patches_on_side = 6;
 const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = fd.patch_width;
 const indices_per_patch: u32 = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
+
+// const Pool = zpool.Pool;
+// const PatchPool = Pool(16, 16, )
 
 const Vertex = struct {
     position: [3]f32,
@@ -348,13 +352,13 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         },
     };
 
-    state.patches.resize(patch_count) catch unreachable;
-    for (state.patches.items) |*patch, i| {
+    state.patches.resize(patch_count * 2) catch unreachable;
+    for (state.patches.items) |*patch| {
         patch.status = .not_used;
         patch.hash = std.math.maxInt(i32);
-        patch.lookup = @intCast(u32, i);
-        patch.index_offset = @intCast(u32, i) * indices_per_patch;
-        patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
+        //patch.lookup = @intCast(u32, i);
+        // patch.index_offset = @intCast(u32, i) * indices_per_patch;
+        // patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
     }
     // flecs_world.observer(ObserverCallback, .on_set, state);
 
@@ -420,62 +424,91 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
         // TODO: Rewrite this to be smart and fast instead of slow and dumb? :D
 
+        var free_lookup: u32 = 0;
+        while (free_lookup < patch_count) : (free_lookup += 1) {
+            for (state.patches.items) |*patch| {
+                if (patch.status != .not_used and patch.lookup == free_lookup) {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
         const comp_pos_i_x = @floatToInt(i32, comps.position.x);
         const comp_pos_i_z = @floatToInt(i32, comps.position.z);
         var range: i32 = 0;
-        while (range < comps.loader.range) : (range += 1) {
+        comp_loop: while (range < comps.loader.range) : (range += 1) {
             var x: i32 = -range;
             while (x <= range) : (x += 1) {
                 var z: i32 = -range;
-                while (z <= range) : (z += 1) {
+                z_loop: while (z <= range) : (z += 1) {
                     const world_x = @divFloor(comp_pos_i_x, fd.patch_width) * fd.patch_width + x * fd.patch_width;
                     const world_z = @divFloor(comp_pos_i_z, fd.patch_width) * fd.patch_width + z * fd.patch_width;
                     const patch_hash = @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_z, fd.patch_width);
 
                     for (state.patches.items) |*patch| {
                         if (patch.hash == patch_hash) {
-                            break;
-                        }
-                    } else {
-                        finding_patch: {
-                            while (true) {
-                                for (state.patches.items) |*patch| {
-                                    if (patch.status != .not_used) {
-                                        continue;
-                                    }
-
-                                    patch.hash = patch_hash;
-                                    patch.pos = [_]i32{ world_x, world_z };
-                                    patch.status = .in_queue;
-                                    state.loading_patch = true;
-                                    break :finding_patch;
-                                }
-
-                                var unload_patch = &state.patches.items[0];
-                                var dist_best: i32 = -1; //(unload_patch.pos[0] - comp_pos_i_x) + (unload_patch.pos[1] - comp_pos_i_z);
-                                for (state.patches.items) |*patch| {
-                                    // if (patch.status != .not_used) {
-                                    //     continue;
-                                    // }
-
-                                    var dist = (patch.pos[0] - comp_pos_i_x) + (patch.pos[1] - comp_pos_i_z);
-                                    if (dist <= dist_best) {
-                                        continue;
-                                    }
-
-                                    dist_best = dist;
-                                    unload_patch = patch;
-                                }
-
-                                if (unload_patch.status != .loaded) {
-                                    state.loading_patch = false;
-                                }
-
-                                unload_patch.status = .not_used;
-                                unload_patch.hash = std.math.maxInt(i32);
-                            }
+                            continue :z_loop;
                         }
                     }
+
+                    var free_patch: ?*Patch = null;
+                    if (free_lookup == patch_count) {
+                        var unload_patch = &state.patches.items[0];
+                        var dist_best: i32 = -1; //(unload_patch.pos[0] - comp_pos_i_x) + (unload_patch.pos[1] - comp_pos_i_z);
+                        for (state.patches.items) |*patch| {
+                            if (patch.status == .not_used) {
+                                continue;
+                            }
+
+                            var distX = math.absInt(patch.pos[0] - comp_pos_i_x) catch unreachable;
+                            var distZ = math.absInt(patch.pos[1] - comp_pos_i_z) catch unreachable;
+                            const dist = distX + distZ;
+                            if (dist <= dist_best) {
+                                continue;
+                            }
+
+                            dist_best = dist;
+                            unload_patch = patch;
+                        }
+
+                        if (unload_patch.status != .loaded) {
+                            state.loading_patch = false;
+                        }
+
+                        free_lookup = unload_patch.lookup;
+                        unload_patch.status = .not_used;
+                        free_patch = unload_patch;
+                        // unload_patch.hash = std.math.maxInt(i32);
+                    }
+
+                    if (free_patch == null) {
+                        for (state.patches.items) |*patch| {
+                            if (patch.status != .not_used) {
+                                continue;
+                            }
+
+                            free_patch = patch;
+                            break;
+
+                            // patch.hash = patch_hash;
+                            // patch.pos = [_]i32{ world_x, world_z };
+                            // patch.status = .in_queue;
+                            // patch.lookup = free_lookup;
+                            // state.loading_patch = true;
+                            // break :comp_loop;
+                        }
+                    }
+
+                    free_patch.?.hash = patch_hash;
+                    free_patch.?.pos = [_]i32{ world_x, world_z };
+                    free_patch.?.status = .in_queue;
+                    free_patch.?.lookup = free_lookup;
+                    free_patch.?.index_offset = @intCast(u32, free_lookup) * indices_per_patch;
+                    free_patch.?.vertex_offset = @intCast(i32, free_lookup * vertices_per_patch);
+                    state.loading_patch = true;
+                    break :comp_loop;
                 }
             }
         }
