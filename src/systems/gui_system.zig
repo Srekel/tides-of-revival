@@ -1,11 +1,11 @@
 const std = @import("std");
 const math = std.math;
 const glfw = @import("glfw");
-const gpu = @import("gpu");
 const zgpu = @import("zgpu");
 const zgui = zgpu.zgui;
 const zm = @import("zmath");
 const gfx = @import("../gfx_wgpu.zig");
+const wgpu = zgpu.wgpu;
 
 const font = "fonts/Roboto-Medium.ttf";
 
@@ -49,15 +49,16 @@ pub fn update(state: *SystemState) void {
         defer encoder.release();
 
         {
-            const color_attachment = gpu.RenderPassColorAttachment{
+            const color_attachments = [_]wgpu.RenderPassColorAttachment{.{
                 .view = back_buffer_view,
                 .load_op = .load,
                 .store_op = .store,
+            }};
+            const render_pass_info = wgpu.RenderPassDescriptor{
+                .color_attachment_count = color_attachments.len,
+                .color_attachments = &color_attachments,
             };
-            const render_pass_info = gpu.RenderPassEncoder.Descriptor{
-                .color_attachments = &.{color_attachment},
-            };
-            const pass = encoder.beginRenderPass(&render_pass_info);
+            const pass = encoder.beginRenderPass(render_pass_info);
             defer {
                 pass.end();
                 pass.release();

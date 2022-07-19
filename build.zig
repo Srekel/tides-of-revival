@@ -34,6 +34,7 @@ pub fn build(b: *Builder) void {
     exe.addPackage(zmesh_pkg);
     exe.addPackage(zmath.pkg);
     exe.addPackage(znoise.pkg);
+    exe.addPackage(zpool.pkg);
 
     zbullet.link(exe);
     zgpu.link(exe, zgpu_options);

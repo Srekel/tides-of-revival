@@ -2,15 +2,15 @@ const std = @import("std");
 const math = std.math;
 const glfw = @import("glfw");
 const zgpu = @import("zgpu");
-const gpu = @import("gpu");
 const zm = @import("zmath");
+const wgpu = zgpu.wgpu;
 
 pub const GfxState = struct {
     allocator: std.mem.Allocator,
     gctx: *zgpu.GraphicsContext,
     depth_texture: zgpu.TextureHandle,
     depth_texture_view: zgpu.TextureViewHandle,
-    command_buffers: std.ArrayList(gpu.CommandBuffer),
+    command_buffers: std.ArrayList(wgpu.CommandBuffer),
 };
 
 pub fn init(allocator: std.mem.Allocator, window: glfw.Window) !GfxState {
@@ -25,7 +25,7 @@ pub fn init(allocator: std.mem.Allocator, window: glfw.Window) !GfxState {
         .gctx = gctx,
         .depth_texture = depth.texture,
         .depth_texture_view = depth.view,
-        .command_buffers = std.ArrayList(gpu.CommandBuffer).init(allocator),
+        .command_buffers = std.ArrayList(wgpu.CommandBuffer).init(allocator),
     };
 }
 
@@ -66,7 +66,7 @@ fn createDepthTexture(gctx: *zgpu.GraphicsContext) struct {
 } {
     const texture = gctx.createTexture(.{
         .usage = .{ .render_attachment = true },
-        .dimension = .dimension_2d,
+        .dimension = .tdim_2d,
         .size = .{
             .width = gctx.swapchain_descriptor.width,
             .height = gctx.swapchain_descriptor.height,
@@ -78,7 +78,7 @@ fn createDepthTexture(gctx: *zgpu.GraphicsContext) struct {
     });
     const view = gctx.createTextureView(texture, .{
         .format = .depth32_float,
-        .dimension = .dimension_2d,
+        .dimension = .tvdim_2d,
         .base_mip_level = 0,
         .mip_level_count = 1,
         .base_array_layer = 0,
