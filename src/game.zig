@@ -84,7 +84,7 @@ pub fn run() void {
     // entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
 
     const entity3 = flecs_world.newEntity();
-    entity3.set(fd.Transform.init(3.4, 10, 0.6));
+    entity3.set(fd.Transform.init(3.4, 200, 0.6));
     entity3.set(fd.Scale.createScalar(0.5));
     // entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
     entity3.set(fd.CIShapeMeshInstance{

@@ -88,6 +88,7 @@ const SystemState = struct {
     index_buffer: zgpu.BufferHandle,
     meshes: std.ArrayList(Mesh),
 
+    indices: std.ArrayList(IndexType),
     patches: std.ArrayList(Patch),
     loading_patch: bool = false,
     // meshes: std.ArrayList(Mesh),
@@ -342,6 +343,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .meshes = meshes,
 
         .patches = std.ArrayList(Patch).init(allocator),
+        .indices = std.ArrayList(IndexType).init(allocator),
         // .bodies = std.ArrayList(zbt.Body).init(),
         .query_loader = query_loader,
         .query_camera = query_camera,
@@ -353,6 +355,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         },
     };
 
+    state.indices.appendSlice(meshes_indices.items[0..indices_per_patch]) catch unreachable;
     state.patches.resize(patch_count * 2) catch unreachable;
     for (state.patches.items) |*patch| {
         patch.status = .not_used;
@@ -596,6 +599,39 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 //         state.vertices[patch.lookup][index].height = height;
                 //     }
                 // }
+
+                // var transform = it.entity().getMut(fd.Transform).?;
+                const transform = [_]f32{
+                    1.0,                            0.0, 0.0,
+                    0.0,                            1.0, 0.0,
+                    0.0,                            0.0, 1.0,
+                    @intToFloat(f32, patch.pos[0]), 0,   @intToFloat(f32, patch.pos[1]),
+                };
+
+                const trimesh = zbt.initTriangleMeshShape();
+                trimesh.addIndexVertexArray(
+                    @intCast(u32, indices_per_patch / 3),
+                    state.indices.items[patch.index_offset..].ptr,
+                    @sizeOf([3]u32),
+                    @intCast(u32, patch.vertices[0..].len),
+                    &patch.vertices[0],
+                    @sizeOf([6]f32),
+                );
+                trimesh.finish();
+
+                const shape = trimesh.asShape();
+                const body = zbt.initBody(
+                    0,
+                    &transform,
+                    shape,
+                );
+
+                body.setDamping(0.1, 0.1);
+                body.setRestitution(0.5);
+                body.setFriction(0.2);
+
+                state.physics_world.addBody(body);
+
                 break :blk .writing_gfx;
             },
             .writing_gfx => blk: {
