@@ -56,7 +56,7 @@ pub fn run() void {
 
     var terrain_sys = try terrain_system.create(
         IdLocal.init("terrain_system"),
-        std.heap.page_allocator,
+        std.heap.c_allocator,
         &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
@@ -84,8 +84,8 @@ pub fn run() void {
     // entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
 
     const entity3 = flecs_world.newEntity();
-    entity3.set(fd.Transform.init(3.4, 200, 0.6));
-    entity3.set(fd.Scale.createScalar(0.5));
+    entity3.set(fd.Transform.init(150, 500, 0.6));
+    entity3.set(fd.Scale.createScalar(10.5));
     // entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
     entity3.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("sphere"),
@@ -94,7 +94,7 @@ pub fn run() void {
     entity3.set(fd.CIPhysicsBody{
         .shape_type = .sphere,
         .mass = 1,
-        .sphere = .{ .radius = 0.5 },
+        .sphere = .{ .radius = 10.5 },
     });
 
     if (false) {
@@ -130,7 +130,7 @@ pub fn run() void {
     }
 
     const camera_ent = flecs_world.newEntity();
-    camera_ent.set(fd.Position{ .x = 50, .y = 200, .z = 50 });
+    camera_ent.set(fd.Position{ .x = 200, .y = 200, .z = 50 });
     camera_ent.set(fd.CICamera{
         .lookat = .{ .x = 0, .y = 1, .z = 30 },
         .near = 0.1,
@@ -148,7 +148,7 @@ pub fn run() void {
         }
 
         const stats = gfx_state.gctx.stats;
-        const dt = @floatCast(f32, stats.delta_time);
+        const dt = @floatCast(f32, stats.delta_time) * 0.2;
         gfx.update(&gfx_state);
         gui_system.preUpdate(&gui_sys);
 

@@ -18,7 +18,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const assert = std.debug.assert;
 
 const IndexType = u32;
-const patches_on_side = 6;
+const patches_on_side = 4;
 const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = fd.patch_width;
 const indices_per_patch: u32 = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
@@ -53,9 +53,12 @@ const Patch = struct {
     status: enum {
         not_used,
         in_queue,
+        generating_heights_setup,
         generating_heights,
         generating_normals,
+        generating_physics_setup,
         generating_physics,
+        writing_physics,
         writing_gfx,
         loaded,
     } = .not_used,
@@ -70,6 +73,8 @@ const Patch = struct {
     hash: i32 = 0,
     heights: [fd.patch_width * fd.patch_width]f32,
     vertices: [patch_side_vertex_count * patch_side_vertex_count]Vertex,
+    physics_shape: ?zbt.Shape,
+    physics_body: zbt.Body,
 };
 
 const max_loaded_patches = 64;
@@ -360,6 +365,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     for (state.patches.items) |*patch| {
         patch.status = .not_used;
         patch.hash = std.math.maxInt(i32);
+        patch.physics_shape = null;
         //patch.lookup = @intCast(u32, i);
         // patch.index_offset = @intCast(u32, i) * indices_per_patch;
         // patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
@@ -382,7 +388,7 @@ const ThreadContextGenerateHeights = struct {
     state: *SystemState,
 };
 
-fn generateHeights(ctx: ThreadContextGenerateHeights) !void {
+fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
     _ = ctx;
     // ctx.patch.
     var patch = ctx.patch;
@@ -411,10 +417,35 @@ fn generateHeights(ctx: ThreadContextGenerateHeights) !void {
     patch.status = .generating_normals;
 }
 
+const ThreadContextGenerateShape = struct {
+    patch: *Patch,
+    state: *SystemState,
+};
+
+fn jobGenerateShape(ctx: ThreadContextGenerateShape) !void {
+    _ = ctx;
+    var patch = ctx.patch;
+    var state = ctx.state;
+
+    const trimesh = zbt.initTriangleMeshShape();
+    trimesh.addIndexVertexArray(
+        @intCast(u32, indices_per_patch / 3),
+        state.indices.items.ptr,
+        @sizeOf([3]u32),
+        @intCast(u32, patch.vertices[0..].len),
+        &patch.vertices[0],
+        @sizeOf(Vertex),
+    );
+    trimesh.finish();
+
+    const shape = trimesh.asShape();
+    patch.physics_shape = shape;
+    patch.status = .writing_physics;
+}
+
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
-    // _ = state.physics_world.stepSimulation(0.0166, .{});
 
     var entity_iter = state.query_loader.iterator(struct {
         loader: *fd.WorldLoader,
@@ -481,6 +512,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                             state.loading_patch = false;
                         }
 
+                        if (unload_patch.physics_shape != null) {
+                            state.physics_world.removeBody(unload_patch.physics_body);
+                            unload_patch.physics_shape.?.deinit();
+                            unload_patch.physics_shape = null;
+                        }
+
                         free_lookup = unload_patch.lookup;
                         unload_patch.status = .not_used;
                         free_patch = unload_patch;
@@ -512,6 +549,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     free_patch.?.index_offset = @intCast(u32, free_lookup) * indices_per_patch;
                     free_patch.?.vertex_offset = @intCast(i32, free_lookup * vertices_per_patch);
                     state.loading_patch = true;
+                    std.debug.print("free_patch {} h{} x{} z{}\n", .{ free_patch.?.lookup, free_patch.?.hash, free_patch.?.pos[0], free_patch.?.pos[1] });
                     break :comp_loop;
                 }
             }
@@ -519,16 +557,22 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     for (state.patches.items) |*patch| {
+        // LOL @ thread safety 😂😂😂
         patch.status =
             switch (patch.status) {
             .not_used => continue,
             .in_queue => blk: {
+                break :blk .generating_heights_setup;
+            },
+            .generating_heights_setup => blk: {
                 const threadConfig = .{};
                 var threadArgs: ThreadContextGenerateHeights = .{ .patch = patch, .state = state };
                 _ = threadArgs;
-                const thread = std.Thread.spawn(threadConfig, generateHeights, .{threadArgs}) catch unreachable;
+                const thread = std.Thread.spawn(threadConfig, jobGenerateHeights, .{threadArgs}) catch unreachable;
                 thread.detach();
                 _ = thread;
+                std.debug.print("generating_heights_setup {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
+
                 break :blk .generating_heights;
             },
             .generating_heights => blk: {
@@ -584,9 +628,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                         patch.vertices[index].normal[2] = 0;
                     }
                 }
-                break :blk .generating_physics;
+                break :blk .generating_physics_setup;
+                // break :blk .writing_gfx;
             },
-            .generating_physics => blk: {
+            .generating_physics_setup => blk: {
                 // var x: f32 = 0;
                 // while (x < fd.patch_width) : (x += 1) {
                 //     var y: f32 = 0;
@@ -600,7 +645,32 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 //     }
                 // }
 
-                // var transform = it.entity().getMut(fd.Transform).?;
+                // const trimesh = zbt.initTriangleMeshShape();
+                // trimesh.addIndexVertexArray(
+                //     @intCast(u32, indices_per_patch / 3),
+                //     state.indices.items.ptr,
+                //     @sizeOf([3]u32),
+                //     @intCast(u32, patch.vertices[0..].len),
+                //     &patch.vertices[0],
+                //     @sizeOf(Vertex),
+                // );
+                // trimesh.finish();
+
+                // const shape = trimesh.asShape();
+
+                const threadConfig = .{};
+                var threadArgs: ThreadContextGenerateShape = .{ .patch = patch, .state = state };
+                _ = threadArgs;
+                const thread = std.Thread.spawn(threadConfig, jobGenerateShape, .{threadArgs}) catch unreachable;
+                thread.detach();
+                std.debug.print("generating_physics_setup {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
+                _ = thread;
+                break :blk .generating_physics;
+            },
+            .generating_physics => blk: {
+                break :blk .generating_physics;
+            },
+            .writing_physics => blk: {
                 const transform = [_]f32{
                     1.0,                            0.0, 0.0,
                     0.0,                            1.0, 0.0,
@@ -608,27 +678,16 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     @intToFloat(f32, patch.pos[0]), 0,   @intToFloat(f32, patch.pos[1]),
                 };
 
-                const trimesh = zbt.initTriangleMeshShape();
-                trimesh.addIndexVertexArray(
-                    @intCast(u32, indices_per_patch / 3),
-                    state.indices.items[patch.index_offset..].ptr,
-                    @sizeOf([3]u32),
-                    @intCast(u32, patch.vertices[0..].len),
-                    &patch.vertices[0],
-                    @sizeOf([6]f32),
-                );
-                trimesh.finish();
-
-                const shape = trimesh.asShape();
                 const body = zbt.initBody(
                     0,
                     &transform,
-                    shape,
+                    patch.physics_shape.?,
                 );
 
                 body.setDamping(0.1, 0.1);
                 body.setRestitution(0.5);
                 body.setFriction(0.2);
+                patch.physics_body = body;
 
                 state.physics_world.addBody(body);
 
@@ -643,10 +702,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     patch.vertices[0..],
                 );
 
+                state.loading_patch = false;
                 break :blk .loaded;
             },
             .loaded => blk: {
-                state.loading_patch = false;
                 break :blk .loaded;
             },
         };
@@ -680,7 +739,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             }};
             const depth_attachment = wgpu.RenderPassDepthStencilAttachment{
                 .view = depth_view,
-                .depth_load_op = .clear, // else .load,
+                .depth_load_op = .load,
                 .depth_store_op = .store,
                 .depth_clear_value = 1.0,
             };
