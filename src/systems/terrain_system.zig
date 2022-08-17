@@ -18,7 +18,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const assert = std.debug.assert;
 
 const IndexType = u32;
-const patches_on_side = 4;
+const patches_on_side = 5;
 const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = fd.patch_width;
 const indices_per_patch: u32 = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
@@ -75,6 +75,7 @@ const Patch = struct {
     vertices: [patch_side_vertex_count * patch_side_vertex_count]Vertex,
     physics_shape: ?zbt.Shape,
     physics_body: zbt.Body,
+    entity: flecs.EntityId,
 };
 
 const max_loaded_patches = 64;
@@ -216,7 +217,14 @@ fn initPatches(
     }
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
+pub fn create(
+    name: IdLocal,
+    allocator: std.mem.Allocator,
+    gfxstate: *gfx.GfxState,
+    flecs_world: *flecs.World,
+    physics_world: zbt.World,
+    noise: znoise.FnlGenerator,
+) !*SystemState {
     var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*)
         .with(fd.WorldLoader)
         .with(fd.Position);
@@ -352,12 +360,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         // .bodies = std.ArrayList(zbt.Body).init(),
         .query_loader = query_loader,
         .query_camera = query_camera,
-        .noise = .{
-            .seed = @intCast(i32, 1234),
-            .fractal_type = .fbm,
-            .frequency = 0.0001,
-            .octaves = 20,
-        },
+        .noise = noise,
     };
 
     state.indices.appendSlice(meshes_indices.items[0..indices_per_patch]) catch unreachable;
@@ -399,7 +402,7 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
         while (x < fd.patch_width) : (x += 1) {
             const world_x = @intToFloat(f32, patch.pos[0]) + x;
             const world_z = @intToFloat(f32, patch.pos[1]) + z;
-            const height = 100 * state.noise.noise2(world_x * 10, world_z * 10);
+            const height = 100 * state.noise.noise2(world_x * 10.000, world_z * 10.000);
             _ = world_x;
             _ = world_z;
             // const height = 100;
@@ -454,7 +457,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     while (entity_iter.next()) |comps| {
         if (state.loading_patch) {
-            break;
+            // break;
         }
 
         // TODO: Rewrite this to be smart and fast instead of slow and dumb? :D
@@ -517,6 +520,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                             unload_patch.physics_shape.?.deinit();
                             unload_patch.physics_shape = null;
                         }
+
+                        state.flecs_world.delete(unload_patch.entity);
+                        unload_patch.entity = 0;
 
                         free_lookup = unload_patch.lookup;
                         unload_patch.status = .not_used;
@@ -628,8 +634,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                         patch.vertices[index].normal[2] = 0;
                     }
                 }
-                break :blk .generating_physics_setup;
-                // break :blk .writing_gfx;
+                // break :blk .generating_physics_setup;
+                break :blk .writing_gfx;
             },
             .generating_physics_setup => blk: {
                 // var x: f32 = 0;
@@ -706,6 +712,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 break :blk .loaded;
             },
             .loaded => blk: {
+                const patch_ent = state.flecs_world.newEntity();
+                patch_ent.set(fd.Position{ .x = @intToFloat(f32, patch.pos[0]), .y = 0, .z = @intToFloat(f32, patch.pos[1]) });
+                patch_ent.set(fd.WorldPatch{ .lookup = patch.lookup });
+                patch.entity = patch_ent.id;
                 break :blk .loaded;
             },
         };

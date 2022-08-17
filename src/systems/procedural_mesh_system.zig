@@ -140,6 +140,16 @@ fn initScene(
 
         _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
     }
+    // Parametric cube.
+    {
+        var mesh = zmesh.Shape.initCube();
+        defer mesh.deinit();
+        // mesh.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
+        mesh.unweld();
+        mesh.computeNormals();
+
+        _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+    }
 }
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World) !*SystemState {

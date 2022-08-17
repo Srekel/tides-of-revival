@@ -6,6 +6,7 @@ const RndGen = std.rand.DefaultPrng;
 const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
 const camera_system = @import("systems/camera_system.zig");
+const city_system = @import("systems/procgen/city_system.zig");
 const gui_system = @import("systems/gui_system.zig");
 const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
@@ -13,6 +14,7 @@ const terrain_system = @import("systems/terrain_system.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const fd = @import("flecs_data.zig");
 const IdLocal = @import("variant.zig").IdLocal;
+const znoise = @import("znoise");
 
 pub fn run() void {
     var flecs_world = flecs.World.init();
@@ -54,14 +56,32 @@ pub fn run() void {
     );
     defer procmesh_system.destroy(procmesh_sys);
 
+    const terrainNoise: znoise.FnlGenerator = .{
+        .seed = @intCast(i32, 1234),
+        .fractal_type = .fbm,
+        .frequency = 0.0001,
+        .octaves = 20,
+    };
+
     var terrain_sys = try terrain_system.create(
         IdLocal.init("terrain_system"),
         std.heap.c_allocator,
         &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
+        terrainNoise,
     );
     defer terrain_system.destroy(terrain_sys);
+
+    var city_sys = try city_system.create(
+        IdLocal.init("city_system"),
+        std.heap.c_allocator,
+        &gfx_state,
+        &flecs_world,
+        physics_sys.physics_world,
+        terrainNoise,
+    );
+    defer city_system.destroy(city_sys);
 
     var gui_sys = try gui_system.create(
         std.heap.page_allocator,
@@ -148,7 +168,8 @@ pub fn run() void {
         }
 
         const stats = gfx_state.gctx.stats;
-        const dt = @floatCast(f32, stats.delta_time) * 0.2;
+        // const dt = @floatCast(f32, stats.delta_time) * 0.2;
+        const dt = @floatCast(f32, stats.delta_time);
         gfx.update(&gfx_state);
         gui_system.preUpdate(&gui_sys);
 

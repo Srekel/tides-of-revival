@@ -55,6 +55,9 @@ pub const Scale = struct {
     y: f32 = 1,
     z: f32 = 1,
 
+    pub fn create(x: f32, y: f32, z: f32) Scale {
+        return .{ .x = x, .y = y, .z = z };
+    }
     pub fn createScalar(scale: f32) Scale {
         return .{ .x = scale, .y = scale, .z = scale };
     }
@@ -89,6 +92,20 @@ pub const Transform = struct {
             },
         };
     }
+    // pub fn initWithRotY(x: f32, y: f32, z: f32, angle: f32) Transform {
+    //     // f32x4(sc[1], 0.0, -sc[0], 0.0),
+    //     // f32x4(0.0, 1.0, 0.0, 0.0),
+    //     // f32x4(sc[0], 0.0, sc[1], 0.0),
+    //     // f32x4(0.0, 0.0, 0.0, 1.0),
+    //     return .{
+    //         .matrix = [_]f32{
+    //             scale, 0.0,   0.0,
+    //             0.0,   scale, 0.0,
+    //             0.0,   0.0,   scale,
+    //             x,     y,     z,
+    //         },
+    //     };
+    // }
     // pub fn createScalar(scale: f32) Scale {
     //     return .{ .x = scale, .y = scale, .z = scale };
     // }
@@ -182,6 +199,10 @@ pub const TerrainPatchLookup = struct {
 
 pub const WorldLoader = struct {
     range: i32 = undefined,
+};
+
+pub const WorldPatch = struct {
+    lookup: u32 = undefined,
 };
 
 // pub const ComponentData = struct { pos: *Position, vel: *Velocity };
