@@ -402,7 +402,7 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
         while (x < fd.patch_width) : (x += 1) {
             const world_x = @intToFloat(f32, patch.pos[0]) + x;
             const world_z = @intToFloat(f32, patch.pos[1]) + z;
-            const height = 100 * state.noise.noise2(world_x * 10.000, world_z * 10.000);
+            const height = 100 * (0.5 + state.noise.noise2(world_x * 10.000, world_z * 10.000));
             _ = world_x;
             _ = world_z;
             // const height = 100;

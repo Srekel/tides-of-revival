@@ -88,8 +88,8 @@ pub const fs = common ++
 \\      );
 \\
 \\      var base_color = colors[0];
-\\      base_color = mix(base_color, colors[1], step(0.05, position.y * 0.01));
-\\      base_color = mix(base_color, colors[2], step(0.2, position.y * 0.01));
+\\      base_color = mix(base_color, colors[1], step(0.005, position.y * 0.01));
+\\      base_color = mix(base_color, colors[2], step(0.02, position.y * 0.01));
 \\      base_color = mix(base_color, colors[3], step(0.5, position.y * 0.01));
 \\      base_color = mix(base_color, colors[4], step(0.7, position.y * 0.01));
 \\
