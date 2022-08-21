@@ -14,7 +14,9 @@ const IdLocal = @import("../../variant.zig").IdLocal;
 const CompCity = struct {
     nextSpawnTime: f32,
     spawnCooldown: f32,
+    caravanMembersToSpawn: i32 = 0,
     closestCities: [2]flecs.EntityId,
+    currTargetCity: flecs.EntityId,
 };
 const CompCaravan = struct {
     startPos: [3]f32,
@@ -199,12 +201,13 @@ pub fn create(
         }
 
         cityEnt1.ent.set(CompCity{
-            .spawnCooldown = 10,
+            .spawnCooldown = 20,
             .nextSpawnTime = 10,
             .closestCities = [_]flecs.EntityId{
                 bestEnt1.?.ent.id,
                 bestEnt2.?.ent.id,
             },
+            .currTargetCity = 0,
         });
     }
 
@@ -231,19 +234,30 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         transform: *fd.Transform,
     });
 
+    var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
     while (entity_iter.next()) |comps| {
         var city = comps.city;
         const transform = comps.transform;
 
         if (city.nextSpawnTime < state.gctx.stats.time) {
-            city.nextSpawnTime += city.spawnCooldown;
+            if (city.caravanMembersToSpawn == 0) {
+                city.nextSpawnTime += city.spawnCooldown;
+                city.caravanMembersToSpawn = rand.intRangeAtMostBiased(i32, 3, 10);
+                const cityIndex = rand.intRangeAtMost(u32, 0, 1);
+                const nextCity = flecs.Entity.init(state.flecs_world.world, city.closestCities[cityIndex]);
+                city.currTargetCity = nextCity.id;
+                continue;
+            }
 
-            const nextCity = flecs.Entity.init(state.flecs_world.world, city.closestCities[0]);
+            city.caravanMembersToSpawn -= 1;
+            city.nextSpawnTime += 0.1 + rand.float(f32) * 1;
+
+            const nextCity = flecs.Entity.init(state.flecs_world.world, city.currTargetCity);
             const nextCityPos = nextCity.get(fd.Transform).?;
 
             var caravanEnt = state.flecs_world.newEntity();
             caravanEnt.set(comps.transform.*);
-            caravanEnt.set(fd.Scale.create(1, 30, 1));
+            caravanEnt.set(fd.Scale.create(1, 3, 1));
             caravanEnt.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
@@ -252,7 +266,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .startPos = transform.getPos(),
                 .endPos = nextCityPos.getPos(),
                 .timeBirth = time,
-                .timeToArrive = time + 15,
+                .timeToArrive = time + 150,
             });
         }
     }
