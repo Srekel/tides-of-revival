@@ -92,6 +92,13 @@ pub const Transform = struct {
             },
         };
     }
+
+    pub fn getPos(self: Transform) [3]f32 {
+        return self.matrix[9..].*;
+    }
+    pub fn setPos(self: *Transform, pos: [3]f32) void {
+        self.matrix[9..].* = pos;
+    }
     // pub fn initWithRotY(x: f32, y: f32, z: f32, angle: f32) Transform {
     //     // f32x4(sc[1], 0.0, -sc[0], 0.0),
     //     // f32x4(0.0, 1.0, 0.0, 0.0),

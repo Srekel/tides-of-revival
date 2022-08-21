@@ -11,13 +11,39 @@ const zbt = @import("zbullet");
 const fd = @import("../../flecs_data.zig");
 const IdLocal = @import("../../variant.zig").IdLocal;
 
+const CompCity = struct {
+    nextSpawnTime: f32,
+    spawnCooldown: f32,
+    closestCities: [2]flecs.EntityId,
+};
+const CompCaravan = struct {
+    startPos: [3]f32,
+    endPos: [3]f32,
+    timeToArrive: f32,
+    timeBirth: f32,
+};
+
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
     physics_world: zbt.World,
     sys: flecs.EntityId,
+
+    // gfx: *gfx.GfxState,
+    // gfx_stats: *zgpu.FrameStats,
     gctx: *zgpu.GraphicsContext,
     noise: znoise.FnlGenerator,
+    query: flecs.Query,
+    query_caravan: flecs.Query,
+};
+
+const CityEnt = struct {
+    ent: flecs.Entity,
+    x: f32,
+    z: f32,
+    fn dist(self: CityEnt, other: CityEnt) f32 {
+        return std.math.hypot(f32, self.x - other.x, self.z - other.z);
+    }
 };
 
 pub fn create(
@@ -29,6 +55,20 @@ pub fn create(
     noise: znoise.FnlGenerator,
 ) !*SystemState {
     const gctx = gfxstate.gctx;
+
+    var query_builder = flecs.QueryBuilder.init(flecs_world.*)
+        .with(CompCity)
+        .with(fd.Transform);
+
+    var query = query_builder.buildQuery();
+
+    var query_builder_caravan = flecs.QueryBuilder.init(flecs_world.*)
+        .with(CompCaravan)
+        .with(fd.Transform);
+
+    var query_caravan = query_builder_caravan.buildQuery();
+
+    var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
@@ -37,6 +77,8 @@ pub fn create(
         .sys = sys,
         .gctx = gctx,
         .noise = noise,
+        .query = query,
+        .query_caravan = query_caravan,
     };
 
     var cityEnts = std.ArrayList(CityEnt).init(allocator);
@@ -133,6 +175,39 @@ pub fn create(
         }
     }
 
+    for (cityEnts.items) |cityEnt1| {
+        var bestDist1: f32 = 1000000; // nearest
+        var bestDist2: f32 = 1000000; // second nearest
+        var bestEnt1: ?CityEnt = null;
+        var bestEnt2: ?CityEnt = null;
+        for (cityEnts.items) |cityEnt2| {
+            if (cityEnt1.ent.id == cityEnt2.ent.id) {
+                continue;
+            }
+
+            const dist = cityEnt1.dist(cityEnt2);
+            if (dist < bestDist2) {
+                bestDist2 = dist;
+                bestEnt2 = cityEnt2;
+            }
+            if (dist < bestDist1) {
+                bestDist2 = bestDist1;
+                bestEnt2 = bestEnt1;
+                bestDist1 = dist;
+                bestEnt1 = cityEnt2;
+            }
+        }
+
+        cityEnt1.ent.set(CompCity{
+            .spawnCooldown = 10,
+            .nextSpawnTime = 10,
+            .closestCities = [_]flecs.EntityId{
+                bestEnt1.?.ent.id,
+                bestEnt2.?.ent.id,
+            },
+        });
+    }
+
     return state;
 }
 
@@ -144,4 +219,87 @@ pub fn destroy(state: *SystemState) void {
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state;
+    // const dt4 = zm.f32x4s(iter.iter.delta_time);
+
+    // const gctx = state.gctx;
+    // const fb_width = gctx.swapchain_descriptor.width;
+    // const fb_height = gctx.swapchain_descriptor.height;
+
+    const time = @floatCast(f32, state.gctx.stats.time);
+    var entity_iter = state.query.iterator(struct {
+        city: *CompCity,
+        transform: *fd.Transform,
+    });
+
+    while (entity_iter.next()) |comps| {
+        var city = comps.city;
+        const transform = comps.transform;
+
+        if (city.nextSpawnTime < state.gctx.stats.time) {
+            city.nextSpawnTime += city.spawnCooldown;
+
+            const nextCity = flecs.Entity.init(state.flecs_world.world, city.closestCities[0]);
+            const nextCityPos = nextCity.get(fd.Transform).?;
+
+            var caravanEnt = state.flecs_world.newEntity();
+            caravanEnt.set(comps.transform.*);
+            caravanEnt.set(fd.Scale.create(1, 30, 1));
+            caravanEnt.set(fd.CIShapeMeshInstance{
+                .id = IdLocal.id64("cylinder"),
+                .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
+            });
+            caravanEnt.set(CompCaravan{
+                .startPos = transform.getPos(),
+                .endPos = nextCityPos.getPos(),
+                .timeBirth = time,
+                .timeToArrive = time + 15,
+            });
+        }
+    }
+
+    var entity_iter_caravan = state.query_caravan.iterator(struct {
+        caravan: *CompCaravan,
+        transform: *fd.Transform,
+    });
+
+    while (entity_iter_caravan.next()) |comps| {
+        var caravan = comps.caravan;
+        var transform = comps.transform;
+
+        if (caravan.timeToArrive < time) {
+            state.flecs_world.delete(entity_iter_caravan.entity().id);
+            continue;
+        }
+
+        const percentDone = (time - caravan.timeBirth) / (caravan.timeToArrive - caravan.timeBirth);
+        var newPos: [3]f32 = .{
+            caravan.startPos[0] + percentDone * (caravan.endPos[0] - caravan.startPos[0]),
+            0,
+            caravan.startPos[2] + percentDone * (caravan.endPos[2] - caravan.startPos[2]),
+        };
+        newPos[1] = 100 * (0.5 + state.noise.noise2(newPos[0] * 10.0000, newPos[2] * 10.0000));
+
+        transform.setPos(newPos);
+
+        // if (city.nextSpawnTime < time) {
+        //     city.nextSpawnTime += city.spawnCooldown;
+
+        //     const nextCity = flecs.Entity.init(state.flecs_world.world, city.closestCities[0]);
+        //     const nextCityPos = nextCity.get(fd.Transform).?;
+
+        //     var caravanEnt = state.flecs_world.newEntity();
+        //     caravanEnt.set(comps.transform.*);
+        //     caravanEnt.set(fd.Scale.create(1, 30, 1));
+        //     caravanEnt.set(fd.CIShapeMeshInstance{
+        //         .id = IdLocal.id64("cylinder"),
+        //         .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
+        //     });
+        //     caravanEnt.set(CompCaravan{
+        //         .startPos = transform.getPos(),
+        //         .endPos = nextCityPos.getPos(),
+        //         .timeBirth = 0,
+        //         .timeToArrive = 10,
+        //     });
+        // }
+    }
 }

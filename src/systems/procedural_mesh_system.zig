@@ -130,7 +130,6 @@ fn initScene(
     zmesh.init(arena);
     defer zmesh.deinit();
 
-    // Parametric sphere.
     {
         var mesh = zmesh.Shape.initParametricSphere(20, 20);
         defer mesh.deinit();
@@ -140,15 +139,46 @@ fn initScene(
 
         _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
     }
-    // Parametric cube.
+
     {
         var mesh = zmesh.Shape.initCube();
         defer mesh.deinit();
-        // mesh.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
         mesh.unweld();
         mesh.computeNormals();
 
         _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+    }
+
+    {
+        var mesh = zmesh.Shape.initCylinder(10, 10);
+        defer mesh.deinit();
+        mesh.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
+        mesh.scale(0.5, 1.0, 0.5);
+        mesh.translate(0.0, 1.0, 0.0);
+
+        // Top cap.
+        var top = zmesh.Shape.initParametricDisk(10, 2);
+        defer top.deinit();
+        top.rotate(-math.pi * 0.5, 1.0, 0.0, 0.0);
+        top.scale(0.5, 1.0, 0.5);
+        top.translate(0.0, 1.0, 0.0);
+
+        // Bottom cap.
+        var bottom = zmesh.Shape.initParametricDisk(10, 2);
+        defer bottom.deinit();
+        bottom.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
+        bottom.scale(0.5, 1.0, 0.5);
+        bottom.translate(0.0, 0.0, 0.0);
+
+        mesh.merge(top);
+        mesh.merge(bottom);
+        mesh.unweld();
+        mesh.computeNormals();
+
+        // mesh.unweld();
+        // mesh.computeNormals();
+
+        _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
     }
 }
 
