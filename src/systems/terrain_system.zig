@@ -34,6 +34,7 @@ const Vertex = struct {
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
+    time: f32,
 };
 
 const DrawUniforms = struct {
@@ -55,6 +56,7 @@ const Patch = struct {
         in_queue,
         generating_heights_setup,
         generating_heights,
+        generating_normals_setup,
         generating_normals,
         generating_physics_setup,
         generating_physics,
@@ -386,6 +388,13 @@ pub fn destroy(state: *SystemState) void {
     state.allocator.destroy(state);
 }
 
+//      ██╗ ██████╗ ██████╗ ███████╗
+//      ██║██╔═══██╗██╔══██╗██╔════╝
+//      ██║██║   ██║██████╔╝███████╗
+// ██   ██║██║   ██║██╔══██╗╚════██║
+// ╚█████╔╝╚██████╔╝██████╔╝███████║
+//  ╚════╝  ╚═════╝ ╚═════╝ ╚══════╝
+
 const ThreadContextGenerateHeights = struct {
     patch: *Patch,
     state: *SystemState,
@@ -400,24 +409,14 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
     while (z < fd.patch_width) : (z += 1) {
         var x: f32 = 0;
         while (x < fd.patch_width) : (x += 1) {
-            const world_x = @intToFloat(f32, patch.pos[0]) + x;
-            const world_z = @intToFloat(f32, patch.pos[1]) + z;
+            // const world_x = @intToFloat(f32, patch.pos[0]) + x;
+            // const world_z = @intToFloat(f32, patch.pos[1]) + z;
             const height = 100 * (0.5 + state.noise.noise2(world_x * 10.000, world_z * 10.000));
-            _ = world_x;
-            _ = world_z;
-            // const height = 100;
             const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
-            // state.heights[patch.lookup][index] = height;
             patch.heights[index] = height;
-            // patch.vertices[index].position[0] = x;
-            // patch.vertices[index].position[1] = height;
-            // patch.vertices[index].position[2] = y;
-            // patch.vertices[index].normal[0] = 0;
-            // patch.vertices[index].normal[1] = 1;
-            // patch.vertices[index].normal[2] = 0;
         }
     }
-    patch.status = .generating_normals;
+    patch.status = .generating_normals_setup;
 }
 
 const ThreadContextGenerateShape = struct {
@@ -445,6 +444,55 @@ fn jobGenerateShape(ctx: ThreadContextGenerateShape) !void {
     patch.physics_shape = shape;
     patch.status = .writing_physics;
 }
+
+const ThreadContextGenerateNormals = struct {
+    patch: *Patch,
+    state: *SystemState,
+};
+
+fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
+    _ = ctx;
+    var patch = ctx.patch;
+    var state = ctx.state;
+
+    var z: i32 = 0;
+    while (z < fd.patch_width) : (z += 1) {
+        var x: i32 = 0;
+        while (x < fd.patch_width) : (x += 1) {
+            const world_x = @intToFloat(f32, patch.pos[0] + x);
+            const world_z = @intToFloat(f32, patch.pos[1] + z);
+            const index = @intCast(u32, x + z * fd.patch_width);
+            const height = patch.heights[index];
+
+            patch.vertices[index].position[0] = @intToFloat(f32, x);
+            patch.vertices[index].position[1] = height;
+            patch.vertices[index].position[2] = @intToFloat(f32, z);
+            patch.vertices[index].normal[0] = 0;
+            patch.vertices[index].normal[1] = 1;
+            patch.vertices[index].normal[2] = 0;
+
+            const height_l = 100 * (0.5 + state.noise.noise2((world_x - 1) * 10.000, world_z * 10.000));
+            const height_r = 100 * (0.5 + state.noise.noise2((world_x + 1) * 10.000, world_z * 10.000));
+            const height_u = 100 * (0.5 + state.noise.noise2(world_x * 10.000, (world_z - 1) * 10.000));
+            const height_d = 100 * (0.5 + state.noise.noise2(world_x * 10.000, (world_z + 1) * 10.000));
+            const dx = 0.5 * (height_r - height_l);
+            const dz = 0.5 * (height_d - height_u);
+            const ux = zm.Vec{ 0, dx, 1 };
+            const uz = zm.Vec{ 1, dz, 0 };
+            const cross = zm.cross3(ux, uz);
+            const normal = zm.normalize3(cross);
+            patch.vertices[index].normal = zm.vecToArr3(normal);
+        }
+    }
+    patch.status = .generating_physics_setup;
+}
+
+// ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
+// ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
+// ██║   ██║██████╔╝██║  ██║███████║   ██║   █████╗
+// ██║   ██║██╔═══╝ ██║  ██║██╔══██║   ██║   ██╔══╝
+// ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
+//  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
@@ -583,87 +631,20 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             },
             .generating_heights => blk: {
                 break :blk .generating_heights;
-                // var z: f32 = 0;
-                // while (z < fd.patch_width) : (z += 1) {
-                //     var x: f32 = 0;
-                //     while (x < fd.patch_width) : (x += 1) {
-                //         const world_x = @intToFloat(f32, patch.pos[0]) + x;
-                //         const world_z = @intToFloat(f32, patch.pos[1]) + z;
-                //         // const height = 100 * state.noise.noise2(world_x * 10, world_z * 10);
-                //         _ = world_x;
-                //         _ = world_z;
-                //         const height = 100;
-                //         const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
-                //         // state.heights[patch.lookup][index] = height;
-                //         patch.heights[index] = height;
-                //         // patch.vertices[index].position[0] = x;
-                //         // patch.vertices[index].position[1] = height;
-                //         // patch.vertices[index].position[2] = y;
-                //         // patch.vertices[index].normal[0] = 0;
-                //         // patch.vertices[index].normal[1] = 1;
-                //         // patch.vertices[index].normal[2] = 0;
-                //     }
-                // }
-                // break :blk .generating_normals;
+            },
+            .generating_normals_setup => blk: {
+                const threadConfig = .{};
+                var threadArgs: ThreadContextGenerateNormals = .{ .patch = patch, .state = state };
+                _ = threadArgs;
+                const thread = std.Thread.spawn(threadConfig, jobGenerateNormals, .{threadArgs}) catch unreachable;
+                thread.detach();
+                _ = thread;
+                break :blk .generating_normals;
             },
             .generating_normals => blk: {
-                var z: i32 = 0;
-                while (z < fd.patch_width) : (z += 1) {
-                    var x: i32 = 0;
-                    while (x < fd.patch_width) : (x += 1) {
-                        // const world_x = patch.pos[0] + x;
-                        // const world_z = patch.pos[1] + z;
-                        //     const world_z = @floatToInt(i32, comps.position.z) + z * fd.patch_width;
-                        const index = @intCast(u32, x + z * fd.patch_width);
-                        const height = patch.heights[index];
-
-                        // const indexn = math.min(vertices_per_patch, world_x + (world_z + 1) * fd.patch_width);
-                        // const indexs = math.max(0, math.world_x + (world_z - 1) * fd.patch_width);
-                        // const indexe = math.min(vertices_per_patch, math.world_x + 1 + world_z * fd.patch_width);
-                        // const indexw = math.max(0, math.world_x - 1 + world_z * fd.patch_width);
-                        // const heightn = patch.heights[indexn];
-                        // const heights = patch.heights[indexs];
-                        // const heighte = patch.heights[indexe];
-                        // const heightw = patch.heights[indexw];
-                        // state.vertices[patch.lookup][index].height = height;
-                        patch.vertices[index].position[0] = @intToFloat(f32, x);
-                        patch.vertices[index].position[1] = height;
-                        patch.vertices[index].position[2] = @intToFloat(f32, z);
-                        patch.vertices[index].normal[0] = 0;
-                        patch.vertices[index].normal[1] = 1;
-                        patch.vertices[index].normal[2] = 0;
-                    }
-                }
-                // break :blk .generating_physics_setup;
-                break :blk .writing_gfx;
+                break :blk .generating_normals;
             },
             .generating_physics_setup => blk: {
-                // var x: f32 = 0;
-                // while (x < fd.patch_width) : (x += 1) {
-                //     var y: f32 = 0;
-                //     while (y < fd.patch_width) : (y += 1) {
-                //         const world_x = @intToFloat(f32, patch.pos[0]) + x;
-                //         const world_y = @intToFloat(f32, patch.pos[0]) + y;
-                //         //     const world_y = @floatToInt(i32, comps.position.y) + y * fd.patch_width;
-                //         const height = state.noise.noise2(world_x, world_y);
-                //         const index = @intToFloat(i32, world_x) + @intToFloat(i32, world_y) * fd.patch_width;
-                //         state.vertices[patch.lookup][index].height = height;
-                //     }
-                // }
-
-                // const trimesh = zbt.initTriangleMeshShape();
-                // trimesh.addIndexVertexArray(
-                //     @intCast(u32, indices_per_patch / 3),
-                //     state.indices.items.ptr,
-                //     @sizeOf([3]u32),
-                //     @intCast(u32, patch.vertices[0..].len),
-                //     &patch.vertices[0],
-                //     @sizeOf(Vertex),
-                // );
-                // trimesh.finish();
-
-                // const shape = trimesh.asShape();
-
                 const threadConfig = .{};
                 var threadArgs: ThreadContextGenerateShape = .{ .patch = patch, .state = state };
                 _ = threadArgs;
@@ -777,7 +758,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             {
                 const mem = gctx.uniformsAllocate(FrameUniforms, 1);
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-                mem.slice[0].camera_position = state.camera.position; // wut
+                mem.slice[0].camera_position = state.camera.position;
+                mem.slice[0].time = @floatCast(f32, state.gctx.stats.time);
 
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
             }
@@ -827,50 +809,3 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     };
     state.gfx.command_buffers.append(commands) catch unreachable;
 }
-
-// const ObserverCallback = struct {
-//     // pos: *const fd.Position,
-//     body: *const fd.CIPhysicsBody,
-
-//     pub const name = "CIPhysicsBody";
-//     pub const run = onSetCIPhysicsBody;
-// };
-
-// fn onSetCIPhysicsBody(it: *flecs.Iterator(ObserverCallback)) void {
-//     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-//     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
-//     while (it.next()) |_| {
-//         const ci_ptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
-//         var ci = @ptrCast(*fd.CIPhysicsBody, @alignCast(@alignOf(fd.CIPhysicsBody), ci_ptr));
-
-//         var transform = it.entity().getMut(fd.Transform).?;
-//         // const transform = [_]f32{
-//         //     1.0, 0.0, 0.0, // orientation
-//         //     0.0, 1.0, 0.0,
-//         //     0.0, 0.0, 1.0,
-//         //     pos.x, pos.y, pos.z, // translation
-//         // };
-
-//         const shape = switch (ci.shape_type) {
-//             .box => zbt.BoxShape.init(&.{ ci.box.size, ci.box.size, ci.box.size }).asShape(),
-//             .sphere => zbt.SphereShape.init(ci.sphere.radius).asShape(),
-//         };
-//         const body = zbt.Body.init(
-//             ci.mass,
-//             &transform.matrix,
-//             shape,
-//         );
-
-//         body.setDamping(0.1, 0.1);
-//         body.setRestitution(0.5);
-//         body.setFriction(0.2);
-
-//         state.physics_world.addBody(body);
-
-//         const ent = it.entity();
-//         ent.remove(fd.CIPhysicsBody);
-//         ent.set(fd.PhysicsBody{
-//             .body = body,
-//         });
-//     }
-// }

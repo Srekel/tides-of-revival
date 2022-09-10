@@ -93,6 +93,9 @@ pub const fs = common ++
 \\      base_color = mix(base_color, colors[3], step(0.5, position.y * 0.01));
 \\      base_color = mix(base_color, colors[4], step(0.7, position.y * 0.01));
 \\
+\\      // base_color = mix(base_color, base_color * 0.8, step(0.0, sin(position.x * 0.07)+cos(position.z * 0.13)+1.9*sin(position.y * 0.1)));
+\\      // base_color = base_color * (1.0 + dot(n, normalize( vec3(1.0,1.0,1.0))));
+\\
 \\
 \\      let ao = 1.0;
 \\      var roughness = draw_uniforms.basecolor_roughness.a;
@@ -113,10 +116,10 @@ pub const fs = common ++
 \\          vec3(-250.0, 150.0, -250.0),
 \\      );
 \\      let light_radiance = array<vec3<f32>, 4>(
-\\          40.0 * vec3(0.0, 100.0, 250.0),
-\\          80.0 * vec3(200.0, 150.0, 250.0),
+\\          20.0 * vec3(0.0, 100.0, 250.0),
+\\          50.0 * vec3(200.0, 150.0, 250.0),
 \\          30.0 * vec3(200.0, 0.0, 0.0),
-\\          90.0 * vec3(200.0, 150.0, 0.0),
+\\          10.0 * vec3(200.0, 150.0, 0.0),
 \\      );
 \\
 \\      var lo = vec3(0.0);
@@ -146,8 +149,14 @@ pub const fs = common ++
 \\          lo = lo + (kd * base_color / pi + specular) * radiance * n_dot_l;
 \\      }
 \\
-\\      let ambient = vec3(0.03) * base_color * ao;
-\\      var color = ambient + lo;
+\\      let sun_height = sin(frame_uniforms.time * 0.5);
+\\      let sun = max(0.0, sun_height) * 0.3 * base_color * max(0.0, dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5))));
+\\      let sun2 = 0.5 * base_color * max(0.0, dot(n, normalize( vec3(0.0, 1.0, 0.0))));
+\\
+\\      let ambient = vec3(0.0001 + 0.005 * max(0.0, sun_height)) * base_color * ao;
+\\      let ambient2 = vec3(0.0001 + 0.0005) * base_color * ao;
+\\      var color = ambient + lo + sun;
+\\      // color = color * max(0.0, dot(n, normalize( vec3(1.0,1.0,1.0))));
 \\      color = color / (color + 1.0);
 \\      color = pow(color, vec3(1.0 / 2.2));
 \\      return vec4(color, 1.0);
