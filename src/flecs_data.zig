@@ -213,3 +213,14 @@ pub const WorldPatch = struct {
 };
 
 // pub const ComponentData = struct { pos: *Position, vel: *Velocity };
+
+// ██╗     ██╗ ██████╗ ██╗  ██╗████████╗
+// ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝
+// ██║     ██║██║  ███╗███████║   ██║
+// ██║     ██║██║   ██║██╔══██║   ██║
+// ███████╗██║╚██████╔╝██║  ██║   ██║
+// ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
+
+pub const Light = struct {
+    radiance: [3]f32,
+};

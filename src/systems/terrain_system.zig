@@ -31,10 +31,16 @@ const Vertex = struct {
     position: [3]f32,
     normal: [3]f32,
 };
-const FrameUniforms = struct {
+const FrameUniforms = extern struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
     time: f32,
+    padding1: u32,
+    padding2: u32,
+    padding3: u32,
+    light_count: u32,
+    light_positions: [32][4]f32,
+    // light_radiances: [64][4]f32,
 };
 
 const DrawUniforms = struct {
@@ -104,8 +110,9 @@ const SystemState = struct {
     // heights: [patch_count][fd.patch_width * fd.patch_width]f32,
     // entity_to_lookup: std.ArrayList(struct { id: EntityId, lookup: u32 }),
 
-    query_loader: flecs.Query,
     query_camera: flecs.Query,
+    query_lights: flecs.Query,
+    query_loader: flecs.Query,
     noise: znoise.FnlGenerator,
 
     camera: struct {
@@ -227,14 +234,19 @@ pub fn create(
     physics_world: zbt.World,
     noise: znoise.FnlGenerator,
 ) !*SystemState {
+    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
+        .withReadonly(fd.Camera);
+    var query_camera = query_builder_camera.buildQuery();
+
+    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*)
+        .with(fd.Light)
+        .with(fd.Position);
+    var query_lights = query_builder_lights.buildQuery();
+
     var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*)
         .with(fd.WorldLoader)
         .with(fd.Position);
     var query_loader = query_builder_loader.buildQuery();
-
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
-        .withReadonly(fd.Camera);
-    var query_camera = query_builder_camera.buildQuery();
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -303,7 +315,7 @@ pub fn create(
     };
 
     const bind_group = gctx.createBindGroup(bind_group_layout, &[_]zgpu.BindGroupEntryInfo{
-        .{ .binding = 0, .buffer_handle = gctx.uniforms.buffer, .offset = 0, .size = 256 },
+        .{ .binding = 0, .buffer_handle = gctx.uniforms.buffer, .offset = 0, .size = @sizeOf(FrameUniforms) },
     });
 
     var meshes = std.ArrayList(Mesh).init(allocator);
@@ -360,8 +372,9 @@ pub fn create(
         .patches = std.ArrayList(Patch).init(allocator),
         .indices = std.ArrayList(IndexType).init(allocator),
         // .bodies = std.ArrayList(zbt.Body).init(),
-        .query_loader = query_loader,
         .query_camera = query_camera,
+        .query_lights = query_lights,
+        .query_loader = query_loader,
         .noise = noise,
     };
 
@@ -382,8 +395,9 @@ pub fn create(
 
 pub fn destroy(state: *SystemState) void {
     // state.comp_query.deinit();
-    state.query_loader.deinit();
     state.query_camera.deinit();
+    state.query_lights.deinit();
+    state.query_loader.deinit();
     state.meshes.deinit();
     state.allocator.destroy(state);
 }
@@ -409,8 +423,8 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
     while (z < fd.patch_width) : (z += 1) {
         var x: f32 = 0;
         while (x < fd.patch_width) : (x += 1) {
-            // const world_x = @intToFloat(f32, patch.pos[0]) + x;
-            // const world_z = @intToFloat(f32, patch.pos[1]) + z;
+            const world_x = @intToFloat(f32, patch.pos[0]) + x;
+            const world_z = @intToFloat(f32, patch.pos[1]) + z;
             const height = 100 * (0.5 + state.noise.noise2(world_x * 10.000, world_z * 10.000));
             const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
             patch.heights[index] = height;
@@ -760,8 +774,25 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
                 mem.slice[0].camera_position = state.camera.position;
                 mem.slice[0].time = @floatCast(f32, state.gctx.stats.time);
+                mem.slice[0].light_count = 0;
+
+                var entity_iter_lights = state.query_lights.iterator(struct {
+                    light: *fd.Light,
+                    position: *fd.Position,
+                });
+
+                var light_i: u32 = 0;
+                while (entity_iter_lights.next()) |comps| {
+                    _ = comps;
+                    std.mem.copy(f32, mem.slice[0].light_positions[light_i][0..], comps.position.elemsConst().*[0..]);
+                    // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });
+
+                    light_i += 1;
+                }
+                mem.slice[0].light_count = light_i;
 
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
+                // std.debug.print("mem: {any} / {any} / {any}\n", .{ @sizeOf(FrameUniforms), mem.offset, mem.slice[0].camera_position });
             }
 
             // var entity_iter_mesh = state.query_mesh.iterator(struct {

@@ -245,6 +245,10 @@ pub fn create(
                     .basecolor_roughness = .{ .r = 1.0, .g = 0.2, .b = 0.2, .roughness = 0.8 },
                 });
             }
+
+            var lightEnt = state.flecs_world.newEntity();
+            lightEnt.set(fd.Position{ .x = city_pos.x, .y = cityHeight + 30, .z = city_pos.z });
+            lightEnt.set(fd.Light{ .radiance = .{ 1000, 100, 10 } });
         }
     }
 

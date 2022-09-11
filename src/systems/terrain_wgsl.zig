@@ -9,6 +9,13 @@ const common =
 \\  struct FrameUniforms {
 \\      world_to_clip: mat4x4<f32>,
 \\      camera_position: vec3<f32>,
+\\      time: f32,
+\\      padding1: u32,
+\\      padding2: u32,
+\\      padding3: u32,
+\\      light_count: u32,
+\\      light_positions: array<vec4<f32>, 32>,
+\\     // light_radiances: array<vec4<f32>, 64>,
 \\  }
 \\  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
 ;
@@ -75,7 +82,7 @@ pub const fs = common ++
 \\      let colors = array<vec3<f32>, 5>(
 \\          vec3(0.0, 0.1, 0.7),
 \\          vec3(1.0, 1.0, 0.0),
-\\          vec3(0.0, 0.7, 0.0),
+\\          vec3(0.3, 0.8, 0.2),
 \\          vec3(0.7, 0.7, 0.7),
 \\          vec3(0.95, 0.95, 0.95),
 \\      );
@@ -123,15 +130,17 @@ pub const fs = common ++
 \\      );
 \\
 \\      var lo = vec3(0.0);
-\\      for (var light_index: i32 = 0; light_index < 4; light_index = light_index + 1) {
-\\          let lvec = light_positions[light_index] - position;
+\\      for (var light_index: u32 = 0u; light_index < frame_uniforms.light_count; light_index = light_index + 1u) {
+\\          var lvec = frame_uniforms.light_positions[light_index].xyz - position;
+\\           lvec.y += sin(frame_uniforms.time * 1.0) * 10.0;
 \\
 \\          let l = normalize(lvec);
 \\          let h = normalize(l + v);
 \\
 \\          let distance_sq = dot(lvec, lvec);
 \\          let attenuation = 1.0 / distance_sq;
-\\          let radiance = light_radiance[light_index] * attenuation;
+\\         // let radiance = 150.0 * vec3(250.0, 0.0, 0.0) * attenuation;// light_radiance[light_index] * attenuation;
+\\          let radiance = light_radiance[light_index % 4u] * attenuation;
 \\
 \\          let f = fresnelSchlick(saturate(dot(h, v)), f0);
 \\

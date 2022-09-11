@@ -106,10 +106,10 @@ fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F
 
 fn updateSnapToTerrain(state: *SystemState, pos: *fd.Position) void {
     var ray_result: zbt.RayCastResult = undefined;
-    const ray_origin = pos;
+    const ray_origin = fd.Position.init(pos.x, pos.y + 20, pos.z);
     const ray_end = fd.Position.init(pos.x, pos.y - 10, pos.z);
     const hit = state.physics_world.rayTestClosest(
-        ray_origin.elems()[0..],
+        ray_origin.elemsConst()[0..],
         ray_end.elemsConst()[0..],
         .{ .default = true }, // zbt.CBT_COLLISION_FILTER_DEFAULT,
         zbt.CollisionFilter.all,
