@@ -134,8 +134,8 @@ pub const fs = common ++
 \\      var base_color = colors[0];
 \\      base_color = mix(base_color, colors[1], step(0.005, position.y * 0.01));
 \\      base_color = mix(base_color, colors[2], step(0.02, position.y * 0.01));
-\\      base_color = mix(base_color, colors[3], step(0.5, position.y * 0.01));
-\\      base_color = mix(base_color, colors[4], step(0.7, position.y * 0.01));
+\\      base_color = mix(base_color, colors[3], step(0.4, position.y * 0.01 + 0.5 * (1.0 - dot(n, vec3(0.0, 1.0, 0.0))) ));
+\\      base_color = mix(base_color, colors[4], step(2.0, position.y * 0.01 + 1.5 * dot(n, vec3(0.0, 1.0, 0.0)) ));
 \\
 \\      // base_color = mix(base_color, base_color * 0.8, step(0.0, sin(position.x * 0.07)+cos(position.z * 0.13)+1.9*sin(position.y * 0.1)));
 \\      // base_color = base_color * (1.0 + dot(n, normalize( vec3(1.0,1.0,1.0))));
