@@ -163,10 +163,10 @@ pub const fs = common ++
 \\      let sun = max(0.0, sun_height) * 0.3 * base_color * max(0.0, dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5))));
 \\      let sun2 = 0.5 * base_color * max(0.0, dot(n, normalize( vec3(0.0, 1.0, 0.0))));
 \\
-\\      let ambient = vec3(0.0001 + 0.005 * max(0.0, sun_height)) * base_color * ao;
-\\      let ambient2 = vec3(0.0001 + 0.0005) * base_color * ao;
+\\      let ambient_day   = vec3(0.005 * max(0.0, sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
+\\      let ambient_night = vec3(0.05 * max(0.0, sign(-sun_height + 0.1))) * vec3(0.2, 0.2, 1.0) * base_color;
+\\      let ambient = (ambient_day + ambient_night) * ao * dot(n, vec3(0.0, 1.0, 0.0));
 \\      var color = ambient + lo + sun;
-\\      // color = color * max(0.0, dot(n, normalize( vec3(1.0,1.0,1.0))));
 \\      color = color / (color + 1.0);
 \\      color = pow(color, vec3(1.0 / 2.2));
 \\      return vec4(color, 1.0);
