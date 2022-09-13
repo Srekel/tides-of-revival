@@ -7,7 +7,20 @@ const zmesh = @import("zmesh");
 const IdLocal = @import("variant.zig").IdLocal;
 pub const NOCOMP = struct {};
 
-pub const ColorRGB = struct { r: f32, g: f32, b: f32 };
+pub const ColorRGB = struct {
+    r: f32,
+    g: f32,
+    b: f32,
+    pub fn init(r: f32, g: f32, b: f32) ColorRGB {
+        return .{ .r = r, .g = g, .b = b };
+    }
+    pub fn elems(self: *ColorRGB) *[3]f32 {
+        return @ptrCast(*[3]f32, &self.r);
+    }
+    pub fn elemsConst(self: *const ColorRGB) *const [3]f32 {
+        return @ptrCast(*const [3]f32, &self.r);
+    }
+};
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
 
 pub const Position = struct {
@@ -222,5 +235,6 @@ pub const WorldPatch = struct {
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
 pub const Light = struct {
-    radiance: [3]f32,
+    radiance: ColorRGB,
+    range: f32,
 };

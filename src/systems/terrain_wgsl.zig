@@ -15,7 +15,7 @@ const common =
 \\      padding3: u32,
 \\      light_count: u32,
 \\      light_positions: array<vec4<f32>, 32>,
-\\     // light_radiances: array<vec4<f32>, 64>,
+\\      light_radiances: array<vec4<f32>, 32>,
 \\  }
 \\  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
 ;
@@ -71,6 +71,43 @@ pub const fs = common ++
 \\      return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
 \\  }
 \\
+\\  fn pointLight(light_index: u32, position: vec3<f32>, base_color: vec3<f32>, v: vec3<f32>, f0: vec3<f32>, n: vec3<f32>, alpha: f32, k: f32, metallic: f32) -> vec3<f32> {
+\\          var lvec = frame_uniforms.light_positions[light_index].xyz - position;
+\\         //  lvec.y += sin(frame_uniforms.time * 1.0) * 5.0;
+\\
+\\          let l = normalize(lvec);
+\\          let h = normalize(l + v);
+\\
+\\          let lightData = frame_uniforms.light_radiances[light_index];
+\\          let range = lightData.w;
+\\          let range_sq = range * range;
+\\          let distance_sq = dot(lvec, lvec);
+\\          if (range_sq < distance_sq) {
+\\              return vec3(0.0, 0.0, 0.0);
+\\          }
+\\          let distance = length(lvec);
+\\          let attenuation2 = 1.0 / (distance_sq*distance_sq);
+\\          let attenuation = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
+\\          let variance = 1.0 + 0.6 * sin(frame_uniforms.time * 2.7);
+\\          let radiance = lightData.xyz * attenuation * variance;
+\\         // let radiance = light_radiance[light_index % 4u] * attenuation;
+\\
+\\          let f = fresnelSchlick(saturate(dot(h, v)), f0);
+\\
+\\          let ndf = distributionGgx(n, h, alpha);
+\\          let g = geometrySmith(n, v, l, k);
+\\
+\\          let numerator = ndf * g * f;
+\\          let denominator = 4.0 * saturate(dot(n, v)) * saturate(dot(n, l));
+\\          let specular = numerator / max(denominator, 0.001);
+\\
+\\          let ks = f;
+\\          let kd = (vec3(1.0) - ks) * (1.0 - metallic);
+\\
+\\          let n_dot_l = saturate(dot(n, l));
+\\          return (kd * base_color / pi + specular) * radiance * n_dot_l;
+\\  }
+\\
 \\  @stage(fragment) fn main(
 \\      @location(0) position: vec3<f32>,
 \\      @location(1) normal: vec3<f32>,
@@ -116,46 +153,10 @@ pub const fs = common ++
 \\      var f0 = vec3(0.04);
 \\      f0 = mix(f0, base_color, metallic);
 \\
-\\      let light_positions = array<vec3<f32>, 4>(
-\\          vec3(250.0, 150.0, 250.0),
-\\          vec3(-250.0, 150.0, 250.0),
-\\          vec3(250.0, 150.0, -250.0),
-\\          vec3(-250.0, 150.0, -250.0),
-\\      );
-\\      let light_radiance = array<vec3<f32>, 4>(
-\\          20.0 * vec3(0.0, 100.0, 250.0),
-\\          50.0 * vec3(200.0, 150.0, 250.0),
-\\          30.0 * vec3(200.0, 0.0, 0.0),
-\\          10.0 * vec3(200.0, 150.0, 0.0),
-\\      );
-\\
 \\      var lo = vec3(0.0);
 \\      for (var light_index: u32 = 0u; light_index < frame_uniforms.light_count; light_index = light_index + 1u) {
-\\          var lvec = frame_uniforms.light_positions[light_index].xyz - position;
-\\           lvec.y += sin(frame_uniforms.time * 1.0) * 10.0;
-\\
-\\          let l = normalize(lvec);
-\\          let h = normalize(l + v);
-\\
-\\          let distance_sq = dot(lvec, lvec);
-\\          let attenuation = 1.0 / distance_sq;
-\\         // let radiance = 150.0 * vec3(250.0, 0.0, 0.0) * attenuation;// light_radiance[light_index] * attenuation;
-\\          let radiance = light_radiance[light_index % 4u] * attenuation;
-\\
-\\          let f = fresnelSchlick(saturate(dot(h, v)), f0);
-\\
-\\          let ndf = distributionGgx(n, h, alpha);
-\\          let g = geometrySmith(n, v, l, k);
-\\
-\\          let numerator = ndf * g * f;
-\\          let denominator = 4.0 * saturate(dot(n, v)) * saturate(dot(n, l));
-\\          let specular = numerator / max(denominator, 0.001);
-\\
-\\          let ks = f;
-\\          let kd = (vec3(1.0) - ks) * (1.0 - metallic);
-\\
-\\          let n_dot_l = saturate(dot(n, l));
-\\          lo = lo + (kd * base_color / pi + specular) * radiance * n_dot_l;
+\\          let lightContrib = pointLight(light_index, position, base_color, v, f0, n, alpha, k, metallic);
+\\          lo += lightContrib;
 \\      }
 \\
 \\      let sun_height = sin(frame_uniforms.time * 0.5);

@@ -137,6 +137,8 @@ pub fn create(
                 wall_scale: fd.Scale,
                 wall_random_rot: f32,
                 house_count: f32,
+                light_radiance: fd.ColorRGB,
+                light_range: f32,
             };
 
             const cityClass = rand.intRangeAtMost(u1, 0, 1);
@@ -152,6 +154,8 @@ pub fn create(
                         .wall_random_rot = 0.0,
                         .wall_scale = .{ .x = 0, .y = 8, .z = 2 },
                         .house_count = 50,
+                        .light_radiance = .{ .r = 4, .g = 3, .b = 1 },
+                        .light_range = 100,
                     };
                 },
                 1 => blk: {
@@ -165,6 +169,8 @@ pub fn create(
                         .wall_random_rot = 0.1,
                         .wall_scale = .{ .x = 0.2, .y = 4, .z = 0.2 },
                         .house_count = 1,
+                        .light_radiance = .{ .r = 5, .g = 1, .b = 0 },
+                        .light_range = 5,
                     };
                 },
             };
@@ -247,8 +253,9 @@ pub fn create(
             }
 
             var lightEnt = state.flecs_world.newEntity();
-            lightEnt.set(fd.Position{ .x = city_pos.x, .y = cityHeight + 30, .z = city_pos.z });
-            lightEnt.set(fd.Light{ .radiance = .{ 1000, 100, 10 } });
+            lightEnt.set(fd.Position{ .x = city_pos.x, .y = cityHeight + 1 + cityParams.light_range * 0.1, .z = city_pos.z });
+            lightEnt.set(fd.Light{ .radiance = cityParams.light_radiance, .range = cityParams.light_range });
+            // lightEnt.set(fd.Light{ .radiance = .{ 1, 1, 1 } });
         }
     }
 

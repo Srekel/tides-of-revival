@@ -40,7 +40,7 @@ const FrameUniforms = extern struct {
     padding3: u32,
     light_count: u32,
     light_positions: [32][4]f32,
-    // light_radiances: [64][4]f32,
+    light_radiances: [32][4]f32,
 };
 
 const DrawUniforms = struct {
@@ -785,6 +785,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 while (entity_iter_lights.next()) |comps| {
                     _ = comps;
                     std.mem.copy(f32, mem.slice[0].light_positions[light_i][0..], comps.position.elemsConst().*[0..]);
+                    std.mem.copy(f32, mem.slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
+                    mem.slice[0].light_radiances[light_i][3] = comps.light.range;
                     // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });
 
                     light_i += 1;
