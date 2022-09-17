@@ -147,15 +147,15 @@ pub fn create(
                     // CITY
                     break :blk CityParams{
                         .center_color = .{ .r = 1, .g = 1, .b = 1, .roughness = 0.8 },
-                        .center_scale = 10,
+                        .center_scale = 2,
                         .wall_color = .{ .r = 0.2, .g = 0.2, .b = 0.2, .roughness = 0.8 },
                         .wall_count = 100,
                         .wall_radius = 50,
                         .wall_random_rot = 0.0,
                         .wall_scale = .{ .x = 0, .y = 8, .z = 2 },
                         .house_count = 50,
-                        .light_radiance = .{ .r = 4, .g = 3, .b = 1 },
-                        .light_range = 100,
+                        .light_radiance = .{ .r = 4, .g = 2, .b = 1 },
+                        .light_range = 70,
                     };
                 },
                 1 => blk: {

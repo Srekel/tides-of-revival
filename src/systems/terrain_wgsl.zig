@@ -88,7 +88,7 @@ pub const fs = common ++
 \\          let distance = length(lvec);
 \\          let attenuation2 = 1.0 / (distance_sq*distance_sq);
 \\          let attenuation = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
-\\          let variance = 1.0 + 0.6 * sin(frame_uniforms.time * 2.7);
+\\          let variance = 1.0 + 0.2 * sin(frame_uniforms.time * 1.7);
 \\          let radiance = lightData.xyz * attenuation * variance;
 \\         // let radiance = light_radiance[light_index % 4u] * attenuation;
 \\
@@ -163,7 +163,7 @@ pub const fs = common ++
 \\      let sun = max(0.0, sun_height) * 0.3 * base_color * max(0.0, dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5))));
 \\      let sun2 = 0.5 * base_color * max(0.0, dot(n, normalize( vec3(0.0, 1.0, 0.0))));
 \\
-\\      let ambient_day   = vec3(0.005 * max(0.0, sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
+\\      let ambient_day   = vec3(0.0002 * max(0.0, sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
 \\      let ambient_night = vec3(0.05 * max(0.0, sign(-sun_height + 0.1))) * vec3(0.2, 0.2, 1.0) * base_color;
 \\      let ambient = (ambient_day + ambient_night) * ao * dot(n, vec3(0.0, 1.0, 0.0));
 \\      let fog_dist = length(position - frame_uniforms.camera_position);
