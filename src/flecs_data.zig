@@ -180,6 +180,7 @@ pub const Camera = struct {
     world_to_clip: [16]f32 = undefined,
     window: glfw.Window,
     cursor_known: glfw.Window.CursorPos = .{ .xpos = 0.0, .ypos = 0.0 },
+    snapped_to_ground: bool = false,
 };
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗

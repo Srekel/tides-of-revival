@@ -73,11 +73,23 @@ fn updateLook(cam: *fd.Camera) void {
 fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F32x4) void {
     const window = cam.window;
     var speed_scalar: f32 = 50.0;
-    if (window.getKey(.left_shift) == .press) {
-        speed_scalar *= 50;
+    if (window.getKey(.left_control) == .press and window.getKey(.left_shift) == .press) {
+        cam.snapped_to_ground = false;
     }
-    if (window.getKey(.left_control) == .press) {
-        speed_scalar *= 0.1;
+
+    if (cam.snapped_to_ground) {
+        speed_scalar = 1.7;
+        if (window.getKey(.left_shift) == .press) {
+            speed_scalar = 6;
+        } else if (window.getKey(.left_control) == .press) {
+            speed_scalar = 0.5;
+        }
+    } else {
+        if (window.getKey(.left_shift) == .press) {
+            speed_scalar *= 50;
+        } else if (window.getKey(.left_control) == .press) {
+            speed_scalar *= 0.1;
+        }
     }
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.mul(zm.rotationX(cam.pitch), zm.rotationY(cam.yaw));
@@ -104,7 +116,7 @@ fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F
     zm.store(pos.elems()[0..], cpos, 3);
 }
 
-fn updateSnapToTerrain(state: *SystemState, pos: *fd.Position) void {
+fn updateSnapToTerrain(state: *SystemState, cam: *fd.Camera, pos: *fd.Position) void {
     var ray_result: zbt.RayCastResult = undefined;
     const ray_origin = fd.Position.init(pos.x, pos.y + 20, pos.z);
     const ray_end = fd.Position.init(pos.x, pos.y - 10, pos.z);
@@ -117,8 +129,9 @@ fn updateSnapToTerrain(state: *SystemState, pos: *fd.Position) void {
         &ray_result,
     );
 
+    cam.snapped_to_ground = hit;
     if (hit) {
-        pos.y = ray_result.hit_point_world[1] + 0.2;
+        pos.y = ray_result.hit_point_world[1] + 1.8;
     }
 }
 
@@ -141,7 +154,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
         updateLook(cam);
         updateMovement(cam, comps.pos, comps.fwd, dt4);
-        updateSnapToTerrain(state, comps.pos);
+        updateSnapToTerrain(state, cam, comps.pos);
 
         const world_to_view = zm.lookToLh(
             zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3),
