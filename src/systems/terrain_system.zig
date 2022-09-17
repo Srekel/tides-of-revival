@@ -114,13 +114,6 @@ const SystemState = struct {
     query_lights: flecs.Query,
     query_loader: flecs.Query,
     noise: znoise.FnlGenerator,
-
-    camera: struct {
-        position: [3]f32 = .{ 0.0, 4.0, -4.0 },
-        forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
-        pitch: f32 = 0.15 * math.pi,
-        yaw: f32 = 0.0,
-    } = .{},
 };
 
 fn initPatches(
@@ -235,7 +228,8 @@ pub fn create(
     noise: znoise.FnlGenerator,
 ) !*SystemState {
     var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
-        .withReadonly(fd.Camera);
+        .withReadonly(fd.Camera)
+        .withReadonly(fd.Position);
     var query_camera = query_builder_camera.buildQuery();
 
     var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*)
@@ -744,7 +738,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const gctx = state.gctx;
-    var entity_iter_camera = state.query_camera.iterator(struct { cam: *const fd.Camera });
+    var entity_iter_camera = state.query_camera.iterator(struct {
+        cam: *const fd.Camera,
+        pos: *const fd.Position,
+    });
     const camera_comps = entity_iter_camera.next().?;
     _ = camera_comps;
     const cam = camera_comps.cam;
@@ -799,7 +796,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             {
                 const mem = gctx.uniformsAllocate(FrameUniforms, 1);
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-                mem.slice[0].camera_position = state.camera.position;
+                mem.slice[0].camera_position = camera_comps.pos.elemsConst().*;
                 mem.slice[0].time = @floatCast(f32, state.gctx.stats.time);
                 mem.slice[0].light_count = 0;
 
