@@ -703,6 +703,32 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     patch.vertices[0..],
                 );
 
+                // var z: f32 = 0;
+                // while (z < fd.patch_width) : (z += 1) {
+                //     var x: f32 = 0;
+                //     while (x < fd.patch_width) : (x += 1) {
+                //         const world_x = @intToFloat(f32, patch.pos[0]) + x;
+                //         const world_z = @intToFloat(f32, patch.pos[1]) + z;
+                //         const height = 100 * (0.5 + state.noise.noise2(world_x * 10.000, world_z * 10.000));
+                //         if (height > 20 and height < 40) {
+                //             const noise = state.noise.noise2((world_x + 1000) * 10.000, (world_z + 1000) * 10.000);
+                //             if (noise > 0.5) {
+                //                 const zPos = zm.translation(world_x + noise * 0.5, height, world_z + noise * 0.5);
+                //                 var transform: fd.Transform = undefined;
+                //                 zm.storeMat43(transform.matrix[0..], zPos);
+
+                //                 var wallEnt = state.flecs_world.newEntity();
+                //                 wallEnt.set(transform);
+                //                 wallEnt.set(fd.Scale.create(0.2, 2.0, 0.2));
+                //                 wallEnt.set(fd.CIShapeMeshInstance{
+                //                     .id = IdLocal.id64("cylinder"),
+                //                     .basecolor_roughness = .{ .r = 0.7, .g = 0.8, .b = 0.2, .roughness = 1.0 },
+                //                 });
+                //             }
+                //         }
+                //     }
+                // }
+
                 state.loading_patch = false;
                 break :blk .loaded;
             },
@@ -711,6 +737,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 patch_ent.set(fd.Position{ .x = @intToFloat(f32, patch.pos[0]), .y = 0, .z = @intToFloat(f32, patch.pos[1]) });
                 patch_ent.set(fd.WorldPatch{ .lookup = patch.lookup });
                 patch.entity = patch_ent.id;
+
                 break :blk .loaded;
             },
         };
