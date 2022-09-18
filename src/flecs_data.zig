@@ -211,8 +211,6 @@ pub const PhysicsBody = struct {
 //    ██║   ███████╗██║  ██║██║  ██║██║  ██║██║██║ ╚████║
 //    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
 
-pub const patch_width = 512;
-
 pub const TerrainPatchLookup = struct {
     lookup: u16 = undefined,
     // lod: u8 = 0,

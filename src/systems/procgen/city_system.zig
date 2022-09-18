@@ -9,6 +9,7 @@ const zbt = @import("zbullet");
 
 const math = @import("../../core/math.zig");
 const fd = @import("../../flecs_data.zig");
+const config = @import("../../config.zig");
 const IdLocal = @import("../../variant.zig").IdLocal;
 
 const CompCity = struct {
@@ -119,12 +120,12 @@ pub fn create(
         var z: f32 = -2;
         while (z <= 2) : (z += 1.5) {
             var city_pos = .{
-                .x = (x + 1.6 * state.noise.noise2(x * 1000, z * 1000)) * fd.patch_width,
+                .x = (x + 1.6 * state.noise.noise2(x * 1000, z * 1000)) * config.patch_width,
                 .y = 0,
-                .z = (z + 1.6 * state.noise.noise2(x * 1000, z * 1000)) * fd.patch_width,
+                .z = (z + 1.6 * state.noise.noise2(x * 1000, z * 1000)) * config.patch_width,
             };
-            const cityHeight = 100 * (0.5 + state.noise.noise2(city_pos.x * 10.0000, city_pos.z * 10.0000));
-            if (cityHeight < 25) {
+            const city_height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(city_pos.x * config.noise_scale_xz, city_pos.z * config.noise_scale_xz));
+            if (city_height < 25) {
                 continue;
             }
 
@@ -141,8 +142,8 @@ pub fn create(
                 light_range: f32,
             };
 
-            const cityClass = rand.intRangeAtMost(u1, 0, 1);
-            const cityParams = switch (cityClass) {
+            const city_class = rand.intRangeAtMost(u1, 0, 1);
+            const city_params = switch (city_class) {
                 0 => blk: {
                     // CITY
                     break :blk CityParams{
@@ -175,17 +176,17 @@ pub fn create(
                 },
             };
             var cityEnt = flecs_world.newEntity();
-            cityEnt.set(fd.Transform.init(city_pos.x, cityHeight, city_pos.z));
-            cityEnt.set(fd.Scale.createScalar(cityParams.center_scale));
+            cityEnt.set(fd.Transform.init(city_pos.x, city_height, city_pos.z));
+            cityEnt.set(fd.Scale.createScalar(city_params.center_scale));
             cityEnt.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("sphere"),
-                .basecolor_roughness = cityParams.center_color,
+                .basecolor_roughness = city_params.center_color,
             });
-            cityEnts.append(.{ .ent = cityEnt, .class = cityClass, .x = city_pos.x, .z = city_pos.z }) catch unreachable;
+            cityEnts.append(.{ .ent = cityEnt, .class = city_class, .x = city_pos.x, .z = city_pos.z }) catch unreachable;
 
-            const radius: f32 = cityParams.wall_radius * (1 + state.noise.noise2(x * 1000, z * 1000));
+            const radius: f32 = city_params.wall_radius * (1 + state.noise.noise2(x * 1000, z * 1000));
             const circumference: f32 = radius * std.math.pi * 2;
-            const wallPartCount = cityParams.wall_count;
+            const wallPartCount = city_params.wall_count;
             const wallLength = circumference / wallPartCount;
             var angle: f32 = 0;
             while (angle < 360) : (angle += 360 / wallPartCount) {
@@ -201,39 +202,39 @@ pub fn create(
                     .y = 0,
                     .z = city_pos.z + radius * @sin(angleRadiansHalf),
                 };
-                const wallY = 100 * (0.5 + state.noise.noise2(wallCenterPos.x * 10.0000, wallCenterPos.z * 10.0000));
+                const wallY = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(wallCenterPos.x * config.noise_scale_xz, wallCenterPos.z * config.noise_scale_xz));
                 if (wallY < 5) {
                     continue;
                 }
-                const zPos = zm.translation(wallPos.x, wallY - cityParams.wall_scale.y * 0.5, wallPos.z);
+                const zPos = zm.translation(wallPos.x, wallY - city_params.wall_scale.y * 0.5, wallPos.z);
 
                 // TODO: A proper random angle, possibly with lookat
                 const zRotY = zm.rotationY(-angleRadians + std.math.pi * 0.5);
-                const zRotX = zm.rotationX((rand.float(f32) - 0.5) * cityParams.wall_random_rot);
-                const zRotZ = zm.rotationX((rand.float(f32) - 0.5) * cityParams.wall_random_rot);
+                const zRotX = zm.rotationX((rand.float(f32) - 0.5) * city_params.wall_random_rot);
+                const zRotZ = zm.rotationX((rand.float(f32) - 0.5) * city_params.wall_random_rot);
                 const zMat = zm.mul(zm.mul(zRotY, zm.mul(zRotZ, zRotX)), zPos);
                 var transform: fd.Transform = undefined;
                 zm.storeMat43(transform.matrix[0..], zMat);
                 var wallEnt = flecs_world.newEntity();
                 wallEnt.set(transform);
-                wallEnt.set(fd.Scale.create(if (cityParams.wall_scale.x == 0) wallLength else cityParams.wall_scale.x, cityParams.wall_scale.y, cityParams.wall_scale.z));
+                wallEnt.set(fd.Scale.create(if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x, city_params.wall_scale.y, city_params.wall_scale.z));
                 wallEnt.set(fd.CIShapeMeshInstance{
                     .id = IdLocal.id64("cube"),
-                    .basecolor_roughness = cityParams.wall_color,
+                    .basecolor_roughness = city_params.wall_color,
                 });
             }
 
             angle = 0;
-            while (angle < 360) : (angle += 360 / cityParams.house_count) {
+            while (angle < 360) : (angle += 360 / city_params.house_count) {
                 // while (house_count > 0) : (house_count -= 1) {
                 const angleRadians = std.math.degreesToRadians(f32, angle);
-                const houseRadius = (1 + state.noise.noise2(angle * 1000, cityHeight * 100)) * radius * 0.5;
+                const houseRadius = (1 + state.noise.noise2(angle * 1000, city_height * 100)) * radius * 0.5;
                 var housePos = .{
                     .x = city_pos.x + houseRadius * @cos(angleRadians),
                     .y = 0,
                     .z = city_pos.z + houseRadius * @sin(angleRadians),
                 };
-                const houseY = 100 * (0.5 + state.noise.noise2(housePos.x * 10.0000, housePos.z * 10.0000));
+                const houseY = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(housePos.x * config.noise_scale_xz, housePos.z * config.noise_scale_xz));
                 if (houseY < 10) {
                     continue;
                 }
@@ -253,8 +254,8 @@ pub fn create(
             }
 
             var lightEnt = state.flecs_world.newEntity();
-            lightEnt.set(fd.Position{ .x = city_pos.x, .y = cityHeight + 1 + cityParams.light_range * 0.1, .z = city_pos.z });
-            lightEnt.set(fd.Light{ .radiance = cityParams.light_radiance, .range = cityParams.light_range });
+            lightEnt.set(fd.Position{ .x = city_pos.x, .y = city_height + 1 + city_params.light_range * 0.1, .z = city_pos.z });
+            lightEnt.set(fd.Light{ .radiance = city_params.light_radiance, .range = city_params.light_range });
             // lightEnt.set(fd.Light{ .radiance = .{ 1, 1, 1 } });
         }
     }
@@ -475,7 +476,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             0,
             caravan.startPos[2] + percentDone * (caravan.endPos[2] - caravan.startPos[2]),
         };
-        newPos[1] = 100 * (0.5 + state.noise.noise2(newPos[0] * 10.0000, newPos[2] * 10.0000));
+        newPos[1] = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(newPos[0] * config.noise_scale_xz, newPos[2] * config.noise_scale_xz));
 
         transform.setPos(newPos);
     }

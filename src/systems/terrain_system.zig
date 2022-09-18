@@ -14,14 +14,15 @@ const wgsl = @import("terrain_wgsl.zig");
 const wgpu = zgpu.wgpu;
 
 const fd = @import("../flecs_data.zig");
+const config = @import("../config.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const assert = std.debug.assert;
 
 const IndexType = u32;
 const patches_on_side = 5;
 const patch_count = patches_on_side * patches_on_side;
-const patch_side_vertex_count = fd.patch_width;
-const indices_per_patch: u32 = (fd.patch_width - 1) * (fd.patch_width - 1) * 6;
+const patch_side_vertex_count = config.patch_width;
+const indices_per_patch: u32 = (config.patch_width - 1) * (config.patch_width - 1) * 6;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
 
 // const Pool = zpool.Pool;
@@ -79,7 +80,7 @@ const Patch = struct {
     index_offset: u32 = undefined,
     vertex_offset: i32 = undefined,
     hash: i32 = 0,
-    heights: [fd.patch_width * fd.patch_width]f32,
+    heights: [config.patch_width * config.patch_width]f32,
     vertices: [patch_side_vertex_count * patch_side_vertex_count]Vertex,
     physics_shape: ?zbt.Shape,
     physics_body: zbt.Body,
@@ -105,10 +106,6 @@ const SystemState = struct {
     indices: std.ArrayList(IndexType),
     patches: std.ArrayList(Patch),
     loading_patch: bool = false,
-    // meshes: std.ArrayList(Mesh),
-    // vertices: [max_loaded_patches][fd.patch_width]Vertex = undefined,
-    // heights: [patch_count][fd.patch_width * fd.patch_width]f32,
-    // entity_to_lookup: std.ArrayList(struct { id: EntityId, lookup: u32 }),
 
     query_camera: flecs.Query,
     query_lights: flecs.Query,
@@ -159,8 +156,8 @@ fn initPatches(
     {
         var i: u32 = 0;
         var z: u32 = 0;
-        const width = @intCast(u32, fd.patch_width);
-        const height = @intCast(u32, fd.patch_width);
+        const width = @intCast(u32, config.patch_width);
+        const height = @intCast(u32, config.patch_width);
         while (z < height - 1) : (z += 1) {
             var x: u32 = 0;
             while (x < width - 1) : (x += 1) {
@@ -414,13 +411,13 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
     var patch = ctx.patch;
     var state = ctx.state;
     var z: f32 = 0;
-    while (z < fd.patch_width) : (z += 1) {
+    while (z < config.patch_width) : (z += 1) {
         var x: f32 = 0;
-        while (x < fd.patch_width) : (x += 1) {
+        while (x < config.patch_width) : (x += 1) {
             const world_x = @intToFloat(f32, patch.pos[0]) + x;
             const world_z = @intToFloat(f32, patch.pos[1]) + z;
-            const height = 100 * (0.5 + state.noise.noise2(world_x * 10.000, world_z * 10.000));
-            const index = @floatToInt(u32, x) + @floatToInt(u32, z) * fd.patch_width;
+            const height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, world_z * config.noise_scale_xz));
+            const index = @floatToInt(u32, x) + @floatToInt(u32, z) * config.patch_width;
             patch.heights[index] = height;
         }
     }
@@ -464,12 +461,12 @@ fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
     var state = ctx.state;
 
     var z: i32 = 0;
-    while (z < fd.patch_width) : (z += 1) {
+    while (z < config.patch_width) : (z += 1) {
         var x: i32 = 0;
-        while (x < fd.patch_width) : (x += 1) {
+        while (x < config.patch_width) : (x += 1) {
             const world_x = @intToFloat(f32, patch.pos[0] + x);
             const world_z = @intToFloat(f32, patch.pos[1] + z);
-            const index = @intCast(u32, x + z * fd.patch_width);
+            const index = @intCast(u32, x + z * config.patch_width);
             const height = patch.heights[index];
 
             patch.vertices[index].position[0] = @intToFloat(f32, x);
@@ -479,10 +476,10 @@ fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
             patch.vertices[index].normal[1] = 1;
             patch.vertices[index].normal[2] = 0;
 
-            const height_l = 100 * (0.5 + state.noise.noise2((world_x - 1) * 10.000, world_z * 10.000));
-            const height_r = 100 * (0.5 + state.noise.noise2((world_x + 1) * 10.000, world_z * 10.000));
-            const height_u = 100 * (0.5 + state.noise.noise2(world_x * 10.000, (world_z - 1) * 10.000));
-            const height_d = 100 * (0.5 + state.noise.noise2(world_x * 10.000, (world_z + 1) * 10.000));
+            const height_l = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2((world_x - 1) * config.noise_scale_xz, world_z * config.noise_scale_xz));
+            const height_r = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2((world_x + 1) * config.noise_scale_xz, world_z * config.noise_scale_xz));
+            const height_u = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z - 1) * config.noise_scale_xz));
+            const height_d = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z + 1) * config.noise_scale_xz));
             const dx = 0.5 * (height_r - height_l);
             const dz = 0.5 * (height_d - height_u);
             const ux = zm.Vec{ 0, dx, 1 };
@@ -537,9 +534,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             while (x <= range) : (x += 1) {
                 var z: i32 = -range;
                 z_loop: while (z <= range) : (z += 1) {
-                    const world_x = @divFloor(comp_pos_i_x, fd.patch_width) * fd.patch_width + x * fd.patch_width;
-                    const world_z = @divFloor(comp_pos_i_z, fd.patch_width) * fd.patch_width + z * fd.patch_width;
-                    const patch_hash = @divTrunc(world_x, fd.patch_width) + 1024 * @divTrunc(world_z, fd.patch_width);
+                    const world_x = @divFloor(comp_pos_i_x, config.patch_width) * config.patch_width + x * config.patch_width;
+                    const world_z = @divFloor(comp_pos_i_z, config.patch_width) * config.patch_width + z * config.patch_width;
+                    const patch_hash = @divTrunc(world_x, config.patch_width) + 1024 * @divTrunc(world_z, config.patch_width);
 
                     for (state.patches.items) |*patch| {
                         if (patch.hash == patch_hash) {
@@ -692,7 +689,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 std.debug.print("patch {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
                 state.gctx.queue.writeBuffer(
                     state.gctx.lookupResource(state.vertex_buffer).?,
-                    patch.lookup * fd.patch_width * fd.patch_width * @sizeOf(Vertex),
+                    patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex),
                     Vertex,
                     patch.vertices[0..],
                 );
