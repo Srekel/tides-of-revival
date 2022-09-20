@@ -13,6 +13,7 @@ const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const fd = @import("flecs_data.zig");
+const config = @import("config.zig");
 const IdLocal = @import("variant.zig").IdLocal;
 const znoise = @import("znoise");
 
@@ -149,15 +150,40 @@ pub fn run() void {
         }
     }
 
-    const camera_ent = flecs_world.newEntity();
-    camera_ent.set(fd.Position{ .x = 200, .y = 200, .z = 50 });
-    camera_ent.set(fd.CICamera{
+    const debug_camera_ent = flecs_world.newEntity();
+    debug_camera_ent.set(fd.Position{ .x = 200, .y = 200, .z = 50 });
+    debug_camera_ent.set(fd.CICamera{
         .lookat = .{ .x = 0, .y = 1, .z = 30 },
         .near = 0.1,
         .far = 10000,
         .window = main_window,
+        .active = true,
+        .class = 0,
     });
-    camera_ent.set(fd.WorldLoader{
+    debug_camera_ent.set(fd.WorldLoader{
+        .range = 2,
+    });
+
+    const player_height = config.noise_scale_y * (config.noise_offset_y + terrainNoise.noise2(0 * config.noise_scale_xz, 0 * config.noise_scale_xz));
+    const player_ent = flecs_world.newEntity();
+    player_ent.set(fd.Transform.init(0, player_height, 6));
+    player_ent.set(fd.Scale.createScalar(1.7));
+    player_ent.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.id64("cylinder"),
+        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+    });
+
+    const player_camera_ent = flecs_world.newEntity();
+    player_camera_ent.set(fd.Position{ .x = 1, .y = player_height + 1, .z = 1 });
+    player_camera_ent.set(fd.CICamera{
+        .lookat = .{ .x = 0, .y = 1, .z = 30 },
+        .near = 0.1,
+        .far = 10000,
+        .window = main_window,
+        .active = false,
+        .class = 1,
+    });
+    player_camera_ent.set(fd.WorldLoader{
         .range = 2,
     });
 

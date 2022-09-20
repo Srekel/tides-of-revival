@@ -151,6 +151,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     while (entity_iter.next()) |comps| {
         var cam = comps.camera;
+        if (cam.class != 0) {
+            continue;
+        }
+        if (!cam.active) {
+            continue;
+        }
 
         updateLook(cam);
         updateMovement(cam, comps.pos, comps.fwd, dt4);
@@ -195,6 +201,8 @@ fn onSetCICamera(it: *flecs.Iterator(ObserverCallback)) void {
             .far = ci.far,
             .near = ci.near,
             .window = ci.window,
+            .active = ci.active,
+            .class = ci.class,
         });
         ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
     }

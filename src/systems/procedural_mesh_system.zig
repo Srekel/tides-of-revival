@@ -341,10 +341,25 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
     const gctx = state.gctx;
-    var entity_iter_camera = state.query_camera.iterator(struct { cam: *const fd.Camera });
-    const camera_comps = entity_iter_camera.next().?;
-    _ = camera_comps;
-    const cam = camera_comps.cam;
+
+    const CameraQueryComps = struct {
+        cam: *const fd.Camera,
+        // pos: *const fd.Position,
+    };
+    var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
+    var camera_comps: ?CameraQueryComps = null;
+    while (entity_iter_camera.next()) |comps| {
+        if (comps.cam.active) {
+            camera_comps = comps;
+            break;
+        }
+    }
+
+    if (camera_comps == null) {
+        return;
+    }
+
+    const cam = camera_comps.?.cam;
     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
 
     const back_buffer_view = gctx.swapchain.getCurrentTextureView();

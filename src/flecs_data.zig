@@ -169,7 +169,10 @@ pub const CICamera = struct {
     near: f32,
     far: f32,
     window: glfw.Window,
+    active: bool = false,
+    class: u32 = 0,
 };
+
 pub const Camera = struct {
     near: f32,
     far: f32,
@@ -181,6 +184,8 @@ pub const Camera = struct {
     window: glfw.Window,
     cursor_known: glfw.Window.CursorPos = .{ .xpos = 0.0, .ypos = 0.0 },
     snapped_to_ground: bool = false,
+    active: bool = false,
+    class: u32 = 0,
 };
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
