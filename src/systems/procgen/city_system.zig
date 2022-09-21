@@ -52,6 +52,7 @@ const SystemState = struct {
     query_camp: flecs.Query,
     query_caravan: flecs.Query,
     query_combat: flecs.Query,
+    query_syncpos: flecs.Query,
 };
 
 const CityEnt = struct {
@@ -95,6 +96,11 @@ pub fn create(
         .with(fd.Transform);
     var query_combat = query_builder_combat.buildQuery();
 
+    var query_builder_syncpos = flecs.QueryBuilder.init(flecs_world.*)
+        .with(fd.Position)
+        .with(fd.Transform);
+    var query_syncpos = query_builder_syncpos.buildQuery();
+
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
@@ -108,6 +114,7 @@ pub fn create(
         .query_camp = query_camp,
         .query_caravan = query_caravan,
         .query_combat = query_combat,
+        .query_syncpos = query_syncpos,
     };
 
     var cityEnts = std.ArrayList(CityEnt).init(allocator);
@@ -120,9 +127,9 @@ pub fn create(
         var z: f32 = -2;
         while (z <= 2) : (z += 1.5) {
             var city_pos = .{
-                .x = (x + 1.6 * state.noise.noise2(x * 1000, z * 1000)) * config.patch_width,
+                .x = (x + rand.float(f32) * 1) * config.patch_width,
                 .y = 0,
-                .z = (z + 1.6 * state.noise.noise2(x * 1000, z * 1000)) * config.patch_width,
+                .z = (z + rand.float(f32) * 1) * config.patch_width,
             };
             const city_height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(city_pos.x * config.noise_scale_xz, city_pos.z * config.noise_scale_xz));
             if (city_height < 25) {
@@ -346,6 +353,7 @@ pub fn destroy(state: *SystemState) void {
     state.query_camp.deinit();
     state.query_caravan.deinit();
     state.query_combat.deinit();
+    state.query_syncpos.deinit();
     state.allocator.destroy(state);
 }
 
@@ -377,7 +385,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             }
 
             city.caravanMembersToSpawn -= 1;
-            city.nextSpawnTime += 0.1 + rand.float(f32) * 1;
+            city.nextSpawnTime += 0.05 + rand.float(f32) * 0.5;
 
             const next_city = flecs.Entity.init(state.flecs_world.world, city.currTargetCity);
             const next_city_pos = next_city.get(fd.Transform).?.getPos();
@@ -398,6 +406,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .destroy_on_arrival = true,
             });
             caravanEnt.set(CompCombatant{ .faction = 1 });
+            if (city.caravanMembersToSpawn == 2) {
+                caravanEnt.set(fd.Position.init(transform.getPos()[0], transform.getPos()[1], transform.getPos()[2]));
+                caravanEnt.set(fd.Light{ .radiance = .{ .r = 4, .g = 1, .b = 0 }, .range = 12 });
+            }
         }
     }
 
@@ -414,7 +426,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         if (camp.nextSpawnTime < state.gctx.stats.time) {
             if (camp.caravanMembersToSpawn == 0) {
                 camp.nextSpawnTime += camp.spawnCooldown;
-                camp.caravanMembersToSpawn = rand.intRangeAtMostBiased(i32, 3, 10);
+                camp.caravanMembersToSpawn = rand.intRangeAtMostBiased(i32, 2, 5);
                 // const campIndex = rand.intRangeAtMost(u32, 0, 1);
                 // const next_city = flecs.Entity.init(state.flecs_world.world, camp.closestCities[campIndex]);
                 // camp.currTargetCity = next_city.id;
@@ -486,7 +498,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         combat: *CompCombatant,
         transform: *fd.Transform,
     });
-    while (entity_iter_combat1.next()) |comps1| {
+
+    combat_loop: while (entity_iter_combat1.next()) |comps1| {
         const combat1 = comps1.combat;
         const transform1 = comps1.transform;
         const pos1 = transform1.getPos();
@@ -510,8 +523,21 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             if (combat1.faction == 1) {
                 state.flecs_world.delete(entity_iter_combat1.entity().id);
-                break;
+                break :combat_loop;
             }
         }
+    }
+
+    // LIGHTS
+    var entity_iter_syncpos = state.query_syncpos.iterator(struct {
+        position: *fd.Position,
+        transform: *fd.Transform,
+    });
+    while (entity_iter_syncpos.next()) |comps| {
+        const transform = comps.transform;
+        const pos = transform.getPos();
+        comps.position.x = pos[0];
+        comps.position.y = pos[1] + 1.5;
+        comps.position.z = pos[2];
     }
 }
