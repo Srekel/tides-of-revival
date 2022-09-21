@@ -694,31 +694,57 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     patch.vertices[0..],
                 );
 
-                // var z: f32 = 0;
-                // while (z < fd.patch_width) : (z += 1) {
-                //     var x: f32 = 0;
-                //     while (x < fd.patch_width) : (x += 1) {
-                //         const world_x = @intToFloat(f32, patch.pos[0]) + x;
-                //         const world_z = @intToFloat(f32, patch.pos[1]) + z;
-                //         const height = 100 * (0.5 + state.noise.noise2(world_x * 10.000, world_z * 10.000));
-                //         if (height > 20 and height < 40) {
-                //             const noise = state.noise.noise2((world_x + 1000) * 10.000, (world_z + 1000) * 10.000);
-                //             if (noise > 0.5) {
-                //                 const zPos = zm.translation(world_x + noise * 0.5, height, world_z + noise * 0.5);
-                //                 var transform: fd.Transform = undefined;
-                //                 zm.storeMat43(transform.matrix[0..], zPos);
+                var rand = std.rand.DefaultPrng.init(patch.lookup).random();
+                var z: f32 = 0;
+                while (z < config.patch_width) : (z += 8) {
+                    var x: f32 = 0;
+                    while (x < config.patch_width) : (x += 8) {
+                        const world_x = @intToFloat(f32, patch.pos[0]) + x + rand.float(f32) * 6;
+                        const world_z = @intToFloat(f32, patch.pos[1]) + z + rand.float(f32) * 6;
+                        const height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, world_z * config.noise_scale_xz));
+                        if (height > 10 and height < 300) {
+                            const noise = state.noise.noise2((world_x + 1000) * 4, (world_z + 1000) * 4);
+                            if (noise > 0.0) {
+                                const trunk_pos = zm.translation(world_x, height, world_z);
+                                var trunk_transform: fd.Transform = undefined;
+                                zm.storeMat43(trunk_transform.matrix[0..], trunk_pos);
 
-                //                 var wallEnt = state.flecs_world.newEntity();
-                //                 wallEnt.set(transform);
-                //                 wallEnt.set(fd.Scale.create(0.2, 2.0, 0.2));
-                //                 wallEnt.set(fd.CIShapeMeshInstance{
-                //                     .id = IdLocal.id64("cylinder"),
-                //                     .basecolor_roughness = .{ .r = 0.7, .g = 0.8, .b = 0.2, .roughness = 1.0 },
-                //                 });
-                //             }
-                //         }
-                //     }
-                // }
+                                var tree_trunk_ent = state.flecs_world.newEntity();
+                                tree_trunk_ent.set(trunk_transform);
+                                tree_trunk_ent.set(fd.Scale.create(0.4 + rand.float(f32) * 0.1, 3.0, 0.4 + rand.float(f32) * 0.1));
+                                tree_trunk_ent.set(fd.CIShapeMeshInstance{
+                                    .id = IdLocal.id64("tree_trunk"),
+                                    .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
+                                });
+
+                                const crown_pos = zm.translation(world_x, height + 0.5 + rand.float(f32) * 2, world_z);
+                                var crown_transform: fd.Transform = undefined;
+                                zm.storeMat43(crown_transform.matrix[0..], crown_pos);
+
+                                var tree_crown_ent = state.flecs_world.newEntity();
+                                tree_crown_ent.set(crown_transform);
+                                tree_crown_ent.set(fd.Scale.create(1.0 + rand.float(f32) * 0.3, 4.0 + rand.float(f32) * 8, 1.0 + rand.float(f32) * 0.3));
+                                tree_crown_ent.set(fd.CIShapeMeshInstance{
+                                    .id = IdLocal.id64("tree_crown"),
+                                    .basecolor_roughness = .{ .r = rand.float(f32) * 0.3, .g = 0.6 + rand.float(f32) * 0.4, .b = rand.float(f32) * 0.2, .roughness = 0.2 },
+                                });
+
+                                // if (rand.boolean()) {
+                                //     const crown_pos2 = zm.translation(world_x, height + 2 + rand.float(f32), world_z);
+                                //     var crown_transform2: fd.Transform = undefined;
+                                //     zm.storeMat43(crown_transform2.matrix[0..], crown_pos2);
+                                //     var tree_crown_ent2 = state.flecs_world.newEntity();
+                                //     tree_crown_ent2.set(crown_transform2);
+                                //     tree_crown_ent2.set(fd.Scale.create(1.0 + rand.float(f32) * 0.3, 4.0 + rand.float(f32) * 4, 1.0 + rand.float(f32) * 0.3));
+                                //     tree_crown_ent2.set(fd.CIShapeMeshInstance{
+                                //         .id = IdLocal.id64("tree_crown"),
+                                //         .basecolor_roughness = .{ .r = 0.2, .g = 1.0, .b = 0.2, .roughness = 0.2 },
+                                //     });
+                                // }
+                            }
+                        }
+                    }
+                }
 
                 state.loading_patch = false;
                 break :blk .loaded;
@@ -804,7 +830,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             {
                 const mem = gctx.uniformsAllocate(FrameUniforms, 1);
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-                mem.slice[0].camera_position = camera_comps.pos.elemsConst().*;
+                mem.slice[0].camera_position = camera_comps.?.pos.elemsConst().*;
                 mem.slice[0].time = @floatCast(f32, state.gctx.stats.time);
                 mem.slice[0].light_count = 0;
 

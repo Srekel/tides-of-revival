@@ -183,10 +183,30 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        // mesh.unweld();
-        // mesh.computeNormals();
-
         _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+    }
+
+    {
+        var mesh = zmesh.Shape.initCylinder(4, 4);
+        defer mesh.deinit();
+        mesh.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
+        mesh.scale(0.5, 1.0, 0.5);
+        mesh.translate(0.0, 1.0, 0.0);
+        mesh.unweld();
+        mesh.computeNormals();
+
+        _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+    }
+    {
+        var mesh = zmesh.Shape.initCone(4, 4);
+        defer mesh.deinit();
+        mesh.rotate(-math.pi * 0.5, 1.0, 0.0, 0.0);
+        // mesh.scale(0.5, 1.0, 0.5);
+        // mesh.translate(0.0, 1.0, 0.0);
+        mesh.unweld();
+        mesh.computeNormals();
+
+        _ = appendMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
     }
 }
 
