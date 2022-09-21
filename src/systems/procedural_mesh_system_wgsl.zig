@@ -9,6 +9,13 @@ const common =
 \\  struct FrameUniforms {
 \\      world_to_clip: mat4x4<f32>,
 \\      camera_position: vec3<f32>,
+\\      time: f32,
+\\      padding1: u32,
+\\      padding2: u32,
+\\      padding3: u32,
+\\      light_count: u32,
+\\      light_positions: array<vec4<f32>, 32>,
+\\      light_radiances: array<vec4<f32>, 32>,
 \\  }
 \\  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
 ;
@@ -64,6 +71,43 @@ pub const fs = common ++
 \\      return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
 \\  }
 \\
+\\  fn pointLight(light_index: u32, position: vec3<f32>, base_color: vec3<f32>, v: vec3<f32>, f0: vec3<f32>, n: vec3<f32>, alpha: f32, k: f32, metallic: f32) -> vec3<f32> {
+\\          var lvec = frame_uniforms.light_positions[light_index].xyz - position;
+\\         //  lvec.y += sin(frame_uniforms.time * 1.0) * 5.0;
+\\
+\\          let l = normalize(lvec);
+\\          let h = normalize(l + v);
+\\
+\\          let lightData = frame_uniforms.light_radiances[light_index];
+\\          let range = lightData.w;
+\\          let range_sq = range * range;
+\\          let distance_sq = dot(lvec, lvec);
+\\          if (range_sq < distance_sq) {
+\\              return vec3(0.0, 0.0, 0.0);
+\\          }
+\\          let distance = length(lvec);
+\\          let attenuation2 = 1.0 / (distance_sq*distance_sq);
+\\          let attenuation = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
+\\          let variance = 1.0 + 0.2 * sin(frame_uniforms.time * 1.7);
+\\          let radiance = lightData.xyz * attenuation * variance;
+\\         // let radiance = light_radiance[light_index % 4u] * attenuation;
+\\
+\\          let f = fresnelSchlick(saturate(dot(h, v)), f0);
+\\
+\\          let ndf = distributionGgx(n, h, alpha);
+\\          let g = geometrySmith(n, v, l, k);
+\\
+\\          let numerator = ndf * g * f;
+\\          let denominator = 4.0 * saturate(dot(n, v)) * saturate(dot(n, l));
+\\          let specular = numerator / max(denominator, 0.001);
+\\
+\\          let ks = f;
+\\          let kd = (vec3(1.0) - ks) * (1.0 - metallic);
+\\
+\\          let n_dot_l = saturate(dot(n, l));
+\\          return (kd * base_color / pi + specular) * radiance * n_dot_l;
+\\  }
+\\
 \\  @stage(fragment) fn main(
 \\      @location(0) position: vec3<f32>,
 \\      @location(1) normal: vec3<f32>,
@@ -85,49 +129,25 @@ pub const fs = common ++
 \\      var f0 = vec3(0.04);
 \\      f0 = mix(f0, base_color, metallic);
 \\
-\\      let light_positions = array<vec3<f32>, 4>(
-\\          vec3(5.0, 100.0, 15.0),
-\\          vec3(-25.0, 15.0, 25.0),
-\\          vec3(25.0, 15.0, -25.0),
-\\          vec3(-25.0, 15.0, -25.0),
-\\      );
-\\      let light_radiance = array<vec3<f32>, 4>(
-\\          40.0 * vec3(200.0, 200.0, 250.0),
-\\          4.0 * vec3(200.0, 200.0, 250.0),
-\\          4.0 * vec3(200.0, 200.0, 250.0),
-\\          4.0 * vec3(200.0, 200.0, 250.0),
-\\      );
-\\
 \\      var lo = vec3(0.0);
-\\      for (var light_index: i32 = 0; light_index < 1; light_index = light_index + 1) {
-\\          let lvec = light_positions[light_index] - position;
-\\
-\\          let l = normalize(lvec);
-\\          let h = normalize(l + v);
-\\
-\\          let distance_sq = dot(lvec, lvec);
-\\          let attenuation = 1.0 / distance_sq;
-\\          let radiance = light_radiance[light_index] * attenuation;
-\\
-\\          let f = fresnelSchlick(saturate(dot(h, v)), f0);
-\\
-\\          let ndf = distributionGgx(n, h, alpha);
-\\          let g = geometrySmith(n, v, l, k);
-\\
-\\          let numerator = ndf * g * f;
-\\          let denominator = 4.0 * saturate(dot(n, v)) * saturate(dot(n, l));
-\\          let specular = numerator / max(denominator, 0.001);
-\\
-\\          let ks = f;
-\\          let kd = (vec3(1.0) - ks) * (1.0 - metallic);
-\\
-\\          let n_dot_l = saturate(dot(n, l));
-\\          lo = lo + (kd * base_color / pi + specular) * radiance * n_dot_l;
+\\      for (var light_index: u32 = 0u; light_index < frame_uniforms.light_count; light_index = light_index + 1u) {
+\\          let lightContrib = pointLight(light_index, position, base_color, v, f0, n, alpha, k, metallic);
+\\          lo += lightContrib;
 \\      }
 \\
-\\      let ambient = vec3(0.03) * base_color * ao;
-\\      var color = ambient + lo;
-\\      color = color / (color + 1.0);
+\\      let sun_height = sin(frame_uniforms.time * 0.5);
+\\      let sun = max(0.0, sun_height) * 0.3 * base_color * max(0.0, dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5))));
+\\      let sun2 = 0.5 * base_color * max(0.0, dot(n, normalize( vec3(0.0, 1.0, 0.0))));
+\\
+\\      let ambient_day   = vec3(0.0002 * max(0.0, sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
+\\      let ambient_night = vec3(0.05 * max(0.0, sign(-sun_height + 0.1))) * vec3(0.2, 0.2, 1.0) * base_color;
+\\      let ambient = (ambient_day + ambient_night) * ao * dot(n, vec3(0.0, 1.0, 0.0));
+\\      let fog_dist = length(position - frame_uniforms.camera_position);
+\\      let fog_start = 500.0;
+\\      let fog_end = 2500.0;
+\\      let fog = (fog_dist - fog_start) / (fog_end - fog_start);
+\\      var color = ambient + lo + sun;
+\\      color = mix(color, vec3(0.5, 0.5, 0.4), 1.0 * max(0.0, min(1.0, fog * max(0.0, sun_height))));
 \\      color = pow(color, vec3(1.0 / 2.2));
 \\      return vec4(color, 1.0);
 \\

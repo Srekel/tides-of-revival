@@ -168,13 +168,10 @@ pub const fs = common ++
 \\      let ambient = (ambient_day + ambient_night) * ao * dot(n, vec3(0.0, 1.0, 0.0));
 \\      let fog_dist = length(position - frame_uniforms.camera_position);
 \\      let fog_start = 500.0;
-\\      let fog_end = 2000.0;
+\\      let fog_end = 2500.0;
 \\      let fog = (fog_dist - fog_start) / (fog_end - fog_start);
-\\      // let fog_str =
 \\      var color = ambient + lo + sun;
-\\      // color *= 0.1 +  mix(0.9, 0.1, min(1.0, fog_dist * 0.01));
 \\      color = mix(color, vec3(0.5, 0.5, 0.4), 1.0 * max(0.0, min(1.0, fog * max(0.0, sun_height))));
-\\     // color = color / (color + 1.0);
 \\      color = pow(color, vec3(1.0 / 2.2));
 \\      return vec4(color, 1.0);
 \\

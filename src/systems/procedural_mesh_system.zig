@@ -23,6 +23,13 @@ const Vertex = struct {
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
+    time: f32,
+    padding1: u32,
+    padding2: u32,
+    padding3: u32,
+    light_count: u32,
+    light_positions: [32][4]f32,
+    light_radiances: [32][4]f32,
 };
 
 const DrawUniforms = struct {
@@ -82,6 +89,7 @@ const SystemState = struct {
     meshes: std.ArrayList(Mesh),
     query_mesh: flecs.Query,
     query_camera: flecs.Query,
+    query_lights: flecs.Query,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -293,13 +301,18 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
     // Queries
     var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
-        .withReadonly(fd.Camera);
+        .withReadonly(fd.Camera)
+        .withReadonly(fd.Position);
+    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*)
+        .with(fd.Light)
+        .with(fd.Position);
     var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*)
         .withReadonly(fd.Transform)
         .withReadonly(fd.Scale)
         .withReadonly(fd.ShapeMeshInstance);
 
     var query_camera = query_builder_camera.buildQuery();
+    var query_lights = query_builder_lights.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
 
     state.* = .{
@@ -313,8 +326,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
         .meshes = meshes,
-        .query_mesh = query_mesh,
         .query_camera = query_camera,
+        .query_lights = query_lights,
+        .query_mesh = query_mesh,
     };
 
     // flecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
@@ -344,7 +358,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
-        // pos: *const fd.Position,
+        pos: *const fd.Position,
     };
     var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
     var camera_comps: ?CameraQueryComps = null;
@@ -411,9 +425,29 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             {
                 const mem = gctx.uniformsAllocate(FrameUniforms, 1);
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-                // mem.slice[0].camera_position = state.camera.position; // wut
+                mem.slice[0].camera_position = camera_comps.?.pos.elemsConst().*;
+                mem.slice[0].time = @floatCast(f32, state.gctx.stats.time);
+                mem.slice[0].light_count = 0;
+
+                var entity_iter_lights = state.query_lights.iterator(struct {
+                    light: *fd.Light,
+                    position: *fd.Position,
+                });
+
+                var light_i: u32 = 0;
+                while (entity_iter_lights.next()) |comps| {
+                    _ = comps;
+                    std.mem.copy(f32, mem.slice[0].light_positions[light_i][0..], comps.position.elemsConst().*[0..]);
+                    std.mem.copy(f32, mem.slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
+                    mem.slice[0].light_radiances[light_i][3] = comps.light.range;
+                    // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });
+
+                    light_i += 1;
+                }
+                mem.slice[0].light_count = light_i;
 
                 pass.setBindGroup(0, bind_group, &.{mem.offset});
+                // std.debug.print("mem: {any} / {any} / {any}\n", .{ @sizeOf(FrameUniforms), mem.offset, mem.slice[0].camera_position });
             }
 
             var entity_iter_mesh = state.query_mesh.iterator(struct {
