@@ -458,14 +458,14 @@ const ThreadContextGenerateNormals = struct {
 fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
     _ = ctx;
     var patch = ctx.patch;
-    var state = ctx.state;
+    // var state = ctx.state;
 
     var z: i32 = 0;
     while (z < config.patch_width) : (z += 1) {
         var x: i32 = 0;
         while (x < config.patch_width) : (x += 1) {
-            const world_x = @intToFloat(f32, patch.pos[0] + x);
-            const world_z = @intToFloat(f32, patch.pos[1] + z);
+            // const world_x = @intToFloat(f32, patch.pos[0] + x);
+            // const world_z = @intToFloat(f32, patch.pos[1] + z);
             const index = @intCast(u32, x + z * config.patch_width);
             const height = patch.heights[index];
 
@@ -476,17 +476,29 @@ fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
             patch.vertices[index].normal[1] = 1;
             patch.vertices[index].normal[2] = 0;
 
-            const height_l = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2((world_x - 1) * config.noise_scale_xz, world_z * config.noise_scale_xz));
-            const height_r = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2((world_x + 1) * config.noise_scale_xz, world_z * config.noise_scale_xz));
-            const height_u = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z - 1) * config.noise_scale_xz));
-            const height_d = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z + 1) * config.noise_scale_xz));
-            const dx = 0.5 * (height_r - height_l);
-            const dz = 0.5 * (height_d - height_u);
-            const ux = zm.Vec{ 0, dx, 1 };
-            const uz = zm.Vec{ 1, dz, 0 };
-            const cross = zm.cross3(ux, uz);
-            const normal = zm.normalize3(cross);
-            patch.vertices[index].normal = zm.vecToArr3(normal);
+            // const height_l = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2((world_x - 1) * config.noise_scale_xz, world_z * config.noise_scale_xz));
+            // const height_r = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2((world_x + 1) * config.noise_scale_xz, world_z * config.noise_scale_xz));
+            // const height_u = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z - 1) * config.noise_scale_xz));
+            // const height_d = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z + 1) * config.noise_scale_xz));
+            if (1 < x and x < config.patch_width - 2 and 1 < z and z < config.patch_width - 2) {
+                const index_l = @intCast(u32, x - 2 + z * config.patch_width);
+                const index_r = @intCast(u32, x + 2 + z * config.patch_width);
+                const index_u = @intCast(u32, x + (z + 2) * config.patch_width);
+                const index_d = @intCast(u32, x + (z - 2) * config.patch_width);
+                const height_l = patch.heights[index_l];
+                const height_r = patch.heights[index_r];
+                const height_u = patch.heights[index_u];
+                const height_d = patch.heights[index_d];
+                const dx = 0.25 * (height_r - height_l);
+                const dz = 0.25 * (height_u - height_d);
+                const ux = zm.Vec{ 1, dx, 0 };
+                const uz = zm.Vec{ 0, dz, 1 };
+                const cross = zm.cross3(zm.normalize3(ux), zm.normalize3(uz));
+                const normal = zm.normalize3(cross) * zm.f32x4s(-1.0);
+                patch.vertices[index].normal = zm.vecToArr3(normal);
+                // patch.vertices[index].normal[0] *= -1;
+                //patch.vertices[index].normal[2] *= -1;
+            }
         }
     }
     patch.status = .generating_physics_setup;
