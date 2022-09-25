@@ -120,10 +120,12 @@ pub fn create(
     var cityEnts = std.ArrayList(CityEnt).init(allocator);
     defer cityEnts.deinit();
 
-    const time = @floatCast(f32, state.gctx.stats.time);
-    var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
+    //const time = @floatCast(f32, state.gctx.stats.time);
+    // var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
+    var rand = std.rand.DefaultPrng.init(0).random();
+    var villageCount: u32 = 0;
     var x: f32 = -2;
-    while (x <= 2) : (x += 1.5) {
+    while (x <= 2 or villageCount < 3) : (x += 1.5) {
         var z: f32 = -2;
         while (z <= 2) : (z += 1.5) {
             var city_pos = .{
@@ -144,6 +146,7 @@ pub fn create(
                 wall_radius: f32,
                 wall_scale: fd.Scale,
                 wall_random_rot: f32,
+                wall_random_scale: f32,
                 house_count: f32,
                 light_radiance: fd.ColorRGB,
                 light_range: f32,
@@ -156,12 +159,13 @@ pub fn create(
                     break :blk CityParams{
                         .center_color = .{ .r = 1, .g = 1, .b = 1, .roughness = 0.8 },
                         .center_scale = 2,
-                        .wall_color = .{ .r = 0.2, .g = 0.2, .b = 0.2, .roughness = 0.8 },
-                        .wall_count = 100,
+                        .wall_color = .{ .r = 0.3, .g = 0.2, .b = 0.1, .roughness = 0.8 },
+                        .wall_count = 200,
                         .wall_radius = 50,
                         .wall_random_rot = 0.0,
-                        .wall_scale = .{ .x = 0, .y = 8, .z = 2 },
-                        .house_count = 50,
+                        .wall_random_scale = 0.0,
+                        .wall_scale = .{ .x = 0, .y = 12, .z = 1 },
+                        .house_count = 30,
                         .light_radiance = .{ .r = 4, .g = 2, .b = 1 },
                         .light_range = 70,
                     };
@@ -172,16 +176,22 @@ pub fn create(
                         .center_color = .{ .r = 1.0, .g = 1.0, .b = 0.2, .roughness = 0.0 },
                         .center_scale = 0.5,
                         .wall_color = .{ .r = 0.8, .g = 0.5, .b = 0.0, .roughness = 0.8 },
-                        .wall_count = 20,
-                        .wall_radius = 10,
-                        .wall_random_rot = 0.1,
-                        .wall_scale = .{ .x = 0.2, .y = 4, .z = 0.2 },
-                        .house_count = 1,
-                        .light_radiance = .{ .r = 5, .g = 1, .b = 0 },
-                        .light_range = 5,
+                        .wall_count = 70,
+                        .wall_radius = 20,
+                        .wall_random_rot = 0.2,
+                        .wall_random_scale = 0.5,
+                        .wall_scale = .{ .x = 0.2, .y = 7, .z = 0.2 },
+                        .house_count = 0,
+                        .light_radiance = .{ .r = 3, .g = 0.5, .b = 0 },
+                        .light_range = 150,
                     };
                 },
             };
+
+            if (city_class == 0) {
+                villageCount += 1;
+            }
+
             var cityEnt = flecs_world.newEntity();
             cityEnt.set(fd.Transform.init(city_pos.x, city_height, city_pos.z));
             cityEnt.set(fd.Scale.createScalar(city_params.center_scale));
@@ -196,7 +206,7 @@ pub fn create(
             const wallPartCount = city_params.wall_count;
             const wallLength = circumference / wallPartCount;
             var angle: f32 = 0;
-            while (angle < 360) : (angle += 360 / wallPartCount) {
+            while (angle < 340) : (angle += 360 / wallPartCount) {
                 const angleRadians = std.math.degreesToRadians(f32, angle);
                 const angleRadiansHalf = std.math.degreesToRadians(f32, angle - 180 / wallPartCount);
                 var wallPos = .{
@@ -224,14 +234,20 @@ pub fn create(
                 zm.storeMat43(transform.matrix[0..], zMat);
                 var wallEnt = flecs_world.newEntity();
                 wallEnt.set(transform);
-                wallEnt.set(fd.Scale.create(if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x, city_params.wall_scale.y, city_params.wall_scale.z));
+                wallEnt.set(
+                    fd.Scale.create(
+                        if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x * (1 + rand.float(f32) * city_params.wall_random_scale),
+                        city_params.wall_scale.y * (1 + rand.float(f32) * city_params.wall_random_scale),
+                        city_params.wall_scale.z * (1 + rand.float(f32) * city_params.wall_random_scale),
+                    ),
+                );
                 wallEnt.set(fd.CIShapeMeshInstance{
                     .id = IdLocal.id64("cube"),
                     .basecolor_roughness = city_params.wall_color,
                 });
             }
 
-            angle = 0;
+            angle = if (city_params.house_count == 0) 360 else 0;
             while (angle < 360) : (angle += 360 / city_params.house_count) {
                 // while (house_count > 0) : (house_count -= 1) {
                 const angleRadians = std.math.degreesToRadians(f32, angle);
@@ -261,9 +277,17 @@ pub fn create(
             }
 
             var lightEnt = state.flecs_world.newEntity();
-            lightEnt.set(fd.Position{ .x = city_pos.x, .y = city_height + 1 + city_params.light_range * 0.1, .z = city_pos.z });
+            lightEnt.set(fd.Position{ .x = city_pos.x, .y = city_height + 2 + city_params.light_range * 0.1, .z = city_pos.z });
             lightEnt.set(fd.Light{ .radiance = city_params.light_radiance, .range = city_params.light_range });
             // lightEnt.set(fd.Light{ .radiance = .{ 1, 1, 1 } });
+
+            var light_viz_ent = flecs_world.newEntity();
+            light_viz_ent.set(fd.Transform.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
+            light_viz_ent.set(fd.Scale.createScalar(1));
+            light_viz_ent.set(fd.CIShapeMeshInstance{
+                .id = IdLocal.id64("sphere"),
+                .basecolor_roughness = city_params.center_color,
+            });
         }
     }
 
@@ -301,7 +325,7 @@ pub fn create(
         cityEnt1.nearest[0] = bestEnt1.?.ent.id;
         cityEnt1.nearest[1] = bestEnt2.?.ent.id;
         cityEnt1.ent.set(CompCity{
-            .spawnCooldown = 20,
+            .spawnCooldown = 40,
             .nextSpawnTime = 5,
             .closestCities = [_]flecs.EntityId{
                 bestEnt1.?.ent.id,
@@ -335,7 +359,7 @@ pub fn create(
         }
 
         cityEnt1.ent.set(CompBanditCamp{
-            .spawnCooldown = 25,
+            .spawnCooldown = 65,
             .nextSpawnTime = 10,
             .closestCities = [_]flecs.EntityId{
                 bestEnt1.?.ent.id,
