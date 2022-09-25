@@ -61,7 +61,7 @@ pub fn run() void {
         .seed = @intCast(i32, 1234),
         .fractal_type = .fbm,
         .frequency = 0.0001,
-        .octaves = 20,
+        .octaves = 10,
     };
 
     var terrain_sys = try terrain_system.create(

@@ -424,6 +424,49 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
     patch.status = .generating_normals_setup;
 }
 
+// fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
+//     _ = ctx;
+//     // ctx.patch.
+//     var patch = ctx.patch;
+//     // var state = ctx.state;
+//     var z: f32 = 0;
+//     while (z < config.patch_width) : (z += 1) {
+//         var x: f32 = 0;
+//         while (x < config.patch_width) : (x += 1) {
+//             // const height = switch (patch.lookup % 6) {
+//             //     0 => blk: {
+//             //         break :blk x * 0.1;
+//             //     },
+//             //     1 => blk: {
+//             //         break :blk z * 0.1;
+//             //     },
+//             //     2 => blk: {
+//             //         break :blk x + z;
+//             //     },
+//             //     3 => blk: {
+//             //         break :blk x - z;
+//             //     },
+//             //     4 => blk: {
+//             //         break :blk -x - z;
+//             //     },
+//             //     5 => blk: {
+//             //         break :blk 0;
+//             //     },
+//             //     else => {
+//             //         unreachable;
+//             //     },
+//             // };
+//             const height = std.math.min(x, z);
+//             // const world_x = @intToFloat(f32, patch.pos[0]) + x;
+//             // const world_z = @intToFloat(f32, patch.pos[1]) + z;
+//             // const height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, world_z * config.noise_scale_xz));
+//             const index = @floatToInt(u32, x) + @floatToInt(u32, z) * config.patch_width;
+//             patch.heights[index] = height;
+//         }
+//     }
+//     patch.status = .generating_normals_setup;
+// }
+
 const ThreadContextGenerateShape = struct {
     patch: *Patch,
     state: *SystemState,
@@ -480,17 +523,17 @@ fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
             // const height_r = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2((world_x + 1) * config.noise_scale_xz, world_z * config.noise_scale_xz));
             // const height_u = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z - 1) * config.noise_scale_xz));
             // const height_d = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, (world_z + 1) * config.noise_scale_xz));
-            if (1 < x and x < config.patch_width - 2 and 1 < z and z < config.patch_width - 2) {
-                const index_l = @intCast(u32, x - 2 + z * config.patch_width);
-                const index_r = @intCast(u32, x + 2 + z * config.patch_width);
-                const index_u = @intCast(u32, x + (z + 2) * config.patch_width);
-                const index_d = @intCast(u32, x + (z - 2) * config.patch_width);
+            if (0 < x and x < config.patch_width - 1 and 0 < z and z < config.patch_width - 1) {
+                const index_l = @intCast(u32, x - 1 + z * config.patch_width);
+                const index_r = @intCast(u32, x + 1 + z * config.patch_width);
+                const index_u = @intCast(u32, x + (z + 1) * config.patch_width);
+                const index_d = @intCast(u32, x + (z - 1) * config.patch_width);
                 const height_l = patch.heights[index_l];
                 const height_r = patch.heights[index_r];
                 const height_u = patch.heights[index_u];
                 const height_d = patch.heights[index_d];
-                const dx = 0.25 * (height_r - height_l);
-                const dz = 0.25 * (height_u - height_d);
+                const dx = 0.5 * (height_r - height_l);
+                const dz = 0.5 * (height_u - height_d);
                 const ux = zm.Vec{ 1, dx, 0 };
                 const uz = zm.Vec{ 0, dz, 1 };
                 const cross = zm.cross3(zm.normalize3(ux), zm.normalize3(uz));
