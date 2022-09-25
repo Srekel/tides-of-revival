@@ -13,24 +13,24 @@ const config = @import("../../config.zig");
 const IdLocal = @import("../../variant.zig").IdLocal;
 
 const CompCity = struct {
-    nextSpawnTime: f32,
-    spawnCooldown: f32,
-    caravanMembersToSpawn: i32 = 0,
-    closestCities: [2]flecs.EntityId,
-    currTargetCity: flecs.EntityId,
+    next_spawn_time: f32,
+    spawn_cooldown: f32,
+    caravan_members_to_spawn: i32 = 0,
+    closest_cities: [2]flecs.EntityId,
+    curr_target_city: flecs.EntityId,
 };
 const CompBanditCamp = struct {
-    nextSpawnTime: f32,
-    spawnCooldown: f32,
-    caravanMembersToSpawn: i32 = 0,
-    closestCities: [2]flecs.EntityId,
-    // currTargetCity: flecs.EntityId,
+    next_spawn_time: f32,
+    spawn_cooldown: f32,
+    caravan_members_to_spawn: i32 = 0,
+    closest_cities: [2]flecs.EntityId,
+    // curr_target_city: flecs.EntityId,
 };
 const CompCaravan = struct {
-    startPos: [3]f32,
-    endPos: [3]f32,
-    timeToArrive: f32,
-    timeBirth: f32,
+    start_pos: [3]f32,
+    end_pos: [3]f32,
+    time_to_arrive: f32,
+    time_birth: f32,
     destroy_on_arrival: bool,
 };
 
@@ -117,8 +117,8 @@ pub fn create(
         .query_syncpos = query_syncpos,
     };
 
-    var cityEnts = std.ArrayList(CityEnt).init(allocator);
-    defer cityEnts.deinit();
+    var city_ents = std.ArrayList(CityEnt).init(allocator);
+    defer city_ents.deinit();
 
     //const time = @floatCast(f32, state.gctx.stats.time);
     // var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
@@ -192,14 +192,14 @@ pub fn create(
                 villageCount += 1;
             }
 
-            var cityEnt = flecs_world.newEntity();
-            cityEnt.set(fd.Transform.init(city_pos.x, city_height, city_pos.z));
-            cityEnt.set(fd.Scale.createScalar(city_params.center_scale));
-            cityEnt.set(fd.CIShapeMeshInstance{
+            var city_ent = flecs_world.newEntity();
+            city_ent.set(fd.Transform.init(city_pos.x, city_height, city_pos.z));
+            city_ent.set(fd.Scale.createScalar(city_params.center_scale));
+            city_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("sphere"),
                 .basecolor_roughness = city_params.center_color,
             });
-            cityEnts.append(.{ .ent = cityEnt, .class = city_class, .x = city_pos.x, .z = city_pos.z }) catch unreachable;
+            city_ents.append(.{ .ent = city_ent, .class = city_class, .x = city_pos.x, .z = city_pos.z }) catch unreachable;
 
             const radius: f32 = city_params.wall_radius * (1 + state.noise.noise2(x * 1000, z * 1000));
             const circumference: f32 = radius * std.math.pi * 2;
@@ -232,16 +232,16 @@ pub fn create(
                 const zMat = zm.mul(zm.mul(zRotY, zm.mul(zRotZ, zRotX)), zPos);
                 var transform: fd.Transform = undefined;
                 zm.storeMat43(transform.matrix[0..], zMat);
-                var wallEnt = flecs_world.newEntity();
-                wallEnt.set(transform);
-                wallEnt.set(
+                var wall_ent = flecs_world.newEntity();
+                wall_ent.set(transform);
+                wall_ent.set(
                     fd.Scale.create(
                         if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x * (1 + rand.float(f32) * city_params.wall_random_scale),
                         city_params.wall_scale.y * (1 + rand.float(f32) * city_params.wall_random_scale),
                         city_params.wall_scale.z * (1 + rand.float(f32) * city_params.wall_random_scale),
                     ),
                 );
-                wallEnt.set(fd.CIShapeMeshInstance{
+                wall_ent.set(fd.CIShapeMeshInstance{
                     .id = IdLocal.id64("cube"),
                     .basecolor_roughness = city_params.wall_color,
                 });
@@ -261,25 +261,24 @@ pub fn create(
                 if (houseY < 10) {
                     continue;
                 }
-                var houseEnt = flecs_world.newEntity();
+                var house_ent = flecs_world.newEntity();
                 const zPos = zm.translation(housePos.x, houseY - 2, housePos.z);
                 const zRot = zm.rotationY(angleRadians);
                 // const scale = zm.scaling(angleRadians);
                 const zMat = zm.mul(zRot, zPos);
                 var transform: fd.Transform = undefined;
                 zm.storeMat43(transform.matrix[0..], zMat);
-                houseEnt.set(transform);
-                houseEnt.set(fd.Scale.create(7, 3, 4));
-                houseEnt.set(fd.CIShapeMeshInstance{
+                house_ent.set(transform);
+                house_ent.set(fd.Scale.create(7, 3, 4));
+                house_ent.set(fd.CIShapeMeshInstance{
                     .id = IdLocal.id64("cube"),
                     .basecolor_roughness = .{ .r = 1.0, .g = 0.2, .b = 0.2, .roughness = 0.8 },
                 });
             }
 
-            var lightEnt = state.flecs_world.newEntity();
-            lightEnt.set(fd.Position{ .x = city_pos.x, .y = city_height + 2 + city_params.light_range * 0.1, .z = city_pos.z });
-            lightEnt.set(fd.Light{ .radiance = city_params.light_radiance, .range = city_params.light_range });
-            // lightEnt.set(fd.Light{ .radiance = .{ 1, 1, 1 } });
+            var light_ent = state.flecs_world.newEntity();
+            light_ent.set(fd.Position{ .x = city_pos.x, .y = city_height + 2 + city_params.light_range * 0.1, .z = city_pos.z });
+            light_ent.set(fd.Light{ .radiance = city_params.light_radiance, .range = city_params.light_range });
 
             var light_viz_ent = flecs_world.newEntity();
             light_viz_ent.set(fd.Transform.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
@@ -292,80 +291,80 @@ pub fn create(
     }
 
     // Cities
-    for (cityEnts.items) |*cityEnt1| {
-        if (cityEnt1.class != 0) {
+    for (city_ents.items) |*city_ent1| {
+        if (city_ent1.class != 0) {
             continue;
         }
-        var bestDist1: f32 = 1000000; // nearest
-        var bestDist2: f32 = 1000000; // second nearest
-        var bestEnt1: ?CityEnt = null;
-        var bestEnt2: ?CityEnt = null;
-        for (cityEnts.items) |cityEnt2| {
-            if (cityEnt1.ent.id == cityEnt2.ent.id) {
+        var best_dist1: f32 = 1000000; // nearest
+        var best_dist2: f32 = 1000000; // second nearest
+        var best_ent1: ?CityEnt = null;
+        var best_ent2: ?CityEnt = null;
+        for (city_ents.items) |city_ent2| {
+            if (city_ent1.ent.id == city_ent2.ent.id) {
                 continue;
             }
 
-            if (cityEnt2.class == 1) {
+            if (city_ent2.class == 1) {
                 continue;
             }
 
-            const dist = cityEnt1.dist(cityEnt2);
-            if (dist < bestDist2) {
-                bestDist2 = dist;
-                bestEnt2 = cityEnt2;
+            const dist = city_ent1.dist(city_ent2);
+            if (dist < best_dist2) {
+                best_dist2 = dist;
+                best_ent2 = city_ent2;
             }
-            if (dist < bestDist1) {
-                bestDist2 = bestDist1;
-                bestEnt2 = bestEnt1;
-                bestDist1 = dist;
-                bestEnt1 = cityEnt2;
+            if (dist < best_dist1) {
+                best_dist2 = best_dist1;
+                best_ent2 = best_ent1;
+                best_dist1 = dist;
+                best_ent1 = city_ent2;
             }
         }
 
-        cityEnt1.nearest[0] = bestEnt1.?.ent.id;
-        cityEnt1.nearest[1] = bestEnt2.?.ent.id;
-        cityEnt1.ent.set(CompCity{
-            .spawnCooldown = 40,
-            .nextSpawnTime = 5,
-            .closestCities = [_]flecs.EntityId{
-                bestEnt1.?.ent.id,
-                bestEnt2.?.ent.id,
+        city_ent1.nearest[0] = best_ent1.?.ent.id;
+        city_ent1.nearest[1] = best_ent2.?.ent.id;
+        city_ent1.ent.set(CompCity{
+            .spawn_cooldown = 40,
+            .next_spawn_time = 5,
+            .closest_cities = [_]flecs.EntityId{
+                best_ent1.?.ent.id,
+                best_ent2.?.ent.id,
             },
-            .currTargetCity = 0,
+            .curr_target_city = 0,
         });
     }
 
     // Bandits
-    for (cityEnts.items) |cityEnt1| {
-        if (cityEnt1.class != 1) {
+    for (city_ents.items) |city_ent1| {
+        if (city_ent1.class != 1) {
             continue;
         }
-        var bestDist1: f32 = 1000000; // nearest
-        var bestEnt1: ?CityEnt = null;
-        for (cityEnts.items) |cityEnt2| {
-            if (cityEnt1.ent.id == cityEnt2.ent.id) {
+        var best_dist1: f32 = 1000000; // nearest
+        var best_ent1: ?CityEnt = null;
+        for (city_ents.items) |city_ent2| {
+            if (city_ent1.ent.id == city_ent2.ent.id) {
                 continue;
             }
 
-            if (cityEnt2.class == 1) {
+            if (city_ent2.class == 1) {
                 continue;
             }
 
-            const dist = cityEnt1.dist(cityEnt2);
-            if (dist < bestDist1) {
-                bestDist1 = dist;
-                bestEnt1 = cityEnt2;
+            const dist = city_ent1.dist(city_ent2);
+            if (dist < best_dist1) {
+                best_dist1 = dist;
+                best_ent1 = city_ent2;
             }
         }
 
-        cityEnt1.ent.set(CompBanditCamp{
-            .spawnCooldown = 65,
-            .nextSpawnTime = 10,
-            .closestCities = [_]flecs.EntityId{
-                bestEnt1.?.ent.id,
-                bestEnt1.?.nearest[0],
+        city_ent1.ent.set(CompBanditCamp{
+            .spawn_cooldown = 65,
+            .next_spawn_time = 10,
+            .closest_cities = [_]flecs.EntityId{
+                best_ent1.?.ent.id,
+                best_ent1.?.nearest[0],
             },
-            // .currTargetCity = 0,
+            // .curr_target_city = 0,
         });
     }
 
@@ -398,41 +397,41 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var city = comps.city;
         const transform = comps.transform;
 
-        if (city.nextSpawnTime < state.gctx.stats.time) {
-            if (city.caravanMembersToSpawn == 0) {
-                city.nextSpawnTime += city.spawnCooldown;
-                city.caravanMembersToSpawn = rand.intRangeAtMostBiased(i32, 3, 10);
-                const cityIndex = rand.intRangeAtMost(u32, 0, 1);
-                const next_city = flecs.Entity.init(state.flecs_world.world, city.closestCities[cityIndex]);
-                city.currTargetCity = next_city.id;
+        if (city.next_spawn_time < state.gctx.stats.time) {
+            if (city.caravan_members_to_spawn == 0) {
+                city.next_spawn_time += city.spawn_cooldown;
+                city.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 3, 10);
+                const city_index = rand.intRangeAtMost(u32, 0, 1);
+                const next_city = flecs.Entity.init(state.flecs_world.world, city.closest_cities[city_index]);
+                city.curr_target_city = next_city.id;
                 continue;
             }
 
-            city.caravanMembersToSpawn -= 1;
-            city.nextSpawnTime += 0.05 + rand.float(f32) * 0.5;
+            city.caravan_members_to_spawn -= 1;
+            city.next_spawn_time += 0.05 + rand.float(f32) * 0.5;
 
-            const next_city = flecs.Entity.init(state.flecs_world.world, city.currTargetCity);
+            const next_city = flecs.Entity.init(state.flecs_world.world, city.curr_target_city);
             const next_city_pos = next_city.get(fd.Transform).?.getPos();
             const distance = math.dist3_xz(next_city_pos, transform.getPos());
 
-            var caravanEnt = state.flecs_world.newEntity();
-            caravanEnt.set(comps.transform.*);
-            caravanEnt.set(fd.Scale.create(1, 3, 1));
-            caravanEnt.set(fd.CIShapeMeshInstance{
+            var caravan_ent = state.flecs_world.newEntity();
+            caravan_ent.set(comps.transform.*);
+            caravan_ent.set(fd.Scale.create(1, 3, 1));
+            caravan_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
             });
-            caravanEnt.set(CompCaravan{
-                .startPos = transform.getPos(),
-                .endPos = next_city_pos,
-                .timeBirth = time,
-                .timeToArrive = time + distance / 10,
+            caravan_ent.set(CompCaravan{
+                .start_pos = transform.getPos(),
+                .end_pos = next_city_pos,
+                .time_birth = time,
+                .time_to_arrive = time + distance / 10,
                 .destroy_on_arrival = true,
             });
-            caravanEnt.set(CompCombatant{ .faction = 1 });
-            if (city.caravanMembersToSpawn == 2) {
-                caravanEnt.set(fd.Position.init(transform.getPos()[0], transform.getPos()[1], transform.getPos()[2]));
-                caravanEnt.set(fd.Light{ .radiance = .{ .r = 4, .g = 1, .b = 0 }, .range = 12 });
+            caravan_ent.set(CompCombatant{ .faction = 1 });
+            if (city.caravan_members_to_spawn == 2) {
+                caravan_ent.set(fd.Position.init(transform.getPos()[0], transform.getPos()[1], transform.getPos()[2]));
+                caravan_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 1, .b = 0 }, .range = 12 });
             }
         }
     }
@@ -447,42 +446,42 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var camp = comps.camp;
         const transform = comps.transform;
 
-        if (camp.nextSpawnTime < state.gctx.stats.time) {
-            if (camp.caravanMembersToSpawn == 0) {
-                camp.nextSpawnTime += camp.spawnCooldown;
-                camp.caravanMembersToSpawn = rand.intRangeAtMostBiased(i32, 2, 5);
+        if (camp.next_spawn_time < state.gctx.stats.time) {
+            if (camp.caravan_members_to_spawn == 0) {
+                camp.next_spawn_time += camp.spawn_cooldown;
+                camp.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 2, 5);
                 // const campIndex = rand.intRangeAtMost(u32, 0, 1);
-                // const next_city = flecs.Entity.init(state.flecs_world.world, camp.closestCities[campIndex]);
-                // camp.currTargetCity = next_city.id;
+                // const next_city = flecs.Entity.init(state.flecs_world.world, camp.closest_cities[campIndex]);
+                // camp.curr_target_city = next_city.id;
                 continue;
             }
 
-            camp.caravanMembersToSpawn -= 1;
-            camp.nextSpawnTime += 0.1 + rand.float(f32) * 1;
+            camp.caravan_members_to_spawn -= 1;
+            camp.next_spawn_time += 0.1 + rand.float(f32) * 1;
 
-            const next_city1 = flecs.Entity.init(state.flecs_world.world, camp.closestCities[0]);
-            const next_city2 = flecs.Entity.init(state.flecs_world.world, camp.closestCities[1]);
+            const next_city1 = flecs.Entity.init(state.flecs_world.world, camp.closest_cities[0]);
+            const next_city2 = flecs.Entity.init(state.flecs_world.world, camp.closest_cities[1]);
             const next_city_pos1_z = zm.loadArr3(next_city1.get(fd.Transform).?.*.getPos());
             const next_city_pos2_z = zm.loadArr3(next_city2.get(fd.Transform).?.*.getPos());
             const targetPos_z = (next_city_pos1_z + next_city_pos2_z) * zm.f32x4s(0.5);
             const targetPos = zm.vecToArr3(targetPos_z);
             const distance = math.dist3_xz(targetPos, transform.getPos());
 
-            var caravanEnt = state.flecs_world.newEntity();
-            caravanEnt.set(comps.transform.*);
-            caravanEnt.set(fd.Scale.create(1, 3, 1));
-            caravanEnt.set(fd.CIShapeMeshInstance{
+            var caravan_ent = state.flecs_world.newEntity();
+            caravan_ent.set(comps.transform.*);
+            caravan_ent.set(fd.Scale.create(1, 3, 1));
+            caravan_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
             });
-            caravanEnt.set(CompCaravan{
-                .startPos = transform.getPos(),
-                .endPos = targetPos,
-                .timeBirth = time,
-                .timeToArrive = time + distance / 5,
+            caravan_ent.set(CompCaravan{
+                .start_pos = transform.getPos(),
+                .end_pos = targetPos,
+                .time_birth = time,
+                .time_to_arrive = time + distance / 5,
                 .destroy_on_arrival = false,
             });
-            caravanEnt.set(CompCombatant{ .faction = 2 });
+            caravan_ent.set(CompCombatant{ .faction = 2 });
         }
     }
 
@@ -496,7 +495,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var caravan = comps.caravan;
         var transform = comps.transform;
 
-        if (caravan.timeToArrive < time) {
+        if (caravan.time_to_arrive < time) {
             if (caravan.destroy_on_arrival) {
                 state.flecs_world.delete(entity_iter_caravan.entity().id);
             } else {
@@ -506,15 +505,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             continue;
         }
 
-        const percentDone = (time - caravan.timeBirth) / (caravan.timeToArrive - caravan.timeBirth);
-        var newPos: [3]f32 = .{
-            caravan.startPos[0] + percentDone * (caravan.endPos[0] - caravan.startPos[0]),
+        const percent_done = (time - caravan.time_birth) / (caravan.time_to_arrive - caravan.time_birth);
+        var new_pos: [3]f32 = .{
+            caravan.start_pos[0] + percent_done * (caravan.end_pos[0] - caravan.start_pos[0]),
             0,
-            caravan.startPos[2] + percentDone * (caravan.endPos[2] - caravan.startPos[2]),
+            caravan.start_pos[2] + percent_done * (caravan.end_pos[2] - caravan.start_pos[2]),
         };
-        newPos[1] = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(newPos[0] * config.noise_scale_xz, newPos[2] * config.noise_scale_xz));
+        new_pos[1] = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(new_pos[0] * config.noise_scale_xz, new_pos[2] * config.noise_scale_xz));
 
-        transform.setPos(newPos);
+        transform.setPos(new_pos);
     }
 
     // COMBAT

@@ -91,64 +91,26 @@ pub fn run() void {
     );
     defer gui_system.destroy(&gui_sys);
 
-    // const entity1 = flecs_world.newEntity();
-    // entity1.set(fd.Position{ .x = -1, .y = 0, .z = 0 });
-    // entity1.set(fd.Scale{});
-    // entity1.set(fd.Velocity{ .x = 10, .y = 0, .z = 0 });
-    // entity1.set(fd.CIShapeMeshInstance{
+    // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
+    // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
+    // █████╗  ██╔██╗ ██║   ██║   ██║   ██║   ██║█████╗  ███████╗
+    // ██╔══╝  ██║╚██╗██║   ██║   ██║   ██║   ██║██╔══╝  ╚════██║
+    // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
+    // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
+
+    // const entity3 = flecs_world.newEntity();
+    // entity3.set(fd.Transform.init(150, 500, 0.6));
+    // entity3.set(fd.Scale.createScalar(10.5));
+    // // entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
+    // entity3.set(fd.CIShapeMeshInstance{
     //     .id = IdLocal.id64("sphere"),
-    //     .basecolor_roughness = .{ .r = 0.1, .g = 1.0, .b = 0.0, .roughness = 0.1 },
+    //     .basecolor_roughness = .{ .r = 0.7, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     // });
-
-    // const entity2 = flecs_world.newEntity();
-    // entity2.set(fd.Position{ .x = 1, .y = 0, .z = 0 });
-    // entity2.set(fd.Velocity{ .x = 0, .y = 1, .z = 0 });
-
-    const entity3 = flecs_world.newEntity();
-    entity3.set(fd.Transform.init(150, 500, 0.6));
-    entity3.set(fd.Scale.createScalar(10.5));
-    // entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
-    entity3.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("sphere"),
-        .basecolor_roughness = .{ .r = 0.7, .g = 0.0, .b = 1.0, .roughness = 0.8 },
-    });
-    entity3.set(fd.CIPhysicsBody{
-        .shape_type = .sphere,
-        .mass = 1,
-        .sphere = .{ .radius = 10.5 },
-    });
-
-    if (false) {
-        var rnd = RndGen.init(0);
-        var x: f32 = -1;
-        while (x < 20) : (x += 1) {
-            var z: f32 = -1;
-            while (z < 20) : (z += 1) {
-                const scale = 0.5 + rnd.random().float(f32) * 5;
-                const entity = flecs_world.newEntity();
-                entity.set(fd.Transform.init(
-                    x * 1.5 + rnd.random().float(f32) * 0.5,
-                    0 * 1.5 + rnd.random().float(f32) * 1 + 0.5 - scale + @sin(x * 0.4) + @cos(z * 0.25),
-                    z * 1.5 + rnd.random().float(f32) * 0.5,
-                ));
-                entity.set(fd.Scale.createScalar(scale));
-                entity.set(fd.CIShapeMeshInstance{
-                    .id = IdLocal.id64("sphere"),
-                    .basecolor_roughness = .{
-                        .r = 0.1 + rnd.random().float(f32) * 0.3,
-                        .g = 0.3 + rnd.random().float(f32) * 0.5,
-                        .b = 0.1 + rnd.random().float(f32) * 0.1,
-                        .roughness = 1.0,
-                    },
-                });
-                entity.set(fd.CIPhysicsBody{
-                    .shape_type = .sphere,
-                    .mass = 0,
-                    .sphere = .{ .radius = scale },
-                });
-            }
-        }
-    }
+    // entity3.set(fd.CIPhysicsBody{
+    //     .shape_type = .sphere,
+    //     .mass = 1,
+    //     .sphere = .{ .radius = 10.5 },
+    // });
 
     const debug_camera_ent = flecs_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = 200, .y = 200, .z = 50 });
