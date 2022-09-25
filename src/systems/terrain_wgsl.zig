@@ -24,7 +24,6 @@ pub const vs = common ++
 \\      @builtin(position) position_clip: vec4<f32>,
 \\      @location(0) position: vec3<f32>,
 \\      @location(1) normal: vec3<f32>,
-\\      @location(2) barycentrics: vec3<f32>,
 \\  }
 \\  @stage(vertex) fn main(
 \\      @location(0) position: vec3<f32>,
@@ -34,13 +33,8 @@ pub const vs = common ++
 \\      var output: VertexOut;
 \\      output.position_clip = vec4(position, 1.0) * draw_uniforms.object_to_world * frame_uniforms.world_to_clip;
 \\      output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
-\\      output.normal = normal * mat3x3(
-\\          draw_uniforms.object_to_world[0].xyz,
-\\          draw_uniforms.object_to_world[1].xyz,
-\\          draw_uniforms.object_to_world[2].xyz,
-\\      );
+\\       output.normal = normal;
 \\      let index = vertex_index % 3u;
-\\      output.barycentrics = vec3(f32(index == 0u), f32(index == 1u), f32(index == 2u));
 \\      return output;
 \\  }
 ;
@@ -105,13 +99,13 @@ pub const fs = common ++
 \\          let kd = (vec3(1.0) - ks) * (1.0 - metallic);
 \\
 \\          let n_dot_l = saturate(dot(n, l));
+\\          // return base_color * radiance * n_dot_l;
 \\          return (kd * base_color / pi + specular) * radiance * n_dot_l;
 \\  }
 \\
 \\  @stage(fragment) fn main(
 \\      @location(0) position: vec3<f32>,
 \\      @location(1) normal: vec3<f32>,
-\\      @location(2) barycentrics: vec3<f32>,
 \\  ) -> @location(0) vec4<f32> {
 \\      let v = normalize(frame_uniforms.camera_position - position);
 \\      let n = normalize(normal);
@@ -123,22 +117,12 @@ pub const fs = common ++
 \\          vec3(0.7, 0.7, 0.7),
 \\          vec3(0.95, 0.95, 0.95),
 \\      );
-\\      let color_heights = array<f32, 5>(
-\\          25.0,
-\\          100.0,
-\\          150.0,
-\\          250.0,
-\\          300.0,
-\\      );
-\\
+
 \\      var base_color = colors[0];
 \\      base_color = mix(base_color, colors[1], step(0.005, position.y * 0.01));
 \\      base_color = mix(base_color, colors[2], step(0.02, position.y * 0.01));
 \\      base_color = mix(base_color, colors[3], step(1.0, position.y * 0.01 + 0.5 * (1.0 - dot(n, vec3(0.0, 1.0, 0.0))) ));
 \\      base_color = mix(base_color, colors[4], step(3.5, position.y * 0.01 + 1.5 * dot(n, vec3(0.0, 1.0, 0.0)) ));
-\\
-\\      // base_color = mix(base_color, base_color * 0.8, step(0.0, sin(position.x * 0.07)+cos(position.z * 0.13)+1.9*sin(position.y * 0.1)));
-\\      // base_color = base_color * (1.0 + dot(n, normalize( vec3(1.0,1.0,1.0))));
 \\
 \\
 \\      let ao = 1.0;
@@ -160,30 +144,25 @@ pub const fs = common ++
 \\      }
 \\
 \\      let sun_height = sin(frame_uniforms.time * 0.5);
-\\      let sun = max(0.0, sun_height) * 0.3 * base_color * max(0.0, dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5))));
-\\      let sun2 = 0.5 * base_color * max(0.0, dot(n, normalize( vec3(0.0, 1.0, 0.0))));
+\\      let sun = max(0.0, sun_height) * 0.3 * base_color * (0.0 + saturate(dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5)))));
+\\      let sun2 = 0.5 * base_color * saturate(dot(n, normalize( vec3(0.0, 1.0, 0.0))));
 \\
-\\      let ambient_day   = vec3(0.0002 * max(0.0, sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
-\\      let ambient_night = vec3(0.05 * max(0.0, sign(-sun_height + 0.1))) * vec3(0.2, 0.2, 1.0) * base_color;
-\\      let ambient = (ambient_day + ambient_night) * ao * dot(n, vec3(0.0, 1.0, 0.0));
+\\      let ambient_day   = vec3(0.0002 * saturate(sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
+\\      let ambient_night = vec3(0.05 * saturate(sign(-sun_height + 0.1))) * vec3(0.2, 0.2, 1.0) * base_color;
+\\      let ambient = (ambient_day + ambient_night) * ao * saturate(dot(n, vec3(0.0, 1.0, 0.0)));
 \\      let fog_dist = length(position - frame_uniforms.camera_position);
 \\      let fog_start = 500.0;
 \\      let fog_end = 2500.0;
-\\      let fog = (fog_dist - fog_start) / (fog_end - fog_start);
+\\      let fog = saturate((fog_dist - fog_start) / (fog_end - fog_start));
 \\      var color = ambient + lo + sun;
-\\      color = mix(color, vec3(0.5, 0.5, 0.4), 1.0 * max(0.0, min(1.0, fog * max(0.0, sun_height))));
+\\      color = mix(color, vec3(0.5, 0.5, 0.4), 1.0 * saturate(fog * max(0.0, sun_height)));
 \\      color = pow(color, vec3(1.0 / 2.2));
+\\      // let n_xz = vec3(n.x, 0.0, n.z);
+\\      // return vec4((n_xz), 1.0);
+\\      // return vec4(10.0*sun, 1.0);
+\\      // return vec4(lo, 1.0);
+\\      // return vec4((n + 1.0) * 0.5, 1.0);
 \\      return vec4(color, 1.0);
-\\
-\\      // wireframe
-\\      var barys = barycentrics;
-\\      barys.z = 1.0 - barys.x - barys.y;
-\\      let deltas = fwidth(barys);
-\\      let smoothing = deltas * 1.0;
-\\      let thickness = deltas * 0.25;
-\\      barys = smoothstep(thickness, thickness + smoothing, barys);
-\\      let min_bary = min(barys.x, min(barys.y, barys.z));
-\\      return vec4(min_bary * color, 1.0);
 \\  }
 // zig fmt: on
 ;
