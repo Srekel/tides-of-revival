@@ -20,7 +20,7 @@ const SystemState = struct {
     gctx: *zgpu.GraphicsContext,
     query: flecs.Query,
 
-    // Camera movement, TODO move to other system
+    switch_pressed: bool = false,
 };
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
@@ -143,6 +143,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     const fb_width = gctx.swapchain_descriptor.width;
     const fb_height = gctx.swapchain_descriptor.height;
 
+    updateCameraSwitch(state);
+
     var entity_iter = state.query.iterator(struct {
         camera: *fd.Camera,
         pos: *fd.Position,
@@ -179,6 +181,56 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         zm.storeMat(cam.world_to_view[0..], world_to_view);
         zm.storeMat(cam.view_to_clip[0..], view_to_clip);
         zm.storeMat(cam.world_to_clip[0..], zm.mul(world_to_view, view_to_clip));
+    }
+}
+
+fn updateCameraSwitch(state: *SystemState) void {
+    var entity_iter = state.query.iterator(struct {
+        camera: *fd.Camera,
+        pos: *fd.Position,
+        fwd: *fd.Forward,
+    });
+
+    var do_switch = false;
+    var switch_pressed = false;
+    while (entity_iter.next()) |comps| {
+        if (!comps.camera.active) {
+            if (do_switch) {
+                comps.camera.active = true;
+                return;
+            }
+            continue;
+        }
+
+        if (comps.camera.window.getKey(.tab) == .press) {
+            if (!state.switch_pressed) {
+                do_switch = true;
+                comps.camera.active = false;
+            }
+
+            switch_pressed = true;
+            state.switch_pressed = switch_pressed;
+        }
+    }
+
+    state.switch_pressed = switch_pressed;
+
+    if (do_switch) {
+        var entity_iter2 = state.query.iterator(struct {
+            camera: *fd.Camera,
+            pos: *fd.Position,
+            fwd: *fd.Forward,
+        });
+
+        while (entity_iter2.next()) |comps| {
+            if (!comps.camera.active) {
+                if (do_switch) {
+                    comps.camera.active = true;
+                    return;
+                }
+                continue;
+            }
+        }
     }
 }
 
