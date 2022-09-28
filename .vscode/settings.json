@@ -2,5 +2,6 @@
     "debug.allowBreakpointsEverywhere": true,
     "cSpell.words": [
         "FLECS"
-    ]
+    ],
+    "files.eol": "\n"
 }
