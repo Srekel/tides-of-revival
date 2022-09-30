@@ -56,11 +56,11 @@ pub fn destroy(state: *SystemState) void {
 }
 
 fn updateLook(cam: *fd.Camera) void {
-    const cursor_new = cam.window.getCursorPos() catch unreachable;
+    const cursor_new = cam.window.getCursorPos();
     const cursor_old = cam.cursor_known;
     cam.cursor_known = cursor_new;
-    const delta_x = @floatCast(f32, cursor_new.xpos - cursor_old.xpos);
-    const delta_y = @floatCast(f32, cursor_new.ypos - cursor_old.ypos);
+    const delta_x = @floatCast(f32, cursor_new[0] - cursor_old[0]);
+    const delta_y = @floatCast(f32, cursor_new[1] - cursor_old[1]);
 
     if (cam.window.getMouseButton(.right) == .press) {
         cam.pitch += 0.0025 * delta_y;

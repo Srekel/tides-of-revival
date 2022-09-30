@@ -61,7 +61,7 @@ pub fn destroy(state: *SystemState) void {
 }
 
 var lol: i32 = 0;
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update( iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
     // _ = state.physics_world.stepSimulation(0.0166, .{});

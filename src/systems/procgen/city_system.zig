@@ -390,7 +390,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
     const time = @floatCast(f32, state.gctx.stats.time);
-    var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
+    var rand1 = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100));
+    var rand = rand1.random();
 
     // CITY
     var entity_iter_city = state.query_city.iterator(struct {

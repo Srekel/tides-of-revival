@@ -530,8 +530,8 @@ fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
                 const height_d = patch.heights[index_d];
                 const dx = 0.5 * (height_r - height_l);
                 const dz = 0.5 * (height_u - height_d);
-                const ux = zm.Vec{ 1, dx, 0 };
-                const uz = zm.Vec{ 0, dz, 1 };
+                const ux = zm.Vec{ 1, dx, 0, 0 };
+                const uz = zm.Vec{ 0, dz, 1, 0 };
                 const cross = zm.cross3(zm.normalize3(ux), zm.normalize3(uz));
                 const normal = zm.normalize3(cross) * zm.f32x4s(-1.0);
                 patch.vertices[index].normal = zm.vecToArr3(normal);
@@ -739,7 +739,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     patch.vertices[0..],
                 );
 
-                var rand = std.rand.DefaultPrng.init(patch.lookup).random();
+                var rand1 = std.rand.DefaultPrng.init(patch.lookup);
+                var rand = rand1.random();
                 var z: f32 = 0;
                 while (z < config.patch_width) : (z += 8) {
                     var x: f32 = 0;
