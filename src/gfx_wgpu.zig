@@ -1,6 +1,6 @@
 const std = @import("std");
 const math = std.math;
-const glfw = @import("glfw");
+const zglfw = @import("zglfw");
 const zgpu = @import("zgpu");
 const zm = @import("zmath");
 const wgpu = zgpu.wgpu;
@@ -13,7 +13,7 @@ pub const GfxState = struct {
     command_buffers: std.ArrayList(wgpu.CommandBuffer),
 };
 
-pub fn init(allocator: std.mem.Allocator, window: glfw.Window) !GfxState {
+pub fn init(allocator: std.mem.Allocator, window: zglfw.Window) !GfxState {
     const gctx = try zgpu.GraphicsContext.init(allocator, window);
 
     // Create a depth texture and it's 'view'.

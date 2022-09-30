@@ -1,5 +1,5 @@
 const window = @import("window.zig");
-const glfw = @import("glfw");
+const zglfw = @import("zglfw");
 const zbt = @import("zbullet");
 const zmath = @import("zmath");
 const zmesh = @import("zmesh");
@@ -168,7 +168,7 @@ pub const CICamera = struct {
     lookat: Position,
     near: f32,
     far: f32,
-    window: glfw.Window,
+    window: zglfw.Window,
     active: bool = false,
     class: u32 = 0,
 };
@@ -181,8 +181,8 @@ pub const Camera = struct {
     world_to_view: [16]f32 = undefined,
     view_to_clip: [16]f32 = undefined,
     world_to_clip: [16]f32 = undefined,
-    window: glfw.Window,
-    cursor_known: glfw.Window.CursorPos = .{ .xpos = 0.0, .ypos = 0.0 },
+    window: zglfw.Window,
+    cursor_known: [2]f64 = .{ 0.0, 0.0 },
     snapped_to_ground: bool = false,
     active: bool = false,
     class: u32 = 0,

@@ -1,6 +1,6 @@
 const std = @import("std");
 const math = std.math;
-const glfw = @import("glfw");
+const zglfw = @import("zglfw");
 const zgpu = @import("zgpu");
 const zgui = zgpu.zgui;
 const zm = @import("zmath");
@@ -16,7 +16,7 @@ const SystemState = struct {
     gctx: *zgpu.GraphicsContext,
 };
 
-pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, window: glfw.Window) !SystemState {
+pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, window: zglfw.Window) !SystemState {
     const gctx = gfxstate.gctx;
     zgpu.gui.init(window, gctx.device, "content/", font, 20.0);
     return SystemState{

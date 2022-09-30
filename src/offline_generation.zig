@@ -238,10 +238,10 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
 
                 if (node.output_artifacts) {
                     // const hm = output_data.patches[0];
-                    const hmimg = img.image.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8) catch unreachable;
+                    const hmimg = img.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8) catch unreachable;
                     // _ = hm;
                     for (heightmap) |pixel, i| {
-                        hmimg.pixels.?.grayscale8[i].value = @intCast(u8, pixel / 255);
+                        hmimg.pixels.grayscale8[i].value = @intCast(u8, pixel / 255);
                     }
 
                     var namebuf: [256]u8 = undefined;
@@ -249,7 +249,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
 
                     var pgm_opt: img.AllFormats.PGM.EncoderOptions = .{ .binary = true };
                     const encoder_options = img.AllFormats.ImageEncoderOptions{ .pgm = pgm_opt };
-                    hmimg.writeToFilePath(namebufslice, img.ImageFormat.pgm, encoder_options) catch unreachable;
+                    hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
                 }
                 var lol: i32 = 3;
                 lol += 1;
@@ -476,8 +476,8 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
 
         const image_width = 8192;
         const stride = @intCast(i64, @divExact(world_width, image_width));
-        const hmimg = img.image.Image.create(context.frame_allocator, image_width, image_width, img.PixelFormat.rgba32) catch unreachable;
-        const pixels = hmimg.pixels.?.rgba32;
+        const hmimg = img.Image.create(context.frame_allocator, image_width, image_width, img.PixelFormat.rgba32) catch unreachable;
+        const pixels = hmimg.pixels.rgba32;
         var pixels_index: u64 = 0;
 
         world_y = 0;
@@ -595,7 +595,7 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
 
         var enc_opt: img.AllFormats.QOI.EncoderOptions = .{ .colorspace = .linear };
         const encoder_options = img.AllFormats.ImageEncoderOptions{ .qoi = enc_opt };
-        hmimg.writeToFilePath(namebufslice, img.ImageFormat.qoi, encoder_options) catch unreachable;
+        hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
     }
 
     const res = .{ .success = .{} };

@@ -7,7 +7,7 @@ const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
 const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
-const gui_system = @import("systems/gui_system.zig");
+// const gui_system = @import("systems/gui_system.zig");
 const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
@@ -84,12 +84,12 @@ pub fn run() void {
     );
     defer city_system.destroy(city_sys);
 
-    var gui_sys = try gui_system.create(
-        std.heap.page_allocator,
-        &gfx_state,
-        main_window,
-    );
-    defer gui_system.destroy(&gui_sys);
+    // var gui_sys = try gui_system.create(
+    //     std.heap.page_allocator,
+    //     &gfx_state,
+    //     main_window,
+    // );
+    // defer gui_system.destroy(&gui_sys);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -159,10 +159,10 @@ pub fn run() void {
         // const dt = @floatCast(f32, stats.delta_time) * 0.2;
         const dt = @floatCast(f32, stats.delta_time);
         gfx.update(&gfx_state);
-        gui_system.preUpdate(&gui_sys);
+        // gui_system.preUpdate(&gui_sys);
 
         flecs_world.progress(dt);
-        gui_system.update(&gui_sys);
+        // gui_system.update(&gui_sys);
         gfx.draw(&gfx_state);
     }
 }
