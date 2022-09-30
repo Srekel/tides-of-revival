@@ -14,7 +14,6 @@ pub const GfxState = struct {
 };
 
 pub fn init(allocator: std.mem.Allocator, window: glfw.Window) !GfxState {
-    _ = window;
     const gctx = try zgpu.GraphicsContext.init(allocator, window);
 
     // Create a depth texture and it's 'view'.
@@ -34,8 +33,6 @@ pub fn deinit(state: *GfxState) void {
 }
 
 pub fn update(state: *GfxState) void {
-    _ = state;
-
     const back_buffer_view = state.gctx.swapchain.getCurrentTextureView();
     defer back_buffer_view.release();
 }

@@ -320,13 +320,16 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     // var sys_post = flecs_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Position);
-    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_lights
         .with(fd.Light)
         .with(fd.Position);
-    var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.Scale)
         .withReadonly(fd.ShapeMeshInstance);
@@ -456,7 +459,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                 var light_i: u32 = 0;
                 while (entity_iter_lights.next()) |comps| {
-                    _ = comps;
                     std.mem.copy(f32, mem.slice[0].light_positions[light_i][0..], comps.position.elemsConst().*[0..]);
                     std.mem.copy(f32, mem.slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
                     mem.slice[0].light_radiances[light_i][3] = comps.light.range;

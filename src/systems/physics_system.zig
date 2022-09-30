@@ -18,8 +18,8 @@ const SystemState = struct {
 };
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World) !*SystemState {
-    var query_builder = flecs.QueryBuilder.init(flecs_world.*)
-        .with(fd.PhysicsBody)
+    var query_builder = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder.with(fd.PhysicsBody)
         .with(fd.Transform);
     var comp_query = query_builder.buildQuery();
 
@@ -75,7 +75,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     while (entity_iter.next()) |comps| {
         var body_comp = comps.PhysicsBody;
         var body = body_comp.body;
-        _ = body;
         // body = body;
         // var transform: [12]f32 = undefined;
         body.getGraphicsWorldTransform(&comps.transform.matrix);

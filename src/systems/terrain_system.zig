@@ -221,17 +221,20 @@ pub fn create(
     physics_world: zbt.World,
     noise: znoise.FnlGenerator,
 ) !*SystemState {
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Position);
     var query_camera = query_builder_camera.buildQuery();
 
-    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_lights
         .with(fd.Light)
         .with(fd.Position);
     var query_lights = query_builder_lights.buildQuery();
 
-    var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_loader
         .with(fd.WorldLoader)
         .with(fd.Position);
     var query_loader = query_builder_loader.buildQuery();
@@ -403,8 +406,6 @@ const ThreadContextGenerateHeights = struct {
 };
 
 fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
-    _ = ctx;
-    // ctx.patch.
     var patch = ctx.patch;
     var state = ctx.state;
     var z: f32 = 0;
@@ -470,7 +471,6 @@ const ThreadContextGenerateShape = struct {
 };
 
 fn jobGenerateShape(ctx: ThreadContextGenerateShape) !void {
-    _ = ctx;
     var patch = ctx.patch;
     var state = ctx.state;
 
@@ -496,7 +496,6 @@ const ThreadContextGenerateNormals = struct {
 };
 
 fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
-    _ = ctx;
     var patch = ctx.patch;
     // var state = ctx.state;
 
@@ -678,10 +677,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .generating_heights_setup => blk: {
                 const thread_config = .{};
                 var thread_args: ThreadContextGenerateHeights = .{ .patch = patch, .state = state };
-                _ = thread_args;
                 const thread = std.Thread.spawn(thread_config, jobGenerateHeights, .{thread_args}) catch unreachable;
                 thread.detach();
-                _ = thread;
                 std.debug.print("generating_heights_setup {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
 
                 break :blk .generating_heights;
@@ -692,10 +689,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .generating_normals_setup => blk: {
                 const thread_config = .{};
                 var thread_args: ThreadContextGenerateNormals = .{ .patch = patch, .state = state };
-                _ = thread_args;
                 const thread = std.Thread.spawn(thread_config, jobGenerateNormals, .{thread_args}) catch unreachable;
                 thread.detach();
-                _ = thread;
                 break :blk .generating_normals;
             },
             .generating_normals => blk: {
@@ -704,11 +699,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .generating_physics_setup => blk: {
                 const thread_config = .{};
                 var thread_args: ThreadContextGenerateShape = .{ .patch = patch, .state = state };
-                _ = thread_args;
                 const thread = std.Thread.spawn(thread_config, jobGenerateShape, .{thread_args}) catch unreachable;
                 thread.detach();
                 std.debug.print("generating_physics_setup {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
-                _ = thread;
                 break :blk .generating_physics;
             },
             .generating_physics => blk: {
@@ -893,7 +886,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                 var light_i: u32 = 0;
                 while (entity_iter_lights.next()) |comps| {
-                    _ = comps;
                     std.mem.copy(f32, mem.slice[0].light_positions[light_i][0..], comps.position.elemsConst().*[0..]);
                     std.mem.copy(f32, mem.slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
                     mem.slice[0].light_radiances[light_i][3] = comps.light.range;

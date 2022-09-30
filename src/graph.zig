@@ -83,7 +83,6 @@ pub const Graph = struct {
         self.debugPrint();
         // std.sort.sort(Node, self.nodes.items, {}, nodeLessThan);
         // self.debugPrint();
-        _ = self;
         _ = allocator;
 
         var allFinished = false;
@@ -106,7 +105,7 @@ pub const Graph = struct {
                         std.debug.print("Node {s} had output {s} with reference {s}\n", .{ node.name.toString(), output.template.?.name.toString(), output.reference.toString() });
                         continue;
                     }
-                    const res = node.template.func.func.*(node, output, &context, &.{});
+                    const res = node.template.func.func(node, output, &context, &.{});
                     std.debug.print(".. outputted {}\n", .{res.success});
                 }
                 // if (!lol) {

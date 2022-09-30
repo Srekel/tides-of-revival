@@ -26,7 +26,7 @@ fn getInputResult(input: *g.NodeInput, context: *g.GraphContext) v.Variant {
     } else {
         const prevNodeOutput = input.source orelse unreachable;
         const prevNode = prevNodeOutput.node orelse unreachable;
-        const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &.{});
+        const res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &.{});
 
         if (res != .success) {
             unreachable;
@@ -36,9 +36,8 @@ fn getInputResult(input: *g.NodeInput, context: *g.GraphContext) v.Variant {
 }
 
 fn funcTemplateNumber(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
-    _ = node;
     _ = output;
-    _ = context;
+
     const paramValue = if (params.len == 1) params[0].value.getUInt64() else 0;
     _ = paramValue;
     if (node.inputs[0].reference.isUnset()) {
@@ -48,16 +47,14 @@ fn funcTemplateNumber(node: *g.Node, output: *g.NodeOutput, context: *g.GraphCon
 
     const prevNodeOutput = node.inputs[0].source orelse unreachable;
     const prevNode = prevNodeOutput.node orelse unreachable;
-    var res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &.{});
+    var res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &.{});
     const number = res.success.getUInt64();
     res.success = v.Variant.createUInt64(number);
     return res;
 }
 
 fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
-    _ = node;
     _ = output;
-    _ = context;
     _ = params;
     var valueA: v.Variant = undefined;
     if (node.inputs[0].reference.isUnset()) {
@@ -65,7 +62,7 @@ fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContex
     } else {
         const prevNodeOutput = node.inputs[0].source orelse unreachable;
         const prevNode = prevNodeOutput.node orelse unreachable;
-        const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{.{
+        const res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{.{
             .name = IdLocal.init("number"),
             .value = v.Variant.createUInt64(0),
         }}));
@@ -81,7 +78,7 @@ fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContex
     } else {
         const prevNodeOutput = node.inputs[1].source orelse unreachable;
         const prevNode = prevNodeOutput.node orelse unreachable;
-        const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{.{
+        const res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{.{
             .name = IdLocal.init("number"),
             .value = v.Variant.createUInt64(0),
         }}));
@@ -137,9 +134,7 @@ const HeightmapNodeData = struct {
 };
 
 fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
-    _ = node;
     _ = output;
-    _ = context;
 
     const world_width_input = node.getInputByString("World Width");
     const world_width = getInputResult(world_width_input, context).getUInt64();
@@ -245,7 +240,6 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     // const hm = output_data.patches[0];
                     const hmimg = img.image.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8) catch unreachable;
                     // _ = hm;
-                    _ = hmimg;
                     for (heightmap) |pixel, i| {
                         hmimg.pixels.?.grayscale8[i].value = @intCast(u8, pixel / 255);
                     }
@@ -278,9 +272,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
 //  ╚═════╝╚═╝   ╚═╝      ╚═╝
 
 fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
-    _ = node;
     _ = output;
-    _ = context;
     _ = params;
 
     const City = struct {
@@ -301,7 +293,6 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
     const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 6;
     const CITY_SKIP = 64;
     const CITY_HEIGHT_TEST_SKIP = 16;
-    _ = CITY_HEIGHT_TEST_SKIP;
     var patch_width: u64 = 1024; // hack
 
     var world_y: i64 = CITY_MARGIN_EDGE;
@@ -319,7 +310,7 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
             const patches = patch_blk: {
                 const prevNodeOutput = patches_input.source orelse unreachable;
                 const prevNode = prevNodeOutput.node orelse unreachable;
-                const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
+                const res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
                     .{
                         .name = IdLocal.init("world_x"),
                         .value = v.Variant.createUInt64(world_x - CITY_WIDTH_MAX),
@@ -498,7 +489,7 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
                 const patches = patch_blk: {
                     const prevNodeOutput = patches_input.source orelse unreachable;
                     const prevNode = prevNodeOutput.node orelse unreachable;
-                    const res = prevNode.template.func.func.*(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
+                    const res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
                         .{
                             .name = IdLocal.init("world_x"),
                             .value = v.Variant.createUInt64(world_x),
@@ -571,7 +562,6 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
         for (cities.items) |city| {
             std.debug.print("....city pos:{} size:{}\n", .{ city.pos, city.border_pos.items.len });
             for (city.border_pos.items) |pos, i| {
-                _ = i;
                 const is_border = city.is_border.items[i];
                 var city_y: i64 = 0;
                 while (city_y < CITY_HEIGHT_TEST_SKIP) : (city_y += stride) {
@@ -813,8 +803,6 @@ pub fn generate() void {
     var graph = g.Graph{
         .nodes = std.ArrayList(g.Node).init(allocator),
     };
-
-    _ = graph;
 
     graph.nodes.append(seedNode) catch unreachable;
     graph.nodes.append(patchWidthNode) catch unreachable;

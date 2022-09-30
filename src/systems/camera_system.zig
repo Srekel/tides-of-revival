@@ -26,7 +26,8 @@ const SystemState = struct {
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
     const gctx = gfxstate.gctx;
 
-    var query_builder = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder
         .with(fd.Camera)
         .with(fd.Position)
         .with(fd.Forward);

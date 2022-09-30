@@ -76,27 +76,32 @@ pub fn create(
 ) !*SystemState {
     const gctx = gfxstate.gctx;
 
-    var query_builder_city = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_city = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_city
         .with(CompCity)
         .with(fd.Transform);
     var query_city = query_builder_city.buildQuery();
 
-    var query_builder_camp = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_camp = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_camp
         .with(CompBanditCamp)
         .with(fd.Transform);
     var query_camp = query_builder_camp.buildQuery();
 
-    var query_builder_caravan = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_caravan = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_caravan
         .with(CompCaravan)
         .with(fd.Transform);
     var query_caravan = query_builder_caravan.buildQuery();
 
-    var query_builder_combat = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_combat = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_combat
         .with(CompCombatant)
         .with(fd.Transform);
     var query_combat = query_builder_combat.buildQuery();
 
-    var query_builder_syncpos = flecs.QueryBuilder.init(flecs_world.*)
+    var query_builder_syncpos = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_syncpos
         .with(fd.Position)
         .with(fd.Transform);
     var query_syncpos = query_builder_syncpos.buildQuery();
@@ -122,7 +127,8 @@ pub fn create(
 
     //const time = @floatCast(f32, state.gctx.stats.time);
     // var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
-    var rand = std.rand.DefaultPrng.init(0).random();
+    var rand1 = std.rand.DefaultPrng.init(0);
+    var rand = rand1.random();
     var villageCount: u32 = 0;
     var x: f32 = -2;
     while (x <= 2 or villageCount < 3) : (x += 1.5) {
@@ -382,7 +388,6 @@ pub fn destroy(state: *SystemState) void {
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
-    _ = state;
 
     const time = @floatCast(f32, state.gctx.stats.time);
     var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
