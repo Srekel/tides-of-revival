@@ -16,8 +16,12 @@ const fd = @import("flecs_data.zig");
 const config = @import("config.zig");
 const IdLocal = @import("variant.zig").IdLocal;
 const znoise = @import("znoise");
+const ztracy = @import("ztracy");
 
 pub fn run() void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
+    defer tracy_zone.End();
+
     var flecs_world = flecs.World.init();
     defer flecs_world.deinit();
 
