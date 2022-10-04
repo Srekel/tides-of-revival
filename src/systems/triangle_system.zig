@@ -63,7 +63,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     const gctx = gfxstate.gctx;
     // Create a bind group layout needed for our render pipeline.
     const bind_group_layout = gctx.createBindGroupLayout(&.{
-        zgpu.bglBuffer(0, .{ .vertex = true }, .uniform, true, 0),
+        zgpu.bufferEntry(0, .{ .vertex = true }, .uniform, true, 0),
     });
     defer gctx.releaseResource(bind_group_layout);
 

@@ -14,7 +14,7 @@ pub const GfxState = struct {
 };
 
 pub fn init(allocator: std.mem.Allocator, window: zglfw.Window) !GfxState {
-    const gctx = try zgpu.GraphicsContext.init(allocator, window);
+    const gctx = try zgpu.GraphicsContext.create(allocator, window);
 
     // Create a depth texture and it's 'view'.
     const depth = createDepthTexture(gctx);
@@ -29,7 +29,7 @@ pub fn init(allocator: std.mem.Allocator, window: zglfw.Window) !GfxState {
 }
 
 pub fn deinit(state: *GfxState) void {
-    state.gctx.deinit(state.allocator);
+    state.gctx.destroy(state.allocator);
 }
 
 pub fn update(state: *GfxState) void {

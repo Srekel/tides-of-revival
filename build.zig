@@ -22,7 +22,12 @@ pub fn build(b: *Builder) void {
     // exe.addPackagePath("qoi", "external/zig-qoi/src/qoi.zig");
     exe.addPackagePath("args", "external/zig-args/args.zig");
 
-    const zgpu_pkg = zgpu.getPkg(&.{ zpool.pkg, zglfw.pkg });
+    const zgpu_options = zgpu.BuildOptionsStep.init(b, .{
+        .uniforms_buffer_size = 32 * 1024 * 1024,
+        // .dawn_skip_validation = true,
+    });
+    const zgpu_pkg = zgpu.getPkg(&.{ zgpu_options.getPkg(), zpool.pkg, zglfw.pkg });
+
     const zmesh_options = zmesh.BuildOptionsStep.init(b, .{});
     const zmesh_pkg = zmesh.getPkg(&.{zmesh_options.getPkg()});
 
@@ -41,7 +46,7 @@ pub fn build(b: *Builder) void {
 
     zbullet.link(exe);
     zglfw.link(exe);
-    zgpu.link(exe);
+    zgpu.link(exe, zgpu_options);
     zmesh.link(exe, zmesh_options);
     znoise.link(exe);
     ztracy.link(exe, ztracy_options);
