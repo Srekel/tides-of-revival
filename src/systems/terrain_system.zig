@@ -679,7 +679,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 const thread_config = .{};
                 var thread_args: ThreadContextGenerateHeights = .{ .patch = patch, .state = state };
                 const thread = std.Thread.spawn(thread_config, jobGenerateHeights, .{thread_args}) catch unreachable;
-                thread.setName("generating_heights") catch unreachable;
+                thread.setName("generating_heights") catch {};
                 thread.detach();
                 // _ = thread;
                 std.debug.print("generating_heights_setup {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
@@ -693,7 +693,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 const thread_config = .{};
                 var thread_args: ThreadContextGenerateNormals = .{ .patch = patch, .state = state };
                 const thread = std.Thread.spawn(thread_config, jobGenerateNormals, .{thread_args}) catch unreachable;
-                thread.setName("generating_normals") catch unreachable;
+                thread.setName("generating_normals") catch {};
                 thread.detach();
                 // _ = thread;
                 break :blk .generating_normals;
@@ -705,7 +705,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 const thread_config = .{};
                 var thread_args: ThreadContextGenerateShape = .{ .patch = patch, .state = state };
                 const thread = std.Thread.spawn(thread_config, jobGenerateShape, .{thread_args}) catch unreachable;
-                thread.setName("generating_physics") catch unreachable;
+                thread.setName("generating_physics") catch {};
                 thread.detach();
                 // _ = thread;
                 std.debug.print("generating_physics_setup {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
