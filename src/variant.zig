@@ -26,14 +26,15 @@ pub const IdLocal = struct {
         return std.hash.Wyhash.hash(0, id);
     }
 
-    pub fn set(id: *IdLocal, str: []const u8) void {
+    pub fn set(self: *IdLocal, str: []const u8) void {
         if (str[0] == 0) {
-            id.*.clear();
+            self.*.clear();
             return;
         }
-        id.strlen = @intCast(u8, str.len);
-        id.hash = std.hash.Wyhash.hash(0, str);
-        std.mem.copy(u8, id.str[0..id.str.len], str);
+        self.strlen = @intCast(u8, str.len);
+        self.hash = std.hash.Wyhash.hash(0, str);
+        std.mem.copy(u8, self.str[0..self.str.len], str);
+        self.str[self.strlen] = 0;
     }
 
     pub fn toString(self: IdLocal) []const u8 {
@@ -64,7 +65,7 @@ pub const IdLocal = struct {
 
     pub fn eqlStr(self: IdLocal, other: []const u8) bool {
         // todo memcmp
-        const hash = std.hash.Wyhash(0, other);
+        const hash = std.hash.Wyhash.hash(0, other);
         return self.hash == hash;
     }
     pub fn eqlHash(self: IdLocal, other: u64) bool {

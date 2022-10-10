@@ -10,6 +10,7 @@ const city_system = @import("systems/procgen/city_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
+const state_machine_system = @import("systems/state_machine_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
 const triangle_system = @import("systems/triangle_system.zig");
 const fd = @import("flecs_data.zig");
@@ -17,6 +18,8 @@ const config = @import("config.zig");
 const IdLocal = @import("variant.zig").IdLocal;
 const znoise = @import("znoise");
 const ztracy = @import("ztracy");
+
+const fsm = @import("fsm/fsm.zig");
 
 pub fn run() void {
     const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
@@ -88,6 +91,13 @@ pub fn run() void {
     );
     defer city_system.destroy(city_sys);
 
+    var state_machine_sys = try state_machine_system.create(
+        IdLocal.init("state_machine_sys"),
+        std.heap.c_allocator,
+        &flecs_world,
+    );
+    defer state_machine_system.destroy(state_machine_sys);
+
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,
     //     &gfx_state,
@@ -130,14 +140,26 @@ pub fn run() void {
         .range = 2,
     });
 
+    // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
+    // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
+    // ██████╔╝██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
+    // ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
+    // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
+    // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+
     const player_height = config.noise_scale_y * (config.noise_offset_y + terrainNoise.noise2(0 * config.noise_scale_xz, 0 * config.noise_scale_xz));
     const player_ent = flecs_world.newEntity();
     player_ent.set(fd.Transform.init(0, player_height, 6));
     player_ent.set(fd.Scale.createScalar(1.7));
+    player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
     player_ent.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("cylinder"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
     });
+    player_ent.set(fd.WorldLoader{
+        .range = 2,
+    });
+    player_ent.setName("player");
 
     const player_camera_ent = flecs_world.newEntity();
     player_camera_ent.set(fd.Position{ .x = 1, .y = player_height + 1, .z = 1 });
@@ -149,9 +171,17 @@ pub fn run() void {
         .active = false,
         .class = 1,
     });
-    player_camera_ent.set(fd.WorldLoader{
-        .range = 2,
-    });
+    player_camera_ent.childOf(player_ent);
+    player_camera_ent.setName("camera");
+
+    _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
+
+    // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
+    // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
+    // ██║   ██║██████╔╝██║  ██║███████║   ██║   █████╗
+    // ██║   ██║██╔═══╝ ██║  ██║██╔══██║   ██║   ██╔══╝
+    // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
+    //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
         const window_status = window.update() catch unreachable;

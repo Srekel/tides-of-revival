@@ -242,3 +242,18 @@ pub const Light = struct {
     radiance: ColorRGB,
     range: f32,
 };
+
+// ███████╗███████╗███╗   ███╗
+// ██╔════╝██╔════╝████╗ ████║
+// █████╗  ███████╗██╔████╔██║
+// ██╔══╝  ╚════██║██║╚██╔╝██║
+// ██║     ███████║██║ ╚═╝ ██║
+// ╚═╝     ╚══════╝╚═╝     ╚═╝
+
+pub const CIFSM = struct {
+    state_machine_hash: u64,
+};
+
+pub const FSM = struct {
+    state_machine_lookup: u16,
+};
