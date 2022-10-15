@@ -13,7 +13,7 @@ const StateMachineInstance = struct {
     state_machine: *const fsm.StateMachine,
     curr_states: std.ArrayList(*fsm.State),
     entities: std.ArrayList(flecs.Entity),
-    blob_array: BlobArray(16),
+    blob_array: BlobArray(32),
 };
 
 const SystemState = struct {
@@ -68,8 +68,7 @@ fn initStateData(state: *SystemState) void {
         .curr_states = std.ArrayList(*fsm.State).init(state.allocator),
         .entities = std.ArrayList(flecs.Entity).init(state.allocator),
         .blob_array = blk: {
-            var blob_array = BlobArray(16){};
-            blob_array.init(state.allocator, player_sm.max_state_size);
+            var blob_array = BlobArray(32).create(state.allocator, player_sm.max_state_size);
             break :blk blob_array;
         },
     }) catch unreachable;
@@ -143,7 +142,8 @@ fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
         const ent = it.entity();
         state_machine_instance.entities.append(ent) catch unreachable;
         state_machine_instance.curr_states.append(state_machine_instance.state_machine.initial_state) catch unreachable;
-        _ = state_machine_instance.blob_array.addBlob();
+        const lol = state_machine_instance.blob_array.addBlob();
+        _ = lol;
 
         ent.remove(fd.CIFSM);
         ent.set(fd.FSM{
