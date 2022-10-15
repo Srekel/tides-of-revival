@@ -42,7 +42,7 @@ pub fn deinit() void {
     zglfw.terminate();
 }
 
-pub fn createWindow(title: [*:0]const u8) !zglfw.Window {
+pub fn createWindow(title: [:0]const u8) !zglfw.Window {
     // const shareWindow = if (windows.items.len > 0) windows.items[0] else null;
     const shareWindow = if (windows.items.len > 10000) windows.items[0] else null;
     const window = try zglfw.createWindow(1280, 720, title, null, shareWindow);
