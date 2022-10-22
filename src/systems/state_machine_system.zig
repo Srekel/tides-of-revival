@@ -13,13 +13,13 @@ const StateMachineInstance = struct {
     state_machine: *const fsm.StateMachine,
     curr_states: std.ArrayList(*fsm.State),
     entities: std.ArrayList(flecs.Entity),
-    blob_array: BlobArray(32),
+    blob_array: BlobArray(16),
 };
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
-    sys: flecs.EntityId,
+    flecs_sys: flecs.EntityId,
     query: flecs.Query,
     state_machines: std.ArrayList(fsm.StateMachine),
     instances: std.ArrayList(StateMachineInstance),
@@ -31,53 +31,58 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.W
         .with(fd.FSM);
     var query = query_builder.buildQuery();
 
-    var state = allocator.create(SystemState) catch unreachable;
-    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
-    state.* = .{
+    var system = allocator.create(SystemState) catch unreachable;
+    var flecs_sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    system.* = .{
         .allocator = allocator,
         .flecs_world = flecs_world,
-        .sys = sys,
+        .flecs_sys = flecs_sys,
         .query = query,
         .state_machines = std.ArrayList(fsm.StateMachine).init(allocator),
         .instances = std.ArrayList(StateMachineInstance).init(allocator),
     };
 
-    flecs_world.observer(ObserverCallback, .on_set, state);
+    flecs_world.observer(ObserverCallback, .on_set, system);
 
-    initStateData(state);
-    return state;
+    initStateData(system);
+    return system;
 }
 
-pub fn destroy(state: *SystemState) void {
-    state.query.deinit();
-    state.allocator.destroy(state);
+pub fn destroy(system: *SystemState) void {
+    system.query.deinit();
+    system.allocator.destroy(system);
 }
 
-fn initStateData(state: *SystemState) void {
-    const player_sm = blk: {
-        var state_idle = StateIdle.create(state.allocator);
-        var states = std.ArrayList(fsm.State).init(state.allocator);
-        states.append(state_idle) catch unreachable;
-        const sm = fsm.StateMachine.create("player_controller", states, "idle");
-        state.state_machines.append(sm) catch unreachable;
-        break :blk &state.state_machines.items[state.state_machines.items.len - 1];
+fn initStateData(system: *SystemState) void {
+    const sm_ctx = fsm.StateCreateContext{
+        .allocator = system.allocator,
+        .flecs_world = system.flecs_world,
     };
 
-    state.instances.append(.{
+    const player_sm = blk: {
+        var state_idle = StateIdle.create(sm_ctx);
+        var states = std.ArrayList(fsm.State).init(system.allocator);
+        states.append(state_idle) catch unreachable;
+        const sm = fsm.StateMachine.create("player_controller", states, "idle");
+        system.state_machines.append(sm) catch unreachable;
+        break :blk &system.state_machines.items[system.state_machines.items.len - 1];
+    };
+
+    system.instances.append(.{
         .state_machine = player_sm,
-        .curr_states = std.ArrayList(*fsm.State).init(state.allocator),
-        .entities = std.ArrayList(flecs.Entity).init(state.allocator),
+        .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
+        .entities = std.ArrayList(flecs.Entity).init(system.allocator),
         .blob_array = blk: {
-            var blob_array = BlobArray(32).create(state.allocator, player_sm.max_state_size);
+            var blob_array = BlobArray(16).create(system.allocator, player_sm.max_state_size);
             break :blk blob_array;
         },
     }) catch unreachable;
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
-    // var entity_iter = state.query.iterator(struct {
+    // var entity_iter = system.query.iterator(struct {
     //     fsm: *fd.FSM,
     // });
 
@@ -90,15 +95,18 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     //     next_state: *fsm.State,
     // };
 
-    for (state.instances.items) |*instance| {
-        for (instance.curr_states.items) |fsm_state, i| {
-            var ctx = fsm.StateFuncContext{
-                .entity = instance.entities.items[i],
-                .data = instance.blob_array.getBlob(i),
+    for (system.instances.items) |*instance| {
+        for (instance.curr_states.items) |fsm_state| {
+            const ctx = fsm.StateFuncContext{
+                .state = fsm_state,
+                .blob_array = instance.blob_array,
+                .allocator = system.allocator,
+                // .entity = instance.entities.items[i],
+                // .data = instance.blob_array.getBlob(i),
                 .transition_events = .{},
-                .flecs_world = state.flecs_world,
+                .flecs_world = system.flecs_world,
             };
-            fsm_state.update(&ctx);
+            fsm_state.update(ctx);
         }
     }
 }
@@ -112,14 +120,14 @@ const ObserverCallback = struct {
 
 fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
     while (it.next()) |_| {
         const ci_ptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CIFSM), @intCast(i32, it.index)).?;
         var ci = @ptrCast(*fd.CIFSM, @alignCast(@alignOf(fd.CIFSM), ci_ptr));
 
         const smi_i = blk_smi_i: {
             const state_machine = blk_sm: {
-                for (state.state_machines.items) |*sm| {
+                for (system.state_machines.items) |*sm| {
                     if (sm.name.eqlHash(ci.state_machine_hash)) {
                         break :blk_sm sm;
                     }
@@ -127,7 +135,7 @@ fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
                 unreachable;
             };
 
-            for (state.instances.items) |*smi, i| {
+            for (system.instances.items) |*smi, i| {
                 if (smi.state_machine == state_machine) {
                     break :blk_smi_i .{
                         .smi = smi,

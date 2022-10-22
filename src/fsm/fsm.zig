@@ -1,6 +1,7 @@
 const std = @import("std");
 const flecs = @import("flecs");
 const IdLocal = @import("../variant.zig").IdLocal;
+const BlobArray = @import("../blob_array.zig").BlobArray;
 
 pub const TriggerEvent = struct {
     id: IdLocal,
@@ -43,9 +44,9 @@ pub const Transition = struct {
 pub const State = struct {
     const Self = @This();
     // ptr: *anyopaque,
-    size: u64,
-
     name: IdLocal,
+    size: u64,
+    self: []u8,
     transitions: std.ArrayList(Transition),
     enter: *const StateFunc,
     exit: *const StateFunc,
@@ -79,15 +80,20 @@ pub const State = struct {
     // }
 };
 
-pub const StateFuncContext = struct {
-    // entities: std.ArrayList(flecs.Entity),
-    entity: flecs.Entity,
-    data: *anyopaque,
-    transition_events: std.BoundedArray(Trigger, 32),
+pub const StateCreateContext = struct {
+    allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
 };
 
-pub const StateFunc = fn (context: *StateFuncContext) void;
+pub const StateFuncContext = struct {
+    state: *const State,
+    transition_events: std.BoundedArray(Trigger, 32),
+    allocator: std.mem.Allocator,
+    flecs_world: *flecs.World,
+    blob_array: BlobArray(16),
+};
+
+pub const StateFunc = fn (context: StateFuncContext) void;
 
 pub const StateMachine = struct {
     name: IdLocal,
@@ -119,24 +125,24 @@ pub const StateMachine = struct {
         };
     }
 
-    pub fn update(self: *StateMachine, entity: flecs.Entity, flecs_world: flecs.World) void {
-        var ctx: StateFuncContext = .{
-            .entity = entity,
-            .transition_events = .{},
-            .flecs_world = flecs_world,
-        };
-        self.current_state.update(ctx);
+    // pub fn update(self: *StateMachine, entity: flecs.Entity, flecs_world: flecs.World) void {
+    //     var ctx: StateFuncContext = .{
+    //         .entity = entity,
+    //         .transition_events = .{},
+    //         .flecs_world = flecs_world,
+    //     };
+    //     self.current_state.update(ctx);
 
-        if (ctx.transition_events.len == 0) {
-            return;
-        }
+    //     if (ctx.transition_events.len == 0) {
+    //         return;
+    //     }
 
-        for (self.current_state.transitions) |transition| {
-            if (transition.isValid(ctx.transition_events)) {
-                self.current_state.exit(ctx, transition.next_state);
-                self.current_state = transition.next_state;
-                self.current_state.enter(ctx, transition.next_state);
-            }
-        }
-    }
+    //     for (self.current_state.transitions) |transition| {
+    //         if (transition.isValid(ctx.transition_events)) {
+    //             self.current_state.exit(ctx, transition.next_state);
+    //             self.current_state = transition.next_state;
+    //             self.current_state.enter(ctx, transition.next_state);
+    //         }
+    //     }
+    // }
 };

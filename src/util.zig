@@ -1,4 +1,11 @@
-pub fn cast(ptr: *anyopaque, comptime T: type) *T {
+const std = @import("std");
+
+pub fn castBytes(comptime T: type, slice: []u8) *T {
+    const ptr = std.mem.bytesAsValue(T, slice[0..@sizeOf(T)]);
+    return @alignCast(@alignOf(T), ptr);
+}
+
+pub fn castOpaque(comptime T: type, ptr: *anyopaque) *T {
     return @ptrCast(*T, @alignCast(@alignOf(T), ptr));
 }
 
