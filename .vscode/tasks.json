@@ -15,6 +15,29 @@
                 "clear": true,
                 // "revealProblems": "onProblem"
             }
+        },
+        {
+            "label": "zig test",
+            "type": "process",
+            "command": "zig",
+            "args": [
+                "test",
+                "--main-pkg-path",
+                "${workspaceFolder}/src",
+                "${file}"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            // "problemMatcher": [
+            //     "$gcc"
+            // ],
+            "presentation": {
+                "clear": true,
+                // "showReuseMessage": false,
+                // "revealProblems": "onProblem"
+            }
         }
     ]
 }
