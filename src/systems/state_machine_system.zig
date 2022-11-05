@@ -2,12 +2,14 @@ const std = @import("std");
 const math = std.math;
 const flecs = @import("flecs");
 
+const zm = @import("zmath");
 const fd = @import("../flecs_data.zig");
 const fsm = @import("../fsm/fsm.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
+const input = @import("../input.zig");
 
-const StateIdle = @import("../fsm/player_controller/state_player_idle.zig");
+const StatePlayerIdle = @import("../fsm/player_controller/state_player_idle.zig");
 
 const StateMachineInstance = struct {
     state_machine: *const fsm.StateMachine,
@@ -23,9 +25,10 @@ const SystemState = struct {
     query: flecs.Query,
     state_machines: std.ArrayList(fsm.StateMachine),
     instances: std.ArrayList(StateMachineInstance),
+    frame_data: *input.FrameData,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder
         .with(fd.FSM);
@@ -40,6 +43,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.W
         .query = query,
         .state_machines = std.ArrayList(fsm.StateMachine).init(allocator),
         .instances = std.ArrayList(StateMachineInstance).init(allocator),
+        .frame_data = frame_data,
     };
 
     flecs_world.observer(ObserverCallback, .on_set, system);
@@ -60,7 +64,7 @@ fn initStateData(system: *SystemState) void {
     };
 
     const player_sm = blk: {
-        var state_idle = StateIdle.create(sm_ctx);
+        var state_idle = StatePlayerIdle.create(sm_ctx);
         var states = std.ArrayList(fsm.State).init(system.allocator);
         states.append(state_idle) catch unreachable;
         const sm = fsm.StateMachine.create("player_controller", states, "idle");
@@ -81,6 +85,7 @@ fn initStateData(system: *SystemState) void {
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    const dt4 = zm.f32x4s(iter.iter.delta_time);
 
     // var entity_iter = system.query.iterator(struct {
     //     fsm: *fd.FSM,
@@ -101,10 +106,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .state = fsm_state,
                 .blob_array = instance.blob_array,
                 .allocator = system.allocator,
+                .frame_data = system.frame_data,
                 // .entity = instance.entities.items[i],
                 // .data = instance.blob_array.getBlob(i),
                 .transition_events = .{},
                 .flecs_world = system.flecs_world,
+                .dt = dt4,
             };
             fsm_state.update(ctx);
         }

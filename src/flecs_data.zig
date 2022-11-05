@@ -1,8 +1,17 @@
+const std = @import("std");
 const window = @import("window.zig");
 const zglfw = @import("zglfw");
 const zbt = @import("zbullet");
 const zmath = @import("zmath");
 const zmesh = @import("zmesh");
+
+// pub const GameContext = struct {
+//     constvars: std.AutoHashMap(IdLocal, []const u8),
+//     vars: std.AutoHashMap(IdLocal, []u8),
+//     fn getConst(self: GameContext, comptime T: type, id: IdLocal) *const T {
+
+//     }
+// };
 
 const IdLocal = @import("variant.zig").IdLocal;
 pub const NOCOMP = struct {};
@@ -256,4 +265,15 @@ pub const CIFSM = struct {
 
 pub const FSM = struct {
     state_machine_lookup: u16,
+};
+
+// ██╗███╗   ██╗██████╗ ██╗   ██╗████████╗
+// ██║████╗  ██║██╔══██╗██║   ██║╚══██╔══╝
+// ██║██╔██╗ ██║██████╔╝██║   ██║   ██║
+// ██║██║╚██╗██║██╔═══╝ ██║   ██║   ██║
+// ██║██║ ╚████║██║     ╚██████╔╝   ██║
+// ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝    ╚═╝
+
+pub const Input = struct {
+    just_pressed: [256]bool = [_]bool{false} ** 256,
 };

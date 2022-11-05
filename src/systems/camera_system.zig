@@ -3,7 +3,6 @@ const math = std.math;
 const flecs = @import("flecs");
 const gfx = @import("../gfx_wgpu.zig");
 const zgpu = @import("zgpu");
-const glfw = @import("glfw");
 const zm = @import("zmath");
 const zbt = @import("zbullet");
 
@@ -28,6 +27,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder
+        .without(fd.Input)
         .with(fd.Camera)
         .with(fd.Position)
         .with(fd.Forward);
@@ -75,7 +75,7 @@ fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F
     const window = cam.window;
     var speed_scalar: f32 = 50.0;
     if (window.getKey(.left_control) == .press and window.getKey(.left_shift) == .press) {
-        cam.snapped_to_ground = false;
+        // cam.snapped_to_ground = false;
     }
 
     if (cam.snapped_to_ground) {
@@ -147,6 +147,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     updateCameraSwitch(state);
 
     var entity_iter = state.query.iterator(struct {
+        input: *fd.Input,
         camera: *fd.Camera,
         pos: *fd.Position,
         fwd: *fd.Forward,
@@ -154,16 +155,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     while (entity_iter.next()) |comps| {
         var cam = comps.camera;
-        if (cam.class != 0) {
-            continue;
-        }
         if (!cam.active) {
             continue;
         }
 
         updateLook(cam);
         updateMovement(cam, comps.pos, comps.fwd, dt4);
-        updateSnapToTerrain(state, cam, comps.pos);
+        if (cam.class == 1) {
+            updateSnapToTerrain(state, cam, comps.pos);
+        }
 
         const world_to_view = zm.lookToLh(
             zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3),
@@ -187,6 +187,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
 fn updateCameraSwitch(state: *SystemState) void {
     var entity_iter = state.query.iterator(struct {
+        input: *fd.Input,
         camera: *fd.Camera,
         pos: *fd.Position,
         fwd: *fd.Forward,
@@ -218,6 +219,7 @@ fn updateCameraSwitch(state: *SystemState) void {
 
     if (do_switch) {
         var entity_iter2 = state.query.iterator(struct {
+            input: *fd.Input,
             camera: *fd.Camera,
             pos: *fd.Position,
             fwd: *fd.Forward,

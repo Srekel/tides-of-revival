@@ -8,6 +8,8 @@ const gfx = @import("gfx_wgpu.zig");
 const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
+const input_system = @import("systems/input_system.zig");
+const input = @import("input.zig");
 const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
@@ -35,21 +37,56 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state);
 
+    const keymap = blk: {
+        var keyboard_map = input.DeviceKeyMap{
+            .device_type = .keyboard,
+            .bindings = std.ArrayList(input.KeyBinding).init(std.heap.page_allocator),
+        };
+        keyboard_map.bindings.ensureTotalCapacity(8) catch unreachable;
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_left, .source = input.KeyBindingSource{ .keyboard = .a } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_right, .source = input.KeyBindingSource{ .keyboard = .d } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_forward, .source = input.KeyBindingSource{ .keyboard = .w } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_backward, .source = input.KeyBindingSource{ .keyboard = .s } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.KeyBindingSource{ .keyboard = .left_control } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.KeyBindingSource{ .keyboard = .left_shift } });
+
+        var layer_on_foot = input.KeyMapLayer{
+            .id = IdLocal.init("on_foot"),
+            .active = true,
+            .device_maps = std.ArrayList(input.DeviceKeyMap).init(std.heap.page_allocator),
+        };
+        layer_on_foot.device_maps.append(keyboard_map) catch unreachable;
+
+        var map = input.KeyMap{
+            .stack = std.ArrayList(input.KeyMapLayer).init(std.heap.page_allocator),
+        };
+        map.stack.append(layer_on_foot) catch unreachable;
+        break :blk map;
+    };
+
+    var input_frame_data = input.FrameData.create(std.heap.page_allocator, keymap, main_window);
+    var input_sys = try input_system.create(
+        IdLocal.init("input_sys"),
+        std.heap.c_allocator,
+        &flecs_world,
+        &input_frame_data,
+    );
+    defer input_system.destroy(input_sys);
+
+    var state_machine_sys = try state_machine_system.create(
+        IdLocal.init("state_machine_sys"),
+        std.heap.c_allocator,
+        &flecs_world,
+        &input_frame_data,
+    );
+    defer state_machine_system.destroy(state_machine_sys);
+
     var physics_sys = try physics_system.create(
         IdLocal.init("physics_system_{}"),
         std.heap.page_allocator,
         &flecs_world,
     );
     defer physics_system.destroy(physics_sys);
-
-    var camera_sys = try camera_system.create(
-        IdLocal.init("camera_system"),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-        physics_sys.physics_world,
-    );
-    defer camera_system.destroy(camera_sys);
 
     // var triangle_sys = try triangle_system.create(IdLocal.initFormat("triangle_system_{}", .{0}), std.heap.page_allocator, &gfx_state, &flecs_world);
     // defer triangle_system.destroy(triangle_sys);
@@ -64,7 +101,7 @@ pub fn run() void {
     );
     defer procmesh_system.destroy(procmesh_sys);
 
-    const terrainNoise: znoise.FnlGenerator = .{
+    const terrain_noise: znoise.FnlGenerator = .{
         .seed = @intCast(i32, 1234),
         .fractal_type = .fbm,
         .frequency = 0.0001,
@@ -91,12 +128,14 @@ pub fn run() void {
     );
     defer city_system.destroy(city_sys);
 
-    var state_machine_sys = try state_machine_system.create(
-        IdLocal.init("state_machine_sys"),
-        std.heap.c_allocator,
+    var camera_sys = try camera_system.create(
+        IdLocal.init("camera_system"),
+        std.heap.page_allocator,
+        &gfx_state,
         &flecs_world,
+        physics_sys.physics_world,
     );
-    defer state_machine_system.destroy(state_machine_sys);
+    defer camera_system.destroy(camera_sys);
 
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,
@@ -147,9 +186,9 @@ pub fn run() void {
     // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_height = config.noise_scale_y * (config.noise_offset_y + terrainNoise.noise2(0 * config.noise_scale_xz, 0 * config.noise_scale_xz));
+    const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
     const player_ent = flecs_world.newEntity();
-    player_ent.set(fd.Transform.init(0, player_height, 6));
+    player_ent.set(fd.Transform.init(20, player_height, 20));
     player_ent.set(fd.Scale.createScalar(1.7));
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
     player_ent.set(fd.CIShapeMeshInstance{
@@ -160,9 +199,11 @@ pub fn run() void {
         .range = 2,
     });
     player_ent.setName("player");
+    player_ent.set(fd.Input{});
+    player_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
     const player_camera_ent = flecs_world.newEntity();
-    player_camera_ent.set(fd.Position{ .x = 1, .y = player_height + 1, .z = 1 });
+    player_camera_ent.set(fd.Position{ .x = 21, .y = player_height + 1, .z = 21 });
     player_camera_ent.set(fd.CICamera{
         .lookat = .{ .x = 0, .y = 1, .z = 30 },
         .near = 0.1,

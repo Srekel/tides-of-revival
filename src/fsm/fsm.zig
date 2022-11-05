@@ -2,6 +2,8 @@ const std = @import("std");
 const flecs = @import("flecs");
 const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
+const zm = @import("zmath");
+const input = @import("../input.zig");
 
 pub const TriggerEvent = struct {
     id: IdLocal,
@@ -91,9 +93,11 @@ pub const StateFuncContext = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
     blob_array: BlobArray(16),
+    frame_data: *const input.FrameData,
+    dt: zm.F32x4,
 };
 
-pub const StateFunc = fn (context: StateFuncContext) void;
+pub const StateFunc = fn (ctx: StateFuncContext) void;
 
 pub const StateMachine = struct {
     name: IdLocal,
