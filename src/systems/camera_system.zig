@@ -27,7 +27,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder
-        .without(fd.Input)
         .with(fd.Camera)
         .with(fd.Position)
         .with(fd.Forward);
@@ -53,22 +52,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 pub fn destroy(state: *SystemState) void {
     state.query.deinit();
     state.allocator.destroy(state);
-}
-
-fn updateLook(cam: *fd.Camera) void {
-    const cursor_new = cam.window.getCursorPos();
-    const cursor_old = cam.cursor_known;
-    cam.cursor_known = cursor_new;
-    const delta_x = @floatCast(f32, cursor_new[0] - cursor_old[0]);
-    const delta_y = @floatCast(f32, cursor_new[1] - cursor_old[1]);
-
-    if (cam.window.getMouseButton(.right) == .press) {
-        cam.pitch += 0.0025 * delta_y;
-        cam.yaw += 0.0025 * delta_x;
-        cam.pitch = math.min(cam.pitch, 0.48 * math.pi);
-        cam.pitch = math.max(cam.pitch, -0.48 * math.pi);
-        cam.yaw = zm.modAngle(cam.yaw);
-    }
 }
 
 fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F32x4) void {
@@ -138,7 +121,7 @@ fn updateSnapToTerrain(state: *SystemState, cam: *fd.Camera, pos: *fd.Position) 
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
-    const dt4 = zm.f32x4s(iter.iter.delta_time);
+    // const dt4 = zm.f32x4s(iter.iter.delta_time);
 
     const gctx = state.gctx;
     const fb_width = gctx.swapchain_descriptor.width;
@@ -147,7 +130,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     updateCameraSwitch(state);
 
     var entity_iter = state.query.iterator(struct {
-        input: *fd.Input,
         camera: *fd.Camera,
         pos: *fd.Position,
         fwd: *fd.Forward,
@@ -159,11 +141,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             continue;
         }
 
-        updateLook(cam);
-        updateMovement(cam, comps.pos, comps.fwd, dt4);
-        if (cam.class == 1) {
-            updateSnapToTerrain(state, cam, comps.pos);
-        }
+        // updateLook(cam);
+        // // updateMovement(cam, comps.pos, comps.fwd, dt4);
+        // if (cam.class == 1) {
+        //     updateSnapToTerrain(state, cam, comps.pos);
+        // }
 
         const world_to_view = zm.lookToLh(
             zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3),
@@ -187,7 +169,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
 fn updateCameraSwitch(state: *SystemState) void {
     var entity_iter = state.query.iterator(struct {
-        input: *fd.Input,
         camera: *fd.Camera,
         pos: *fd.Position,
         fwd: *fd.Forward,
@@ -219,7 +200,6 @@ fn updateCameraSwitch(state: *SystemState) void {
 
     if (do_switch) {
         var entity_iter2 = state.query.iterator(struct {
-            input: *fd.Input,
             camera: *fd.Camera,
             pos: *fd.Position,
             fwd: *fd.Forward,

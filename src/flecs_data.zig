@@ -48,9 +48,9 @@ pub const Position = struct {
 };
 
 pub const Forward = struct {
-    x: f32,
-    y: f32,
-    z: f32,
+    x: f32 = 0,
+    y: f32 = 0,
+    z: f32 = 1,
     pub fn elems(self: *Forward) *[3]f32 {
         return @ptrCast(*[3]f32, &self.x);
     }
@@ -69,6 +69,21 @@ pub const Rotation = struct {
     }
     pub fn elemsConst(self: *const Rotation) *const [4]f32 {
         return @ptrCast(*const [4]f32, &self.x);
+    }
+};
+
+pub const EulerRotation = struct {
+    pitch: f32 = 0,
+    yaw: f32 = 0,
+    roll: f32 = 0,
+    pub fn init(pitch: f32, yaw: f32, roll: f32) EulerRotation {
+        return .{ .pitch = pitch, .yaw = yaw, .roll = roll };
+    }
+    pub fn elems(self: *EulerRotation) *[4]f32 {
+        return @ptrCast(*[3]f32, &self.x);
+    }
+    pub fn elemsConst(self: *const EulerRotation) *const [4]f32 {
+        return @ptrCast(*const [3]f32, &self.x);
     }
 };
 
@@ -115,7 +130,7 @@ pub const Transform = struct {
         };
     }
 
-    pub fn getPos(self: Transform) [3]f32 {
+    pub fn getPos00(self: Transform) [3]f32 {
         return self.matrix[9..].*;
     }
     pub fn setPos(self: *Transform, pos: [3]f32) void {
@@ -146,7 +161,11 @@ pub const Transform = struct {
     // }
 };
 
-pub const Velocity = struct { x: f32, y: f32, z: f32 };
+pub const Velocity = struct {
+    x: f32 = 0,
+    y: f32 = 0,
+    z: f32 = 0,
+};
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗
 // ████╗ ████║██╔════╝██╔════╝██║  ██║
@@ -275,5 +294,6 @@ pub const FSM = struct {
 // ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝    ╚═╝
 
 pub const Input = struct {
-    just_pressed: [256]bool = [_]bool{false} ** 256,
+    active: bool = false,
+    // just_pressed: [256]bool = [_]bool{false} ** 256,
 };

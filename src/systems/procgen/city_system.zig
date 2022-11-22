@@ -79,25 +79,25 @@ pub fn create(
     var query_builder_city = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_city
         .with(CompCity)
-        .with(fd.Transform);
+        .with(fd.Position);
     var query_city = query_builder_city.buildQuery();
 
     var query_builder_camp = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_camp
         .with(CompBanditCamp)
-        .with(fd.Transform);
+        .with(fd.Position);
     var query_camp = query_builder_camp.buildQuery();
 
     var query_builder_caravan = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_caravan
         .with(CompCaravan)
-        .with(fd.Transform);
+        .with(fd.Position);
     var query_caravan = query_builder_caravan.buildQuery();
 
     var query_builder_combat = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_combat
         .with(CompCombatant)
-        .with(fd.Transform);
+        .with(fd.Position);
     var query_combat = query_builder_combat.buildQuery();
 
     var query_builder_syncpos = flecs.QueryBuilder.init(flecs_world.*);
@@ -199,7 +199,7 @@ pub fn create(
             }
 
             var city_ent = flecs_world.newEntity();
-            city_ent.set(fd.Transform.init(city_pos.x, city_height, city_pos.z));
+            city_ent.set(fd.Position.init(city_pos.x, city_height, city_pos.z));
             city_ent.set(fd.Scale.createScalar(city_params.center_scale));
             city_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("sphere"),
@@ -215,11 +215,6 @@ pub fn create(
             while (angle < 340) : (angle += 360 / wallPartCount) {
                 const angleRadians = std.math.degreesToRadians(f32, angle);
                 const angleRadiansHalf = std.math.degreesToRadians(f32, angle - 180 / wallPartCount);
-                var wallPos = .{
-                    .x = city_pos.x + radius * @cos(angleRadians),
-                    .y = 0,
-                    .z = city_pos.z + radius * @sin(angleRadians),
-                };
                 var wallCenterPos = .{
                     .x = city_pos.x + radius * @cos(angleRadiansHalf),
                     .y = 0,
@@ -229,24 +224,32 @@ pub fn create(
                 if (wallY < 5) {
                     continue;
                 }
-                const zPos = zm.translation(wallPos.x, wallY - city_params.wall_scale.y * 0.5, wallPos.z);
+                var wallPos = .{
+                    .x = city_pos.x + radius * @cos(angleRadians),
+                    .y = wallY - city_params.wall_scale.y * 0.5,
+                    .z = city_pos.z + radius * @sin(angleRadians),
+                };
+                const zPos = zm.translation(wallPos.x, wallPos.y, wallPos.z);
 
                 // TODO: A proper random angle, possibly with lookat
-                const zRotY = zm.rotationY(-angleRadians + std.math.pi * 0.5);
-                const zRotX = zm.rotationX((rand.float(f32) - 0.5) * city_params.wall_random_rot);
-                const zRotZ = zm.rotationX((rand.float(f32) - 0.5) * city_params.wall_random_rot);
-                const zMat = zm.mul(zm.mul(zRotY, zm.mul(zRotZ, zRotX)), zPos);
+                const rot_x = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
+                const rot_y = 0; //-angleRadians + std.math.pi * 0.5;
+                const rot_z = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
+                const z_rot_x = zm.rotationX(rot_x);
+                const z_rot_y = zm.rotationY(rot_y);
+                const z_rot_z = zm.rotationZ(rot_z);
+                const z_rot = zm.mul(zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x)), zPos);
                 var transform: fd.Transform = undefined;
-                zm.storeMat43(transform.matrix[0..], zMat);
+                zm.storeMat43(transform.matrix[0..], z_rot);
                 var wall_ent = flecs_world.newEntity();
                 wall_ent.set(transform);
-                wall_ent.set(
-                    fd.Scale.create(
-                        if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x * (1 + rand.float(f32) * city_params.wall_random_scale),
-                        city_params.wall_scale.y * (1 + rand.float(f32) * city_params.wall_random_scale),
-                        city_params.wall_scale.z * (1 + rand.float(f32) * city_params.wall_random_scale),
-                    ),
-                );
+                wall_ent.set(fd.Position.init(wallPos.x, wallPos.y, wallPos.z));
+                wall_ent.set(fd.EulerRotation.init(rot_x, rot_y, rot_z));
+                wall_ent.set(fd.Scale.create(
+                    if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x * (1 + rand.float(f32) * city_params.wall_random_scale),
+                    city_params.wall_scale.y * (1 + rand.float(f32) * city_params.wall_random_scale),
+                    city_params.wall_scale.z * (1 + rand.float(f32) * city_params.wall_random_scale),
+                ));
                 wall_ent.set(fd.CIShapeMeshInstance{
                     .id = IdLocal.id64("cube"),
                     .basecolor_roughness = city_params.wall_color,
@@ -269,11 +272,11 @@ pub fn create(
                 }
                 var house_ent = flecs_world.newEntity();
                 const zPos = zm.translation(housePos.x, houseY - 2, housePos.z);
-                const zRot = zm.rotationY(angleRadians);
+                const z_rot_y = zm.rotationY(angleRadians);
                 // const scale = zm.scaling(angleRadians);
-                const zMat = zm.mul(zRot, zPos);
+                const z_rot = zm.mul(z_rot_y, zPos);
                 var transform: fd.Transform = undefined;
-                zm.storeMat43(transform.matrix[0..], zMat);
+                zm.storeMat43(transform.matrix[0..], z_rot);
                 house_ent.set(transform);
                 house_ent.set(fd.Scale.create(7, 3, 4));
                 house_ent.set(fd.CIShapeMeshInstance{
@@ -287,7 +290,7 @@ pub fn create(
             light_ent.set(fd.Light{ .radiance = city_params.light_radiance, .range = city_params.light_range });
 
             var light_viz_ent = flecs_world.newEntity();
-            light_viz_ent.set(fd.Transform.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
+            light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
             light_viz_ent.set(fd.Scale.createScalar(1));
             light_viz_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("sphere"),
@@ -396,12 +399,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // CITY
     var entity_iter_city = state.query_city.iterator(struct {
         city: *CompCity,
-        transform: *fd.Transform,
+        pos: *fd.Position,
     });
 
     while (entity_iter_city.next()) |comps| {
         var city = comps.city;
-        const transform = comps.transform;
+        const pos = comps.pos;
 
         if (city.next_spawn_time < state.gctx.stats.time) {
             if (city.caravan_members_to_spawn == 0) {
@@ -417,18 +420,20 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             city.next_spawn_time += 0.05 + rand.float(f32) * 0.5;
 
             const next_city = flecs.Entity.init(state.flecs_world.world, city.curr_target_city);
-            const next_city_pos = next_city.get(fd.Transform).?.getPos();
-            const distance = math.dist3_xz(next_city_pos, transform.getPos());
+            const next_city_pos = next_city.get(fd.Position).?.*.elemsConst().*;
+            const distance = math.dist3_xz(next_city_pos, pos.elemsConst().*);
 
             var caravan_ent = state.flecs_world.newEntity();
-            caravan_ent.set(comps.transform.*);
+            caravan_ent.set(fd.Transform{});
+            caravan_ent.set(pos.*);
+            caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
             caravan_ent.set(fd.Scale.create(1, 3, 1));
             caravan_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
             });
             caravan_ent.set(CompCaravan{
-                .start_pos = transform.getPos(),
+                .start_pos = pos.elemsConst().*,
                 .end_pos = next_city_pos,
                 .time_birth = time,
                 .time_to_arrive = time + distance / 10,
@@ -436,7 +441,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             });
             caravan_ent.set(CompCombatant{ .faction = 1 });
             if (city.caravan_members_to_spawn == 2) {
-                caravan_ent.set(fd.Position.init(transform.getPos()[0], transform.getPos()[1], transform.getPos()[2]));
                 caravan_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 1, .b = 0 }, .range = 12 });
             }
         }
@@ -445,12 +449,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // CAMP
     var entity_iter_camp = state.query_camp.iterator(struct {
         camp: *CompBanditCamp,
-        transform: *fd.Transform,
+        pos: *fd.Position,
     });
 
     while (entity_iter_camp.next()) |comps| {
         var camp = comps.camp;
-        const transform = comps.transform;
+        const pos = comps.pos;
 
         if (camp.next_spawn_time < state.gctx.stats.time) {
             if (camp.caravan_members_to_spawn == 0) {
@@ -467,21 +471,22 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             const next_city1 = flecs.Entity.init(state.flecs_world.world, camp.closest_cities[0]);
             const next_city2 = flecs.Entity.init(state.flecs_world.world, camp.closest_cities[1]);
-            const next_city_pos1_z = zm.loadArr3(next_city1.get(fd.Transform).?.*.getPos());
-            const next_city_pos2_z = zm.loadArr3(next_city2.get(fd.Transform).?.*.getPos());
+            const next_city_pos1_z = zm.loadArr3(next_city1.get(fd.Position).?.elemsConst().*);
+            const next_city_pos2_z = zm.loadArr3(next_city2.get(fd.Position).?.elemsConst().*);
             const targetPos_z = (next_city_pos1_z + next_city_pos2_z) * zm.f32x4s(0.5);
             const targetPos = zm.vecToArr3(targetPos_z);
-            const distance = math.dist3_xz(targetPos, transform.getPos());
+            const distance = math.dist3_xz(targetPos, pos.elemsConst().*);
 
             var caravan_ent = state.flecs_world.newEntity();
-            caravan_ent.set(comps.transform.*);
+            caravan_ent.set(fd.Transform.init(pos.x, pos.y, pos.z));
             caravan_ent.set(fd.Scale.create(1, 3, 1));
+            caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
             caravan_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
             });
             caravan_ent.set(CompCaravan{
-                .start_pos = transform.getPos(),
+                .start_pos = pos.elemsConst().*,
                 .end_pos = targetPos,
                 .time_birth = time,
                 .time_to_arrive = time + distance / 5,
@@ -494,12 +499,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // CARAVAN
     var entity_iter_caravan = state.query_caravan.iterator(struct {
         caravan: *CompCaravan,
-        transform: *fd.Transform,
+        pos: *fd.Position,
     });
 
     while (entity_iter_caravan.next()) |comps| {
         var caravan = comps.caravan;
-        var transform = comps.transform;
+        var pos = comps.pos;
 
         if (caravan.time_to_arrive < time) {
             if (caravan.destroy_on_arrival) {
@@ -519,33 +524,31 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         };
         new_pos[1] = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(new_pos[0] * config.noise_scale_xz, new_pos[2] * config.noise_scale_xz));
 
-        transform.setPos(new_pos);
+        pos.elems().* = new_pos;
     }
 
     // COMBAT
     var entity_iter_combat1 = state.query_combat.iterator(struct {
         combat: *CompCombatant,
-        transform: *fd.Transform,
+        pos: *fd.Position,
     });
 
     combat_loop: while (entity_iter_combat1.next()) |comps1| {
         const combat1 = comps1.combat;
-        const transform1 = comps1.transform;
-        const pos1 = transform1.getPos();
+        const pos1 = comps1.pos;
 
         var entity_iter_combat2 = state.query_combat.iterator(struct {
             combat: *CompCombatant,
-            transform: *fd.Transform,
+            pos: *fd.Position,
         });
 
         while (entity_iter_combat2.next()) |comps2| {
             const combat2 = comps2.combat;
-            const transform2 = comps2.transform;
+            const pos2 = comps2.pos;
             if (combat1.faction == combat2.faction) {
                 continue;
             }
-            const pos2 = transform2.getPos();
-            const dist = math.dist3_xz(pos1, pos2);
+            const dist = math.dist3_xz(pos1.elems().*, pos2.elems().*);
             if (dist > 10) {
                 continue;
             }
@@ -558,15 +561,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     // LIGHTS
-    var entity_iter_syncpos = state.query_syncpos.iterator(struct {
-        position: *fd.Position,
-        transform: *fd.Transform,
-    });
-    while (entity_iter_syncpos.next()) |comps| {
-        const transform = comps.transform;
-        const pos = transform.getPos();
-        comps.position.x = pos[0];
-        comps.position.y = pos[1] + 1.5;
-        comps.position.z = pos[2];
-    }
+    // var entity_iter_syncpos = state.query_syncpos.iterator(struct {
+    //     position: *fd.Position,
+    //     transform: *fd.Transform,
+    // });
+    // while (entity_iter_syncpos.next()) |comps| {
+    //     const transform = comps.transform;
+    //     const pos = transform.getPos();
+    //     comps.position.x = pos[0];
+    //     comps.position.y = pos[1] + 1.5;
+    //     comps.position.z = pos[2];
+    // }
 }

@@ -87,9 +87,10 @@ const SystemState = struct {
     index_buffer: zgpu.BufferHandle,
 
     meshes: std.ArrayList(Mesh),
-    query_mesh: flecs.Query,
     query_camera: flecs.Query,
     query_lights: flecs.Query,
+    query_mesh: flecs.Query,
+    query_transform: flecs.Query,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -333,10 +334,17 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .withReadonly(fd.Transform)
         .withReadonly(fd.Scale)
         .withReadonly(fd.ShapeMeshInstance);
+    var query_builder_transform = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_transform
+        .with(fd.Transform)
+        .withReadonly(fd.Position)
+        .withReadonly(fd.EulerRotation)
+        .withReadonly(fd.Scale);
 
     var query_camera = query_builder_camera.buildQuery();
     var query_lights = query_builder_lights.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
+    var query_transform = query_builder_transform.buildQuery();
 
     state.* = .{
         .allocator = allocator,
@@ -352,6 +360,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .query_camera = query_camera,
         .query_lights = query_lights,
         .query_mesh = query_mesh,
+        .query_transform = query_transform,
     };
 
     // flecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
@@ -362,7 +371,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
+    state.query_lights.deinit();
     state.query_mesh.deinit();
+    state.query_transform.deinit();
     state.meshes.deinit();
     state.allocator.destroy(state);
 }
@@ -379,21 +390,44 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     const gctx = state.gctx;
 
+    {
+        var entity_iter_transform = state.query_transform.iterator(struct {
+            transform: *fd.Transform,
+            pos: *const fd.Position,
+            rot: *const fd.EulerRotation,
+            scale: *const fd.Scale,
+        });
+
+        while (entity_iter_transform.next()) |comps| {
+            const z_scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
+            const z_rot_x = zm.rotationX(comps.rot.yaw);
+            const z_rot_y = zm.rotationY(comps.rot.pitch);
+            const z_rot_z = zm.rotationZ(comps.rot.roll);
+            const z_rot_matrix = zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x));
+            const z_translate_matrix = zm.translation(comps.pos.x, comps.pos.y, comps.pos.z);
+            const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
+            const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
+            zm.storeMat43(&comps.transform.matrix, z_srt_matrix);
+        }
+    }
+
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
         pos: *const fd.Position,
     };
-    var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
     var camera_comps: ?CameraQueryComps = null;
-    while (entity_iter_camera.next()) |comps| {
-        if (comps.cam.active) {
-            camera_comps = comps;
-            break;
+    {
+        var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
+        while (entity_iter_camera.next()) |comps| {
+            if (comps.cam.active) {
+                camera_comps = comps;
+                break;
+            }
         }
-    }
 
-    if (camera_comps == null) {
-        return;
+        if (camera_comps == null) {
+            return;
+        }
     }
 
     const cam = camera_comps.?.cam;
@@ -478,10 +512,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 mesh: *const fd.ShapeMeshInstance,
             });
             while (entity_iter_mesh.next()) |comps| {
-                const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
-                const transform = zm.loadMat43(comps.transform.matrix[0..]);
-                const object_to_world = zm.mul(scale_matrix, transform);
-                // const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
+                // const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
+                // const transform = zm.loadMat43(comps.transform.matrix[0..]);
+                // const object_to_world = zm.mul(scale_matrix, transform);
+                const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
 
                 const mem = gctx.uniformsAllocate(DrawUniforms, 1);
                 mem.slice[0].object_to_world = zm.transpose(object_to_world);

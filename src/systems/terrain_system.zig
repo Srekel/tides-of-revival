@@ -764,22 +764,27 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                                 var tree_trunk_ent = state.flecs_world.newEntity();
                                 tree_trunk_ent.set(trunk_transform);
+                                tree_trunk_ent.set(fd.Position.init(world_x, height, world_z));
+                                tree_trunk_ent.set(fd.EulerRotation.init(0, 0, 0));
                                 tree_trunk_ent.set(fd.Scale.create(0.4 + rand.float(f32) * 0.1, 3.0, 0.4 + rand.float(f32) * 0.1));
                                 tree_trunk_ent.set(fd.CIShapeMeshInstance{
                                     .id = IdLocal.id64("tree_trunk"),
                                     .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
                                 });
 
-                                const crown_pos = zm.translation(world_x, height + 0.5 + rand.float(f32) * 2, world_z);
+                                const crown_y = height + 0.5 + rand.float(f32) * 2;
+                                const crown_pos = zm.translation(world_x, crown_y, world_z);
                                 var crown_transform: fd.Transform = undefined;
                                 zm.storeMat43(crown_transform.matrix[0..], crown_pos);
 
                                 var tree_crown_ent = state.flecs_world.newEntity();
                                 tree_crown_ent.set(crown_transform);
+                                tree_crown_ent.set(fd.Position.init(world_x, crown_y, world_z));
+                                tree_crown_ent.set(fd.EulerRotation.init(0, 0, 0));
                                 tree_crown_ent.set(fd.Scale.create(1.0 + rand.float(f32) * 0.3, 4.0 + rand.float(f32) * 8, 1.0 + rand.float(f32) * 0.3));
                                 tree_crown_ent.set(fd.CIShapeMeshInstance{
                                     .id = IdLocal.id64("tree_crown"),
-                                    .basecolor_roughness = .{ .r = rand.float(f32) * 0.3, .g = 0.6 + rand.float(f32) * 0.4, .b = rand.float(f32) * 0.2, .roughness = 0.2 },
+                                    .basecolor_roughness = .{ .r = rand.float(f32) * 0.3, .g = 0.6 + rand.float(f32) * 0.4, .b = rand.float(f32) * 0.2, .roughness = 0.8 },
                                 });
 
                                 // if (rand.boolean()) {

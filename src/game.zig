@@ -114,7 +114,7 @@ pub fn run() void {
         &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
-        terrainNoise,
+        terrain_noise,
     );
     defer terrain_system.destroy(terrain_sys);
 
@@ -124,7 +124,7 @@ pub fn run() void {
         &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
-        terrainNoise,
+        terrain_noise,
     );
     defer city_system.destroy(city_sys);
 
@@ -178,6 +178,8 @@ pub fn run() void {
     debug_camera_ent.set(fd.WorldLoader{
         .range = 2,
     });
+    debug_camera_ent.set(fd.Input{ .active = true });
+    debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
@@ -188,8 +190,12 @@ pub fn run() void {
 
     const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
     const player_ent = flecs_world.newEntity();
-    player_ent.set(fd.Transform.init(20, player_height, 20));
+    player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
+    player_ent.set(fd.EulerRotation{});
+    player_ent.set(fd.Forward{});
+    player_ent.set(fd.Velocity{});
     player_ent.set(fd.Scale.createScalar(1.7));
+    player_ent.set(fd.Transform.init(20, player_height, 20));
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
     player_ent.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("cylinder"),
@@ -199,23 +205,23 @@ pub fn run() void {
         .range = 2,
     });
     player_ent.setName("player");
-    player_ent.set(fd.Input{});
+    player_ent.set(fd.Input{ .active = true });
     player_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
-    const player_camera_ent = flecs_world.newEntity();
-    player_camera_ent.set(fd.Position{ .x = 21, .y = player_height + 1, .z = 21 });
-    player_camera_ent.set(fd.CICamera{
-        .lookat = .{ .x = 0, .y = 1, .z = 30 },
-        .near = 0.1,
-        .far = 10000,
-        .window = main_window,
-        .active = false,
-        .class = 1,
-    });
-    player_camera_ent.childOf(player_ent);
-    player_camera_ent.setName("camera");
+    // const player_camera_ent = flecs_world.newEntity();
+    // player_camera_ent.set(fd.Position{ .x = 21, .y = player_height + 1, .z = 21 });
+    // player_camera_ent.set(fd.CICamera{
+    //     .lookat = .{ .x = 0, .y = 1, .z = 30 },
+    //     .near = 0.1,
+    //     .far = 10000,
+    //     .window = main_window,
+    //     .active = false,
+    //     .class = 1,
+    // });
+    // player_camera_ent.childOf(player_ent);
+    // player_camera_ent.setName("camera");
 
-    _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
+    // _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝

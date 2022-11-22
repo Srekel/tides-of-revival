@@ -132,7 +132,8 @@ pub const KeyMap = struct {
 
 pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
     var used_inputs = std.AutoHashMap(KeyBindingSource, bool).init(allocator);
-    var targets = TargetMap.init(allocator);
+    var targets = &frame_data.targets;
+    targets.clearRetainingCapacity();
     var map = frame_data.map;
     var window = frame_data.window;
     for (map.stack.items) |layer| {
@@ -145,28 +146,27 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                     continue;
                 }
 
-                std.debug.print("prevalue {}\n", .{binding.source});
+                // std.debug.print("prevalue {}\n", .{binding.source});
                 const value =
                     switch (binding.source) {
                     .keyboard => |key| blk: {
                         if (window.getKey(key) == .press) {
-                            std.debug.print("press {}\n", .{key});
+                            // std.debug.print("press {}\n", .{key});
                             break :blk TargetValue{ .number = 1 };
                         }
 
-                        std.debug.print("break {}\n", .{key});
-                        break; // footgun
+                        // std.debug.print("break {}\n", .{key});
+                        // break; // footgun
+                        break :blk TargetValue{ .number = 0 };
                     },
                     .mouse_button => TargetValue{ .number = 1 },
                 };
-
-                std.debug.print("value {}\n", .{value});
-                // break :blk TargetValue{ .number = 0 };
 
                 if (!value.isActive()) {
                     continue;
                 }
 
+                // std.debug.print("target1: {s} value {}\n", .{ binding.target_id.toString(), value });
                 used_inputs.put(binding.source, true) catch unreachable;
 
                 const prev_value = targets.get(binding.target_id);
@@ -175,6 +175,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                         targets.put(binding.target_id, value) catch unreachable;
                     }
                 } else {
+                    // std.debug.print("target2: {s} value {}\n", .{ binding.target_id.toString(), value });
                     targets.put(binding.target_id, value) catch unreachable;
                 }
             }
