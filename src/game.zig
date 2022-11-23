@@ -196,6 +196,7 @@ pub fn run() void {
     player_ent.set(fd.Velocity{});
     player_ent.set(fd.Scale.createScalar(1.7));
     player_ent.set(fd.Transform.init(20, player_height, 20));
+    player_ent.set(fd.Dynamic{});
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
     player_ent.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("cylinder"),

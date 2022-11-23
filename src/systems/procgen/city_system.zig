@@ -224,32 +224,54 @@ pub fn create(
                 if (wallY < 5) {
                     continue;
                 }
-                var wallPos = .{
-                    .x = city_pos.x + radius * @cos(angleRadians),
-                    .y = wallY - city_params.wall_scale.y * 0.5,
-                    .z = city_pos.z + radius * @sin(angleRadians),
-                };
-                const zPos = zm.translation(wallPos.x, wallPos.y, wallPos.z);
+                // var wallPos = .{
+                //     .x = city_pos.x + radius * @cos(angleRadians),
+                //     .y = wallY - city_params.wall_scale.y * 0.5,
+                //     .z = city_pos.z + radius * @sin(angleRadians),
+                // };
 
-                // TODO: A proper random angle, possibly with lookat
-                const rot_x = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
-                const rot_y = 0; //-angleRadians + std.math.pi * 0.5;
-                const rot_z = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
-                const z_rot_x = zm.rotationX(rot_x);
-                const z_rot_y = zm.rotationY(rot_y);
-                const z_rot_z = zm.rotationZ(rot_z);
-                const z_rot = zm.mul(zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x)), zPos);
-                var transform: fd.Transform = undefined;
-                zm.storeMat43(transform.matrix[0..], z_rot);
-                var wall_ent = flecs_world.newEntity();
-                wall_ent.set(transform);
-                wall_ent.set(fd.Position.init(wallPos.x, wallPos.y, wallPos.z));
-                wall_ent.set(fd.EulerRotation.init(rot_x, rot_y, rot_z));
-                wall_ent.set(fd.Scale.create(
+                const wall_pos = fd.Position.init(
+                    city_pos.x + radius * @cos(angleRadians),
+                    wallY - city_params.wall_scale.y * 0.5,
+                    city_pos.z + radius * @sin(angleRadians),
+                );
+                const wall_rot = fd.EulerRotation.init(
+                    (rand.float(f32) - 0.5) * city_params.wall_random_rot,
+                    0,
+                    (rand.float(f32) - 0.5) * city_params.wall_random_rot,
+                );
+                const wall_scale = fd.Scale.create(
                     if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x * (1 + rand.float(f32) * city_params.wall_random_scale),
                     city_params.wall_scale.y * (1 + rand.float(f32) * city_params.wall_random_scale),
                     city_params.wall_scale.z * (1 + rand.float(f32) * city_params.wall_random_scale),
-                ));
+                );
+                var wall_transform: fd.Transform = undefined;
+                const z_scale_matrix = zm.scaling(wall_scale.x, wall_scale.y, wall_scale.z);
+                const z_rot_x = zm.rotationX(wall_rot.yaw);
+                const z_rot_y = zm.rotationY(wall_rot.pitch);
+                const z_rot_z = zm.rotationZ(wall_rot.roll);
+                const z_rot_matrix = zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x));
+                const z_translate_matrix = zm.translation(wall_pos.x, wall_pos.y, wall_pos.z);
+                const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
+                const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
+                zm.storeMat43(&wall_transform.matrix, z_srt_matrix);
+
+                // const zPos = zm.translation(wallPos.x, wallPos.y, wallPos.z);
+
+                // const rot_x = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
+                // const rot_y = 0; //-angleRadians + std.math.pi * 0.5;
+                // const rot_z = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
+                // const z_rot_x = zm.rotationX(rot_x);
+                // const z_rot_y = zm.rotationY(rot_y);
+                // const z_rot_z = zm.rotationZ(rot_z);
+                // const z_rot = zm.mul(zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x)), zPos);
+                // var transform: fd.Transform = undefined;
+                // zm.storeMat43(transform.matrix[0..], z_rot);
+                var wall_ent = flecs_world.newEntity();
+                wall_ent.set(wall_transform);
+                wall_ent.set(wall_pos);
+                wall_ent.set(wall_rot);
+                wall_ent.set(wall_scale);
                 wall_ent.set(fd.CIShapeMeshInstance{
                     .id = IdLocal.id64("cube"),
                     .basecolor_roughness = city_params.wall_color,
@@ -428,6 +450,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             caravan_ent.set(pos.*);
             caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
             caravan_ent.set(fd.Scale.create(1, 3, 1));
+            caravan_ent.set(fd.Dynamic{});
             caravan_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
@@ -481,6 +504,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             caravan_ent.set(fd.Transform.init(pos.x, pos.y, pos.z));
             caravan_ent.set(fd.Scale.create(1, 3, 1));
             caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
+            caravan_ent.set(fd.Dynamic{});
             caravan_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },

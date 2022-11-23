@@ -339,7 +339,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .with(fd.Transform)
         .withReadonly(fd.Position)
         .withReadonly(fd.EulerRotation)
-        .withReadonly(fd.Scale);
+        .withReadonly(fd.Scale)
+        .withReadonly(fd.Dynamic);
 
     var query_camera = query_builder_camera.buildQuery();
     var query_lights = query_builder_lights.buildQuery();
@@ -396,6 +397,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             pos: *const fd.Position,
             rot: *const fd.EulerRotation,
             scale: *const fd.Scale,
+            dynamic: *const fd.Dynamic,
         });
 
         while (entity_iter_transform.next()) |comps| {

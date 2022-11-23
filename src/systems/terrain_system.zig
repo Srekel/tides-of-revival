@@ -758,30 +758,37 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                         if (height > 10 and height < 300) {
                             const noise = state.noise.noise2((world_x + 1000) * 4, (world_z + 1000) * 4);
                             if (noise > 0.0) {
-                                const trunk_pos = zm.translation(world_x, height, world_z);
+                                const trunk_pos = fd.Position.init(world_x, height, world_z);
+                                const trunk_scale = fd.Scale.create(0.4 + rand.float(f32) * 0.1, 3.0, 0.4 + rand.float(f32) * 0.1);
                                 var trunk_transform: fd.Transform = undefined;
-                                zm.storeMat43(trunk_transform.matrix[0..], trunk_pos);
+                                const z_trunk_scale_matrix = zm.scaling(trunk_scale.x, trunk_scale.y, trunk_scale.z);
+                                const z_trunk_translate_matrix = zm.translation(trunk_pos.x, trunk_pos.y, trunk_pos.z);
+                                const z_trunk_st_matrix = zm.mul(z_trunk_scale_matrix, z_trunk_translate_matrix);
+                                zm.storeMat43(trunk_transform.matrix[0..], z_trunk_st_matrix);
 
                                 var tree_trunk_ent = state.flecs_world.newEntity();
                                 tree_trunk_ent.set(trunk_transform);
-                                tree_trunk_ent.set(fd.Position.init(world_x, height, world_z));
-                                tree_trunk_ent.set(fd.EulerRotation.init(0, 0, 0));
-                                tree_trunk_ent.set(fd.Scale.create(0.4 + rand.float(f32) * 0.1, 3.0, 0.4 + rand.float(f32) * 0.1));
+                                tree_trunk_ent.set(trunk_pos);
+                                tree_trunk_ent.set(trunk_scale);
                                 tree_trunk_ent.set(fd.CIShapeMeshInstance{
                                     .id = IdLocal.id64("tree_trunk"),
                                     .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
                                 });
 
-                                const crown_y = height + 0.5 + rand.float(f32) * 2;
-                                const crown_pos = zm.translation(world_x, crown_y, world_z);
+                                // CROWN
+                                const crown_pos = fd.Position.init(world_x, height + 0.5 + rand.float(f32) * 2, world_z);
+                                const crown_scale = fd.Scale.create(1.0 + rand.float(f32) * 0.3, 4.0 + rand.float(f32) * 8, 1.0 + rand.float(f32) * 0.3);
                                 var crown_transform: fd.Transform = undefined;
-                                zm.storeMat43(crown_transform.matrix[0..], crown_pos);
+                                const z_crown_scale_matrix = zm.scaling(crown_scale.x, crown_scale.y, crown_scale.z);
+                                const z_crown_translate_matrix = zm.translation(crown_pos.x, crown_pos.y, crown_pos.z);
+                                const z_crown_st_matrix = zm.mul(z_crown_scale_matrix, z_crown_translate_matrix);
+                                zm.storeMat43(crown_transform.matrix[0..], z_crown_st_matrix);
 
                                 var tree_crown_ent = state.flecs_world.newEntity();
                                 tree_crown_ent.set(crown_transform);
-                                tree_crown_ent.set(fd.Position.init(world_x, crown_y, world_z));
+                                tree_crown_ent.set(crown_pos);
                                 tree_crown_ent.set(fd.EulerRotation.init(0, 0, 0));
-                                tree_crown_ent.set(fd.Scale.create(1.0 + rand.float(f32) * 0.3, 4.0 + rand.float(f32) * 8, 1.0 + rand.float(f32) * 0.3));
+                                tree_crown_ent.set(crown_scale);
                                 tree_crown_ent.set(fd.CIShapeMeshInstance{
                                     .id = IdLocal.id64("tree_crown"),
                                     .basecolor_roughness = .{ .r = rand.float(f32) * 0.3, .g = 0.6 + rand.float(f32) * 0.4, .b = rand.float(f32) * 0.2, .roughness = 0.8 },
