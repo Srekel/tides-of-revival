@@ -192,10 +192,10 @@ pub fn run() void {
     const player_ent = flecs_world.newEntity();
     player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
     player_ent.set(fd.EulerRotation{});
-    player_ent.set(fd.Forward{});
-    player_ent.set(fd.Velocity{});
     player_ent.set(fd.Scale.createScalar(1.7));
     player_ent.set(fd.Transform.init(20, player_height, 20));
+    player_ent.set(fd.Forward{});
+    player_ent.set(fd.Velocity{});
     player_ent.set(fd.Dynamic{});
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
     player_ent.set(fd.CIShapeMeshInstance{
@@ -209,20 +209,28 @@ pub fn run() void {
     player_ent.set(fd.Input{ .active = true });
     player_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
-    // const player_camera_ent = flecs_world.newEntity();
-    // player_camera_ent.set(fd.Position{ .x = 21, .y = player_height + 1, .z = 21 });
-    // player_camera_ent.set(fd.CICamera{
-    //     .lookat = .{ .x = 0, .y = 1, .z = 30 },
-    //     .near = 0.1,
-    //     .far = 10000,
-    //     .window = main_window,
-    //     .active = false,
-    //     .class = 1,
-    // });
-    // player_camera_ent.childOf(player_ent);
-    // player_camera_ent.setName("camera");
+    const player_camera_ent = flecs_world.newEntity();
+    player_camera_ent.set(fd.Position{ .x = 5, .y = 1, .z = 5 });
+    player_camera_ent.set(fd.EulerRotation{});
+    player_camera_ent.set(fd.Scale.createScalar(1.7));
+    player_camera_ent.set(fd.Transform{});
+    player_camera_ent.set(fd.Dynamic{});
+    player_camera_ent.set(fd.CICamera{
+        .lookat = .{ .x = 0, .y = 1, .z = 30 },
+        .near = 0.1,
+        .far = 10000,
+        .window = main_window,
+        .active = false,
+        .class = 1,
+    });
+    player_camera_ent.childOf(player_ent);
+    player_camera_ent.setName("playercamera");
+    player_camera_ent.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.id64("cylinder"),
+        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+    });
 
-    // _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
+    _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝

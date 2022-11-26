@@ -1,4 +1,6 @@
 const std = @import("std");
+const flecs = @import("flecs");
+const fd = @import("flecs_data.zig");
 
 pub fn castBytes(comptime T: type, slice: []u8) *T {
     const ptr = std.mem.bytesAsValue(T, slice[0..@sizeOf(T)]);
@@ -16,3 +18,49 @@ pub fn memcpy(dst: *anyopaque, src: *const anyopaque, byte_count: u64) void {
         dst_slice[i] = byte;
     }
 }
+
+// pub fn applyTransformRecursively(
+//     ent: flecs.Entity,
+//     parent_pos: fd.WorldPosition,
+//     parent_rot: fd.EulerRotation,
+//     flecs_world: flecs.World,
+// ) void {
+//     if (ent.getMut(fd.Position)) |pos| {
+//         if (ent.getMut(fd.EulerRotation)) |rot| {
+//             pos.x += parent_pos.x;
+//             pos.y += parent_pos.y;
+//             // Calculate actual position
+//             const p_actual = .{
+//                 .x = position.x + p_parent.x,
+//                 .y = position.y + p_parent.y,
+//             };
+//             std.log.debug("{s}: {d}", .{ e.getName(), p_actual });
+
+//             // Iterate children recursively
+//             var term = flecs.Term({}).initWithPair(world, world.pair(flecs.c.EcsChildOf, e.id));
+//             var iter = term.entityIterator();
+//             while (iter.next()) |entity| {
+//                 iterateTree(world, entity, p_actual);
+//             }
+//         }
+//     }
+// }
+
+// pub fn applyTransform(entity: flecs.Entity, flecs_world: *flecs.World) void {
+//     const FilterCallback = struct {
+//         position: *const Position,
+//     };
+
+//     const root_pos = fd.Position.init(0, 0, 0);
+//     for (entities) |ent| {
+//         var filter = world.filterParent(FilterCallback, ent);
+//         var iter = filter.iterator(FilterCallback);
+//         const p_actual = .{ .x = position.x + p_parent.x, .y = position.y + p_parent.y };
+
+//         var term = flecs.Term({}).initWithPair(world, world.pair(flecs.c.EcsChildOf, e.id));
+//         var iter = term.entityIterator();
+//         while (iter.next()) |child_ent| {
+//             iterateTree(world, child_ent, p_actual);
+//         }
+//     }
+// }

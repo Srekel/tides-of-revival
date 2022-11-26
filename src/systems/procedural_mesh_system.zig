@@ -342,6 +342,12 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .withReadonly(fd.Scale)
         .withReadonly(fd.Dynamic);
 
+    var query_builder_transform_parent_term = query_builder_transform.manualTerm();
+    query_builder_transform_parent_term.id = flecs_world.componentId(fd.Transform);
+    query_builder_transform_parent_term.inout = flecs.c.EcsIn;
+    query_builder_transform_parent_term.oper = flecs.c.EcsOptional;
+    query_builder_transform_parent_term.subj.set.mask = flecs.c.EcsParent | flecs.c.EcsCascade;
+
     var query_camera = query_builder_camera.buildQuery();
     var query_lights = query_builder_lights.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
@@ -398,6 +404,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             rot: *const fd.EulerRotation,
             scale: *const fd.Scale,
             dynamic: *const fd.Dynamic,
+            parent_transform: ?*const fd.Transform,
         });
 
         while (entity_iter_transform.next()) |comps| {
@@ -406,7 +413,14 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const z_translate_matrix = zm.translation(comps.pos.x, comps.pos.y, comps.pos.z);
             const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
             const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
-            zm.storeMat43(&comps.transform.matrix, z_srt_matrix);
+
+            if (comps.parent_transform) |parent_transform| {
+                const z_parent_matrix = zm.loadMat43(parent_transform.matrix[0..]);
+                const z_world_matrix = zm.mul(z_srt_matrix, z_parent_matrix);
+                zm.storeMat43(&comps.transform.matrix, z_world_matrix);
+            } else {
+                zm.storeMat43(&comps.transform.matrix, z_srt_matrix);
+            }
         }
     }
 
