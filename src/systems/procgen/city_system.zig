@@ -247,26 +247,12 @@ pub fn create(
                 );
                 var wall_transform: fd.Transform = undefined;
                 const z_scale_matrix = zm.scaling(wall_scale.x, wall_scale.y, wall_scale.z);
-                const z_rot_x = zm.rotationX(wall_rot.yaw);
-                const z_rot_y = zm.rotationY(wall_rot.pitch);
-                const z_rot_z = zm.rotationZ(wall_rot.roll);
-                const z_rot_matrix = zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x));
+                const z_rot_matrix = zm.matFromRollPitchYaw(wall_rot.pitch, wall_rot.yaw, wall_rot.roll);
                 const z_translate_matrix = zm.translation(wall_pos.x, wall_pos.y, wall_pos.z);
                 const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
                 const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
                 zm.storeMat43(&wall_transform.matrix, z_srt_matrix);
 
-                // const zPos = zm.translation(wallPos.x, wallPos.y, wallPos.z);
-
-                // const rot_x = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
-                // const rot_y = 0; //-angleRadians + std.math.pi * 0.5;
-                // const rot_z = (rand.float(f32) - 0.5) * city_params.wall_random_rot;
-                // const z_rot_x = zm.rotationX(rot_x);
-                // const z_rot_y = zm.rotationY(rot_y);
-                // const z_rot_z = zm.rotationZ(rot_z);
-                // const z_rot = zm.mul(zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x)), zPos);
-                // var transform: fd.Transform = undefined;
-                // zm.storeMat43(transform.matrix[0..], z_rot);
                 var wall_ent = flecs_world.newEntity();
                 wall_ent.set(wall_transform);
                 wall_ent.set(wall_pos);

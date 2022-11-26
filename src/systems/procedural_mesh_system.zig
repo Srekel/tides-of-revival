@@ -402,10 +402,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
         while (entity_iter_transform.next()) |comps| {
             const z_scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
-            const z_rot_x = zm.rotationX(comps.rot.yaw);
-            const z_rot_y = zm.rotationY(comps.rot.pitch);
-            const z_rot_z = zm.rotationZ(comps.rot.roll);
-            const z_rot_matrix = zm.mul(z_rot_y, zm.mul(z_rot_z, z_rot_x));
+            const z_rot_matrix = zm.matFromRollPitchYaw(comps.rot.pitch, comps.rot.yaw, comps.rot.roll);
             const z_translate_matrix = zm.translation(comps.pos.x, comps.pos.y, comps.pos.z);
             const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
             const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
