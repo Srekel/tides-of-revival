@@ -76,18 +76,20 @@ pub fn run() void {
         mouse_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_cursor_pos, .source = .mouse_cursor });
         mouse_map.processors.ensureTotalCapacity(8) catch unreachable;
         mouse_map.processors.appendAssumeCapacity(.{
+            .target_id = config.input_cursor_movement,
+            .class = input.ProcessorClass{ .vector2diff = input.ProcessorVector2Diff{ .source_target = config.input_cursor_pos } },
+        });
+        mouse_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_cursor_movement_x,
-            .class = input.ProcessorClass{ .cursor = input.ProcessorCursor{
-                .source_target = config.input_cursor_pos,
-                .dest_target = config.input_cursor_movement,
+            .class = input.ProcessorClass{ .axis_conversion = input.ProcessorAxisConversion{
+                .source_target = config.input_cursor_movement,
                 .conversion = .xy_to_x,
             } },
         });
         mouse_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_cursor_movement_y,
-            .class = input.ProcessorClass{ .cursor = input.ProcessorCursor{
-                .source_target = config.input_cursor_pos,
-                .dest_target = config.input_cursor_movement,
+            .class = input.ProcessorClass{ .axis_conversion = input.ProcessorAxisConversion{
+                .source_target = config.input_cursor_movement,
                 .conversion = .xy_to_y,
             } },
         });

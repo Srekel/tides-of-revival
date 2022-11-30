@@ -118,23 +118,30 @@ pub const DeviceType = enum {
 //     return .{ .vector2 = value };
 // }
 
-pub const ProcessorCursor = struct {
+pub const ProcessorVector2Diff = struct {
     source_target: IdLocal,
-    dest_target: IdLocal,
+
+    pub fn process(self: ProcessorVector2Diff, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        const prev = targets_prev.get(self.source_target).?;
+        const curr = targets_curr.get(self.source_target).?;
+        const movement: [2]f32 = .{ curr.vector2[0] - prev.vector2[0], curr.vector2[1] - prev.vector2[1] };
+        return TargetValue{ .vector2 = .{ movement[0], movement[1] } };
+    }
+};
+
+pub const ProcessorAxisConversion = struct {
+    source_target: IdLocal,
     conversion: enum {
-        xy_to_xy,
         xy_to_x,
         xy_to_y,
     },
 
-    pub fn process(self: ProcessorCursor, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
-        const prev = targets_prev.get(self.source_target).?;
-        const curr = targets_curr.get(self.source_target).?;
-        const movement: [2]f32 = .{ curr.vector2[0] - prev.vector2[0], curr.vector2[1] - prev.vector2[1] };
+    pub fn process(self: ProcessorAxisConversion, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        _ = targets_prev;
+        const axis_value = targets_curr.get(self.source_target).?;
         const res = switch (self.conversion) {
-            .xy_to_xy => TargetValue{ .vector2 = .{ movement[0], movement[1] } },
-            .xy_to_x => TargetValue{ .number = movement[0] },
-            .xy_to_y => TargetValue{ .number = movement[1] },
+            .xy_to_x => TargetValue{ .number = axis_value.vector2[0] },
+            .xy_to_y => TargetValue{ .number = axis_value.vector2[1] },
         };
         return res;
     }
@@ -142,7 +149,8 @@ pub const ProcessorCursor = struct {
 
 pub const ProcessorClass = union(enum) {
     // axis2d:  remap4ToAxis2D,
-    cursor: ProcessorCursor,
+    vector2diff: ProcessorVector2Diff,
+    axis_conversion: ProcessorAxisConversion,
 };
 
 pub const Processor = struct {
