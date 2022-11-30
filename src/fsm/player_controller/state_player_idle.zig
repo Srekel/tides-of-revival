@@ -10,29 +10,6 @@ const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 
-// const QueryComponents = struct {
-//     input: *fd.Input,
-//     camera: *fd.Camera,
-//     pos: *fd.Position,
-//     fwd: *fd.Forward,
-// };
-
-fn updateLook(cam: *fd.Camera) void {
-    const cursor_new = cam.window.getCursorPos();
-    const cursor_old = cam.cursor_known;
-    cam.cursor_known = cursor_new;
-    const delta_x = @floatCast(f32, cursor_new[0] - cursor_old[0]);
-    const delta_y = @floatCast(f32, cursor_new[1] - cursor_old[1]);
-
-    if (cam.window.getMouseButton(.right) == .press) {
-        cam.pitch += 0.0025 * delta_y;
-        cam.yaw += 0.0025 * delta_x;
-        cam.pitch = math.min(cam.pitch, 0.48 * math.pi);
-        cam.pitch = math.max(cam.pitch, -0.48 * math.pi);
-        cam.yaw = zm.modAngle(cam.yaw);
-    }
-}
-
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 10.7;
     if (input_state.targets.contains(config.input_move_fast)) {
@@ -40,6 +17,10 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
     } else if (input_state.targets.contains(config.input_move_slow)) {
         speed_scalar = 0.5;
     }
+
+    const yaw = input_state.get(config.input_cursor_movement_x);
+
+    rot.yaw += yaw.number * dt[0];
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
     var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
@@ -51,18 +32,18 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
 
     var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
 
-    if (input_state.targets.contains(config.input_move_forward)) {
+    if (input_state.held(config.input_move_forward)) {
         cpos += forward;
-    } else if (input_state.targets.contains(config.input_move_backward)) {
+    } else if (input_state.held(config.input_move_backward)) {
         cpos -= forward;
     }
 
-    if (input_state.targets.contains(config.input_move_right)) {
+    if (input_state.held(config.input_move_right)) {
         cpos += right;
-    } else if (input_state.targets.contains(config.input_move_left)) {
+    } else if (input_state.held(config.input_move_left)) {
         cpos -= right;
     }
-    // std.debug.print("lol{}\n", .{cpos});
+    // std.debug.print("yaw{}\n", .{yaw});
 
     zm.store(pos.elems()[0..], cpos, 3);
 }
@@ -101,7 +82,6 @@ fn update(ctx: fsm.StateFuncContext) void {
             continue;
         }
 
-        // updateLook(cam);
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
     }
 }

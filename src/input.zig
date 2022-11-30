@@ -2,19 +2,51 @@ const std = @import("std");
 const zglfw = @import("zglfw");
 const IdLocal = @import("variant.zig").IdLocal;
 
-const TargetMap = std.AutoHashMap(IdLocal, TargetValue);
+pub const TargetMap = std.AutoHashMap(IdLocal, TargetValue);
 
 pub const FrameData = struct {
-    targets: TargetMap,
+    index_curr: u32 = 0,
+    target_defaults: TargetMap,
+    targets_double_buffer: [2]TargetMap,
+    targets: *TargetMap = undefined,
     map: KeyMap,
     window: zglfw.Window,
 
-    pub fn create(allocator: std.mem.Allocator, keymap: KeyMap, window: zglfw.Window) FrameData {
-        return .{
-            .targets = TargetMap.init(allocator),
+    pub fn create(allocator: std.mem.Allocator, keymap: KeyMap, target_defaults: TargetMap, window: zglfw.Window) FrameData {
+        var res: FrameData = .{
+            .target_defaults = target_defaults,
+            .targets_double_buffer = .{ TargetMap.init(allocator), TargetMap.init(allocator) },
             .map = keymap,
             .window = window,
         };
+        res.targets = &res.targets_double_buffer[0];
+
+        res.targets_double_buffer[0].ensureUnusedCapacity(target_defaults.count()) catch unreachable;
+        res.targets_double_buffer[1].ensureUnusedCapacity(target_defaults.count()) catch unreachable;
+        var it = res.target_defaults.iterator();
+        while (it.next()) |kv| {
+            res.targets_double_buffer[0].putAssumeCapacity(kv.key_ptr.*, kv.value_ptr.*);
+            res.targets_double_buffer[1].putAssumeCapacity(kv.key_ptr.*, kv.value_ptr.*);
+        }
+        return res;
+    }
+
+    pub fn get(self: FrameData, target_id: IdLocal) TargetValue {
+        const value = self.targets.get(target_id);
+        return value.?;
+    }
+
+    pub fn held(self: FrameData, target_id: IdLocal) bool {
+        const value = self.targets.get(target_id);
+        return value.?.isActive();
+    }
+
+    pub fn just_pressed(self: FrameData, target_id: IdLocal) bool {
+        const index_curr = self.index_curr;
+        const index_prev = 1 - index_curr;
+        const value_curr = self.targets_double_buffer[index_curr].get(target_id);
+        const value_prev = self.targets_double_buffer[index_prev].get(target_id);
+        return !value_prev.isActive() and value_curr.isActive();
     }
 };
 
@@ -34,30 +66,22 @@ pub const TargetValue = union(InputType) {
     }
     fn supersedes(self: TargetValue, other: TargetValue) bool {
         return switch (self) {
-            .number => |value| value > other.number,
+            .number => |value| @fabs(value) > @fabs(other.number),
             .vector2 => |value| value[0] != 0, // TODO
         };
     }
 };
 
-// pub const TargetValue = struct {
-//     value: TargetValue,
-//     fn isActive(self: TargetValue) bool {
-//         switch (self.value) {
-//             .number => |value| value != 0,
-//             .vector2 => |value| value[0] != 0, // TODO
-//         }
-//     }
-// };
-
-pub const KeyBindingSource = union(enum) {
-    keyboard: zglfw.Key,
+pub const BindingSource = union(enum) {
+    keyboard_key: zglfw.Key,
     mouse_button: zglfw.MouseButton,
+    mouse_cursor: void,
+    processor: void,
 };
 
-pub const KeyBinding = struct {
+pub const Binding = struct {
     target_id: IdLocal,
-    source: KeyBindingSource,
+    source: BindingSource,
 };
 
 pub const DeviceType = enum {
@@ -66,58 +90,76 @@ pub const DeviceType = enum {
     gamepad,
 };
 
-fn remap4ToAxis2D(targets: TargetMap, source_targets: std.ArrayList(IdLocal)) TargetValue {
-    const value_left = targets[source_targets.items[0]] catch unreachable;
-    const value_right = targets[source_targets.items[1]] catch unreachable;
-    const value_up = targets[source_targets.items[2]] catch unreachable;
-    const value_down = targets[source_targets.items[3]] catch unreachable;
-    const value = [2]f32{
-        blk: {
-            if (value_left.number != 0) {
-                break :blk -value_left.number;
-            }
-            if (value_right.number != 0) {
-                break :blk value_right.number;
-            }
-            break :blk 0;
-        },
-        blk: {
-            if (value_down.number != 0) {
-                break :blk -value_down.number;
-            }
-            if (value_up.number != 0) {
-                break :blk value_up.number;
-            }
-            break :blk 0;
-        },
-    };
-    return .{ .vector2 = value };
-}
+// fn remap4ToAxis2D(targets: TargetMap, source_targets: std.ArrayList(IdLocal)) TargetValue {
+//     const value_left = targets[source_targets.items[0]] catch unreachable;
+//     const value_right = targets[source_targets.items[1]] catch unreachable;
+//     const value_up = targets[source_targets.items[2]] catch unreachable;
+//     const value_down = targets[source_targets.items[3]] catch unreachable;
+//     const value = [2]f32{
+//         blk: {
+//             if (value_left.number != 0) {
+//                 break :blk -value_left.number;
+//             }
+//             if (value_right.number != 0) {
+//                 break :blk value_right.number;
+//             }
+//             break :blk 0;
+//         },
+//         blk: {
+//             if (value_down.number != 0) {
+//                 break :blk -value_down.number;
+//             }
+//             if (value_up.number != 0) {
+//                 break :blk value_up.number;
+//             }
+//             break :blk 0;
+//         },
+//     };
+//     return .{ .vector2 = value };
+// }
 
-// const ProcessorFunc = struct {
-//     remap_func: *const fn (targets: TargetMap, source_targets: std.ArrayList(IdLocal)) TargetValue,
+pub const ProcessorCursor = struct {
+    source_target: IdLocal,
+    dest_target: IdLocal,
+    conversion: enum {
+        xy_to_xy,
+        xy_to_x,
+        xy_to_y,
+    },
 
-//     // union(enum) {
-//     //     axis2d: remap4ToAxis2D,
-//     // },
-// };
+    pub fn process(self: ProcessorCursor, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        const prev = targets_prev.get(self.source_target).?;
+        const curr = targets_curr.get(self.source_target).?;
+        const movement: [2]f32 = .{ curr.vector2[0] - prev.vector2[0], curr.vector2[1] - prev.vector2[1] };
+        const res = switch (self.conversion) {
+            .xy_to_xy => TargetValue{ .vector2 = .{ movement[0], movement[1] } },
+            .xy_to_x => TargetValue{ .number = movement[0] },
+            .xy_to_y => TargetValue{ .number = movement[1] },
+        };
+        return res;
+    }
+};
 
-// const Processor = struct {
-//     target_id: IdLocal,
-//     in_values: std.ArrayList(IdLocal),
-//     process_func:
+pub const ProcessorClass = union(enum) {
+    // axis2d:  remap4ToAxis2D,
+    cursor: ProcessorCursor,
+};
 
-//     union(enum) {
-//         axis2d:  remap4ToAxis2D,
-//     },
-//     *const fn (targets: TargetMap, source_targets: std.ArrayList(IdLocal)) TargetValue,
-// };
+pub const Processor = struct {
+    target_id: IdLocal,
+    class: ProcessorClass,
+    fn process(self: Processor, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        switch (self.class) {
+            inline else => |case| return case.process(targets_curr, targets_prev),
+        }
+    }
+};
 
 pub const DeviceKeyMap = struct {
     // active_device_index: ?u32 = null,
     device_type: DeviceType,
-    bindings: std.ArrayList(KeyBinding),
-    // processors: std.ArrayList(Remapping),
+    bindings: std.ArrayList(Binding),
+    processors: std.ArrayList(Processor),
 };
 
 pub const KeyMapLayer = struct {
@@ -127,16 +169,24 @@ pub const KeyMapLayer = struct {
 };
 
 pub const KeyMap = struct {
-    stack: std.ArrayList(KeyMapLayer),
+    layer_stack: std.ArrayList(KeyMapLayer),
 };
 
 pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
-    var used_inputs = std.AutoHashMap(KeyBindingSource, bool).init(allocator);
-    var targets = &frame_data.targets;
-    targets.clearRetainingCapacity();
+    var used_inputs = std.AutoHashMap(BindingSource, bool).init(allocator);
+    var targets_prev = &frame_data.targets_double_buffer[frame_data.index_curr];
+    frame_data.index_curr = 1 - frame_data.index_curr;
+    var targets = &frame_data.targets_double_buffer[frame_data.index_curr];
+
+    var it = frame_data.target_defaults.iterator();
+    while (it.next()) |kv| {
+        targets.putAssumeCapacity(kv.key_ptr.*, kv.value_ptr.*);
+    }
+
+    frame_data.targets = targets;
     var map = frame_data.map;
     var window = frame_data.window;
-    for (map.stack.items) |layer| {
+    for (map.layer_stack.items) |layer| {
         if (!layer.active) {
             continue;
         }
@@ -149,7 +199,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                 // std.debug.print("prevalue {}\n", .{binding.source});
                 const value =
                     switch (binding.source) {
-                    .keyboard => |key| blk: {
+                    .keyboard_key => |key| blk: {
                         if (window.getKey(key) == .press) {
                             // std.debug.print("press {}\n", .{key});
                             break :blk TargetValue{ .number = 1 };
@@ -160,6 +210,15 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                         break :blk TargetValue{ .number = 0 };
                     },
                     .mouse_button => TargetValue{ .number = 1 },
+                    .mouse_cursor => blk: {
+                        const cursor_pos = window.getCursorPos();
+                        const cursor_value = TargetValue{ .vector2 = .{
+                            @floatCast(f32, cursor_pos[0]),
+                            @floatCast(f32, cursor_pos[1]),
+                        } };
+                        break :blk cursor_value;
+                    },
+                    .processor => TargetValue{ .number = 0 },
                 };
 
                 if (!value.isActive()) {
@@ -180,17 +239,17 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                 }
             }
 
-            // for (device_map.remappings) |remapping| {
-            //     const value = remapping.remap_func(targets, remapping.input_targets);
-            //     const prev_value = targets.get(remapping.target_id);
-            //     if (prev_value) |pv| {
-            //         if (value.supersedes(pv)) {
-            //             targets.put(remapping.target_id, value) catch unreachable;
-            //         }
-            //     } else {
-            //         targets.put(remapping.target_id, value) catch unreachable;
-            //     }
-            // }
+            for (device_map.processors.items) |processor| {
+                const value = processor.process(targets.*, targets_prev.*);
+                const prev_value = targets.get(processor.target_id);
+                if (prev_value) |pv| {
+                    if (value.supersedes(pv)) {
+                        targets.put(processor.target_id, value) catch unreachable;
+                    }
+                } else {
+                    targets.put(processor.target_id, value) catch unreachable;
+                }
+            }
         }
     }
 }
@@ -216,15 +275,15 @@ test "test" {
     const allocator = std.testing.allocator;
     var keyboard_map = DeviceKeyMap{
         .device_type = .keyboard,
-        .bindings = std.ArrayList(KeyBinding).init(allocator),
+        .bindings = std.ArrayList(Binding).init(allocator),
     };
     keyboard_map.bindings.append(.{
         .target_id = IdLocal.init("move_left"),
-        .source = KeyBindingSource{ .keyboard = .left },
+        .source = BindingSource{ .keyboard_key = .left },
     });
     keyboard_map.bindings.append(.{
         .target_id = IdLocal.init("move_right"),
-        .source = KeyBindingSource{ .keyboard = .right },
+        .source = BindingSource{ .keyboard_key = .right },
     });
 
     var layer_on_foot = KeyMapLayer{
@@ -235,9 +294,9 @@ test "test" {
     layer_on_foot.device_maps.append(keyboard_map);
 
     var map = KeyMap{
-        .stack = std.ArrayList(KeyMapLayer).init(allocator),
+        .layer_stack = std.ArrayList(KeyMapLayer).init(allocator),
     };
-    map.stack.append(layer_on_foot);
+    map.layer_stack.append(layer_on_foot);
 
     return map;
 }

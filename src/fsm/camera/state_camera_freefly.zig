@@ -10,23 +10,13 @@ const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 
-// const QueryComponents = struct {
-//     input: *fd.Input,
-//     camera: *fd.Camera,
-//     pos: *fd.Position,
-//     fwd: *fd.Forward,
-// };
-
-fn updateLook(cam: *fd.Camera) void {
-    const cursor_new = cam.window.getCursorPos();
-    const cursor_old = cam.cursor_known;
-    cam.cursor_known = cursor_new;
-    const delta_x = @floatCast(f32, cursor_new[0] - cursor_old[0]);
-    const delta_y = @floatCast(f32, cursor_new[1] - cursor_old[1]);
+fn updateLook(cam: *fd.Camera, input_state: *const input.FrameData) void {
+    const movement_yaw = input_state.get(config.input_cursor_movement_x);
+    const movement_pitch = input_state.get(config.input_cursor_movement_y);
 
     if (cam.window.getMouseButton(.right) == .press) {
-        cam.pitch += 0.0025 * delta_y;
-        cam.yaw += 0.0025 * delta_x;
+        cam.pitch += 0.0025 * movement_pitch.number;
+        cam.yaw += 0.0025 * movement_yaw.number;
         cam.pitch = math.min(cam.pitch, 0.48 * math.pi);
         cam.pitch = math.max(cam.pitch, -0.48 * math.pi);
         cam.yaw = zm.modAngle(cam.yaw);
@@ -35,9 +25,9 @@ fn updateLook(cam: *fd.Camera) void {
 
 fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 50.0;
-    if (input_state.targets.contains(config.input_move_fast)) {
+    if (input_state.held(config.input_move_fast)) {
         speed_scalar *= 50;
-    } else if (input_state.targets.contains(config.input_move_slow)) {
+    } else if (input_state.held(config.input_move_slow)) {
         speed_scalar *= 0.1;
     }
     const speed = zm.f32x4s(speed_scalar);
@@ -51,15 +41,15 @@ fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F
 
     var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
 
-    if (input_state.targets.contains(config.input_move_forward)) {
+    if (input_state.held(config.input_move_forward)) {
         cpos += forward;
-    } else if (input_state.targets.contains(config.input_move_backward)) {
+    } else if (input_state.held(config.input_move_backward)) {
         cpos -= forward;
     }
 
-    if (input_state.targets.contains(config.input_move_right)) {
+    if (input_state.held(config.input_move_right)) {
         cpos += right;
-    } else if (input_state.targets.contains(config.input_move_left)) {
+    } else if (input_state.held(config.input_move_left)) {
         cpos -= right;
     }
 
@@ -94,6 +84,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         camera: *fd.Camera,
         pos: *fd.Position,
         fwd: *fd.Forward,
+        transform: *fd.Transform,
     });
 
     while (entity_iter.next()) |comps| {
@@ -102,7 +93,7 @@ fn update(ctx: fsm.StateFuncContext) void {
             continue;
         }
 
-        updateLook(cam);
+        updateLook(cam, ctx.frame_data);
         updateMovement(comps.camera, comps.pos, comps.fwd, ctx.dt, ctx.frame_data);
     }
 }
@@ -113,7 +104,8 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.Input)
         .with(fd.Camera)
         .with(fd.Position)
-        .with(fd.Forward);
+        .with(fd.Forward)
+        .without(fd.Transform); // TEMP
 
     var query = query_builder.buildQuery();
     var self = ctx.allocator.create(StateCameraFreefly) catch unreachable;

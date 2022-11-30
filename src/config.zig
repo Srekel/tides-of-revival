@@ -20,3 +20,8 @@ pub const input_move_forward = IdLocal.init("move_forward");
 pub const input_move_backward = IdLocal.init("move_backward");
 pub const input_move_slow = IdLocal.init("move_slow");
 pub const input_move_fast = IdLocal.init("move_fast");
+
+pub const input_cursor_pos = IdLocal.init("cursor_pos");
+pub const input_cursor_movement = IdLocal.init("cursor_movement");
+pub const input_cursor_movement_x = IdLocal.init("cursor_movement_x");
+pub const input_cursor_movement_y = IdLocal.init("cursor_movement_y");

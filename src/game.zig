@@ -37,18 +37,60 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state);
 
+    const input_target_defaults = blk: {
+        var itm = input.TargetMap.init(std.heap.page_allocator);
+        itm.ensureUnusedCapacity(16) catch unreachable;
+        itm.putAssumeCapacity(config.input_move_left, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_move_right, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_move_forward, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_move_backward, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_move_slow, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_move_fast, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_cursor_pos, input.TargetValue{ .vector2 = .{ 0, 0 } });
+        itm.putAssumeCapacity(config.input_cursor_movement, input.TargetValue{ .vector2 = .{ 0, 0 } });
+        itm.putAssumeCapacity(config.input_cursor_movement_x, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_cursor_movement_y, input.TargetValue{ .number = 0 });
+        break :blk itm;
+    };
+
     const keymap = blk: {
         var keyboard_map = input.DeviceKeyMap{
             .device_type = .keyboard,
-            .bindings = std.ArrayList(input.KeyBinding).init(std.heap.page_allocator),
+            .bindings = std.ArrayList(input.Binding).init(std.heap.page_allocator),
+            .processors = std.ArrayList(input.Processor).init(std.heap.page_allocator),
         };
         keyboard_map.bindings.ensureTotalCapacity(8) catch unreachable;
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_left, .source = input.KeyBindingSource{ .keyboard = .a } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_right, .source = input.KeyBindingSource{ .keyboard = .d } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_forward, .source = input.KeyBindingSource{ .keyboard = .w } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_backward, .source = input.KeyBindingSource{ .keyboard = .s } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.KeyBindingSource{ .keyboard = .left_control } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.KeyBindingSource{ .keyboard = .left_shift } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_left, .source = input.BindingSource{ .keyboard_key = .a } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_right, .source = input.BindingSource{ .keyboard_key = .d } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_forward, .source = input.BindingSource{ .keyboard_key = .w } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_backward, .source = input.BindingSource{ .keyboard_key = .s } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .keyboard_key = .left_control } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .keyboard_key = .left_shift } });
+
+        var mouse_map = input.DeviceKeyMap{
+            .device_type = .mouse,
+            .bindings = std.ArrayList(input.Binding).init(std.heap.page_allocator),
+            .processors = std.ArrayList(input.Processor).init(std.heap.page_allocator),
+        };
+        mouse_map.bindings.ensureTotalCapacity(8) catch unreachable;
+        mouse_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_cursor_pos, .source = .mouse_cursor });
+        mouse_map.processors.ensureTotalCapacity(8) catch unreachable;
+        mouse_map.processors.appendAssumeCapacity(.{
+            .target_id = config.input_cursor_movement_x,
+            .class = input.ProcessorClass{ .cursor = input.ProcessorCursor{
+                .source_target = config.input_cursor_pos,
+                .dest_target = config.input_cursor_movement,
+                .conversion = .xy_to_x,
+            } },
+        });
+        mouse_map.processors.appendAssumeCapacity(.{
+            .target_id = config.input_cursor_movement_y,
+            .class = input.ProcessorClass{ .cursor = input.ProcessorCursor{
+                .source_target = config.input_cursor_pos,
+                .dest_target = config.input_cursor_movement,
+                .conversion = .xy_to_y,
+            } },
+        });
 
         var layer_on_foot = input.KeyMapLayer{
             .id = IdLocal.init("on_foot"),
@@ -56,15 +98,16 @@ pub fn run() void {
             .device_maps = std.ArrayList(input.DeviceKeyMap).init(std.heap.page_allocator),
         };
         layer_on_foot.device_maps.append(keyboard_map) catch unreachable;
+        layer_on_foot.device_maps.append(mouse_map) catch unreachable;
 
         var map = input.KeyMap{
-            .stack = std.ArrayList(input.KeyMapLayer).init(std.heap.page_allocator),
+            .layer_stack = std.ArrayList(input.KeyMapLayer).init(std.heap.page_allocator),
         };
-        map.stack.append(layer_on_foot) catch unreachable;
+        map.layer_stack.append(layer_on_foot) catch unreachable;
         break :blk map;
     };
 
-    var input_frame_data = input.FrameData.create(std.heap.page_allocator, keymap, main_window);
+    var input_frame_data = input.FrameData.create(std.heap.page_allocator, keymap, input_target_defaults, main_window);
     var input_sys = try input_system.create(
         IdLocal.init("input_sys"),
         std.heap.c_allocator,
