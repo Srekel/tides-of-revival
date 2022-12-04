@@ -197,7 +197,6 @@ pub const ShapeMeshInstance = struct {
 };
 
 pub const CICamera = struct {
-    lookat: Position,
     near: f32,
     far: f32,
     window: zglfw.Window,
@@ -208,8 +207,6 @@ pub const CICamera = struct {
 pub const Camera = struct {
     near: f32,
     far: f32,
-    pitch: f32 = 0,
-    yaw: f32 = 0,
     world_to_view: [16]f32 = undefined,
     view_to_clip: [16]f32 = undefined,
     world_to_clip: [16]f32 = undefined,
@@ -299,5 +296,5 @@ pub const FSM = struct {
 
 pub const Input = struct {
     active: bool = false,
-    // just_pressed: [256]bool = [_]bool{false} ** 256,
+    index: u32,
 };

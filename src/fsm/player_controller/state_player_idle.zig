@@ -20,7 +20,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
 
     const yaw = input_state.get(config.input_cursor_movement_x);
 
-    rot.yaw += yaw.number * dt[0];
+    rot.yaw += 0.0025 * yaw.number;
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
     var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
@@ -75,6 +75,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         pos: *fd.Position,
         rot: *fd.EulerRotation,
         fwd: *fd.Forward,
+        cam: *fd.Camera,
     });
 
     while (entity_iter.next()) |comps| {
@@ -92,7 +93,8 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.Input)
         .with(fd.Position)
         .with(fd.EulerRotation)
-        .with(fd.Forward);
+        .with(fd.Forward)
+        .without(fd.Camera);
 
     var query = query_builder.buildQuery();
     var self = ctx.allocator.create(StatePlayerIdle) catch unreachable;

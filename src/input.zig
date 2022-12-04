@@ -44,8 +44,8 @@ pub const FrameData = struct {
     pub fn just_pressed(self: FrameData, target_id: IdLocal) bool {
         const index_curr = self.index_curr;
         const index_prev = 1 - index_curr;
-        const value_curr = self.targets_double_buffer[index_curr].get(target_id);
-        const value_prev = self.targets_double_buffer[index_prev].get(target_id);
+        const value_curr = self.targets_double_buffer[index_curr].get(target_id).?;
+        const value_prev = self.targets_double_buffer[index_prev].get(target_id).?;
         return !value_prev.isActive() and value_curr.isActive();
     }
 };

@@ -90,7 +90,6 @@ const SystemState = struct {
     query_camera: flecs.Query,
     query_lights: flecs.Query,
     query_mesh: flecs.Query,
-    query_transform: flecs.Query,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -334,24 +333,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .withReadonly(fd.Transform)
         .withReadonly(fd.Scale)
         .withReadonly(fd.ShapeMeshInstance);
-    var query_builder_transform = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder_transform
-        .with(fd.Transform)
-        .withReadonly(fd.Position)
-        .withReadonly(fd.EulerRotation)
-        .withReadonly(fd.Scale)
-        .withReadonly(fd.Dynamic);
-
-    var query_builder_transform_parent_term = query_builder_transform.manualTerm();
-    query_builder_transform_parent_term.id = flecs_world.componentId(fd.Transform);
-    query_builder_transform_parent_term.inout = flecs.c.EcsIn;
-    query_builder_transform_parent_term.oper = flecs.c.EcsOptional;
-    query_builder_transform_parent_term.subj.set.mask = flecs.c.EcsParent | flecs.c.EcsCascade;
-
     var query_camera = query_builder_camera.buildQuery();
     var query_lights = query_builder_lights.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
-    var query_transform = query_builder_transform.buildQuery();
 
     state.* = .{
         .allocator = allocator,
@@ -367,7 +351,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .query_camera = query_camera,
         .query_lights = query_lights,
         .query_mesh = query_mesh,
-        .query_transform = query_transform,
     };
 
     // flecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
@@ -380,7 +363,6 @@ pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.query_lights.deinit();
     state.query_mesh.deinit();
-    state.query_transform.deinit();
     state.meshes.deinit();
     state.allocator.destroy(state);
 }
@@ -396,33 +378,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
     const gctx = state.gctx;
-
-    {
-        var entity_iter_transform = state.query_transform.iterator(struct {
-            transform: *fd.Transform,
-            pos: *const fd.Position,
-            rot: *const fd.EulerRotation,
-            scale: *const fd.Scale,
-            dynamic: *const fd.Dynamic,
-            parent_transform: ?*const fd.Transform,
-        });
-
-        while (entity_iter_transform.next()) |comps| {
-            const z_scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
-            const z_rot_matrix = zm.matFromRollPitchYaw(comps.rot.pitch, comps.rot.yaw, comps.rot.roll);
-            const z_translate_matrix = zm.translation(comps.pos.x, comps.pos.y, comps.pos.z);
-            const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
-            const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
-
-            if (comps.parent_transform) |parent_transform| {
-                const z_parent_matrix = zm.loadMat43(parent_transform.matrix[0..]);
-                const z_world_matrix = zm.mul(z_srt_matrix, z_parent_matrix);
-                zm.storeMat43(&comps.transform.matrix, z_world_matrix);
-            } else {
-                zm.storeMat43(&comps.transform.matrix, z_srt_matrix);
-            }
-        }
-    }
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,

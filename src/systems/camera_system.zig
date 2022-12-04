@@ -8,40 +8,58 @@ const zbt = @import("zbullet");
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
+const input = @import("../input.zig");
+const config = @import("../config.zig");
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
-    physics_world: zbt.World,
     sys: flecs.EntityId,
 
     // gfx: *gfx.GfxState,
     gctx: *zgpu.GraphicsContext,
-    query: flecs.Query,
+    query_camera: flecs.Query,
+    query_transform: flecs.Query,
 
+    frame_data: *input.FrameData,
     switch_pressed: bool = false,
+    active_index: u32 = 1,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, physics_world: zbt.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
     const gctx = gfxstate.gctx;
 
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder
         .with(fd.Camera)
-        .with(fd.Position)
-        .with(fd.Forward);
+        .with(fd.Transform);
+    var query_camera = query_builder.buildQuery();
 
-    var query = query_builder.buildQuery();
+    var query_builder_transform = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_transform
+        .with(fd.Transform)
+        .withReadonly(fd.Position)
+        .withReadonly(fd.EulerRotation)
+        .withReadonly(fd.Scale)
+        .withReadonly(fd.Dynamic);
+
+    var query_builder_transform_parent_term = query_builder_transform.manualTerm();
+    query_builder_transform_parent_term.id = flecs_world.componentId(fd.Transform);
+    query_builder_transform_parent_term.inout = flecs.c.EcsIn;
+    query_builder_transform_parent_term.oper = flecs.c.EcsOptional;
+    query_builder_transform_parent_term.subj.set.mask = flecs.c.EcsParent | flecs.c.EcsCascade;
+    var query_transform = query_builder_transform.buildQuery();
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
         .flecs_world = flecs_world,
-        .physics_world = physics_world,
         .sys = sys,
         .gctx = gctx,
-        .query = query,
+        .query_camera = query_camera,
+        .query_transform = query_transform,
+        .frame_data = frame_data,
     };
 
     flecs_world.observer(ObserverCallback, .on_set, state);
@@ -50,89 +68,53 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
 }
 
 pub fn destroy(state: *SystemState) void {
-    state.query.deinit();
+    state.query_camera.deinit();
+    state.query_transform.deinit();
     state.allocator.destroy(state);
-}
-
-fn updateMovement(cam: *fd.Camera, pos: *fd.Position, fwd: *fd.Forward, dt: zm.F32x4) void {
-    const window = cam.window;
-    var speed_scalar: f32 = 50.0;
-    if (window.getKey(.left_control) == .press and window.getKey(.left_shift) == .press) {
-        // cam.snapped_to_ground = false;
-    }
-
-    if (cam.snapped_to_ground) {
-        speed_scalar = 1.7;
-        if (window.getKey(.left_shift) == .press) {
-            speed_scalar = 6;
-        } else if (window.getKey(.left_control) == .press) {
-            speed_scalar = 0.5;
-        }
-    } else {
-        if (window.getKey(.left_shift) == .press) {
-            speed_scalar *= 50;
-        } else if (window.getKey(.left_control) == .press) {
-            speed_scalar *= 0.1;
-        }
-    }
-    const speed = zm.f32x4s(speed_scalar);
-    const transform = zm.mul(zm.rotationX(cam.pitch), zm.rotationY(cam.yaw));
-    var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
-
-    zm.store(fwd.elems()[0..], forward, 3);
-
-    const right = speed * dt * zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
-    forward = speed * dt * forward;
-
-    var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
-
-    if (window.getKey(.w) == .press) {
-        cpos += forward;
-    } else if (window.getKey(.s) == .press) {
-        cpos -= forward;
-    }
-    if (window.getKey(.d) == .press) {
-        cpos += right;
-    } else if (window.getKey(.a) == .press) {
-        cpos -= right;
-    }
-
-    zm.store(pos.elems()[0..], cpos, 3);
-}
-
-fn updateSnapToTerrain(state: *SystemState, cam: *fd.Camera, pos: *fd.Position) void {
-    var ray_result: zbt.RayCastResult = undefined;
-    const ray_origin = fd.Position.init(pos.x, pos.y + 20, pos.z);
-    const ray_end = fd.Position.init(pos.x, pos.y - 10, pos.z);
-    const hit = state.physics_world.rayTestClosest(
-        ray_origin.elemsConst()[0..],
-        ray_end.elemsConst()[0..],
-        .{ .default = true }, // zbt.CBT_COLLISION_FILTER_DEFAULT,
-        zbt.CollisionFilter.all,
-        .{ .use_gjk_convex_test = true }, // zbt.CBT_RAYCAST_FLAG_USE_GJK_CONVEX_TEST,
-        &ray_result,
-    );
-
-    cam.snapped_to_ground = hit;
-    if (hit) {
-        pos.y = ray_result.hit_point_world[1] + 1.8;
-    }
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
-    // const dt4 = zm.f32x4s(iter.iter.delta_time);
+    updateCameraSwitch(state);
+    updateTransformHierarchy(state);
+    updateCameraMatrices(state);
+}
 
+fn updateTransformHierarchy(state: *SystemState) void {
+    var entity_iter_transform = state.query_transform.iterator(struct {
+        transform: *fd.Transform,
+        pos: *const fd.Position,
+        rot: *const fd.EulerRotation,
+        scale: *const fd.Scale,
+        dynamic: *const fd.Dynamic,
+        parent_transform: ?*const fd.Transform,
+    });
+
+    while (entity_iter_transform.next()) |comps| {
+        const z_scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
+        const z_rot_matrix = zm.matFromRollPitchYaw(comps.rot.pitch, comps.rot.yaw, comps.rot.roll);
+        const z_translate_matrix = zm.translation(comps.pos.x, comps.pos.y, comps.pos.z);
+        const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
+        const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
+
+        if (comps.parent_transform) |parent_transform| {
+            const z_parent_matrix = zm.loadMat43(parent_transform.matrix[0..]);
+            const z_world_matrix = zm.mul(z_srt_matrix, z_parent_matrix);
+            zm.storeMat43(&comps.transform.matrix, z_world_matrix);
+        } else {
+            zm.storeMat43(&comps.transform.matrix, z_srt_matrix);
+        }
+    }
+}
+
+fn updateCameraMatrices(state: *SystemState) void {
     const gctx = state.gctx;
     const fb_width = gctx.swapchain_descriptor.width;
     const fb_height = gctx.swapchain_descriptor.height;
 
-    updateCameraSwitch(state);
-
-    var entity_iter = state.query.iterator(struct {
+    var entity_iter = state.query_camera.iterator(struct {
         camera: *fd.Camera,
-        pos: *fd.Position,
-        fwd: *fd.Forward,
+        transform: *fd.Transform,
     });
 
     while (entity_iter.next()) |comps| {
@@ -141,15 +123,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             continue;
         }
 
-        // updateLook(cam);
-        // // updateMovement(cam, comps.pos, comps.fwd, dt4);
-        // if (cam.class == 1) {
-        //     updateSnapToTerrain(state, cam, comps.pos);
-        // }
+        const transform = zm.loadMat43(comps.transform.matrix[0..]);
+        var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
+        var pos = transform[3];
 
         const world_to_view = zm.lookToLh(
-            zm.load(comps.pos.elemsConst().*[0..], zm.Vec, 3),
-            zm.load(comps.fwd.elemsConst().*[0..], zm.Vec, 3),
+            pos,
+            forward,
             zm.f32x4(0.0, 1.0, 0.0, 0.0),
         );
 
@@ -168,51 +148,30 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 }
 
 fn updateCameraSwitch(state: *SystemState) void {
-    var entity_iter = state.query.iterator(struct {
-        camera: *fd.Camera,
-        pos: *fd.Position,
-        fwd: *fd.Forward,
-    });
-
-    var do_switch = false;
-    var switch_pressed = false;
-    while (entity_iter.next()) |comps| {
-        if (!comps.camera.active) {
-            if (do_switch) {
-                comps.camera.active = true;
-                return;
-            }
-            continue;
-        }
-
-        if (comps.camera.window.getKey(.tab) == .press) {
-            if (!state.switch_pressed) {
-                do_switch = true;
-                comps.camera.active = false;
-            }
-
-            switch_pressed = true;
-            state.switch_pressed = switch_pressed;
-        }
+    if (!state.frame_data.just_pressed(config.input_camera_switch)) {
+        return;
     }
 
-    state.switch_pressed = switch_pressed;
+    state.active_index = 1 - state.active_index;
 
-    if (do_switch) {
-        var entity_iter2 = state.query.iterator(struct {
-            camera: *fd.Camera,
-            pos: *fd.Position,
-            fwd: *fd.Forward,
-        });
+    var builder = flecs.QueryBuilder.init(state.flecs_world.*);
+    _ = builder
+        .with(fd.Input)
+        .optional(fd.Camera);
 
-        while (entity_iter2.next()) |comps| {
-            if (!comps.camera.active) {
-                if (do_switch) {
-                    comps.camera.active = true;
-                    return;
-                }
-                continue;
-            }
+    var filter = builder.buildFilter();
+    defer filter.deinit();
+
+    var entity_iter = filter.iterator(struct { input: *fd.Input, cam: ?*fd.Camera });
+    while (entity_iter.next()) |comps| {
+        var active = false;
+        if (comps.input.index == state.active_index) {
+            active = true;
+        }
+
+        comps.input.active = active;
+        if (comps.cam) |cam| {
+            cam.active = active;
         }
     }
 }
