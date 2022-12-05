@@ -33,6 +33,7 @@ pub fn run() void {
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
     const main_window = window.createWindow("The Elvengroin Legacy") catch unreachable;
+    main_window.setInputMode(.cursor, .disabled);
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state);
@@ -51,6 +52,7 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_cursor_movement_x, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_cursor_movement_y, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_switch, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_exit, input.TargetValue{ .number = 0 });
         break :blk itm;
     };
 
@@ -68,6 +70,7 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .keyboard_key = .left_control } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .keyboard_key = .left_shift } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
 
         var mouse_map = input.DeviceKeyMap{
             .device_type = .mouse,
@@ -288,6 +291,9 @@ pub fn run() void {
     while (true) {
         const window_status = window.update() catch unreachable;
         if (window_status == .no_windows) {
+            break;
+        }
+        if (input_frame_data.just_pressed(config.input_exit)) {
             break;
         }
 
