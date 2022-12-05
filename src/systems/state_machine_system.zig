@@ -8,6 +8,7 @@ const fsm = @import("../fsm/fsm.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
 const input = @import("../input.zig");
+const zbt = @import("zbullet");
 
 const StatePlayerIdle = @import("../fsm/player_controller/state_player_idle.zig");
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
@@ -28,9 +29,16 @@ const SystemState = struct {
     state_machines: std.ArrayList(fsm.StateMachine),
     instances: std.ArrayList(StateMachineInstance),
     frame_data: *input.FrameData,
+    physics_world: zbt.World,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
+pub fn create(
+    name: IdLocal,
+    allocator: std.mem.Allocator,
+    flecs_world: *flecs.World,
+    frame_data: *input.FrameData,
+    physics_world: zbt.World,
+) !*SystemState {
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder
         .with(fd.FSM);
@@ -46,6 +54,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.W
         .state_machines = std.ArrayList(fsm.StateMachine).init(allocator),
         .instances = std.ArrayList(StateMachineInstance).init(allocator),
         .frame_data = frame_data,
+        .physics_world = physics_world,
     };
 
     flecs_world.observer(ObserverCallback, .on_set, system);
@@ -151,6 +160,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 // .data = instance.blob_array.getBlob(i),
                 .transition_events = .{},
                 .flecs_world = system.flecs_world,
+                .physics_world = system.physics_world,
                 .dt = dt4,
             };
             fsm_state.update(ctx);

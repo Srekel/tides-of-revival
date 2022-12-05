@@ -4,7 +4,6 @@ const flecs = @import("flecs");
 const gfx = @import("../gfx_wgpu.zig");
 const zgpu = @import("zgpu");
 const zm = @import("zmath");
-const zbt = @import("zbullet");
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;

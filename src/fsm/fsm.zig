@@ -4,6 +4,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
 const zm = @import("zmath");
 const input = @import("../input.zig");
+const zbt = @import("zbullet");
 
 pub const TriggerEvent = struct {
     id: IdLocal,
@@ -92,6 +93,7 @@ pub const StateFuncContext = struct {
     transition_events: std.BoundedArray(Trigger, 32),
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
+    physics_world: zbt.World,
     blob_array: BlobArray(16),
     frame_data: *const input.FrameData,
     dt: zm.F32x4,

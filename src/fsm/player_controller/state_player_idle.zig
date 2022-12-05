@@ -9,6 +9,7 @@ const fd = @import("../../flecs_data.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
+const zbt = @import("zbullet");
 
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 10.7;
@@ -48,6 +49,24 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
     zm.store(pos.elems()[0..], cpos, 3);
 }
 
+fn updateSnapToTerrain(physics_world: zbt.World, pos: *fd.Position) void {
+    var ray_result: zbt.RayCastResult = undefined;
+    const ray_origin = fd.Position.init(pos.x, pos.y + 20, pos.z);
+    const ray_end = fd.Position.init(pos.x, pos.y - 10, pos.z);
+    const hit = physics_world.rayTestClosest(
+        ray_origin.elemsConst()[0..],
+        ray_end.elemsConst()[0..],
+        .{ .default = true }, // zbt.CBT_COLLISION_FILTER_DEFAULT,
+        zbt.CollisionFilter.all,
+        .{ .use_gjk_convex_test = true }, // zbt.CBT_RAYCAST_FLAG_USE_GJK_CONVEX_TEST,
+        &ray_result,
+    );
+
+    if (hit) {
+        pos.y = ray_result.hit_point_world[1];
+    }
+}
+
 pub const StateIdle = struct {
     dummy: u32,
 };
@@ -84,6 +103,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         }
 
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
+        updateSnapToTerrain(ctx.physics_world, comps.pos);
     }
 }
 
