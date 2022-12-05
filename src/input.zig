@@ -10,9 +10,9 @@ pub const FrameData = struct {
     targets_double_buffer: [2]TargetMap,
     targets: *TargetMap = undefined,
     map: KeyMap,
-    window: zglfw.Window,
+    window: *zglfw.Window,
 
-    pub fn create(allocator: std.mem.Allocator, keymap: KeyMap, target_defaults: TargetMap, window: zglfw.Window) FrameData {
+    pub fn create(allocator: std.mem.Allocator, keymap: KeyMap, target_defaults: TargetMap, window: *zglfw.Window) FrameData {
         var res: FrameData = .{
             .target_defaults = target_defaults,
             .targets_double_buffer = .{ TargetMap.init(allocator), TargetMap.init(allocator) },

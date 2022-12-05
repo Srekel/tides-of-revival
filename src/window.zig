@@ -9,7 +9,7 @@ const zm = @import("zmath");
 // const imgui_font = @import("build_options").imgui_font;
 const window_title = "The Elvengroin Legacy";
 
-var windows: std.ArrayList(zglfw.Window) = undefined;
+var windows: std.ArrayList(*zglfw.Window) = undefined;
 
 // pub fn run() !void {
 //     defer window.destroy();
@@ -34,7 +34,7 @@ var windows: std.ArrayList(zglfw.Window) = undefined;
 
 pub fn init(allocator: std.mem.Allocator) !void {
     try zglfw.init();
-    windows = std.ArrayList(zglfw.Window).init(allocator);
+    windows = std.ArrayList(*zglfw.Window).init(allocator);
 }
 
 pub fn deinit() void {
@@ -42,15 +42,15 @@ pub fn deinit() void {
     zglfw.terminate();
 }
 
-pub fn createWindow(title: [:0]const u8) !zglfw.Window {
+pub fn createWindow(title: [:0]const u8) !*zglfw.Window {
     // const shareWindow = if (windows.items.len > 0) windows.items[0] else null;
     const shareWindow = if (windows.items.len > 10000) windows.items[0] else null;
-    const window = try zglfw.createWindow(1280, 720, title, null, shareWindow);
+    const window = try zglfw.Window.create(1280, 720, title, null, shareWindow);
     try windows.append(window);
     return window;
 }
 
-pub fn destroyWindow(window_to_destroy: zglfw.Window) void {
+pub fn destroyWindow(window_to_destroy: *zglfw.Window) void {
     for (windows.items) |window, i| {
         if (window == window_to_destroy) {
             _ = windows.swapRemove(i);

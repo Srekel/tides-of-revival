@@ -13,7 +13,7 @@ pub const GfxState = struct {
     command_buffers: std.ArrayList(wgpu.CommandBuffer),
 };
 
-pub fn init(allocator: std.mem.Allocator, window: zglfw.Window) !GfxState {
+pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !GfxState {
     const gctx = try zgpu.GraphicsContext.create(allocator, window);
 
     // Create a depth texture and it's 'view'.
