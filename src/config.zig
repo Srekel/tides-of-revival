@@ -25,6 +25,8 @@ pub const input_cursor_pos = IdLocal.init("cursor_pos");
 pub const input_cursor_movement = IdLocal.init("cursor_movement");
 pub const input_cursor_movement_x = IdLocal.init("cursor_movement_x");
 pub const input_cursor_movement_y = IdLocal.init("cursor_movement_y");
+pub const input_look_yaw = IdLocal.init("look_yaw");
+pub const input_look_pitch = IdLocal.init("look_pitch");
 
 pub const input_camera_switch = IdLocal.init("camera_switch");
 pub const input_exit = IdLocal.init("exit");

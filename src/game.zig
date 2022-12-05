@@ -51,6 +51,8 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_cursor_movement, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(config.input_cursor_movement_x, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_cursor_movement_y, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_look_yaw, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_look_pitch, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_switch, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_exit, input.TargetValue{ .number = 0 });
         break :blk itm;
@@ -93,6 +95,20 @@ pub fn run() void {
         });
         mouse_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_cursor_movement_y,
+            .class = input.ProcessorClass{ .axis_conversion = input.ProcessorAxisConversion{
+                .source_target = config.input_cursor_movement,
+                .conversion = .xy_to_y,
+            } },
+        });
+        mouse_map.processors.appendAssumeCapacity(.{
+            .target_id = config.input_look_yaw,
+            .class = input.ProcessorClass{ .axis_conversion = input.ProcessorAxisConversion{
+                .source_target = config.input_cursor_movement,
+                .conversion = .xy_to_x,
+            } },
+        });
+        mouse_map.processors.appendAssumeCapacity(.{
+            .target_id = config.input_look_pitch,
             .class = input.ProcessorClass{ .axis_conversion = input.ProcessorAxisConversion{
                 .source_target = config.input_cursor_movement,
                 .conversion = .xy_to_y,

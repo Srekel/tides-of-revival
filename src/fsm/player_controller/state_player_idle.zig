@@ -19,7 +19,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
         speed_scalar = 0.5;
     }
 
-    const yaw = input_state.get(config.input_cursor_movement_x);
+    const yaw = input_state.get(config.input_look_yaw);
 
     rot.yaw += 0.0025 * yaw.number;
     const speed = zm.f32x4s(speed_scalar);

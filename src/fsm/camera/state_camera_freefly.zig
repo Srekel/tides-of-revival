@@ -11,8 +11,8 @@ const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 
 fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void {
-    const movement_yaw = input_state.get(config.input_cursor_movement_x);
-    const movement_pitch = input_state.get(config.input_cursor_movement_y);
+    const movement_yaw = input_state.get(config.input_look_yaw);
+    const movement_pitch = input_state.get(config.input_look_pitch);
 
     // if (cam.window.getMouseButton(.right) == .press) {
     rot.pitch += 0.0025 * movement_pitch.number;

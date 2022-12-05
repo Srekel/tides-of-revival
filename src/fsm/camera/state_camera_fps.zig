@@ -11,7 +11,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 
 fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void {
-    const pitch = input_state.get(config.input_cursor_movement_y);
+    const pitch = input_state.get(config.input_look_pitch);
     rot.pitch += 0.0025 * pitch.number;
     rot.pitch = math.min(rot.pitch, 0.48 * math.pi);
     rot.pitch = math.max(rot.pitch, -0.48 * math.pi);
