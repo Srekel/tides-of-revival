@@ -283,6 +283,7 @@ pub const CIFSM = struct {
 
 pub const FSM = struct {
     state_machine_lookup: u16,
+    blob_lookup: u64,
 };
 
 // ██╗███╗   ██╗██████╗ ██╗   ██╗████████╗

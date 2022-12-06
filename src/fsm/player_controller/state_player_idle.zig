@@ -12,10 +12,10 @@ const config = @import("../../config.zig");
 const zbt = @import("zbullet");
 
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
-    var speed_scalar: f32 = 10.7;
-    if (input_state.targets.contains(config.input_move_fast)) {
+    var speed_scalar: f32 = 1.7;
+    if (input_state.held(config.input_move_fast)) {
         speed_scalar = 6;
-    } else if (input_state.targets.contains(config.input_move_slow)) {
+    } else if (input_state.held(config.input_move_slow)) {
         speed_scalar = 0.5;
     }
 
@@ -68,7 +68,8 @@ fn updateSnapToTerrain(physics_world: zbt.World, pos: *fd.Position) void {
 }
 
 pub const StateIdle = struct {
-    dummy: u32,
+    amount_moved: f32,
+    sfx_footstep_index: u32,
 };
 
 const StatePlayerIdle = struct {
@@ -78,6 +79,8 @@ const StatePlayerIdle = struct {
 fn enter(ctx: fsm.StateFuncContext) void {
     const self = Util.castBytes(StatePlayerIdle, ctx.state.self);
     _ = self;
+    // const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
+    // state.*.amount_moved = 0;
 }
 
 fn exit(ctx: fsm.StateFuncContext) void {
@@ -94,6 +97,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         pos: *fd.Position,
         rot: *fd.EulerRotation,
         fwd: *fd.Forward,
+        fsm: *fd.FSM,
         cam: *fd.Camera,
     });
 
@@ -102,8 +106,38 @@ fn update(ctx: fsm.StateFuncContext) void {
             continue;
         }
 
+        const pos_before = comps.pos.*;
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
+        const pos_after = comps.pos.*;
+        const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
+        state.*.amount_moved += @fabs(pos_after.x - pos_before.x);
+        state.*.amount_moved += @fabs(pos_after.y - pos_before.y);
+
+        // HACK!!!
+        // HACK!!!
+        if (state.amount_moved < 0) {
+            state.amount_moved = 0;
+        }
+        if (state.sfx_footstep_index > 1) {
+            state.sfx_footstep_index = 0;
+        }
+
+        if (state.amount_moved > 3) {
+            state.amount_moved = 0;
+
+            const sfx_paths = [_][:0]const u8{
+                "content/audio/material/PM_SDGS_113 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
+                "content/audio/material/PM_SDGS_186 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
+            };
+            const sfx_path = sfx_paths[state.sfx_footstep_index];
+            state.sfx_footstep_index = 1 - state.sfx_footstep_index;
+            const sfx_footstep = ctx.audio_engine.createSoundFromFile(
+                sfx_path,
+                .{ .flags = .{ .stream = false } },
+            ) catch unreachable;
+            sfx_footstep.start() catch unreachable;
+        }
     }
 }
 
@@ -114,6 +148,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.Position)
         .with(fd.EulerRotation)
         .with(fd.Forward)
+        .with(fd.FSM)
         .without(fd.Camera);
 
     var query = query_builder.buildQuery();

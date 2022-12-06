@@ -162,6 +162,7 @@ pub fn run() void {
         &flecs_world,
         &input_frame_data,
         physics_sys.physics_world,
+        audio_engine,
     );
     defer state_machine_system.destroy(state_machine_sys);
 

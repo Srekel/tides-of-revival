@@ -8,6 +8,7 @@ const fsm = @import("../fsm/fsm.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
 const input = @import("../input.zig");
+const zaudio = @import("zaudio");
 const zbt = @import("zbullet");
 
 const StatePlayerIdle = @import("../fsm/player_controller/state_player_idle.zig");
@@ -30,6 +31,7 @@ const SystemState = struct {
     instances: std.ArrayList(StateMachineInstance),
     frame_data: *input.FrameData,
     physics_world: zbt.World,
+    audio_engine: *zaudio.Engine,
 };
 
 pub fn create(
@@ -38,6 +40,7 @@ pub fn create(
     flecs_world: *flecs.World,
     frame_data: *input.FrameData,
     physics_world: zbt.World,
+    audio_engine: *zaudio.Engine,
 ) !*SystemState {
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder
@@ -55,6 +58,7 @@ pub fn create(
         .instances = std.ArrayList(StateMachineInstance).init(allocator),
         .frame_data = frame_data,
         .physics_world = physics_world,
+        .audio_engine = audio_engine,
     };
 
     flecs_world.observer(ObserverCallback, .on_set, system);
@@ -153,7 +157,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         for (instance.curr_states.items) |fsm_state| {
             const ctx = fsm.StateFuncContext{
                 .state = fsm_state,
-                .blob_array = instance.blob_array,
+                .blob_array = &instance.blob_array,
                 .allocator = system.allocator,
                 .frame_data = system.frame_data,
                 // .entity = instance.entities.items[i],
@@ -161,6 +165,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .transition_events = .{},
                 .flecs_world = system.flecs_world,
                 .physics_world = system.physics_world,
+                .audio_engine = system.audio_engine,
                 .dt = dt4,
             };
             fsm_state.update(ctx);
@@ -207,12 +212,12 @@ fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
         const ent = it.entity();
         state_machine_instance.entities.append(ent) catch unreachable;
         state_machine_instance.curr_states.append(state_machine_instance.state_machine.initial_state) catch unreachable;
-        const lol = state_machine_instance.blob_array.addBlob();
-        _ = lol;
+        const blob_lookup = state_machine_instance.blob_array.addBlob();
 
         ent.remove(fd.CIFSM);
         ent.set(fd.FSM{
             .state_machine_lookup = @intCast(u16, smi_i.index),
+            .blob_lookup = blob_lookup,
         });
         ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
     }

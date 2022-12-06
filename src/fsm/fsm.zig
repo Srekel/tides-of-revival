@@ -4,6 +4,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
 const zm = @import("zmath");
 const input = @import("../input.zig");
+const zaudio = @import("zaudio");
 const zbt = @import("zbullet");
 
 pub const TriggerEvent = struct {
@@ -94,8 +95,9 @@ pub const StateFuncContext = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
     physics_world: zbt.World,
-    blob_array: BlobArray(16),
+    blob_array: *BlobArray(16),
     frame_data: *const input.FrameData,
+    audio_engine: *zaudio.Engine,
     dt: zm.F32x4,
 };
 
