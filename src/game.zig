@@ -18,6 +18,7 @@ const triangle_system = @import("systems/triangle_system.zig");
 const fd = @import("flecs_data.zig");
 const config = @import("config.zig");
 const IdLocal = @import("variant.zig").IdLocal;
+const zaudio = @import("zaudio");
 const znoise = @import("znoise");
 const ztracy = @import("ztracy");
 
@@ -26,6 +27,15 @@ const fsm = @import("fsm/fsm.zig");
 pub fn run() void {
     const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
     defer tracy_zone.End();
+
+    zaudio.init(std.heap.page_allocator);
+    defer zaudio.deinit();
+    const audio_engine = zaudio.Engine.create(null) catch unreachable;
+    const music = audio_engine.createSoundFromFile(
+        "content/audio/music/Winter_Fire_Final.mp3",
+        .{ .flags = .{ .stream = true } },
+    ) catch unreachable;
+    music.start() catch unreachable;
 
     var flecs_world = flecs.World.init();
     defer flecs_world.deinit();

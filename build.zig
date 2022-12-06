@@ -3,6 +3,7 @@ const Builder = std.build.Builder;
 
 const flecs = @import("external/zig-flecs/build.zig");
 // const glfw = @import("external/zig-gamedev/libs/mach-glfw/build.zig");
+const zaudio = @import("external/zig-gamedev/libs/zaudio/build.zig");
 const zbullet = @import("external/zig-gamedev/libs/zbullet/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
 const zgpu = @import("external/zig-gamedev/libs/zgpu/build.zig");
@@ -35,6 +36,7 @@ pub fn build(b: *Builder) void {
     const ztracy_options = ztracy.BuildOptionsStep.init(b, .{ .enable_ztracy = ztracy_enable });
     const ztracy_pkg = ztracy.getPkg(&.{ztracy_options.getPkg()});
 
+    exe.addPackage(zaudio.pkg);
     exe.addPackage(zbullet.pkg);
     exe.addPackage(zgpu_pkg);
     exe.addPackage(zglfw.pkg);
@@ -44,6 +46,7 @@ pub fn build(b: *Builder) void {
     exe.addPackage(zpool.pkg);
     exe.addPackage(ztracy_pkg);
 
+    zaudio.link(exe);
     zbullet.link(exe);
     zglfw.link(exe);
     zgpu.link(exe, zgpu_options);
