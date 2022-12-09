@@ -216,6 +216,9 @@ pub fn run() void {
     // );
     // defer gui_system.destroy(&gui_sys);
 
+    // Make sure systems are initialized and any initial system entities are created.
+    // update(&flecs_world, &gfx_state);
+
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
     // █████╗  ██╔██╗ ██║   ██║   ██║   ██║   ██║█████╗  ███████╗
@@ -263,12 +266,30 @@ pub fn run() void {
     // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
+    const player_pos = blk: {
+        var builder = flecs.QueryBuilder.init(flecs_world);
+        _ = builder
+            .with(fd.SpawnPoint)
+            .with(fd.Position);
+
+        var filter = builder.buildFilter();
+        defer filter.deinit();
+
+        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
+        while (entity_iter.next()) |comps| {
+            break :blk comps.pos.*;
+        }
+        unreachable;
+    };
+
+    // _ = player_pos;
     const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
     const player_ent = flecs_world.newEntity();
+    // player_ent.set(player_pos);
     player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
     player_ent.set(fd.EulerRotation{});
     player_ent.set(fd.Scale.createScalar(1.7));
-    player_ent.set(fd.Transform.init(20, player_height, 20));
+    player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
     player_ent.set(fd.Velocity{});
     player_ent.set(fd.Dynamic{});
@@ -324,14 +345,18 @@ pub fn run() void {
             break;
         }
 
-        const stats = gfx_state.gctx.stats;
-        // const dt = @floatCast(f32, stats.delta_time) * 0.2;
-        const dt = @floatCast(f32, stats.delta_time);
-        gfx.update(&gfx_state);
-        // gui_system.preUpdate(&gui_sys);
-
-        flecs_world.progress(dt);
-        // gui_system.update(&gui_sys);
-        gfx.draw(&gfx_state);
+        update(&flecs_world, &gfx_state);
     }
+}
+
+fn update(flecs_world: *flecs.World, gfx_state: *gfx.GfxState) void {
+    const stats = gfx_state.gctx.stats;
+    // const dt = @floatCast(f32, stats.delta_time) * 0.2;
+    const dt = @floatCast(f32, stats.delta_time);
+    gfx.update(gfx_state);
+    // gui_system.preUpdate(&gui_sys);
+
+    flecs_world.progress(dt);
+    // gui_system.update(&gui_sys);
+    gfx.draw(gfx_state);
 }

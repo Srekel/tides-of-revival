@@ -127,6 +127,7 @@ pub fn create(
 
     //const time = @floatCast(f32, state.gctx.stats.time);
     // var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
+    var added_spawn = false;
     var rand1 = std.rand.DefaultPrng.init(0);
     var rand = rand1.random();
     var villageCount: u32 = 0;
@@ -304,6 +305,15 @@ pub fn create(
                 .id = IdLocal.id64("sphere"),
                 .basecolor_roughness = city_params.center_color,
             });
+
+            if (!added_spawn) {
+                added_spawn = true;
+                var spawn_pos = fd.Position.init(city_pos.x, city_height, city_pos.z);
+                var spawn_ent = state.flecs_world.newEntity();
+                spawn_ent.set(spawn_pos);
+                spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
+                // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
+            }
         }
     }
 

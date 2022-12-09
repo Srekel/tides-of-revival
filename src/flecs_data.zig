@@ -119,6 +119,16 @@ pub const Transform = struct {
             },
         };
     }
+    pub fn initFromPosition(pos: Position) Transform {
+        return .{
+            .matrix = [_]f32{
+                1.0,   0.0,   0.0,
+                0.0,   1.0,   0.0,
+                0.0,   0.0,   1.0,
+                pos.x, pos.y, pos.z,
+            },
+        };
+    }
     pub fn initWithScale(x: f32, y: f32, z: f32, scale: f32) Transform {
         return .{
             .matrix = [_]f32{
@@ -296,4 +306,16 @@ pub const FSM = struct {
 pub const Input = struct {
     active: bool = false,
     index: u32,
+};
+
+// ███████╗██████╗  █████╗ ██╗    ██╗███╗   ██╗
+// ██╔════╝██╔══██╗██╔══██╗██║    ██║████╗  ██║
+// ███████╗██████╔╝███████║██║ █╗ ██║██╔██╗ ██║
+// ╚════██║██╔═══╝ ██╔══██║██║███╗██║██║╚██╗██║
+// ███████║██║     ██║  ██║╚███╔███╔╝██║ ╚████║
+// ╚══════╝╚═╝     ╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═══╝
+
+pub const SpawnPoint = struct {
+    active: bool = false,
+    id:u64,
 };
