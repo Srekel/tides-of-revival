@@ -216,6 +216,7 @@ pub fn run() void {
     // );
     // defer gui_system.destroy(&gui_sys);
 
+    city_system.createEntities(city_sys);
     // Make sure systems are initialized and any initial system entities are created.
     // update(&flecs_world, &gfx_state);
 

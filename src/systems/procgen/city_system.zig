@@ -121,8 +121,11 @@ pub fn create(
         .query_combat = query_combat,
         .query_syncpos = query_syncpos,
     };
-
-    var city_ents = std.ArrayList(CityEnt).init(allocator);
+    return state;
+}
+pub fn createEntities(state: *SystemState) void {
+    var flecs_world = state.flecs_world;
+    var city_ents = std.ArrayList(CityEnt).init(state.allocator);
     defer city_ents.deinit();
 
     //const time = @floatCast(f32, state.gctx.stats.time);
@@ -394,8 +397,6 @@ pub fn create(
             // .curr_target_city = 0,
         });
     }
-
-    return state;
 }
 
 pub fn destroy(state: *SystemState) void {
