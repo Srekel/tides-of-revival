@@ -218,7 +218,7 @@ pub fn run() void {
 
     city_system.createEntities(city_sys);
     // Make sure systems are initialized and any initial system entities are created.
-    // update(&flecs_world, &gfx_state);
+    update(&flecs_world, &gfx_state);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -284,10 +284,10 @@ pub fn run() void {
     };
 
     // _ = player_pos;
-    const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
+    // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
     const player_ent = flecs_world.newEntity();
-    // player_ent.set(player_pos);
-    player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
+    player_ent.set(player_pos);
+    // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
     player_ent.set(fd.EulerRotation{});
     player_ent.set(fd.Scale.createScalar(1.7));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
@@ -307,9 +307,9 @@ pub fn run() void {
     player_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
     const player_camera_ent = flecs_world.newEntity();
-    player_camera_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
+    player_camera_ent.set(fd.Position{ .x = 0, .y = 1, .z = 0 });
     player_camera_ent.set(fd.EulerRotation{});
-    player_camera_ent.set(fd.Scale{});
+    player_camera_ent.set(fd.Scale.createScalar(0.5));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
     player_camera_ent.set(fd.CICamera{
@@ -324,7 +324,7 @@ pub fn run() void {
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("cylinder"),
+        .id = IdLocal.id64("sphere"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
     });
 

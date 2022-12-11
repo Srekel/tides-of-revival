@@ -136,10 +136,10 @@ pub const fs = common ++
 \\      }
 \\
 \\      let sun_height = sin(frame_uniforms.time * 0.5);
-\\      let sun = max(0.0, sun_height) * 0.3 * base_color * max(0.0, dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5))));
-\\      let sun2 = 0.5 * base_color * max(0.0, dot(n, normalize( vec3(0.0, 1.0, 0.0))));
+\\      let sun = max(0.0, sun_height) * 0.2 * base_color * max(0.0, dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5))));
+// \\      let sun2 = 0.5 * base_color * max(0.0, dot(n, normalize( vec3(0.0, 1.0, 0.0))));
 \\
-\\      let ambient_day   = vec3(0.0002 * max(0.0, sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
+\\      let ambient_day   = vec3(0.00002 * max(0.0, sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
 \\      let ambient_night = vec3(0.05 * max(0.0, sign(-sun_height + 0.1))) * vec3(0.2, 0.2, 1.0) * base_color;
 \\      let ambient = (ambient_day + ambient_night) * ao * dot(n, vec3(0.0, 1.0, 0.0));
 \\      let fog_dist = length(position - frame_uniforms.camera_position);

@@ -169,6 +169,26 @@ pub const Transform = struct {
     // pub fn elemsConst(self: *const Scale) *const [3]f32 {
     //     return @ptrCast(*const [3]f32, &self.x);
     // }
+    pub fn print(self: Transform, prefix: []const u8) void {
+        std.debug.print(
+            "{s}\n{d:>7.3} {d:>7.3} {d:>7.3}\n{d:>7.3} {d:>7.3} {d:>7.3}\n{d:>7.3} {d:>7.3} {d:>7.3}\n{d:>7.3} {d:>7.3} {d:>7.3}\n",
+            .{
+                prefix,
+                self.matrix[0],
+                self.matrix[1],
+                self.matrix[2],
+                self.matrix[3],
+                self.matrix[4],
+                self.matrix[5],
+                self.matrix[6],
+                self.matrix[7],
+                self.matrix[8],
+                self.matrix[9],
+                self.matrix[10],
+                self.matrix[11],
+            },
+        );
+    }
 };
 
 pub const Dynamic = struct { // TODO: Replace with empty tag
@@ -317,5 +337,5 @@ pub const Input = struct {
 
 pub const SpawnPoint = struct {
     active: bool = false,
-    id:u64,
+    id: u64,
 };

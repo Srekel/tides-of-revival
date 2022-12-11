@@ -228,15 +228,10 @@ pub fn createEntities(state: *SystemState) void {
                 if (wallY < 5) {
                     continue;
                 }
-                // var wallPos = .{
-                //     .x = city_pos.x + radius * @cos(angleRadians),
-                //     .y = wallY - city_params.wall_scale.y * 0.5,
-                //     .z = city_pos.z + radius * @sin(angleRadians),
-                // };
 
                 const wall_pos = fd.Position.init(
                     city_pos.x + radius * @cos(angleRadians),
-                    wallY - city_params.wall_scale.y * 0.5,
+                    wallY - city_params.wall_scale.y * 0.15,
                     city_pos.z + radius * @sin(angleRadians),
                 );
                 const wall_rot = fd.EulerRotation.init(
@@ -282,14 +277,17 @@ pub fn createEntities(state: *SystemState) void {
                 if (houseY < 10) {
                     continue;
                 }
+
+                var house_transform: fd.Transform = undefined;
+                const z_scale_matrix = zm.scaling(7, 3, 4);
+                const z_rot_matrix = zm.matFromRollPitchYaw(0, angleRadians, 0);
+                const z_translate_matrix = zm.translation(housePos.x, houseY - 2, housePos.z);
+                const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
+                const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
+                zm.storeMat43(&house_transform.matrix, z_srt_matrix);
+
                 var house_ent = flecs_world.newEntity();
-                const zPos = zm.translation(housePos.x, houseY - 2, housePos.z);
-                const z_rot_y = zm.rotationY(angleRadians);
-                // const scale = zm.scaling(angleRadians);
-                const z_rot = zm.mul(z_rot_y, zPos);
-                var transform: fd.Transform = undefined;
-                zm.storeMat43(transform.matrix[0..], z_rot);
-                house_ent.set(transform);
+                house_ent.set(house_transform);
                 house_ent.set(fd.Scale.create(7, 3, 4));
                 house_ent.set(fd.CIShapeMeshInstance{
                     .id = IdLocal.id64("cube"),

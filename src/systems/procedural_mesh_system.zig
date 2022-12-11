@@ -5,6 +5,7 @@ const math = std.math;
 const glfw = @import("glfw");
 const zgpu = @import("zgpu");
 const zm = @import("zmath");
+const zmu = @import("zmathutil");
 const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 const wgsl = @import("procedural_mesh_system_wgsl.zig");
@@ -323,7 +324,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
-        .withReadonly(fd.Position);
+        .withReadonly(fd.Transform);
     var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_lights
         .with(fd.Light)
@@ -381,21 +382,21 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
-        pos: *const fd.Position,
+        transform: *const fd.Transform,
     };
-    var camera_comps: ?CameraQueryComps = null;
-    {
+    var camera_comps: ?CameraQueryComps = blk: {
         var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
         while (entity_iter_camera.next()) |comps| {
             if (comps.cam.active) {
-                camera_comps = comps;
-                break;
+                break :blk comps;
             }
         }
 
-        if (camera_comps == null) {
-            return;
-        }
+        break :blk null;
+    };
+
+    if (camera_comps == null) {
+        return;
     }
 
     const cam = camera_comps.?.cam;
@@ -448,9 +449,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             pass.setPipeline(pipeline);
 
             {
+                const pos = camera_comps.?.transform.getPos00();
                 const mem = gctx.uniformsAllocate(FrameUniforms, 1);
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-                mem.slice[0].camera_position = camera_comps.?.pos.elemsConst().*;
+                mem.slice[0].camera_position = pos;
                 mem.slice[0].time = @floatCast(f32, state.gctx.stats.time);
                 mem.slice[0].light_count = 0;
 
