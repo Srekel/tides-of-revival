@@ -31,11 +31,13 @@ pub fn run() void {
     zaudio.init(std.heap.page_allocator);
     defer zaudio.deinit();
     const audio_engine = zaudio.Engine.create(null) catch unreachable;
+    defer audio_engine.destroy();
     const music = audio_engine.createSoundFromFile(
         "content/audio/music/Winter_Fire_Final.mp3",
         .{ .flags = .{ .stream = true } },
     ) catch unreachable;
     music.start() catch unreachable;
+    defer music.destroy();
 
     var flecs_world = flecs.World.init();
     defer flecs_world.deinit();
