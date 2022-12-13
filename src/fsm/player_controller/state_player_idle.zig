@@ -24,7 +24,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
     rot.yaw += 0.0025 * yaw.number;
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
-    var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
+    var forward = zm.util.matForward(transform);
 
     zm.store(fwd.elems()[0..], forward, 3);
 

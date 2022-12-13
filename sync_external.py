@@ -19,9 +19,9 @@ def sync_lib(folder, git_path, commit_sha):
 os.chdir("external")
 sync_lib("zig-args", "https://github.com/MasterQ32/zig-args.git", "b91e056f8ab9a995ab7f10577c89af3cb493db40")
 # sync_lib("zig-flecs", "https://github.com/prime31/zig-flecs.git")
-sync_lib("zig-flecs", "https://github.com/Srekel/zig-flecs.git", "08b50bda74c84a485151cb451917d3b3c38cc997")
-sync_lib("zig-gamedev", "https://github.com/michal-z/zig-gamedev.git", "1ab179c0523ae1de154095c98bea9f1f94d28433")
-sync_lib("zigimg", "https://github.com/zigimg/zigimg.git", "64d04a63814b54301182194dadccd1f28c91906d")
+sync_lib("zig-flecs", "https://github.com/Srekel/zig-flecs.git", "e9a1dfb524bc37ea8aa6bdaac46a5f91c8c4ce85")
+sync_lib("zig-gamedev", "https://github.com/Srekel/zig-gamedev.git", "5f11a151b23b1e3886c7c6bc0cef0cacdb5d2dca")
+sync_lib("zigimg", "https://github.com/zigimg/zigimg.git", "e57148bf6c6df395ef308e559ec833639940220c")
 # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 os.chdir("..")
 

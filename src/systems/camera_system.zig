@@ -123,7 +123,7 @@ fn updateCameraMatrices(state: *SystemState) void {
         }
 
         const transform = zm.loadMat43(comps.transform.matrix[0..]);
-        var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
+        var forward = zm.util.matForward(transform);
         var pos = transform[3];
 
         const world_to_view = zm.lookToLh(

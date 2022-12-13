@@ -32,7 +32,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, dt: zm.F32x4, input
     }
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
-    var forward = zm.normalize3(zm.mul(zm.f32x4(0.0, 0.0, 1.0, 0.0), transform));
+    var forward = zm.util.matForward(transform);
 
     const right = speed * dt * zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
     forward = speed * dt * forward;
