@@ -58,6 +58,7 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_move_forward, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_backward, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_slow, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_interact, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_fast, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_cursor_pos, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(config.input_cursor_movement, input.TargetValue{ .vector2 = .{ 0, 0 } });
@@ -83,6 +84,7 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_backward, .source = input.BindingSource{ .keyboard_key = .s } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .keyboard_key = .left_control } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .keyboard_key = .left_shift } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_interact, .source = input.BindingSource{ .keyboard_key = .e } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
 
@@ -314,6 +316,7 @@ pub fn run() void {
     player_camera_ent.set(fd.Scale.createScalar(0.5));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
+    player_camera_ent.set(fd.Forward{});
     player_camera_ent.set(fd.CICamera{
         .near = 0.1,
         .far = 10000,
