@@ -24,7 +24,7 @@ pub fn build(b: *Builder) void {
     exe.addPackagePath("args", "external/zig-args/args.zig");
 
     const zgpu_options = zgpu.BuildOptionsStep.init(b, .{
-        .uniforms_buffer_size = 32 * 1024 * 1024,
+        .uniforms_buffer_size = 64 * 1024 * 1024,
         // .dawn_skip_validation = true,
     });
     const zgpu_pkg = zgpu.getPkg(&.{ zgpu_options.getPkg(), zpool.pkg, zglfw.pkg });

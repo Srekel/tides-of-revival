@@ -752,12 +752,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 while (z < config.patch_width) : (z += 8) {
                     var x: f32 = 0;
                     while (x < config.patch_width) : (x += 8) {
-                        const world_x = @intToFloat(f32, patch.pos[0]) + x + rand.float(f32) * 6;
-                        const world_z = @intToFloat(f32, patch.pos[1]) + z + rand.float(f32) * 6;
+                        const world_x = @intToFloat(f32, patch.pos[0]) + x + rand.float(f32) * 10;
+                        const world_z = @intToFloat(f32, patch.pos[1]) + z + rand.float(f32) * 10;
                         const height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, world_z * config.noise_scale_xz));
                         if (height > 10 and height < 300) {
                             const noise = state.noise.noise2((world_x + 1000) * 4, (world_z + 1000) * 4);
-                            if (noise > 0.0) {
+                            if (noise > -0.1) {
                                 const trunk_pos = fd.Position.init(world_x, height, world_z);
                                 const trunk_scale = fd.Scale.create(0.4 + rand.float(f32) * 0.1, 3.0, 0.4 + rand.float(f32) * 0.1);
                                 var trunk_transform: fd.Transform = undefined;
