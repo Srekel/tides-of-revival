@@ -144,7 +144,7 @@ pub fn createEntities(state: *SystemState) void {
                 .z = (z + rand.float(f32) * 1) * config.patch_width,
             };
             const city_height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(city_pos.x * config.noise_scale_xz, city_pos.z * config.noise_scale_xz));
-            if (city_height < 25) {
+            if (city_height < 100) {
                 continue;
             }
 
