@@ -229,6 +229,22 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
+    const player_pos = blk: {
+        var builder = flecs.QueryBuilder.init(flecs_world);
+        _ = builder
+            .with(fd.SpawnPoint)
+            .with(fd.Position);
+
+        var filter = builder.buildFilter();
+        defer filter.deinit();
+
+        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
+        while (entity_iter.next()) |comps| {
+            break :blk comps.pos.*;
+        }
+        unreachable;
+    };
+
     // const entity3 = flecs_world.newEntity();
     // entity3.set(fd.Transform.init(150, 500, 0.6));
     // entity3.set(fd.Scale.createScalar(10.5));
@@ -244,7 +260,7 @@ pub fn run() void {
     // });
 
     const debug_camera_ent = flecs_world.newEntity();
-    debug_camera_ent.set(fd.Position{ .x = 200, .y = 200, .z = 50 });
+    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.EulerRotation{});
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
@@ -268,22 +284,6 @@ pub fn run() void {
     // ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
     // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-
-    const player_pos = blk: {
-        var builder = flecs.QueryBuilder.init(flecs_world);
-        _ = builder
-            .with(fd.SpawnPoint)
-            .with(fd.Position);
-
-        var filter = builder.buildFilter();
-        defer filter.deinit();
-
-        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
-        while (entity_iter.next()) |comps| {
-            break :blk comps.pos.*;
-        }
-        unreachable;
-    };
 
     // _ = player_pos;
     // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
