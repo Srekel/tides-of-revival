@@ -177,15 +177,15 @@ pub fn run() void {
         .octaves = 10,
     };
 
-    var city_sys = try city_system.create(
-        IdLocal.init("city_system"),
-        std.heap.c_allocator,
-        &gfx_state,
-        &flecs_world,
-        physics_sys.physics_world,
-        terrain_noise,
-    );
-    defer city_system.destroy(city_sys);
+    // var city_sys = try city_system.create(
+    //     IdLocal.init("city_system"),
+    //     std.heap.c_allocator,
+    //     &gfx_state,
+    //     &flecs_world,
+    //     physics_sys.physics_world,
+    //     terrain_noise,
+    // );
+    // defer city_system.destroy(city_sys);
 
     var camera_sys = try camera_system.create(
         IdLocal.init("camera_system"),
@@ -262,7 +262,7 @@ pub fn run() void {
     // });
 
     const debug_camera_ent = flecs_world.newEntity();
-    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.EulerRotation{});
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});

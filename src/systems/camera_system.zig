@@ -37,6 +37,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     var query_builder_transform = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_transform
         .with(fd.Transform)
+        .optional(fd.Forward)
         .withReadonly(fd.Position)
         .withReadonly(fd.EulerRotation)
         .withReadonly(fd.Scale)
@@ -82,6 +83,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 fn updateTransformHierarchy(state: *SystemState) void {
     var entity_iter_transform = state.query_transform.iterator(struct {
         transform: *fd.Transform,
+        fwd: ?*fd.Forward,
         pos: *const fd.Position,
         rot: *const fd.EulerRotation,
         scale: *const fd.Scale,
@@ -96,13 +98,21 @@ fn updateTransformHierarchy(state: *SystemState) void {
         const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
         const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
 
-        if (comps.parent_transform) |parent_transform| {
-            const z_parent_matrix = zm.loadMat43(parent_transform.matrix[0..]);
-            const z_world_matrix = zm.mul(z_srt_matrix, z_parent_matrix);
-            zm.storeMat43(&comps.transform.matrix, z_world_matrix);
-        } else {
-            zm.storeMat43(&comps.transform.matrix, z_srt_matrix);
+        const z_world_matrix = blk: {
+            if (comps.parent_transform) |parent_transform| {
+                const z_parent_matrix = zm.loadMat43(parent_transform.matrix[0..]);
+                const z_world_matrix = zm.mul(z_srt_matrix, z_parent_matrix);
+                break :blk z_world_matrix;
+            } else {
+                break :blk z_srt_matrix;
+            }
+        };
+
+        if (comps.fwd) |fwd| {
+            const z_fwd = zm.util.getForwardVec(z_world_matrix);
+            zm.storeArr3(fwd.*.elems(), z_fwd);
         }
+        zm.storeMat43(&comps.transform.matrix, z_world_matrix);
     }
 }
 
@@ -123,7 +133,7 @@ fn updateCameraMatrices(state: *SystemState) void {
         }
 
         const transform = zm.loadMat43(comps.transform.matrix[0..]);
-        var forward = zm.util.matForward(transform);
+        var forward = zm.util.getForwardVec(transform);
         var pos = transform[3];
 
         const world_to_view = zm.lookToLh(
