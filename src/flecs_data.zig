@@ -32,8 +32,8 @@ pub const ColorRGB = struct {
 };
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
 
-const LocalSpace = struct {};
-const WorldSpace = struct {};
+pub const LocalSpace = struct {};
+pub const WorldSpace = struct {};
 
 pub const Position = struct {
     x: f32,
