@@ -128,17 +128,18 @@ fn update(ctx: fsm.StateFuncContext) void {
         if (state.amount_moved > 3) {
             state.amount_moved = 0;
 
-            const sfx_paths = [_][:0]const u8{
-                "content/audio/material/PM_SDGS_113 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
-                "content/audio/material/PM_SDGS_186 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
-            };
-            const sfx_path = sfx_paths[state.sfx_footstep_index];
-            state.sfx_footstep_index = 1 - state.sfx_footstep_index;
-            const sfx_footstep = ctx.audio_engine.createSoundFromFile(
-                sfx_path,
-                .{ .flags = .{ .stream = false } },
-            ) catch unreachable;
-            sfx_footstep.start() catch unreachable;
+            // TODO proper audio resource management
+            // const sfx_paths = [_][:0]const u8{
+            //     "content/audio/material/PM_SDGS_113 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
+            //     "content/audio/material/PM_SDGS_186 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
+            // };
+            // const sfx_path = sfx_paths[state.sfx_footstep_index];
+            // state.sfx_footstep_index = 1 - state.sfx_footstep_index;
+            // const sfx_footstep = ctx.audio_engine.createSoundFromFile(
+            //     sfx_path,
+            //     .{ .flags = .{ .stream = false } },
+            // ) catch unreachable;
+            // sfx_footstep.start() catch unreachable;
         }
     }
 }

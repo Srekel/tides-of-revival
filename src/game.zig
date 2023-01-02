@@ -291,6 +291,7 @@ pub fn run() void {
     // _ = player_pos;
     // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
     const player_ent = flecs_world.newEntity();
+    player_ent.setName("player");
     player_ent.set(player_pos);
     // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
     player_ent.set(fd.EulerRotation{});
@@ -307,10 +308,11 @@ pub fn run() void {
     player_ent.set(fd.WorldLoader{
         .range = 2,
     });
-    player_ent.setName("player");
     player_ent.set(fd.Input{ .active = false, .index = 0 });
 
     const player_camera_ent = flecs_world.newEntity();
+    player_camera_ent.childOf(player_ent);
+    player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
     player_camera_ent.set(fd.EulerRotation{});
     player_camera_ent.set(fd.Scale.createScalar(1));
@@ -326,8 +328,6 @@ pub fn run() void {
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    player_camera_ent.childOf(player_ent);
-    player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("sphere"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
