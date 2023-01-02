@@ -149,6 +149,11 @@ pub const Transform = struct {
     pub fn setPos(self: *Transform, pos: [3]f32) void {
         self.matrix[9..].* = pos;
     }
+    pub fn setScale(self: *Transform, scale: [3]f32) void {
+        self.matrix[0] = scale[0];
+        self.matrix[4] = scale[1];
+        self.matrix[8] = scale[2];
+    }
     // pub fn initWithRotY(x: f32, y: f32, z: f32, angle: f32) Transform {
     //     // f32x4(sc[1], 0.0, -sc[0], 0.0),
     //     // f32x4(0.0, 1.0, 0.0, 0.0),
