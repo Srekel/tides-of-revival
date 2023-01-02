@@ -10,6 +10,7 @@ const zbt = @import("zbullet");
 const math = @import("../../core/math.zig");
 const fd = @import("../../flecs_data.zig");
 const config = @import("../../config.zig");
+const util = @import("../../util.zig");
 const IdLocal = @import("../../variant.zig").IdLocal;
 
 const CompCity = struct {
@@ -143,7 +144,8 @@ pub fn createEntities(state: *SystemState) void {
                 .y = 0,
                 .z = (z + rand.float(f32) * 1) * config.patch_width,
             };
-            const city_height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(city_pos.x * config.noise_scale_xz, city_pos.z * config.noise_scale_xz));
+            const city_height = util.heightAtXZ(city_pos.x, city_pos.z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
+            // const city_height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(city_pos.x * config.noise_scale_xz, city_pos.z * config.noise_scale_xz));
             if (city_height < 100) {
                 continue;
             }
@@ -224,7 +226,8 @@ pub fn createEntities(state: *SystemState) void {
                     .y = 0,
                     .z = city_pos.z + radius * @sin(angleRadiansHalf),
                 };
-                const wallY = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(wallCenterPos.x * config.noise_scale_xz, wallCenterPos.z * config.noise_scale_xz));
+                const wallY = util.heightAtXZ(wallCenterPos.x, wallCenterPos.z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
+                // const wallY = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(wallCenterPos.x * config.noise_scale_xz, wallCenterPos.z * config.noise_scale_xz));
                 if (wallY < 5) {
                     continue;
                 }
@@ -273,7 +276,7 @@ pub fn createEntities(state: *SystemState) void {
                     .y = 0,
                     .z = city_pos.z + houseRadius * @sin(angleRadians),
                 };
-                const houseY = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(housePos.x * config.noise_scale_xz, housePos.z * config.noise_scale_xz));
+                const houseY = util.heightAtXZ(housePos.x, housePos.z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
                 if (houseY < 10) {
                     continue;
                 }
@@ -541,7 +544,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             0,
             caravan.start_pos[2] + percent_done * (caravan.end_pos[2] - caravan.start_pos[2]),
         };
-        new_pos[1] = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(new_pos[0] * config.noise_scale_xz, new_pos[2] * config.noise_scale_xz));
+
+        new_pos[1] = util.heightAtXZ(new_pos[0], new_pos[2], config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
 
         pos.elems().* = new_pos;
     }

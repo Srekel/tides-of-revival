@@ -15,6 +15,7 @@ const wgpu = zgpu.wgpu;
 
 const fd = @import("../flecs_data.zig");
 const config = @import("../config.zig");
+const util = @import("../util.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const assert = std.debug.assert;
 
@@ -414,7 +415,7 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
         while (x < config.patch_width) : (x += 1) {
             const world_x = @intToFloat(f32, patch.pos[0]) + x;
             const world_z = @intToFloat(f32, patch.pos[1]) + z;
-            const height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, world_z * config.noise_scale_xz));
+            const height = util.heightAtXZ(world_x, world_z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
             const index = @floatToInt(u32, x) + @floatToInt(u32, z) * config.patch_width;
             patch.heights[index] = height;
         }
@@ -754,7 +755,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     while (x < config.patch_width) : (x += 8) {
                         const world_x = @intToFloat(f32, patch.pos[0]) + x + rand.float(f32) * 10;
                         const world_z = @intToFloat(f32, patch.pos[1]) + z + rand.float(f32) * 10;
-                        const height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, world_z * config.noise_scale_xz));
+                        const height = util.heightAtXZ(world_x, world_z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
                         if (height > 10 and height < 300) {
                             const noise = state.noise.noise2((world_x + 1000) * 4, (world_z + 1000) * 4);
                             if (noise > -0.1) {

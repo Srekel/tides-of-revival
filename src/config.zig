@@ -12,8 +12,6 @@ pub const noise_scale_xz = 5.0;
 pub const noise_scale_y = 200;
 pub const noise_offset_y = 0.6;
 
-// pub fn heightAtXZ(noise:)
-
 pub const input_move_left = IdLocal.init("move_left");
 pub const input_move_right = IdLocal.init("move_right");
 pub const input_move_forward = IdLocal.init("move_forward");

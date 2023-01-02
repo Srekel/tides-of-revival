@@ -1,6 +1,7 @@
 const std = @import("std");
 const flecs = @import("flecs");
 const fd = @import("flecs_data.zig");
+const znoise = @import("znoise");
 
 pub fn castBytes(comptime T: type, slice: []u8) *T {
     const ptr = std.mem.bytesAsValue(T, slice[0..@sizeOf(T)]);
@@ -17,6 +18,15 @@ pub fn memcpy(dst: *anyopaque, src: *const anyopaque, byte_count: u64) void {
     for (src_slice) |byte, i| {
         dst_slice[i] = byte;
     }
+}
+
+pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y: f32, noise_offset_y: f32, noise: *const znoise.FnlGenerator) f32 {
+    // _ = noise_scale_xz;
+    // _ = noise_scale_y;
+    // _ = noise_offset_y;
+    // _ = noise;
+    // return 100 + 10 * (@sin(world_x * 0.01) + @cos(world_z * 0.01)) + 2 * (@sin(world_x * 0.1) + @cos(world_z * 0.1));
+    return noise_scale_y * (noise_offset_y + noise.noise2(world_x * noise_scale_xz, world_z * noise_scale_xz));
 }
 
 // pub fn applyTransformRecursively(
