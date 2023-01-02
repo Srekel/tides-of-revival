@@ -109,7 +109,7 @@ fn updateTransformHierarchy(state: *SystemState) void {
         };
 
         if (comps.fwd) |fwd| {
-            const z_fwd = zm.util.getForwardVec(z_world_matrix);
+            const z_fwd = zm.util.getAxisZ(z_world_matrix);
             zm.storeArr3(fwd.*.elems(), z_fwd);
         }
         zm.storeMat43(&comps.transform.matrix, z_world_matrix);
@@ -133,8 +133,8 @@ fn updateCameraMatrices(state: *SystemState) void {
         }
 
         const transform = zm.loadMat43(comps.transform.matrix[0..]);
-        var forward = zm.util.getForwardVec(transform);
-        var pos = transform[3];
+        var forward = zm.util.getAxisZ(transform);
+        var pos = zm.util.getTranslationVec(transform);
 
         const world_to_view = zm.lookToLh(
             pos,
