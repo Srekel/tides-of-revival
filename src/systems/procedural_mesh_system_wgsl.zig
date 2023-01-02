@@ -85,9 +85,12 @@ pub const fs = common ++
 \\          if (range_sq < distance_sq) {
 \\              return vec3(0.0, 0.0, 0.0);
 \\          }
-\\          let distance = length(lvec);
-\\          let attenuation2 = 1.0 / (distance_sq*distance_sq);
-\\          let attenuation = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
+\\          // let distance = length(lvec);
+\\          // let attenuation_real = min(1.0, 1.0 / (1.0 + distance_sq));
+\\          // let attenuation_el = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
+\\          let attenuation_nik_s2 = distance_sq / range_sq;
+\\          let attenuation_nik = (1.0 - attenuation_nik_s2) * (1.0 - attenuation_nik_s2) / (1.0 + 5.0 * attenuation_nik_s2);
+\\          let attenuation = attenuation_nik;
 \\          let variance = 1.0 + 0.2 * sin(frame_uniforms.time * 1.7);
 \\          let radiance = lightData.xyz * attenuation * variance;
 \\         // let radiance = light_radiance[light_index % 4u] * attenuation;

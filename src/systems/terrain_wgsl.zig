@@ -79,12 +79,16 @@ pub const fs = common ++
 \\          if (range_sq < distance_sq) {
 \\              return vec3(0.0, 0.0, 0.0);
 \\          }
+\\
+\\          // https://lisyarus.github.io/blog/graphics/2022/07/30/point-light-attenuation.html
 \\          let distance = length(lvec);
-\\          let attenuation2 = 1.0 / (distance_sq*distance_sq);
-\\          let attenuation = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
+\\          let attenuation_real = min(1.0, 1.0 / (1.0 + distance_sq));
+\\          let attenuation_el = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
+\\          let attenuation_nik_s2 = distance_sq / range_sq;
+\\          let attenuation_nik = (1.0 - attenuation_nik_s2) * (1.0 - attenuation_nik_s2) / (1.0 + 5.0 * attenuation_nik_s2);
+\\          let attenuation = attenuation_nik;
 \\          let variance = 1.0 + 0.2 * sin(frame_uniforms.time * 1.7);
 \\          let radiance = lightData.xyz * attenuation * variance;
-\\         // let radiance = light_radiance[light_index % 4u] * attenuation;
 \\
 \\          let f = fresnelSchlick(saturate(dot(h, v)), f0);
 \\
@@ -144,7 +148,8 @@ pub const fs = common ++
 \\      }
 \\
 \\      let sun_height = sin(frame_uniforms.time * 0.5);
-\\      let sun = max(0.0, sun_height) * 0.3 * base_color * (0.0 + saturate(dot(n, normalize( vec3(1.0*cos(frame_uniforms.time * 0.5), 1.0*sun_height, 0.5)))));
+\\      let sun_color = vec3(1.0, 0.914 * sun_height, 0.843 * sun_height * sun_height);
+\\      let sun = max(0.0, sun_height) * 0.3 * base_color * (0.0 + saturate(dot(n, normalize(sun_color))));
 \\      let sun2 = 0.5 * base_color * saturate(dot(n, normalize( vec3(0.0, 1.0, 0.0))));
 \\
 \\      let ambient_day   = vec3(0.0002 * saturate(sun_height + 0.1)) * vec3(0.9, 0.9, 1.0) * base_color;
@@ -155,7 +160,7 @@ pub const fs = common ++
 \\      let fog_end = 2500.0;
 \\      let fog = saturate((fog_dist - fog_start) / (fog_end - fog_start));
 \\      var color = ambient + lo + sun;
-\\      color = mix(color, vec3(0.5, 0.5, 0.4), 1.0 * saturate(fog * max(0.0, sun_height)));
+\\      color = mix(color, vec3(0.5, 0.5, 0.4), 1.0 * saturate(fog * fog * max(0.0, sun_height)));
 \\      color = pow(color, vec3(1.0 / 2.2));
 \\      // let n_xz = vec3(n.x, 0.0, n.z);
 \\      // return vec4((n_xz), 1.0);

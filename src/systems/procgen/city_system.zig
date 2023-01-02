@@ -299,7 +299,7 @@ pub fn createEntities(state: *SystemState) void {
             }
 
             var light_ent = state.flecs_world.newEntity();
-            light_ent.set(fd.Position{ .x = city_pos.x, .y = city_height + 2 + city_params.light_range * 0.1, .z = city_pos.z });
+            light_ent.set(fd.Transform.initFromPosition(.{ .x = city_pos.x, .y = city_height + 2 + city_params.light_range * 0.1, .z = city_pos.z }));
             light_ent.set(fd.Light{ .radiance = city_params.light_radiance, .range = city_params.light_range });
 
             var light_viz_ent = flecs_world.newEntity();

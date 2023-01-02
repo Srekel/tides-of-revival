@@ -174,7 +174,7 @@ pub fn run() void {
         .seed = @intCast(i32, 1234),
         .fractal_type = .fbm,
         .frequency = 0.0001,
-        .octaves = 10,
+        .octaves = 7,
     };
 
     var city_sys = try city_system.create(
@@ -294,7 +294,7 @@ pub fn run() void {
     player_ent.set(player_pos);
     // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
     player_ent.set(fd.EulerRotation{});
-    player_ent.set(fd.Scale.createScalar(1.7));
+    player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
     player_ent.set(fd.Velocity{});
@@ -309,12 +309,11 @@ pub fn run() void {
     });
     player_ent.setName("player");
     player_ent.set(fd.Input{ .active = false, .index = 0 });
-    player_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
     const player_camera_ent = flecs_world.newEntity();
-    player_camera_ent.set(fd.Position{ .x = 0, .y = 1, .z = 0 });
+    player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
     player_camera_ent.set(fd.EulerRotation{});
-    player_camera_ent.set(fd.Scale.createScalar(0.5));
+    player_camera_ent.set(fd.Scale.createScalar(1));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
     player_camera_ent.set(fd.Forward{});
@@ -333,6 +332,7 @@ pub fn run() void {
         .id = IdLocal.id64("sphere"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
     });
+    player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
     _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
 

@@ -231,7 +231,7 @@ pub fn create(
     var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_lights
         .with(fd.Light)
-        .with(fd.Position);
+        .with(fd.Transform);
     var query_lights = query_builder_lights.buildQuery();
 
     var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*);
@@ -902,12 +902,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                 var entity_iter_lights = state.query_lights.iterator(struct {
                     light: *fd.Light,
-                    position: *fd.Position,
+                    transform: *fd.Transform,
                 });
 
                 var light_i: u32 = 0;
                 while (entity_iter_lights.next()) |comps| {
-                    std.mem.copy(f32, mem.slice[0].light_positions[light_i][0..], comps.position.elemsConst().*[0..]);
+                    const light_pos = comps.transform.getPos00();
+                    std.mem.copy(f32, mem.slice[0].light_positions[light_i][0..], light_pos[0..]);
                     std.mem.copy(f32, mem.slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
                     mem.slice[0].light_radiances[light_i][3] = comps.light.range;
                     // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });

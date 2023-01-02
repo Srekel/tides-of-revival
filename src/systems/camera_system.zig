@@ -153,6 +153,7 @@ fn updateCameraMatrices(state: *SystemState) void {
         zm.storeMat(cam.world_to_view[0..], world_to_view);
         zm.storeMat(cam.view_to_clip[0..], view_to_clip);
         zm.storeMat(cam.world_to_clip[0..], zm.mul(world_to_view, view_to_clip));
+        // std.debug.print("cam.class {}, cam.world_to_clip {any}\n", .{ cam.class, cam.world_to_clip });
     }
 }
 
