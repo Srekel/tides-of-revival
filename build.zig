@@ -7,6 +7,8 @@ const zaudio = @import("external/zig-gamedev/libs/zaudio/build.zig");
 const zbullet = @import("external/zig-gamedev/libs/zbullet/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
 const zgpu = @import("external/zig-gamedev/libs/zgpu/build.zig");
+const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
+const zd3d12 = @import("external/zig-gamedev/libs/zd3d12/build.zig");
 const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
 const zmesh = @import("external/zig-gamedev/libs/zmesh/build.zig");
 const znoise = @import("external/zig-gamedev/libs/znoise/build.zig");
@@ -36,6 +38,14 @@ pub fn build(b: *Builder) void {
     const ztracy_options = ztracy.BuildOptionsStep.init(b, .{ .enable_ztracy = ztracy_enable });
     const ztracy_pkg = ztracy.getPkg(&.{ztracy_options.getPkg()});
 
+    const zd3d12_enable_debug_layer = b.option(bool, "zd3d12-enable_debug_layer", "Enable D3D12 Debug Layer") orelse false;
+    const zd3d12_enable_gbv = b.option(bool, "zd3d12-enable_gbv", "Enable D3D12 GPU Based Validation") orelse false;
+    const zd3d12_options = zd3d12.BuildOptionsStep.init(b, .{
+        .enable_debug_layer = zd3d12_enable_debug_layer,
+        .enable_gbv = zd3d12_enable_gbv,
+    });
+    const zd3d12_pkg = zd3d12.getPkg(&.{ zwin32.pkg, zd3d12_options.getPkg() });
+
     exe.addPackage(zaudio.pkg);
     exe.addPackage(zbullet.pkg);
     exe.addPackage(zgpu_pkg);
@@ -45,6 +55,8 @@ pub fn build(b: *Builder) void {
     exe.addPackage(znoise.pkg);
     exe.addPackage(zpool.pkg);
     exe.addPackage(ztracy_pkg);
+    exe.addPackage(zd3d12_pkg);
+    exe.addPackage(zwin32.pkg);
 
     zaudio.link(exe);
     zbullet.link(exe);
@@ -53,6 +65,7 @@ pub fn build(b: *Builder) void {
     zmesh.link(exe, zmesh_options);
     znoise.link(exe);
     ztracy.link(exe, ztracy_options);
+    zd3d12.link(exe, zd3d12_options);
 
     exe.install();
     flecs.linkArtifact(b, exe, exe.target, if (exe.target.isWindows()) .static else .exe_compiled, "external/zig-flecs/");
