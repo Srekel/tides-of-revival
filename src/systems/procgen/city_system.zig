@@ -215,27 +215,27 @@ pub fn createEntities(state: *SystemState) void {
 
             const radius: f32 = city_params.wall_radius * (1 + state.noise.noise2(x * 1000, z * 1000));
             const circumference: f32 = radius * std.math.pi * 2;
-            const wallPartCount = city_params.wall_count;
-            const wallLength = circumference / wallPartCount;
+            const wall_part_count = city_params.wall_count;
+            const wall_length = circumference / wall_part_count;
             var angle: f32 = 0;
-            while (angle < 340) : (angle += 360 / wallPartCount) {
-                const angleRadians = std.math.degreesToRadians(f32, angle);
-                const angleRadiansHalf = std.math.degreesToRadians(f32, angle - 180 / wallPartCount);
+            while (angle < 340) : (angle += 360 / wall_part_count) {
+                const angle_radians = std.math.degreesToRadians(f32, angle);
+                const angle_radians_half = std.math.degreesToRadians(f32, angle - 180 / wall_part_count);
                 var wallCenterPos = .{
-                    .x = city_pos.x + radius * @cos(angleRadiansHalf),
+                    .x = city_pos.x + radius * @cos(angle_radians_half),
                     .y = 0,
-                    .z = city_pos.z + radius * @sin(angleRadiansHalf),
+                    .z = city_pos.z + radius * @sin(angle_radians_half),
                 };
-                const wallY = util.heightAtXZ(wallCenterPos.x, wallCenterPos.z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
-                // const wallY = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(wallCenterPos.x * config.noise_scale_xz, wallCenterPos.z * config.noise_scale_xz));
-                if (wallY < 5) {
+                const wall_y = util.heightAtXZ(wallCenterPos.x, wallCenterPos.z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
+                // const wall_y = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(wallCenterPos.x * config.noise_scale_xz, wallCenterPos.z * config.noise_scale_xz));
+                if (wall_y < 5) {
                     continue;
                 }
 
                 const wall_pos = fd.Position.init(
-                    city_pos.x + radius * @cos(angleRadians),
-                    wallY - city_params.wall_scale.y * 0.15,
-                    city_pos.z + radius * @sin(angleRadians),
+                    city_pos.x + radius * @cos(angle_radians),
+                    wall_y - city_params.wall_scale.y * 0.15,
+                    city_pos.z + radius * @sin(angle_radians),
                 );
                 const wall_rot = fd.EulerRotation.init(
                     (rand.float(f32) - 0.5) * city_params.wall_random_rot,
@@ -243,7 +243,7 @@ pub fn createEntities(state: *SystemState) void {
                     (rand.float(f32) - 0.5) * city_params.wall_random_rot,
                 );
                 const wall_scale = fd.Scale.create(
-                    if (city_params.wall_scale.x == 0) wallLength else city_params.wall_scale.x * (1 + rand.float(f32) * city_params.wall_random_scale),
+                    if (city_params.wall_scale.x == 0) wall_length else city_params.wall_scale.x * (1 + rand.float(f32) * city_params.wall_random_scale),
                     city_params.wall_scale.y * (1 + rand.float(f32) * city_params.wall_random_scale),
                     city_params.wall_scale.z * (1 + rand.float(f32) * city_params.wall_random_scale),
                 );
@@ -269,12 +269,12 @@ pub fn createEntities(state: *SystemState) void {
             angle = if (city_params.house_count == 0) 360 else 0;
             while (angle < 360) : (angle += 360 / city_params.house_count) {
                 // while (house_count > 0) : (house_count -= 1) {
-                const angleRadians = std.math.degreesToRadians(f32, angle);
+                const angle_radians = std.math.degreesToRadians(f32, angle);
                 const houseRadius = (1 + state.noise.noise2(angle * 1000, city_height * 100)) * radius * 0.5;
                 var housePos = .{
-                    .x = city_pos.x + houseRadius * @cos(angleRadians),
+                    .x = city_pos.x + houseRadius * @cos(angle_radians),
                     .y = 0,
-                    .z = city_pos.z + houseRadius * @sin(angleRadians),
+                    .z = city_pos.z + houseRadius * @sin(angle_radians),
                 };
                 const houseY = util.heightAtXZ(housePos.x, housePos.z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
                 if (houseY < 10) {
@@ -283,7 +283,7 @@ pub fn createEntities(state: *SystemState) void {
 
                 var house_transform: fd.Transform = undefined;
                 const z_scale_matrix = zm.scaling(7, 3, 4);
-                const z_rot_matrix = zm.matFromRollPitchYaw(0, angleRadians, 0);
+                const z_rot_matrix = zm.matFromRollPitchYaw(0, angle_radians, 0);
                 const z_translate_matrix = zm.translation(housePos.x, houseY - 2, housePos.z);
                 const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
                 const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
@@ -492,11 +492,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             const next_city1 = flecs.Entity.init(state.flecs_world.world, camp.closest_cities[0]);
             const next_city2 = flecs.Entity.init(state.flecs_world.world, camp.closest_cities[1]);
-            const next_city_pos1_z = zm.loadArr3(next_city1.get(fd.Position).?.elemsConst().*);
-            const next_city_pos2_z = zm.loadArr3(next_city2.get(fd.Position).?.elemsConst().*);
-            const targetPos_z = (next_city_pos1_z + next_city_pos2_z) * zm.f32x4s(0.5);
-            const targetPos = zm.vecToArr3(targetPos_z);
-            const distance = math.dist3_xz(targetPos, pos.elemsConst().*);
+            const z_next_city_pos1 = zm.loadArr3(next_city1.get(fd.Position).?.elemsConst().*);
+            const z_next_city_pos2 = zm.loadArr3(next_city2.get(fd.Position).?.elemsConst().*);
+            const z_target_pos = (z_next_city_pos1 + z_next_city_pos2) * zm.f32x4s(0.5);
+            const target_pos = zm.vecToArr3(z_target_pos);
+            const distance = math.dist3_xz(target_pos, pos.elemsConst().*);
 
             var caravan_ent = state.flecs_world.newEntity();
             caravan_ent.set(fd.Transform.init(pos.x, pos.y, pos.z));
@@ -509,7 +509,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             });
             caravan_ent.set(CompCaravan{
                 .start_pos = pos.elemsConst().*,
-                .end_pos = targetPos,
+                .end_pos = target_pos,
                 .time_birth = time,
                 .time_to_arrive = time + distance / 5,
                 .destroy_on_arrival = false,

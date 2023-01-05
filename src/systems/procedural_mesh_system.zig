@@ -332,7 +332,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
     var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
-        .withReadonly(fd.Scale)
         .withReadonly(fd.ShapeMeshInstance);
     var query_camera = query_builder_camera.buildQuery();
     var query_lights = query_builder_lights.buildQuery();
@@ -479,13 +478,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             var entity_iter_mesh = state.query_mesh.iterator(struct {
                 transform: *const fd.Transform,
-                scale: *const fd.Scale,
                 mesh: *const fd.ShapeMeshInstance,
             });
             while (entity_iter_mesh.next()) |comps| {
-                // const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
-                // const transform = zm.loadMat43(comps.transform.matrix[0..]);
-                // const object_to_world = zm.mul(scale_matrix, transform);
                 const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
 
                 const mem = gctx.uniformsAllocate(DrawUniforms, 1);

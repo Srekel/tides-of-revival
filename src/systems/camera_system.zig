@@ -118,8 +118,8 @@ fn updateTransformHierarchy(state: *SystemState) void {
 
 fn updateCameraMatrices(state: *SystemState) void {
     const gctx = state.gctx;
-    const fb_width = gctx.swapchain_descriptor.width;
-    const fb_height = gctx.swapchain_descriptor.height;
+    const framebuffer_width = gctx.swapchain_descriptor.width;
+    const framebuffer_height = gctx.swapchain_descriptor.height;
 
     var entity_iter = state.query_camera.iterator(struct {
         camera: *fd.Camera,
@@ -132,27 +132,27 @@ fn updateCameraMatrices(state: *SystemState) void {
             continue;
         }
 
-        const transform = zm.loadMat43(comps.transform.matrix[0..]);
-        var forward = zm.util.getAxisZ(transform);
-        var pos = zm.util.getTranslationVec(transform);
+        const z_transform = zm.loadMat43(comps.transform.matrix[0..]);
+        var z_forward = zm.util.getAxisZ(z_transform);
+        var z_pos = zm.util.getTranslationVec(z_transform);
 
-        const world_to_view = zm.lookToLh(
-            pos,
-            forward,
+        const z_world_to_view = zm.lookToLh(
+            z_pos,
+            z_forward,
             zm.f32x4(0.0, 1.0, 0.0, 0.0),
         );
 
-        const view_to_clip =
+        const z_view_to_clip =
             zm.perspectiveFovLh(
             0.25 * math.pi,
-            @intToFloat(f32, fb_width) / @intToFloat(f32, fb_height),
+            @intToFloat(f32, framebuffer_width) / @intToFloat(f32, framebuffer_height),
             comps.camera.near,
             comps.camera.far,
         );
 
-        zm.storeMat(cam.world_to_view[0..], world_to_view);
-        zm.storeMat(cam.view_to_clip[0..], view_to_clip);
-        zm.storeMat(cam.world_to_clip[0..], zm.mul(world_to_view, view_to_clip));
+        zm.storeMat(cam.world_to_view[0..], z_world_to_view);
+        zm.storeMat(cam.view_to_clip[0..], z_view_to_clip);
+        zm.storeMat(cam.world_to_clip[0..], zm.mul(z_world_to_view, z_view_to_clip));
         // std.debug.print("cam.class {}, cam.world_to_clip {any}\n", .{ cam.class, cam.world_to_clip });
     }
 }
@@ -172,7 +172,10 @@ fn updateCameraSwitch(state: *SystemState) void {
     var filter = builder.buildFilter();
     defer filter.deinit();
 
-    var entity_iter = filter.iterator(struct { input: *fd.Input, cam: ?*fd.Camera });
+    var entity_iter = filter.iterator(struct {
+        input: *fd.Input,
+        cam: ?*fd.Camera,
+    });
     while (entity_iter.next()) |comps| {
         var active = false;
         if (comps.input.index == state.active_index) {
