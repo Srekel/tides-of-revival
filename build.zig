@@ -46,6 +46,11 @@ pub fn build(b: *Builder) void {
     });
     const zd3d12_pkg = zd3d12.getPkg(&.{ zwin32.pkg, zd3d12_options.getPkg() });
 
+    // This is needed to export symbols from an .exe file.
+    // We export D3D12SDKVersion and D3D12SDKPath symbols which
+    // is required by DirectX 12 Agility SDK.
+    exe.rdynamic = true;
+
     exe.addPackage(zaudio.pkg);
     exe.addPackage(zbullet.pkg);
     exe.addPackage(zgpu_pkg);
