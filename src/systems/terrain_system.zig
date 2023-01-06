@@ -894,10 +894,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             pass.setPipeline(pipeline);
 
             {
+                const stats = flecs.c.ecs_get_world_info(state.flecs_world.world);
+                const time = stats.*.world_time_total;
                 const mem = gctx.uniformsAllocate(FrameUniforms, 1);
                 mem.slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
                 mem.slice[0].camera_position = camera_comps.?.pos.elemsConst().*;
-                mem.slice[0].time = @floatCast(f32, state.gctx.stats.time);
+                mem.slice[0].time = time;
                 mem.slice[0].light_count = 0;
 
                 var entity_iter_lights = state.query_lights.iterator(struct {
