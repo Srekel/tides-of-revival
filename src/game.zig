@@ -5,6 +5,7 @@ const RndGen = std.rand.DefaultPrng;
 
 const window = @import("window.zig");
 const gfx = @import("gfx_wgpu.zig");
+const gfx_d3d12 = @import("gfx_d3d12.zig");
 const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
@@ -47,8 +48,11 @@ pub fn run() void {
     const main_window = window.createWindow("The Elvengroin Legacy") catch unreachable;
     main_window.setInputMode(.cursor, .disabled);
 
-    var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
-    defer gfx.deinit(&gfx_state);
+    var gfx_d3d12_state = gfx_d3d12.init(std.heap.page_allocator, main_window) catch unreachable;
+    defer gfx_d3d12.deinit(&gfx_d3d12_state, std.heap.page_allocator);
+
+    // var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
+    // defer gfx.deinit(&gfx_state);
 
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(std.heap.page_allocator);
@@ -160,59 +164,64 @@ pub fn run() void {
     );
     defer physics_system.destroy(physics_sys);
 
-    var state_machine_sys = try state_machine_system.create(
-        IdLocal.init("state_machine_sys"),
-        std.heap.c_allocator,
-        &flecs_world,
-        &input_frame_data,
-        physics_sys.physics_world,
-        audio_engine,
-    );
-    defer state_machine_system.destroy(state_machine_sys);
+    // var state_machine_sys = try state_machine_system.create(
+    //     IdLocal.init("state_machine_sys"),
+    //     std.heap.c_allocator,
+    //     &flecs_world,
+    //     &input_frame_data,
+    //     physics_sys.physics_world,
+    //     audio_engine,
+    // );
+    // defer state_machine_system.destroy(state_machine_sys);
 
-    const terrain_noise: znoise.FnlGenerator = .{
-        .seed = @intCast(i32, 1234),
-        .fractal_type = .fbm,
-        .frequency = 0.0001,
-        .octaves = 7,
-    };
+    // const terrain_noise: znoise.FnlGenerator = .{
+    //     .seed = @intCast(i32, 1234),
+    //     .fractal_type = .fbm,
+    //     .frequency = 0.0001,
+    //     .octaves = 7,
+    // };
 
-    var city_sys = try city_system.create(
-        IdLocal.init("city_system"),
-        std.heap.c_allocator,
-        &gfx_state,
-        &flecs_world,
-        physics_sys.physics_world,
-        terrain_noise,
-    );
-    defer city_system.destroy(city_sys);
+    // TODO: Make this work with D3D12
+    // var city_sys = try city_system.create(
+    //     IdLocal.init("city_system"),
+    //     std.heap.c_allocator,
+    //     &gfx_state,
+    //     &flecs_world,
+    //     physics_sys.physics_world,
+    //     terrain_noise,
+    // );
+    // defer city_system.destroy(city_sys);
 
-    var camera_sys = try camera_system.create(
-        IdLocal.init("camera_system"),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-        &input_frame_data,
-    );
-    defer camera_system.destroy(camera_sys);
+    // TODO: Make this work with D3D12
+    // var camera_sys = try camera_system.create(
+    //     IdLocal.init("camera_system"),
+    //     std.heap.page_allocator,
+    //     &gfx_state,
+    //     &flecs_world,
+    //     &input_frame_data,
+    // );
+    // defer camera_system.destroy(camera_sys);
 
-    var procmesh_sys = try procmesh_system.create(
-        IdLocal.initFormat("procmesh_system_{}", .{0}),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-    );
-    defer procmesh_system.destroy(procmesh_sys);
+    // TODO: Make this work with D3D12
+    // var procmesh_sys = try procmesh_system.create(
+    //     IdLocal.initFormat("procmesh_system_{}", .{0}),
+    //     std.heap.page_allocator,
+    //     &gfx_state,
+    //     &flecs_world,
+    // );
+    // defer procmesh_system.destroy(procmesh_sys);
 
-    var terrain_sys = try terrain_system.create(
-        IdLocal.init("terrain_system"),
-        std.heap.c_allocator,
-        &gfx_state,
-        &flecs_world,
-        physics_sys.physics_world,
-        terrain_noise,
-    );
-    defer terrain_system.destroy(terrain_sys);
+    // TODO: Make this work with D3D12
+    // var terrain_sys = try terrain_system.create(
+    //     IdLocal.init("terrain_system"),
+    //     std.heap.c_allocator,
+    //     &gfx_state,
+    //     &flecs_world,
+    //     physics_sys.physics_world,
+    //     terrain_noise,
+    // );
+    // defer terrain_system.destroy(terrain_sys);
+
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,
     //     &gfx_state,
@@ -220,9 +229,11 @@ pub fn run() void {
     // );
     // defer gui_system.destroy(&gui_sys);
 
-    city_system.createEntities(city_sys);
+    // TODO: Make this work with D3D12
+    // city_system.createEntities(city_sys);
     // Make sure systems are initialized and any initial system entities are created.
-    update(&flecs_world, &gfx_state);
+    // update(&flecs_world, &gfx_state);
+    update(&flecs_world, &gfx_d3d12_state);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -231,21 +242,21 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-    const player_pos = blk: {
-        var builder = flecs.QueryBuilder.init(flecs_world);
-        _ = builder
-            .with(fd.SpawnPoint)
-            .with(fd.Position);
+    // const player_pos = blk: {
+    //     var builder = flecs.QueryBuilder.init(flecs_world);
+    //     _ = builder
+    //         .with(fd.SpawnPoint)
+    //         .with(fd.Position);
 
-        var filter = builder.buildFilter();
-        defer filter.deinit();
+    //     var filter = builder.buildFilter();
+    //     defer filter.deinit();
 
-        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
-        while (entity_iter.next()) |comps| {
-            break :blk comps.pos.*;
-        }
-        unreachable;
-    };
+    //     var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
+    //     while (entity_iter.next()) |comps| {
+    //         break :blk comps.pos.*;
+    //     }
+    //     unreachable;
+    // };
 
     // const entity3 = flecs_world.newEntity();
     // entity3.set(fd.Transform.init(150, 500, 0.6));
@@ -261,25 +272,25 @@ pub fn run() void {
     //     .sphere = .{ .radius = 10.5 },
     // });
 
-    const debug_camera_ent = flecs_world.newEntity();
-    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    debug_camera_ent.set(fd.EulerRotation{});
-    debug_camera_ent.set(fd.Scale{});
-    debug_camera_ent.set(fd.Transform{});
-    debug_camera_ent.set(fd.Dynamic{});
-    debug_camera_ent.set(fd.CICamera{
-        .near = 0.1,
-        .far = 10000,
-        .window = main_window,
-        .active = true,
-        .class = 0,
-    });
-    debug_camera_ent.set(fd.WorldLoader{
-        .range = 2,
-    });
-    debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
-    debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
+    // const debug_camera_ent = flecs_world.newEntity();
+    // debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    // // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    // debug_camera_ent.set(fd.EulerRotation{});
+    // debug_camera_ent.set(fd.Scale{});
+    // debug_camera_ent.set(fd.Transform{});
+    // debug_camera_ent.set(fd.Dynamic{});
+    // debug_camera_ent.set(fd.CICamera{
+    //     .near = 0.1,
+    //     .far = 10000,
+    //     .window = main_window,
+    //     .active = true,
+    //     .class = 0,
+    // });
+    // debug_camera_ent.set(fd.WorldLoader{
+    //     .range = 2,
+    // });
+    // debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
+    // debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
@@ -290,51 +301,51 @@ pub fn run() void {
 
     // _ = player_pos;
     // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
-    const player_ent = flecs_world.newEntity();
-    player_ent.setName("player");
-    player_ent.set(player_pos);
-    // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
-    player_ent.set(fd.EulerRotation{});
-    player_ent.set(fd.Scale.createScalar(1));
-    player_ent.set(fd.Transform.initFromPosition(player_pos));
-    player_ent.set(fd.Forward{});
-    player_ent.set(fd.Velocity{});
-    player_ent.set(fd.Dynamic{});
-    player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
-    player_ent.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("cylinder"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
-    });
-    player_ent.set(fd.WorldLoader{
-        .range = 2,
-    });
-    player_ent.set(fd.Input{ .active = false, .index = 0 });
+    // const player_ent = flecs_world.newEntity();
+    // player_ent.setName("player");
+    // player_ent.set(player_pos);
+    // // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
+    // player_ent.set(fd.EulerRotation{});
+    // player_ent.set(fd.Scale.createScalar(1));
+    // player_ent.set(fd.Transform.initFromPosition(player_pos));
+    // player_ent.set(fd.Forward{});
+    // player_ent.set(fd.Velocity{});
+    // player_ent.set(fd.Dynamic{});
+    // player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
+    // player_ent.set(fd.CIShapeMeshInstance{
+    //     .id = IdLocal.id64("cylinder"),
+    //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+    // });
+    // player_ent.set(fd.WorldLoader{
+    //     .range = 2,
+    // });
+    // player_ent.set(fd.Input{ .active = false, .index = 0 });
 
-    const player_camera_ent = flecs_world.newEntity();
-    player_camera_ent.childOf(player_ent);
-    player_camera_ent.setName("playercamera");
-    player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
-    player_camera_ent.set(fd.EulerRotation{});
-    player_camera_ent.set(fd.Scale.createScalar(1));
-    player_camera_ent.set(fd.Transform{});
-    player_camera_ent.set(fd.Dynamic{});
-    player_camera_ent.set(fd.Forward{});
-    player_camera_ent.set(fd.CICamera{
-        .near = 0.1,
-        .far = 10000,
-        .window = main_window,
-        .active = false,
-        .class = 1,
-    });
-    player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
-    player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    player_camera_ent.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("sphere"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
-    });
-    player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
+    // const player_camera_ent = flecs_world.newEntity();
+    // player_camera_ent.childOf(player_ent);
+    // player_camera_ent.setName("playercamera");
+    // player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
+    // player_camera_ent.set(fd.EulerRotation{});
+    // player_camera_ent.set(fd.Scale.createScalar(1));
+    // player_camera_ent.set(fd.Transform{});
+    // player_camera_ent.set(fd.Dynamic{});
+    // player_camera_ent.set(fd.Forward{});
+    // player_camera_ent.set(fd.CICamera{
+    //     .near = 0.1,
+    //     .far = 10000,
+    //     .window = main_window,
+    //     .active = false,
+    //     .class = 1,
+    // });
+    // player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
+    // player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
+    // player_camera_ent.set(fd.CIShapeMeshInstance{
+    //     .id = IdLocal.id64("sphere"),
+    //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+    // });
+    // player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
-    _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
+    // _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
@@ -352,18 +363,22 @@ pub fn run() void {
             break;
         }
 
-        update(&flecs_world, &gfx_state);
+        // update(&flecs_world, &gfx_state);
+        update(&flecs_world, &gfx_d3d12_state);
     }
 }
 
-fn update(flecs_world: *flecs.World, gfx_state: *gfx.GfxState) void {
-    const stats = gfx_state.gctx.stats;
-    // const dt = @floatCast(f32, stats.delta_time) * 0.2;
+// fn update(flecs_world: *flecs.World, gfx_state: *gfx.GfxState) void {
+fn update(flecs_world: *flecs.World, gfx_d3d12_state: *gfx_d3d12.D3D12State) void {
+    // const stats = gfx_state.gctx.stats;
+    const stats = gfx_d3d12_state.stats;
     const dt = @floatCast(f32, stats.delta_time);
-    gfx.update(gfx_state);
+    // gfx.update(gfx_state);
+    gfx_d3d12.update(gfx_d3d12_state);
     // gui_system.preUpdate(&gui_sys);
 
     flecs_world.progress(dt);
     // gui_system.update(&gui_sys);
-    gfx.draw(gfx_state);
+    // gfx.draw(gfx_state);
+    gfx_d3d12.draw(gfx_d3d12_state);
 }
