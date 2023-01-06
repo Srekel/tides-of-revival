@@ -2,3 +2,5 @@
 zig-out/
 external/
 content/imgui.ini
+src/shaders/compiled/*.cso
+!src/shaders/compiled/.gitkeep

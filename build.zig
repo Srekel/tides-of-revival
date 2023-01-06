@@ -46,6 +46,15 @@ pub fn build(b: *Builder) void {
     });
     const zd3d12_pkg = zd3d12.getPkg(&.{ zwin32.pkg, zd3d12_options.getPkg() });
 
+    const dxc_step = buildShaders(b);
+    const install_content_step = b.addInstallDirectory(.{
+        .source_dir = thisDir() ++ "/src/shaders/compiled",
+        .install_dir = .{ .custom = "" },
+        .install_subdir = "bin/shaders",
+    });
+    install_content_step.step.dependOn(dxc_step);
+    exe.step.dependOn(&install_content_step.step);
+
     // This is needed to export symbols from an .exe file.
     // We export D3D12SDKVersion and D3D12SDKPath symbols which
     // is required by DirectX 12 Agility SDK.
@@ -82,4 +91,44 @@ pub fn build(b: *Builder) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+}
+
+fn buildShaders(b: *std.build.Builder) *std.build.Step {
+    const dxc_step = b.step(
+        "elvengroin-legacy-dxc",
+        "Build shaders",
+    );
+
+    var dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "vsMain", "terrain.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "psMain", "terrain.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    return dxc_step;
+}
+
+fn makeDxcCmd(
+    comptime input_path: []const u8,
+    comptime entry_point: []const u8,
+    comptime output_filename: []const u8,
+    comptime profile: []const u8,
+    comptime define: []const u8,
+) [9][]const u8 {
+    const shader_ver = "6_6";
+    const shader_dir = thisDir() ++ "/src/shaders/compiled/";
+    return [9][]const u8{
+        thisDir() ++ "/external/zig-gamedev/libs/zwin32/bin/x64/dxc.exe",
+        thisDir() ++ "/" ++ input_path,
+        "/E " ++ entry_point,
+        "/Fo " ++ shader_dir ++ output_filename,
+        "/T " ++ profile ++ "_" ++ shader_ver,
+        if (define.len == 0) "" else "/D " ++ define,
+        "/WX",
+        "/Ges",
+        "/O3",
+    };
+}
+
+inline fn thisDir() []const u8 {
+    return comptime std.fs.path.dirname(@src().file) orelse ".";
 }
