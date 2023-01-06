@@ -164,15 +164,15 @@ pub fn run() void {
     );
     defer physics_system.destroy(physics_sys);
 
-    // var state_machine_sys = try state_machine_system.create(
-    //     IdLocal.init("state_machine_sys"),
-    //     std.heap.c_allocator,
-    //     &flecs_world,
-    //     &input_frame_data,
-    //     physics_sys.physics_world,
-    //     audio_engine,
-    // );
-    // defer state_machine_system.destroy(state_machine_sys);
+    var state_machine_sys = try state_machine_system.create(
+        IdLocal.init("state_machine_sys"),
+        std.heap.c_allocator,
+        &flecs_world,
+        &input_frame_data,
+        physics_sys.physics_world,
+        audio_engine,
+    );
+    defer state_machine_system.destroy(state_machine_sys);
 
     // const terrain_noise: znoise.FnlGenerator = .{
     //     .seed = @intCast(i32, 1234),
@@ -192,15 +192,14 @@ pub fn run() void {
     // );
     // defer city_system.destroy(city_sys);
 
-    // TODO: Make this work with D3D12
-    // var camera_sys = try camera_system.create(
-    //     IdLocal.init("camera_system"),
-    //     std.heap.page_allocator,
-    //     &gfx_state,
-    //     &flecs_world,
-    //     &input_frame_data,
-    // );
-    // defer camera_system.destroy(camera_sys);
+    var camera_sys = try camera_system.create(
+        IdLocal.init("camera_system"),
+        std.heap.page_allocator,
+        &gfx_d3d12_state,
+        &flecs_world,
+        &input_frame_data,
+    );
+    defer camera_system.destroy(camera_sys);
 
     // TODO: Make this work with D3D12
     // var procmesh_sys = try procmesh_system.create(
