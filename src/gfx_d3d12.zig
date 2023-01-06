@@ -3,6 +3,7 @@ const assert = std.debug.assert;
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const zwin32 = @import("zwin32");
 const w32 = zwin32.base;
+const hrPanic = zwin32.hrPanic;
 const d3d12 = zwin32.d3d12;
 const zd3d12 = @import("zd3d12");
 const zglfw = @import("zglfw");
@@ -64,6 +65,9 @@ pub const FrameStats = struct {
 pub const D3D12State = struct {
     gctx: zd3d12.GraphicsContext,
     stats: FrameStats,
+
+    depth_texture: zd3d12.ResourceHandle,
+    depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
 };
 
 pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
@@ -137,9 +141,30 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     gctx.present_flags = 0;
     gctx.present_interval = 1;
 
+    const depth_texture = gctx.createCommittedResource(
+        .DEFAULT,
+        d3d12.HEAP_FLAG_NONE,
+        &blk: {
+            var desc = d3d12.RESOURCE_DESC.initTex2d(.D32_FLOAT, gctx.viewport_width, gctx.viewport_height, 1);
+            desc.Flags = d3d12.RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | d3d12.RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+            break :blk desc;
+        },
+        d3d12.RESOURCE_STATE_DEPTH_WRITE,
+        &d3d12.CLEAR_VALUE.initDepthStencil(.D32_FLOAT, 1.0, 0),
+    ) catch |err| hrPanic(err);
+
+    const depth_texture_dsv = gctx.allocateCpuDescriptors(.DSV, 1);
+    gctx.device.CreateDepthStencilView(
+        gctx.lookupResource(depth_texture).?,
+        null,
+        depth_texture_dsv,
+    );
+
     return D3D12State{
         .gctx = gctx,
         .stats = FrameStats.init(),
+        .depth_texture = depth_texture,
+        .depth_texture_dsv = depth_texture_dsv,
     };
 }
 
@@ -164,10 +189,28 @@ pub fn update(state: *D3D12State) void {
     const back_buffer = gctx.getBackBuffer();
     gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATE_RENDER_TARGET);
     gctx.flushResourceBarriers();
+
+    gctx.cmdlist.OMSetRenderTargets(
+        1,
+        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
+        w32.TRUE,
+        &state.depth_texture_dsv,
+    );
+    gctx.cmdlist.ClearRenderTargetView(
+        back_buffer.descriptor_handle,
+        &.{ 0.1, 0.1, 0.1, 1.0 },
+        0,
+        null,
+    );
+    gctx.cmdlist.ClearDepthStencilView(state.depth_texture_dsv, d3d12.CLEAR_FLAG_DEPTH, 1.0, 0, 0, null);
 }
 
 pub fn draw(state: *D3D12State) void {
     var gctx = &state.gctx;
+
+    const back_buffer = gctx.getBackBuffer();
+    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATE_PRESENT);
+    gctx.flushResourceBarriers();
 
     // Call 'Present' and prepare for the next frame.
     gctx.endFrame();
