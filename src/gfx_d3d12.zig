@@ -198,7 +198,7 @@ pub fn update(state: *D3D12State) void {
     );
     gctx.cmdlist.ClearRenderTargetView(
         back_buffer.descriptor_handle,
-        &.{ 0.1, 0.1, 0.1, 1.0 },
+        &.{ 0.0, 0.0, 0.0, 1.0 },
         0,
         null,
     );

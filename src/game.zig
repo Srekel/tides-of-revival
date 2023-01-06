@@ -50,6 +50,7 @@ pub fn run() void {
 
     var gfx_d3d12_state = gfx_d3d12.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx_d3d12.deinit(&gfx_d3d12_state, std.heap.page_allocator);
+    gfx_d3d12_state.gctx.beginFrame();
 
     // var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     // defer gfx.deinit(&gfx_state);
@@ -174,23 +175,22 @@ pub fn run() void {
     );
     defer state_machine_system.destroy(state_machine_sys);
 
-    // const terrain_noise: znoise.FnlGenerator = .{
-    //     .seed = @intCast(i32, 1234),
-    //     .fractal_type = .fbm,
-    //     .frequency = 0.0001,
-    //     .octaves = 7,
-    // };
+    const terrain_noise: znoise.FnlGenerator = .{
+        .seed = @intCast(i32, 1234),
+        .fractal_type = .fbm,
+        .frequency = 0.0001,
+        .octaves = 7,
+    };
 
-    // TODO: Make this work with D3D12
-    // var city_sys = try city_system.create(
-    //     IdLocal.init("city_system"),
-    //     std.heap.c_allocator,
-    //     &gfx_state,
-    //     &flecs_world,
-    //     physics_sys.physics_world,
-    //     terrain_noise,
-    // );
-    // defer city_system.destroy(city_sys);
+    var city_sys = try city_system.create(
+        IdLocal.init("city_system"),
+        std.heap.c_allocator,
+        &gfx_d3d12_state,
+        &flecs_world,
+        physics_sys.physics_world,
+        terrain_noise,
+    );
+    defer city_system.destroy(city_sys);
 
     var camera_sys = try camera_system.create(
         IdLocal.init("camera_system"),
@@ -210,16 +210,15 @@ pub fn run() void {
     // );
     // defer procmesh_system.destroy(procmesh_sys);
 
-    // TODO: Make this work with D3D12
-    // var terrain_sys = try terrain_system.create(
-    //     IdLocal.init("terrain_system"),
-    //     std.heap.c_allocator,
-    //     &gfx_state,
-    //     &flecs_world,
-    //     physics_sys.physics_world,
-    //     terrain_noise,
-    // );
-    // defer terrain_system.destroy(terrain_sys);
+    var terrain_sys = try terrain_system.create(
+        IdLocal.init("terrain_system"),
+        std.heap.c_allocator,
+        &gfx_d3d12_state,
+        &flecs_world,
+        physics_sys.physics_world,
+        terrain_noise,
+    );
+    defer terrain_system.destroy(terrain_sys);
 
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,
@@ -228,8 +227,11 @@ pub fn run() void {
     // );
     // defer gui_system.destroy(&gui_sys);
 
-    // TODO: Make this work with D3D12
-    // city_system.createEntities(city_sys);
+    city_system.createEntities(city_sys);
+
+    gfx_d3d12_state.gctx.endFrame();
+    gfx_d3d12_state.gctx.finishGpuCommands();
+
     // Make sure systems are initialized and any initial system entities are created.
     // update(&flecs_world, &gfx_state);
     update(&flecs_world, &gfx_d3d12_state);
@@ -241,21 +243,21 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-    // const player_pos = blk: {
-    //     var builder = flecs.QueryBuilder.init(flecs_world);
-    //     _ = builder
-    //         .with(fd.SpawnPoint)
-    //         .with(fd.Position);
+    const player_pos = blk: {
+        var builder = flecs.QueryBuilder.init(flecs_world);
+        _ = builder
+            .with(fd.SpawnPoint)
+            .with(fd.Position);
 
-    //     var filter = builder.buildFilter();
-    //     defer filter.deinit();
+        var filter = builder.buildFilter();
+        defer filter.deinit();
 
-    //     var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
-    //     while (entity_iter.next()) |comps| {
-    //         break :blk comps.pos.*;
-    //     }
-    //     unreachable;
-    // };
+        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
+        while (entity_iter.next()) |comps| {
+            break :blk comps.pos.*;
+        }
+        unreachable;
+    };
 
     // const entity3 = flecs_world.newEntity();
     // entity3.set(fd.Transform.init(150, 500, 0.6));
@@ -271,25 +273,25 @@ pub fn run() void {
     //     .sphere = .{ .radius = 10.5 },
     // });
 
-    // const debug_camera_ent = flecs_world.newEntity();
-    // debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    // // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    // debug_camera_ent.set(fd.EulerRotation{});
-    // debug_camera_ent.set(fd.Scale{});
-    // debug_camera_ent.set(fd.Transform{});
-    // debug_camera_ent.set(fd.Dynamic{});
-    // debug_camera_ent.set(fd.CICamera{
-    //     .near = 0.1,
-    //     .far = 10000,
-    //     .window = main_window,
-    //     .active = true,
-    //     .class = 0,
-    // });
-    // debug_camera_ent.set(fd.WorldLoader{
-    //     .range = 2,
-    // });
-    // debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
-    // debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
+    const debug_camera_ent = flecs_world.newEntity();
+    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    debug_camera_ent.set(fd.EulerRotation{});
+    debug_camera_ent.set(fd.Scale{});
+    debug_camera_ent.set(fd.Transform{});
+    debug_camera_ent.set(fd.Dynamic{});
+    debug_camera_ent.set(fd.CICamera{
+        .near = 0.1,
+        .far = 10000,
+        .window = main_window,
+        .active = true,
+        .class = 0,
+    });
+    debug_camera_ent.set(fd.WorldLoader{
+        .range = 2,
+    });
+    debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
+    debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
