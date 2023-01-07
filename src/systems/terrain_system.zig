@@ -740,27 +740,25 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                 // Upload patch vertices to vertex buffer
                 {
-                    var gctx = state.gfx.gctx;
+                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+                    state.gfx.gctx.flushResourceBarriers();
 
-                    gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-                    gctx.flushResourceBarriers();
-
-                    const verts = gctx.allocateUploadBufferRegion(Vertex, patch.vertices.len);
+                    const verts = state.gfx.gctx.allocateUploadBufferRegion(Vertex, patch.vertices.len);
                     for (patch.vertices) |_, i| {
                         verts.cpu_slice[i].position = patch.vertices[i].position;
                         verts.cpu_slice[i].normal = patch.vertices[i].normal;
                     }
 
-                    gctx.cmdlist.CopyBufferRegion(
-                        gctx.lookupResource(state.vertex_buffer).?,
+                    state.gfx.gctx.cmdlist.CopyBufferRegion(
+                        state.gfx.gctx.lookupResource(state.vertex_buffer).?,
                         patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex),
                         verts.buffer,
                         verts.buffer_offset,
                         verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
                     );
 
-                    gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-                    gctx.flushResourceBarriers();
+                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+                    state.gfx.gctx.flushResourceBarriers();
                 }
 
                 var rand1 = std.rand.DefaultPrng.init(patch.lookup);
