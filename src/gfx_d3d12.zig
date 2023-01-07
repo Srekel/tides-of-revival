@@ -34,7 +34,7 @@ pub const FrameStats = struct {
         };
     }
 
-    pub fn update(self: *FrameStats, window: w32.HWND, window_name: []const u8) void {
+    pub fn update(self: *FrameStats) void {
         const now_ns = self.timer.read();
         self.time = @intToFloat(f64, now_ns) / std.time.ns_per_s;
         self.delta_time = @intToFloat(f32, now_ns - self.previous_time_ns) / std.time.ns_per_s;
@@ -49,14 +49,6 @@ pub const FrameStats = struct {
             self.average_cpu_time = @floatCast(f32, ms);
             self.fps_refresh_time_ns = now_ns;
             self.frame_counter = 0;
-
-            var buffer = [_]u8{0} ** 128;
-            const text = std.fmt.bufPrint(
-                buffer[0..],
-                "FPS: {d:.1}  CPU time: {d:.3} ms | {s}",
-                .{ self.fps, self.average_cpu_time, window_name },
-            ) catch unreachable;
-            _ = w32.SetWindowTextA(window, @ptrCast([*:0]const u8, text.ptr));
         }
         self.frame_counter += 1;
     }
@@ -178,7 +170,7 @@ pub fn deinit(state: *D3D12State, allocator: std.mem.Allocator) void {
 
 pub fn update(state: *D3D12State) void {
     // Update frame counter and fps stats.
-    state.stats.update(state.gctx.window, "EGL");
+    state.stats.update();
 
     var gctx = &state.gctx;
 
