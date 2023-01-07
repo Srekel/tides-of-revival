@@ -1,9 +1,10 @@
 const std = @import("std");
 const math = std.math;
 const flecs = @import("flecs");
-const gfx = @import("../gfx_wgpu.zig");
 const zgpu = @import("zgpu");
 const zm = @import("zmath");
+const gfx_d3d12 = @import("../gfx_d3d12.zig");
+const zd3d12 = @import("zd3d12");
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
@@ -15,8 +16,7 @@ const SystemState = struct {
     flecs_world: *flecs.World,
     sys: flecs.EntityId,
 
-    // gfx: *gfx.GfxState,
-    gctx: *zgpu.GraphicsContext,
+    gctx: *zd3d12.GraphicsContext,
     query_camera: flecs.Query,
     query_transform: flecs.Query,
 
@@ -25,9 +25,7 @@ const SystemState = struct {
     active_index: u32 = 1,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
-    const gctx = gfxstate.gctx;
-
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.D3D12State, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder
         .with(fd.Camera)
@@ -56,7 +54,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.GfxSta
         .allocator = allocator,
         .flecs_world = flecs_world,
         .sys = sys,
-        .gctx = gctx,
+        .gctx = &gfxstate.gctx,
         .query_camera = query_camera,
         .query_transform = query_transform,
         .frame_data = frame_data,
@@ -118,8 +116,9 @@ fn updateTransformHierarchy(state: *SystemState) void {
 
 fn updateCameraMatrices(state: *SystemState) void {
     const gctx = state.gctx;
-    const framebuffer_width = gctx.swapchain_descriptor.width;
-    const framebuffer_height = gctx.swapchain_descriptor.height;
+    const framebuffer_width = gctx.viewport_width;
+    const framebuffer_height = gctx.viewport_height;
+
 
     var entity_iter = state.query_camera.iterator(struct {
         camera: *fd.Camera,

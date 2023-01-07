@@ -1,9 +1,7 @@
 const std = @import("std");
 const flecs = @import("flecs");
-const gfx = @import("../../gfx_wgpu.zig");
-const zgpu = @import("zgpu");
+const gfx = @import("../../gfx_d3d12.zig");
 const znoise = @import("znoise");
-const glfw = @import("glfw");
 const zm = @import("zmath");
 const zbt = @import("zbullet");
 
@@ -45,9 +43,7 @@ const SystemState = struct {
     physics_world: zbt.World,
     sys: flecs.EntityId,
 
-    // gfx: *gfx.GfxState,
-    // gfx_stats: *zgpu.FrameStats,
-    gctx: *zgpu.GraphicsContext,
+    gfx: *gfx.D3D12State,
     noise: znoise.FnlGenerator,
     query_city: flecs.Query,
     query_camp: flecs.Query,
@@ -70,13 +66,11 @@ const CityEnt = struct {
 pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
-    gfxstate: *gfx.GfxState,
+    gfxstate: *gfx.D3D12State,
     flecs_world: *flecs.World,
     physics_world: zbt.World,
     noise: znoise.FnlGenerator,
 ) !*SystemState {
-    const gctx = gfxstate.gctx;
-
     var query_builder_city = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_city
         .with(CompCity)
@@ -114,7 +108,7 @@ pub fn create(
         .flecs_world = flecs_world,
         .physics_world = physics_world,
         .sys = sys,
-        .gctx = gctx,
+        .gfx = gfxstate,
         .noise = noise,
         .query_city = query_city,
         .query_camp = query_camp,
@@ -129,7 +123,7 @@ pub fn createEntities(state: *SystemState) void {
     var city_ents = std.ArrayList(CityEnt).init(state.allocator);
     defer city_ents.deinit();
 
-    //const time = @floatCast(f32, state.gctx.stats.time);
+    //const time = @floatCast(f32, state.gfx.stats.time);
     // var rand = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100)).random();
     var added_spawn = false;
     var rand1 = std.rand.DefaultPrng.init(0);
@@ -412,7 +406,7 @@ pub fn destroy(state: *SystemState) void {
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
-    const time = @floatCast(f32, state.gctx.stats.time);
+    const time = @floatCast(f32, state.gfx.stats.time);
     var rand1 = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100));
     var rand = rand1.random();
 
@@ -426,7 +420,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var city = comps.city;
         const pos = comps.pos;
 
-        if (city.next_spawn_time < state.gctx.stats.time) {
+        if (city.next_spawn_time < state.gfx.stats.time) {
             if (city.caravan_members_to_spawn == 0) {
                 city.next_spawn_time += city.spawn_cooldown;
                 city.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 3, 10);
@@ -477,7 +471,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var camp = comps.camp;
         const pos = comps.pos;
 
-        if (camp.next_spawn_time < state.gctx.stats.time) {
+        if (camp.next_spawn_time < state.gfx.stats.time) {
             if (camp.caravan_members_to_spawn == 0) {
                 camp.next_spawn_time += camp.spawn_cooldown;
                 camp.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 2, 5);

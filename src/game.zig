@@ -4,7 +4,7 @@ const flecs = @import("flecs");
 const RndGen = std.rand.DefaultPrng;
 
 const window = @import("window.zig");
-const gfx = @import("gfx_wgpu.zig");
+const gfx = @import("gfx_d3d12.zig");
 const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
@@ -47,7 +47,7 @@ pub fn run() void {
     main_window.setInputMode(.cursor, .disabled);
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
-    defer gfx.deinit(&gfx_state);
+    defer gfx.deinit(&gfx_state, std.heap.page_allocator);
 
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(std.heap.page_allocator);
@@ -212,6 +212,7 @@ pub fn run() void {
         terrain_noise,
     );
     defer terrain_system.destroy(terrain_sys);
+
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,
     //     &gfx_state,
@@ -220,6 +221,7 @@ pub fn run() void {
     // defer gui_system.destroy(&gui_sys);
 
     city_system.createEntities(city_sys);
+
     // Make sure systems are initialized and any initial system entities are created.
     update(&flecs_world, &gfx_state);
 
@@ -355,9 +357,9 @@ pub fn run() void {
     }
 }
 
-fn update(flecs_world: *flecs.World, gfx_state: *gfx.GfxState) void {
-    const stats = gfx_state.gctx.stats;
-    // const dt = @floatCast(f32, stats.delta_time) * 0.2;
+fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
+    // const stats = gfx_state.gctx.stats;
+    const stats = gfx_state.stats;
     const dt = @floatCast(f32, stats.delta_time);
     gfx.update(gfx_state);
     // gui_system.preUpdate(&gui_sys);
