@@ -293,7 +293,7 @@ pub fn create(
         .DEFAULT,
         d3d12.HEAP_FLAG_NONE,
         &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
-        d3d12.RESOURCE_STATE_COPY_DEST,
+        d3d12.RESOURCE_STATE_COMMON,
         null,
     ) catch |err| hrPanic(err);
 
@@ -301,9 +301,13 @@ pub fn create(
         .DEFAULT,
         d3d12.HEAP_FLAG_NONE,
         &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
-        d3d12.RESOURCE_STATE_COPY_DEST,
+        d3d12.RESOURCE_STATE_COMMON,
         null,
     ) catch |err| hrPanic(err);
+
+    gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+    gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+    gctx.flushResourceBarriers();
 
     // Fill vertex buffer with vertex data.
     const verts = gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
@@ -855,7 +859,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         return;
     }
 
-    // D3D12
     var gctx = state.gfx.gctx;
     // Set input assembler (IA) state.
     gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
