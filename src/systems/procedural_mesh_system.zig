@@ -239,8 +239,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk gfxstate.gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/terrain.vs.cso",
-            "shaders/terrain.ps.cso",
+            "shaders/basic_pbr.vs.cso",
+            "shaders/basic_pbr_mesh.ps.cso",
         );
     };
 

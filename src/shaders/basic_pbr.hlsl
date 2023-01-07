@@ -109,24 +109,9 @@ VertexOut vsMain(float3 position : POSITION, float3 normal : _Normal) {
     return output;
 }
 
-[RootSignature(ROOT_SIGNATURE)]
-void psMain(VertexOut input, out float4 out_color : SV_Target0) {
+float3 pbrShading(float3 base_color, VertexOut input) {
     float3 v = normalize(cbv_frame_const.camera_position - input.position);
     float3 n = normalize(input.normal);
-
-    float3 colors[5] = {
-        float3(0.0, 0.1, 0.7),
-        float3(1.0, 1.0, 0.0),
-        float3(0.3, 0.8, 0.2),
-        float3(0.7, 0.7, 0.7),
-        float3(0.95, 0.95, 0.95),
-    };
-
-    float3 base_color = colors[0];
-    base_color = lerp(base_color, colors[1], step(0.005, input.position.y * 0.01));
-    base_color = lerp(base_color, colors[2], step(0.02, input.position.y * 0.01));
-    base_color = lerp(base_color, colors[3], step(1.0, input.position.y * 0.01 + 0.5 * (1.0 - dot(n, float3(0.0, 1.0, 0.0))) ));
-    base_color = lerp(base_color, colors[4], step(3.5, input.position.y * 0.01 + 1.5 * dot(n, float3(0.0, 1.0, 0.0)) ));
 
     float ao = 1.0;
     float roughness = cbv_draw_const.basecolor_roughness.a;
@@ -162,9 +147,44 @@ void psMain(VertexOut input, out float4 out_color : SV_Target0) {
     float fog = saturate((fog_dist - fog_start) / (fog_end - fog_start));
     float3 color = ambient + lo + sun;
     color = lerp(color, float3(0.5, 0.5, 0.4), 1.0 * saturate(fog * fog * max(0.0, sun_height)));
+    return color;
+}
+
+float3 gammaCorrect(float3 color) {
     float gamma = 1.0 / 2.2;
     color = pow(color, float3(gamma, gamma, gamma));
+    return color;
+}
 
+[RootSignature(ROOT_SIGNATURE)]
+void psTerrain(VertexOut input, out float4 out_color : SV_Target0) {
+    float3 colors[5] = {
+        float3(0.0, 0.1, 0.7),
+        float3(1.0, 1.0, 0.0),
+        float3(0.3, 0.8, 0.2),
+        float3(0.7, 0.7, 0.7),
+        float3(0.95, 0.95, 0.95),
+    };
+
+    float3 n = normalize(input.normal);
+    float3 base_color = colors[0];
+    base_color = lerp(base_color, colors[1], step(0.005, input.position.y * 0.01));
+    base_color = lerp(base_color, colors[2], step(0.02, input.position.y * 0.01));
+    base_color = lerp(base_color, colors[3], step(1.0, input.position.y * 0.01 + 0.5 * (1.0 - dot(n, float3(0.0, 1.0, 0.0))) ));
+    base_color = lerp(base_color, colors[4], step(3.5, input.position.y * 0.01 + 1.5 * dot(n, float3(0.0, 1.0, 0.0)) ));
+
+    float3 color = pbrShading(base_color, input);
+    color = gammaCorrect(color);
+    out_color.rgb = color;
+    out_color.a = 1;
+}
+
+[RootSignature(ROOT_SIGNATURE)]
+void psProceduralMesh(VertexOut input, out float4 out_color : SV_Target0) {
+    float3 base_color = cbv_draw_const.basecolor_roughness.rgb;
+
+    float3 color = pbrShading(base_color, input);
+    color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;
 }

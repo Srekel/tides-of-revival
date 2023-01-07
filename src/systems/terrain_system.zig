@@ -272,8 +272,8 @@ pub fn create(
         break :blk gfxstate.gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/terrain.vs.cso",
-            "shaders/terrain.ps.cso",
+            "shaders/basic_pbr.vs.cso",
+            "shaders/basic_pbr_terrain.ps.cso",
         );
     };
 
