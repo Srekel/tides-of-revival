@@ -250,8 +250,6 @@ pub fn create(
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    var gctx = gfxstate.gctx;
-
     const pipeline = blk: {
         // TODO: Replace InputAssembly with vertex fetch in shader
         const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
@@ -271,7 +269,7 @@ pub fn create(
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
 
-        break :blk gctx.createGraphicsShaderPipeline(
+        break :blk gfxstate.gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
             "shaders/terrain.vs.cso",
@@ -289,7 +287,7 @@ pub fn create(
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
     assert(total_num_indices == indices_per_patch * patch_count);
 
-    const vertex_buffer = gctx.createCommittedResource(
+    const vertex_buffer = gfxstate.gctx.createCommittedResource(
         .DEFAULT,
         d3d12.HEAP_FLAG_NONE,
         &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
@@ -297,7 +295,7 @@ pub fn create(
         null,
     ) catch |err| hrPanic(err);
 
-    const index_buffer = gctx.createCommittedResource(
+    const index_buffer = gfxstate.gctx.createCommittedResource(
         .DEFAULT,
         d3d12.HEAP_FLAG_NONE,
         // TODO: Get the size of IndexType
@@ -307,42 +305,48 @@ pub fn create(
         null,
     ) catch |err| hrPanic(err);
 
-    gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gctx.flushResourceBarriers();
+    gfxstate.gctx.beginFrame();
+
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+    gfxstate.gctx.flushResourceBarriers();
 
     // Fill vertex buffer with vertex data.
-    const verts = gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
+    const verts = gfxstate.gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
     for (meshes_positions.items) |_, i| {
         verts.cpu_slice[i].position = meshes_positions.items[i];
         verts.cpu_slice[i].normal = meshes_normals.items[i];
     }
 
-    gctx.cmdlist.CopyBufferRegion(
-        gctx.lookupResource(vertex_buffer).?,
+    gfxstate.gctx.cmdlist.CopyBufferRegion(
+        gfxstate.gctx.lookupResource(vertex_buffer).?,
         0,
         verts.buffer,
         verts.buffer_offset,
         verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
     );
 
-    const indices = gctx.allocateUploadBufferRegion(IndexType, total_num_indices);
+    // TODO: Make this work with IndexType instead of hardcoding u32
+    const indices = gfxstate.gctx.allocateUploadBufferRegion(u32, total_num_indices);
     for (meshes_indices.items) |_, i| {
         indices.cpu_slice[i] = meshes_indices.items[i];
     }
 
     // Fill index buffer with index data.
-    gctx.cmdlist.CopyBufferRegion(
-        gctx.lookupResource(index_buffer).?,
+    gfxstate.gctx.cmdlist.CopyBufferRegion(
+        gfxstate.gctx.lookupResource(index_buffer).?,
         0,
         indices.buffer,
         indices.buffer_offset,
         indices.cpu_slice.len * @sizeOf(@TypeOf(indices.cpu_slice[0])),
     );
 
-    gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_INDEX_BUFFER);
-    gctx.flushResourceBarriers();
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_INDEX_BUFFER);
+    gfxstate.gctx.flushResourceBarriers();
+
+    gfxstate.gctx.endFrame();
+    gfxstate.gctx.finishGpuCommands();
 
     // State
     var state = allocator.create(SystemState) catch unreachable;

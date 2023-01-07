@@ -49,7 +49,6 @@ pub fn run() void {
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state, std.heap.page_allocator);
-    gfx_state.gctx.beginFrame();
 
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(std.heap.page_allocator);
@@ -197,14 +196,13 @@ pub fn run() void {
     );
     defer camera_system.destroy(camera_sys);
 
-    // TODO: Make this work with D3D12
-    // var procmesh_sys = try procmesh_system.create(
-    //     IdLocal.initFormat("procmesh_system_{}", .{0}),
-    //     std.heap.page_allocator,
-    //     &gfx_state,
-    //     &flecs_world,
-    // );
-    // defer procmesh_system.destroy(procmesh_sys);
+    var procmesh_sys = try procmesh_system.create(
+        IdLocal.initFormat("procmesh_system_{}", .{0}),
+        std.heap.page_allocator,
+        &gfx_state,
+        &flecs_world,
+    );
+    defer procmesh_system.destroy(procmesh_sys);
 
     var terrain_sys = try terrain_system.create(
         IdLocal.init("terrain_system"),
@@ -224,9 +222,6 @@ pub fn run() void {
     // defer gui_system.destroy(&gui_sys);
 
     city_system.createEntities(city_sys);
-
-    gfx_state.gctx.endFrame();
-    gfx_state.gctx.finishGpuCommands();
 
     // Make sure systems are initialized and any initial system entities are created.
     update(&flecs_world, &gfx_state);
@@ -297,51 +292,51 @@ pub fn run() void {
 
     // _ = player_pos;
     // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
-    // const player_ent = flecs_world.newEntity();
-    // player_ent.setName("player");
-    // player_ent.set(player_pos);
-    // // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
-    // player_ent.set(fd.EulerRotation{});
-    // player_ent.set(fd.Scale.createScalar(1));
-    // player_ent.set(fd.Transform.initFromPosition(player_pos));
-    // player_ent.set(fd.Forward{});
-    // player_ent.set(fd.Velocity{});
-    // player_ent.set(fd.Dynamic{});
-    // player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
-    // player_ent.set(fd.CIShapeMeshInstance{
-    //     .id = IdLocal.id64("cylinder"),
-    //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
-    // });
-    // player_ent.set(fd.WorldLoader{
-    //     .range = 2,
-    // });
-    // player_ent.set(fd.Input{ .active = false, .index = 0 });
+    const player_ent = flecs_world.newEntity();
+    player_ent.setName("player");
+    player_ent.set(player_pos);
+    // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
+    player_ent.set(fd.EulerRotation{});
+    player_ent.set(fd.Scale.createScalar(1));
+    player_ent.set(fd.Transform.initFromPosition(player_pos));
+    player_ent.set(fd.Forward{});
+    player_ent.set(fd.Velocity{});
+    player_ent.set(fd.Dynamic{});
+    player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
+    player_ent.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.id64("cylinder"),
+        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+    });
+    player_ent.set(fd.WorldLoader{
+        .range = 2,
+    });
+    player_ent.set(fd.Input{ .active = false, .index = 0 });
 
-    // const player_camera_ent = flecs_world.newEntity();
-    // player_camera_ent.childOf(player_ent);
-    // player_camera_ent.setName("playercamera");
-    // player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
-    // player_camera_ent.set(fd.EulerRotation{});
-    // player_camera_ent.set(fd.Scale.createScalar(1));
-    // player_camera_ent.set(fd.Transform{});
-    // player_camera_ent.set(fd.Dynamic{});
-    // player_camera_ent.set(fd.Forward{});
-    // player_camera_ent.set(fd.CICamera{
-    //     .near = 0.1,
-    //     .far = 10000,
-    //     .window = main_window,
-    //     .active = false,
-    //     .class = 1,
-    // });
-    // player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
-    // player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    // player_camera_ent.set(fd.CIShapeMeshInstance{
-    //     .id = IdLocal.id64("sphere"),
-    //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
-    // });
-    // player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
+    const player_camera_ent = flecs_world.newEntity();
+    player_camera_ent.childOf(player_ent);
+    player_camera_ent.setName("playercamera");
+    player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
+    player_camera_ent.set(fd.EulerRotation{});
+    player_camera_ent.set(fd.Scale.createScalar(1));
+    player_camera_ent.set(fd.Transform{});
+    player_camera_ent.set(fd.Dynamic{});
+    player_camera_ent.set(fd.Forward{});
+    player_camera_ent.set(fd.CICamera{
+        .near = 0.1,
+        .far = 10000,
+        .window = main_window,
+        .active = false,
+        .class = 1,
+    });
+    player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
+    player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
+    player_camera_ent.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.id64("sphere"),
+        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+    });
+    player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
-    // _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
+    _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
