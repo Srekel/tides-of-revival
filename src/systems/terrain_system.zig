@@ -885,11 +885,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     {
         const cam = camera_comps.?.cam;
         const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
-
+        const stats = flecs.c.ecs_get_world_info(state.flecs_world.world);
+        const time = stats.*.world_time_total;
         const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
         mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
         mem.cpu_slice[0].camera_position = camera_comps.?.pos.elemsConst().*;
-        mem.cpu_slice[0].time = @floatCast(f32, state.gfx.stats.time);
+        mem.cpu_slice[0].time = time;
         mem.cpu_slice[0].light_count = 0;
 
         var entity_iter_lights = state.query_lights.iterator(struct {

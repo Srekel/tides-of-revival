@@ -10,6 +10,7 @@ const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 const zbt = @import("zbullet");
+const egl_math = @import("../../core/math.zig");
 
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 1.7;
@@ -69,6 +70,43 @@ fn updateSnapToTerrain(physics_world: zbt.World, pos: *fd.Position) void {
     }
 }
 
+fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
+    const transform = entity.get(fd.Transform);
+    const pos = transform.?.getPos00();
+    const stats = flecs.c.ecs_get_world_info(ctx.flecs_world.world);
+    const time = stats.*.world_time_total;
+
+    const sun_height = @sin(time * 0.5);
+    if (sun_height > 0) {
+        return;
+    }
+
+    const FilterCallback = struct {
+        transform: *fd.Transform,
+        light: *const fd.Light,
+    };
+
+    var safe_from_darkness = false;
+    var filter = ctx.flecs_world.filter(FilterCallback);
+    defer filter.deinit();
+    var filter_it = filter.iterator(FilterCallback);
+    while (filter_it.next()) |comps| {
+        if (filter_it.entity().hasPair(flecs.c.EcsChildOf, entity.id)) {
+            continue;
+        }
+
+        const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
+        if (dist < comps.light.range) {
+            safe_from_darkness = true;
+            break;
+        }
+    }
+
+    if (!safe_from_darkness) {
+        std.debug.panic("dead", .{});
+    }
+}
+
 pub const StateIdle = struct {
     amount_moved: f32,
     sfx_footstep_index: u32,
@@ -111,6 +149,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         const pos_before = comps.pos.*;
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
+        updateDeathFromDarkness(entity_iter.entity(), ctx);
         const pos_after = comps.pos.*;
         const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
         state.*.amount_moved += @fabs(pos_after.x - pos_before.x);
