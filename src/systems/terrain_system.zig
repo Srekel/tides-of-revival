@@ -300,7 +300,9 @@ pub fn create(
     const index_buffer = gctx.createCommittedResource(
         .DEFAULT,
         d3d12.HEAP_FLAG_NONE,
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
+        // TODO: Get the size of IndexType
+        // &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
+        &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(u32)),
         d3d12.RESOURCE_STATE_COMMON,
         null,
     ) catch |err| hrPanic(err);
