@@ -4,8 +4,7 @@ const flecs = @import("flecs");
 const RndGen = std.rand.DefaultPrng;
 
 const window = @import("window.zig");
-const gfx = @import("gfx_wgpu.zig");
-const gfx_d3d12 = @import("gfx_d3d12.zig");
+const gfx = @import("gfx_d3d12.zig");
 const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
@@ -48,12 +47,9 @@ pub fn run() void {
     const main_window = window.createWindow("The Elvengroin Legacy") catch unreachable;
     main_window.setInputMode(.cursor, .disabled);
 
-    var gfx_d3d12_state = gfx_d3d12.init(std.heap.page_allocator, main_window) catch unreachable;
-    defer gfx_d3d12.deinit(&gfx_d3d12_state, std.heap.page_allocator);
-    gfx_d3d12_state.gctx.beginFrame();
-
-    // var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
-    // defer gfx.deinit(&gfx_state);
+    var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
+    defer gfx.deinit(&gfx_state, std.heap.page_allocator);
+    gfx_state.gctx.beginFrame();
 
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(std.heap.page_allocator);
@@ -185,7 +181,7 @@ pub fn run() void {
     var city_sys = try city_system.create(
         IdLocal.init("city_system"),
         std.heap.c_allocator,
-        &gfx_d3d12_state,
+        &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
         terrain_noise,
@@ -195,7 +191,7 @@ pub fn run() void {
     var camera_sys = try camera_system.create(
         IdLocal.init("camera_system"),
         std.heap.page_allocator,
-        &gfx_d3d12_state,
+        &gfx_state,
         &flecs_world,
         &input_frame_data,
     );
@@ -213,7 +209,7 @@ pub fn run() void {
     var terrain_sys = try terrain_system.create(
         IdLocal.init("terrain_system"),
         std.heap.c_allocator,
-        &gfx_d3d12_state,
+        &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
         terrain_noise,
@@ -229,12 +225,11 @@ pub fn run() void {
 
     city_system.createEntities(city_sys);
 
-    gfx_d3d12_state.gctx.endFrame();
-    gfx_d3d12_state.gctx.finishGpuCommands();
+    gfx_state.gctx.endFrame();
+    gfx_state.gctx.finishGpuCommands();
 
     // Make sure systems are initialized and any initial system entities are created.
-    // update(&flecs_world, &gfx_state);
-    update(&flecs_world, &gfx_d3d12_state);
+    update(&flecs_world, &gfx_state);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -364,22 +359,18 @@ pub fn run() void {
             break;
         }
 
-        // update(&flecs_world, &gfx_state);
-        update(&flecs_world, &gfx_d3d12_state);
+        update(&flecs_world, &gfx_state);
     }
 }
 
-// fn update(flecs_world: *flecs.World, gfx_state: *gfx.GfxState) void {
-fn update(flecs_world: *flecs.World, gfx_d3d12_state: *gfx_d3d12.D3D12State) void {
+fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     // const stats = gfx_state.gctx.stats;
-    const stats = gfx_d3d12_state.stats;
+    const stats = gfx_state.stats;
     const dt = @floatCast(f32, stats.delta_time);
-    // gfx.update(gfx_state);
-    gfx_d3d12.update(gfx_d3d12_state);
+    gfx.update(gfx_state);
     // gui_system.preUpdate(&gui_sys);
 
     flecs_world.progress(dt);
     // gui_system.update(&gui_sys);
-    // gfx.draw(gfx_state);
-    gfx_d3d12.draw(gfx_d3d12_state);
+    gfx.draw(gfx_state);
 }
