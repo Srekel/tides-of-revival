@@ -6,7 +6,6 @@ const flecs = @import("external/zig-flecs/build.zig");
 const zaudio = @import("external/zig-gamedev/libs/zaudio/build.zig");
 const zbullet = @import("external/zig-gamedev/libs/zbullet/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
-const zgpu = @import("external/zig-gamedev/libs/zgpu/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
 const zd3d12 = @import("external/zig-gamedev/libs/zd3d12/build.zig");
 const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
@@ -24,12 +23,6 @@ pub fn build(b: *Builder) void {
     exe.addPackagePath("zigimg", "external/zigimg/zigimg.zig");
     // exe.addPackagePath("qoi", "external/zig-qoi/src/qoi.zig");
     exe.addPackagePath("args", "external/zig-args/args.zig");
-
-    const zgpu_options = zgpu.BuildOptionsStep.init(b, .{
-        .uniforms_buffer_size = 64 * 1024 * 1024,
-        // .dawn_skip_validation = true,
-    });
-    const zgpu_pkg = zgpu.getPkg(&.{ zgpu_options.getPkg(), zpool.pkg, zglfw.pkg });
 
     const zmesh_options = zmesh.BuildOptionsStep.init(b, .{});
     const zmesh_pkg = zmesh.getPkg(&.{zmesh_options.getPkg()});
@@ -62,7 +55,6 @@ pub fn build(b: *Builder) void {
 
     exe.addPackage(zaudio.pkg);
     exe.addPackage(zbullet.pkg);
-    exe.addPackage(zgpu_pkg);
     exe.addPackage(zglfw.pkg);
     exe.addPackage(zmesh_pkg);
     exe.addPackage(zmath.pkg);
@@ -75,7 +67,6 @@ pub fn build(b: *Builder) void {
     zaudio.link(exe);
     zbullet.link(exe);
     zglfw.link(exe);
-    zgpu.link(exe, zgpu_options);
     zmesh.link(exe, zmesh_options);
     znoise.link(exe);
     ztracy.link(exe, ztracy_options);

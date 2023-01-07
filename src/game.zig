@@ -14,7 +14,6 @@ const physics_system = @import("systems/physics_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
-const triangle_system = @import("systems/triangle_system.zig");
 const fd = @import("flecs_data.zig");
 const config = @import("config.zig");
 const IdLocal = @import("variant.zig").IdLocal;
