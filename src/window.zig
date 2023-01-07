@@ -33,8 +33,6 @@ var windows: std.ArrayList(*zglfw.Window) = undefined;
 // }
 
 pub fn init(allocator: std.mem.Allocator) !void {
-    // Hint GLFW not to create a context for a graphics API
-    zglfw.initHint(0x00022001, 0);
     try zglfw.init();
     windows = std.ArrayList(*zglfw.Window).init(allocator);
 }
