@@ -197,10 +197,8 @@ InstancedVertexOut vsInstancedMesh(float3 position : POSITION, float3 normal : _
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
-    // const float4x4 object_to_clip = mul(cbv_draw_const.object_to_world, cbv_frame_const.world_to_clip);
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
     output.position_vs = mul(float4(position, 1.0), object_to_clip);
-    // output.position = mul(float4(position, 1.0), cbv_draw_const.object_to_world).xyz;
     output.position = mul(float4(position, 1.0), instance.object_to_world).xyz;
     output.normal = normal; // object-space normal
 
@@ -241,7 +239,6 @@ void psProceduralMesh(InstancedVertexOut input, out float4 out_color : SV_Target
     uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
     InstanceMaterial instance = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
 
-    // float3 base_color = cbv_draw_const.basecolor_roughness.rgb;
     float3 base_color = instance.basecolor_roughness.rgb;
 
     PBRInput pbrInput;
