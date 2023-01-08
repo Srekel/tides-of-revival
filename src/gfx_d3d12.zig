@@ -277,8 +277,6 @@ pub fn draw(state: *D3D12State) void {
 
     // Call 'Present' and prepare for the next frame.
     gctx.endFrame();
-
-    // std.log.debug("FPS: {d:.1}  CPU time: {d:.3} ms", .{ state.stats.fps, state.stats.average_cpu_time });
 }
 
 fn drawText(
