@@ -3,8 +3,11 @@ const assert = std.debug.assert;
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const zwin32 = @import("zwin32");
 const w32 = zwin32.base;
-const hrPanic = zwin32.hrPanic;
+const d2d1 = zwin32.d2d1;
 const d3d12 = zwin32.d3d12;
+const dwrite = zwin32.dwrite;
+const hrPanic = zwin32.hrPanic;
+const hrPanicOnFail = zwin32.hrPanicOnFail;
 const zd3d12 = @import("zd3d12");
 const zglfw = @import("zglfw");
 
@@ -54,9 +57,16 @@ pub const FrameStats = struct {
     }
 };
 
+pub const PersistentResource = struct {
+    resource: zd3d12.ResourceHandle,
+    persistent_descriptor: zd3d12.PersistentDescriptor,
+};
+
 pub const D3D12State = struct {
     gctx: zd3d12.GraphicsContext,
     stats: FrameStats,
+    stats_brush: *d2d1.ISolidColorBrush,
+    stats_text_format: *dwrite.ITextFormat,
 
     depth_texture: zd3d12.ResourceHandle,
     depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
@@ -133,6 +143,35 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     gctx.present_flags = 0;
     gctx.present_interval = 1;
 
+    // Create Direct2D brush which will be needed to display text.
+    const stats_brush = blk: {
+        var brush: ?*d2d1.ISolidColorBrush = null;
+        hrPanicOnFail(gctx.d2d.?.context.CreateSolidColorBrush(
+            &.{ .r = 1.0, .g = 0.0, .b = 0.0, .a = 0.5 },
+            null,
+            &brush,
+        ));
+        break :blk brush.?;
+    };
+
+    // Create Direct2D text format which will be needed to display text.
+    const stats_text_format = blk: {
+        var text_format: ?*dwrite.ITextFormat = null;
+        hrPanicOnFail(gctx.d2d.?.dwrite_factory.CreateTextFormat(
+            L("Verdana"),
+            null,
+            .BOLD,
+            .NORMAL,
+            .NORMAL,
+            12.0,
+            L("en-us"),
+            &text_format,
+        ));
+        break :blk text_format.?;
+    };
+    hrPanicOnFail(stats_text_format.SetTextAlignment(.LEADING));
+    hrPanicOnFail(stats_text_format.SetParagraphAlignment(.NEAR));
+
     const depth_texture = gctx.createCommittedResource(
         .DEFAULT,
         d3d12.HEAP_FLAG_NONE,
@@ -155,6 +194,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     return D3D12State{
         .gctx = gctx,
         .stats = FrameStats.init(),
+        .stats_brush = stats_brush,
+        .stats_text_format = stats_text_format,
         .depth_texture = depth_texture,
         .depth_texture_dsv = depth_texture_dsv,
     };
@@ -165,6 +206,8 @@ pub fn deinit(state: *D3D12State, allocator: std.mem.Allocator) void {
 
     state.gctx.finishGpuCommands();
     state.gctx.deinit(allocator);
+    _ = state.stats_brush.Release();
+    _ = state.stats_text_format.Release();
     state.* = undefined;
 }
 
@@ -200,10 +243,62 @@ pub fn update(state: *D3D12State) void {
 pub fn draw(state: *D3D12State) void {
     var gctx = &state.gctx;
 
+    gctx.beginDraw2d();
+    {
+        // Display average fps and frame time.
+        const stats = &state.stats;
+        var buffer = [_]u8{0} ** 64;
+        const text = std.fmt.bufPrint(
+            buffer[0..],
+            "FPS: {d:.1}\nCPU: {d:.3} ms\n",
+            .{ stats.fps, stats.average_cpu_time },
+        ) catch unreachable;
+
+        state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
+        drawText(
+            gctx.d2d.?.context,
+            text,
+            state.stats_text_format,
+            &d2d1.RECT_F{
+                .left = 0.0,
+                .top = 0.0,
+                .right = @intToFloat(f32, gctx.viewport_width),
+                .bottom = @intToFloat(f32, gctx.viewport_height),
+            },
+            @ptrCast(*d2d1.IBrush, state.stats_brush),
+        );
+    }
+    // End Direct2D rendering and transition back buffer to 'present' state.
+    gctx.endDraw2d();
+
     const back_buffer = gctx.getBackBuffer();
     gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATE_PRESENT);
     gctx.flushResourceBarriers();
 
     // Call 'Present' and prepare for the next frame.
     gctx.endFrame();
+
+    // std.log.debug("FPS: {d:.1}  CPU time: {d:.3} ms", .{ state.stats.fps, state.stats.average_cpu_time });
+}
+
+fn drawText(
+    devctx: *d2d1.IDeviceContext6,
+    text: []const u8,
+    format: *dwrite.ITextFormat,
+    layout_rect: *const d2d1.RECT_F,
+    brush: *d2d1.IBrush,
+) void {
+    var utf16: [128:0]u16 = undefined;
+    assert(text.len < utf16.len);
+    const len = std.unicode.utf8ToUtf16Le(utf16[0..], text) catch unreachable;
+    utf16[len] = 0;
+    devctx.DrawText(
+        &utf16,
+        @intCast(u32, len),
+        format,
+        layout_rect,
+        brush,
+        d2d1.DRAW_TEXT_OPTIONS_NONE,
+        .NATURAL,
+    );
 }
