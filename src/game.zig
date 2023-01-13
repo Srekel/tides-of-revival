@@ -311,6 +311,7 @@ pub fn run() void {
         .range = 2,
     });
     player_ent.set(fd.Input{ .active = false, .index = 0 });
+    player_ent.set(fd.Health{ .value = 100 });
 
     const player_camera_ent = flecs_world.newEntity();
     player_camera_ent.childOf(player_ent);
