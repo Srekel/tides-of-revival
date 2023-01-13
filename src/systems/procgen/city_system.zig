@@ -7,35 +7,10 @@ const zbt = @import("zbullet");
 
 const math = @import("../../core/math.zig");
 const fd = @import("../../flecs_data.zig");
+const fr = @import("../../flecs_relation.zig");
 const config = @import("../../config.zig");
 const util = @import("../../util.zig");
 const IdLocal = @import("../../variant.zig").IdLocal;
-
-const CompCity = struct {
-    next_spawn_time: f32,
-    spawn_cooldown: f32,
-    caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]flecs.EntityId,
-    curr_target_city: flecs.EntityId,
-};
-const CompBanditCamp = struct {
-    next_spawn_time: f32,
-    spawn_cooldown: f32,
-    caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]flecs.EntityId,
-    // curr_target_city: flecs.EntityId,
-};
-const CompCaravan = struct {
-    start_pos: [3]f32,
-    end_pos: [3]f32,
-    time_to_arrive: f32,
-    time_birth: f32,
-    destroy_on_arrival: bool,
-};
-
-const CompCombatant = struct {
-    faction: i32,
-};
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
@@ -73,25 +48,25 @@ pub fn create(
 ) !*SystemState {
     var query_builder_city = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_city
-        .with(CompCity)
+        .with(fd.CompCity)
         .with(fd.Position);
     var query_city = query_builder_city.buildQuery();
 
     var query_builder_camp = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_camp
-        .with(CompBanditCamp)
+        .with(fd.CompBanditCamp)
         .with(fd.Position);
     var query_camp = query_builder_camp.buildQuery();
 
     var query_builder_caravan = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_caravan
-        .with(CompCaravan)
+        .with(fd.CompCaravan)
         .with(fd.Position);
     var query_caravan = query_builder_caravan.buildQuery();
 
     var query_builder_combat = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_combat
-        .with(CompCombatant)
+        .with(fd.CompCombatant)
         .with(fd.Position);
     var query_combat = query_builder_combat.buildQuery();
 
@@ -310,6 +285,7 @@ pub fn createEntities(state: *SystemState) void {
                 var spawn_ent = state.flecs_world.newEntity();
                 spawn_ent.set(spawn_pos);
                 spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
+                city_ent.addPair(fr.Hometown, spawn_ent);
                 // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
             }
         }
@@ -348,8 +324,8 @@ pub fn createEntities(state: *SystemState) void {
 
         city_ent1.nearest[0] = best_ent1.?.ent.id;
         city_ent1.nearest[1] = best_ent2.?.ent.id;
-        city_ent1.ent.set(CompCity{
-            .spawn_cooldown = 40,
+        city_ent1.ent.set(fd.CompCity{
+            .spawn_cooldown = 80,
             .next_spawn_time = 5,
             .closest_cities = [_]flecs.EntityId{
                 best_ent1.?.ent.id,
@@ -382,7 +358,7 @@ pub fn createEntities(state: *SystemState) void {
             }
         }
 
-        city_ent1.ent.set(CompBanditCamp{
+        city_ent1.ent.set(fd.CompBanditCamp{
             .spawn_cooldown = 65,
             .next_spawn_time = 10,
             .closest_cities = [_]flecs.EntityId{
@@ -412,7 +388,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // CITY
     var entity_iter_city = state.query_city.iterator(struct {
-        city: *CompCity,
+        city: *fd.CompCity,
         pos: *fd.Position,
     });
 
@@ -447,14 +423,14 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
             });
-            caravan_ent.set(CompCaravan{
+            caravan_ent.set(fd.CompCaravan{
                 .start_pos = pos.elemsConst().*,
                 .end_pos = next_city_pos,
                 .time_birth = time,
                 .time_to_arrive = time + distance / 10,
                 .destroy_on_arrival = true,
             });
-            caravan_ent.set(CompCombatant{ .faction = 1 });
+            caravan_ent.set(fd.CompCombatant{ .faction = 1 });
             if (city.caravan_members_to_spawn == 2) {
                 caravan_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 1, .b = 0 }, .range = 12 });
             }
@@ -463,7 +439,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // CAMP
     var entity_iter_camp = state.query_camp.iterator(struct {
-        camp: *CompBanditCamp,
+        camp: *fd.CompBanditCamp,
         pos: *fd.Position,
     });
 
@@ -501,20 +477,20 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .id = IdLocal.id64("cylinder"),
                 .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
             });
-            caravan_ent.set(CompCaravan{
+            caravan_ent.set(fd.CompCaravan{
                 .start_pos = pos.elemsConst().*,
                 .end_pos = target_pos,
                 .time_birth = time,
                 .time_to_arrive = time + distance / 5,
                 .destroy_on_arrival = false,
             });
-            caravan_ent.set(CompCombatant{ .faction = 2 });
+            caravan_ent.set(fd.CompCombatant{ .faction = 2 });
         }
     }
 
     // CARAVAN
     var entity_iter_caravan = state.query_caravan.iterator(struct {
-        caravan: *CompCaravan,
+        caravan: *fd.CompCaravan,
         pos: *fd.Position,
     });
 
@@ -527,7 +503,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 state.flecs_world.delete(entity_iter_caravan.entity().id);
             } else {
                 // hack :)
-                state.flecs_world.remove(entity_iter_caravan.entity().id, CompBanditCamp);
+                state.flecs_world.remove(entity_iter_caravan.entity().id, fd.CompBanditCamp);
             }
             continue;
         }
@@ -546,7 +522,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // COMBAT
     var entity_iter_combat1 = state.query_combat.iterator(struct {
-        combat: *CompCombatant,
+        combat: *fd.CompCombatant,
         pos: *fd.Position,
     });
 
@@ -555,7 +531,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         const pos1 = comps1.pos;
 
         var entity_iter_combat2 = state.query_combat.iterator(struct {
-            combat: *CompCombatant,
+            combat: *fd.CompCombatant,
             pos: *fd.Position,
         });
 

@@ -4,6 +4,7 @@ const zglfw = @import("zglfw");
 const zbt = @import("zbullet");
 const zmath = @import("zmath");
 const zmesh = @import("zmesh");
+const flecs = @import("flecs");
 
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
@@ -346,4 +347,37 @@ pub const Input = struct {
 pub const SpawnPoint = struct {
     active: bool = false,
     id: u64,
+};
+
+//  ██████╗██╗████████╗██╗   ██╗
+// ██╔════╝██║╚══██╔══╝╚██╗ ██╔╝
+// ██║     ██║   ██║    ╚████╔╝
+// ██║     ██║   ██║     ╚██╔╝
+// ╚██████╗██║   ██║      ██║
+//  ╚═════╝╚═╝   ╚═╝      ╚═╝
+
+pub const CompCity = struct {
+    next_spawn_time: f32,
+    spawn_cooldown: f32,
+    caravan_members_to_spawn: i32 = 0,
+    closest_cities: [2]flecs.EntityId,
+    curr_target_city: flecs.EntityId,
+};
+pub const CompBanditCamp = struct {
+    next_spawn_time: f32,
+    spawn_cooldown: f32,
+    caravan_members_to_spawn: i32 = 0,
+    closest_cities: [2]flecs.EntityId,
+    // curr_target_city: flecs.EntityId,
+};
+pub const CompCaravan = struct {
+    start_pos: [3]f32,
+    end_pos: [3]f32,
+    time_to_arrive: f32,
+    time_birth: f32,
+    destroy_on_arrival: bool,
+};
+
+pub const CompCombatant = struct {
+    faction: i32,
 };
