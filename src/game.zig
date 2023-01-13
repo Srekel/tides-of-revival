@@ -15,7 +15,9 @@ const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
 const fd = @import("flecs_data.zig");
+const fr = @import("flecs_relation.zig");
 const config = @import("config.zig");
+// const quality = @import("data/quality.zig");
 const IdLocal = @import("variant.zig").IdLocal;
 const zaudio = @import("zaudio");
 const znoise = @import("znoise");
@@ -233,7 +235,7 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-    const player_pos = blk: {
+    const player_spawn = blk: {
         var builder = flecs.QueryBuilder.init(flecs_world);
         _ = builder
             .with(fd.SpawnPoint)
@@ -244,9 +246,14 @@ pub fn run() void {
 
         var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
         while (entity_iter.next()) |comps| {
-            break :blk comps.pos.*;
+            // const city_ent = entity_iter.entity().get(fr.Hometown);
+            break :blk .{
+                .pos = comps.pos.*,
+                .ent = entity_iter.entity(),
+                // .city_ent =city_ent.,
+            };
         }
-        unreachable;
+        break :blk null;
     };
 
     // const entity3 = flecs_world.newEntity();
@@ -263,6 +270,7 @@ pub fn run() void {
     //     .sphere = .{ .radius = 10.5 },
     // });
 
+    const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     const debug_camera_ent = flecs_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
@@ -312,6 +320,10 @@ pub fn run() void {
     });
     player_ent.set(fd.Input{ .active = false, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
+    // player_ent.set(fd.WorldPatch{ .lookup = 123 });
+    if (player_spawn) |ps| {
+        ps.ent.addPair(fr.Hometown, player_ent);
+    }
 
     const player_camera_ent = flecs_world.newEntity();
     player_camera_ent.childOf(player_ent);

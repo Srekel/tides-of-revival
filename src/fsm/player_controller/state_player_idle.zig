@@ -6,6 +6,7 @@ const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
 const fd = @import("../../flecs_data.zig");
+const fr = @import("../../flecs_relation.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
@@ -15,7 +16,7 @@ const egl_math = @import("../../core/math.zig");
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input_move_fast)) {
-        speed_scalar = 6;
+        speed_scalar = 126;
     } else if (input_state.held(config.input_move_slow)) {
         speed_scalar = 0.5;
     }
@@ -77,7 +78,7 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
     const time = stats.*.world_time_total;
 
     const sun_height = @sin(time * 0.5);
-    if (sun_height > 0) {
+    if (sun_height > -0.5) {
         return;
     }
 
@@ -104,6 +105,38 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
 
     if (!safe_from_darkness) {
         std.debug.panic("dead", .{});
+    }
+}
+
+fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
+    const transform = entity.get(fd.Transform);
+    const pos = transform.?.getPos00();
+    const stats = flecs.c.ecs_get_world_info(ctx.flecs_world.world);
+    const time = stats.*.world_time_total;
+
+    const sun_height = @sin(time * 0.5);
+    if (sun_height > 0) {
+        return;
+    }
+
+    const FilterCallback = struct {
+        pos: *fd.Position,
+        city: *const fd.CompCity,
+    };
+
+    var filter = ctx.flecs_world.filter(FilterCallback);
+    defer filter.deinit();
+    var filter_it = filter.iterator(FilterCallback);
+    while (filter_it.next()) |comps| {
+        if (filter_it.entity().hasPair(fr.Hometown, entity.id)) {
+            continue;
+        }
+
+        const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
+        if (dist < 50) {
+            std.debug.panic("win", .{});
+            break;
+        }
     }
 }
 
@@ -150,6 +183,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
         updateDeathFromDarkness(entity_iter.entity(), ctx);
+        // updateWinFromArrival(entity_iter.entity(), ctx);
         const pos_after = comps.pos.*;
         const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
         state.*.amount_moved += @fabs(pos_after.x - pos_before.x);
