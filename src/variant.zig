@@ -18,7 +18,8 @@ pub const IdLocal = struct {
         var res: IdLocal = undefined;
         const nameslice = std.fmt.bufPrint(res.str[0..res.str.len], fmt, args) catch unreachable;
         res.strlen = @intCast(u8, nameslice.len);
-        res.hash = std.hash.Wyhash.hash(0, res.str[0..res.str.len]);
+        res.str[res.strlen] = 0;
+        res.hash = std.hash.Wyhash.hash(0, res.str[0..res.strlen]);
         return res;
     }
 
@@ -32,7 +33,7 @@ pub const IdLocal = struct {
             return;
         }
         self.strlen = @intCast(u8, str.len);
-        self.hash = std.hash.Wyhash.hash(0, str);
+        self.hash = std.hash.Wyhash.hash(0, str[0..self.strlen]);
         std.mem.copy(u8, self.str[0..self.str.len], str);
         self.str[self.strlen] = 0;
     }
