@@ -1,0 +1,94 @@
+🔥 patch 🔥
+----------
+🔵 delete when moving away (seems to have broken)
+🔵 world loader divided into parts:
+    🟢 terrain gfx (lod)
+    🟢 terrain physics
+    🟢 forest (lod)
+    🟢 pathfinding
+    🟢 static/global lights
+    🟢 entities
+
+
+🔥 forest 🔥
+-----------
+🔵 delete when moving away
+🔵 increased density (draw distance, performance testing)
+🔵 model lods
+🔵 simple tree/vegetation animation/movement/wiggle
+🔵 tree billboards
+
+
+🔥 day/night 🔥
+--------------
+🔲 references: https://mastodon.gamedev.place/@srekel/109619132367375456
+🔵 feed shader with sun position etc.
+🔵 sun in the sky
+🔵 atmospheric scattering
+🔵 starry sky (shader hack)
+🔵 moonlight
+🔵 simple moon
+🔵 entity with world data like time/moon/sun
+
+
+🔥 rendering tasks 🔥
+--------------------
+🔵 separate renderer/system, remove d3d calls from systems
+🔵 frustum culling
+🔵 occlusion culling
+🔵 Material support
+🔵 Loading and rendering meshes
+🔵 PBR
+🔵 Skylight (capture sky for ambient light)
+🔵 Post processing (tone mapping)
+🔵 HDR
+🔵 deferred rendering
+🔵 deferred shading
+    🟢 static/global lights
+🔵 Shadows (sun primarily)
+🔵 AMD FSR
+
+
+🔥 terrain 🔥
+--------------
+🔵 heightfield terrain rendering
+🔵 texturing (based on single material per sample + blending between)
+🔵 stitching
+🔵 lodding
+🔵 grass (etc)
+
+
+🔥 offline generation 🔥
+-----------------------
+🔵 hook it up
+🔵 build step...?
+🔵 terrain
+🔵 forest
+    🟢 basic output/input
+    🟢 more varied placement (glades, "clumps")
+🔵 cities
+
+
+🔥 anders steps 🔥
+-----------------
+🔵 create the world info entity
+🔵 finish current gameplay pass
+🔵 offline generate terrain
+🔵 various things from "promotion"
+🔵 gamepad freefly camera
+🔵 patch loading logic
+🔵 audio resource management
+
+
+🔥 promotion 🔥
+--------------
+🔵 newsletter
+🔵 SVN / content distribution method
+🔵 "podcast"
+🔵 lighting setup
+🔵 recording game/camera separately
+🔵 two-person OBS setup
+🔵 one-person OBS setup
+🔵 Davinci video template/setup
+🔵 Logo
+🔵 Name change
