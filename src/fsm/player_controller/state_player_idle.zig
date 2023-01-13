@@ -91,7 +91,7 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (filter_it.entity().hasPair(flecs.c.EcsChildOf, entity.id)) {
+        if (filter_it.entity().hasPair(flecs.c.Constants.EcsChildOf, entity.id)) {
             continue;
         }
 

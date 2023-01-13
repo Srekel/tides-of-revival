@@ -17,11 +17,11 @@ const IdLocal = @import("variant.zig").IdLocal;
 const fd = @import("flecs_data.zig");
 const flecs = @import("flecs");
 
-pub fn giveTransform(ent: flecs.Entity, pos: ?fd.Position, rot: ?fd.EulerRotation) void {
-    ent.setPair(fd.Position, fd.LocalSpace, pos);
-    ent.addPair(fd.Position, fd.WorldSpace);
-    ent.set(fd.EulerRotation{});
-    ent.set(fd.Scale{});
-    ent.set(fd.Transform{});
-    ent.set(fd.Forward{});
-}
+// pub fn giveTransform(ent: flecs.Entity, pos: ?fd.Position, rot: ?fd.EulerRotation) void {
+//     ent.setPair(fd.Position, fd.LocalSpace, pos);
+//     ent.addPair(fd.Position, fd.WorldSpace);
+//     ent.set(fd.EulerRotation{});
+//     ent.set(fd.Scale{});
+//     ent.set(fd.Transform{});
+//     ent.set(fd.Forward{});
+// }

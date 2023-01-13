@@ -61,7 +61,7 @@ pub fn destroy(state: *SystemState) void {
 }
 
 var lol: i32 = 0;
-fn update( iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
     // _ = state.physics_world.stepSimulation(0.0166, .{});
@@ -104,7 +104,7 @@ fn onSetCIPhysicsBody(it: *flecs.Iterator(ObserverCallback)) void {
     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
         var ci = @ptrCast(*fd.CIPhysicsBody, @alignCast(@alignOf(fd.CIPhysicsBody), ci_ptr));
 
         var transform = it.entity().getMut(fd.Transform).?;

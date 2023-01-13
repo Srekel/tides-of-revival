@@ -836,10 +836,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 break :blk .loaded;
             },
             .loaded => blk: {
-                const patch_ent = state.flecs_world.newEntity();
-                patch_ent.set(fd.Position{ .x = @intToFloat(f32, patch.pos[0]), .y = 0, .z = @intToFloat(f32, patch.pos[1]) });
-                patch_ent.set(fd.WorldPatch{ .lookup = patch.lookup });
-                patch.entity = patch_ent.id;
+                // const patch_ent = state.flecs_world.newEntity();
+                // patch_ent.set(fd.WorldPatch{ .lookup = 12 });
+                // patch_ent.set(fd.Position{ .x = @intToFloat(f32, patch.pos[0]), .y = 0, .z = @intToFloat(f32, patch.pos[1]) });
+                // patch.entity = patch_ent.id;
 
                 break :blk .loaded;
             },

@@ -40,6 +40,7 @@ pub fn run() void {
 
     var flecs_world = flecs.World.init();
     defer flecs_world.deinit();
+    _ = flecs.c.ecs_log_set_level(1);
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -335,7 +336,7 @@ pub fn run() void {
     });
     player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
-    _ = flecs_world.pair(flecs.c.EcsOnDeleteObject, flecs.c.EcsOnDelete);
+    _ = flecs_world.pair(flecs.c.Constants.EcsOnDeleteTarget, flecs.c.Constants.EcsOnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝

@@ -43,9 +43,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.
 
     var query_builder_transform_parent_term = query_builder_transform.manualTerm();
     query_builder_transform_parent_term.id = flecs_world.componentId(fd.Transform);
-    query_builder_transform_parent_term.inout = flecs.c.EcsIn;
-    query_builder_transform_parent_term.oper = flecs.c.EcsOptional;
-    query_builder_transform_parent_term.subj.set.mask = flecs.c.EcsParent | flecs.c.EcsCascade;
+    query_builder_transform_parent_term.inout = .ecs_in;
+    query_builder_transform_parent_term.oper = .ecs_optional;
+    query_builder_transform_parent_term.src.flags = flecs.c.Constants.EcsParent | flecs.c.Constants.EcsCascade;
     var query_transform = query_builder_transform.buildQuery();
 
     var state = allocator.create(SystemState) catch unreachable;
@@ -118,7 +118,6 @@ fn updateCameraMatrices(state: *SystemState) void {
     const gctx = state.gctx;
     const framebuffer_width = gctx.viewport_width;
     const framebuffer_height = gctx.viewport_height;
-
 
     var entity_iter = state.query_camera.iterator(struct {
         camera: *fd.Camera,
@@ -199,7 +198,7 @@ fn onSetCICamera(it: *flecs.Iterator(ObserverCallback)) void {
     // var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
     // var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CICamera), @intCast(i32, it.index)).?;
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CICamera), @intCast(i32, it.index)).?;
         var ci = @ptrCast(*fd.CICamera, @alignCast(@alignOf(fd.CICamera), ci_ptr));
         const ent = it.entity();
         ent.remove(fd.CICamera);

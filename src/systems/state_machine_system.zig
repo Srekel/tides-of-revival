@@ -184,7 +184,7 @@ fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CIFSM), @intCast(i32, it.index)).?;
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIFSM), @intCast(i32, it.index)).?;
         var ci = @ptrCast(*fd.CIFSM, @alignCast(@alignOf(fd.CIFSM), ci_ptr));
 
         const smi_i = blk_smi_i: {

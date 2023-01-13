@@ -700,7 +700,7 @@ const ShapeMeshInstanceObserverCallback = struct {
 //     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
 
 //     while (it.next()) |_| {
-//         const ci_ptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CIShapeMeshDefinition), @intCast(i32, it.index)).?;
+//         const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshDefinition), @intCast(i32, it.index)).?;
 //         var ci = @ptrCast(*fd.CIShapeMeshDefinition, @alignCast(@alignOf(fd.CIShapeMeshDefinition), ci_ptr));
 
 //         const ent = it.entity();
@@ -727,7 +727,7 @@ fn onSetCIShapeMeshInstance(it: *flecs.Iterator(ShapeMeshInstanceObserverCallbac
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
 
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_term_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @intCast(i32, it.index)).?;
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @intCast(i32, it.index)).?;
         var ci = @ptrCast(*fd.CIShapeMeshInstance, @alignCast(@alignOf(fd.CIShapeMeshInstance), ci_ptr));
 
         const mesh_index = mesh_blk: {

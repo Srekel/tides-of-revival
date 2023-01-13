@@ -54,6 +54,7 @@ pub fn build(b: *Builder) void {
     // is required by DirectX 12 Agility SDK.
     exe.rdynamic = true;
 
+    exe.addPackage(flecs.pkg);
     exe.addPackage(zaudio.pkg);
     exe.addPackage(zbullet.pkg);
     exe.addPackage(zglfw.pkg);
@@ -65,6 +66,7 @@ pub fn build(b: *Builder) void {
     exe.addPackage(zd3d12_pkg);
     exe.addPackage(zwin32.pkg);
 
+    flecs.link(exe, exe.target);
     zaudio.link(exe);
     zbullet.link(exe);
     zglfw.link(exe);
@@ -74,7 +76,6 @@ pub fn build(b: *Builder) void {
     zd3d12.link(exe, zd3d12_options);
 
     exe.install();
-    flecs.linkArtifact(b, exe, exe.target, if (exe.target.isWindows()) .static else .exe_compiled, "external/zig-flecs/");
 
     const run_cmd = exe.run();
     if (b.args) |args| {
