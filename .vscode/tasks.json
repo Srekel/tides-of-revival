@@ -6,7 +6,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "zig build -Dztracy-enable=true -Dzd3d12-enable_debug_layer=true",
+            "command": "zig build -Dztracy-enable=true",
             "group": "build",
             "problemMatcher": [
                 "$gcc"

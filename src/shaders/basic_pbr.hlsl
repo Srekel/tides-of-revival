@@ -3,9 +3,20 @@
     "CBV(b0, visibility = SHADER_VISIBILITY_ALL), " /* index 0 */ \
     "CBV(b1, visibility = SHADER_VISIBILITY_ALL)"   /* index 1 */
 
+#define INSTANCING_ROOT_SIGNATURE \
+    "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
+    "CBV(b0), " \
+    "CBV(b1), "
+
 struct DrawConst {
     float4x4 object_to_world;
     float4 basecolor_roughness;
+    // TODO: These should go into a different DrawConst. 
+    // It might be time to split this file into 2 separate shader files.
+    uint start_instance_location;
+    uint instance_transform_buffer_index;
+    uint instance_material_buffer_index;
+    uint padding;
 };
 
 struct FrameConst {
@@ -20,6 +31,14 @@ struct FrameConst {
     float4 light_radiances[32];
 };
 
+struct InstanceTransform {
+    float4x4 object_to_world;
+};
+
+struct InstanceMaterial {
+    float4 basecolor_roughness;
+};
+
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
 
@@ -27,6 +46,13 @@ struct VertexOut {
     float4 position_vs : SV_Position;
     float3 position : TEXCOORD0;
     float3 normal : NORMAL;
+};
+
+struct InstancedVertexOut {
+    float4 position_vs : SV_Position;
+    float3 position : TEXCOORD0;
+    float3 normal : NORMAL;
+    uint instanceID: SV_InstanceID;
 };
 
 // TODO: Move these into a PBR.hlsli include file
@@ -97,24 +123,18 @@ float3 pointLight(uint light_index, float3 position, float3 base_color, float3 v
         return (kd * base_color / PI + specular) * radiance * n_dot_l;
 }
 
-[RootSignature(ROOT_SIGNATURE)]
-VertexOut vsMain(float3 position : POSITION, float3 normal : _Normal) {
-    VertexOut output = (VertexOut)0;
+struct PBRInput {
+    float3 position;
+    float3 normal;
+    float roughness;
+};
 
-    const float4x4 object_to_clip = mul(cbv_draw_const.object_to_world, cbv_frame_const.world_to_clip);
-    output.position_vs = mul(float4(position, 1.0), object_to_clip);
-    output.position = mul(float4(position, 1.0), cbv_draw_const.object_to_world).xyz;
-    output.normal = normal; // object-space normal
-
-    return output;
-}
-
-float3 pbrShading(float3 base_color, VertexOut input) {
+float3 pbrShading(float3 base_color, PBRInput input) {
     float3 v = normalize(cbv_frame_const.camera_position - input.position);
     float3 n = normalize(input.normal);
 
     float ao = 1.0;
-    float roughness = cbv_draw_const.basecolor_roughness.a;
+    float roughness = input.roughness;
     float metallic = 0.0;
     if (roughness < 0.0) { metallic = 1.0; } else { metallic = 0.0; }
     roughness = abs(roughness);
@@ -157,6 +177,35 @@ float3 gammaCorrect(float3 color) {
 }
 
 [RootSignature(ROOT_SIGNATURE)]
+VertexOut vsMain(float3 position : POSITION, float3 normal : _Normal) {
+    VertexOut output = (VertexOut)0;
+
+    const float4x4 object_to_clip = mul(cbv_draw_const.object_to_world, cbv_frame_const.world_to_clip);
+    output.position_vs = mul(float4(position, 1.0), object_to_clip);
+    output.position = mul(float4(position, 1.0), cbv_draw_const.object_to_world).xyz;
+    output.normal = normal; // object-space normal
+
+    return output;
+}
+
+[RootSignature(INSTANCING_ROOT_SIGNATURE)]
+InstancedVertexOut vsInstancedMesh(float3 position : POSITION, float3 normal : _Normal, uint instanceID : SV_InstanceID) {
+    InstancedVertexOut output = (InstancedVertexOut)0;
+    output.instanceID = instanceID;
+
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_transform_buffer_index];
+    uint instance_index = instanceID + cbv_draw_const.start_instance_location;
+    InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
+
+    const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
+    output.position_vs = mul(float4(position, 1.0), object_to_clip);
+    output.position = mul(float4(position, 1.0), instance.object_to_world).xyz;
+    output.normal = normal; // object-space normal
+
+    return output;
+}
+
+[RootSignature(ROOT_SIGNATURE)]
 void psTerrain(VertexOut input, out float4 out_color : SV_Target0) {
     float3 colors[5] = {
         float3(0.0, 0.1, 0.7),
@@ -173,17 +222,31 @@ void psTerrain(VertexOut input, out float4 out_color : SV_Target0) {
     base_color = lerp(base_color, colors[3], step(1.0, input.position.y * 0.01 + 0.5 * (1.0 - dot(n, float3(0.0, 1.0, 0.0))) ));
     base_color = lerp(base_color, colors[4], step(3.5, input.position.y * 0.01 + 1.5 * dot(n, float3(0.0, 1.0, 0.0)) ));
 
-    float3 color = pbrShading(base_color, input);
+    PBRInput pbrInput;
+    pbrInput.position = input.position;
+    pbrInput.normal = input.normal;
+    pbrInput.roughness = cbv_draw_const.basecolor_roughness.a;
+
+    float3 color = pbrShading(base_color, pbrInput);
     color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;
 }
 
-[RootSignature(ROOT_SIGNATURE)]
-void psProceduralMesh(VertexOut input, out float4 out_color : SV_Target0) {
-    float3 base_color = cbv_draw_const.basecolor_roughness.rgb;
+[RootSignature(INSTANCING_ROOT_SIGNATURE)]
+void psProceduralMesh(InstancedVertexOut input, out float4 out_color : SV_Target0) {
+    ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
+    uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
+    InstanceMaterial instance = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
 
-    float3 color = pbrShading(base_color, input);
+    float3 base_color = instance.basecolor_roughness.rgb;
+
+    PBRInput pbrInput;
+    pbrInput.position = input.position;
+    pbrInput.normal = input.normal;
+    pbrInput.roughness = instance.basecolor_roughness.a;
+
+    float3 color = pbrShading(base_color, pbrInput);
     color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;

@@ -36,6 +36,7 @@ pub fn build(b: *Builder) void {
     const zd3d12_options = zd3d12.BuildOptionsStep.init(b, .{
         .enable_debug_layer = zd3d12_enable_debug_layer,
         .enable_gbv = zd3d12_enable_gbv,
+        .enable_d2d = true,
     });
     const zd3d12_pkg = zd3d12.getPkg(&.{ zwin32.pkg, zd3d12_options.getPkg() });
 
@@ -91,6 +92,8 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     );
 
     var dxc_command = makeDxcCmd("src/shaders/basic_pbr.hlsl", "vsMain", "basic_pbr.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/basic_pbr.hlsl", "vsInstancedMesh", "basic_pbr_instanced.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/basic_pbr.hlsl", "psTerrain", "basic_pbr_terrain.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);

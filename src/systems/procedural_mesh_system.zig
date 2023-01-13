@@ -39,6 +39,30 @@ const FrameUniforms = struct {
 const DrawUniforms = struct {
     object_to_world: zm.Mat,
     basecolor_roughness: [4]f32,
+    start_instance_location: u32,
+    instance_transform_buffer_index: u32,
+    instance_material_buffer_index: u32,
+    padding1: u32,
+};
+
+const InstanceTransform = struct {
+    object_to_world: zm.Mat,
+};
+
+const InstanceMaterial = struct {
+    basecolor_roughness: [4]f32,
+};
+
+const max_instances = 100000;
+const max_instances_per_draw_call = 4096;
+
+const DrawCall = struct {
+    mesh_index: u32,
+    index_count: u32,
+    instance_count: u32,
+    index_offset: u32,
+    vertex_offset: i32,
+    start_instance_location: u32,
 };
 
 const Mesh = struct {
@@ -87,6 +111,9 @@ const SystemState = struct {
 
     vertex_buffer: zd3d12.ResourceHandle,
     index_buffer: zd3d12.ResourceHandle,
+    instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
+    instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
+    draw_calls: std.ArrayList(DrawCall),
 
     meshes: std.ArrayList(Mesh),
     query_camera: flecs.Query,
@@ -239,7 +266,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk gfxstate.gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/basic_pbr.vs.cso",
+            "shaders/basic_pbr_instanced.vs.cso",
             "shaders/basic_pbr_mesh.ps.cso",
         );
     };
@@ -272,6 +299,95 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         d3d12.RESOURCE_STATE_COMMON,
         null,
     ) catch |err| hrPanic(err);
+
+    // Create instance buffers.
+    const instance_transform_buffers = blk: {
+        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource = undefined;
+        for (buffers) |_, buffer_index| {
+            const size = max_instances * @sizeOf(InstanceTransform);
+            const desc = d3d12.RESOURCE_DESC.initBuffer(size);
+            const resource = gfxstate.gctx.createCommittedResource(
+                .DEFAULT,
+                d3d12.HEAP_FLAG_NONE,
+                &desc,
+                d3d12.RESOURCE_STATE_COMMON,
+                null,
+            ) catch |err| hrPanic(err);
+
+            const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+            gfxstate.gctx.device.CreateShaderResourceView(
+                gfxstate.gctx.lookupResource(resource).?,
+                &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                    .ViewDimension = .BUFFER,
+                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                    .Format = .R32_TYPELESS,
+                    .u = .{
+                        .Buffer = .{
+                            .FirstElement = 0,
+                            .NumElements = @divExact(size, 4),
+                            .StructureByteStride = 0,
+                            .Flags = d3d12.BUFFER_SRV_FLAG_RAW,
+                        },
+                    },
+                },
+                srv_allocation.cpu_handle,
+            );
+
+            const persistent_buffer = gfx.PersistentResource{
+                .resource = resource,
+                .persistent_descriptor = srv_allocation,
+            };
+
+            buffers[buffer_index] = persistent_buffer;
+        }
+
+        break :blk buffers;
+    };
+
+    const instance_material_buffers = blk: {
+        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource = undefined;
+        for (buffers) |_, buffer_index| {
+            const size = max_instances * @sizeOf(InstanceMaterial);
+            const desc = d3d12.RESOURCE_DESC.initBuffer(size);
+            const resource = gfxstate.gctx.createCommittedResource(
+                .DEFAULT,
+                d3d12.HEAP_FLAG_NONE,
+                &desc,
+                d3d12.RESOURCE_STATE_COMMON,
+                null,
+            ) catch |err| hrPanic(err);
+
+            const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+            gfxstate.gctx.device.CreateShaderResourceView(
+                gfxstate.gctx.lookupResource(resource).?,
+                &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                    .ViewDimension = .BUFFER,
+                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                    .Format = .R32_TYPELESS,
+                    .u = .{
+                        .Buffer = .{
+                            .FirstElement = 0,
+                            .NumElements = @divExact(size, 4),
+                            .StructureByteStride = 0,
+                            .Flags = d3d12.BUFFER_SRV_FLAG_RAW,
+                        },
+                    },
+                },
+                srv_allocation.cpu_handle,
+            );
+
+            const persistent_buffer = gfx.PersistentResource{
+                .resource = resource,
+                .persistent_descriptor = srv_allocation,
+            };
+
+            buffers[buffer_index] = persistent_buffer;
+        }
+
+        break :blk buffers;
+    };
+
+    var draw_calls = std.ArrayList(DrawCall).init(allocator);
 
     gfxstate.gctx.beginFrame();
 
@@ -350,6 +466,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .pipeline = pipeline,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
+        .instance_transform_buffers = instance_transform_buffers,
+        .instance_material_buffers = instance_material_buffers,
+        .draw_calls = draw_calls,
         .meshes = meshes,
         .query_camera = query_camera,
         .query_lights = query_lights,
@@ -367,6 +486,7 @@ pub fn destroy(state: *SystemState) void {
     state.query_lights.deinit();
     state.query_mesh.deinit();
     state.meshes.deinit();
+    state.draw_calls.deinit();
     state.allocator.destroy(state);
 }
 
@@ -420,12 +540,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     state.gfx.gctx.setCurrentPipeline(state.pipeline);
 
     // Upload per-frame constant data.
+    const camera_position = camera_comps.?.transform.getPos00();
     {
-        const pos = camera_comps.?.transform.getPos00();
-
         const mem = state.gfx.gctx.allocateUploadMemory(FrameUniforms, 1);
         mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-        mem.cpu_slice[0].camera_position = pos;
+        mem.cpu_slice[0].camera_position = camera_position;
         mem.cpu_slice[0].time = @floatCast(f32, state.gfx.stats.time);
         mem.cpu_slice[0].light_count = 0;
 
@@ -453,25 +572,111 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         transform: *const fd.Transform,
         mesh: *const fd.ShapeMeshInstance,
     });
-    while (entity_iter_mesh.next()) |comps| {
-        const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
 
+    // Reset draw call array list
+    state.draw_calls.clearRetainingCapacity();
+    var instance_count: u32 = 0;
+    var start_instance_location: u32 = 0;
+    var last_mesh_index: u32 = 0xffffffff;
+    var last_mesh_index_count: u32 = 0;
+    var last_mesh_index_offset: u32 = 0;
+    var last_mesh_vertex_offset: i32 = 0;
+
+    const instance_transforms_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceTransform, max_instances);
+    const instance_materials_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceMaterial, max_instances);
+    var current_instance_index: u32 = 0;
+
+    while (entity_iter_mesh.next()) |comps| {
+        if (last_mesh_index == 0xffffffff) {
+            last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
+            last_mesh_index_count = state.meshes.items[comps.mesh.mesh_index].num_indices;
+            last_mesh_index_offset = state.meshes.items[comps.mesh.mesh_index].index_offset;
+            last_mesh_vertex_offset = state.meshes.items[comps.mesh.mesh_index].vertex_offset;
+        }
+
+        if (last_mesh_index != comps.mesh.mesh_index or instance_count == max_instances_per_draw_call) {
+            state.draw_calls.append(.{
+                .mesh_index = last_mesh_index,
+                .index_count = last_mesh_index_count,
+                .instance_count = instance_count,
+                .index_offset = last_mesh_index_offset,
+                .vertex_offset = last_mesh_vertex_offset,
+                .start_instance_location = start_instance_location,
+            }) catch unreachable;
+
+            start_instance_location += instance_count;
+            instance_count = 1;
+
+            last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
+            last_mesh_index_count = state.meshes.items[comps.mesh.mesh_index].num_indices;
+            last_mesh_index_offset = state.meshes.items[comps.mesh.mesh_index].index_offset;
+            last_mesh_vertex_offset = state.meshes.items[comps.mesh.mesh_index].vertex_offset;
+        } else {
+            instance_count += 1;
+        }
+
+        const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
+        instance_transforms_upload_buffer.cpu_slice[current_instance_index] = .{ .object_to_world = zm.transpose(object_to_world) };
+        instance_materials_upload_buffer.cpu_slice[current_instance_index] = .{
+            .basecolor_roughness = [4]f32{
+                comps.mesh.basecolor_roughness.r,
+                comps.mesh.basecolor_roughness.g,
+                comps.mesh.basecolor_roughness.b,
+                comps.mesh.basecolor_roughness.roughness,
+            },
+        };
+        current_instance_index += 1;
+    }
+
+    if (instance_count >= 1) {
+        state.draw_calls.append(.{
+            .mesh_index = last_mesh_index,
+            .index_count = last_mesh_index_count,
+            .instance_count = instance_count,
+            .index_offset = last_mesh_index_offset,
+            .vertex_offset = last_mesh_vertex_offset,
+            .start_instance_location = start_instance_location,
+        }) catch unreachable;
+    }
+
+    const frame_index = state.gfx.gctx.frame_index;
+    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATE_COPY_DEST);
+    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATE_COPY_DEST);
+    state.gfx.gctx.flushResourceBarriers();
+
+    state.gfx.gctx.cmdlist.CopyBufferRegion(
+        state.gfx.gctx.lookupResource(state.instance_transform_buffers[frame_index].resource).?,
+        0,
+        instance_transforms_upload_buffer.buffer,
+        instance_transforms_upload_buffer.buffer_offset,
+        instance_transforms_upload_buffer.cpu_slice.len * @sizeOf(@TypeOf(instance_transforms_upload_buffer.cpu_slice[0])),
+    );
+
+    state.gfx.gctx.cmdlist.CopyBufferRegion(
+        state.gfx.gctx.lookupResource(state.instance_material_buffers[frame_index].resource).?,
+        0,
+        instance_materials_upload_buffer.buffer,
+        instance_materials_upload_buffer.buffer_offset,
+        instance_materials_upload_buffer.cpu_slice.len * @sizeOf(@TypeOf(instance_materials_upload_buffer.cpu_slice[0])),
+    );
+
+    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATE_GENERIC_READ);
+    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATE_GENERIC_READ);
+    state.gfx.gctx.flushResourceBarriers();
+
+    for (state.draw_calls.items) |draw_call| {
         const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
-        mem.cpu_slice[0].object_to_world = zm.transpose(object_to_world);
-        mem.cpu_slice[0].basecolor_roughness[0] = comps.mesh.basecolor_roughness.r;
-        mem.cpu_slice[0].basecolor_roughness[1] = comps.mesh.basecolor_roughness.g;
-        mem.cpu_slice[0].basecolor_roughness[2] = comps.mesh.basecolor_roughness.b;
-        mem.cpu_slice[0].basecolor_roughness[3] = comps.mesh.basecolor_roughness.roughness;
+        mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+        mem.cpu_slice[0].instance_transform_buffer_index = state.instance_transform_buffers[frame_index].persistent_descriptor.index;
+        mem.cpu_slice[0].instance_material_buffer_index = state.instance_material_buffers[frame_index].persistent_descriptor.index;
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-        // std.log.debug("Index count: {}. Index offset: {}", .{state.meshes.items[comps.mesh.mesh_index].num_indices, state.meshes.items[comps.mesh.mesh_index].index_offset});
-        // Draw.
         state.gfx.gctx.cmdlist.DrawIndexedInstanced(
-            state.meshes.items[comps.mesh.mesh_index].num_indices,
-            1,
-            state.meshes.items[comps.mesh.mesh_index].index_offset,
-            state.meshes.items[comps.mesh.mesh_index].vertex_offset,
-            0,
+            draw_call.index_count,
+            draw_call.instance_count,
+            draw_call.index_offset,
+            draw_call.vertex_offset,
+            draw_call.start_instance_location,
         );
     }
 }
