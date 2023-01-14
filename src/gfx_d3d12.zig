@@ -268,11 +268,6 @@ pub const Buffer = struct {
     persistent_descriptor: zd3d12.PersistentDescriptor,
 };
 
-pub const PersistentResource = struct {
-    resource: zd3d12.ResourceHandle,
-    persistent_descriptor: zd3d12.PersistentDescriptor,
-};
-
 pub const D3D12State = struct {
     gctx: zd3d12.GraphicsContext,
     gpu_profiler: Profiler,
