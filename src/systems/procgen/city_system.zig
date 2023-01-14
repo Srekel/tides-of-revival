@@ -382,8 +382,9 @@ pub fn destroy(state: *SystemState) void {
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
-    const time = @floatCast(f32, state.gfx.stats.time);
-    var rand1 = std.rand.DefaultPrng.init(@floatToInt(u64, time * 100));
+    const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const world_time = environment_info.world_time;
+    var rand1 = std.rand.DefaultPrng.init(@floatToInt(u64, world_time * 100));
     var rand = rand1.random();
 
     // CITY
@@ -396,7 +397,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var city = comps.city;
         const pos = comps.pos;
 
-        if (city.next_spawn_time < state.gfx.stats.time) {
+        if (city.next_spawn_time < world_time) {
             if (city.caravan_members_to_spawn == 0) {
                 city.next_spawn_time += city.spawn_cooldown;
                 city.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 3, 10);
@@ -426,8 +427,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             caravan_ent.set(fd.CompCaravan{
                 .start_pos = pos.elemsConst().*,
                 .end_pos = next_city_pos,
-                .time_birth = time,
-                .time_to_arrive = time + distance / 10,
+                .time_birth = world_time,
+                .time_to_arrive = world_time + distance / 10,
                 .destroy_on_arrival = true,
             });
             caravan_ent.set(fd.CompCombatant{ .faction = 1 });
@@ -447,7 +448,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var camp = comps.camp;
         const pos = comps.pos;
 
-        if (camp.next_spawn_time < state.gfx.stats.time) {
+        if (camp.next_spawn_time < world_time) {
             if (camp.caravan_members_to_spawn == 0) {
                 camp.next_spawn_time += camp.spawn_cooldown;
                 camp.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 2, 5);
@@ -480,8 +481,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             caravan_ent.set(fd.CompCaravan{
                 .start_pos = pos.elemsConst().*,
                 .end_pos = target_pos,
-                .time_birth = time,
-                .time_to_arrive = time + distance / 5,
+                .time_birth = world_time,
+                .time_to_arrive = world_time + distance / 5,
                 .destroy_on_arrival = false,
             });
             caravan_ent.set(fd.CompCombatant{ .faction = 2 });
@@ -498,7 +499,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var caravan = comps.caravan;
         var pos = comps.pos;
 
-        if (caravan.time_to_arrive < time) {
+        if (caravan.time_to_arrive < world_time) {
             if (caravan.destroy_on_arrival) {
                 state.flecs_world.delete(entity_iter_caravan.entity().id);
             } else {
@@ -508,7 +509,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             continue;
         }
 
-        const percent_done = (time - caravan.time_birth) / (caravan.time_to_arrive - caravan.time_birth);
+        const percent_done = (world_time - caravan.time_birth) / (caravan.time_to_arrive - caravan.time_birth);
         var new_pos: [3]f32 = .{
             caravan.start_pos[0] + percent_done * (caravan.end_pos[0] - caravan.start_pos[0]),
             0,

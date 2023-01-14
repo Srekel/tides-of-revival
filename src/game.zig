@@ -349,6 +349,14 @@ pub fn run() void {
     });
     player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
 
+    flecs_world.setSingleton(fd.EnvironmentInfo{
+        .time_of_day_percent = 0,
+        .sun_height = 0,
+        .world_time = 0,
+    });
+
+    // Flecs config
+    // Delete children when parent is destroyed
     _ = flecs_world.pair(flecs.c.Constants.EcsOnDeleteTarget, flecs.c.Constants.EcsOnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -375,6 +383,18 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     // const stats = gfx_state.gctx.stats;
     const stats = gfx_state.stats;
     const dt = @floatCast(f32, stats.delta_time);
+
+    const flecs_stats = flecs.c.ecs_get_world_info(flecs_world.world);
+    {
+        const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
+        const world_time = flecs_stats.*.world_time_total;
+        const environment_info = flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+        const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
+        environment_info.time_of_day_percent = time_of_day_percent.fpart;
+        environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
+        environment_info.world_time = world_time;
+    }
+
     gfx.update(gfx_state);
     // gui_system.preUpdate(&gui_sys);
 
