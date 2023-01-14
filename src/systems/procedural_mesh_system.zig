@@ -135,21 +135,25 @@ fn appendMesh(
     mesh: zmesh.Shape,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
-    meshes_positions: *std.ArrayList([3]f32),
-    meshes_normals: *std.ArrayList([3]f32),
+    meshes_vertices: *std.ArrayList(Vertex),
 ) u64 {
     meshes.append(.{
         .id = id,
         // .entity = entity,
         .index_offset = @intCast(u32, meshes_indices.items.len),
-        .vertex_offset = @intCast(i32, meshes_positions.items.len),
+        .vertex_offset = @intCast(i32, meshes_vertices.items.len),
         .num_indices = @intCast(u32, mesh.indices.len),
         .num_vertices = @intCast(u32, mesh.positions.len),
     }) catch unreachable;
 
     meshes_indices.appendSlice(mesh.indices) catch unreachable;
-    meshes_positions.appendSlice(mesh.positions) catch unreachable;
-    meshes_normals.appendSlice(mesh.normals.?) catch unreachable;
+    var i: u64 = 0;
+    while (i < mesh.positions.len) : (i += 1) {
+        meshes_vertices.append(.{
+            .position = mesh.positions[i],
+            .normal = mesh.normals.?[i],
+        }) catch unreachable;
+    }
 
     return meshes.items.len - 1;
 }
@@ -158,8 +162,7 @@ fn initScene(
     allocator: std.mem.Allocator,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
-    meshes_positions: *std.ArrayList([3]f32),
-    meshes_normals: *std.ArrayList([3]f32),
+    meshes_vertices: *std.ArrayList(Vertex),
 ) void {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -175,7 +178,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -184,7 +187,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -213,7 +216,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -225,7 +228,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
     }
     {
         var mesh = zmesh.Shape.initCone(4, 4);
@@ -236,7 +239,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 }
 
@@ -274,11 +277,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
-    var meshes_positions = std.ArrayList([3]f32).init(arena);
-    var meshes_normals = std.ArrayList([3]f32).init(arena);
-    initScene(allocator, &meshes, &meshes_indices, &meshes_positions, &meshes_normals);
+    var meshes_vertices = std.ArrayList(Vertex).init(arena);
+    initScene(allocator, &meshes, &meshes_indices, &meshes_vertices);
 
-    const total_num_vertices = @intCast(u32, meshes_positions.items.len);
+    const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
 
     // Create a vertex buffer.
@@ -292,9 +294,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     }) catch unreachable;
 
     // Create an index buffer.
-    // TODO: Get the size of IndexType
     const index_buffer = gfxstate.createBuffer(.{
-        .size = total_num_indices * @sizeOf(u32),
+        .size = total_num_indices * @sizeOf(IndexType),
         .state = .{ .INDEX_BUFFER = true },
         .persistent = false,
         .has_cbv = false,
@@ -350,10 +351,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // Fill vertex buffer with vertex data.
     {
         const verts = gfxstate.gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
-        for (meshes_positions.items) |_, i| {
-            verts.cpu_slice[i].position = meshes_positions.items[i];
-            verts.cpu_slice[i].normal = meshes_normals.items[i];
-        }
+        std.mem.copy(Vertex, verts.cpu_slice[0..total_num_vertices], meshes_vertices.items[0..total_num_vertices]);
 
         gfxstate.gctx.cmdlist.CopyBufferRegion(
             gfxstate.gctx.lookupResource(vertex_buffer.resource).?,
@@ -366,11 +364,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     // Fill index buffer with indices.
     {
-        // TODO: Make this work with IndexType instead of hardcoding u32
-        const indices = gfxstate.gctx.allocateUploadBufferRegion(u32, total_num_indices);
-        for (meshes_indices.items) |_, i| {
-            indices.cpu_slice[i] = meshes_indices.items[i];
-        }
+        const indices = gfxstate.gctx.allocateUploadBufferRegion(IndexType, total_num_indices);
+        std.mem.copy(IndexType, indices.cpu_slice[0..total_num_indices], meshes_indices.items[0..total_num_indices]);
 
         // Fill index buffer with index data.
         gfxstate.gctx.cmdlist.CopyBufferRegion(
@@ -487,7 +482,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-        .Format = .R32_UINT, // TODO: Check index format first
+        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
     state.gfx.gctx.setCurrentPipeline(state.pipeline);
