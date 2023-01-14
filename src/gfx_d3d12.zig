@@ -243,6 +243,31 @@ pub const Profiler = struct {
     }
 };
 
+pub const BufferDesc = struct {
+    size: u64,
+    state: d3d12.RESOURCE_STATES, // TODO: Replace this with non-d3d12 state enum
+    persistent: bool,
+    has_cbv: bool,
+    has_srv: bool,
+    has_uav: bool,
+};
+
+// TODO: Buffer should be private to this module and we should
+// hand out a BufferHandle. Buffers should be stored in a list
+// of buffers, accessible via handles.
+pub const Buffer = struct {
+    size: u64,
+    state: d3d12.RESOURCE_STATES, // TODO: Replace this with non-d3d12 state enum
+    persistent: bool,
+    has_cbv: bool,
+    has_srv: bool,
+    has_uav: bool,
+    ready: bool,
+
+    resource: zd3d12.ResourceHandle,
+    persistent_descriptor: zd3d12.PersistentDescriptor,
+};
+
 pub const PersistentResource = struct {
     resource: zd3d12.ResourceHandle,
     persistent_descriptor: zd3d12.PersistentDescriptor,
@@ -259,6 +284,47 @@ pub const D3D12State = struct {
 
     depth_texture: zd3d12.ResourceHandle,
     depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
+
+    pub fn createBuffer(self: *D3D12State, bufferDesc: BufferDesc) !Buffer {
+        var buffer: Buffer = undefined;
+
+        const desc = d3d12.RESOURCE_DESC.initBuffer(bufferDesc.size);
+        buffer.resource = self.gctx.createCommittedResource(
+            .DEFAULT,
+            .{},
+            &desc,
+            d3d12.RESOURCE_STATES.COMMON,
+            null,
+        ) catch |err| hrPanic(err);
+
+        if (bufferDesc.has_srv and bufferDesc.persistent) {
+            buffer.persistent = true;
+            buffer.has_srv = true;
+
+            const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
+            self.gctx.device.CreateShaderResourceView(
+                self.gctx.lookupResource(buffer.resource).?,
+                &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                    .ViewDimension = .BUFFER,
+                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                    .Format = .R32_TYPELESS,
+                    .u = .{
+                        .Buffer = .{
+                            .FirstElement = 0,
+                            .NumElements = @intCast(u32, @divExact(bufferDesc.size, 4)),
+                            .StructureByteStride = 0,
+                            .Flags = .{ .RAW = true },
+                        },
+                    },
+                },
+                srv_allocation.cpu_handle,
+            );
+
+            buffer.persistent_descriptor = srv_allocation;
+        }
+
+        return buffer;
+    }
 };
 
 pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
