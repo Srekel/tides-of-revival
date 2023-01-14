@@ -12,6 +12,7 @@ def sync_lib(folder, git_path, commit_sha):
     os.chdir(folder)
     os.system("git pull")
     os.system("git checkout " + commit_sha)
+    os.system("git submodule update --init --recursive")
     # os.system("git pull " + commit_sha)
     os.chdir("..")
 
