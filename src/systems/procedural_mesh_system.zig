@@ -111,8 +111,8 @@ const SystemState = struct {
 
     vertex_buffer: zd3d12.ResourceHandle,
     index_buffer: zd3d12.ResourceHandle,
-    instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
-    instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
+    instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
+    instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
     draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
@@ -303,86 +303,36 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
-        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource = undefined;
+        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer = undefined;
         for (buffers) |_, buffer_index| {
-            const size = max_instances * @sizeOf(InstanceTransform);
-            const desc = d3d12.RESOURCE_DESC.initBuffer(size);
-            const resource = gfxstate.gctx.createCommittedResource(
-                .DEFAULT,
-                .{},
-                &desc,
-                .{ .COPY_DEST = true },
-                null,
-            ) catch |err| hrPanic(err);
-
-            const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-            gfxstate.gctx.device.CreateShaderResourceView(
-                gfxstate.gctx.lookupResource(resource).?,
-                &d3d12.SHADER_RESOURCE_VIEW_DESC{
-                    .ViewDimension = .BUFFER,
-                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
-                    .Format = .R32_TYPELESS,
-                    .u = .{
-                        .Buffer = .{
-                            .FirstElement = 0,
-                            .NumElements = @divExact(size, 4),
-                            .StructureByteStride = 0,
-                            .Flags = .{ .RAW = true },
-                        },
-                    },
-                },
-                srv_allocation.cpu_handle,
-            );
-
-            const persistent_buffer = gfx.PersistentResource{
-                .resource = resource,
-                .persistent_descriptor = srv_allocation,
+            const bufferDesc = gfx.BufferDesc{
+                .size = max_instances * @sizeOf(InstanceTransform),
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .persistent = true,
+                .has_cbv = false,
+                .has_srv = true,
+                .has_uav = false,
             };
 
-            buffers[buffer_index] = persistent_buffer;
+            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
         }
 
         break :blk buffers;
     };
 
     const instance_material_buffers = blk: {
-        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource = undefined;
+        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer = undefined;
         for (buffers) |_, buffer_index| {
-            const size = max_instances * @sizeOf(InstanceMaterial);
-            const desc = d3d12.RESOURCE_DESC.initBuffer(size);
-            const resource = gfxstate.gctx.createCommittedResource(
-                .DEFAULT,
-                .{},
-                &desc,
-                .{ .COPY_DEST = true },
-                null,
-            ) catch |err| hrPanic(err);
-
-            const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-            gfxstate.gctx.device.CreateShaderResourceView(
-                gfxstate.gctx.lookupResource(resource).?,
-                &d3d12.SHADER_RESOURCE_VIEW_DESC{
-                    .ViewDimension = .BUFFER,
-                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
-                    .Format = .R32_TYPELESS,
-                    .u = .{
-                        .Buffer = .{
-                            .FirstElement = 0,
-                            .NumElements = @divExact(size, 4),
-                            .StructureByteStride = 0,
-                            .Flags = .{ .RAW = true },
-                        },
-                    },
-                },
-                srv_allocation.cpu_handle,
-            );
-
-            const persistent_buffer = gfx.PersistentResource{
-                .resource = resource,
-                .persistent_descriptor = srv_allocation,
+            const bufferDesc = gfx.BufferDesc{
+                .size = max_instances * @sizeOf(InstanceMaterial),
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .persistent = true,
+                .has_cbv = false,
+                .has_srv = true,
+                .has_uav = false,
             };
 
-            buffers[buffer_index] = persistent_buffer;
+            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
         }
 
         break :blk buffers;
