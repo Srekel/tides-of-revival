@@ -101,8 +101,8 @@ const SystemState = struct {
 
     gfx: *gfx.D3D12State,
     pipeline: zd3d12.PipelineHandle,
-    vertex_buffer: zd3d12.ResourceHandle,
-    index_buffer: zd3d12.ResourceHandle,
+    vertex_buffer: gfx.Buffer,
+    index_buffer: gfx.Buffer,
     gpu_draw_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(Mesh),
@@ -288,28 +288,31 @@ pub fn create(
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
     assert(total_num_indices == indices_per_patch * patch_count);
 
-    const vertex_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        .{},
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
-        .{ .COPY_DEST = true },
-        null,
-    ) catch |err| hrPanic(err);
+    // Create a vertex buffer.
+    const vertex_buffer = gfxstate.createBuffer(.{
+        .size = total_num_vertices * @sizeOf(Vertex),
+        .state = .{ .VERTEX_AND_CONSTANT_BUFFER = true },
+        .persistent = false,
+        .has_cbv = false,
+        .has_srv = false,
+        .has_uav = false,
+    }) catch unreachable;
 
-    const index_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        .{},
-        // TODO: Get the size of IndexType
-        // &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(u32)),
-        .{ .COPY_DEST = true },
-        null,
-    ) catch |err| hrPanic(err);
+    // Create an index buffer.
+    // TODO: Get the size of IndexType
+    const index_buffer = gfxstate.createBuffer(.{
+        .size = total_num_indices * @sizeOf(u32),
+        .state = .{ .INDEX_BUFFER = true },
+        .persistent = false,
+        .has_cbv = false,
+        .has_srv = false,
+        .has_uav = false,
+    }) catch unreachable;
 
     gfxstate.gctx.beginFrame();
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .COPY_DEST = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .COPY_DEST = true });
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .COPY_DEST = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .COPY_DEST = true });
     gfxstate.gctx.flushResourceBarriers();
 
     // Fill vertex buffer with vertex data.
@@ -320,7 +323,7 @@ pub fn create(
     }
 
     gfxstate.gctx.cmdlist.CopyBufferRegion(
-        gfxstate.gctx.lookupResource(vertex_buffer).?,
+        gfxstate.gctx.lookupResource(vertex_buffer.resource).?,
         0,
         verts.buffer,
         verts.buffer_offset,
@@ -335,15 +338,15 @@ pub fn create(
 
     // Fill index buffer with index data.
     gfxstate.gctx.cmdlist.CopyBufferRegion(
-        gfxstate.gctx.lookupResource(index_buffer).?,
+        gfxstate.gctx.lookupResource(index_buffer.resource).?,
         0,
         indices.buffer,
         indices.buffer_offset,
         indices.cpu_slice.len * @sizeOf(@TypeOf(indices.cpu_slice[0])),
     );
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .INDEX_BUFFER = true });
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .INDEX_BUFFER = true });
     gfxstate.gctx.flushResourceBarriers();
 
     gfxstate.gctx.endFrame();
@@ -747,7 +750,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                 // Upload patch vertices to vertex buffer
                 {
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, .{ .COPY_DEST = true });
+                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer.resource, .{ .COPY_DEST = true });
                     state.gfx.gctx.flushResourceBarriers();
 
                     const verts = state.gfx.gctx.allocateUploadBufferRegion(Vertex, patch.vertices.len);
@@ -757,14 +760,14 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     }
 
                     state.gfx.gctx.cmdlist.CopyBufferRegion(
-                        state.gfx.gctx.lookupResource(state.vertex_buffer).?,
+                        state.gfx.gctx.lookupResource(state.vertex_buffer.resource).?,
                         patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex),
                         verts.buffer,
                         verts.buffer_offset,
                         verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
                     );
 
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
+                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
                     state.gfx.gctx.flushResourceBarriers();
                 }
 
@@ -869,13 +872,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // Set input assembler (IA) state.
     gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const vertex_buffer_resource = gctx.lookupResource(state.vertex_buffer);
+    const vertex_buffer_resource = gctx.lookupResource(state.vertex_buffer.resource);
     gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
         .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
         .StrideInBytes = @sizeOf(Vertex),
     }});
-    const index_buffer_resource = gctx.lookupResource(state.index_buffer);
+    const index_buffer_resource = gctx.lookupResource(state.index_buffer.resource);
     gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),

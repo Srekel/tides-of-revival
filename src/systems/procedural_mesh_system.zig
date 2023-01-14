@@ -109,8 +109,8 @@ const SystemState = struct {
     gfx: *gfx.D3D12State,
     pipeline: zd3d12.PipelineHandle,
 
-    vertex_buffer: zd3d12.ResourceHandle,
-    index_buffer: zd3d12.ResourceHandle,
+    vertex_buffer: gfx.Buffer,
+    index_buffer: gfx.Buffer,
     instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
     instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
     draw_calls: std.ArrayList(DrawCall),
@@ -282,24 +282,25 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
 
     // Create a vertex buffer.
-    const vertex_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        .{},
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
-        .{ .COPY_DEST = true },
-        null,
-    ) catch |err| hrPanic(err);
+    const vertex_buffer = gfxstate.createBuffer(.{
+        .size = total_num_vertices * @sizeOf(Vertex),
+        .state = .{ .VERTEX_AND_CONSTANT_BUFFER = true },
+        .persistent = false,
+        .has_cbv = false,
+        .has_srv = false,
+        .has_uav = false,
+    }) catch unreachable;
 
     // Create an index buffer.
-    const index_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        .{},
-        // TODO: Get the size of IndexType
-        // &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(u32)),
-        .{ .COPY_DEST = true },
-        null,
-    ) catch |err| hrPanic(err);
+    // TODO: Get the size of IndexType
+    const index_buffer = gfxstate.createBuffer(.{
+        .size = total_num_indices * @sizeOf(u32),
+        .state = .{ .INDEX_BUFFER = true },
+        .persistent = false,
+        .has_cbv = false,
+        .has_srv = false,
+        .has_uav = false,
+    }) catch unreachable;
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
@@ -342,8 +343,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     gfxstate.gctx.beginFrame();
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .COPY_DEST = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .COPY_DEST = true });
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .COPY_DEST = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .COPY_DEST = true });
     gfxstate.gctx.flushResourceBarriers();
 
     // Fill vertex buffer with vertex data.
@@ -355,7 +356,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         }
 
         gfxstate.gctx.cmdlist.CopyBufferRegion(
-            gfxstate.gctx.lookupResource(vertex_buffer).?,
+            gfxstate.gctx.lookupResource(vertex_buffer.resource).?,
             0,
             verts.buffer,
             verts.buffer_offset,
@@ -373,7 +374,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
         // Fill index buffer with index data.
         gfxstate.gctx.cmdlist.CopyBufferRegion(
-            gfxstate.gctx.lookupResource(index_buffer).?,
+            gfxstate.gctx.lookupResource(index_buffer.resource).?,
             0,
             indices.buffer,
             indices.buffer_offset,
@@ -381,8 +382,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         );
     }
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .INDEX_BUFFER = true });
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .INDEX_BUFFER = true });
     gfxstate.gctx.flushResourceBarriers();
 
     gfxstate.gctx.endFrame();
@@ -476,13 +477,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // Set input assembler (IA) state.
     state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const vertex_buffer_resource = state.gfx.gctx.lookupResource(state.vertex_buffer);
+    const vertex_buffer_resource = state.gfx.gctx.lookupResource(state.vertex_buffer.resource);
     state.gfx.gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
         .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
         .StrideInBytes = @sizeOf(Vertex),
     }});
-    const index_buffer_resource = state.gfx.gctx.lookupResource(state.index_buffer);
+    const index_buffer_resource = state.gfx.gctx.lookupResource(state.index_buffer.resource);
     state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
