@@ -284,7 +284,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
 
     // Create a vertex buffer.
-    const vertex_buffer = gfxstate.createBuffer(.{
+    var vertex_buffer = gfxstate.createBuffer(.{
         .size = total_num_vertices * @sizeOf(Vertex),
         .state = .{ .VERTEX_AND_CONSTANT_BUFFER = true },
         .persistent = false,
@@ -294,7 +294,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     }) catch unreachable;
 
     // Create an index buffer.
-    const index_buffer = gfxstate.createBuffer(.{
+    var index_buffer = gfxstate.createBuffer(.{
         .size = total_num_indices * @sizeOf(IndexType),
         .state = .{ .INDEX_BUFFER = true },
         .persistent = false,
@@ -342,47 +342,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     var draw_calls = std.ArrayList(DrawCall).init(allocator);
 
-    gfxstate.gctx.beginFrame();
-
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .COPY_DEST = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .COPY_DEST = true });
-    gfxstate.gctx.flushResourceBarriers();
-
-    // Fill vertex buffer with vertex data.
-    {
-        const verts = gfxstate.gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
-        std.mem.copy(Vertex, verts.cpu_slice[0..total_num_vertices], meshes_vertices.items[0..total_num_vertices]);
-
-        gfxstate.gctx.cmdlist.CopyBufferRegion(
-            gfxstate.gctx.lookupResource(vertex_buffer.resource).?,
-            0,
-            verts.buffer,
-            verts.buffer_offset,
-            verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
-        );
-    }
-
-    // Fill index buffer with indices.
-    {
-        const indices = gfxstate.gctx.allocateUploadBufferRegion(IndexType, total_num_indices);
-        std.mem.copy(IndexType, indices.cpu_slice[0..total_num_indices], meshes_indices.items[0..total_num_indices]);
-
-        // Fill index buffer with index data.
-        gfxstate.gctx.cmdlist.CopyBufferRegion(
-            gfxstate.gctx.lookupResource(index_buffer.resource).?,
-            0,
-            indices.buffer,
-            indices.buffer_offset,
-            indices.cpu_slice.len * @sizeOf(@TypeOf(indices.cpu_slice[0])),
-        );
-    }
-
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .INDEX_BUFFER = true });
-    gfxstate.gctx.flushResourceBarriers();
-
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
+    gfxstate.uploadDataToBuffer(Vertex, &vertex_buffer, &meshes_vertices);
+    gfxstate.uploadDataToBuffer(IndexType, &index_buffer, &meshes_indices);
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });

@@ -282,6 +282,7 @@ pub const D3D12State = struct {
 
     pub fn createBuffer(self: *D3D12State, bufferDesc: BufferDesc) !Buffer {
         var buffer: Buffer = undefined;
+        buffer.state = bufferDesc.state;
 
         const desc = d3d12.RESOURCE_DESC.initBuffer(bufferDesc.size);
         buffer.resource = self.gctx.createCommittedResource(
@@ -319,6 +320,30 @@ pub const D3D12State = struct {
         }
 
         return buffer;
+    }
+
+    // TODO: Replace Buffer with BufferHandle
+    // TODO: Schedule the upload instead of uploading immediately
+    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer: *Buffer, data: *std.ArrayList(T)) void {
+        self.gctx.beginFrame();
+        self.gctx.addTransitionBarrier(buffer.resource, .{ .COPY_DEST = true });
+        self.gctx.flushResourceBarriers();
+
+        const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @intCast(u32, data.items.len));
+        std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.items.len], data.items[0..data.items.len]);
+
+        self.gctx.cmdlist.CopyBufferRegion(
+            self.gctx.lookupResource(buffer.resource).?,
+            0,
+            upload_buffer_region.buffer,
+            upload_buffer_region.buffer_offset,
+            upload_buffer_region.cpu_slice.len * @sizeOf(@TypeOf(upload_buffer_region.cpu_slice[0])),
+        );
+
+        self.gctx.addTransitionBarrier(buffer.resource, buffer.state);
+        self.gctx.flushResourceBarriers();
+        self.gctx.endFrame();
+        self.gctx.finishGpuCommands();
     }
 };
 
