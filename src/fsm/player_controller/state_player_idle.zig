@@ -16,7 +16,7 @@ const egl_math = @import("../../core/math.zig");
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input_move_fast)) {
-        speed_scalar = 126;
+        speed_scalar = 6;
     } else if (input_state.held(config.input_move_slow)) {
         speed_scalar = 0.5;
     }
@@ -110,11 +110,6 @@ fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
     const transform = entity.get(fd.Transform);
     const pos = transform.?.getPos00();
 
-    const environment_info = ctx.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
-    if (environment_info.sun_height > 0) {
-        return;
-    }
-
     const FilterCallback = struct {
         pos: *fd.Position,
         city: *const fd.CompCity,
@@ -124,12 +119,12 @@ fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (filter_it.entity().hasPair(fr.Hometown, entity.id)) {
+        if (entity.hasPair(fr.Hometown, filter_it.entity().id)) {
             continue;
         }
 
         const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
-        if (dist < 50) {
+        if (dist < 20) {
             std.debug.panic("win", .{});
             break;
         }
@@ -179,7 +174,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
         updateDeathFromDarkness(entity_iter.entity(), ctx);
-        // updateWinFromArrival(entity_iter.entity(), ctx);
+        updateWinFromArrival(entity_iter.entity(), ctx);
         const pos_after = comps.pos.*;
         const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
         state.*.amount_moved += @fabs(pos_after.x - pos_before.x);

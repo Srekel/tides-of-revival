@@ -71,8 +71,8 @@
 
 🔥 anders steps 🔥
 -----------------
-🔵 create the world info entity
-🔵 finish current gameplay pass
+🔵 ✅ create the world info entity
+🔵 ✅ add "reach other village" win condition
 🔵 offline generate terrain
 🔵 various things from "promotion"
 🔵 gamepad freefly camera
