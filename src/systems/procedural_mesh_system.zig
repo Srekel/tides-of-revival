@@ -542,10 +542,12 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // Upload per-frame constant data.
     const camera_position = camera_comps.?.transform.getPos00();
     {
+        const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+        const world_time = environment_info.world_time;
         const mem = state.gfx.gctx.allocateUploadMemory(FrameUniforms, 1);
         mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
         mem.cpu_slice[0].camera_position = camera_position;
-        mem.cpu_slice[0].time = @floatCast(f32, state.gfx.stats.time);
+        mem.cpu_slice[0].time = world_time;
         mem.cpu_slice[0].light_count = 0;
 
         var entity_iter_lights = state.query_lights.iterator(struct {

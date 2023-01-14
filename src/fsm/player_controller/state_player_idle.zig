@@ -74,11 +74,9 @@ fn updateSnapToTerrain(physics_world: zbt.World, pos: *fd.Position) void {
 fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
     const transform = entity.get(fd.Transform);
     const pos = transform.?.getPos00();
-    const stats = flecs.c.ecs_get_world_info(ctx.flecs_world.world);
-    const time = stats.*.world_time_total;
 
-    const sun_height = @sin(time * 0.5);
-    if (sun_height > -0.5) {
+    const environment_info = ctx.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    if (environment_info.sun_height > -0.5) {
         return;
     }
 
@@ -111,11 +109,9 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
 fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
     const transform = entity.get(fd.Transform);
     const pos = transform.?.getPos00();
-    const stats = flecs.c.ecs_get_world_info(ctx.flecs_world.world);
-    const time = stats.*.world_time_total;
 
-    const sun_height = @sin(time * 0.5);
-    if (sun_height > 0) {
+    const environment_info = ctx.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    if (environment_info.sun_height > 0) {
         return;
     }
 

@@ -406,3 +406,13 @@ pub const CompCaravan = struct {
 pub const CompCombatant = struct {
     faction: i32,
 };
+
+pub const EnvironmentInfo = struct {
+    world_time: f32,
+    time_of_day_percent: f32,
+    sun_height: f32,
+    // time_of_day_hour: f32,
+    // days_in_year: f32,
+    // day: f32,
+
+};
