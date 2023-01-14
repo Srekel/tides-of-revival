@@ -114,6 +114,7 @@ const SystemState = struct {
     instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
     instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
     draw_calls: std.ArrayList(DrawCall),
+    gpu_frame_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(Mesh),
     query_camera: flecs.Query,
@@ -521,6 +522,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     const cam = camera_comps.?.cam;
     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
+    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
     // Set input assembler (IA) state.
     state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
@@ -679,6 +681,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             draw_call.start_instance_location,
         );
     }
+
+    state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
 }
 
 // const ShapeMeshDefinitionObserverCallback = struct {

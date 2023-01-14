@@ -57,6 +57,192 @@ pub const FrameStats = struct {
     }
 };
 
+pub const ProfileData = struct {
+    pub const filter_size: u64 = 64;
+
+    name: []const u8 = undefined,
+    query_started: bool = false,
+    query_finished: bool = false,
+    active: bool = false,
+    start_time: u64,
+    end_time: u64,
+
+    time_samples: [filter_size]f64 = undefined,
+    current_sample: u64 = 0,
+    avg_time: f64,
+    max_time: f64,
+};
+
+pub const Profiler = struct {
+    pub const max_profiles: u64 = 64;
+
+    profiles: std.ArrayList(ProfileData),
+    num_profiles: u64,
+    query_heap: *d3d12.IQueryHeap,
+    readback_buffer: *d3d12.IResource,
+
+    pub fn init(allocator: std.mem.Allocator, gctx: *zd3d12.GraphicsContext) !Profiler {
+        const query_heap = blk: {
+            const query_heap_desc = d3d12.QUERY_HEAP_DESC{
+                .Type = .TIMESTAMP,
+                .Count = max_profiles * 2,
+                .NodeMask = 0,
+            };
+
+            var query_heap: *d3d12.IQueryHeap = undefined;
+            hrPanicOnFail(gctx.device.CreateQueryHeap(&query_heap_desc, &d3d12.IID_IQueryHeap, @ptrCast(*?*anyopaque, &query_heap)));
+            break :blk query_heap;
+        };
+
+        const readback_buffer = blk: {
+            const readback_buffer_desc = d3d12.RESOURCE_DESC.initBuffer(max_profiles * zd3d12.GraphicsContext.max_num_buffered_frames * 2 * @sizeOf(u64));
+            const readback_heap_props = d3d12.HEAP_PROPERTIES.initType(.READBACK);
+
+            var readback_buffer: *d3d12.IResource = undefined;
+            hrPanicOnFail(gctx.device.CreateCommittedResource(
+                &readback_heap_props,
+                .{},
+                &readback_buffer_desc,
+                .{ .COPY_DEST = true },
+                null,
+                &d3d12.IID_IResource,
+                @ptrCast(*?*anyopaque, &readback_buffer),
+            ));
+            break :blk readback_buffer;
+        };
+
+        var profiles = std.ArrayList(ProfileData).init(allocator);
+        profiles.resize(max_profiles * zd3d12.GraphicsContext.max_num_buffered_frames * 2) catch unreachable;
+
+        return Profiler{
+            .profiles = profiles,
+            .num_profiles = 0,
+            .query_heap = query_heap,
+            .readback_buffer = readback_buffer,
+        };
+    }
+
+    pub fn deinit(self: *Profiler) void {
+        self.profiles.deinit();
+    }
+
+    pub fn startProfile(self: *Profiler, cmdlist: *d3d12.IGraphicsCommandList6, name: []const u8) u64 {
+        var profile_index: u64 = 0xffff_ffff_ffff_ffff;
+        var i: u64 = 0;
+        while (i < self.num_profiles) : (i += 1) {
+            if (std.mem.eql(u8, name, self.profiles.items[i].name)) {
+                profile_index = i;
+                break;
+            }
+        }
+
+        if (profile_index == 0xffff_ffff_ffff_ffff) {
+            assert(self.num_profiles < Profiler.max_profiles);
+            profile_index = self.num_profiles;
+            self.num_profiles += 1;
+            self.profiles.items[profile_index].name = name;
+        }
+
+        var profile_data = &self.profiles.items[profile_index];
+        assert(profile_data.query_started == false);
+        assert(profile_data.query_finished == false);
+        profile_data.active = true;
+
+        // Insert the start timestamp
+        const start_query_index: u32 = @intCast(u32, profile_index * 2);
+        cmdlist.EndQuery(self.query_heap, .TIMESTAMP, start_query_index);
+
+        profile_data.query_started = true;
+        profile_data.current_sample = 0;
+
+        return profile_index;
+    }
+
+    pub fn endProfile(self: *Profiler, cmdlist: *d3d12.IGraphicsCommandList6, index: u64, current_frame_index: u32) void {
+        assert(index < self.num_profiles);
+
+        var profile_data = &self.profiles.items[index];
+        assert(profile_data.query_started == true);
+        assert(profile_data.query_finished == false);
+
+        // Insert the end timestamp
+        const start_query_index: u32 = @intCast(u32, index * 2);
+        const end_query_index = start_query_index + 1;
+        cmdlist.EndQuery(self.query_heap, .TIMESTAMP, end_query_index);
+
+        // Resolve the data
+        const dest_offset: u64 = ((current_frame_index * Profiler.max_profiles * 2) + start_query_index) * @sizeOf(u64);
+        cmdlist.ResolveQueryData(self.query_heap, .TIMESTAMP, start_query_index, 2, self.readback_buffer, dest_offset);
+
+        profile_data.query_started = false;
+        profile_data.query_finished = true;
+    }
+
+    pub fn endFrame(self: *Profiler, queue: *d3d12.ICommandQueue, current_frame_index: u32) void {
+        var gpu_frequency: u64 = 0;
+        hrPanicOnFail(queue.GetTimestampFrequency(&gpu_frequency));
+
+        var readback_buffer_mapping: [*]u8 = undefined;
+        hrPanicOnFail(self.readback_buffer.Map(
+            0,
+            null,
+            @ptrCast(*?*anyopaque, &readback_buffer_mapping),
+        ));
+        var frame_query_data = @ptrCast([*]u64, @alignCast(@alignOf(u64), readback_buffer_mapping));
+
+        var i: u64 = 0;
+        while (i < self.num_profiles) : (i += 1) {
+            self.updateProfile(i, gpu_frequency, current_frame_index, frame_query_data);
+        }
+
+        self.readback_buffer.Unmap(0, null);
+    }
+
+    fn updateProfile(self: *Profiler, profile_index: u64, gpu_frequency: u64, current_frame_index: u32, frame_query_data: [*]u64) void {
+        var profile = &self.profiles.items[profile_index];
+        profile.query_finished = false;
+        var time: f64 = 0.0;
+
+        // Get the query data
+        const start_time_index = current_frame_index * Profiler.max_profiles * 2 + profile_index * 2;
+        const end_time_index = start_time_index + 1;
+        const start_time = frame_query_data[start_time_index];
+        const end_time = frame_query_data[end_time_index];
+
+        if (end_time > start_time) {
+            const delta: f64 = @intToFloat(f64, end_time - start_time);
+            const frequency: f64 = @intToFloat(f64, gpu_frequency);
+            time = (delta / frequency) * 1000.0;
+        }
+
+        profile.time_samples[profile.current_sample] = time;
+        profile.current_sample = (profile.current_sample + 1) % ProfileData.filter_size;
+
+        var max_time: f64 = 0.0;
+        var avg_time: f64 = 0.0;
+        var avg_time_samples: u64 = 0;
+        var i: u64 = 0;
+        while (i < ProfileData.filter_size) : (i += 1) {
+            if (profile.time_samples[i] <= 0.0) {
+                continue;
+            }
+
+            max_time = std.math.max(profile.time_samples[i], max_time);
+            avg_time += profile.time_samples[i];
+            avg_time_samples += 1;
+        }
+
+        if (avg_time_samples > 0) {
+            avg_time /= @intToFloat(f64, avg_time_samples);
+        }
+
+        profile.avg_time = avg_time;
+        profile.max_time = max_time;
+
+        profile.active = false;
+    }
+};
+
 pub const PersistentResource = struct {
     resource: zd3d12.ResourceHandle,
     persistent_descriptor: zd3d12.PersistentDescriptor,
@@ -64,6 +250,9 @@ pub const PersistentResource = struct {
 
 pub const D3D12State = struct {
     gctx: zd3d12.GraphicsContext,
+    gpu_profiler: Profiler,
+    gpu_frame_profiler_index: u64 = undefined,
+
     stats: FrameStats,
     stats_brush: *d2d1.ISolidColorBrush,
     stats_text_format: *dwrite.ITextFormat,
@@ -143,6 +332,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     // gctx.present_flags = 0;
     // gctx.present_interval = 1;
 
+    var profiler = Profiler.init(allocator, &gctx) catch unreachable;
+
     // Create Direct2D brush which will be needed to display text.
     const stats_brush = blk: {
         var brush: ?*d2d1.ISolidColorBrush = null;
@@ -193,6 +384,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     return D3D12State{
         .gctx = gctx,
+        .gpu_profiler = profiler,
         .stats = FrameStats.init(),
         .stats_brush = stats_brush,
         .stats_text_format = stats_text_format,
@@ -206,6 +398,7 @@ pub fn deinit(state: *D3D12State, allocator: std.mem.Allocator) void {
 
     state.gctx.finishGpuCommands();
     state.gctx.deinit(allocator);
+    state.gpu_profiler.deinit();
     _ = state.stats_brush.Release();
     _ = state.stats_text_format.Release();
     state.* = undefined;
@@ -219,6 +412,8 @@ pub fn update(state: *D3D12State) void {
 
     // Begin DirectX 12 rendering.
     gctx.beginFrame();
+
+    state.gpu_frame_profiler_index = state.gpu_profiler.startProfile(state.gctx.cmdlist, "Frame");
 
     // Get current back buffer resource and transition it to 'render target' state.
     const back_buffer = gctx.getBackBuffer();
@@ -243,30 +438,63 @@ pub fn update(state: *D3D12State) void {
 pub fn draw(state: *D3D12State) void {
     var gctx = &state.gctx;
 
+    state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
+    state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
+
     gctx.beginDraw2d();
     {
-        // Display average fps and frame time.
         const stats = &state.stats;
-        var buffer = [_]u8{0} ** 64;
-        const text = std.fmt.bufPrint(
-            buffer[0..],
-            "FPS: {d:.1}\nCPU: {d:.3} ms\n",
-            .{ stats.fps, stats.average_cpu_time },
-        ) catch unreachable;
-
         state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
-        drawText(
-            gctx.d2d.?.context,
-            text,
-            state.stats_text_format,
-            &d2d1.RECT_F{
-                .left = 0.0,
-                .top = 0.0,
-                .right = @intToFloat(f32, gctx.viewport_width),
-                .bottom = @intToFloat(f32, gctx.viewport_height),
-            },
-            @ptrCast(*d2d1.IBrush, state.stats_brush),
-        );
+
+        // FPS and CPU timings
+        {
+            var buffer = [_]u8{0} ** 64;
+            const text = std.fmt.bufPrint(
+                buffer[0..],
+                "FPS: {d:.1}\nCPU: {d:.3} ms",
+                .{ stats.fps, stats.average_cpu_time },
+            ) catch unreachable;
+
+            drawText(
+                gctx.d2d.?.context,
+                text,
+                state.stats_text_format,
+                &d2d1.RECT_F{
+                    .left = 0.0,
+                    .top = 0.0,
+                    .right = @intToFloat(f32, gctx.viewport_width),
+                    .bottom = @intToFloat(f32, gctx.viewport_height),
+                },
+                @ptrCast(*d2d1.IBrush, state.stats_brush),
+            );
+        }
+
+        // GPU timings
+        var i: u32 = 0;
+        var line_height: f32 = 14.0;
+        var vertical_offset: f32 = 36.0;
+        while (i < state.gpu_profiler.num_profiles) : (i += 1) {
+            var frame_profile_data = state.gpu_profiler.profiles.items[i];
+            var buffer = [_]u8{0} ** 64;
+            const text = std.fmt.bufPrint(
+                buffer[0..],
+                "{s}: {d:.3} ms",
+                .{ frame_profile_data.name, frame_profile_data.avg_time },
+            ) catch unreachable;
+
+            drawText(
+                gctx.d2d.?.context,
+                text,
+                state.stats_text_format,
+                &d2d1.RECT_F{
+                    .left = 0.0,
+                    .top = @intToFloat(f32, i) * line_height + vertical_offset,
+                    .right = @intToFloat(f32, gctx.viewport_width),
+                    .bottom = @intToFloat(f32, gctx.viewport_height),
+                },
+                @ptrCast(*d2d1.IBrush, state.stats_brush),
+            );
+        }
     }
     // End Direct2D rendering and transition back buffer to 'present' state.
     gctx.endDraw2d();

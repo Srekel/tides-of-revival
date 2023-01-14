@@ -103,6 +103,7 @@ const SystemState = struct {
     pipeline: zd3d12.PipelineHandle,
     vertex_buffer: zd3d12.ResourceHandle,
     index_buffer: zd3d12.ResourceHandle,
+    gpu_draw_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(Mesh),
 
@@ -864,6 +865,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     var gctx = state.gfx.gctx;
+    state.gpu_draw_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain System: Draw");
+
     // Set input assembler (IA) state.
     gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
     const vertex_buffer_resource = gctx.lookupResource(state.vertex_buffer);
@@ -938,4 +941,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             gctx.cmdlist.DrawIndexedInstanced(indices_per_patch, 1, patch.index_offset, patch.vertex_offset, 0);
         }
     }
+
+    state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_draw_profiler_index, state.gfx.gctx.frame_index);
 }
