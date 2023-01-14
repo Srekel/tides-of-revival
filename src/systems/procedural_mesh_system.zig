@@ -283,20 +283,20 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // Create a vertex buffer.
     const vertex_buffer = gfxstate.gctx.createCommittedResource(
         .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
+        .{},
         &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
-        d3d12.RESOURCE_STATE_COMMON,
+        .{ .COPY_DEST = true },
         null,
     ) catch |err| hrPanic(err);
 
     // Create an index buffer.
     const index_buffer = gfxstate.gctx.createCommittedResource(
         .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
+        .{},
         // TODO: Get the size of IndexType
         // &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
         &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(u32)),
-        d3d12.RESOURCE_STATE_COMMON,
+        .{ .COPY_DEST = true },
         null,
     ) catch |err| hrPanic(err);
 
@@ -308,9 +308,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
             const desc = d3d12.RESOURCE_DESC.initBuffer(size);
             const resource = gfxstate.gctx.createCommittedResource(
                 .DEFAULT,
-                d3d12.HEAP_FLAG_NONE,
+                .{},
                 &desc,
-                d3d12.RESOURCE_STATE_COMMON,
+                .{ .COPY_DEST = true },
                 null,
             ) catch |err| hrPanic(err);
 
@@ -326,7 +326,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
                             .FirstElement = 0,
                             .NumElements = @divExact(size, 4),
                             .StructureByteStride = 0,
-                            .Flags = d3d12.BUFFER_SRV_FLAG_RAW,
+                            .Flags = .{ .RAW = true },
                         },
                     },
                 },
@@ -351,9 +351,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
             const desc = d3d12.RESOURCE_DESC.initBuffer(size);
             const resource = gfxstate.gctx.createCommittedResource(
                 .DEFAULT,
-                d3d12.HEAP_FLAG_NONE,
+                .{},
                 &desc,
-                d3d12.RESOURCE_STATE_COMMON,
+                .{ .COPY_DEST = true },
                 null,
             ) catch |err| hrPanic(err);
 
@@ -369,7 +369,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
                             .FirstElement = 0,
                             .NumElements = @divExact(size, 4),
                             .StructureByteStride = 0,
-                            .Flags = d3d12.BUFFER_SRV_FLAG_RAW,
+                            .Flags = .{ .RAW = true },
                         },
                     },
                 },
@@ -391,8 +391,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     gfxstate.gctx.beginFrame();
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .COPY_DEST = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .COPY_DEST = true });
     gfxstate.gctx.flushResourceBarriers();
 
     // Fill vertex buffer with vertex data.
@@ -430,8 +430,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         );
     }
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_INDEX_BUFFER);
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .INDEX_BUFFER = true });
     gfxstate.gctx.flushResourceBarriers();
 
     gfxstate.gctx.endFrame();
@@ -640,8 +640,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATE_COPY_DEST);
-    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATE_COPY_DEST);
+    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, .{ .COPY_DEST = true });
+    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, .{ .COPY_DEST = true });
     state.gfx.gctx.flushResourceBarriers();
 
     state.gfx.gctx.cmdlist.CopyBufferRegion(
@@ -660,8 +660,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         instance_materials_upload_buffer.cpu_slice.len * @sizeOf(@TypeOf(instance_materials_upload_buffer.cpu_slice[0])),
     );
 
-    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATE_GENERIC_READ);
-    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATE_GENERIC_READ);
+    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATES.GENERIC_READ);
+    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATES.GENERIC_READ);
     state.gfx.gctx.flushResourceBarriers();
 
     for (state.draw_calls.items) |draw_call| {

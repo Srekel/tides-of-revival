@@ -140,8 +140,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var gctx = zd3d12.GraphicsContext.init(allocator, hwnd);
     // Enable vsync.
-    gctx.present_flags = 0;
-    gctx.present_interval = 1;
+    // gctx.present_flags = 0;
+    // gctx.present_interval = 1;
 
     // Create Direct2D brush which will be needed to display text.
     const stats_brush = blk: {
@@ -174,13 +174,13 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     const depth_texture = gctx.createCommittedResource(
         .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
+        .{},
         &blk: {
             var desc = d3d12.RESOURCE_DESC.initTex2d(.D32_FLOAT, gctx.viewport_width, gctx.viewport_height, 1);
-            desc.Flags = d3d12.RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | d3d12.RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+            desc.Flags = .{ .ALLOW_DEPTH_STENCIL = true, .DENY_SHADER_RESOURCE = true };
             break :blk desc;
         },
-        d3d12.RESOURCE_STATE_DEPTH_WRITE,
+        .{ .DEPTH_WRITE = true },
         &d3d12.CLEAR_VALUE.initDepthStencil(.D32_FLOAT, 1.0, 0),
     ) catch |err| hrPanic(err);
 
@@ -222,7 +222,7 @@ pub fn update(state: *D3D12State) void {
 
     // Get current back buffer resource and transition it to 'render target' state.
     const back_buffer = gctx.getBackBuffer();
-    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATE_RENDER_TARGET);
+    gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
     gctx.flushResourceBarriers();
 
     gctx.cmdlist.OMSetRenderTargets(
@@ -237,7 +237,7 @@ pub fn update(state: *D3D12State) void {
         0,
         null,
     );
-    gctx.cmdlist.ClearDepthStencilView(state.depth_texture_dsv, d3d12.CLEAR_FLAG_DEPTH, 1.0, 0, 0, null);
+    gctx.cmdlist.ClearDepthStencilView(state.depth_texture_dsv, .{ .DEPTH = true }, 1.0, 0, 0, null);
 }
 
 pub fn draw(state: *D3D12State) void {
@@ -272,7 +272,7 @@ pub fn draw(state: *D3D12State) void {
     gctx.endDraw2d();
 
     const back_buffer = gctx.getBackBuffer();
-    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATE_PRESENT);
+    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATES.PRESENT);
     gctx.flushResourceBarriers();
 
     // Call 'Present' and prepare for the next frame.

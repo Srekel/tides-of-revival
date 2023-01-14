@@ -289,26 +289,26 @@ pub fn create(
 
     const vertex_buffer = gfxstate.gctx.createCommittedResource(
         .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
+        .{},
         &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
-        d3d12.RESOURCE_STATE_COMMON,
+        .{ .COPY_DEST = true },
         null,
     ) catch |err| hrPanic(err);
 
     const index_buffer = gfxstate.gctx.createCommittedResource(
         .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
+        .{},
         // TODO: Get the size of IndexType
         // &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
         &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(u32)),
-        d3d12.RESOURCE_STATE_COMMON,
+        .{ .COPY_DEST = true },
         null,
     ) catch |err| hrPanic(err);
 
     gfxstate.gctx.beginFrame();
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .COPY_DEST = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .COPY_DEST = true });
     gfxstate.gctx.flushResourceBarriers();
 
     // Fill vertex buffer with vertex data.
@@ -341,8 +341,8 @@ pub fn create(
         indices.cpu_slice.len * @sizeOf(@TypeOf(indices.cpu_slice[0])),
     );
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_INDEX_BUFFER);
+    gfxstate.gctx.addTransitionBarrier(vertex_buffer, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
+    gfxstate.gctx.addTransitionBarrier(index_buffer, .{ .INDEX_BUFFER = true });
     gfxstate.gctx.flushResourceBarriers();
 
     gfxstate.gctx.endFrame();
@@ -746,7 +746,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                 // Upload patch vertices to vertex buffer
                 {
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
+                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, .{ .COPY_DEST = true });
                     state.gfx.gctx.flushResourceBarriers();
 
                     const verts = state.gfx.gctx.allocateUploadBufferRegion(Vertex, patch.vertices.len);
@@ -763,7 +763,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                         verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
                     );
 
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
                     state.gfx.gctx.flushResourceBarriers();
                 }
 

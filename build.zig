@@ -37,6 +37,7 @@ pub fn build(b: *Builder) void {
         .enable_debug_layer = zd3d12_enable_debug_layer,
         .enable_gbv = zd3d12_enable_gbv,
         .enable_d2d = true,
+        .upload_heap_capacity = 256 * 1024 * 1024,
     });
     const zd3d12_pkg = zd3d12.getPkg(&.{ zwin32.pkg, zd3d12_options.getPkg() });
 
