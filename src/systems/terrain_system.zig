@@ -115,8 +115,7 @@ fn initPatches(
     // state: *SystemState,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
-    meshes_positions: *std.ArrayList([3]f32),
-    meshes_normals: *std.ArrayList([3]f32),
+    meshes_vertices: *std.ArrayList(Vertex),
 ) void {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -126,24 +125,21 @@ fn initPatches(
 
     // var indices = std.ArrayList(IndexType).init(arena);
 
-    var patch_vertex_positions = arena.alloc([3]f32, vertices_per_patch) catch unreachable;
-    var patch_vertex_normals = arena.alloc([3]f32, vertices_per_patch) catch unreachable;
-    defer arena.free(patch_vertex_positions);
-    defer arena.free(patch_vertex_normals);
+    var patch_vertices = arena.alloc(Vertex, vertices_per_patch) catch unreachable;
+    defer arena.free(patch_vertices);
     {
         var z: usize = 0;
         while (z < patch_side_vertex_count) : (z += 1) {
             var x: usize = 0;
             while (x < patch_side_vertex_count) : (x += 1) {
                 var i = x + z * patch_side_vertex_count;
-                var pos = &patch_vertex_positions[i];
-                var normal = &patch_vertex_normals[i];
-                pos[0] = @intToFloat(f32, x);
-                pos[1] = 0;
-                pos[2] = @intToFloat(f32, z);
-                normal[0] = 0;
-                normal[1] = 1;
-                normal[2] = 0;
+                var vertex = &patch_vertices[i];
+                vertex.position[0] = @intToFloat(f32, x);
+                vertex.position[1] = 0;
+                vertex.position[2] = @intToFloat(f32, z);
+                vertex.normal[0] = 0;
+                vertex.normal[1] = 1;
+                vertex.normal[2] = 0;
             }
         }
     }
@@ -202,14 +198,13 @@ fn initPatches(
             // .id = id,
             // .entity = entity,
             .index_offset = @intCast(u32, meshes_indices.items.len),
-            .vertex_offset = @intCast(i32, meshes_positions.items.len),
+            .vertex_offset = @intCast(i32, meshes_vertices.items.len),
             .num_indices = @intCast(u32, indices_per_patch),
             .num_vertices = @intCast(u32, vertices_per_patch),
         }) catch unreachable;
 
         meshes_indices.appendSlice(patch_indices) catch unreachable;
-        meshes_positions.appendSlice(patch_vertex_positions) catch unreachable;
-        meshes_normals.appendSlice(patch_vertex_normals) catch unreachable;
+        meshes_vertices.appendSlice(patch_vertices) catch unreachable;
     }
 }
 
@@ -246,11 +241,10 @@ pub fn create(
 
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
-    var meshes_positions = std.ArrayList([3]f32).init(arena);
-    var meshes_normals = std.ArrayList([3]f32).init(arena);
-    initPatches(allocator, &meshes, &meshes_indices, &meshes_positions, &meshes_normals);
+    var meshes_vertices = std.ArrayList(Vertex).init(arena);
+    initPatches(allocator, &meshes, &meshes_indices, &meshes_vertices);
 
-    const total_num_vertices = @intCast(u32, meshes_positions.items.len);
+    const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
     assert(total_num_indices == indices_per_patch * patch_count);
 
@@ -278,17 +272,8 @@ pub fn create(
 
     // Upload vertices and indices to the GPU
     {
-        var vertices = std.ArrayList(Vertex).init(allocator);
-        defer vertices.deinit();
-        for (meshes_positions.items) |_, i| {
-            vertices.append(.{
-                .position = meshes_positions.items[i],
-                .normal = meshes_normals.items[i],
-            }) catch unreachable;
-        }
-
-        gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, &vertices);
-        gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, &meshes_indices);
+        gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
+        gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
     }
 
     // State
@@ -686,30 +671,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .writing_gfx => blk: {
                 std.debug.print("patch {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
 
-                // TODO: Make this work with uploadDataToBuffer()
                 // Upload patch vertices to vertex buffer
-                {
-                    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
-                    state.gfx.gctx.addTransitionBarrier(vertex_buffer.?.resource, .{ .COPY_DEST = true });
-                    state.gfx.gctx.flushResourceBarriers();
-
-                    const verts = state.gfx.gctx.allocateUploadBufferRegion(Vertex, patch.vertices.len);
-                    for (patch.vertices) |_, i| {
-                        verts.cpu_slice[i].position = patch.vertices[i].position;
-                        verts.cpu_slice[i].normal = patch.vertices[i].normal;
-                    }
-
-                    state.gfx.gctx.cmdlist.CopyBufferRegion(
-                        state.gfx.gctx.lookupResource(vertex_buffer.?.resource).?,
-                        patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex),
-                        verts.buffer,
-                        verts.buffer_offset,
-                        verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
-                    );
-
-                    state.gfx.gctx.addTransitionBarrier(vertex_buffer.?.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
-                    state.gfx.gctx.flushResourceBarriers();
-                }
+                const vertex_buffer_offset = patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex);
+                state.gfx.uploadDataToBuffer(Vertex, state.vertex_buffer, vertex_buffer_offset, patch.vertices[0..patch.vertices.len]);
 
                 var rand1 = std.rand.DefaultPrng.init(patch.lookup);
                 var rand = rand1.random();

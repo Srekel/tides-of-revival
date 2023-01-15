@@ -295,18 +295,17 @@ pub const D3D12State = struct {
         return self.buffer_pool.lookupBuffer(handle);
     }
 
-    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, data: *std.ArrayList(T)) void {
+    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        self.uploadDataToBuffer(T, buffer_handle, data);
+        self.uploadDataToBuffer(T, buffer_handle, buffer_offset, data);
 
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
     }
 
-    // TODO: Pass offset info
-    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, data: *std.ArrayList(T)) void {
+    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
         const buffer = self.buffer_pool.lookupBuffer(buffer_handle);
         if (buffer == null)
             return;
@@ -314,12 +313,12 @@ pub const D3D12State = struct {
         self.gctx.addTransitionBarrier(buffer.?.resource, .{ .COPY_DEST = true });
         self.gctx.flushResourceBarriers();
 
-        const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @intCast(u32, data.items.len));
-        std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.items.len], data.items[0..data.items.len]);
+        const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @intCast(u32, data.len));
+        std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
 
         self.gctx.cmdlist.CopyBufferRegion(
             self.gctx.lookupResource(buffer.?.resource).?,
-            0,
+            buffer_offset,
             upload_buffer_region.buffer,
             upload_buffer_region.buffer_offset,
             upload_buffer_region.cpu_slice.len * @sizeOf(@TypeOf(upload_buffer_region.cpu_slice[0])),

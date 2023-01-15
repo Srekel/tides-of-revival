@@ -316,8 +316,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
     var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
-    gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, &meshes_vertices);
-    gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, &meshes_indices);
+    gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
+    gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
@@ -521,8 +521,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], &state.instance_transforms);
-    state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], &state.instance_materials);
+    state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
+    state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
 
     const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
     const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
