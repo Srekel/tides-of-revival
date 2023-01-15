@@ -10,9 +10,26 @@ const hrPanic = zwin32.hrPanic;
 const hrPanicOnFail = zwin32.hrPanicOnFail;
 const zd3d12 = @import("zd3d12");
 const zglfw = @import("zglfw");
+const profiler_module = @import("renderer/d3d12/profiler.zig");
+const IdLocal = @import("variant.zig").IdLocal;
+const IdLocalContext = @import("variant.zig").IdLocalContext;
+const buffer_module = @import("renderer/d3d12/buffer.zig");
+
+pub const Profiler = profiler_module.Profiler;
+pub const ProfileData = profiler_module.ProfileData;
+
+const Buffer = buffer_module.Buffer;
+const BufferPool = buffer_module.BufferPool;
+pub const BufferDesc = buffer_module.BufferDesc;
+pub const BufferHandle = buffer_module.BufferHandle;
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
+
+pub const Vertex = struct {
+    position: [3]f32,
+    normal: [3]f32,
+};
 
 pub const FrameStats = struct {
     time: f64,
@@ -57,19 +74,118 @@ pub const FrameStats = struct {
     }
 };
 
-pub const PersistentResource = struct {
-    resource: zd3d12.ResourceHandle,
-    persistent_descriptor: zd3d12.PersistentDescriptor,
+pub const PipelineInfo = struct {
+    pipeline_handle: zd3d12.PipelineHandle,
 };
 
+const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalContext, 80);
+
 pub const D3D12State = struct {
+    pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
+
     gctx: zd3d12.GraphicsContext,
+    gpu_profiler: Profiler,
+    gpu_frame_profiler_index: u64 = undefined,
+
     stats: FrameStats,
     stats_brush: *d2d1.ISolidColorBrush,
     stats_text_format: *dwrite.ITextFormat,
 
     depth_texture: zd3d12.ResourceHandle,
     depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
+
+    buffer_pool: BufferPool,
+    pipelines: PipelineHashMap,
+
+    pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
+        return self.pipelines.get(pipeline_id);
+    }
+
+    pub fn createBuffer(self: *D3D12State, bufferDesc: BufferDesc) !BufferHandle {
+        var buffer: Buffer = undefined;
+        buffer.state = bufferDesc.state;
+
+        const desc = d3d12.RESOURCE_DESC.initBuffer(bufferDesc.size);
+        buffer.resource = self.gctx.createCommittedResource(
+            .DEFAULT,
+            .{},
+            &desc,
+            d3d12.RESOURCE_STATES.COMMON,
+            null,
+        ) catch |err| hrPanic(err);
+
+        var resource = self.gctx.lookupResource(buffer.resource).?;
+        _ = resource.SetName(bufferDesc.name);
+
+        if (bufferDesc.has_srv and bufferDesc.persistent) {
+            buffer.persistent = true;
+            buffer.has_srv = true;
+
+            const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
+            self.gctx.device.CreateShaderResourceView(
+                self.gctx.lookupResource(buffer.resource).?,
+                &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                    .ViewDimension = .BUFFER,
+                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                    .Format = .R32_TYPELESS,
+                    .u = .{
+                        .Buffer = .{
+                            .FirstElement = 0,
+                            .NumElements = @intCast(u32, @divExact(bufferDesc.size, 4)),
+                            .StructureByteStride = 0,
+                            .Flags = .{ .RAW = true },
+                        },
+                    },
+                },
+                srv_allocation.cpu_handle,
+            );
+
+            buffer.persistent_descriptor = srv_allocation;
+        }
+
+        return self.buffer_pool.addBuffer(buffer);
+    }
+
+    pub fn destroyBuffer(self: *D3D12State, handle: BufferHandle) void {
+        self.buffer_pool.destroyBuffer(handle, &self.gctx);
+    }
+
+    pub inline fn lookupBuffer(self: *D3D12State, handle: BufferHandle) ?*Buffer {
+        return self.buffer_pool.lookupBuffer(handle);
+    }
+
+    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
+        // TODO: Schedule the upload instead of uploading immediately
+        self.gctx.beginFrame();
+
+        self.uploadDataToBuffer(T, buffer_handle, buffer_offset, data);
+
+        self.gctx.endFrame();
+        self.gctx.finishGpuCommands();
+    }
+
+    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
+        const buffer = self.buffer_pool.lookupBuffer(buffer_handle);
+        if (buffer == null)
+            return;
+
+        self.gctx.addTransitionBarrier(buffer.?.resource, .{ .COPY_DEST = true });
+        self.gctx.flushResourceBarriers();
+
+        const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @intCast(u32, data.len));
+        std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
+
+        self.gctx.cmdlist.CopyBufferRegion(
+            self.gctx.lookupResource(buffer.?.resource).?,
+            buffer_offset,
+            upload_buffer_region.buffer,
+            upload_buffer_region.buffer_offset,
+            upload_buffer_region.cpu_slice.len * @sizeOf(@TypeOf(upload_buffer_region.cpu_slice[0])),
+        );
+
+        self.gctx.addTransitionBarrier(buffer.?.resource, buffer.?.state);
+        self.gctx.flushResourceBarriers();
+    }
 };
 
 pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
@@ -140,8 +256,68 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var gctx = zd3d12.GraphicsContext.init(allocator, hwnd);
     // Enable vsync.
-    gctx.present_flags = 0;
-    gctx.present_interval = 1;
+    // gctx.present_flags = 0;
+    // gctx.present_interval = 1;
+
+    var buffer_pool = BufferPool.init(allocator);
+
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    var pipelines = PipelineHashMap.init(allocator);
+
+    const instanced_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        break :blk gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/instanced.vs.cso",
+            "shaders/instanced.ps.cso",
+        );
+    };
+
+    const terrain_pipeline = blk: {
+        // TODO: Replace InputAssembly with vertex fetch in shader
+        const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
+            d3d12.INPUT_ELEMENT_DESC.init("POSITION", 0, .R32G32B32_FLOAT, 0, 0, .PER_VERTEX_DATA, 0),
+            d3d12.INPUT_ELEMENT_DESC.init("_Normal", 0, .R32G32B32_FLOAT, 0, @offsetOf(Vertex, "normal"), .PER_VERTEX_DATA, 0),
+        };
+
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        // TODO: Replace InputAssembly with vertex fetch in shader
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = &input_layout_desc,
+            .NumElements = input_layout_desc.len,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        break :blk gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/terrain.vs.cso",
+            "shaders/terrain.ps.cso",
+        );
+    };
+
+    pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("terrain"), PipelineInfo{ .pipeline_handle = terrain_pipeline }) catch unreachable;
+
+    var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
 
     // Create Direct2D brush which will be needed to display text.
     const stats_brush = blk: {
@@ -174,13 +350,13 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     const depth_texture = gctx.createCommittedResource(
         .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
+        .{},
         &blk: {
             var desc = d3d12.RESOURCE_DESC.initTex2d(.D32_FLOAT, gctx.viewport_width, gctx.viewport_height, 1);
-            desc.Flags = d3d12.RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | d3d12.RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+            desc.Flags = .{ .ALLOW_DEPTH_STENCIL = true, .DENY_SHADER_RESOURCE = true };
             break :blk desc;
         },
-        d3d12.RESOURCE_STATE_DEPTH_WRITE,
+        .{ .DEPTH_WRITE = true },
         &d3d12.CLEAR_VALUE.initDepthStencil(.D32_FLOAT, 1.0, 0),
     ) catch |err| hrPanic(err);
 
@@ -193,22 +369,39 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     return D3D12State{
         .gctx = gctx,
+        .gpu_profiler = gpu_profiler,
         .stats = FrameStats.init(),
         .stats_brush = stats_brush,
         .stats_text_format = stats_text_format,
         .depth_texture = depth_texture,
         .depth_texture_dsv = depth_texture_dsv,
+        .pipelines = pipelines,
+        .buffer_pool = buffer_pool,
     };
 }
 
-pub fn deinit(state: *D3D12State, allocator: std.mem.Allocator) void {
+pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     w32.ole32.CoUninitialize();
 
-    state.gctx.finishGpuCommands();
-    state.gctx.deinit(allocator);
-    _ = state.stats_brush.Release();
-    _ = state.stats_text_format.Release();
-    state.* = undefined;
+    self.gctx.finishGpuCommands();
+    self.gpu_profiler.deinit();
+
+    self.buffer_pool.deinit(allocator, &self.gctx);
+
+    // Destroy all pipelines
+    {
+        var it = self.pipelines.valueIterator();
+        while (it.next()) |pipeline| {
+            self.gctx.destroyPipeline(pipeline.pipeline_handle);
+        }
+        self.pipelines.deinit();
+    }
+
+    self.gctx.deinit(allocator);
+
+    _ = self.stats_brush.Release();
+    _ = self.stats_text_format.Release();
+    self.* = undefined;
 }
 
 pub fn update(state: *D3D12State) void {
@@ -220,9 +413,11 @@ pub fn update(state: *D3D12State) void {
     // Begin DirectX 12 rendering.
     gctx.beginFrame();
 
+    state.gpu_frame_profiler_index = state.gpu_profiler.startProfile(state.gctx.cmdlist, "Frame");
+
     // Get current back buffer resource and transition it to 'render target' state.
     const back_buffer = gctx.getBackBuffer();
-    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATE_RENDER_TARGET);
+    gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
     gctx.flushResourceBarriers();
 
     gctx.cmdlist.OMSetRenderTargets(
@@ -237,42 +432,75 @@ pub fn update(state: *D3D12State) void {
         0,
         null,
     );
-    gctx.cmdlist.ClearDepthStencilView(state.depth_texture_dsv, d3d12.CLEAR_FLAG_DEPTH, 1.0, 0, 0, null);
+    gctx.cmdlist.ClearDepthStencilView(state.depth_texture_dsv, .{ .DEPTH = true }, 1.0, 0, 0, null);
 }
 
 pub fn draw(state: *D3D12State) void {
     var gctx = &state.gctx;
 
+    state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
+    state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
+
     gctx.beginDraw2d();
     {
-        // Display average fps and frame time.
         const stats = &state.stats;
-        var buffer = [_]u8{0} ** 64;
-        const text = std.fmt.bufPrint(
-            buffer[0..],
-            "FPS: {d:.1}\nCPU: {d:.3} ms\n",
-            .{ stats.fps, stats.average_cpu_time },
-        ) catch unreachable;
-
         state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
-        drawText(
-            gctx.d2d.?.context,
-            text,
-            state.stats_text_format,
-            &d2d1.RECT_F{
-                .left = 0.0,
-                .top = 0.0,
-                .right = @intToFloat(f32, gctx.viewport_width),
-                .bottom = @intToFloat(f32, gctx.viewport_height),
-            },
-            @ptrCast(*d2d1.IBrush, state.stats_brush),
-        );
+
+        // FPS and CPU timings
+        {
+            var buffer = [_]u8{0} ** 64;
+            const text = std.fmt.bufPrint(
+                buffer[0..],
+                "FPS: {d:.1}\nCPU: {d:.3} ms",
+                .{ stats.fps, stats.average_cpu_time },
+            ) catch unreachable;
+
+            drawText(
+                gctx.d2d.?.context,
+                text,
+                state.stats_text_format,
+                &d2d1.RECT_F{
+                    .left = 0.0,
+                    .top = 0.0,
+                    .right = @intToFloat(f32, gctx.viewport_width),
+                    .bottom = @intToFloat(f32, gctx.viewport_height),
+                },
+                @ptrCast(*d2d1.IBrush, state.stats_brush),
+            );
+        }
+
+        // GPU timings
+        var i: u32 = 0;
+        var line_height: f32 = 14.0;
+        var vertical_offset: f32 = 36.0;
+        while (i < state.gpu_profiler.num_profiles) : (i += 1) {
+            var frame_profile_data = state.gpu_profiler.profiles.items[i];
+            var buffer = [_]u8{0} ** 64;
+            const text = std.fmt.bufPrint(
+                buffer[0..],
+                "{s}: {d:.3} ms",
+                .{ frame_profile_data.name, frame_profile_data.avg_time },
+            ) catch unreachable;
+
+            drawText(
+                gctx.d2d.?.context,
+                text,
+                state.stats_text_format,
+                &d2d1.RECT_F{
+                    .left = 0.0,
+                    .top = @intToFloat(f32, i) * line_height + vertical_offset,
+                    .right = @intToFloat(f32, gctx.viewport_width),
+                    .bottom = @intToFloat(f32, gctx.viewport_height),
+                },
+                @ptrCast(*d2d1.IBrush, state.stats_brush),
+            );
+        }
     }
     // End Direct2D rendering and transition back buffer to 'present' state.
     gctx.endDraw2d();
 
     const back_buffer = gctx.getBackBuffer();
-    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATE_PRESENT);
+    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATES.PRESENT);
     gctx.flushResourceBarriers();
 
     // Call 'Present' and prepare for the next frame.

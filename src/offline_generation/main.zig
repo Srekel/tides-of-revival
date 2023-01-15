@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const g = @import("graph.zig");
-const lru = @import("lru_cache.zig");
-const v = @import("variant.zig");
+const g = @import("../graph.zig");
+const lru = @import("../lru_cache.zig");
+const v = @import("../variant.zig");
 const IdLocal = v.IdLocal;
 
 const img = @import("zigimg");

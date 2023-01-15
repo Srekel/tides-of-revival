@@ -1,7 +1,9 @@
 const std = @import("std");
+const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const math = std.math;
 const flecs = @import("flecs");
 const gfx = @import("../gfx_d3d12.zig");
+const Vertex = gfx.Vertex;
 
 const zbt = @import("zbullet");
 const zm = @import("zmath");
@@ -10,11 +12,8 @@ const zpool = @import("zpool");
 
 const glfw = @import("glfw");
 
-const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
-const w32 = zwin32.base;
 const d3d12 = zwin32.d3d12;
-const hrPanic = zwin32.hrPanic;
 
 const fd = @import("../flecs_data.zig");
 const config = @import("../config.zig");
@@ -28,11 +27,6 @@ const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = config.patch_width;
 const indices_per_patch: u32 = (config.patch_width - 1) * (config.patch_width - 1) * 6;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
-
-const Vertex = struct {
-    position: [3]f32,
-    normal: [3]f32,
-};
 
 // TODO: Figure out how to do interop to share this struct with HSLS.
 const FrameUniforms = extern struct {
@@ -100,9 +94,9 @@ const SystemState = struct {
     sys: flecs.EntityId,
 
     gfx: *gfx.D3D12State,
-    pipeline: zd3d12.PipelineHandle,
-    vertex_buffer: zd3d12.ResourceHandle,
-    index_buffer: zd3d12.ResourceHandle,
+    vertex_buffer: gfx.BufferHandle,
+    index_buffer: gfx.BufferHandle,
+    gpu_draw_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(Mesh),
 
@@ -121,8 +115,7 @@ fn initPatches(
     // state: *SystemState,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
-    meshes_positions: *std.ArrayList([3]f32),
-    meshes_normals: *std.ArrayList([3]f32),
+    meshes_vertices: *std.ArrayList(Vertex),
 ) void {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -132,24 +125,21 @@ fn initPatches(
 
     // var indices = std.ArrayList(IndexType).init(arena);
 
-    var patch_vertex_positions = arena.alloc([3]f32, vertices_per_patch) catch unreachable;
-    var patch_vertex_normals = arena.alloc([3]f32, vertices_per_patch) catch unreachable;
-    defer arena.free(patch_vertex_positions);
-    defer arena.free(patch_vertex_normals);
+    var patch_vertices = arena.alloc(Vertex, vertices_per_patch) catch unreachable;
+    defer arena.free(patch_vertices);
     {
         var z: usize = 0;
         while (z < patch_side_vertex_count) : (z += 1) {
             var x: usize = 0;
             while (x < patch_side_vertex_count) : (x += 1) {
                 var i = x + z * patch_side_vertex_count;
-                var pos = &patch_vertex_positions[i];
-                var normal = &patch_vertex_normals[i];
-                pos[0] = @intToFloat(f32, x);
-                pos[1] = 0;
-                pos[2] = @intToFloat(f32, z);
-                normal[0] = 0;
-                normal[1] = 1;
-                normal[2] = 0;
+                var vertex = &patch_vertices[i];
+                vertex.position[0] = @intToFloat(f32, x);
+                vertex.position[1] = 0;
+                vertex.position[2] = @intToFloat(f32, z);
+                vertex.normal[0] = 0;
+                vertex.normal[1] = 1;
+                vertex.normal[2] = 0;
             }
         }
     }
@@ -208,14 +198,13 @@ fn initPatches(
             // .id = id,
             // .entity = entity,
             .index_offset = @intCast(u32, meshes_indices.items.len),
-            .vertex_offset = @intCast(i32, meshes_positions.items.len),
+            .vertex_offset = @intCast(i32, meshes_vertices.items.len),
             .num_indices = @intCast(u32, indices_per_patch),
             .num_vertices = @intCast(u32, vertices_per_patch),
         }) catch unreachable;
 
         meshes_indices.appendSlice(patch_indices) catch unreachable;
-        meshes_positions.appendSlice(patch_vertex_positions) catch unreachable;
-        meshes_normals.appendSlice(patch_vertex_normals) catch unreachable;
+        meshes_vertices.appendSlice(patch_vertices) catch unreachable;
     }
 }
 
@@ -250,103 +239,42 @@ pub fn create(
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    const pipeline = blk: {
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
-            d3d12.INPUT_ELEMENT_DESC.init("POSITION", 0, .R32G32B32_FLOAT, 0, 0, .PER_VERTEX_DATA, 0),
-            d3d12.INPUT_ELEMENT_DESC.init("_Normal", 0, .R32G32B32_FLOAT, 0, @offsetOf(Vertex, "normal"), .PER_VERTEX_DATA, 0),
-        };
-
-        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        pso_desc.InputLayout = .{
-            .pInputElementDescs = &input_layout_desc,
-            .NumElements = input_layout_desc.len,
-        };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.DSVFormat = .D32_FLOAT;
-        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
-        pso_desc.PrimitiveTopologyType = .TRIANGLE;
-
-        break :blk gfxstate.gctx.createGraphicsShaderPipeline(
-            arena,
-            &pso_desc,
-            "shaders/basic_pbr.vs.cso",
-            "shaders/basic_pbr_terrain.ps.cso",
-        );
-    };
-
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
-    var meshes_positions = std.ArrayList([3]f32).init(arena);
-    var meshes_normals = std.ArrayList([3]f32).init(arena);
-    initPatches(allocator, &meshes, &meshes_indices, &meshes_positions, &meshes_normals);
+    var meshes_vertices = std.ArrayList(Vertex).init(arena);
+    initPatches(allocator, &meshes, &meshes_indices, &meshes_vertices);
 
-    const total_num_vertices = @intCast(u32, meshes_positions.items.len);
+    const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
     assert(total_num_indices == indices_per_patch * patch_count);
 
-    const vertex_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
-        d3d12.RESOURCE_STATE_COMMON,
-        null,
-    ) catch |err| hrPanic(err);
+    // Create a vertex buffer.
+    const vertex_buffer = gfxstate.createBuffer(.{
+        .size = total_num_vertices * @sizeOf(Vertex),
+        .state = .{ .VERTEX_AND_CONSTANT_BUFFER = true },
+        .name = L("Terrain Vertex Buffer"),
+        .persistent = false,
+        .has_cbv = false,
+        .has_srv = false,
+        .has_uav = false,
+    }) catch unreachable;
 
-    const index_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
-        // TODO: Get the size of IndexType
-        // &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(u32)),
-        d3d12.RESOURCE_STATE_COMMON,
-        null,
-    ) catch |err| hrPanic(err);
+    // Create an index buffer.
+    const index_buffer = gfxstate.createBuffer(.{
+        .size = total_num_indices * @sizeOf(IndexType),
+        .state = .{ .INDEX_BUFFER = true },
+        .name = L("Terrain Index Buffer"),
+        .persistent = false,
+        .has_cbv = false,
+        .has_srv = false,
+        .has_uav = false,
+    }) catch unreachable;
 
-    gfxstate.gctx.beginFrame();
-
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gfxstate.gctx.flushResourceBarriers();
-
-    // Fill vertex buffer with vertex data.
-    const verts = gfxstate.gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
-    for (meshes_positions.items) |_, i| {
-        verts.cpu_slice[i].position = meshes_positions.items[i];
-        verts.cpu_slice[i].normal = meshes_normals.items[i];
+    // Upload vertices and indices to the GPU
+    {
+        gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
+        gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
     }
-
-    gfxstate.gctx.cmdlist.CopyBufferRegion(
-        gfxstate.gctx.lookupResource(vertex_buffer).?,
-        0,
-        verts.buffer,
-        verts.buffer_offset,
-        verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
-    );
-
-    // TODO: Make this work with IndexType instead of hardcoding u32
-    const indices = gfxstate.gctx.allocateUploadBufferRegion(u32, total_num_indices);
-    for (meshes_indices.items) |_, i| {
-        indices.cpu_slice[i] = meshes_indices.items[i];
-    }
-
-    // Fill index buffer with index data.
-    gfxstate.gctx.cmdlist.CopyBufferRegion(
-        gfxstate.gctx.lookupResource(index_buffer).?,
-        0,
-        indices.buffer,
-        indices.buffer_offset,
-        indices.cpu_slice.len * @sizeOf(@TypeOf(indices.cpu_slice[0])),
-    );
-
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_INDEX_BUFFER);
-    gfxstate.gctx.flushResourceBarriers();
-
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
 
     // State
     var state = allocator.create(SystemState) catch unreachable;
@@ -358,7 +286,6 @@ pub fn create(
         .sys = sys,
 
         .gfx = gfxstate,
-        .pipeline = pipeline,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
 
@@ -745,27 +672,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 std.debug.print("patch {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
 
                 // Upload patch vertices to vertex buffer
-                {
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-                    state.gfx.gctx.flushResourceBarriers();
-
-                    const verts = state.gfx.gctx.allocateUploadBufferRegion(Vertex, patch.vertices.len);
-                    for (patch.vertices) |_, i| {
-                        verts.cpu_slice[i].position = patch.vertices[i].position;
-                        verts.cpu_slice[i].normal = patch.vertices[i].normal;
-                    }
-
-                    state.gfx.gctx.cmdlist.CopyBufferRegion(
-                        state.gfx.gctx.lookupResource(state.vertex_buffer).?,
-                        patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex),
-                        verts.buffer,
-                        verts.buffer_offset,
-                        verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
-                    );
-
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-                    state.gfx.gctx.flushResourceBarriers();
-                }
+                const vertex_buffer_offset = patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex);
+                state.gfx.uploadDataToBuffer(Vertex, state.vertex_buffer, vertex_buffer_offset, patch.vertices[0..patch.vertices.len]);
 
                 var rand1 = std.rand.DefaultPrng.init(patch.lookup);
                 var rand = rand1.random();
@@ -864,22 +772,27 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     var gctx = state.gfx.gctx;
+    state.gpu_draw_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain System: Draw");
+
     // Set input assembler (IA) state.
     gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const vertex_buffer_resource = gctx.lookupResource(state.vertex_buffer);
+    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+    const vertex_buffer_resource = gctx.lookupResource(vertex_buffer.?.resource);
     gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
         .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
         .StrideInBytes = @sizeOf(Vertex),
     }});
-    const index_buffer_resource = gctx.lookupResource(state.index_buffer);
+    const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
+    const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
     gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-        .Format = .R32_UINT, // TODO: Check index format first
+        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
-    gctx.setCurrentPipeline(state.pipeline);
+    const pipeline = state.gfx.getPipeline(IdLocal.init("terrain"));
+    gctx.setCurrentPipeline(pipeline.?.pipeline_handle);
 
     // Upload per-frame constant data.
     {
@@ -938,4 +851,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             gctx.cmdlist.DrawIndexedInstanced(indices_per_patch, 1, patch.index_offset, patch.vertex_offset, 0);
         }
     }
+
+    state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_draw_profiler_index, state.gfx.gctx.frame_index);
 }

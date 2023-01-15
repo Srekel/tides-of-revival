@@ -1,4 +1,5 @@
 const std = @import("std");
+const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const assert = std.debug.assert;
 const math = std.math;
 
@@ -9,21 +10,15 @@ const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 
 const gfx = @import("../gfx_d3d12.zig");
-const zd3d12 = @import("zd3d12");
+const Vertex = gfx.Vertex;
 const zwin32 = @import("zwin32");
-const w32 = zwin32.base;
 const d3d12 = zwin32.d3d12;
-const hrPanic = zwin32.hrPanic;
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 
 const IndexType = zmesh.Shape.IndexType;
 
-const Vertex = struct {
-    position: [3]f32,
-    normal: [3]f32,
-};
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
@@ -37,12 +32,11 @@ const FrameUniforms = struct {
 };
 
 const DrawUniforms = struct {
-    object_to_world: zm.Mat,
-    basecolor_roughness: [4]f32,
     start_instance_location: u32,
+    vertex_offset: i32,
+    vertex_buffer_index: u32,
     instance_transform_buffer_index: u32,
     instance_material_buffer_index: u32,
-    padding1: u32,
 };
 
 const InstanceTransform = struct {
@@ -107,13 +101,15 @@ const SystemState = struct {
     // init: SystemInit,
 
     gfx: *gfx.D3D12State,
-    pipeline: zd3d12.PipelineHandle,
 
-    vertex_buffer: zd3d12.ResourceHandle,
-    index_buffer: zd3d12.ResourceHandle,
-    instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
-    instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource,
+    vertex_buffer: gfx.BufferHandle,
+    index_buffer: gfx.BufferHandle,
+    instance_transform_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
+    instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
+    instance_transforms: std.ArrayList(InstanceTransform),
+    instance_materials: std.ArrayList(InstanceMaterial),
     draw_calls: std.ArrayList(DrawCall),
+    gpu_frame_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(Mesh),
     query_camera: flecs.Query,
@@ -134,21 +130,25 @@ fn appendMesh(
     mesh: zmesh.Shape,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
-    meshes_positions: *std.ArrayList([3]f32),
-    meshes_normals: *std.ArrayList([3]f32),
+    meshes_vertices: *std.ArrayList(Vertex),
 ) u64 {
     meshes.append(.{
         .id = id,
         // .entity = entity,
         .index_offset = @intCast(u32, meshes_indices.items.len),
-        .vertex_offset = @intCast(i32, meshes_positions.items.len),
+        .vertex_offset = @intCast(i32, meshes_vertices.items.len),
         .num_indices = @intCast(u32, mesh.indices.len),
         .num_vertices = @intCast(u32, mesh.positions.len),
     }) catch unreachable;
 
     meshes_indices.appendSlice(mesh.indices) catch unreachable;
-    meshes_positions.appendSlice(mesh.positions) catch unreachable;
-    meshes_normals.appendSlice(mesh.normals.?) catch unreachable;
+    var i: u64 = 0;
+    while (i < mesh.positions.len) : (i += 1) {
+        meshes_vertices.append(.{
+            .position = mesh.positions[i],
+            .normal = mesh.normals.?[i],
+        }) catch unreachable;
+    }
 
     return meshes.items.len - 1;
 }
@@ -157,8 +157,7 @@ fn initScene(
     allocator: std.mem.Allocator,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
-    meshes_positions: *std.ArrayList([3]f32),
-    meshes_normals: *std.ArrayList([3]f32),
+    meshes_vertices: *std.ArrayList(Vertex),
 ) void {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -174,7 +173,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -183,7 +182,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -212,7 +211,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -224,7 +223,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
     }
     {
         var mesh = zmesh.Shape.initCone(4, 4);
@@ -235,7 +234,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_positions, meshes_normals);
+        _ = appendMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 }
 
@@ -244,198 +243,81 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    const pipeline = blk: {
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
-            d3d12.INPUT_ELEMENT_DESC.init("POSITION", 0, .R32G32B32_FLOAT, 0, 0, .PER_VERTEX_DATA, 0),
-            d3d12.INPUT_ELEMENT_DESC.init("_Normal", 0, .R32G32B32_FLOAT, 0, @offsetOf(Vertex, "normal"), .PER_VERTEX_DATA, 0),
-        };
-
-        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        pso_desc.InputLayout = .{
-            .pInputElementDescs = &input_layout_desc,
-            .NumElements = input_layout_desc.len,
-        };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.DSVFormat = .D32_FLOAT;
-        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
-        pso_desc.PrimitiveTopologyType = .TRIANGLE;
-
-        break :blk gfxstate.gctx.createGraphicsShaderPipeline(
-            arena,
-            &pso_desc,
-            "shaders/basic_pbr_instanced.vs.cso",
-            "shaders/basic_pbr_mesh.ps.cso",
-        );
-    };
-
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
-    var meshes_positions = std.ArrayList([3]f32).init(arena);
-    var meshes_normals = std.ArrayList([3]f32).init(arena);
-    initScene(allocator, &meshes, &meshes_indices, &meshes_positions, &meshes_normals);
+    var meshes_vertices = std.ArrayList(Vertex).init(arena);
+    initScene(allocator, &meshes, &meshes_indices, &meshes_vertices);
 
-    const total_num_vertices = @intCast(u32, meshes_positions.items.len);
+    const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
 
     // Create a vertex buffer.
-    const vertex_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_vertices * @sizeOf(Vertex)),
-        d3d12.RESOURCE_STATE_COMMON,
-        null,
-    ) catch |err| hrPanic(err);
+    var vertex_buffer = gfxstate.createBuffer(.{
+        .size = total_num_vertices * @sizeOf(Vertex),
+        .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+        .name = L("Vertex Buffer"),
+        .persistent = true,
+        .has_cbv = false,
+        .has_srv = true,
+        .has_uav = false,
+    }) catch unreachable;
 
     // Create an index buffer.
-    const index_buffer = gfxstate.gctx.createCommittedResource(
-        .DEFAULT,
-        d3d12.HEAP_FLAG_NONE,
-        // TODO: Get the size of IndexType
-        // &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(IndexType)),
-        &d3d12.RESOURCE_DESC.initBuffer(total_num_indices * @sizeOf(u32)),
-        d3d12.RESOURCE_STATE_COMMON,
-        null,
-    ) catch |err| hrPanic(err);
+    var index_buffer = gfxstate.createBuffer(.{
+        .size = total_num_indices * @sizeOf(IndexType),
+        .state = .{ .INDEX_BUFFER = true },
+        .name = L("Index Buffer"),
+        .persistent = false,
+        .has_cbv = false,
+        .has_srv = false,
+        .has_uav = false,
+    }) catch unreachable;
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
-        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource = undefined;
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers) |_, buffer_index| {
-            const size = max_instances * @sizeOf(InstanceTransform);
-            const desc = d3d12.RESOURCE_DESC.initBuffer(size);
-            const resource = gfxstate.gctx.createCommittedResource(
-                .DEFAULT,
-                d3d12.HEAP_FLAG_NONE,
-                &desc,
-                d3d12.RESOURCE_STATE_COMMON,
-                null,
-            ) catch |err| hrPanic(err);
-
-            const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-            gfxstate.gctx.device.CreateShaderResourceView(
-                gfxstate.gctx.lookupResource(resource).?,
-                &d3d12.SHADER_RESOURCE_VIEW_DESC{
-                    .ViewDimension = .BUFFER,
-                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
-                    .Format = .R32_TYPELESS,
-                    .u = .{
-                        .Buffer = .{
-                            .FirstElement = 0,
-                            .NumElements = @divExact(size, 4),
-                            .StructureByteStride = 0,
-                            .Flags = d3d12.BUFFER_SRV_FLAG_RAW,
-                        },
-                    },
-                },
-                srv_allocation.cpu_handle,
-            );
-
-            const persistent_buffer = gfx.PersistentResource{
-                .resource = resource,
-                .persistent_descriptor = srv_allocation,
+            const bufferDesc = gfx.BufferDesc{
+                .size = max_instances * @sizeOf(InstanceTransform),
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("Instance Transform Buffer"),
+                .persistent = true,
+                .has_cbv = false,
+                .has_srv = true,
+                .has_uav = false,
             };
 
-            buffers[buffer_index] = persistent_buffer;
+            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
         }
 
         break :blk buffers;
     };
 
     const instance_material_buffers = blk: {
-        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.PersistentResource = undefined;
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers) |_, buffer_index| {
-            const size = max_instances * @sizeOf(InstanceMaterial);
-            const desc = d3d12.RESOURCE_DESC.initBuffer(size);
-            const resource = gfxstate.gctx.createCommittedResource(
-                .DEFAULT,
-                d3d12.HEAP_FLAG_NONE,
-                &desc,
-                d3d12.RESOURCE_STATE_COMMON,
-                null,
-            ) catch |err| hrPanic(err);
-
-            const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-            gfxstate.gctx.device.CreateShaderResourceView(
-                gfxstate.gctx.lookupResource(resource).?,
-                &d3d12.SHADER_RESOURCE_VIEW_DESC{
-                    .ViewDimension = .BUFFER,
-                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
-                    .Format = .R32_TYPELESS,
-                    .u = .{
-                        .Buffer = .{
-                            .FirstElement = 0,
-                            .NumElements = @divExact(size, 4),
-                            .StructureByteStride = 0,
-                            .Flags = d3d12.BUFFER_SRV_FLAG_RAW,
-                        },
-                    },
-                },
-                srv_allocation.cpu_handle,
-            );
-
-            const persistent_buffer = gfx.PersistentResource{
-                .resource = resource,
-                .persistent_descriptor = srv_allocation,
+            const bufferDesc = gfx.BufferDesc{
+                .size = max_instances * @sizeOf(InstanceMaterial),
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("Instance Material Buffer"),
+                .persistent = true,
+                .has_cbv = false,
+                .has_srv = true,
+                .has_uav = false,
             };
 
-            buffers[buffer_index] = persistent_buffer;
+            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
         }
 
         break :blk buffers;
     };
 
     var draw_calls = std.ArrayList(DrawCall).init(allocator);
+    var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
+    var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
-    gfxstate.gctx.beginFrame();
-
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_COPY_DEST);
-    gfxstate.gctx.flushResourceBarriers();
-
-    // Fill vertex buffer with vertex data.
-    {
-        const verts = gfxstate.gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
-        for (meshes_positions.items) |_, i| {
-            verts.cpu_slice[i].position = meshes_positions.items[i];
-            verts.cpu_slice[i].normal = meshes_normals.items[i];
-        }
-
-        gfxstate.gctx.cmdlist.CopyBufferRegion(
-            gfxstate.gctx.lookupResource(vertex_buffer).?,
-            0,
-            verts.buffer,
-            verts.buffer_offset,
-            verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
-        );
-    }
-
-    // Fill index buffer with indices.
-    {
-        // TODO: Make this work with IndexType instead of hardcoding u32
-        const indices = gfxstate.gctx.allocateUploadBufferRegion(u32, total_num_indices);
-        for (meshes_indices.items) |_, i| {
-            indices.cpu_slice[i] = meshes_indices.items[i];
-        }
-
-        // Fill index buffer with index data.
-        gfxstate.gctx.cmdlist.CopyBufferRegion(
-            gfxstate.gctx.lookupResource(index_buffer).?,
-            0,
-            indices.buffer,
-            indices.buffer_offset,
-            indices.cpu_slice.len * @sizeOf(@TypeOf(indices.cpu_slice[0])),
-        );
-    }
-
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer, d3d12.RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    gfxstate.gctx.addTransitionBarrier(index_buffer, d3d12.RESOURCE_STATE_INDEX_BUFFER);
-    gfxstate.gctx.flushResourceBarriers();
-
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
+    gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
+    gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
@@ -463,12 +345,13 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .flecs_world = flecs_world,
         .sys = sys,
         .gfx = gfxstate,
-        .pipeline = pipeline,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
         .instance_transform_buffers = instance_transform_buffers,
         .instance_material_buffers = instance_material_buffers,
         .draw_calls = draw_calls,
+        .instance_transforms = instance_transforms,
+        .instance_materials = instance_materials,
         .meshes = meshes,
         .query_camera = query_camera,
         .query_lights = query_lights,
@@ -486,6 +369,8 @@ pub fn destroy(state: *SystemState) void {
     state.query_lights.deinit();
     state.query_mesh.deinit();
     state.meshes.deinit();
+    state.instance_transforms.deinit();
+    state.instance_materials.deinit();
     state.draw_calls.deinit();
     state.allocator.destroy(state);
 }
@@ -521,23 +406,19 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     const cam = camera_comps.?.cam;
     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
+    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
-    // Set input assembler (IA) state.
+    const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
+    state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
     state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const vertex_buffer_resource = state.gfx.gctx.lookupResource(state.vertex_buffer);
-    state.gfx.gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
-        .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
-        .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
-        .StrideInBytes = @sizeOf(Vertex),
-    }});
-    const index_buffer_resource = state.gfx.gctx.lookupResource(state.index_buffer);
+    const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
+    const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
     state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-        .Format = .R32_UINT, // TODO: Check index format first
+        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
-
-    state.gfx.gctx.setCurrentPipeline(state.pipeline);
 
     // Upload per-frame constant data.
     const camera_position = camera_comps.?.transform.getPos00();
@@ -575,18 +456,17 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         mesh: *const fd.ShapeMeshInstance,
     });
 
-    // Reset draw call array list
+    // Reset transforms, materials and draw calls array list
+    state.instance_transforms.clearRetainingCapacity();
+    state.instance_materials.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
+
     var instance_count: u32 = 0;
     var start_instance_location: u32 = 0;
     var last_mesh_index: u32 = 0xffffffff;
     var last_mesh_index_count: u32 = 0;
     var last_mesh_index_offset: u32 = 0;
     var last_mesh_vertex_offset: i32 = 0;
-
-    const instance_transforms_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceTransform, max_instances);
-    const instance_materials_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceMaterial, max_instances);
-    var current_instance_index: u32 = 0;
 
     while (entity_iter_mesh.next()) |comps| {
         if (last_mesh_index == 0xffffffff) {
@@ -618,16 +498,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }
 
         const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
-        instance_transforms_upload_buffer.cpu_slice[current_instance_index] = .{ .object_to_world = zm.transpose(object_to_world) };
-        instance_materials_upload_buffer.cpu_slice[current_instance_index] = .{
+        state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
+        state.instance_materials.append(.{
             .basecolor_roughness = [4]f32{
                 comps.mesh.basecolor_roughness.r,
                 comps.mesh.basecolor_roughness.g,
                 comps.mesh.basecolor_roughness.b,
                 comps.mesh.basecolor_roughness.roughness,
             },
-        };
-        current_instance_index += 1;
+        }) catch unreachable;
     }
 
     if (instance_count >= 1) {
@@ -642,35 +521,20 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATE_COPY_DEST);
-    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATE_COPY_DEST);
-    state.gfx.gctx.flushResourceBarriers();
+    state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
+    state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
 
-    state.gfx.gctx.cmdlist.CopyBufferRegion(
-        state.gfx.gctx.lookupResource(state.instance_transform_buffers[frame_index].resource).?,
-        0,
-        instance_transforms_upload_buffer.buffer,
-        instance_transforms_upload_buffer.buffer_offset,
-        instance_transforms_upload_buffer.cpu_slice.len * @sizeOf(@TypeOf(instance_transforms_upload_buffer.cpu_slice[0])),
-    );
-
-    state.gfx.gctx.cmdlist.CopyBufferRegion(
-        state.gfx.gctx.lookupResource(state.instance_material_buffers[frame_index].resource).?,
-        0,
-        instance_materials_upload_buffer.buffer,
-        instance_materials_upload_buffer.buffer_offset,
-        instance_materials_upload_buffer.cpu_slice.len * @sizeOf(@TypeOf(instance_materials_upload_buffer.cpu_slice[0])),
-    );
-
-    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATE_GENERIC_READ);
-    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATE_GENERIC_READ);
-    state.gfx.gctx.flushResourceBarriers();
+    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+    const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
+    const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
 
     for (state.draw_calls.items) |draw_call| {
         const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
         mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-        mem.cpu_slice[0].instance_transform_buffer_index = state.instance_transform_buffers[frame_index].persistent_descriptor.index;
-        mem.cpu_slice[0].instance_material_buffer_index = state.instance_material_buffers[frame_index].persistent_descriptor.index;
+        mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
+        mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         state.gfx.gctx.cmdlist.DrawIndexedInstanced(
@@ -681,6 +545,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             draw_call.start_instance_location,
         );
     }
+
+    state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
 }
 
 // const ShapeMeshDefinitionObserverCallback = struct {
