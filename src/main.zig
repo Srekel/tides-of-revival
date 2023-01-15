@@ -1,6 +1,6 @@
 const std = @import("std");
 const args = @import("args");
-const offline = @import("offline_generation.zig");
+const offline = @import("offline_generation/main.zig");
 const game = @import("game.zig");
 
 pub fn main() void {
