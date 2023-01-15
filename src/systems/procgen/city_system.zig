@@ -285,7 +285,7 @@ pub fn createEntities(state: *SystemState) void {
                 var spawn_ent = state.flecs_world.newEntity();
                 spawn_ent.set(spawn_pos);
                 spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
-                city_ent.addPair(fr.Hometown, spawn_ent);
+                spawn_ent.addPair(fr.Hometown, city_ent);
                 // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
             }
         }

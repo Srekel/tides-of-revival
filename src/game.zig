@@ -42,7 +42,7 @@ pub fn run() void {
 
     var flecs_world = flecs.World.init();
     defer flecs_world.deinit();
-    _ = flecs.c.ecs_log_set_level(1);
+    _ = flecs.c.ecs_log_set_level(0);
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -246,11 +246,16 @@ pub fn run() void {
 
         var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
         while (entity_iter.next()) |comps| {
-            // const city_ent = entity_iter.entity().get(fr.Hometown);
+            const city_ent = flecs.c.ecs_get_target(
+                flecs_world.world,
+                entity_iter.entity().id,
+                flecs_world.componentId(fr.Hometown),
+                0,
+            );
             break :blk .{
                 .pos = comps.pos.*,
-                .ent = entity_iter.entity(),
-                // .city_ent =city_ent.,
+                .spawnpoint_ent = entity_iter.entity(),
+                .city_ent = city_ent,
             };
         }
         break :blk null;
@@ -320,9 +325,8 @@ pub fn run() void {
     });
     player_ent.set(fd.Input{ .active = false, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
-    // player_ent.set(fd.WorldPatch{ .lookup = 123 });
     if (player_spawn) |ps| {
-        ps.ent.addPair(fr.Hometown, player_ent);
+        player_ent.addPair(fr.Hometown, ps.city_ent);
     }
 
     const player_camera_ent = flecs_world.newEntity();
