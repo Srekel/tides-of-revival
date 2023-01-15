@@ -79,9 +79,6 @@ pub const BufferDesc = struct {
     has_uav: bool,
 };
 
-// TODO: Buffer should be private to this module and we should
-// hand out a BufferHandle. Buffers should be stored in a list
-// of buffers, accessible via handles.
 pub const Buffer = struct {
     size: u64,
     state: d3d12.RESOURCE_STATES, // TODO: Replace this with non-d3d12 state enum
@@ -93,6 +90,129 @@ pub const Buffer = struct {
 
     resource: zd3d12.ResourceHandle,
     persistent_descriptor: zd3d12.PersistentDescriptor,
+};
+
+pub const BufferHandle = struct {
+    index: u16 align(4) = 0,
+    generation: u16 = 0,
+};
+
+const BufferPool = struct {
+    const max_num_buffers = 256;    // TODO: Figure out how many we need as we go
+
+    buffers: []Buffer,
+    generations: []u16,
+
+    fn init(allocator: std.mem.Allocator) BufferPool {
+        return .{
+            .buffers = blk: {
+                var buffers = allocator.alloc(
+                    Buffer,
+                    max_num_buffers + 1,
+                ) catch unreachable;
+                for (buffers) |*buffer| {
+                    buffer.* = .{
+                        .size = 0,
+                        .state = d3d12.RESOURCE_STATES.COMMON,
+                        .persistent = false,
+                        .has_cbv = false,
+                        .has_srv = false,
+                        .has_uav = false,
+                        .resource = undefined,
+                        .persistent_descriptor = undefined,
+                    };
+                }
+                break :blk buffers;
+            },
+            .generations = blk: {
+                var generations = allocator.alloc(
+                    u16,
+                    max_num_buffers + 1,
+                ) catch unreachable;
+                for (generations) |*gen| gen.* = 0;
+                break :blk generations;
+            },
+        };
+    }
+
+    fn deinit(pool: *BufferPool, allocator: std.mem.Allocator, gctx: *zd3d12.GraphicsContext) void {
+        for (pool.buffers) |buffer| {
+            if (buffer.size > 0) {
+                gctx.destroyResource(buffer.resource);
+            }
+        }
+
+        allocator.free(pool.buffers);
+        allocator.free(pool.generations);
+        pool.* = undefined;
+    }
+
+    fn addBuffer(pool: *BufferPool, buffer: Buffer) BufferHandle {
+        var slot_idx: u32 = 1;
+        while (slot_idx <= max_num_buffers) : (slot_idx += 1) {
+            if (pool.buffers[slot_idx].size == 0)
+                break;
+        }
+        assert(slot_idx <= max_num_buffers);
+
+        pool.buffers[slot_idx] = .{
+            .size = buffer.size,
+            .state = buffer.state,
+            .persistent = buffer.persistent,
+            .has_cbv = buffer.has_cbv,
+            .has_srv = buffer.has_srv,
+            .has_uav = buffer.has_uav,
+            .resource = buffer.resource,
+            .persistent_descriptor = .{
+                .cpu_handle = buffer.persistent_descriptor.cpu_handle,
+                .gpu_handle = buffer.persistent_descriptor.gpu_handle,
+                .index = buffer.persistent_descriptor.index, 
+            },
+        };
+        const handle = BufferHandle{
+            .index = @intCast(u16, slot_idx),
+            .generation = blk: {
+                pool.generations[slot_idx] += 1;
+                break :blk pool.generations[slot_idx];
+            },
+        };
+        return handle;
+    }
+
+    pub fn destroyBuffer(pool: *BufferPool, handle: BufferHandle, gctx: *zd3d12.GraphicsContext) void {
+        var buffer = pool.lookupBuffer(handle);
+        if (buffer == null)
+            return;
+
+        gctx.destroyResource(buffer.?.resource);
+
+        buffer.?.* = .{
+            .size = 0,
+            .state = d3d12.RESOURCE_STATES.COMMON,
+            .persistent = false,
+            .has_cbv = false,
+            .has_srv = false,
+            .has_uav = false,
+            .resource = undefined,
+            .persistent_descriptor = undefined,
+        };
+    }
+
+    fn isBufferValid(pool: BufferPool, handle: BufferHandle) bool {
+        return handle.index > 0 and
+            handle.index <= max_num_buffers and
+            handle.generation > 0 and
+            handle.generation == pool.generations[handle.index] and
+            pool.buffers[handle.index].size > 0;
+    }
+
+    fn lookupBuffer(pool: BufferPool, handle: BufferHandle) ?*Buffer {
+        if (pool.isBufferValid(handle)) {
+            return &pool.buffers[handle.index];
+        }
+
+        return null;
+    }
 };
 
 pub const PipelineInfo = struct {
@@ -115,13 +235,14 @@ pub const D3D12State = struct {
     depth_texture: zd3d12.ResourceHandle,
     depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
 
+    buffer_pool: BufferPool,
     pipelines: PipelineHashMap,
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
         return self.pipelines.get(pipeline_id);
     }
 
-    pub fn createBuffer(self: *D3D12State, bufferDesc: BufferDesc) !Buffer {
+    pub fn createBuffer(self: *D3D12State, bufferDesc: BufferDesc) !BufferHandle {
         var buffer: Buffer = undefined;
         buffer.state = bufferDesc.state;
 
@@ -163,37 +284,48 @@ pub const D3D12State = struct {
             buffer.persistent_descriptor = srv_allocation;
         }
 
-        return buffer;
+        return self.buffer_pool.addBuffer(buffer);
     }
 
-    // TODO: Replace Buffer with BufferHandle
-    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer: *Buffer, data: *std.ArrayList(T)) void {
+    pub fn destroyBuffer(self: *D3D12State, handle: BufferHandle) void {
+        self.buffer_pool.destroyBuffer(handle, &self.gctx);
+    }
+
+    pub inline fn lookupBuffer(self: *D3D12State, handle: BufferHandle) ?*Buffer {
+        return self.buffer_pool.lookupBuffer(handle);
+    }
+
+    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, data: *std.ArrayList(T)) void {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        self.uploadDataToBuffer(T, buffer, data);
+        self.uploadDataToBuffer(T, buffer_handle, data);
 
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
     }
 
     // TODO: Pass offset info
-    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer: *Buffer, data: *std.ArrayList(T)) void {
-        self.gctx.addTransitionBarrier(buffer.resource, .{ .COPY_DEST = true });
+    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, data: *std.ArrayList(T)) void {
+        const buffer = self.buffer_pool.lookupBuffer(buffer_handle);
+        if (buffer == null)
+            return;
+
+        self.gctx.addTransitionBarrier(buffer.?.resource, .{ .COPY_DEST = true });
         self.gctx.flushResourceBarriers();
 
         const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @intCast(u32, data.items.len));
         std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.items.len], data.items[0..data.items.len]);
 
         self.gctx.cmdlist.CopyBufferRegion(
-            self.gctx.lookupResource(buffer.resource).?,
+            self.gctx.lookupResource(buffer.?.resource).?,
             0,
             upload_buffer_region.buffer,
             upload_buffer_region.buffer_offset,
             upload_buffer_region.cpu_slice.len * @sizeOf(@TypeOf(upload_buffer_region.cpu_slice[0])),
         );
 
-        self.gctx.addTransitionBarrier(buffer.resource, buffer.state);
+        self.gctx.addTransitionBarrier(buffer.?.resource, buffer.?.state);
         self.gctx.flushResourceBarriers();
     }
 };
@@ -268,6 +400,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     // Enable vsync.
     // gctx.present_flags = 0;
     // gctx.present_interval = 1;
+
+    var buffer_pool = BufferPool.init(allocator);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -384,6 +518,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .depth_texture = depth_texture,
         .depth_texture_dsv = depth_texture_dsv,
         .pipelines = pipelines,
+        .buffer_pool = buffer_pool,
     };
 }
 
@@ -392,6 +527,8 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     self.gctx.finishGpuCommands();
     self.gpu_profiler.deinit();
+
+    self.buffer_pool.deinit(allocator, &self.gctx);
 
     // Destroy all pipelines
     {

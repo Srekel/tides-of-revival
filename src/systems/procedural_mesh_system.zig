@@ -102,10 +102,10 @@ const SystemState = struct {
 
     gfx: *gfx.D3D12State,
 
-    vertex_buffer: gfx.Buffer,
-    index_buffer: gfx.Buffer,
-    instance_transform_buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer,
-    instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer,
+    vertex_buffer: gfx.BufferHandle,
+    index_buffer: gfx.BufferHandle,
+    instance_transform_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
+    instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
     instance_transforms: std.ArrayList(InstanceTransform),
     instance_materials: std.ArrayList(InstanceMaterial),
     draw_calls: std.ArrayList(DrawCall),
@@ -275,7 +275,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
-        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer = undefined;
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceTransform),
@@ -294,7 +294,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     };
 
     const instance_material_buffers = blk: {
-        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer = undefined;
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceMaterial),
@@ -316,8 +316,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
     var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
-    gfxstate.scheduleUploadDataToBuffer(Vertex, &vertex_buffer, &meshes_vertices);
-    gfxstate.scheduleUploadDataToBuffer(IndexType, &index_buffer, &meshes_indices);
+    gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, &meshes_vertices);
+    gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, &meshes_indices);
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
@@ -373,6 +373,17 @@ pub fn destroy(state: *SystemState) void {
     state.instance_materials.deinit();
     state.draw_calls.deinit();
     state.allocator.destroy(state);
+
+    // state.gfx.destroyBuffer(state.vertex_buffer);
+    // state.gfx.destroyBuffer(state.index_buffer);
+
+    // for (state.instance_transform_buffers) |buffer_handle| {
+    //     state.gfx.destroyBuffer(buffer_handle);
+    // }
+
+    // for (state.instance_material_buffers) |buffer_handle| {
+    //     state.gfx.destroyBuffer(buffer_handle);
+    // }
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -412,7 +423,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
     state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const index_buffer_resource = state.gfx.gctx.lookupResource(state.index_buffer.resource);
+    const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
+    const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
     state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
@@ -520,16 +532,20 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.uploadDataToBuffer(InstanceTransform, &state.instance_transform_buffers[frame_index], &state.instance_transforms);
-    state.gfx.uploadDataToBuffer(InstanceMaterial, &state.instance_material_buffers[frame_index], &state.instance_materials);
+    state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], &state.instance_transforms);
+    state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], &state.instance_materials);
+
+    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+    const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
+    const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
 
     for (state.draw_calls.items) |draw_call| {
         const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
         mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
         mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
-        mem.cpu_slice[0].vertex_buffer_index = state.vertex_buffer.persistent_descriptor.index;
-        mem.cpu_slice[0].instance_transform_buffer_index = state.instance_transform_buffers[frame_index].persistent_descriptor.index;
-        mem.cpu_slice[0].instance_material_buffer_index = state.instance_material_buffers[frame_index].persistent_descriptor.index;
+        mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         state.gfx.gctx.cmdlist.DrawIndexedInstanced(

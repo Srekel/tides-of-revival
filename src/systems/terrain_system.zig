@@ -94,8 +94,8 @@ const SystemState = struct {
     sys: flecs.EntityId,
 
     gfx: *gfx.D3D12State,
-    vertex_buffer: gfx.Buffer,
-    index_buffer: gfx.Buffer,
+    vertex_buffer: gfx.BufferHandle,
+    index_buffer: gfx.BufferHandle,
     gpu_draw_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(Mesh),
@@ -266,9 +266,8 @@ pub fn create(
     }) catch unreachable;
 
     // Create an index buffer.
-    // TODO: Get the size of IndexType
     const index_buffer = gfxstate.createBuffer(.{
-        .size = total_num_indices * @sizeOf(u32),
+        .size = total_num_indices * @sizeOf(IndexType),
         .state = .{ .INDEX_BUFFER = true },
         .name = L("Terrain Index Buffer"),
         .persistent = false,
@@ -277,48 +276,20 @@ pub fn create(
         .has_uav = false,
     }) catch unreachable;
 
-    gfxstate.gctx.beginFrame();
+    // Upload vertices and indices to the GPU
+    {
+        var vertices = std.ArrayList(Vertex).init(allocator);
+        defer vertices.deinit();
+        for (meshes_positions.items) |_, i| {
+            vertices.append(.{
+                .position = meshes_positions.items[i],
+                .normal = meshes_normals.items[i],
+            }) catch unreachable;
+        }
 
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .COPY_DEST = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .COPY_DEST = true });
-    gfxstate.gctx.flushResourceBarriers();
-
-    // Fill vertex buffer with vertex data.
-    const verts = gfxstate.gctx.allocateUploadBufferRegion(Vertex, total_num_vertices);
-    for (meshes_positions.items) |_, i| {
-        verts.cpu_slice[i].position = meshes_positions.items[i];
-        verts.cpu_slice[i].normal = meshes_normals.items[i];
+        gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, &vertices);
+        gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, &meshes_indices);
     }
-
-    gfxstate.gctx.cmdlist.CopyBufferRegion(
-        gfxstate.gctx.lookupResource(vertex_buffer.resource).?,
-        0,
-        verts.buffer,
-        verts.buffer_offset,
-        verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
-    );
-
-    // TODO: Make this work with IndexType instead of hardcoding u32
-    const indices = gfxstate.gctx.allocateUploadBufferRegion(u32, total_num_indices);
-    for (meshes_indices.items) |_, i| {
-        indices.cpu_slice[i] = meshes_indices.items[i];
-    }
-
-    // Fill index buffer with index data.
-    gfxstate.gctx.cmdlist.CopyBufferRegion(
-        gfxstate.gctx.lookupResource(index_buffer.resource).?,
-        0,
-        indices.buffer,
-        indices.buffer_offset,
-        indices.cpu_slice.len * @sizeOf(@TypeOf(indices.cpu_slice[0])),
-    );
-
-    gfxstate.gctx.addTransitionBarrier(vertex_buffer.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
-    gfxstate.gctx.addTransitionBarrier(index_buffer.resource, .{ .INDEX_BUFFER = true });
-    gfxstate.gctx.flushResourceBarriers();
-
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
 
     // State
     var state = allocator.create(SystemState) catch unreachable;
@@ -366,6 +337,9 @@ pub fn destroy(state: *SystemState) void {
     state.query_loader.deinit();
     state.meshes.deinit();
     state.allocator.destroy(state);
+
+    // state.gfx.destroyBuffer(state.vertex_buffer);
+    // state.gfx.destroyBuffer(state.index_buffer);
 }
 
 //      ██╗ ██████╗ ██████╗ ███████╗
@@ -715,9 +689,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .writing_gfx => blk: {
                 std.debug.print("patch {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
 
+                // TODO: Make this work with uploadDataToBuffer()
                 // Upload patch vertices to vertex buffer
                 {
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer.resource, .{ .COPY_DEST = true });
+                    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+                    state.gfx.gctx.addTransitionBarrier(vertex_buffer.?.resource, .{ .COPY_DEST = true });
                     state.gfx.gctx.flushResourceBarriers();
 
                     const verts = state.gfx.gctx.allocateUploadBufferRegion(Vertex, patch.vertices.len);
@@ -727,14 +703,14 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     }
 
                     state.gfx.gctx.cmdlist.CopyBufferRegion(
-                        state.gfx.gctx.lookupResource(state.vertex_buffer.resource).?,
+                        state.gfx.gctx.lookupResource(vertex_buffer.?.resource).?,
                         patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex),
                         verts.buffer,
                         verts.buffer_offset,
                         verts.cpu_slice.len * @sizeOf(@TypeOf(verts.cpu_slice[0])),
                     );
 
-                    state.gfx.gctx.addTransitionBarrier(state.vertex_buffer.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
+                    state.gfx.gctx.addTransitionBarrier(vertex_buffer.?.resource, .{ .VERTEX_AND_CONSTANT_BUFFER = true });
                     state.gfx.gctx.flushResourceBarriers();
                 }
 
@@ -839,17 +815,19 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // Set input assembler (IA) state.
     gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const vertex_buffer_resource = gctx.lookupResource(state.vertex_buffer.resource);
+    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+    const vertex_buffer_resource = gctx.lookupResource(vertex_buffer.?.resource);
     gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
         .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
         .StrideInBytes = @sizeOf(Vertex),
     }});
-    const index_buffer_resource = gctx.lookupResource(state.index_buffer.resource);
+    const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
+    const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
     gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-        .Format = .R32_UINT, // TODO: Check index format first
+        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
     const pipeline = state.gfx.getPipeline(IdLocal.init("terrain"));
