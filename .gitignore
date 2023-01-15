@@ -4,3 +4,5 @@ external/
 content/imgui.ini
 src/shaders/compiled/*.cso
 !src/shaders/compiled/.gitkeep
+content/heightmap/*
+content/audio/*
