@@ -244,8 +244,10 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         hmimg.pixels.grayscale8[i].value = @intCast(u8, pixel / 255);
                     }
 
+                    std.fs.cwd().makeDir("content/heightmap") catch {};
+
                     var namebuf: [256]u8 = undefined;
-                    const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "heightmap_x{}_y{}.pgm", .{ patch_x, patch_y }) catch unreachable;
+                    const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "content/heightmap/patch_x{}_y{}.pgm", .{ patch_x, patch_y }) catch unreachable;
 
                     var pgm_opt: img.AllFormats.PGM.EncoderOptions = .{ .binary = true };
                     const encoder_options = img.AllFormats.ImageEncoderOptions{ .pgm = pgm_opt };
