@@ -13,6 +13,8 @@ const znoise = @import("znoise");
 const HeightmapHeight = u16;
 const Pos = @Vector(2, i64);
 
+const config_patch_width = 512;
+
 fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
     const ptr_typeinfo = @typeInfo(ptr_type);
     const obj_type = ptr_typeinfo.Pointer.child;
@@ -290,12 +292,11 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
 
     var cities = std.ArrayList(City).init(context.frame_allocator);
 
-    const CITY_WIDTH_MAX = 1024;
+    const CITY_WIDTH_MAX = 256;
     const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 2;
     const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 6;
     const CITY_SKIP = 64;
     const CITY_HEIGHT_TEST_SKIP = 16;
-    var patch_width: u64 = 1024; // hack
 
     var world_y: i64 = CITY_MARGIN_EDGE;
     while (world_y < world_width - CITY_MARGIN_EDGE) : (world_y += CITY_SKIP) {
@@ -338,8 +339,6 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
                 const data = res.success.getPtr(HeightmapOutputData, 1);
                 break :patch_blk data;
             };
-
-            patch_width = patches.patch_width;
 
             const height_center = patches.getHeight(world_x, world_y);
             if (height_center < 90 * 255 or height_center > 200 * 255) {
@@ -476,7 +475,8 @@ fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphConte
     if (node.output_artifacts) {
         std.debug.print("city: outputting artifact...\n", .{});
 
-        const image_width = 8192;
+        const patch_width = config_patch_width;
+        const image_width = 4096;
         const stride = @intCast(i64, @divExact(world_width, image_width));
         const hmimg = img.Image.create(context.frame_allocator, image_width, image_width, img.PixelFormat.rgba32) catch unreachable;
         const pixels = hmimg.pixels.rgba32;
@@ -731,7 +731,7 @@ pub fn generate() void {
     worldWidthNode.init();
     var worldWidthInputValue = worldWidthNode.getInput(IdLocal.init("value"));
     worldWidthInputValue.value = v.Variant.createUInt64(1024 * 64);
-    worldWidthInputValue.value = v.Variant.createUInt64(1024 * 8);
+    worldWidthInputValue.value = v.Variant.createUInt64(1024 * 4);
     var worldWidthOutputValue = worldWidthNode.getOutput(IdLocal.init("value"));
     worldWidthOutputValue.reference.set("worldWidth");
 
@@ -743,7 +743,7 @@ pub fn generate() void {
     patchWidthNode.init();
     var patchWidthInputValue = patchWidthNode.getInput(IdLocal.init("value"));
     // patchWidthInputValue.value = v.Variant.createUInt64(256);
-    patchWidthInputValue.value = v.Variant.createUInt64(1024);
+    patchWidthInputValue.value = v.Variant.createUInt64(config_patch_width);
     var patchWidthOutputValue = patchWidthNode.getOutput(IdLocal.init("value"));
     patchWidthOutputValue.reference.set("heightmapPatchWidth");
 
