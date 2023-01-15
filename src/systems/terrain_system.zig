@@ -337,9 +337,6 @@ pub fn destroy(state: *SystemState) void {
     state.query_loader.deinit();
     state.meshes.deinit();
     state.allocator.destroy(state);
-
-    // state.gfx.destroyBuffer(state.vertex_buffer);
-    // state.gfx.destroyBuffer(state.index_buffer);
 }
 
 //      ██╗ ██████╗ ██████╗ ███████╗

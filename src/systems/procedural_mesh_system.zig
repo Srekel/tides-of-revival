@@ -373,17 +373,6 @@ pub fn destroy(state: *SystemState) void {
     state.instance_materials.deinit();
     state.draw_calls.deinit();
     state.allocator.destroy(state);
-
-    // state.gfx.destroyBuffer(state.vertex_buffer);
-    // state.gfx.destroyBuffer(state.index_buffer);
-
-    // for (state.instance_transform_buffers) |buffer_handle| {
-    //     state.gfx.destroyBuffer(buffer_handle);
-    // }
-
-    // for (state.instance_material_buffers) |buffer_handle| {
-    //     state.gfx.destroyBuffer(buffer_handle);
-    // }
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
