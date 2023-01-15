@@ -36,15 +36,11 @@ const FrameUniforms = struct {
 };
 
 const DrawUniforms = struct {
-    object_to_world: zm.Mat,
-    basecolor_roughness: [4]f32,
     start_instance_location: u32,
     vertex_offset: i32,
     vertex_buffer_index: u32,
     instance_transform_buffer_index: u32,
     instance_material_buffer_index: u32,
-    _padding1: u32,
-    _padding2: u32,
 };
 
 const InstanceTransform = struct {
@@ -267,8 +263,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk gfxstate.gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/basic_pbr_instanced.vs.cso",
-            "shaders/basic_pbr_mesh.ps.cso",
+            "shaders/instanced.vs.cso",
+            "shaders/instanced.ps.cso",
         );
     };
 

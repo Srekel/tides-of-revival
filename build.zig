@@ -93,13 +93,14 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
         "Build shaders",
     );
 
-    var dxc_command = makeDxcCmd("src/shaders/basic_pbr.hlsl", "vsMain", "basic_pbr.vs.cso", "vs", "");
+    var dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "vsTerrain", "terrain.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/basic_pbr.hlsl", "vsInstancedMesh", "basic_pbr_instanced.vs.cso", "vs", "");
+    dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "psTerrain", "terrain.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/basic_pbr.hlsl", "psTerrain", "basic_pbr_terrain.ps.cso", "ps", "");
+
+    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/basic_pbr.hlsl", "psProceduralMesh", "basic_pbr_mesh.ps.cso", "ps", "");
+    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psInstanced", "instanced.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     return dxc_step;
