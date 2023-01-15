@@ -387,16 +387,26 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     };
 }
 
-pub fn deinit(state: *D3D12State, allocator: std.mem.Allocator) void {
+pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     w32.ole32.CoUninitialize();
 
-    state.gctx.finishGpuCommands();
-    state.gctx.deinit(allocator);
-    state.gpu_profiler.deinit();
-    state.pipelines.deinit();
-    _ = state.stats_brush.Release();
-    _ = state.stats_text_format.Release();
-    state.* = undefined;
+    self.gctx.finishGpuCommands();
+    self.gpu_profiler.deinit();
+
+    // Destroy all pipelines
+    {
+        var it = self.pipelines.valueIterator();
+        while (it.next()) |pipeline| {
+            self.gctx.destroyPipeline(pipeline.pipeline_handle);
+        }
+        self.pipelines.deinit();
+    }
+
+    self.gctx.deinit(allocator);
+
+    _ = self.stats_brush.Release();
+    _ = self.stats_text_format.Release();
+    self.* = undefined;
 }
 
 pub fn update(state: *D3D12State) void {
