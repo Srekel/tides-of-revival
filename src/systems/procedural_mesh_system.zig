@@ -111,6 +111,8 @@ const SystemState = struct {
     index_buffer: gfx.Buffer,
     instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
     instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
+    instance_transforms: std.ArrayList(InstanceTransform),
+    instance_materials: std.ArrayList(InstanceMaterial),
     draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
@@ -339,9 +341,11 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     };
 
     var draw_calls = std.ArrayList(DrawCall).init(allocator);
+    var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
+    var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
-    gfxstate.uploadDataToBuffer(Vertex, &vertex_buffer, &meshes_vertices);
-    gfxstate.uploadDataToBuffer(IndexType, &index_buffer, &meshes_indices);
+    gfxstate.scheduleUploadDataToBuffer(Vertex, &vertex_buffer, &meshes_vertices);
+    gfxstate.scheduleUploadDataToBuffer(IndexType, &index_buffer, &meshes_indices);
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
@@ -375,6 +379,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .instance_transform_buffers = instance_transform_buffers,
         .instance_material_buffers = instance_material_buffers,
         .draw_calls = draw_calls,
+        .instance_transforms = instance_transforms,
+        .instance_materials = instance_materials,
         .meshes = meshes,
         .query_camera = query_camera,
         .query_lights = query_lights,
@@ -392,6 +398,8 @@ pub fn destroy(state: *SystemState) void {
     state.query_lights.deinit();
     state.query_mesh.deinit();
     state.meshes.deinit();
+    state.instance_transforms.deinit();
+    state.instance_materials.deinit();
     state.draw_calls.deinit();
     state.allocator.destroy(state);
 }
@@ -482,8 +490,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         mesh: *const fd.ShapeMeshInstance,
     });
 
-    // Reset draw call array list
+    // Reset transforms, materials and draw calls array list
+    state.instance_transforms.clearRetainingCapacity();
+    state.instance_materials.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
+
     var instance_count: u32 = 0;
     var start_instance_location: u32 = 0;
     var last_mesh_index: u32 = 0xffffffff;
@@ -491,9 +502,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var last_mesh_index_offset: u32 = 0;
     var last_mesh_vertex_offset: i32 = 0;
 
-    const instance_transforms_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceTransform, max_instances);
-    const instance_materials_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceMaterial, max_instances);
-    var current_instance_index: u32 = 0;
+    // const instance_transforms_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceTransform, max_instances);
+    // const instance_materials_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceMaterial, max_instances);
+    // var current_instance_index: u32 = 0;
 
     while (entity_iter_mesh.next()) |comps| {
         if (last_mesh_index == 0xffffffff) {
@@ -525,16 +536,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }
 
         const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
-        instance_transforms_upload_buffer.cpu_slice[current_instance_index] = .{ .object_to_world = zm.transpose(object_to_world) };
-        instance_materials_upload_buffer.cpu_slice[current_instance_index] = .{
+        state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
+        state.instance_materials.append(.{
             .basecolor_roughness = [4]f32{
                 comps.mesh.basecolor_roughness.r,
                 comps.mesh.basecolor_roughness.g,
                 comps.mesh.basecolor_roughness.b,
                 comps.mesh.basecolor_roughness.roughness,
             },
-        };
-        current_instance_index += 1;
+        }) catch unreachable;
     }
 
     if (instance_count >= 1) {
@@ -549,29 +559,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, .{ .COPY_DEST = true });
-    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, .{ .COPY_DEST = true });
-    state.gfx.gctx.flushResourceBarriers();
-
-    state.gfx.gctx.cmdlist.CopyBufferRegion(
-        state.gfx.gctx.lookupResource(state.instance_transform_buffers[frame_index].resource).?,
-        0,
-        instance_transforms_upload_buffer.buffer,
-        instance_transforms_upload_buffer.buffer_offset,
-        instance_transforms_upload_buffer.cpu_slice.len * @sizeOf(@TypeOf(instance_transforms_upload_buffer.cpu_slice[0])),
-    );
-
-    state.gfx.gctx.cmdlist.CopyBufferRegion(
-        state.gfx.gctx.lookupResource(state.instance_material_buffers[frame_index].resource).?,
-        0,
-        instance_materials_upload_buffer.buffer,
-        instance_materials_upload_buffer.buffer_offset,
-        instance_materials_upload_buffer.cpu_slice.len * @sizeOf(@TypeOf(instance_materials_upload_buffer.cpu_slice[0])),
-    );
-
-    state.gfx.gctx.addTransitionBarrier(state.instance_transform_buffers[frame_index].resource, d3d12.RESOURCE_STATES.GENERIC_READ);
-    state.gfx.gctx.addTransitionBarrier(state.instance_material_buffers[frame_index].resource, d3d12.RESOURCE_STATES.GENERIC_READ);
-    state.gfx.gctx.flushResourceBarriers();
+    state.gfx.uploadDataToBuffer(InstanceTransform, &state.instance_transform_buffers[frame_index], &state.instance_transforms);
+    state.gfx.uploadDataToBuffer(InstanceMaterial, &state.instance_material_buffers[frame_index], &state.instance_materials);
 
     for (state.draw_calls.items) |draw_call| {
         const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);

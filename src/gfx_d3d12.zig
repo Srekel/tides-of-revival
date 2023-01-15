@@ -141,9 +141,18 @@ pub const D3D12State = struct {
     }
 
     // TODO: Replace Buffer with BufferHandle
-    // TODO: Schedule the upload instead of uploading immediately
-    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer: *Buffer, data: *std.ArrayList(T)) void {
+    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer: *Buffer, data: *std.ArrayList(T)) void {
+        // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
+
+        self.uploadDataToBuffer(T, buffer, data);
+
+        self.gctx.endFrame();
+        self.gctx.finishGpuCommands();
+    }
+
+    // TODO: Pass offset info
+    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer: *Buffer, data: *std.ArrayList(T)) void {
         self.gctx.addTransitionBarrier(buffer.resource, .{ .COPY_DEST = true });
         self.gctx.flushResourceBarriers();
 
@@ -160,8 +169,6 @@ pub const D3D12State = struct {
 
         self.gctx.addTransitionBarrier(buffer.resource, buffer.state);
         self.gctx.flushResourceBarriers();
-        self.gctx.endFrame();
-        self.gctx.finishGpuCommands();
     }
 };
 
