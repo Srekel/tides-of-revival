@@ -109,8 +109,8 @@ const SystemState = struct {
 
     vertex_buffer: gfx.Buffer,
     index_buffer: gfx.Buffer,
-    instance_transform_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
-    instance_material_buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer,
+    instance_transform_buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer,
+    instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer,
     instance_transforms: std.ArrayList(InstanceTransform),
     instance_materials: std.ArrayList(InstanceMaterial),
     draw_calls: std.ArrayList(DrawCall),
@@ -305,7 +305,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
-        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer = undefined;
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer = undefined;
         for (buffers) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceTransform),
@@ -323,7 +323,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     };
 
     const instance_material_buffers = blk: {
-        var buffers: [zd3d12.GraphicsContext.max_num_buffered_frames]gfx.Buffer = undefined;
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.Buffer = undefined;
         for (buffers) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceMaterial),

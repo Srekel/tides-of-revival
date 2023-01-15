@@ -87,6 +87,8 @@ pub const Buffer = struct {
 };
 
 pub const D3D12State = struct {
+    pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
+
     gctx: zd3d12.GraphicsContext,
     gpu_profiler: Profiler,
     gpu_frame_profiler_index: u64 = undefined,
