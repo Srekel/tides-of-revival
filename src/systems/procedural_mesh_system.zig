@@ -11,9 +11,7 @@ const flecs = @import("flecs");
 const gfx = @import("../gfx_d3d12.zig");
 const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
-const w32 = zwin32.base;
 const d3d12 = zwin32.d3d12;
-const hrPanic = zwin32.hrPanic;
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
