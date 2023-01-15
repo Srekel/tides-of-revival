@@ -74,6 +74,18 @@ pub const IdLocal = struct {
     }
 };
 
+pub const IdLocalContext = struct {
+    pub fn hash(self: @This(), id: IdLocal) u64 {
+        _ = self;
+        return id.hash;
+    }
+
+    pub fn eql(self: @This(), a: IdLocal, b: IdLocal) bool {
+        _ = self;
+        return a.eql(b);
+    }
+};
+
 pub const Tag = u64;
 pub const Hash = u64;
 

@@ -11,12 +11,19 @@ const hrPanicOnFail = zwin32.hrPanicOnFail;
 const zd3d12 = @import("zd3d12");
 const zglfw = @import("zglfw");
 const p = @import("renderer/d3d12/profiler.zig");
+const IdLocal = @import("variant.zig").IdLocal;
+const IdLocalContext = @import("variant.zig").IdLocalContext;
 
 pub const Profiler = p.Profiler;
 pub const ProfileData = p.ProfileData;
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
+
+pub const Vertex = struct {
+    position: [3]f32,
+    normal: [3]f32,
+};
 
 pub const FrameStats = struct {
     time: f64,
@@ -88,6 +95,12 @@ pub const Buffer = struct {
     persistent_descriptor: zd3d12.PersistentDescriptor,
 };
 
+pub const PipelineInfo = struct {
+    pipeline_handle: zd3d12.PipelineHandle,
+};
+
+const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalContext, 80);
+
 pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
 
@@ -101,6 +114,12 @@ pub const D3D12State = struct {
 
     depth_texture: zd3d12.ResourceHandle,
     depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
+
+    pipelines: PipelineHashMap,
+
+    pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
+        return self.pipelines.get(pipeline_id);
+    }
 
     pub fn createBuffer(self: *D3D12State, bufferDesc: BufferDesc) !Buffer {
         var buffer: Buffer = undefined;
@@ -250,6 +269,62 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     // gctx.present_flags = 0;
     // gctx.present_interval = 1;
 
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    var pipelines = PipelineHashMap.init(allocator);
+
+    const instanced_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        break :blk gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/instanced.vs.cso",
+            "shaders/instanced.ps.cso",
+        );
+    };
+
+    const terrain_pipeline = blk: {
+        // TODO: Replace InputAssembly with vertex fetch in shader
+        const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
+            d3d12.INPUT_ELEMENT_DESC.init("POSITION", 0, .R32G32B32_FLOAT, 0, 0, .PER_VERTEX_DATA, 0),
+            d3d12.INPUT_ELEMENT_DESC.init("_Normal", 0, .R32G32B32_FLOAT, 0, @offsetOf(Vertex, "normal"), .PER_VERTEX_DATA, 0),
+        };
+
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        // TODO: Replace InputAssembly with vertex fetch in shader
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = &input_layout_desc,
+            .NumElements = input_layout_desc.len,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        break :blk gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/terrain.vs.cso",
+            "shaders/terrain.ps.cso",
+        );
+    };
+
+    pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("terrain"), PipelineInfo{ .pipeline_handle = terrain_pipeline }) catch unreachable;
+
     var profiler = Profiler.init(allocator, &gctx) catch unreachable;
 
     // Create Direct2D brush which will be needed to display text.
@@ -308,6 +383,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .stats_text_format = stats_text_format,
         .depth_texture = depth_texture,
         .depth_texture_dsv = depth_texture_dsv,
+        .pipelines = pipelines,
     };
 }
 
@@ -317,6 +393,7 @@ pub fn deinit(state: *D3D12State, allocator: std.mem.Allocator) void {
     state.gctx.finishGpuCommands();
     state.gctx.deinit(allocator);
     state.gpu_profiler.deinit();
+    state.pipelines.deinit();
     _ = state.stats_brush.Release();
     _ = state.stats_text_format.Release();
     state.* = undefined;

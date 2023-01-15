@@ -3,6 +3,7 @@ const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const math = std.math;
 const flecs = @import("flecs");
 const gfx = @import("../gfx_d3d12.zig");
+const Vertex = gfx.Vertex;
 
 const zbt = @import("zbullet");
 const zm = @import("zmath");
@@ -11,11 +12,8 @@ const zpool = @import("zpool");
 
 const glfw = @import("glfw");
 
-const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
-const w32 = zwin32.base;
 const d3d12 = zwin32.d3d12;
-const hrPanic = zwin32.hrPanic;
 
 const fd = @import("../flecs_data.zig");
 const config = @import("../config.zig");
@@ -29,11 +27,6 @@ const patch_count = patches_on_side * patches_on_side;
 const patch_side_vertex_count = config.patch_width;
 const indices_per_patch: u32 = (config.patch_width - 1) * (config.patch_width - 1) * 6;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
-
-const Vertex = struct {
-    position: [3]f32,
-    normal: [3]f32,
-};
 
 // TODO: Figure out how to do interop to share this struct with HSLS.
 const FrameUniforms = extern struct {
@@ -101,7 +94,6 @@ const SystemState = struct {
     sys: flecs.EntityId,
 
     gfx: *gfx.D3D12State,
-    pipeline: zd3d12.PipelineHandle,
     vertex_buffer: gfx.Buffer,
     index_buffer: gfx.Buffer,
     gpu_draw_profiler_index: u64 = undefined,
@@ -252,33 +244,6 @@ pub fn create(
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    const pipeline = blk: {
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
-            d3d12.INPUT_ELEMENT_DESC.init("POSITION", 0, .R32G32B32_FLOAT, 0, 0, .PER_VERTEX_DATA, 0),
-            d3d12.INPUT_ELEMENT_DESC.init("_Normal", 0, .R32G32B32_FLOAT, 0, @offsetOf(Vertex, "normal"), .PER_VERTEX_DATA, 0),
-        };
-
-        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        pso_desc.InputLayout = .{
-            .pInputElementDescs = &input_layout_desc,
-            .NumElements = input_layout_desc.len,
-        };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.DSVFormat = .D32_FLOAT;
-        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
-        pso_desc.PrimitiveTopologyType = .TRIANGLE;
-
-        break :blk gfxstate.gctx.createGraphicsShaderPipeline(
-            arena,
-            &pso_desc,
-            "shaders/terrain.vs.cso",
-            "shaders/terrain.ps.cso",
-        );
-    };
-
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_positions = std.ArrayList([3]f32).init(arena);
@@ -365,7 +330,6 @@ pub fn create(
         .sys = sys,
 
         .gfx = gfxstate,
-        .pipeline = pipeline,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
 
@@ -888,7 +852,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         .Format = .R32_UINT, // TODO: Check index format first
     });
 
-    gctx.setCurrentPipeline(state.pipeline);
+    const pipeline = state.gfx.getPipeline(IdLocal.init("terrain"));
+    gctx.setCurrentPipeline(pipeline.?.pipeline_handle);
 
     // Upload per-frame constant data.
     {

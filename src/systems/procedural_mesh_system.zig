@@ -10,7 +10,7 @@ const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 
 const gfx = @import("../gfx_d3d12.zig");
-const zd3d12 = @import("zd3d12");
+const Vertex = gfx.Vertex;
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 
@@ -19,10 +19,6 @@ const IdLocal = @import("../variant.zig").IdLocal;
 
 const IndexType = zmesh.Shape.IndexType;
 
-const Vertex = struct {
-    position: [3]f32,
-    normal: [3]f32,
-};
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
@@ -105,7 +101,6 @@ const SystemState = struct {
     // init: SystemInit,
 
     gfx: *gfx.D3D12State,
-    pipeline: zd3d12.PipelineHandle,
 
     vertex_buffer: gfx.Buffer,
     index_buffer: gfx.Buffer,
@@ -248,26 +243,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    const pipeline = blk: {
-        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
-        pso_desc.InputLayout = .{
-            .pInputElementDescs = null,
-            .NumElements = 0,
-        };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.DSVFormat = .D32_FLOAT;
-        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
-        pso_desc.PrimitiveTopologyType = .TRIANGLE;
-
-        break :blk gfxstate.gctx.createGraphicsShaderPipeline(
-            arena,
-            &pso_desc,
-            "shaders/instanced.vs.cso",
-            "shaders/instanced.ps.cso",
-        );
-    };
-
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
@@ -370,7 +345,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .flecs_world = flecs_world,
         .sys = sys,
         .gfx = gfxstate,
-        .pipeline = pipeline,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
         .instance_transform_buffers = instance_transform_buffers,
@@ -434,7 +408,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
-    state.gfx.gctx.setCurrentPipeline(state.pipeline);
+    const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
+    state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
     state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
     const index_buffer_resource = state.gfx.gctx.lookupResource(state.index_buffer.resource);
