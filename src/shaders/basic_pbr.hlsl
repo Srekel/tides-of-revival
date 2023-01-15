@@ -8,15 +8,23 @@
     "CBV(b0), " \
     "CBV(b1), "
 
+struct Vertex {
+    float3 position;
+    float3 normal;
+};
+
 struct DrawConst {
     float4x4 object_to_world;
     float4 basecolor_roughness;
     // TODO: These should go into a different DrawConst. 
     // It might be time to split this file into 2 separate shader files.
     uint start_instance_location;
+    int vertex_offset;
+    uint vertex_buffer_index;
     uint instance_transform_buffer_index;
     uint instance_material_buffer_index;
-    uint padding;
+    uint _padding1;
+    uint _padding2;
 };
 
 struct FrameConst {
@@ -189,18 +197,21 @@ VertexOut vsMain(float3 position : POSITION, float3 normal : _Normal) {
 }
 
 [RootSignature(INSTANCING_ROOT_SIGNATURE)]
-InstancedVertexOut vsInstancedMesh(float3 position : POSITION, float3 normal : _Normal, uint instanceID : SV_InstanceID) {
+InstancedVertexOut vsInstancedMesh(uint vertex_id : SV_VertexID, uint instanceID : SV_InstanceID) {
     InstancedVertexOut output = (InstancedVertexOut)0;
     output.instanceID = instanceID;
+
+    ByteAddressBuffer vertex_buffer = ResourceDescriptorHeap[cbv_draw_const.vertex_buffer_index];
+    Vertex vertex = vertex_buffer.Load<Vertex>((vertex_id + cbv_draw_const.vertex_offset) * sizeof(Vertex));
 
     ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_transform_buffer_index];
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
-    output.position_vs = mul(float4(position, 1.0), object_to_clip);
-    output.position = mul(float4(position, 1.0), instance.object_to_world).xyz;
-    output.normal = normal; // object-space normal
+    output.position_vs = mul(float4(vertex.position, 1.0), object_to_clip);
+    output.position = mul(float4(vertex.position, 1.0), instance.object_to_world).xyz;
+    output.normal = vertex.normal; // object-space normal
 
     return output;
 }

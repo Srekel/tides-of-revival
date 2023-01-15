@@ -64,6 +64,8 @@ pub const FrameStats = struct {
 pub const BufferDesc = struct {
     size: u64,
     state: d3d12.RESOURCE_STATES, // TODO: Replace this with non-d3d12 state enum
+    name: [*:0]const u16,
+    // TODO: Convert these bools to a flag
     persistent: bool,
     has_cbv: bool,
     has_srv: bool,
@@ -76,11 +78,11 @@ pub const BufferDesc = struct {
 pub const Buffer = struct {
     size: u64,
     state: d3d12.RESOURCE_STATES, // TODO: Replace this with non-d3d12 state enum
+    // TODO: Convert these bools to a flag
     persistent: bool,
     has_cbv: bool,
     has_srv: bool,
     has_uav: bool,
-    ready: bool,
 
     resource: zd3d12.ResourceHandle,
     persistent_descriptor: zd3d12.PersistentDescriptor,
@@ -112,6 +114,9 @@ pub const D3D12State = struct {
             d3d12.RESOURCE_STATES.COMMON,
             null,
         ) catch |err| hrPanic(err);
+
+        var resource = self.gctx.lookupResource(buffer.resource).?;
+        _ = resource.SetName(bufferDesc.name);
 
         if (bufferDesc.has_srv and bufferDesc.persistent) {
             buffer.persistent = true;

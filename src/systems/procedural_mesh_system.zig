@@ -1,4 +1,5 @@
 const std = @import("std");
+const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const assert = std.debug.assert;
 const math = std.math;
 
@@ -38,9 +39,12 @@ const DrawUniforms = struct {
     object_to_world: zm.Mat,
     basecolor_roughness: [4]f32,
     start_instance_location: u32,
+    vertex_offset: i32,
+    vertex_buffer_index: u32,
     instance_transform_buffer_index: u32,
     instance_material_buffer_index: u32,
-    padding1: u32,
+    _padding1: u32,
+    _padding2: u32,
 };
 
 const InstanceTransform = struct {
@@ -249,17 +253,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     const arena = arena_state.allocator();
 
     const pipeline = blk: {
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
-            d3d12.INPUT_ELEMENT_DESC.init("POSITION", 0, .R32G32B32_FLOAT, 0, 0, .PER_VERTEX_DATA, 0),
-            d3d12.INPUT_ELEMENT_DESC.init("_Normal", 0, .R32G32B32_FLOAT, 0, @offsetOf(Vertex, "normal"), .PER_VERTEX_DATA, 0),
-        };
-
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
-        // TODO: Replace InputAssembly with vertex fetch in shader
         pso_desc.InputLayout = .{
-            .pInputElementDescs = &input_layout_desc,
-            .NumElements = input_layout_desc.len,
+            .pInputElementDescs = null,
+            .NumElements = 0,
         };
         pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
         pso_desc.NumRenderTargets = 1;
@@ -286,10 +283,11 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // Create a vertex buffer.
     var vertex_buffer = gfxstate.createBuffer(.{
         .size = total_num_vertices * @sizeOf(Vertex),
-        .state = .{ .VERTEX_AND_CONSTANT_BUFFER = true },
-        .persistent = false,
+        .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+        .name = L("Vertex Buffer"),
+        .persistent = true,
         .has_cbv = false,
-        .has_srv = false,
+        .has_srv = true,
         .has_uav = false,
     }) catch unreachable;
 
@@ -297,6 +295,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var index_buffer = gfxstate.createBuffer(.{
         .size = total_num_indices * @sizeOf(IndexType),
         .state = .{ .INDEX_BUFFER = true },
+        .name = L("Index Buffer"),
         .persistent = false,
         .has_cbv = false,
         .has_srv = false,
@@ -310,6 +309,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceTransform),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("Instance Transform Buffer"),
                 .persistent = true,
                 .has_cbv = false,
                 .has_srv = true,
@@ -328,6 +328,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceMaterial),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("Instance Material Buffer"),
                 .persistent = true,
                 .has_cbv = false,
                 .has_srv = true,
@@ -437,22 +438,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
-    // Set input assembler (IA) state.
+    state.gfx.gctx.setCurrentPipeline(state.pipeline);
+
     state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const vertex_buffer_resource = state.gfx.gctx.lookupResource(state.vertex_buffer.resource);
-    state.gfx.gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
-        .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
-        .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
-        .StrideInBytes = @sizeOf(Vertex),
-    }});
     const index_buffer_resource = state.gfx.gctx.lookupResource(state.index_buffer.resource);
     state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
-
-    state.gfx.gctx.setCurrentPipeline(state.pipeline);
 
     // Upload per-frame constant data.
     const camera_position = camera_comps.?.transform.getPos00();
@@ -501,10 +495,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var last_mesh_index_count: u32 = 0;
     var last_mesh_index_offset: u32 = 0;
     var last_mesh_vertex_offset: i32 = 0;
-
-    // const instance_transforms_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceTransform, max_instances);
-    // const instance_materials_upload_buffer = state.gfx.gctx.allocateUploadBufferRegion(InstanceMaterial, max_instances);
-    // var current_instance_index: u32 = 0;
 
     while (entity_iter_mesh.next()) |comps| {
         if (last_mesh_index == 0xffffffff) {
@@ -565,6 +555,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     for (state.draw_calls.items) |draw_call| {
         const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
         mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+        mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
+        mem.cpu_slice[0].vertex_buffer_index = state.vertex_buffer.persistent_descriptor.index;
         mem.cpu_slice[0].instance_transform_buffer_index = state.instance_transform_buffers[frame_index].persistent_descriptor.index;
         mem.cpu_slice[0].instance_material_buffer_index = state.instance_material_buffers[frame_index].persistent_descriptor.index;
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);

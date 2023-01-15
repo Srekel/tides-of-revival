@@ -1,4 +1,5 @@
 const std = @import("std");
+const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const math = std.math;
 const flecs = @import("flecs");
 const gfx = @import("../gfx_d3d12.zig");
@@ -292,6 +293,7 @@ pub fn create(
     const vertex_buffer = gfxstate.createBuffer(.{
         .size = total_num_vertices * @sizeOf(Vertex),
         .state = .{ .VERTEX_AND_CONSTANT_BUFFER = true },
+        .name = L("Terrain Vertex Buffer"),
         .persistent = false,
         .has_cbv = false,
         .has_srv = false,
@@ -303,6 +305,7 @@ pub fn create(
     const index_buffer = gfxstate.createBuffer(.{
         .size = total_num_indices * @sizeOf(u32),
         .state = .{ .INDEX_BUFFER = true },
+        .name = L("Terrain Index Buffer"),
         .persistent = false,
         .has_cbv = false,
         .has_srv = false,
