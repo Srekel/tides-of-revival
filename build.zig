@@ -42,10 +42,18 @@ pub fn build(b: *Builder) void {
     const zd3d12_pkg = zd3d12.getPkg(&.{ zwin32.pkg, zd3d12_options.getPkg() });
 
     const dxc_step = buildShaders(b);
-    const install_content_step = b.addInstallDirectory(.{
+    const install_shaders_step = b.addInstallDirectory(.{
         .source_dir = thisDir() ++ "/src/shaders/compiled",
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/shaders",
+    });
+    install_shaders_step.step.dependOn(dxc_step);
+    exe.step.dependOn(&install_shaders_step.step);
+
+    const install_content_step = b.addInstallDirectory(.{
+        .source_dir = thisDir() ++ "/content/meshes",
+        .install_dir = .{ .custom = "" },
+        .install_subdir = "bin/content/meshes",
     });
     install_content_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_content_step.step);
@@ -101,6 +109,11 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psInstanced", "instanced.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "vsTerrainQuadTree", "terrain_quad_tree.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "psTerrainQuadTree", "terrain_quad_tree.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     return dxc_step;
