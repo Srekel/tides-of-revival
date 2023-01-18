@@ -33,9 +33,12 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, dt: zm.F32x4, input
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
     var forward = zm.util.getAxisZ(transform);
+    var right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
+    var up = zm.normalize3(zm.cross3(forward, right));
 
-    const right = speed * dt * zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
+    right = speed * dt * right;
     forward = speed * dt * forward;
+    up = speed * dt * up;
 
     var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
 
@@ -49,6 +52,12 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, dt: zm.F32x4, input
         cpos += right;
     } else if (input_state.held(config.input_move_left)) {
         cpos -= right;
+    }
+
+    if (input_state.held(config.input_move_up)) {
+        cpos += up;
+    } else if (input_state.held(config.input_move_down)) {
+        cpos -= up;
     }
 
     zm.store(pos.elems()[0..], cpos, 3);
