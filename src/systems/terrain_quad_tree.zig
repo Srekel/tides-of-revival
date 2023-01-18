@@ -9,20 +9,24 @@ const zmu = @import("zmathutil");
 const flecs = @import("flecs");
 
 const gfx = @import("../gfx_d3d12.zig");
+const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
+const hrPanic = zwin32.hrPanic;
 const d3d12 = zwin32.d3d12;
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const IndexType = u32;
 
+const Texture = struct {
+    resource: zd3d12.ResourceHandle,
+    persistent_descriptor: zd3d12.PersistentDescriptor,
+};
+
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
     time: f32,
-    padding1: u32,
-    padding2: u32,
-    padding3: u32,
 };
 
 const DrawUniforms = struct {
@@ -43,7 +47,7 @@ const InstanceTransform = struct {
 };
 
 const InstanceMaterial = struct {
-    basecolor_roughness: [4]f32,
+    heightmap_index: u32,
 };
 
 const max_instances = 100;
@@ -84,6 +88,8 @@ const SystemState = struct {
     gpu_frame_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(Mesh),
+    textures: std.ArrayList(Texture),
+
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
         forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
@@ -93,10 +99,11 @@ const SystemState = struct {
 };
 
 fn initScene(
-    _: std.mem.Allocator,
+    gctx: *zd3d12.GraphicsContext,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
+    textures: *std.ArrayList(Texture),
 ) !void {
     // Load the LOD5 obj
     var file = std.fs.cwd().openFile("content/meshes/LOD5.obj", .{}) catch |err| {
@@ -150,6 +157,36 @@ fn initScene(
     mesh.num_indices = @intCast(u32, meshes_indices.items.len);
     mesh.num_vertices = @intCast(u32, meshes_vertices.items.len);
     meshes.append(mesh) catch unreachable;
+
+    // Load the LOD5 heightmap
+    {
+        gctx.beginFrame();
+
+        const resource = gctx.createAndUploadTex2dFromFile("content/textures/sector_LOD5.png", .{}) catch |err| hrPanic(err);
+        _ = gctx.lookupResource(resource).?.SetName(L("textures/sector_LOD5.png"));
+
+        const texture = blk: {
+            const srv_allocation = gctx.allocatePersistentGpuDescriptors(1);
+            gctx.device.CreateShaderResourceView(
+                gctx.lookupResource(resource).?,
+                null,
+                srv_allocation.cpu_handle,
+            );
+
+            gctx.addTransitionBarrier(resource, .{ .PIXEL_SHADER_RESOURCE = true });
+
+            const t = Texture{
+                .resource = resource,
+                .persistent_descriptor = srv_allocation,
+            };
+
+            break :blk t;
+        };
+        textures.append(texture) catch unreachable;
+
+        gctx.endFrame();
+        gctx.finishGpuCommands();
+    }
 }
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World) !*SystemState {
@@ -167,7 +204,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
-    initScene(allocator, &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
+    var textures = std.ArrayList(Texture).init(allocator);
+    initScene(&gfxstate.gctx, &meshes, &meshes_indices, &meshes_vertices, &textures) catch unreachable;
 
     const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
@@ -256,6 +294,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .instance_transforms = instance_transforms,
         .instance_materials = instance_materials,
         .meshes = meshes,
+        .textures = textures,
         .query_camera = query_camera,
     };
 
@@ -265,6 +304,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.meshes.deinit();
+    state.textures.deinit();
     state.instance_transforms.deinit();
     state.instance_materials.deinit();
     state.draw_calls.deinit();
@@ -337,6 +377,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // Test single instance
     {
         const mesh = state.meshes.items[0];
+        const heightmap = state.textures.items[0];
+
         state.draw_calls.append(.{
             .mesh_index = 0,
             .index_count = mesh.num_indices,
@@ -346,9 +388,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .start_instance_location = 0,
         }) catch unreachable;
 
-        const object_to_world = zm.translation(0.0, 50.0, 0.0);
+        const object_to_world = zm.translation(0.0, 120.0, 0.0);
         state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
-        state.instance_materials.append(.{ .basecolor_roughness = [4]f32{ 0.2, 0.8, 0.4, 0.5, } }) catch unreachable;
+        state.instance_materials.append(.{ .heightmap_index = heightmap.persistent_descriptor.index }) catch unreachable;
     }
 
     const frame_index = state.gfx.gctx.frame_index;

@@ -3,7 +3,8 @@
 #define ROOT_SIGNATURE \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
-    "CBV(b1), "
+    "CBV(b1), " \
+    "StaticSampler(s0, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL)"
 
 struct Vertex {
     float3 position;
@@ -29,7 +30,7 @@ struct InstanceTransform {
 };
 
 struct InstanceMaterial {
-    float4 basecolor_roughness;
+    uint heightmap_index;
 };
 
 // ConstantBuffer<DrawConst> cbv_draw_const : register(b0, per_object_space);
@@ -44,6 +45,8 @@ struct InstancedVertexOut {
     uint instanceID: SV_InstanceID;
 };
 
+SamplerState sam_aniso : register(s0);
+
 [RootSignature(ROOT_SIGNATURE)]
 InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instanceID : SV_InstanceID) {
     InstancedVertexOut output = (InstancedVertexOut)0;
@@ -56,24 +59,45 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
+    ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
+    InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
+    Texture2D heightmap = ResourceDescriptorHeap[material.heightmap_index];
+    float height = heightmap.SampleLevel(sam_aniso, vertex.uv, 0).r;
+
+    float3 displaced_position = vertex.position;
+    displaced_position.y = height * 247.0f;    // TODO: Pass max height to shader
+
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
-    output.position_vs = mul(float4(vertex.position, 1.0), object_to_clip);
-    output.position = mul(float4(vertex.position, 1.0), instance.object_to_world).xyz;
+    output.position_vs = mul(float4(displaced_position, 1.0), object_to_clip);
+    output.position = mul(float4(displaced_position, 1.0), instance.object_to_world).xyz;
     output.uv = vertex.uv;
 
     return output;
 }
 
+static const float g_wireframe_smoothing = 1.0;
+static const float g_wireframe_thickness = 0.25;
+
 [RootSignature(ROOT_SIGNATURE)]
-void psTerrainQuadTree(InstancedVertexOut input, out float4 out_color : SV_Target0) {
-    ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
-    uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
-    InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
-
-    float3 base_color = material.basecolor_roughness.rgb;
-
+void psTerrainQuadTree(InstancedVertexOut input, float3 barycentrics : SV_Barycentrics, out float4 out_color : SV_Target0) {
     float3 color = float3(input.uv, 0.0);
     color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;
+ 
+    // wireframe
+    float3 barys = barycentrics;
+    barys.z = 1.0 - barys.x - barys.y;
+    float3 deltas = fwidth(barys);
+    float3 smoothing = deltas * g_wireframe_smoothing;
+    float3 thickness = deltas * g_wireframe_thickness;
+    barys = smoothstep(thickness, thickness + smoothing, barys);
+    float min_bary = min(barys.x, min(barys.y, barys.z));
+
+    // TODO: Pass a flag to the shader to control if we want to 
+    // render the wireframe or not
+    color = lerp(float3(0.7, 0.7, 0.7), color, min_bary);
+    min_bary = 1.0;
+
+    out_color = float4(min_bary * color, 1.0);
 }
