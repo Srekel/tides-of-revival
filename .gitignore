@@ -6,3 +6,4 @@ src/shaders/compiled/*.cso
 !src/shaders/compiled/.gitkeep
 content/heightmap/*
 content/audio/*
+content/patch

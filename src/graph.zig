@@ -41,7 +41,7 @@ pub const Graph = struct {
                             continue;
                         }
 
-                        std.debug.print("....n2:{s}, o2:{s}\n", .{ node2.name.toString(), output2.template.?.name.toString() });
+                        std.debug.print("....n2:{s}, o2:{s} ref:{s}\n", .{ node2.name.toString(), output2.template.?.name.toString(), output2.reference.toString() });
                         if (!output2.reference.eql(input1.reference)) {
                             continue;
                         }

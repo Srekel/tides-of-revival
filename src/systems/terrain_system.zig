@@ -82,7 +82,7 @@ const Patch = struct {
     vertices: [patch_side_vertex_count * patch_side_vertex_count]Vertex,
     physics_shape: ?zbt.Shape,
     physics_body: zbt.Body,
-    entity: flecs.EntityId,
+    entity: flecs.EntityId = 0,
 };
 
 const max_loaded_patches = 64;
@@ -306,6 +306,7 @@ pub fn create(
         patch.status = .not_used;
         patch.hash = std.math.maxInt(i32);
         patch.physics_shape = null;
+        patch.entity = 0;
         //patch.lookup = @intCast(u32, i);
         // patch.index_offset = @intCast(u32, i) * indices_per_patch;
         // patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
@@ -557,7 +558,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                             unload_patch.physics_shape = null;
                         }
 
-                        state.flecs_world.delete(unload_patch.entity);
+                        if (unload_patch.entity != 0) {
+                            // Do here...?
+                            state.flecs_world.delete(unload_patch.entity);
+                        }
                         unload_patch.entity = 0;
 
                         free_lookup = unload_patch.lookup;
@@ -744,10 +748,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 break :blk .loaded;
             },
             .loaded => blk: {
-                // const patch_ent = state.flecs_world.newEntity();
+                const patch_ent = state.flecs_world.newEntity();
                 // patch_ent.set(fd.WorldPatch{ .lookup = 12 });
-                // patch_ent.set(fd.Position{ .x = @intToFloat(f32, patch.pos[0]), .y = 0, .z = @intToFloat(f32, patch.pos[1]) });
-                // patch.entity = patch_ent.id;
+                patch_ent.set(fd.Position{ .x = @intToFloat(f32, patch.pos[0]), .y = 0, .z = @intToFloat(f32, patch.pos[1]) });
+                patch.entity = patch_ent.id;
 
                 break :blk .loaded;
             },
