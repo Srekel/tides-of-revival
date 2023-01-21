@@ -73,11 +73,13 @@
 -----------------
 🔵 ✅ create the world info entity
 🔵 ✅ add "reach other village" win condition
-🔵 offline generate terrain
-🔵 various things from "promotion"
+🔵 ✅ offline generate terrain
 🔵 gamepad freefly camera
-🔵 patch loading logic
-🔵 audio resource management
+🔵 splat map
+🔵 convert textures
+🔵 newsletter
+🔵 svn
+🔵 exit flecs crash
 
 
 🔥 promotion 🔥

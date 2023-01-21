@@ -25,6 +25,12 @@ pub const input_cursor_pos = IdLocal.init("cursor_pos");
 pub const input_cursor_movement = IdLocal.init("cursor_movement");
 pub const input_cursor_movement_x = IdLocal.init("cursor_movement_x");
 pub const input_cursor_movement_y = IdLocal.init("cursor_movement_y");
+
+pub const input_gamepad_look_x = IdLocal.init("input_gamepad_look_x");
+pub const input_gamepad_look_y = IdLocal.init("input_gamepad_look_y");
+pub const input_gamepad_move_x = IdLocal.init("input_gamepad_move_x");
+pub const input_gamepad_move_y = IdLocal.init("input_gamepad_move_y");
+
 pub const input_look_yaw = IdLocal.init("look_yaw");
 pub const input_look_pitch = IdLocal.init("look_pitch");
 

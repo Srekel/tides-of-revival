@@ -76,6 +76,7 @@ pub const BindingSource = union(enum) {
     keyboard_key: zglfw.Key,
     mouse_button: zglfw.MouseButton,
     mouse_cursor: void,
+    gamepad_axis: zglfw.Gamepad.Axis,
     processor: void,
 };
 
@@ -118,6 +119,32 @@ pub const DeviceType = enum {
 //     return .{ .vector2 = value };
 // }
 
+pub const ProcessorScalar = struct {
+    source_target: IdLocal,
+    multiplier: f32,
+
+    pub fn process(self: ProcessorScalar, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        _ = targets_prev;
+        var res = targets_curr.get(self.source_target).?;
+        res.number *= self.multiplier;
+        return res;
+    }
+};
+
+pub const ProcessorDeadzone = struct {
+    source_target: IdLocal,
+    zone: f32,
+
+    pub fn process(self: ProcessorDeadzone, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        _ = targets_prev;
+        var res = targets_curr.get(self.source_target).?;
+        if (std.math.fabs(res.number) < self.zone) {
+            res.number = 0;
+        }
+        return res;
+    }
+};
+
 pub const ProcessorVector2Diff = struct {
     source_target: IdLocal,
 
@@ -147,15 +174,41 @@ pub const ProcessorAxisConversion = struct {
     }
 };
 
+pub const ProcessorAxisSplit = struct {
+    source_target: IdLocal,
+    is_positive: bool,
+
+    pub fn process(self: ProcessorAxisSplit, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        _ = targets_prev;
+        var res = targets_curr.get(self.source_target).?;
+        if (self.is_positive) {
+            if (res.number < 0) {
+                res.number = 0;
+            }
+        } else {
+            if (res.number > 0) {
+                res.number = 0;
+            } else {
+                res.number = -res.number;
+            }
+        }
+        return res;
+    }
+};
+
 pub const ProcessorClass = union(enum) {
     // axis2d:  remap4ToAxis2D,
+    scalar: ProcessorScalar,
+    deadzone: ProcessorDeadzone,
     vector2diff: ProcessorVector2Diff,
     axis_conversion: ProcessorAxisConversion,
+    axis_split: ProcessorAxisSplit,
 };
 
 pub const Processor = struct {
     target_id: IdLocal,
     class: ProcessorClass,
+    always_use_result: bool = false,
     fn process(self: Processor, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
         switch (self.class) {
             inline else => |case| return case.process(targets_curr, targets_prev),
@@ -226,6 +279,20 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                         } };
                         break :blk cursor_value;
                     },
+                    .gamepad_axis => |axis| blk: {
+                        var joystick_id: u32 = 0;
+                        while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
+                            if (zglfw.Joystick.get(@intCast(zglfw.Joystick.Id, joystick_id))) |joystick| {
+                                if (joystick.asGamepad()) |gamepad| {
+                                    const gamepad_state = gamepad.getState();
+                                    const value = gamepad_state.axes[@enumToInt(axis)];
+                                    break :blk TargetValue{ .number = value };
+                                }
+                            }
+                        }
+
+                        break :blk TargetValue{ .number = 0 };
+                    },
                     .processor => TargetValue{ .number = 0 },
                 };
 
@@ -251,7 +318,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                 const value = processor.process(targets.*, targets_prev.*);
                 const prev_value = targets.get(processor.target_id);
                 if (prev_value) |pv| {
-                    if (value.supersedes(pv)) {
+                    if (processor.always_use_result or value.supersedes(pv)) {
                         targets.put(processor.target_id, value) catch unreachable;
                     }
                 } else {

@@ -1,7 +1,8 @@
 {
     "debug.allowBreakpointsEverywhere": true,
     "cSpell.words": [
-        "FLECS"
+        "FLECS",
+        "gamepad"
     ],
     "cSpell.ignorePaths": [
         "package-lock.json",
