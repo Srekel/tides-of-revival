@@ -4,10 +4,11 @@
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
     "CBV(b1), " \
-    "StaticSampler(s0, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL)"
+    "StaticSampler(s0, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP)"
 
 struct Vertex {
     float3 position;
+    float3 normal;
     float2 uv;
 };
 
@@ -59,13 +60,13 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
-    ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
-    InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
-    Texture2D heightmap = ResourceDescriptorHeap[material.heightmap_index];
-    float height = heightmap.SampleLevel(sam_aniso, vertex.uv, 0).r;
+    // ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
+    // InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
+    // Texture2D heightmap = ResourceDescriptorHeap[material.heightmap_index];
+    // float height = heightmap.SampleLevel(sam_aniso, vertex.uv, 0).r;
 
     float3 displaced_position = vertex.position;
-    displaced_position.y = height * 247.0f;    // TODO: Pass max height to shader
+    // displaced_position.y = height * 40.0f;    // TODO: Pass max height to shader
 
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
     output.position_vs = mul(float4(displaced_position, 1.0), object_to_clip);
@@ -96,7 +97,7 @@ void psTerrainQuadTree(InstancedVertexOut input, float3 barycentrics : SV_Baryce
 
     // TODO: Pass a flag to the shader to control if we want to 
     // render the wireframe or not
-    color = lerp(float3(0.7, 0.7, 0.7), color, min_bary);
+    color = lerp(float3(0.3, 0.3, 0.3), color, min_bary);
     min_bary = 1.0;
 
     out_color = float4(min_bary * color, 1.0);

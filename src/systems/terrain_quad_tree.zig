@@ -18,6 +18,8 @@ const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const IndexType = u32;
 
+const zmesh = @import("zmesh");
+
 const Texture = struct {
     resource: zd3d12.ResourceHandle,
     persistent_descriptor: zd3d12.PersistentDescriptor,
@@ -39,6 +41,7 @@ const DrawUniforms = struct {
 
 const Vertex = struct {
     position: [3]f32,
+    normal: [3]f32,
     uv: [2]f32,
 };
 
@@ -69,6 +72,37 @@ const Mesh = struct {
     num_vertices: u32,
 };
 
+const QuadTreeNode = struct {
+    center: [2]f32,
+    size: [2]f32,
+    child_indices: [4]u32,
+    mesh_lod: u32,
+    // TODO(gmodarelli): Do not store the GPU index here, but a texture handle instead
+    heightmap_index: u32,
+
+    pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
+        return !(point[0] < (self.center[0] - self.size[0]) or
+            point[0] > (self.center[0] + self.size[0]) or
+            point[1] < (self.center[1] - self.size[1]) or
+            point[1] > (self.center[1] + self.size[1]));
+    }
+
+    pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
+        if (!self.containsPoint(point)) {
+            return false;
+        }
+
+        for (self.child_indices) |child_index| {
+            var node = nodes.items[child_index];
+            if (node.containsPoint(point)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+};
+
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
@@ -87,7 +121,9 @@ const SystemState = struct {
     draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
-    meshes: std.ArrayList(Mesh),
+    terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
+    terrain_lod_meshes: std.ArrayList(Mesh),
+    quads_to_render: std.ArrayList(u32),
     textures: std.ArrayList(Texture),
 
     camera: struct {
@@ -98,15 +134,18 @@ const SystemState = struct {
     } = .{},
 };
 
-fn initScene(
-    gctx: *zd3d12.GraphicsContext,
+fn loadMesh(
+    allocator: std.mem.Allocator,
+    path: []const u8,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
-    textures: *std.ArrayList(Texture),
 ) !void {
-    // Load the LOD5 obj
-    var file = std.fs.cwd().openFile("content/meshes/LOD5.obj", .{}) catch |err| {
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    var file = std.fs.cwd().openFile(path, .{}) catch |err| {
         std.log.warn("Unable to open file: {s}", .{@errorName(err)});
         return err;
     };
@@ -122,70 +161,176 @@ fn initScene(
         .num_vertices = 0,
     };
 
+    // var unique_indices_map = std.StringHashMap(u32).init(allocator);
+    var unique_indices_map = std.HashMap([]const u8, u32, std.hash_map.StringContext, 80).init(allocator);
+    try unique_indices_map.ensureTotalCapacity(10 * 1024);
+    defer unique_indices_map.deinit();
+
+    var indices = std.ArrayList(IndexType).init(arena);
+    var vertices = std.ArrayList(Vertex).init(arena);
+
+    var positions = std.ArrayList([3]f32).init(arena);
+    var normals = std.ArrayList([3]f32).init(arena);
+    var uvs = std.ArrayList([2]f32).init(arena);
+
     var buf: [1024]u8 = undefined;
-    var vertex_offset = meshes_vertices.items.len;
 
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         var it = std.mem.split(u8, line, " ");
 
         var first = it.first();
         if (std.mem.eql(u8, first, "v")) {
-            var vertex: Vertex = undefined;
-            vertex.position[0] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
-            vertex.position[1] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
-            vertex.position[2] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
-            meshes_vertices.append(vertex) catch unreachable;
-        } else if (std.mem.eql(u8, first, "vt")) { // NOTE: This only works with this mesh. We need to fix this
-            var vertex = &meshes_vertices.items[vertex_offset];
-            vertex.uv[0] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
-            vertex.uv[1] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
-            vertex_offset += 1;
+            var position: [3]f32 = undefined;
+            position[0] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            position[1] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            position[2] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            positions.append(position) catch unreachable;
+        } else if (std.mem.eql(u8, first, "vn")) {
+            var normal: [3]f32 = undefined;
+            normal[0] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            normal[1] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            normal[2] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            normals.append(normal) catch unreachable;
+        } else if (std.mem.eql(u8, first, "vt")) {
+            var uv: [2]f32 = undefined;
+            uv[0] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            uv[1] = std.fmt.parseFloat(f32, it.next().?) catch unreachable;
+            uvs.append(uv) catch unreachable;
         } else if (std.mem.eql(u8, first, "f")) {
             var triangle_index: u32 = 0;
             while (triangle_index < 3) : (triangle_index += 1) {
-                var triangles_iterator = std.mem.split(u8, it.next().?, "/");
+                var vertex_components = it.next().?;
+                var triangles_iterator = std.mem.split(u8, vertex_components, "/");
 
-                // NOTE: we're assuming position and uvs are aligned
-                var index = std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10) catch unreachable;
-                index -= 1;
-                meshes_indices.append(index) catch unreachable;
+                // NOTE(gmodarelli): We're assuming Positions, UV's and Normals are exported with the OBJ file.
+                // TODO(gmodarelli): Parse the OBJ in 2 passes. First collect all attributes and then generate
+                // vertices and indices. Positions and UV's must be present, Normals can be calculated.
+                var position_index = std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10) catch unreachable;
+                position_index -= 1;
+                var uv_index = std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10) catch unreachable;
+                uv_index -= 1;
+                var normal_index = std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10) catch unreachable;
+                normal_index -= 1;
+
+                const unique_vertex_index = @intCast(u32, vertices.items.len);
+                indices.append(unique_vertex_index) catch unreachable;
+                vertices.append(.{
+                    .position = positions.items[position_index],
+                    .normal = normals.items[normal_index],
+                    .uv = uvs.items[uv_index],
+                }) catch unreachable;
             }
         }
     }
 
-    assert(vertex_offset == meshes_vertices.items.len);
-    mesh.num_indices = @intCast(u32, meshes_indices.items.len);
-    mesh.num_vertices = @intCast(u32, meshes_vertices.items.len);
-    meshes.append(mesh) catch unreachable;
+    var remapped_indices = std.ArrayList(u32).init(arena);
+    remapped_indices.resize(indices.items.len) catch unreachable;
 
-    // Load the LOD5 heightmap
+    const num_unique_vertices = zmesh.opt.generateVertexRemap(
+        remapped_indices.items,
+        indices.items,
+        Vertex,
+        vertices.items,
+    );
+
+    var optimized_vertices = std.ArrayList(Vertex).init(arena);
+    optimized_vertices.resize(num_unique_vertices) catch unreachable;
+
+    zmesh.opt.remapVertexBuffer(
+        Vertex,
+        optimized_vertices.items,
+        vertices.items,
+        remapped_indices.items,
+    );
+
+    mesh.num_indices = @intCast(u32, remapped_indices.items.len);
+    mesh.num_vertices = @intCast(u32, optimized_vertices.items.len);
+
+    meshes.append(mesh) catch unreachable;
+    meshes_indices.appendSlice(remapped_indices.items) catch unreachable;
+    meshes_vertices.appendSlice(optimized_vertices.items) catch unreachable;
+}
+
+fn appendTexture(path: []const u8, gctx: *zd3d12.GraphicsContext, textures: *std.ArrayList(Texture)) !void {
+    const resource = gctx.createAndUploadTex2dFromFile(path, .{}) catch |err| hrPanic(err);
+    // TODO
+    // _ = gctx.lookupResource(resource).?.SetName(L(path));
+
+    const texture = blk: {
+        const srv_allocation = gctx.allocatePersistentGpuDescriptors(1);
+        gctx.device.CreateShaderResourceView(
+            gctx.lookupResource(resource).?,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        gctx.addTransitionBarrier(resource, .{ .PIXEL_SHADER_RESOURCE = true });
+
+        const t = Texture{
+            .resource = resource,
+            .persistent_descriptor = srv_allocation,
+        };
+
+        break :blk t;
+    };
+    textures.append(texture) catch unreachable;
+}
+
+fn initScene(
+    allocator: std.mem.Allocator,
+    gctx: *zd3d12.GraphicsContext,
+    meshes: *std.ArrayList(Mesh),
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_vertices: *std.ArrayList(Vertex),
+    textures: *std.ArrayList(Texture),
+) !void {
+    loadMesh(allocator, "content/meshes/LOD0.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    loadMesh(allocator, "content/meshes/LOD1.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    loadMesh(allocator, "content/meshes/LOD2.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    loadMesh(allocator, "content/meshes/LOD3.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+
+    // Load the LOD3 and LOD2 heightmaps
     {
         gctx.beginFrame();
 
-        const resource = gctx.createAndUploadTex2dFromFile("content/textures/sector_LOD5.png", .{}) catch |err| hrPanic(err);
-        _ = gctx.lookupResource(resource).?.SetName(L("textures/sector_LOD5.png"));
-
-        const texture = blk: {
-            const srv_allocation = gctx.allocatePersistentGpuDescriptors(1);
-            gctx.device.CreateShaderResourceView(
-                gctx.lookupResource(resource).?,
-                null,
-                srv_allocation.cpu_handle,
-            );
-
-            gctx.addTransitionBarrier(resource, .{ .PIXEL_SHADER_RESOURCE = true });
-
-            const t = Texture{
-                .resource = resource,
-                .persistent_descriptor = srv_allocation,
-            };
-
-            break :blk t;
-        };
-        textures.append(texture) catch unreachable;
+        appendTexture("content/textures/sector_lod3.png", gctx, textures) catch unreachable;
+        appendTexture("content/textures/sector_lod2.tile_1001.png", gctx, textures) catch unreachable;
+        appendTexture("content/textures/sector_lod2.tile_1002.png", gctx, textures) catch unreachable;
+        appendTexture("content/textures/sector_lod2.tile_1011.png", gctx, textures) catch unreachable;
+        appendTexture("content/textures/sector_lod2.tile_1012.png", gctx, textures) catch unreachable;
 
         gctx.endFrame();
         gctx.finishGpuCommands();
+    }
+}
+
+fn divideQuadTreeNode(
+    nodes: *std.ArrayList(QuadTreeNode),
+    node: *QuadTreeNode,
+) void {
+    if (node.mesh_lod == 0) {
+        return;
+    }
+
+    const invalid_index = std.math.maxInt(u32);
+    var child_index: u32 = 0;
+    while (child_index < 4) : (child_index += 1) {
+        var center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
+        var center_y = if (child_index < 2) node.center[1] - node.size[1] * 0.5 else node.center[1] + node.size[1] * 0.5;
+
+        var child_node = QuadTreeNode{
+            .center = [2]f32{ center_x, center_y },
+            .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
+            .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
+            .mesh_lod = node.mesh_lod - 1,
+            .heightmap_index = 0, // TODO
+        };
+
+        node.child_indices[child_index] = @intCast(u32, nodes.items.len);
+        nodes.appendAssumeCapacity(child_node);
+
+        assert(node.child_indices[child_index] < nodes.items.len);
+        divideQuadTreeNode(nodes, &nodes.items[node.child_indices[child_index]]);
     }
 }
 
@@ -205,7 +350,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
     var textures = std.ArrayList(Texture).init(allocator);
-    initScene(&gfxstate.gctx, &meshes, &meshes_indices, &meshes_vertices, &textures) catch unreachable;
+    initScene(allocator, &gfxstate.gctx, &meshes, &meshes_indices, &meshes_vertices, &textures) catch unreachable;
 
     const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
@@ -231,6 +376,23 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .has_srv = false,
         .has_uav = false,
     }) catch unreachable;
+
+    const invalid_index = std.math.maxInt(u32);
+    // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
+    const max_quad_tree_nodes: usize = 85;
+    var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
+    // Root node
+    terrain_quad_tree_nodes.appendAssumeCapacity(.{
+        .center = [2]f32{ 0.0, 0.0 },
+        .size = [2]f32{ 256.0, 256.0 },
+        .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
+        .mesh_lod = 3,
+        .heightmap_index = textures.items[0].persistent_descriptor.index,
+    });
+
+    var root_node = &terrain_quad_tree_nodes.items[0];
+    divideQuadTreeNode(&terrain_quad_tree_nodes, root_node);
+    var quads_to_render = std.ArrayList(u32).init(allocator);
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
@@ -293,8 +455,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .draw_calls = draw_calls,
         .instance_transforms = instance_transforms,
         .instance_materials = instance_materials,
-        .meshes = meshes,
+        .terrain_lod_meshes = meshes,
         .textures = textures,
+        .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
+        .quads_to_render = quads_to_render,
         .query_camera = query_camera,
     };
 
@@ -303,10 +467,12 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
-    state.meshes.deinit();
+    state.terrain_lod_meshes.deinit();
     state.textures.deinit();
     state.instance_transforms.deinit();
     state.instance_materials.deinit();
+    state.terrain_quad_tree_nodes.deinit();
+    state.quads_to_render.deinit();
     state.draw_calls.deinit();
     state.allocator.destroy(state);
 }
@@ -370,32 +536,89 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     // Reset transforms, materials and draw calls array list
+    state.quads_to_render.clearRetainingCapacity();
     state.instance_transforms.clearRetainingCapacity();
     state.instance_materials.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
 
-    // Test single instance
+    // Algorithm that walks the quad tree and generates a list quad tree nodes to render
     {
-        const mesh = state.meshes.items[0];
-        const heightmap = state.textures.items[0];
+        const lod3_node = &state.terrain_quad_tree_nodes.items[0];
+        const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
-        state.draw_calls.append(.{
-            .mesh_index = 0,
-            .index_count = mesh.num_indices,
-            .instance_count = 1,
-            .index_offset = mesh.index_offset,
-            .vertex_offset = mesh.vertex_offset,
-            .start_instance_location = 0,
-        }) catch unreachable;
+        if (lod3_node.containedInsideChildren(camera_point, &state.terrain_quad_tree_nodes)) {
+            var lod2_node_index: u32 = std.math.maxInt(u32);
+            for (lod3_node.child_indices) |lod3_child_index| {
+                var lod3_child_node = &state.terrain_quad_tree_nodes.items[lod3_child_index];
+                if (lod3_child_node.containsPoint(camera_point)) {
+                    lod2_node_index = lod3_child_index;
+                } else {
+                    state.quads_to_render.append(lod3_child_index) catch unreachable;
+                }
+            }
 
-        const object_to_world = zm.translation(0.0, 120.0, 0.0);
-        state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
-        state.instance_materials.append(.{ .heightmap_index = heightmap.persistent_descriptor.index }) catch unreachable;
+            if (lod2_node_index != std.math.maxInt(u32)) {
+                var lod1_node_index: u32 = std.math.maxInt(u32);
+                const lod2_node = &state.terrain_quad_tree_nodes.items[lod2_node_index];
+                for (lod2_node.child_indices) |lod2_child_index| {
+                    var lod2_child_node = &state.terrain_quad_tree_nodes.items[lod2_child_index];
+                    if (lod2_child_node.containsPoint(camera_point)) {
+                        lod1_node_index = lod2_child_index;
+                    } else {
+                        state.quads_to_render.append(lod2_child_index) catch unreachable;
+                    }
+                }
+
+                if (lod1_node_index != std.math.maxInt(u32)) {
+                    // var lod0_node_index: u32 = std.math.maxInt(u32);
+                    const lod1_node = &state.terrain_quad_tree_nodes.items[lod1_node_index];
+                    for (lod1_node.child_indices) |lod1_child_index| {
+                        var lod1_child_node = &state.terrain_quad_tree_nodes.items[lod1_child_index];
+                        if (lod1_child_node.containsPoint(camera_point)) {
+                            // lod0_node_index = lod1_child_index;
+                            state.quads_to_render.appendSlice(lod1_node.child_indices[0..4]) catch unreachable;
+                        } else {
+                            state.quads_to_render.append(lod1_child_index) catch unreachable;
+                        }
+                    }
+                }
+            }
+        } else {
+            state.quads_to_render.append(0) catch unreachable;
+        }
+    }
+
+    {
+        // TODO: Batch quads together by mesh lod
+        var start_instance_location: u32 = 0;
+        for (state.quads_to_render.items) |quad_index| {
+            const quad = &state.terrain_quad_tree_nodes.items[quad_index];
+
+            const object_to_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
+            state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
+            state.instance_materials.append(.{ .heightmap_index = quad.heightmap_index }) catch unreachable;
+
+            const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
+
+            state.draw_calls.append(.{
+                .mesh_index = 0,
+                .index_count = mesh.num_indices,
+                .instance_count = 1,
+                .index_offset = mesh.index_offset,
+                .vertex_offset = mesh.vertex_offset,
+                .start_instance_location = start_instance_location,
+            }) catch unreachable;
+
+            start_instance_location += 1;
+        }
     }
 
     const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
-    state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
+    if (state.instance_transforms.items.len > 0) {
+        assert(state.instance_transforms.items.len == state.instance_materials.items.len);
+        state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
+        state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
+    }
 
     const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
     const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
