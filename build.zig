@@ -12,6 +12,7 @@ const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
 const zmesh = @import("external/zig-gamedev/libs/zmesh/build.zig");
 const znoise = @import("external/zig-gamedev/libs/znoise/build.zig");
 const zpool = @import("external/zig-gamedev/libs/zpool/build.zig");
+const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
 const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
 
 pub fn build(b: *Builder) void {
@@ -58,23 +59,25 @@ pub fn build(b: *Builder) void {
     exe.addPackage(flecs.pkg);
     exe.addPackage(zaudio.pkg);
     exe.addPackage(zbullet.pkg);
+    exe.addPackage(zd3d12_pkg);
     exe.addPackage(zglfw.pkg);
-    exe.addPackage(zmesh_pkg);
     exe.addPackage(zmath.pkg);
+    exe.addPackage(zmesh_pkg);
     exe.addPackage(znoise.pkg);
     exe.addPackage(zpool.pkg);
+    exe.addPackage(zstbi.pkg);
     exe.addPackage(ztracy_pkg);
-    exe.addPackage(zd3d12_pkg);
     exe.addPackage(zwin32.pkg);
 
     flecs.link(exe, exe.target);
     zaudio.link(exe);
     zbullet.link(exe);
+    zd3d12.link(exe, zd3d12_options);
     zglfw.link(exe);
     zmesh.link(exe, zmesh_options);
     znoise.link(exe);
+    zstbi.link(exe);
     ztracy.link(exe, ztracy_options);
-    zd3d12.link(exe, zd3d12_options);
 
     exe.install();
 
