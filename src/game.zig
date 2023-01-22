@@ -60,8 +60,8 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_move_forward, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_backward, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_slow, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(config.input_interact, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_fast, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_interact, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_cursor_pos, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(config.input_cursor_movement, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(config.input_cursor_movement_x, input.TargetValue{ .number = 0 });
@@ -150,60 +150,61 @@ pub fn run() void {
             .processors = std.ArrayList(input.Processor).init(std.heap.page_allocator),
         };
         gamepad_map.bindings.ensureTotalCapacity(8) catch unreachable;
-        // gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_look_x, .source = input.BindingSource{ .gamepad_axis = .left_x } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_look_x, .source = input.BindingSource{ .gamepad_axis = .right_x } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_look_y, .source = input.BindingSource{ .gamepad_axis = .right_y } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_move_x, .source = input.BindingSource{ .gamepad_axis = .left_x } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_move_y, .source = input.BindingSource{ .gamepad_axis = .left_y } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .gamepad_button = .right_bumper } });
         gamepad_map.processors.ensureTotalCapacity(16) catch unreachable;
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_gamepad_look_x,
             .always_use_result = true,
-            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_look_x, .zone = 0.3 } },
+            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_look_x, .zone = 0.2 } },
         });
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_gamepad_look_y,
             .always_use_result = true,
-            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_look_y, .zone = 0.3 } },
+            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_look_y, .zone = 0.2 } },
         });
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_gamepad_move_x,
             .always_use_result = true,
-            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_move_x, .zone = 0.3 } },
+            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_move_x, .zone = 0.2 } },
         });
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_gamepad_move_y,
             .always_use_result = true,
-            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_move_y, .zone = 0.3 } },
+            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = config.input_gamepad_move_y, .zone = 0.2 } },
         });
 
         // Sensitivity
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_look_yaw,
-            .class = input.ProcessorClass{ .scalar = input.ProcessorScalar{ .source_target = config.input_gamepad_look_x, .multiplier = 5 } },
+            .class = input.ProcessorClass{ .scalar = input.ProcessorScalar{ .source_target = config.input_gamepad_look_x, .multiplier = 10 } },
         });
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_look_pitch,
-            .class = input.ProcessorClass{ .scalar = input.ProcessorScalar{ .source_target = config.input_gamepad_look_y, .multiplier = -5 } },
+            .class = input.ProcessorClass{ .scalar = input.ProcessorScalar{ .source_target = config.input_gamepad_look_y, .multiplier = 10 } },
         });
 
         // Movement axis to left/right forward/backward
         // TODO: better to store movement as vector
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_move_left,
-            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_x, .is_positive = !true } },
+            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_x, .is_positive = false } },
         });
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_move_right,
-            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_x, .is_positive = !false } },
+            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_x, .is_positive = true } },
         });
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_move_forward,
-            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_y, .is_positive = !true } },
+            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_y, .is_positive = false } },
         });
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_move_backward,
-            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_y, .is_positive = !false } },
+            .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_y, .is_positive = true } },
         });
 
         var layer_on_foot = input.KeyMapLayer{
