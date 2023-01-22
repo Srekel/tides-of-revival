@@ -1,23 +1,13 @@
 const std = @import("std");
+const zstbi = @import("zstbi");
 
 const g = @import("graph/graph.zig");
-const lru = @import("../lru_cache.zig");
 const v = @import("../variant.zig");
 const IdLocal = v.IdLocal;
 
-const img = @import("zigimg");
-
-const zm = @import("zmath");
-const znoise = @import("znoise");
-const zstbi = @import("zstbi");
-
 const graph_util = @import("graph/util.zig");
-const getInputResult = graph_util.getInputResult;
 const graph_city = @import("graph/city.zig");
 const graph_heightmap = @import("graph/heightmap.zig");
-
-const HeightmapHeight = u16;
-const Pos = @Vector(2, i64);
 const graph_patch_artifact = @import("graph/patch_artifact.zig");
 
 const config_patch_width = 512;
@@ -86,8 +76,6 @@ fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContex
 // ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
 
 pub fn generate() void {
-    std.debug.print("LOL\n", .{});
-
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
 
@@ -117,24 +105,7 @@ pub fn generate() void {
             ([_]g.NodeOutputTemplate{.{}} ** 15),
     };
 
-
-    const cityFunc = graph_city.cityFunc;
-
-    // const imageSamplerFunc = g.NodeFuncTemplate{
-    //     .name = IdLocal.init("imageSampler"),
-    //     .version = 0,
-    //     .func = &funcTemplateImageSampler,
-    //     .inputs = ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Images") }}) //
-    //         ++
-    //         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Sample Span") }}) //
-    //         ++ //
-    //         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
-    //         ++ //
-    //         ([_]g.NodeInputTemplate{.{}} ** 13),
-    //     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Patches") }}) //
-    //         ++ //
-    //         ([_]g.NodeOutputTemplate{.{}} ** 15),
-    // };
+    const cityNodeTemplate = graph_city.cityNodeTemplate;
     const heightmapNodeTemplate = graph_heightmap.heightmapNodeTemplate;
     const patchArtifactNodeTemplate = graph_patch_artifact.patchArtifactNodeTemplate;
 
@@ -149,13 +120,6 @@ pub fn generate() void {
         .func = addFunc,
     };
     _ = addNodeTemplate;
-
-
-    const cityNodeTemplate = g.NodeTemplate{
-        .name = IdLocal.init("City"),
-        .version = 0,
-        .func = cityFunc,
-    };
 
     //
     var seedNode = g.Node{
@@ -237,16 +201,6 @@ pub fn generate() void {
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
 
-        // node.getOutput(IdLocal.init("Patch Artifacts")).reference = IdLocal.init("patchArtifacts");
-
-        // var artifactPatchWidthInput = node.getInput(IdLocal.init("Artifact Patch Width"));
-        // artifactPatchWidthInput.reference = IdLocal.init("patchWidth");
-        // var seedInput = node.getInput(IdLocal.init("Seed"));
-        // seedInput.reference = IdLocal.init("seed");
-        // var worldWidthInput = node.getInput(IdLocal.init("World Width"));
-        // worldWidthInput.reference = IdLocal.init("worldWidth");
-        // var patchesOutput = node.getOutput(IdLocal.init("Patches"));
-        // patchesOutput.reference.set("patchArtifacts");
         break :blk node;
     };
 
@@ -305,8 +259,4 @@ pub fn generate() void {
     std.debug.print("Graph:", .{});
     graph.connect();
     graph.run(allocator);
-
-    // const numberNode = g.NodeTemplate{};
-
-    // graph.nodes.append(.{ .name = "hello", .version = 1, .input = .{} });
 }

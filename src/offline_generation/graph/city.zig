@@ -1,23 +1,16 @@
 const std = @import("std");
+const img = @import("zigimg");
 
 const g = @import("graph.zig");
 const lru = @import("../../lru_cache.zig");
 const v = @import("../../variant.zig");
 const IdLocal = v.IdLocal;
 
-const img = @import("zigimg");
-
-const zm = @import("zmath");
-const znoise = @import("znoise");
-const zstbi = @import("zstbi");
-
 const graph_util = @import("util.zig");
 const graph_heightmap = @import("heightmap.zig");
 const getInputResult = graph_util.getInputResult;
-const HeightmapHeight = graph_heightmap.HeightmapHeight;
-const HEIGHMAP_PATCH_QUERY_MAX = graph_heightmap.HEIGHMAP_PATCH_QUERY_MAX;
 const HeightmapOutputData = graph_heightmap.HeightmapOutputData;
-const Pos = @Vector(2, i64);
+const Pos = [2]i64;
 
 const config_patch_width = 512;
 
@@ -185,7 +178,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
             if (city.border_pos.items.len > 15) {
                 cities.append(city) catch unreachable;
-                std.debug.print("city: pos{}, len{}\n", .{ city.pos, city.border_pos.items.len });
+                std.debug.print("city: pos{any}, len{}\n", .{ city.pos, city.border_pos.items.len });
             }
         }
     }
@@ -315,7 +308,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
         std.debug.print("..cities\n", .{});
         for (cities.items) |city| {
-            std.debug.print("....city pos:{} size:{}\n", .{ city.pos, city.border_pos.items.len });
+            std.debug.print("....city pos:{any} size:{}\n", .{ city.pos, city.border_pos.items.len });
             for (city.border_pos.items) |pos, i| {
                 const is_border = city.is_border.items[i];
                 var city_y: i64 = 0;

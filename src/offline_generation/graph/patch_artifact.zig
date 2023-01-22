@@ -1,19 +1,17 @@
 const std = @import("std");
+const img = @import("zigimg");
+const zm = @import("zmath");
+const zstbi = @import("zstbi");
 
 const g = @import("graph.zig");
 const lru = @import("../../lru_cache.zig");
 const v = @import("../../variant.zig");
 const IdLocal = v.IdLocal;
 
-const img = @import("zigimg");
-const zm = @import("zmath");
-const zstbi = @import("zstbi");
-
 const graph_util = @import("util.zig");
 const graph_heightmap = @import("heightmap.zig");
 const getInputResult = graph_util.getInputResult;
 const HeightmapOutputData = graph_heightmap.HeightmapOutputData;
-const Pos = [2]i64;
 
 const config_patch_width = 512;
 

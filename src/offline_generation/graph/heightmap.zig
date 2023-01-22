@@ -1,11 +1,11 @@
 const std = @import("std");
+const znoise = @import("znoise");
+const img = @import("zigimg");
+
 const g = @import("graph.zig");
 const lru = @import("../../lru_cache.zig");
 const v = @import("../../variant.zig");
 const IdLocal = v.IdLocal;
-const img = @import("zigimg");
-
-const znoise = @import("znoise");
 
 const graph_util = @import("util.zig");
 const getInputResult = graph_util.getInputResult;
