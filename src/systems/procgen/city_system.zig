@@ -549,6 +549,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             if (combat1.faction == 1) {
                 state.flecs_world.delete(entity_iter_combat1.entity().id);
+                flecs.c.ecs_iter_fini(entity_iter_combat1.iter);
                 break :combat_loop;
             }
         }

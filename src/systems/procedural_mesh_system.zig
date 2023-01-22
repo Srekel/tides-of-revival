@@ -393,6 +393,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
         while (entity_iter_camera.next()) |comps| {
             if (comps.cam.active) {
+                flecs.c.ecs_iter_fini(entity_iter_camera.iter);
                 break :blk comps;
             }
         }

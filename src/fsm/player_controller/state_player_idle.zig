@@ -97,6 +97,7 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
         const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
         if (dist < comps.light.range) {
             safe_from_darkness = true;
+            flecs.c.ecs_iter_fini(filter_it.iter);
             break;
         }
     }
@@ -126,6 +127,7 @@ fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
         const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
         if (dist < 20) {
             std.debug.panic("win", .{});
+            flecs.c.ecs_iter_fini(filter_it.iter);
             break;
         }
     }

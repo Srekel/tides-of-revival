@@ -767,6 +767,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     while (entity_iter_camera.next()) |comps| {
         if (comps.cam.active) {
             camera_comps = comps;
+            flecs.c.ecs_iter_fini(entity_iter_camera.iter);
             break;
         }
     }

@@ -329,9 +329,11 @@ pub fn run() void {
                 flecs_world.componentId(fr.Hometown),
                 0,
             );
+            const spawnpoint_ent = entity_iter.entity();
+            flecs.c.ecs_iter_fini(entity_iter.iter);
             break :blk .{
                 .pos = comps.pos.*,
-                .spawnpoint_ent = entity_iter.entity(),
+                .spawnpoint_ent = spawnpoint_ent,
                 .city_ent = city_ent,
             };
         }
