@@ -141,6 +141,9 @@ pub const ProcessorDeadzone = struct {
         var res = targets_curr.get(self.source_target).?;
         if (std.math.fabs(res.number) < self.zone) {
             res.number = 0;
+        } else {
+            // Remap [zone..1] to [0..1]
+            res.number = (res.number - self.zone) / (1.0 - self.zone);
         }
         return res;
     }
