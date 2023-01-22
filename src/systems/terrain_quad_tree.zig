@@ -77,8 +77,9 @@ const QuadTreeNode = struct {
     size: [2]f32,
     child_indices: [4]u32,
     mesh_lod: u32,
-    // TODO(gmodarelli): Do not store the GPU index here, but a texture handle instead
-    heightmap_index: u32,
+    patch_index: [2]u32,
+    // TODO: Do not store this here when we implement streaming
+    heightmap_handle: gfx.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
         return !(point[0] < (self.center[0] - self.size[0]) or
@@ -124,7 +125,6 @@ const SystemState = struct {
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(Mesh),
     quads_to_render: std.ArrayList(u32),
-    textures: std.ArrayList(Texture),
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -251,38 +251,13 @@ fn loadMesh(
     meshes_vertices.appendSlice(optimized_vertices.items) catch unreachable;
 }
 
-fn appendTexture(path: []const u8, gctx: *zd3d12.GraphicsContext, textures: *std.ArrayList(Texture)) !void {
-    const resource = gctx.createAndUploadTex2dFromFile(path, .{}) catch |err| hrPanic(err);
-    // TODO
-    // _ = gctx.lookupResource(resource).?.SetName(L(path));
-
-    const texture = blk: {
-        const srv_allocation = gctx.allocatePersistentGpuDescriptors(1);
-        gctx.device.CreateShaderResourceView(
-            gctx.lookupResource(resource).?,
-            null,
-            srv_allocation.cpu_handle,
-        );
-
-        gctx.addTransitionBarrier(resource, .{ .PIXEL_SHADER_RESOURCE = true });
-
-        const t = Texture{
-            .resource = resource,
-            .persistent_descriptor = srv_allocation,
-        };
-
-        break :blk t;
-    };
-    textures.append(texture) catch unreachable;
-}
-
-fn initScene(
+fn loadResources(
     allocator: std.mem.Allocator,
-    gctx: *zd3d12.GraphicsContext,
+    quad_tree_nodes: *std.ArrayList(QuadTreeNode),
+    gfxstate: *gfx.D3D12State,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
-    textures: *std.ArrayList(Texture),
 ) !void {
     loadMesh(allocator, "content/meshes/LOD0.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     loadMesh(allocator, "content/meshes/LOD1.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
@@ -291,16 +266,29 @@ fn initScene(
 
     // Load the LOD3 and LOD2 heightmaps
     {
-        gctx.beginFrame();
+        var namebuf: [256]u8 = undefined;
 
-        appendTexture("content/textures/sector_lod3.png", gctx, textures) catch unreachable;
-        appendTexture("content/textures/sector_lod2.tile_1001.png", gctx, textures) catch unreachable;
-        appendTexture("content/textures/sector_lod2.tile_1002.png", gctx, textures) catch unreachable;
-        appendTexture("content/textures/sector_lod2.tile_1011.png", gctx, textures) catch unreachable;
-        appendTexture("content/textures/sector_lod2.tile_1012.png", gctx, textures) catch unreachable;
+        var i: u32 = 0;
+        while (i < quad_tree_nodes.items.len) : (i += 1) {
+            var node = &quad_tree_nodes.items[i];
 
-        gctx.endFrame();
-        gctx.finishGpuCommands();
+            const namebufslice = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "content/patch/lod{}/heightmap_x{}_y{}.png",
+                .{
+                    node.mesh_lod,
+                    node.patch_index[0],
+                    node.patch_index[1],
+                },
+            ) catch unreachable;
+
+            std.debug.print("Loading patch: {s}\n", .{ namebufslice });
+
+            node.heightmap_handle = gfxstate.scheduleLoadTexture(namebufslice, .{
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("FIXME"),
+            }) catch unreachable;
+        }
     }
 }
 
@@ -317,13 +305,17 @@ fn divideQuadTreeNode(
     while (child_index < 4) : (child_index += 1) {
         var center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
         var center_y = if (child_index < 2) node.center[1] - node.size[1] * 0.5 else node.center[1] + node.size[1] * 0.5;
+        var patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
+        // var patch_index_y: u32 = if (child_index < 2) 0 else 1;
+        var patch_index_y: u32 = if (child_index < 2) 1 else 0;
 
         var child_node = QuadTreeNode{
             .center = [2]f32{ center_x, center_y },
             .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
             .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
             .mesh_lod = node.mesh_lod - 1,
-            .heightmap_index = 0, // TODO
+            .patch_index = [2]u32{ node.patch_index[0] + patch_index_x, node.patch_index[1] + patch_index_y },
+            .heightmap_handle = undefined,
         };
 
         node.child_indices[child_index] = @intCast(u32, nodes.items.len);
@@ -342,6 +334,30 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .withReadonly(fd.Transform);
     var query_camera = query_builder_camera.buildQuery();
 
+    const invalid_index = std.math.maxInt(u32);
+    // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
+    const max_quad_tree_nodes: usize = 85;
+    var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
+    // Root node
+    terrain_quad_tree_nodes.appendAssumeCapacity(.{
+        .center = [2]f32{ 0.0, 0.0 },
+        .size = [2]f32{ 256.0, 256.0 },
+        .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
+        .mesh_lod = 3,
+        .patch_index = [2]u32{ 0, 0 },
+        .heightmap_handle = undefined,
+    });
+
+    var root_node = &terrain_quad_tree_nodes.items[0];
+    divideQuadTreeNode(&terrain_quad_tree_nodes, root_node);
+    var quads_to_render = std.ArrayList(u32).init(allocator);
+
+    for (root_node.child_indices) |child_index| {
+        var node = &terrain_quad_tree_nodes.items[child_index];
+        std.log.debug("Patch index: {}, {}", .{node.patch_index[0], node.patch_index[1]});
+        std.log.debug("Center: {}, {}\n", .{node.center[0], node.center[1]});
+    }
+
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -349,8 +365,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
-    var textures = std.ArrayList(Texture).init(allocator);
-    initScene(allocator, &gfxstate.gctx, &meshes, &meshes_indices, &meshes_vertices, &textures) catch unreachable;
+    loadResources(allocator, &terrain_quad_tree_nodes, gfxstate, &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
 
     const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
@@ -376,23 +391,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .has_srv = false,
         .has_uav = false,
     }) catch unreachable;
-
-    const invalid_index = std.math.maxInt(u32);
-    // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
-    const max_quad_tree_nodes: usize = 85;
-    var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
-    // Root node
-    terrain_quad_tree_nodes.appendAssumeCapacity(.{
-        .center = [2]f32{ 0.0, 0.0 },
-        .size = [2]f32{ 256.0, 256.0 },
-        .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
-        .mesh_lod = 3,
-        .heightmap_index = textures.items[0].persistent_descriptor.index,
-    });
-
-    var root_node = &terrain_quad_tree_nodes.items[0];
-    divideQuadTreeNode(&terrain_quad_tree_nodes, root_node);
-    var quads_to_render = std.ArrayList(u32).init(allocator);
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
@@ -456,7 +454,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .instance_transforms = instance_transforms,
         .instance_materials = instance_materials,
         .terrain_lod_meshes = meshes,
-        .textures = textures,
         .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
         .quads_to_render = quads_to_render,
         .query_camera = query_camera,
@@ -468,7 +465,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.terrain_lod_meshes.deinit();
-    state.textures.deinit();
     state.instance_transforms.deinit();
     state.instance_materials.deinit();
     state.terrain_quad_tree_nodes.deinit();
@@ -596,7 +592,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             const object_to_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
             state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
-            state.instance_materials.append(.{ .heightmap_index = quad.heightmap_index }) catch unreachable;
+            // TODO: Generate from quad.patch_index
+            const texture = state.gfx.lookupTexture(quad.heightmap_handle);
+            state.instance_materials.append(.{ .heightmap_index = texture.?.persistent_descriptor.index }) catch unreachable;
 
             const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
 
