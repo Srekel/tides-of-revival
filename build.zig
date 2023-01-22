@@ -59,13 +59,13 @@ pub fn build(b: *Builder) void {
     install_meshes_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_meshes_step.step);
 
-    const install_textures_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ "/content/textures",
+    const install_patches_step = b.addInstallDirectory(.{
+        .source_dir = thisDir() ++ "/content/patch",
         .install_dir = .{ .custom = "" },
-        .install_subdir = "bin/content/textures",
+        .install_subdir = "bin/content/patch",
     });
-    install_textures_step.step.dependOn(dxc_step);
-    exe.step.dependOn(&install_textures_step.step);
+    install_patches_step.step.dependOn(dxc_step);
+    exe.step.dependOn(&install_patches_step.step);
 
     // This is needed to export symbols from an .exe file.
     // We export D3D12SDKVersion and D3D12SDKPath symbols which
