@@ -303,8 +303,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var gctx = zd3d12.GraphicsContext.init(allocator, hwnd);
     // Enable vsync.
-    // gctx.present_flags = 0;
-    // gctx.present_interval = 1;
+    gctx.present_flags = .{ .ALLOW_TEARING = false };
+    gctx.present_interval = 1;
 
     var buffer_pool = BufferPool.init(allocator);
     var texture_pool = TexturePool.init(allocator);
