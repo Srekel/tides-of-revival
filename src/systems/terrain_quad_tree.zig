@@ -282,7 +282,7 @@ fn loadResources(
                 },
             ) catch unreachable;
 
-            std.debug.print("Loading patch: {s}\n", .{ namebufslice });
+            std.debug.print("Loading patch: {s}\n", .{namebufslice});
 
             node.heightmap_handle = gfxstate.scheduleLoadTexture(namebufslice, .{
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
@@ -353,8 +353,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     for (root_node.child_indices) |child_index| {
         var node = &terrain_quad_tree_nodes.items[child_index];
-        std.log.debug("Patch index: {}, {}", .{node.patch_index[0], node.patch_index[1]});
-        std.log.debug("Center: {}, {}\n", .{node.center[0], node.center[1]});
+        std.log.debug("Patch index: {}, {}", .{ node.patch_index[0], node.patch_index[1] });
+        std.log.debug("Center: {}, {}\n", .{ node.center[0], node.center[1] });
     }
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -536,52 +536,17 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     state.instance_materials.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
 
-    // Algorithm that walks the quad tree and generates a list quad tree nodes to render
-    {
-        const lod3_node = &state.terrain_quad_tree_nodes.items[0];
-        const camera_point = [2]f32{ camera_position[0], camera_position[2] };
+    const lod3_node = &state.terrain_quad_tree_nodes.items[0];
+    const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
-        if (lod3_node.containedInsideChildren(camera_point, &state.terrain_quad_tree_nodes)) {
-            var lod2_node_index: u32 = std.math.maxInt(u32);
-            for (lod3_node.child_indices) |lod3_child_index| {
-                var lod3_child_node = &state.terrain_quad_tree_nodes.items[lod3_child_index];
-                if (lod3_child_node.containsPoint(camera_point)) {
-                    lod2_node_index = lod3_child_index;
-                } else {
-                    state.quads_to_render.append(lod3_child_index) catch unreachable;
-                }
-            }
-
-            if (lod2_node_index != std.math.maxInt(u32)) {
-                var lod1_node_index: u32 = std.math.maxInt(u32);
-                const lod2_node = &state.terrain_quad_tree_nodes.items[lod2_node_index];
-                for (lod2_node.child_indices) |lod2_child_index| {
-                    var lod2_child_node = &state.terrain_quad_tree_nodes.items[lod2_child_index];
-                    if (lod2_child_node.containsPoint(camera_point)) {
-                        lod1_node_index = lod2_child_index;
-                    } else {
-                        state.quads_to_render.append(lod2_child_index) catch unreachable;
-                    }
-                }
-
-                if (lod1_node_index != std.math.maxInt(u32)) {
-                    // var lod0_node_index: u32 = std.math.maxInt(u32);
-                    const lod1_node = &state.terrain_quad_tree_nodes.items[lod1_node_index];
-                    for (lod1_node.child_indices) |lod1_child_index| {
-                        var lod1_child_node = &state.terrain_quad_tree_nodes.items[lod1_child_index];
-                        if (lod1_child_node.containsPoint(camera_point)) {
-                            // lod0_node_index = lod1_child_index;
-                            state.quads_to_render.appendSlice(lod1_node.child_indices[0..4]) catch unreachable;
-                        } else {
-                            state.quads_to_render.append(lod1_child_index) catch unreachable;
-                        }
-                    }
-                }
-            }
-        } else {
-            state.quads_to_render.append(0) catch unreachable;
-        }
-    }
+    // TODO: Run this on all sectors we want to render
+    collectQuadsToRenderForSector(
+        camera_point,
+        lod3_node,
+        0,
+        &state.terrain_quad_tree_nodes,
+        &state.quads_to_render,
+    ) catch unreachable;
 
     {
         // TODO: Batch quads together by mesh lod
@@ -640,4 +605,36 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
+}
+
+// Algorithm that walks a quad tree and generates a list of quad tree nodes to render
+fn collectQuadsToRenderForSector(position: [2]f32, node: *QuadTreeNode, node_index: u32, nodes: *std.ArrayList(QuadTreeNode), quads_to_render: *std.ArrayList(u32)) !void {
+    assert(node_index != std.math.maxInt(u32));
+
+    if (node.mesh_lod == 0) {
+        return;
+    }
+
+    if (node.containedInsideChildren(position, nodes)) {
+        var higher_lod_node_index: u32 = std.math.maxInt(u32);
+        for (node.child_indices) |node_child_index| {
+            var child_node = &nodes.items[node_child_index];
+            if (child_node.containsPoint(position)) {
+                if (child_node.mesh_lod == 1) {
+                    quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
+                } else {
+                    higher_lod_node_index = node_child_index;
+                }
+            } else {
+                quads_to_render.append(node_child_index) catch unreachable;
+            }
+        }
+
+        if (higher_lod_node_index != std.math.maxInt(u32)) {
+            var child_node = &nodes.items[higher_lod_node_index];
+            collectQuadsToRenderForSector(position, child_node, higher_lod_node_index, nodes, quads_to_render) catch unreachable;
+        }
+    } else {
+        quads_to_render.append(node_index) catch unreachable;
+    }
 }
