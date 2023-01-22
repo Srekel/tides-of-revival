@@ -1,5 +1,5 @@
 const std = @import("std");
-const v = @import("variant.zig");
+const v = @import("../../variant.zig");
 const IdLocal = v.IdLocal;
 
 pub const GraphContext = struct {
