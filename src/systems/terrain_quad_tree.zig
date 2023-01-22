@@ -306,7 +306,6 @@ fn divideQuadTreeNode(
         var center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
         var center_y = if (child_index < 2) node.center[1] - node.size[1] * 0.5 else node.center[1] + node.size[1] * 0.5;
         var patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
-        // var patch_index_y: u32 = if (child_index < 2) 0 else 1;
         var patch_index_y: u32 = if (child_index < 2) 1 else 0;
 
         var child_node = QuadTreeNode{
@@ -314,7 +313,7 @@ fn divideQuadTreeNode(
             .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
             .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
             .mesh_lod = node.mesh_lod - 1,
-            .patch_index = [2]u32{ node.patch_index[0] + patch_index_x, node.patch_index[1] + patch_index_y },
+            .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
             .heightmap_handle = undefined,
         };
 
