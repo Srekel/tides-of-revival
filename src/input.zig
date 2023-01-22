@@ -76,6 +76,7 @@ pub const BindingSource = union(enum) {
     keyboard_key: zglfw.Key,
     mouse_button: zglfw.MouseButton,
     mouse_cursor: void,
+    gamepad_button: zglfw.Gamepad.Button,
     gamepad_axis: zglfw.Gamepad.Axis,
     processor: void,
 };
@@ -286,6 +287,21 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                                 if (joystick.asGamepad()) |gamepad| {
                                     const gamepad_state = gamepad.getState();
                                     const value = gamepad_state.axes[@enumToInt(axis)];
+                                    break :blk TargetValue{ .number = value };
+                                }
+                            }
+                        }
+
+                        break :blk TargetValue{ .number = 0 };
+                    },
+                    .gamepad_button => |button| blk: {
+                        var joystick_id: u32 = 0;
+                        while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
+                            if (zglfw.Joystick.get(@intCast(zglfw.Joystick.Id, joystick_id))) |joystick| {
+                                if (joystick.asGamepad()) |gamepad| {
+                                    const gamepad_state = gamepad.getState();
+                                    const action = gamepad_state.buttons[@enumToInt(button)];
+                                    const value: f32 = if (action == .release) 0 else 1;
                                     break :blk TargetValue{ .number = value };
                                 }
                             }
