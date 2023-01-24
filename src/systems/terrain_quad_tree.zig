@@ -364,9 +364,6 @@ fn loadResources(
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             var node = &quad_tree_nodes.items[i];
-            if (node.mesh_lod < 2) {
-                continue;
-            }
 
             const namebufslice = std.fmt.bufPrintZ(
                 namebuf[0..namebuf.len],
@@ -452,49 +449,41 @@ fn loadResources(
                 }, null);
             }
 
-            // Create SRVs for all LOD3 nodes
-            if (node.mesh_lod >= 2) {
-                const texture = blk: {
-                    const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-                    gfxstate.gctx.device.CreateShaderResourceView(
-                        texture_resource,
-                        null,
-                        srv_allocation.cpu_handle,
-                    );
+            const texture = blk: {
+                const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+                gfxstate.gctx.device.CreateShaderResourceView(
+                    texture_resource,
+                    null,
+                    srv_allocation.cpu_handle,
+                );
 
-                    // NOTE(gmodarelli): Our texture_resource is not handled by zd3d12.zig and so we can't
-                    // use its addTransitionBarrier
-                    // gfxstate.gctx.addTransitionBarrier(texture_resource, d3d12.RESOURCE_STATES.GENERIC_READ);
-                    const barrier = d3d12.RESOURCE_BARRIER{
-                        .Type = .TRANSITION,
-                        .Flags = .{},
-                        .u = .{
-                            .Transition = .{
-                                .pResource = texture_resource,
-                                .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
-                                .StateBefore = .{ .COPY_DEST = true },
-                                .StateAfter = d3d12.RESOURCE_STATES.GENERIC_READ,
-                            },
+                // NOTE(gmodarelli): Our texture_resource is not handled by zd3d12.zig and so we can't
+                // use its addTransitionBarrier
+                // gfxstate.gctx.addTransitionBarrier(texture_resource, d3d12.RESOURCE_STATES.GENERIC_READ);
+                const barrier = d3d12.RESOURCE_BARRIER{
+                    .Type = .TRANSITION,
+                    .Flags = .{},
+                    .u = .{
+                        .Transition = .{
+                            .pResource = texture_resource,
+                            .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                            .StateBefore = .{ .COPY_DEST = true },
+                            .StateAfter = d3d12.RESOURCE_STATES.GENERIC_READ,
                         },
-                    };
-                    var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
-                    gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
+                    },
+                };
+                var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
+                gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
 
-                    const t = Texture{
-                        .resource = texture_resource,
-                        .persistent_descriptor = srv_allocation,
-                    };
-
-                    break :blk t;
+                const t = Texture{
+                    .resource = texture_resource,
+                    .persistent_descriptor = srv_allocation,
                 };
 
-                node.heightmap_handle = gfxstate.texture_pool.addTexture(texture);
-            }
+                break :blk t;
+            };
 
-            // node.heightmap_handle = gfxstate.scheduleLoadTexture(namebufslice, .{
-            //     .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-            //     .name = L("FIXME"),
-            // }) catch unreachable;
+            node.heightmap_handle = gfxstate.texture_pool.addTexture(texture);
         }
 
         // TODO: Schedule the upload instead of uploading immediately
@@ -549,7 +538,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // NOTE(gmodarelli): We're currently loading 85 1-channel PNGs per sector, so we need roughly
     // 100MB of space.
     const heap_desc = d3d12.HEAP_DESC{
-        .SizeInBytes = 200 * 1024 * 1024,
+        .SizeInBytes = 500 * 1024 * 1024,
         .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
         .Alignment = 0, // 64KiB
         .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
@@ -860,7 +849,7 @@ fn collectQuadsToRenderForSector(position: [2]f32, node: *QuadTreeNode, node_ind
         return;
     }
 
-    if (node.mesh_lod == 3 and node.containedInsideChildren(position, nodes)) {
+    if (node.containedInsideChildren(position, nodes)) {
         var higher_lod_node_index: u32 = std.math.maxInt(u32);
         for (node.child_indices) |node_child_index| {
             var child_node = &nodes.items[node_child_index];
