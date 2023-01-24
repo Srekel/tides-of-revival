@@ -460,7 +460,7 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     self.gpu_profiler.deinit();
 
     self.buffer_pool.deinit(allocator, &self.gctx);
-    self.texture_pool.deinit(allocator, &self.gctx);
+    self.texture_pool.deinit(allocator);
 
     // Destroy all pipelines
     {

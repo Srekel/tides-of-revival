@@ -52,10 +52,9 @@ pub const TexturePool = struct {
         };
     }
 
-    pub fn deinit(pool: *TexturePool, allocator: std.mem.Allocator, _: *zd3d12.GraphicsContext) void {
+    pub fn deinit(pool: *TexturePool, allocator: std.mem.Allocator) void {
         for (pool.textures) |texture| {
             if (texture.resource != null) {
-                // gctx.destroyResource(texture.resource);
                 _ = texture.resource.?.Release();
             }
         }
@@ -89,19 +88,6 @@ pub const TexturePool = struct {
             },
         };
         return handle;
-    }
-
-    pub fn destroyTexture(pool: *TexturePool, handle: TextureHandle, gctx: *zd3d12.GraphicsContext) void {
-        var texture = pool.lookupTexture(handle);
-        if (texture == null)
-            return;
-
-        gctx.destroyResource(texture.?.resource);
-
-        texture.?.* = .{
-            .resource = null,
-            .persistent_descriptor = undefined,
-        };
     }
 
     fn isTextureValid(pool: TexturePool, handle: TextureHandle) bool {
