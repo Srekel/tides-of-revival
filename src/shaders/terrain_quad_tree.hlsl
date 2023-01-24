@@ -34,8 +34,6 @@ struct InstanceMaterial {
     uint heightmap_index;
 };
 
-// ConstantBuffer<DrawConst> cbv_draw_const : register(b0, per_object_space);
-// ConstantBuffer<FrameConst> cbv_frame_const : register(b0, per_pass_space);
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
 
@@ -87,13 +85,13 @@ void psTerrainQuadTree(InstancedVertexOut input, float3 barycentrics : SV_Baryce
     out_color.a = 1;
  
     // wireframe
-    float3 barys = barycentrics;
-    barys.z = 1.0 - barys.x - barys.y;
-    float3 deltas = fwidth(barys);
-    float3 smoothing = deltas * g_wireframe_smoothing;
-    float3 thickness = deltas * g_wireframe_thickness;
-    barys = smoothstep(thickness, thickness + smoothing, barys);
-    float min_bary = min(barys.x, min(barys.y, barys.z));
+    // float3 barys = barycentrics;
+    // barys.z = 1.0 - barys.x - barys.y;
+    // float3 deltas = fwidth(barys);
+    // float3 smoothing = deltas * g_wireframe_smoothing;
+    // float3 thickness = deltas * g_wireframe_thickness;
+    // barys = smoothstep(thickness, thickness + smoothing, barys);
+    // float min_bary = min(barys.x, min(barys.y, barys.z));
 
     // TODO: Pass a flag to the shader to control if we want to 
     // render the wireframe or not
@@ -101,5 +99,4 @@ void psTerrainQuadTree(InstancedVertexOut input, float3 barycentrics : SV_Baryce
     // min_bary = 1.0;
 
     // out_color = float4(min_bary * color, 1.0);
-    out_color = float4(color, 1.0);
 }

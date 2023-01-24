@@ -8,10 +8,15 @@ const zm = @import("zmath");
 const zmu = @import("zmathutil");
 const flecs = @import("flecs");
 
+const config = @import("../config.zig");
 const gfx = @import("../gfx_d3d12.zig");
 const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
+const w32 = zwin32.base;
+const dxgi = zwin32.dxgi;
+const wic = zwin32.wic;
 const hrPanic = zwin32.hrPanic;
+const hrPanicOnFail = zwin32.hrPanicOnFail;
 const d3d12 = zwin32.d3d12;
 
 const fd = @import("../flecs_data.zig");
@@ -20,10 +25,7 @@ const IndexType = u32;
 
 const zmesh = @import("zmesh");
 
-const Texture = struct {
-    resource: zd3d12.ResourceHandle,
-    persistent_descriptor: zd3d12.PersistentDescriptor,
-};
+const Texture = gfx.Texture;
 
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
@@ -121,6 +123,11 @@ const SystemState = struct {
     instance_materials: std.ArrayList(InstanceMaterial),
     draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
+
+    // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
+    // but for now it's here to speed test it out and speed things along
+    textures_heap: *d3d12.IHeap,
+    textures_heap_offset: u64 = 0,
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(Mesh),
@@ -251,10 +258,91 @@ fn loadMesh(
     meshes_vertices.appendSlice(optimized_vertices.items) catch unreachable;
 }
 
+// NOTE(gmodarelli) This should live inside gfx_d3d12.zig or texture.zig
+// NOTE(gmodarelli) The caller must release the IFormatConverter
+// eg. image_conv.Release();
+fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatConverter {
+    var path_u16: [300]u16 = undefined;
+    assert(path.len < path_u16.len - 1);
+    const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+    path_u16[path_len] = 0;
+
+    const bmp_decoder = blk: {
+        var maybe_bmp_decoder: ?*wic.IBitmapDecoder = undefined;
+        hrPanicOnFail(gctx.wic_factory.CreateDecoderFromFilename(
+            @ptrCast(w32.LPCWSTR, &path_u16),
+            null,
+            w32.GENERIC_READ,
+            .MetadataCacheOnDemand,
+            &maybe_bmp_decoder,
+        ));
+        break :blk maybe_bmp_decoder.?;
+    };
+    defer _ = bmp_decoder.Release();
+
+    const bmp_frame = blk: {
+        var maybe_bmp_frame: ?*wic.IBitmapFrameDecode = null;
+        hrPanicOnFail(bmp_decoder.GetFrame(0, &maybe_bmp_frame));
+        break :blk maybe_bmp_frame.?;
+    };
+    defer _ = bmp_frame.Release();
+
+    const pixel_format = blk: {
+        var pixel_format: w32.GUID = undefined;
+        hrPanicOnFail(bmp_frame.GetPixelFormat(&pixel_format));
+        break :blk pixel_format;
+    };
+
+    const eql = std.mem.eql;
+    const asBytes = std.mem.asBytes;
+    const num_components: u32 = blk: {
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat24bppRGB))) break :blk 4;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppRGB))) break :blk 4;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppRGBA))) break :blk 4;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppPRGBA))) break :blk 4;
+
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat24bppBGR))) break :blk 4;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppBGR))) break :blk 4;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppBGRA))) break :blk 4;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppPBGRA))) break :blk 4;
+
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat8bppGray))) break :blk 1;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat8bppAlpha))) break :blk 1;
+
+        unreachable;
+    };
+
+    const wic_format = if (num_components == 1)
+        &wic.GUID_PixelFormat8bppGray
+    else
+        &wic.GUID_PixelFormat32bppRGBA;
+
+    // const dxgi_format = if (num_components == 1) dxgi.FORMAT.R8_UNORM else dxgi.FORMAT.R8G8B8A8_UNORM;
+
+    const image_conv = blk: {
+        var maybe_image_conv: ?*wic.IFormatConverter = null;
+        hrPanicOnFail(gctx.wic_factory.CreateFormatConverter(&maybe_image_conv));
+        break :blk maybe_image_conv.?;
+    };
+
+    hrPanicOnFail(image_conv.Initialize(
+        @ptrCast(*wic.IBitmapSource, bmp_frame),
+        wic_format,
+        .None,
+        null,
+        0.0,
+        .Custom,
+    ));
+
+    return image_conv;
+}
+
 fn loadResources(
     allocator: std.mem.Allocator,
     quad_tree_nodes: *std.ArrayList(QuadTreeNode),
     gfxstate: *gfx.D3D12State,
+    textures_heap: *d3d12.IHeap,
+    textures_heap_offset: *u64,
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
@@ -266,11 +354,19 @@ fn loadResources(
 
     // Load the LOD3 and LOD2 heightmaps
     {
+        // TODO: Schedule the upload instead of uploading immediately
+        gfxstate.gctx.beginFrame();
+
         var namebuf: [256]u8 = undefined;
+
+        var heap_desc = textures_heap.GetDesc();
 
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             var node = &quad_tree_nodes.items[i];
+            if (node.mesh_lod < 2) {
+                continue;
+            }
 
             const namebufslice = std.fmt.bufPrintZ(
                 namebuf[0..namebuf.len],
@@ -283,12 +379,127 @@ fn loadResources(
             ) catch unreachable;
 
             std.debug.print("Loading patch: {s}\n", .{namebufslice});
+            var texture_data = loadTexture(&gfxstate.gctx, namebufslice) catch unreachable;
+            defer _ = texture_data.Release();
 
-            node.heightmap_handle = gfxstate.scheduleLoadTexture(namebufslice, .{
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("FIXME"),
-            }) catch unreachable;
+            const image_wh = blk: {
+                var width: u32 = undefined;
+                var height: u32 = undefined;
+                hrPanicOnFail(texture_data.GetSize(&width, &height));
+                break :blk .{ .w = width, .h = height };
+            };
+
+            // Place texture resource on the textures_heap
+            var texture_resource = blk: {
+                var resource: *d3d12.IResource = undefined;
+                const desc = desc_blk: {
+                    var desc = d3d12.RESOURCE_DESC.initTex2d(
+                        dxgi.FORMAT.R8_UNORM, // dxgi_format,
+                        image_wh.w,
+                        image_wh.h,
+                        1,
+                    );
+                    desc.Flags = .{};
+                    break :desc_blk desc;
+                };
+
+                const descs = [_]d3d12.RESOURCE_DESC{desc};
+                const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+                assert(textures_heap_offset.* + allocation_info.SizeInBytes < heap_desc.SizeInBytes);
+
+                hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
+                    textures_heap,
+                    textures_heap_offset.*,
+                    &desc,
+                    .{ .COPY_DEST = true },
+                    null,
+                    &d3d12.IID_IResource,
+                    @ptrCast(*?*anyopaque, &resource),
+                ));
+
+                // NOTE(gmodarelli): The heap is aligned at 32KB and I know that our textures are smaller than that
+                textures_heap_offset.* += allocation_info.SizeInBytes;
+                break :blk resource;
+            };
+
+            // Upload texture data to the GPU
+            {
+                // const desc = gfxstate.gctx.lookupResource(texture_resource).?.GetDesc();
+                const desc = texture_resource.GetDesc();
+
+                var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
+                var required_size: u64 = undefined;
+                gfxstate.gctx.device.GetCopyableFootprints(&desc, 0, 1, 0, &layout, null, null, &required_size);
+
+                const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+                layout[0].Offset = upload.buffer_offset;
+
+                hrPanicOnFail(texture_data.CopyPixels(
+                    null,
+                    layout[0].Footprint.RowPitch,
+                    layout[0].Footprint.RowPitch * layout[0].Footprint.Height,
+                    upload.cpu_slice.ptr,
+                ));
+
+                gfxstate.gctx.cmdlist.CopyTextureRegion(&d3d12.TEXTURE_COPY_LOCATION{
+                    .pResource = texture_resource,
+                    .Type = .SUBRESOURCE_INDEX,
+                    .u = .{ .SubresourceIndex = 0 },
+                }, 0, 0, 0, &d3d12.TEXTURE_COPY_LOCATION{
+                    .pResource = upload.buffer,
+                    .Type = .PLACED_FOOTPRINT,
+                    .u = .{ .PlacedFootprint = layout[0] },
+                }, null);
+            }
+
+            // Create SRVs for all LOD3 nodes
+            if (node.mesh_lod >= 2) {
+                const texture = blk: {
+                    const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+                    gfxstate.gctx.device.CreateShaderResourceView(
+                        texture_resource,
+                        null,
+                        srv_allocation.cpu_handle,
+                    );
+
+                    // NOTE(gmodarelli): Our texture_resource is not handled by zd3d12.zig and so we can't
+                    // use its addTransitionBarrier
+                    // gfxstate.gctx.addTransitionBarrier(texture_resource, d3d12.RESOURCE_STATES.GENERIC_READ);
+                    const barrier = d3d12.RESOURCE_BARRIER{
+                        .Type = .TRANSITION,
+                        .Flags = .{},
+                        .u = .{
+                            .Transition = .{
+                                .pResource = texture_resource,
+                                .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                                .StateBefore = .{ .COPY_DEST = true },
+                                .StateAfter = d3d12.RESOURCE_STATES.GENERIC_READ,
+                            },
+                        },
+                    };
+                    var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
+                    gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
+
+                    const t = Texture{
+                        .resource = texture_resource,
+                        .persistent_descriptor = srv_allocation,
+                    };
+
+                    break :blk t;
+                };
+
+                node.heightmap_handle = gfxstate.texture_pool.addTexture(texture);
+            }
+
+            // node.heightmap_handle = gfxstate.scheduleLoadTexture(namebufslice, .{
+            //     .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            //     .name = L("FIXME"),
+            // }) catch unreachable;
         }
+
+        // TODO: Schedule the upload instead of uploading immediately
+        gfxstate.gctx.endFrame();
+        gfxstate.gctx.finishGpuCommands();
     }
 }
 
@@ -333,28 +544,51 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .withReadonly(fd.Transform);
     var query_camera = query_builder_camera.buildQuery();
 
+    // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
+    // but for now it's here to speed test it out and speed things along
+    // NOTE(gmodarelli): We're currently loading 85 1-channel PNGs per sector, so we need roughly
+    // 100MB of space.
+    const heap_desc = d3d12.HEAP_DESC{
+        .SizeInBytes = 200 * 1024 * 1024,
+        .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
+        .Alignment = 0, // 64KiB
+        .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
+    };
+    var textures_heap: *d3d12.IHeap = undefined;
+    hrPanicOnFail(gfxstate.gctx.device.CreateHeap(&heap_desc, &d3d12.IID_IHeap, @ptrCast(*?*anyopaque, &textures_heap)));
+    var textures_heap_offset: u64 = 0;
+
     const invalid_index = std.math.maxInt(u32);
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
-    const max_quad_tree_nodes: usize = 85;
+    const max_quad_tree_nodes: usize = 85 * 64;
     var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
-    // Root node
-    terrain_quad_tree_nodes.appendAssumeCapacity(.{
-        .center = [2]f32{ 0.0, 0.0 },
-        .size = [2]f32{ 256.0, 256.0 },
-        .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
-        .mesh_lod = 3,
-        .patch_index = [2]u32{ 0, 0 },
-        .heightmap_handle = undefined,
-    });
-
-    var root_node = &terrain_quad_tree_nodes.items[0];
-    divideQuadTreeNode(&terrain_quad_tree_nodes, root_node);
     var quads_to_render = std.ArrayList(u32).init(allocator);
 
-    for (root_node.child_indices) |child_index| {
-        var node = &terrain_quad_tree_nodes.items[child_index];
-        std.log.debug("Patch index: {}, {}", .{ node.patch_index[0], node.patch_index[1] });
-        std.log.debug("Center: {}, {}\n", .{ node.center[0], node.center[1] });
+    // Create initial sectors
+    {
+        var patch_half_size = @intToFloat(f32, config.patch_width) / 2.0;
+        var patch_y: u32 = 0;
+        while (patch_y < 8) : (patch_y += 1) {
+            var patch_x: u32 = 0;
+            while (patch_x < 8) : (patch_x += 1) {
+                terrain_quad_tree_nodes.appendAssumeCapacity(.{
+                    .center = [2]f32{ @intToFloat(f32, patch_x * config.patch_width) - 2048.0, -(@intToFloat(f32, patch_y * config.patch_width)) + 2048.0 },
+                    .size = [2]f32{ patch_half_size, patch_half_size },
+                    .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
+                    .mesh_lod = 3,
+                    .patch_index = [2]u32{ patch_x, patch_y },
+                    .heightmap_handle = undefined,
+                });
+            }
+        }
+
+        assert(terrain_quad_tree_nodes.items.len == 64);
+
+        var sector_index: u32 = 0;
+        while (sector_index < 64) : (sector_index += 1) {
+            var node = &terrain_quad_tree_nodes.items[sector_index];
+            divideQuadTreeNode(&terrain_quad_tree_nodes, node);
+        }
     }
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -364,7 +598,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
-    loadResources(allocator, &terrain_quad_tree_nodes, gfxstate, &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
+    loadResources(allocator, &terrain_quad_tree_nodes, gfxstate, textures_heap, &textures_heap_offset, &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
 
     const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
@@ -450,6 +684,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .instance_transform_buffers = instance_transform_buffers,
         .instance_material_buffers = instance_material_buffers,
         .draw_calls = draw_calls,
+        .textures_heap = textures_heap,
+        .textures_heap_offset = textures_heap_offset,
         .instance_transforms = instance_transforms,
         .instance_materials = instance_materials,
         .terrain_lod_meshes = meshes,
@@ -463,6 +699,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
+
+    _ = state.textures_heap.Release();
+    state.textures_heap.* = undefined;
+
     state.terrain_lod_meshes.deinit();
     state.instance_transforms.deinit();
     state.instance_materials.deinit();
@@ -536,17 +776,22 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     state.instance_materials.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
 
-    const lod3_node = &state.terrain_quad_tree_nodes.items[0];
-    const camera_point = [2]f32{ camera_position[0], camera_position[2] };
+    {
+        var sector_index: u32 = 0;
+        while (sector_index < 64) : (sector_index += 1) {
+            const lod3_node = &state.terrain_quad_tree_nodes.items[sector_index];
+            const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
-    // TODO: Run this on all sectors we want to render
-    collectQuadsToRenderForSector(
-        camera_point,
-        lod3_node,
-        0,
-        &state.terrain_quad_tree_nodes,
-        &state.quads_to_render,
-    ) catch unreachable;
+            // TODO: Run this on all sectors we want to render
+            collectQuadsToRenderForSector(
+                camera_point,
+                lod3_node,
+                sector_index,
+                &state.terrain_quad_tree_nodes,
+                &state.quads_to_render,
+            ) catch unreachable;
+        }
+    }
 
     {
         // TODO: Batch quads together by mesh lod
@@ -615,7 +860,7 @@ fn collectQuadsToRenderForSector(position: [2]f32, node: *QuadTreeNode, node_ind
         return;
     }
 
-    if (node.containedInsideChildren(position, nodes)) {
+    if (node.mesh_lod == 3 and node.containedInsideChildren(position, nodes)) {
         var higher_lod_node_index: u32 = std.math.maxInt(u32);
         for (node.child_indices) |node_child_index| {
             var child_node = &nodes.items[node_child_index];

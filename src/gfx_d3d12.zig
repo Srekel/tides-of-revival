@@ -24,7 +24,7 @@ const BufferPool = buffer_module.BufferPool;
 pub const BufferDesc = buffer_module.BufferDesc;
 pub const BufferHandle = buffer_module.BufferHandle;
 
-const Texture = texture_module.Texture;
+pub const Texture = texture_module.Texture;
 const TexturePool = texture_module.TexturePool;
 pub const TextureDesc = texture_module.TextureDesc;
 pub const TextureHandle = texture_module.TextureHandle;
@@ -199,8 +199,11 @@ pub const D3D12State = struct {
         self.gctx.beginFrame();
 
         const resource = self.gctx.createAndUploadTex2dFromFile(path, .{}) catch |err| hrPanic(err);
-        // TODO
-        // _ = self.gctx.lookupResource(resource).?.SetName(textureDesc.name);
+        var path_u16: [300]u16 = undefined;
+        assert(path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+        path_u16[path_len] = 0;
+        _ = self.gctx.lookupResource(resource).?.SetName(path_u16);
 
         const texture = blk: {
             const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);

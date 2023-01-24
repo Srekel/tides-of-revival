@@ -10,8 +10,8 @@ pub const TextureDesc = struct {
 };
 
 pub const Texture = struct {
-    valid: bool = false,
-    resource: zd3d12.ResourceHandle,
+    // resource: zd3d12.ResourceHandle,
+    resource: ?*d3d12.IResource,
     persistent_descriptor: zd3d12.PersistentDescriptor,
 };
 
@@ -21,7 +21,7 @@ pub const TextureHandle = struct {
 };
 
 pub const TexturePool = struct {
-    const max_num_textures = 1024; // TODO: Figure out how many we need as we go
+    const max_num_textures = 4096; // TODO: Figure out how many we need as we go
 
     textures: []Texture,
     generations: []u16,
@@ -35,7 +35,7 @@ pub const TexturePool = struct {
                 ) catch unreachable;
                 for (textures) |*texture| {
                     texture.* = .{
-                        .resource = undefined,
+                        .resource = null,
                         .persistent_descriptor = undefined,
                     };
                 }
@@ -52,10 +52,11 @@ pub const TexturePool = struct {
         };
     }
 
-    pub fn deinit(pool: *TexturePool, allocator: std.mem.Allocator, gctx: *zd3d12.GraphicsContext) void {
+    pub fn deinit(pool: *TexturePool, allocator: std.mem.Allocator, _: *zd3d12.GraphicsContext) void {
         for (pool.textures) |texture| {
-            if (texture.valid) {
-                gctx.destroyResource(texture.resource);
+            if (texture.resource != null) {
+                // gctx.destroyResource(texture.resource);
+                _ = texture.resource.?.Release();
             }
         }
 
@@ -67,13 +68,12 @@ pub const TexturePool = struct {
     pub fn addTexture(pool: *TexturePool, texture: Texture) TextureHandle {
         var slot_idx: u32 = 1;
         while (slot_idx <= max_num_textures) : (slot_idx += 1) {
-            if (!pool.textures[slot_idx].valid)
+            if (pool.textures[slot_idx].resource == null)
                 break;
         }
         assert(slot_idx <= max_num_textures);
 
         pool.textures[slot_idx] = .{
-            .valid = true,
             .resource = texture.resource,
             .persistent_descriptor = .{
                 .cpu_handle = texture.persistent_descriptor.cpu_handle,
@@ -99,8 +99,7 @@ pub const TexturePool = struct {
         gctx.destroyResource(texture.?.resource);
 
         texture.?.* = .{
-            .valid = false,
-            .resource = undefined,
+            .resource = null,
             .persistent_descriptor = undefined,
         };
     }
@@ -110,7 +109,7 @@ pub const TexturePool = struct {
             handle.index <= max_num_textures and
             handle.generation > 0 and
             handle.generation == pool.generations[handle.index] and
-            pool.textures[handle.index].valid;
+            pool.textures[handle.index].resource != null;
     }
 
     pub fn lookupTexture(pool: TexturePool, handle: TextureHandle) ?*Texture {
