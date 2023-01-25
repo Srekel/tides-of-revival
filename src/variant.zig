@@ -98,6 +98,7 @@ pub const VariantType = union(enum) {
     hash: Hash,
     ptr_single: *anyopaque,
     ptr_array: *anyopaque,
+    ptr_array_const: *const anyopaque,
 };
 
 comptime {
@@ -138,10 +139,31 @@ pub const Variant = struct {
         return Variant{
             .value = .{ .ptr_array = @ptrToInt(slice.ptr) },
             .tag = tag,
-            .count = slice.len,
+            .array_count = slice.len,
             .elem_size = @intCast(u16, @sizeOf(slice.ptr.*)),
         };
     }
+
+    pub fn createStringFixed(string: []const u8, tag: Tag) Variant {
+        assert(tag != 0);
+        return Variant{
+            // .value = .{ .ptr_array_const = string.ptr },
+            .value = .{ .ptr_array_const = string.ptr },
+            .tag = tag,
+            .array_count = @intCast(u16, string.len),
+            .elem_size = @intCast(u16, @sizeOf(u8)),
+        };
+    }
+
+    // pub fn createSliceConst(slice: anytype, tag: Tag) Variant {
+    //     assert(tag != 0);
+    //     return Variant{
+    //         .value = .{ .ptr_array = @ptrToInt(slice.ptr) },
+    //         .tag = tag,
+    //         .count = slice.len,
+    //         .elem_size = @intCast(u16, @sizeOf(slice.ptr.*)),
+    //     };
+    // }
 
     pub fn createInt64(int: anytype) Variant {
         return Variant{
@@ -186,8 +208,20 @@ pub const Variant = struct {
 
     pub fn getSlice(self: Variant, comptime T: type, tag: Tag) []T {
         assert(tag == self.tag);
-        var ptr = @intToPtr([*]T, self.value.ptr_array);
-        return ptr[0..self.count];
+        var ptr = @ptrCast([*]T, self.value.ptr_array);
+        return ptr[0..self.array_count];
+    }
+
+    pub fn getSliceConst(self: Variant, comptime T: type, tag: Tag) []T {
+        assert(tag == self.tag);
+        var ptr = @ptrCast([*]T, self.value.ptr_array_const);
+        return ptr[0..self.array_count];
+    }
+
+    pub fn getStringConst(self: Variant, tag: Tag) []const u8 {
+        assert(tag == self.tag);
+        var ptr = @ptrCast([*]const u8, self.value.ptr_array_const);
+        return ptr[0..self.array_count];
     }
 
     pub fn getInt64(self: Variant) i64 {

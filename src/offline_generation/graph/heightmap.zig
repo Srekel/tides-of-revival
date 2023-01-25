@@ -11,7 +11,7 @@ const graph_util = @import("util.zig");
 const getInputResult = graph_util.getInputResult;
 
 pub const HeightmapHeight = u16;
-pub const HEIGHMAP_PATCH_QUERY_MAX = 32;
+pub const HEIGHTMAP_PATCH_QUERY_MAX = 32;
 
 fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
     const ptr_typeinfo = @typeInfo(ptr_type);
@@ -21,14 +21,14 @@ fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
 }
 
 pub const HeightmapOutputData = struct {
-    patches: [HEIGHMAP_PATCH_QUERY_MAX][]HeightmapHeight = undefined,
-    patch_positions: [HEIGHMAP_PATCH_QUERY_MAX][2]i64 = undefined,
+    patches: [HEIGHTMAP_PATCH_QUERY_MAX][]HeightmapHeight = undefined,
+    patch_positions: [HEIGHTMAP_PATCH_QUERY_MAX][2]i64 = undefined,
     patch_width: u64 = undefined,
     count: u64 = undefined,
     count_x: u64 = undefined,
     count_y: u64 = undefined,
 
-    pub fn getHeight(self: HeightmapOutputData, world_x: i64, world_y: i64) HeightmapHeight {
+    pub fn getHeight(self: HeightmapOutputData, world_x: anytype, world_y: anytype) HeightmapHeight {
         const patch_x = @divTrunc(@intCast(u64, world_x), self.patch_width);
         const patch_y = @divTrunc(@intCast(u64, world_y), self.patch_width);
         // const patch_begin_x = @divExact(@intCast(u64, self.patch_positions[0][0]), self.patch_width);

@@ -22,16 +22,23 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
     const world_width_input = node.getInputByString("World Width");
     const world_width = getInputResult(world_width_input, context).getUInt64();
 
+    const folder_input = node.getInputByString("Artifact Folder");
+    const folder = getInputResult(folder_input, context).getStringConst(1);
+
     const artifact_patch_width_input = node.getInputByString("Artifact Patch Width");
     const artifact_patch_width = getInputResult(artifact_patch_width_input, context).getUInt64();
 
-    const patches_input = node.getInputByString("Heightmap Patches");
+    const patches_input = node.getInputByString("Patches");
 
-    std.fs.cwd().makeDir("content/patch/lod0") catch {};
-    std.fs.cwd().makeDir("content/patch/lod1") catch {};
-    std.fs.cwd().makeDir("content/patch/lod2") catch {};
-    std.fs.cwd().makeDir("content/patch/lod3") catch {};
+    var folderbuf: [256]u8 = undefined;
     var namebuf: [256]u8 = undefined;
+
+    var folderbufslice = std.fmt.bufPrintZ(
+        folderbuf[0..folderbuf.len],
+        "content/{s}",
+        .{folder},
+    ) catch unreachable;
+    std.fs.cwd().makeDir(folderbufslice) catch {};
 
     // const image_width = artifact_patch_width;
     const precision = 1; // meter
@@ -42,6 +49,13 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
     const worst_lod_patch_count_per_side = (world_width) / worst_lod_width;
     var lod: u32 = best_lod;
     while (lod <= worst_lod) : (lod += 1) {
+        folderbufslice = std.fmt.bufPrintZ(
+            folderbuf[0..folderbuf.len],
+            "content/{s}/lod{}",
+            .{ folder, lod },
+        ) catch unreachable;
+        std.fs.cwd().makeDir(folderbufslice) catch {};
+
         const lod_pixel_stride = std.math.pow(u32, 2, lod) / precision;
         var image = zstbi.Image{
             .data = context.frame_allocator.alloc(u8, artifact_patch_width * artifact_patch_width * 2 * 1) catch unreachable,
@@ -111,9 +125,9 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
                         const namebufslice = std.fmt.bufPrintZ(
                             namebuf[0..namebuf.len],
-                            "content/patch/lod{}/heightmap_x{}_y{}.png",
+                            "{s}/heightmap_x{}_y{}.png",
                             .{
-                                lod,
+                                folderbufslice,
                                 hm_patch_x * lod_patch_count_per_side + lod_patch_x,
                                 hm_patch_y * lod_patch_count_per_side + lod_patch_y,
                             },
@@ -144,17 +158,17 @@ pub const patchArtifactFunc = g.NodeFuncTemplate{
     .version = 0,
     .func = &funcTemplatePatchArtifact,
     .inputs = ( //
-        [_]g.NodeInputTemplate{.{ .name = IdLocal.init("Heightmap Patch Width") }}) //
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patches") }}) //
+        ++ //
+        [_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patch Width") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Artifact Patch Width") }}) //
-        ++ //
-        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Heightmap Patches") }}) //
-        ++ //
-        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Artifact Patches") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Seed") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
+        ++ //
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Artifact Folder") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{}} ** 10),
     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Patch Artifacts") }}) //

@@ -9,6 +9,7 @@ const graph_util = @import("graph/util.zig");
 const graph_city = @import("graph/city.zig");
 const graph_heightmap = @import("graph/heightmap.zig");
 const graph_patch_artifact = @import("graph/patch_artifact.zig");
+const graph_terrain_splatmap = @import("graph/terrain_splatmap.zig");
 
 const config_patch_width = 512;
 
@@ -108,6 +109,7 @@ pub fn generate() void {
     const cityNodeTemplate = graph_city.cityNodeTemplate;
     const heightmapNodeTemplate = graph_heightmap.heightmapNodeTemplate;
     const patchArtifactNodeTemplate = graph_patch_artifact.patchArtifactNodeTemplate;
+    const splatmapNodeTemplate = graph_terrain_splatmap.splatmapNodeTemplate;
 
     const numberNodeTemplate = g.NodeTemplate{
         .name = IdLocal.init("Number"),
@@ -186,10 +188,10 @@ pub fn generate() void {
     heightmapOutputValue.reference.set("heightmapPatches");
 
     //
-    var patchArtifactNode = blk: {
+    var splatmapNode = blk: {
         var node = g.Node{
-            .name = IdLocal.init("Patch Artifact"),
-            .template = patchArtifactNodeTemplate,
+            .name = IdLocal.init("Splatmap"),
+            .template = splatmapNodeTemplate,
             .allocator = std.heap.page_allocator,
             .output_artifacts = true,
         };
@@ -197,6 +199,44 @@ pub fn generate() void {
 
         node.getInput(IdLocal.init("Heightmap Patches")).reference = IdLocal.init("heightmapPatches");
         node.getInput(IdLocal.init("Heightmap Patch Width")).reference = IdLocal.init("heightmapPatchWidth");
+        // node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
+        node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
+        node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
+
+        break :blk node;
+    };
+
+    //
+    var heightmapPatchArtifactNode = blk: {
+        var node = g.Node{
+            .name = IdLocal.init("Heightmap Patch Artifact"),
+            .template = patchArtifactNodeTemplate,
+            .allocator = std.heap.page_allocator,
+            .output_artifacts = true,
+        };
+        node.init();
+
+        node.getInput(IdLocal.init("Patches")).reference = IdLocal.init("heightmapPatches");
+        node.getInput(IdLocal.init("Patch Width")).reference = IdLocal.init("heightmapPatchWidth");
+        node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
+        node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
+        node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
+        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed("patch/heightmap", 1);
+
+        break :blk node;
+    };
+
+    var splatmapPatchArtifactNode = blk: {
+        var node = g.Node{
+            .name = IdLocal.init("Splatmap Patch Artifact"),
+            .template = patchArtifactNodeTemplate,
+            .allocator = std.heap.page_allocator,
+            .output_artifacts = true,
+        };
+        node.init();
+
+        node.getInput(IdLocal.init("Patches")).reference = IdLocal.init("splatmapPatches");
+        node.getInput(IdLocal.init("Patch Width")).reference = IdLocal.init("heightmapPatchWidth");
         node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
@@ -251,10 +291,15 @@ pub fn generate() void {
     graph.nodes.append(artifactPatchWidthNode) catch unreachable;
     graph.nodes.append(worldWidthNode) catch unreachable;
     graph.nodes.append(heightmapNode) catch unreachable;
+    // graph.nodes.append(splatmapNode) catch unreachable;
     graph.nodes.append(cityNode) catch unreachable;
-    graph.nodes.append(patchArtifactNode) catch unreachable;
+    graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
+    // graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(pcgNode) catch unreachable;
     // graph.nodes.append(addNode) catch unreachable;
+    _ = splatmapNode;
+    // _ = cityNode;
+    _ = splatmapPatchArtifactNode;
 
     std.debug.print("Graph:", .{});
     graph.connect();
