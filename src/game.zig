@@ -11,6 +11,7 @@ const city_system = @import("systems/procgen/city_system.zig");
 const input_system = @import("systems/input_system.zig");
 const input = @import("input.zig");
 const physics_system = @import("systems/physics_system.zig");
+const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
@@ -54,11 +55,13 @@ pub fn run() void {
 
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(std.heap.page_allocator);
-        itm.ensureUnusedCapacity(16) catch unreachable;
+        itm.ensureUnusedCapacity(18) catch unreachable;
         itm.putAssumeCapacity(config.input_move_left, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_right, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_forward, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_backward, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_move_up, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_move_down, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_slow, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_fast, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_interact, input.TargetValue{ .number = 0 });
@@ -86,14 +89,16 @@ pub fn run() void {
             .bindings = std.ArrayList(input.Binding).init(std.heap.page_allocator),
             .processors = std.ArrayList(input.Processor).init(std.heap.page_allocator),
         };
-        keyboard_map.bindings.ensureTotalCapacity(16) catch unreachable;
+        keyboard_map.bindings.ensureTotalCapacity(18) catch unreachable;
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_left, .source = input.BindingSource{ .keyboard_key = .a } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_right, .source = input.BindingSource{ .keyboard_key = .d } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_forward, .source = input.BindingSource{ .keyboard_key = .w } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_backward, .source = input.BindingSource{ .keyboard_key = .s } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_up, .source = input.BindingSource{ .keyboard_key = .e } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_down, .source = input.BindingSource{ .keyboard_key = .q } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .keyboard_key = .left_control } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .keyboard_key = .left_shift } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_interact, .source = input.BindingSource{ .keyboard_key = .e } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_interact, .source = input.BindingSource{ .keyboard_key = .f } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
 

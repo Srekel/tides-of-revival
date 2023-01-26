@@ -117,10 +117,4 @@ float3 pbrShading(float3 base_color, PBRInput input, float4 light_positions[MAX_
     return color;
 }
 
-float3 gammaCorrect(float3 color) {
-    float gamma = 1.0 / 2.2;
-    color = pow(color, float3(gamma, gamma, gamma));
-    return color;
-}
-
 #endif

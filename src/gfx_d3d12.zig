@@ -14,6 +14,7 @@ const profiler_module = @import("renderer/d3d12/profiler.zig");
 const IdLocal = @import("variant.zig").IdLocal;
 const IdLocalContext = @import("variant.zig").IdLocalContext;
 const buffer_module = @import("renderer/d3d12/buffer.zig");
+const texture_module = @import("renderer/d3d12/texture.zig");
 
 pub const Profiler = profiler_module.Profiler;
 pub const ProfileData = profiler_module.ProfileData;
@@ -22,6 +23,11 @@ const Buffer = buffer_module.Buffer;
 const BufferPool = buffer_module.BufferPool;
 pub const BufferDesc = buffer_module.BufferDesc;
 pub const BufferHandle = buffer_module.BufferHandle;
+
+pub const Texture = texture_module.Texture;
+const TexturePool = texture_module.TexturePool;
+pub const TextureDesc = texture_module.TextureDesc;
+pub const TextureHandle = texture_module.TextureHandle;
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
@@ -95,6 +101,7 @@ pub const D3D12State = struct {
     depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
 
     buffer_pool: BufferPool,
+    texture_pool: TexturePool,
     pipelines: PipelineHashMap,
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
@@ -186,6 +193,49 @@ pub const D3D12State = struct {
         self.gctx.addTransitionBarrier(buffer.?.resource, buffer.?.state);
         self.gctx.flushResourceBarriers();
     }
+
+    pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc) !TextureHandle {
+        // TODO: Schedule the upload instead of uploading immediately
+        self.gctx.beginFrame();
+
+        const resource = self.gctx.createAndUploadTex2dFromFile(path, .{}) catch |err| hrPanic(err);
+        var path_u16: [300]u16 = undefined;
+        assert(path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+        path_u16[path_len] = 0;
+        _ = self.gctx.lookupResource(resource).?.SetName(path_u16);
+
+        const texture = blk: {
+            const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
+            self.gctx.device.CreateShaderResourceView(
+                self.gctx.lookupResource(resource).?,
+                null,
+                srv_allocation.cpu_handle,
+            );
+
+            self.gctx.addTransitionBarrier(resource, textureDesc.state);
+
+            const t = Texture{
+                .resource = resource,
+                .persistent_descriptor = srv_allocation,
+            };
+
+            break :blk t;
+        };
+
+        self.gctx.endFrame();
+        self.gctx.finishGpuCommands();
+
+        return self.texture_pool.addTexture(texture);
+    }
+
+    pub fn destroyTexture(self: *D3D12State, handle: TextureHandle) void {
+        self.texture_pool.destroyTexture(handle, &self.gctx);
+    }
+
+    pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
+        return self.texture_pool.lookupTexture(handle);
+    }
 };
 
 pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
@@ -256,10 +306,11 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var gctx = zd3d12.GraphicsContext.init(allocator, hwnd);
     // Enable vsync.
-    // gctx.present_flags = 0;
-    // gctx.present_interval = 1;
+    gctx.present_flags = .{ .ALLOW_TEARING = false };
+    gctx.present_interval = 1;
 
     var buffer_pool = BufferPool.init(allocator);
+    var texture_pool = TexturePool.init(allocator);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -284,6 +335,26 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             &pso_desc,
             "shaders/instanced.vs.cso",
             "shaders/instanced.ps.cso",
+        );
+    };
+
+    const terrain_quad_tree_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        break :blk gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/terrain_quad_tree.vs.cso",
+            "shaders/terrain_quad_tree.ps.cso",
         );
     };
 
@@ -315,6 +386,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     };
 
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain"), PipelineInfo{ .pipeline_handle = terrain_pipeline }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
@@ -377,6 +449,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .depth_texture_dsv = depth_texture_dsv,
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
+        .texture_pool = texture_pool,
     };
 }
 
@@ -387,6 +460,7 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     self.gpu_profiler.deinit();
 
     self.buffer_pool.deinit(allocator, &self.gctx);
+    self.texture_pool.deinit(allocator);
 
     // Destroy all pipelines
     {

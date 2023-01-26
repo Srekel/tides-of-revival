@@ -16,6 +16,8 @@ pub const input_move_left = IdLocal.init("move_left");
 pub const input_move_right = IdLocal.init("move_right");
 pub const input_move_forward = IdLocal.init("move_forward");
 pub const input_move_backward = IdLocal.init("move_backward");
+pub const input_move_up = IdLocal.init("move_up");
+pub const input_move_down = IdLocal.init("move_down");
 pub const input_move_slow = IdLocal.init("move_slow");
 pub const input_move_fast = IdLocal.init("move_fast");
 

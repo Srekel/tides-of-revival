@@ -11,4 +11,10 @@
 
 #define PI 3.1415926
 
+float3 gammaCorrect(float3 color) {
+    float gamma = 1.0 / 2.2;
+    color = pow(color, float3(gamma, gamma, gamma));
+    return color;
+}
+
 #endif
