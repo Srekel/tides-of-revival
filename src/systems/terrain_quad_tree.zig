@@ -27,10 +27,16 @@ const zmesh = @import("zmesh");
 
 const Texture = gfx.Texture;
 
-const FrameUniforms = struct {
+const FrameUniforms = extern struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
     time: f32,
+    padding1: u32,
+    padding2: u32,
+    padding3: u32,
+    light_count: u32,
+    light_positions: [32][4]f32,
+    light_radiances: [32][4]f32,
 };
 
 const DrawUniforms = struct {
@@ -114,6 +120,7 @@ const SystemState = struct {
     gfx: *gfx.D3D12State,
 
     query_camera: flecs.Query,
+    query_lights: flecs.Query,
 
     vertex_buffer: gfx.BufferHandle,
     index_buffer: gfx.BufferHandle,
@@ -318,6 +325,7 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatCon
         &wic.GUID_PixelFormat32bppRGBA;
 
     // const dxgi_format = if (num_components == 1) dxgi.FORMAT.R8_UNORM else dxgi.FORMAT.R8G8B8A8_UNORM;
+    assert(num_components == 1);
 
     const image_conv = blk: {
         var maybe_image_conv: ?*wic.IFormatConverter = null;
@@ -352,7 +360,7 @@ fn loadResources(
     loadMesh(allocator, "content/meshes/LOD2.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     loadMesh(allocator, "content/meshes/LOD3.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 
-    // Load the LOD3 and LOD2 heightmaps
+    // Load all LOD's heightmaps
     {
         // TODO: Schedule the upload instead of uploading immediately
         gfxstate.gctx.beginFrame();
@@ -391,7 +399,7 @@ fn loadResources(
                 var resource: *d3d12.IResource = undefined;
                 const desc = desc_blk: {
                     var desc = d3d12.RESOURCE_DESC.initTex2d(
-                        dxgi.FORMAT.R8_UNORM, // dxgi_format,
+                        dxgi.FORMAT.R8_UNORM,
                         image_wh.w,
                         image_wh.h,
                         1,
@@ -414,14 +422,14 @@ fn loadResources(
                     @ptrCast(*?*anyopaque, &resource),
                 ));
 
-                // NOTE(gmodarelli): The heap is aligned at 32KB and I know that our textures are smaller than that
+                // NOTE(gmodarelli): The heap is aligned to 64KB and our textures are smaller than that
+                // TODO(gmodarelli): Use atlases so we don't wast as much space
                 textures_heap_offset.* += allocation_info.SizeInBytes;
                 break :blk resource;
             };
 
             // Upload texture data to the GPU
             {
-                // const desc = gfxstate.gctx.lookupResource(texture_resource).?.GetDesc();
                 const desc = texture_resource.GetDesc();
 
                 var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
@@ -459,7 +467,6 @@ fn loadResources(
 
                 // NOTE(gmodarelli): Our texture_resource is not handled by zd3d12.zig and so we can't
                 // use its addTransitionBarrier
-                // gfxstate.gctx.addTransitionBarrier(texture_resource, d3d12.RESOURCE_STATES.GENERIC_READ);
                 const barrier = d3d12.RESOURCE_BARRIER{
                     .Type = .TRANSITION,
                     .Flags = .{},
@@ -532,6 +539,12 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
     var query_camera = query_builder_camera.buildQuery();
+
+    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_lights
+        .with(fd.Light)
+        .with(fd.Transform);
+    var query_lights = query_builder_lights.buildQuery();
 
     // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
     // but for now it's here to speed test it out and speed things along
@@ -681,6 +694,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
         .quads_to_render = quads_to_render,
         .query_camera = query_camera,
+        .query_lights = query_lights,
     };
 
     return state;
@@ -688,6 +702,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
+    state.query_lights.deinit();
 
     _ = state.textures_heap.Release();
     state.textures_heap.* = undefined;
@@ -731,6 +746,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const cam = camera_comps.?.cam;
+    const camera_position = camera_comps.?.transform.getPos00();
     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain Quad Tree");
 
@@ -747,7 +763,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     });
 
     // Upload per-frame constant data.
-    const camera_position = camera_comps.?.transform.getPos00();
     {
         const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
         const world_time = environment_info.world_time;
@@ -755,6 +770,23 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
         mem.cpu_slice[0].camera_position = camera_position;
         mem.cpu_slice[0].time = world_time;
+        mem.cpu_slice[0].light_count = 0;
+
+        var entity_iter_lights = state.query_lights.iterator(struct {
+            light: *fd.Light,
+            transform: *fd.Transform,
+        });
+
+        var light_i: u32 = 0;
+        while (entity_iter_lights.next()) |comps| {
+            const light_pos = comps.transform.getPos00();
+            std.mem.copy(f32, mem.cpu_slice[0].light_positions[light_i][0..], light_pos[0..]);
+            std.mem.copy(f32, mem.cpu_slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
+            mem.cpu_slice[0].light_radiances[light_i][3] = comps.light.range;
+
+            light_i += 1;
+        }
+        mem.cpu_slice[0].light_count = light_i;
 
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
     }
@@ -771,7 +803,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const lod3_node = &state.terrain_quad_tree_nodes.items[sector_index];
             const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
-            // TODO: Run this on all sectors we want to render
             collectQuadsToRenderForSector(
                 camera_point,
                 lod3_node,
@@ -792,6 +823,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
             // TODO: Generate from quad.patch_index
             const texture = state.gfx.lookupTexture(quad.heightmap_handle);
+            // TODO: Add splatmap and UV offset and tiling (for atlases)
             state.instance_materials.append(.{ .heightmap_index = texture.?.persistent_descriptor.index }) catch unreachable;
 
             const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
