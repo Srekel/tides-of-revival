@@ -59,6 +59,7 @@ const InstanceTransform = struct {
 
 const InstanceMaterial = struct {
     heightmap_index: u32,
+    splatmap_index: u32,
 };
 
 const max_instances = 100;
@@ -86,8 +87,9 @@ const QuadTreeNode = struct {
     child_indices: [4]u32,
     mesh_lod: u32,
     patch_index: [2]u32,
-    // TODO: Do not store this here when we implement streaming
+    // TODO: Do not store these here when we implement streaming
     heightmap_handle: gfx.TextureHandle,
+    splatmap_handle: gfx.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
         return !(point[0] < (self.center[0] - self.size[0]) or
@@ -268,7 +270,10 @@ fn loadMesh(
 // NOTE(gmodarelli) This should live inside gfx_d3d12.zig or texture.zig
 // NOTE(gmodarelli) The caller must release the IFormatConverter
 // eg. image_conv.Release();
-fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatConverter {
+fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
+    image: *wic.IFormatConverter,
+    format: dxgi.FORMAT,
+} {
     var path_u16: [300]u16 = undefined;
     assert(path.len < path_u16.len - 1);
     const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
@@ -324,8 +329,7 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatCon
     else
         &wic.GUID_PixelFormat32bppRGBA;
 
-    // const dxgi_format = if (num_components == 1) dxgi.FORMAT.R8_UNORM else dxgi.FORMAT.R8G8B8A8_UNORM;
-    assert(num_components == 1);
+    const dxgi_format = if (num_components == 1) dxgi.FORMAT.R8_UNORM else dxgi.FORMAT.R8G8B8A8_UNORM;
 
     const image_conv = blk: {
         var maybe_image_conv: ?*wic.IFormatConverter = null;
@@ -342,7 +346,198 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatCon
         .Custom,
     ));
 
-    return image_conv;
+    return .{ .image = image_conv, .format = dxgi_format };
+}
+
+fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_size: u64, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT) !*d3d12.IResource {
+    assert(gfxstate.gctx.is_cmdlist_opened);
+
+    var resource: *d3d12.IResource = undefined;
+    const desc = desc_blk: {
+        var desc = d3d12.RESOURCE_DESC.initTex2d(
+            format,
+            width,
+            height,
+            1,
+        );
+        desc.Flags = .{};
+        break :desc_blk desc;
+    };
+
+    const descs = [_]d3d12.RESOURCE_DESC{desc};
+    const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    assert(heap_offset.* + allocation_info.SizeInBytes < heap_size);
+
+    hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
+        heap,
+        heap_offset.*,
+        &desc,
+        .{ .COPY_DEST = true },
+        null,
+        &d3d12.IID_IResource,
+        @ptrCast(*?*anyopaque, &resource),
+    ));
+
+    // NOTE(gmodarelli): The heap is aligned to 64KB and our textures are smaller than that
+    // TODO(gmodarelli): Use atlases so we don't wast as much space
+    heap_offset.* += allocation_info.SizeInBytes;
+
+    return resource;
+}
+
+fn uploadDataToTexture(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, data: *wic.IFormatConverter, state_after: d3d12.RESOURCE_STATES) !void {
+    assert(gfxstate.gctx.is_cmdlist_opened);
+
+    const desc = resource.GetDesc();
+
+    var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
+    var required_size: u64 = undefined;
+    gfxstate.gctx.device.GetCopyableFootprints(&desc, 0, 1, 0, &layout, null, null, &required_size);
+
+    const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+    layout[0].Offset = upload.buffer_offset;
+
+    hrPanicOnFail(data.CopyPixels(
+        null,
+        layout[0].Footprint.RowPitch,
+        layout[0].Footprint.RowPitch * layout[0].Footprint.Height,
+        upload.cpu_slice.ptr,
+    ));
+
+    gfxstate.gctx.cmdlist.CopyTextureRegion(&d3d12.TEXTURE_COPY_LOCATION{
+        .pResource = resource,
+        .Type = .SUBRESOURCE_INDEX,
+        .u = .{ .SubresourceIndex = 0 },
+    }, 0, 0, 0, &d3d12.TEXTURE_COPY_LOCATION{
+        .pResource = upload.buffer,
+        .Type = .PLACED_FOOTPRINT,
+        .u = .{ .PlacedFootprint = layout[0] },
+    }, null);
+
+    const barrier = d3d12.RESOURCE_BARRIER{
+        .Type = .TRANSITION,
+        .Flags = .{},
+        .u = .{
+            .Transition = .{
+                .pResource = resource,
+                .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                .StateBefore = .{ .COPY_DEST = true },
+                .StateAfter = state_after,
+            },
+        },
+    };
+    var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
+    gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
+}
+
+fn loadHeightAndSplatMaps(
+    gfxstate: *gfx.D3D12State,
+    textures_heap: *d3d12.IHeap,
+    heap_size: u64,
+    textures_heap_offset: *u64,
+    node: *QuadTreeNode,
+) !void {
+    var heightmap_namebuf: [256]u8 = undefined;
+    const heightmap_path = std.fmt.bufPrintZ(
+        heightmap_namebuf[0..heightmap_namebuf.len],
+        "content/patch/lod{}/heightmap_x{}_y{}.png",
+        .{
+            node.mesh_lod,
+            node.patch_index[0],
+            node.patch_index[1],
+        },
+    ) catch unreachable;
+    std.debug.print("Loading patch's heightmap: {s}\n", .{heightmap_path});
+
+    var splatmap_namebuf: [256]u8 = undefined;
+    const splatmap_path = std.fmt.bufPrintZ(
+        splatmap_namebuf[0..splatmap_namebuf.len],
+        "content/patch/splatmap/lod{}/heightmap_x{}_y{}.png",
+        .{
+            node.mesh_lod,
+            node.patch_index[0],
+            node.patch_index[1],
+        },
+    ) catch unreachable;
+    std.debug.print("Loading patch's splatmap: {s}\n", .{splatmap_path});
+
+    var heightmap_texture_data = loadTexture(&gfxstate.gctx, heightmap_path) catch unreachable;
+    defer _ = heightmap_texture_data.image.Release();
+    var splatmap_texture_data = loadTexture(&gfxstate.gctx, splatmap_path) catch unreachable;
+    defer _ = splatmap_texture_data.image.Release();
+
+    const heightmap_wh = blk: {
+        var width: u32 = undefined;
+        var height: u32 = undefined;
+        hrPanicOnFail(heightmap_texture_data.image.GetSize(&width, &height));
+        break :blk .{ .w = width, .h = height };
+    };
+
+    var heightmap_texture_resource = allocateTextureMemory(
+        gfxstate,
+        textures_heap,
+        heap_size,
+        textures_heap_offset,
+        heightmap_wh.w,
+        heightmap_wh.h,
+        heightmap_texture_data.format,
+    ) catch unreachable;
+
+    uploadDataToTexture(gfxstate, heightmap_texture_resource, heightmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
+
+    const splatmap_wh = blk: {
+        var width: u32 = undefined;
+        var splat: u32 = undefined;
+        hrPanicOnFail(splatmap_texture_data.image.GetSize(&width, &splat));
+        break :blk .{ .w = width, .h = splat };
+    };
+
+    var splatmap_texture_resource = allocateTextureMemory(
+        gfxstate,
+        textures_heap,
+        heap_size,
+        textures_heap_offset,
+        splatmap_wh.w,
+        splatmap_wh.h,
+        splatmap_texture_data.format,
+    ) catch unreachable;
+
+    uploadDataToTexture(gfxstate, splatmap_texture_resource, splatmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
+
+    const heightmap = blk: {
+        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+        gfxstate.gctx.device.CreateShaderResourceView(
+            heightmap_texture_resource,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        const t = Texture{
+            .resource = heightmap_texture_resource,
+            .persistent_descriptor = srv_allocation,
+        };
+
+        break :blk t;
+    };
+
+    const splatmap = blk: {
+        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+        gfxstate.gctx.device.CreateShaderResourceView(
+            splatmap_texture_resource,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        const t = Texture{
+            .resource = splatmap_texture_resource,
+            .persistent_descriptor = srv_allocation,
+        };
+
+        break :blk t;
+    };
+
+    node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+    node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);
 }
 
 fn loadResources(
@@ -365,132 +560,12 @@ fn loadResources(
         // TODO: Schedule the upload instead of uploading immediately
         gfxstate.gctx.beginFrame();
 
-        var namebuf: [256]u8 = undefined;
-
         var heap_desc = textures_heap.GetDesc();
 
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             var node = &quad_tree_nodes.items[i];
-
-            const namebufslice = std.fmt.bufPrintZ(
-                namebuf[0..namebuf.len],
-                "content/patch/lod{}/heightmap_x{}_y{}.png",
-                .{
-                    node.mesh_lod,
-                    node.patch_index[0],
-                    node.patch_index[1],
-                },
-            ) catch unreachable;
-
-            std.debug.print("Loading patch: {s}\n", .{namebufslice});
-            var texture_data = loadTexture(&gfxstate.gctx, namebufslice) catch unreachable;
-            defer _ = texture_data.Release();
-
-            const image_wh = blk: {
-                var width: u32 = undefined;
-                var height: u32 = undefined;
-                hrPanicOnFail(texture_data.GetSize(&width, &height));
-                break :blk .{ .w = width, .h = height };
-            };
-
-            // Place texture resource on the textures_heap
-            var texture_resource = blk: {
-                var resource: *d3d12.IResource = undefined;
-                const desc = desc_blk: {
-                    var desc = d3d12.RESOURCE_DESC.initTex2d(
-                        dxgi.FORMAT.R8_UNORM,
-                        image_wh.w,
-                        image_wh.h,
-                        1,
-                    );
-                    desc.Flags = .{};
-                    break :desc_blk desc;
-                };
-
-                const descs = [_]d3d12.RESOURCE_DESC{desc};
-                const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
-                assert(textures_heap_offset.* + allocation_info.SizeInBytes < heap_desc.SizeInBytes);
-
-                hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
-                    textures_heap,
-                    textures_heap_offset.*,
-                    &desc,
-                    .{ .COPY_DEST = true },
-                    null,
-                    &d3d12.IID_IResource,
-                    @ptrCast(*?*anyopaque, &resource),
-                ));
-
-                // NOTE(gmodarelli): The heap is aligned to 64KB and our textures are smaller than that
-                // TODO(gmodarelli): Use atlases so we don't wast as much space
-                textures_heap_offset.* += allocation_info.SizeInBytes;
-                break :blk resource;
-            };
-
-            // Upload texture data to the GPU
-            {
-                const desc = texture_resource.GetDesc();
-
-                var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
-                var required_size: u64 = undefined;
-                gfxstate.gctx.device.GetCopyableFootprints(&desc, 0, 1, 0, &layout, null, null, &required_size);
-
-                const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
-                layout[0].Offset = upload.buffer_offset;
-
-                hrPanicOnFail(texture_data.CopyPixels(
-                    null,
-                    layout[0].Footprint.RowPitch,
-                    layout[0].Footprint.RowPitch * layout[0].Footprint.Height,
-                    upload.cpu_slice.ptr,
-                ));
-
-                gfxstate.gctx.cmdlist.CopyTextureRegion(&d3d12.TEXTURE_COPY_LOCATION{
-                    .pResource = texture_resource,
-                    .Type = .SUBRESOURCE_INDEX,
-                    .u = .{ .SubresourceIndex = 0 },
-                }, 0, 0, 0, &d3d12.TEXTURE_COPY_LOCATION{
-                    .pResource = upload.buffer,
-                    .Type = .PLACED_FOOTPRINT,
-                    .u = .{ .PlacedFootprint = layout[0] },
-                }, null);
-            }
-
-            const texture = blk: {
-                const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-                gfxstate.gctx.device.CreateShaderResourceView(
-                    texture_resource,
-                    null,
-                    srv_allocation.cpu_handle,
-                );
-
-                // NOTE(gmodarelli): Our texture_resource is not handled by zd3d12.zig and so we can't
-                // use its addTransitionBarrier
-                const barrier = d3d12.RESOURCE_BARRIER{
-                    .Type = .TRANSITION,
-                    .Flags = .{},
-                    .u = .{
-                        .Transition = .{
-                            .pResource = texture_resource,
-                            .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
-                            .StateBefore = .{ .COPY_DEST = true },
-                            .StateAfter = d3d12.RESOURCE_STATES.GENERIC_READ,
-                        },
-                    },
-                };
-                var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
-                gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
-
-                const t = Texture{
-                    .resource = texture_resource,
-                    .persistent_descriptor = srv_allocation,
-                };
-
-                break :blk t;
-            };
-
-            node.heightmap_handle = gfxstate.texture_pool.addTexture(texture);
+            loadHeightAndSplatMaps(gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset, node) catch unreachable;
         }
 
         // TODO: Schedule the upload instead of uploading immediately
@@ -522,6 +597,7 @@ fn divideQuadTreeNode(
             .mesh_lod = node.mesh_lod - 1,
             .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
             .heightmap_handle = undefined,
+            .splatmap_handle = undefined,
         };
 
         node.child_indices[child_index] = @intCast(u32, nodes.items.len);
@@ -551,7 +627,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // NOTE(gmodarelli): We're currently loading 85 1-channel PNGs per sector, so we need roughly
     // 100MB of space.
     const heap_desc = d3d12.HEAP_DESC{
-        .SizeInBytes = 500 * 1024 * 1024,
+        .SizeInBytes = 700 * 1024 * 1024,
         .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
         .Alignment = 0, // 64KiB
         .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
@@ -580,6 +656,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
                     .mesh_lod = 3,
                     .patch_index = [2]u32{ patch_x, patch_y },
                     .heightmap_handle = undefined,
+                    .splatmap_handle = undefined,
                 });
             }
         }
@@ -596,6 +673,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
+
+    zmesh.init(arena);
+    defer zmesh.deinit();
 
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
@@ -822,9 +902,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const object_to_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
             state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
             // TODO: Generate from quad.patch_index
-            const texture = state.gfx.lookupTexture(quad.heightmap_handle);
+            const heightmap = state.gfx.lookupTexture(quad.heightmap_handle);
+            const splatmap = state.gfx.lookupTexture(quad.splatmap_handle);
             // TODO: Add splatmap and UV offset and tiling (for atlases)
-            state.instance_materials.append(.{ .heightmap_index = texture.?.persistent_descriptor.index }) catch unreachable;
+            state.instance_materials.append(.{
+                .heightmap_index = heightmap.?.persistent_descriptor.index,
+                .splatmap_index = splatmap.?.persistent_descriptor.index,
+            }) catch unreachable;
 
             const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
 

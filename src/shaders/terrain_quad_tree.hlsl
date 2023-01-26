@@ -48,6 +48,7 @@ struct InstanceTransform {
 
 struct InstanceMaterial {
     uint heightmap_index;
+    uint splatmap_index;
 };
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);

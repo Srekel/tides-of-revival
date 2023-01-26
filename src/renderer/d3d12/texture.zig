@@ -20,7 +20,7 @@ pub const TextureHandle = struct {
 };
 
 pub const TexturePool = struct {
-    const max_num_textures = 64 * 85; // TODO: Figure out how many we need as we go
+    const max_num_textures = 2 * 64 * 85; // TODO: Figure out how many we need as we go
 
     textures: []Texture,
     generations: []u16,
