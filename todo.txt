@@ -71,15 +71,18 @@
 
 🔥 anders steps 🔥
 -----------------
-🔵 ✅ create the world info entity
-🔵 ✅ add "reach other village" win condition
-🔵 ✅ offline generate terrain
-🔵 gamepad freefly camera
-🔵 splat map
-🔵 convert textures
+✅ create the world info entity
+✅ add "reach other village" win condition
+✅ offline generate terrain
+✅ exit flecs crash
+✅ gamepad freefly camera
+✅ splat map
 🔵 newsletter
+🔵 patch loading
+🔵 physics
+🔵 forest in offline generation
+🔵 cities in offline generation
 🔵 svn
-🔵 exit flecs crash
 
 
 🔥 promotion 🔥

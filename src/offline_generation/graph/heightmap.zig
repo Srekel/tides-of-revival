@@ -11,7 +11,7 @@ const graph_util = @import("util.zig");
 const getInputResult = graph_util.getInputResult;
 
 pub const HeightmapHeight = u16;
-pub const HEIGHTMAP_PATCH_QUERY_MAX = 32;
+pub const HEIGHTMAP_PATCH_QUERY_MAX = 128;
 
 fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
     const ptr_typeinfo = @typeInfo(ptr_type);
@@ -130,7 +130,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     var arrptr = alignedCast([*]HeightmapHeight, evictable_lru_value);
                     heightmap = arrptr[0..@intCast(u64, patch_size)];
                 } else {
-                    // std.debug.print("Cache miss for patch {}, {}\n", .{ patch_x, patch_y });
+                    std.debug.print("[HEIGHTMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_y });
                     heightmap = node.allocator.?.alloc(HeightmapHeight, @intCast(u64, patch_size)) catch unreachable;
                 }
 

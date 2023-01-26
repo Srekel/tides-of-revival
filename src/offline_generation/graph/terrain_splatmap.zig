@@ -85,7 +85,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
     var patch_y = patch_y_begin;
     while (patch_y < patch_y_end) : (patch_y += 1) {
-        std.debug.print("splatmap:row {}/{}\n", .{ patch_y, patch_y_end });
+        // std.debug.print("splatmap:row {}/{}\n", .{ patch_y, patch_y_end });
         var patch_x = patch_x_begin;
         while (patch_x < patch_x_end) : (patch_x += 1) {
             // var patch_y: u64 = patch_y_begin;
@@ -143,7 +143,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     var arrptr = alignedCast([*]SplatmapMaterial, evictable_lru_value);
                     splatmap = arrptr[0..@intCast(u64, patch_size)];
                 } else {
-                    // std.debug.print("Cache miss for patch {}, {}\n", .{ patch_x, patch_y });
+                    std.debug.print("[SPLATMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_y });
                     splatmap = node.allocator.?.alloc(SplatmapMaterial, @intCast(u64, patch_size)) catch unreachable;
                 }
 
@@ -157,7 +157,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         var height_sample = heightmap_patches.getHeight(world_sample_x, world_sample_y);
                         // std.debug.assert(height_sample * 127 < 255);
                         const chunked_height_sample = @intCast(SplatmapMaterial, height_sample / 16000);
-                        splatmap[x + y * patch_width] = 50 + 50 * chunked_height_sample;
+                        splatmap[x + y * patch_width] = 0 + 1 * chunked_height_sample;
                         // if (height_sample < 1000) {
                         //     splatmap[x + y * patch_width] = 50;
                         // } else {
@@ -220,7 +220,7 @@ pub const splatmapFunc = g.NodeFuncTemplate{
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Heightmap Patches") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{}} ** 12),
-    .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Splatmap") }}) //
+    .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Patches") }}) //
         ++ //
         ([_]g.NodeOutputTemplate{.{}} ** 15),
 };

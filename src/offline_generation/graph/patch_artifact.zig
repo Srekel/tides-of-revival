@@ -22,6 +22,9 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
     const world_width_input = node.getInputByString("World Width");
     const world_width = getInputResult(world_width_input, context).getUInt64();
 
+    const patch_element_byte_size_input = node.getInputByString("Patch Element Byte Size");
+    const patch_element_byte_size = getInputResult(patch_element_byte_size_input, context).getUInt64();
+
     const folder_input = node.getInputByString("Artifact Folder");
     const folder = getInputResult(folder_input, context).getStringConst(1);
 
@@ -57,13 +60,14 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
         std.fs.cwd().makeDir(folderbufslice) catch {};
 
         const lod_pixel_stride = std.math.pow(u32, 2, lod) / precision;
+        const image_bytes_per_component = @intCast(u32, patch_element_byte_size);
         var image = zstbi.Image{
             .data = context.frame_allocator.alloc(u8, artifact_patch_width * artifact_patch_width * 2 * 1) catch unreachable,
             .width = @intCast(u32, artifact_patch_width),
             .height = @intCast(u32, artifact_patch_width),
             .num_components = 1,
-            .bytes_per_component = 2,
-            .bytes_per_row = 2 * @intCast(u32, artifact_patch_width),
+            .bytes_per_component = image_bytes_per_component,
+            .bytes_per_row = image_bytes_per_component * @intCast(u32, artifact_patch_width),
             .is_hdr = false,
         };
         // defer image.deinit();
@@ -99,9 +103,12 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         unreachable;
                     }
 
-                    const data = res.success.getPtr(graph_heightmap.HeightmapOutputData, 1);
-                    break :patch_blk data;
+                    // const patches = res.success.getPtr(graph_heightmap.HeightmapOutputData, 1);
+                    const patches = res.success.getPtr(graph_util.PatchOutputData(u0), 1);
+                    break :patch_blk patches;
                 };
+
+                // _ = patches;
 
                 const lod_patch_count_per_side = std.math.pow(u32, 2, worst_lod - lod);
                 const lod_patch_width = worst_lod_width / lod_patch_count_per_side;
@@ -113,13 +120,22 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
                             var pixel_x: u32 = 0;
                             while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
-                                // TODO: Need to be float
                                 const world_x = @intCast(i64, hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
                                 const world_y = @intCast(i64, hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride);
-                                const height = patches.getHeight(world_x, world_y);
                                 const img_i = pixel_x + pixel_y * artifact_patch_width;
-                                image.data[img_i] = @intCast(u8, height >> 8);
-                                image.data[img_i + 1] = @intCast(u8, height & 0xFF);
+                                _ = switch (patch_element_byte_size) {
+                                    1 => {
+                                        const value = patches.getValueDynamic(world_x, world_y, u8);
+                                        image.data[img_i] = value;
+                                    },
+                                    2 => {
+                                        const value = patches.getValueDynamic(world_x, world_y, u16);
+
+                                        image.data[img_i] = @intCast(u8, value >> 8);
+                                        image.data[img_i + 1] = @intCast(u8, value & 0xFF);
+                                    },
+                                    else => unreachable,
+                                };
                             }
                         }
 
@@ -158,9 +174,11 @@ pub const patchArtifactFunc = g.NodeFuncTemplate{
     .version = 0,
     .func = &funcTemplatePatchArtifact,
     .inputs = ( //
-        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patches") }}) //
+        [_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patches") }}) //
         ++ //
-        [_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patch Width") }}) //
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patch Width") }}) //
+        ++ //
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patch Element Byte Size") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Artifact Patch Width") }}) //
         ++ //
@@ -170,7 +188,7 @@ pub const patchArtifactFunc = g.NodeFuncTemplate{
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Artifact Folder") }}) //
         ++ //
-        ([_]g.NodeInputTemplate{.{}} ** 10),
+        ([_]g.NodeInputTemplate{.{}} ** 9),
     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Patch Artifacts") }}) //
         ++ //
         ([_]g.NodeOutputTemplate{.{}} ** 15),

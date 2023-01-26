@@ -193,7 +193,7 @@ pub fn generate() void {
             .name = IdLocal.init("Splatmap"),
             .template = splatmapNodeTemplate,
             .allocator = std.heap.page_allocator,
-            .output_artifacts = true,
+            .output_artifacts = false,
         };
         node.init();
 
@@ -202,6 +202,7 @@ pub fn generate() void {
         // node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
+        node.getOutput(IdLocal.init("Patches")).reference = IdLocal.init("splatmapPatches");
 
         break :blk node;
     };
@@ -218,6 +219,7 @@ pub fn generate() void {
 
         node.getInput(IdLocal.init("Patches")).reference = IdLocal.init("heightmapPatches");
         node.getInput(IdLocal.init("Patch Width")).reference = IdLocal.init("heightmapPatchWidth");
+        node.getInput(IdLocal.init("Patch Element Byte Size")).value = v.Variant.createUInt64(2);
         node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
@@ -237,9 +239,11 @@ pub fn generate() void {
 
         node.getInput(IdLocal.init("Patches")).reference = IdLocal.init("splatmapPatches");
         node.getInput(IdLocal.init("Patch Width")).reference = IdLocal.init("heightmapPatchWidth");
+        node.getInput(IdLocal.init("Patch Element Byte Size")).value = v.Variant.createUInt64(1);
         node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
+        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed("patch/splatmap", 1);
 
         break :blk node;
     };
@@ -291,15 +295,16 @@ pub fn generate() void {
     graph.nodes.append(artifactPatchWidthNode) catch unreachable;
     graph.nodes.append(worldWidthNode) catch unreachable;
     graph.nodes.append(heightmapNode) catch unreachable;
-    // graph.nodes.append(splatmapNode) catch unreachable;
+    graph.nodes.append(splatmapNode) catch unreachable;
     graph.nodes.append(cityNode) catch unreachable;
-    graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
-    // graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
+    // graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
+    graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(pcgNode) catch unreachable;
     // graph.nodes.append(addNode) catch unreachable;
-    _ = splatmapNode;
+    // _ = splatmapNode;
     // _ = cityNode;
-    _ = splatmapPatchArtifactNode;
+    // _ = splatmapPatchArtifactNode;
+    _ = heightmapPatchArtifactNode;
 
     std.debug.print("Graph:", .{});
     graph.connect();
