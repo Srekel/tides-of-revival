@@ -279,14 +279,6 @@ pub fn run() void {
     );
     defer camera_system.destroy(camera_sys);
 
-    var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
-        IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-    );
-    defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
-
     var procmesh_sys = try procmesh_system.create(
         IdLocal.initFormat("procmesh_system_{}", .{0}),
         std.heap.page_allocator,
