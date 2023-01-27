@@ -51,6 +51,7 @@ const Vertex = struct {
     position: [3]f32,
     normal: [3]f32,
     uv: [2]f32,
+    tangent: [4]f32,
 };
 
 const InstanceTransform = struct {
@@ -234,8 +235,104 @@ fn loadMesh(
                     .position = positions.items[position_index],
                     .normal = normals.items[normal_index],
                     .uv = uvs.items[uv_index],
+                    .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
                 }) catch unreachable;
             }
+        }
+    }
+
+    // Calculate tangents for every vertex
+    {
+        var tangents = std.ArrayList([3]f32).init(arena);
+        tangents.resize(vertices.items.len) catch unreachable;
+        var bitangents = std.ArrayList([3]f32).init(arena);
+        bitangents.resize(vertices.items.len) catch unreachable;
+
+        var i: u32 = 0;
+        while (i < tangents.items.len) : (i += 1) {
+            var t = &tangents.items[i];
+            t[0] = 0.0;
+            t[1] = 0.0;
+            t[2] = 0.0;
+
+            var b = &bitangents.items[i];
+            b[0] = 0.0;
+            b[1] = 0.0;
+            b[2] = 0.0;
+        }
+
+        var index: u32 = 0;
+        while (index < indices.items.len) : (index += 3) {
+            const vertex_0 = vertices.items[indices.items[index + 0]];
+            const vertex_1 = vertices.items[indices.items[index + 1]];
+            const vertex_2 = vertices.items[indices.items[index + 2]];
+
+            var p0 = zm.loadArr3(vertex_0.position);
+            var p1 = zm.loadArr3(vertex_1.position);
+            var p2 = zm.loadArr3(vertex_2.position);
+
+            var e1 = p1 - p0;
+            var e2 = p2 - p0;
+            const x1 = vertex_1.uv[0] - vertex_0.uv[0];
+            const x2 = vertex_2.uv[0] - vertex_0.uv[0];
+            const y1 = vertex_1.uv[1] - vertex_0.uv[1];
+            const y2 = vertex_2.uv[1] - vertex_0.uv[1];
+            const vec_x1 = zm.Vec{ x1, x1, x1, 0.0 };
+            const vec_x2 = zm.Vec{ x2, x2, x2, 0.0 };
+            const vec_y1 = zm.Vec{ y1, y1, y1, 0.0 };
+            const vec_y2 = zm.Vec{ y2, y2, y2, 0.0 };
+
+            const r = 1.0 / (x1 * y2 - x2 * y1);
+            const vec_r = zm.Vec{ r, r, r, 0.0 };
+            var tangent = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&tangent, (e1 * vec_y2 - e2 * vec_y1) * vec_r);
+            var bitangent = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&bitangent, (e2 * vec_x1 - e1 * vec_x2) * vec_r);
+
+            tangents.items[indices.items[index + 0]][0] += tangent[0];
+            tangents.items[indices.items[index + 0]][1] += tangent[1];
+            tangents.items[indices.items[index + 0]][2] += tangent[2];
+
+            tangents.items[indices.items[index + 1]][0] += tangent[0];
+            tangents.items[indices.items[index + 1]][1] += tangent[1];
+            tangents.items[indices.items[index + 1]][2] += tangent[2];
+
+            tangents.items[indices.items[index + 2]][0] += tangent[0];
+            tangents.items[indices.items[index + 2]][1] += tangent[1];
+            tangents.items[indices.items[index + 2]][2] += tangent[2];
+
+            bitangents.items[indices.items[index + 0]][0] += bitangent[0];
+            bitangents.items[indices.items[index + 0]][1] += bitangent[1];
+            bitangents.items[indices.items[index + 0]][2] += bitangent[2];
+
+            bitangents.items[indices.items[index + 1]][0] += bitangent[0];
+            bitangents.items[indices.items[index + 1]][1] += bitangent[1];
+            bitangents.items[indices.items[index + 1]][2] += bitangent[2];
+
+            bitangents.items[indices.items[index + 2]][0] += bitangent[0];
+            bitangents.items[indices.items[index + 2]][1] += bitangent[1];
+            bitangents.items[indices.items[index + 2]][2] += bitangent[2];
+        }
+
+        var vi: u32 = 0;
+        while (vi < vertices.items.len) : (vi += 1) {
+            var vertex = &vertices.items[vi];
+
+            const tangent = zm.loadArr3(tangents.items[vi]);
+            const binormal = zm.loadArr3(tangents.items[vi]);
+            const normal = zm.normalize3(zm.loadArr3(vertex.normal));
+
+            const reject = tangent - zm.dot3(tangent, normal) * normal;
+            var new_tangent = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&new_tangent, zm.normalize3(reject));
+            var result = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&result, zm.dot3(zm.cross3(tangent, binormal), normal));
+            var handedness: f32 = if (result[0] > 0.0) 1.0 else -1.0;
+
+            vertex.tangent[0] = new_tangent[0];
+            vertex.tangent[1] = new_tangent[1];
+            vertex.tangent[2] = new_tangent[2];
+            vertex.tangent[3] = handedness;
         }
     }
 
