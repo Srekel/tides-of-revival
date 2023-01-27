@@ -100,22 +100,16 @@ static const float2 texel = 1.0f / float2(65.0f, 65.0f);
 
 [RootSignature(ROOT_SIGNATURE)]
 void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics*/, out float4 out_color : SV_Target0) {
-    float3 base_colors[5] = {
-        float3(0.0, 0.1, 0.7),
-        float3(1.0, 1.0, 0.0),
-        float3(0.3, 0.8, 0.2),
-        float3(0.7, 0.7, 0.7),
-        float3(0.95, 0.95, 0.95),
-    };
+    uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
+    ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
+    InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
 
+    // TODO: Compute TBN matrix
     float3 normal = normalize(input.normal);
 
     // Derive normals from the heightmap 
     // https://www.shadertoy.com/view/3sSSW1
     {
-        uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
-        ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
-        InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
         Texture2D heightmap = ResourceDescriptorHeap[material.heightmap_index];
 
         float height = heightmap.Sample(sam_linear_clamp, input.uv).r;
@@ -127,11 +121,12 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
         normal = normalize(float3(n.xy, 1.0));
     }
 
-    float3 base_color = base_colors[0];
-    base_color = lerp(base_color, base_colors[1], step(0.005, input.position.y * 0.01));
-    base_color = lerp(base_color, base_colors[2], step(0.02, input.position.y * 0.01));
-    base_color = lerp(base_color, base_colors[3], step(1.0, input.position.y * 0.01 + 0.5 * (1.0 - dot(normal, float3(0.0, 1.0, 0.0))) ));
-    base_color = lerp(base_color, base_colors[4], step(3.5, input.position.y * 0.01 + 1.5 * dot(normal, float3(0.0, 1.0, 0.0)) ));
+    // - dirt
+    // - grass
+    // - rock
+    // - snow
+    Texture2D splatmap = ResourceDescriptorHeap[material.splatmap_index];
+    float3 base_color = splatmap.Sample(sam_linear_clamp, input.uv).rrr * 10.0f;
 
     PBRInput pbrInput;
     pbrInput.view_position = cbv_frame_const.camera_position;
