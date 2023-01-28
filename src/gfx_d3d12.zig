@@ -5,6 +5,7 @@ const zwin32 = @import("zwin32");
 const w32 = zwin32.base;
 const d2d1 = zwin32.d2d1;
 const d3d12 = zwin32.d3d12;
+const dxgi = zwin32.dxgi;
 const dwrite = zwin32.dwrite;
 const hrPanic = zwin32.hrPanic;
 const hrPanicOnFail = zwin32.hrPanicOnFail;
@@ -544,6 +545,7 @@ pub fn draw(state: *D3D12State) void {
         }
 
         // GPU timings
+
         var i: u32 = 0;
         var line_height: f32 = 14.0;
         var vertical_offset: f32 = 36.0;
@@ -554,6 +556,32 @@ pub fn draw(state: *D3D12State) void {
                 buffer[0..],
                 "{s}: {d:.3} ms",
                 .{ frame_profile_data.name, frame_profile_data.avg_time },
+            ) catch unreachable;
+
+            drawText(
+                gctx.d2d.?.context,
+                text,
+                state.stats_text_format,
+                &d2d1.RECT_F{
+                    .left = 0.0,
+                    .top = @intToFloat(f32, i) * line_height + vertical_offset,
+                    .right = @intToFloat(f32, gctx.viewport_width),
+                    .bottom = @intToFloat(f32, gctx.viewport_height),
+                },
+                @ptrCast(*d2d1.IBrush, state.stats_brush),
+            );
+        }
+
+        // GPU Memory
+        // Collect memory usage stats
+        var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
+        hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
+        {
+            var buffer = [_]u8{0} ** 256;
+            const text = std.fmt.bufPrint(
+                buffer[0..],
+                "GPU Memory: {d}/{d} MB",
+                .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
             ) catch unreachable;
 
             drawText(

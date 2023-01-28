@@ -47,7 +47,8 @@ float3 pointLight(float3 light_position, float4 light_data, float3 position, flo
     float attenuation_nik = (1.0 - attenuation_nik_s2) * (1.0 - attenuation_nik_s2) / (1.0 + 5.0 * attenuation_nik_s2);
     float attenuation = attenuation_nik;
     float variance = 1.0 + 0.2 * sin(time * 1.7);
-    float3 radiance = light_data.xyz * attenuation * variance;
+    // float3 radiance = light_data.xyz * attenuation * variance;
+    float3 radiance = light_data.xyz * attenuation;
 
     float3 f = fresnelSchlick(saturate(dot(h, v)), f0);
 
@@ -98,7 +99,8 @@ float3 pbrShading(float3 base_color, PBRInput input, float4 light_positions[MAX_
     }
 
     // TMP
-    float sun_height = sin(input.time * 0.5);
+    // float sun_height = sin(input.time * 0.5);
+    float sun_height = 1.0;
     float3 sun_color = float3(1.0, 0.914 * sun_height, 0.843 * sun_height * sun_height);
     float3 sun = max(0.0, sun_height) * 0.3 * base_color * (0.0 + saturate(dot(n, normalize(sun_color))));
     float3 sun2 = 0.5 * base_color * saturate(dot(n, normalize( float3(0.0, 1.0, 0.0))));
