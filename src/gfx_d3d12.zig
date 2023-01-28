@@ -2,7 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const zwin32 = @import("zwin32");
-const w32 = zwin32.base;
+const w32 = zwin32.w32;
 const d2d1 = zwin32.d2d1;
 const d3d12 = zwin32.d3d12;
 const dxgi = zwin32.dxgi;
@@ -240,15 +240,12 @@ pub const D3D12State = struct {
 };
 
 pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
-    _ = w32.ole32.CoInitializeEx(
-        null,
-        @enumToInt(w32.COINIT_APARTMENTTHREADED) | @enumToInt(w32.COINIT_DISABLE_OLE1DDE),
-    );
+    _ = w32.CoInitializeEx(null, w32.COINIT_APARTMENTTHREADED | w32.COINIT_DISABLE_OLE1DDE);
     _ = w32.SetProcessDPIAware();
 
     // Check if Windows version is supported.
     var version: w32.OSVERSIONINFOW = undefined;
-    _ = w32.ntdll.RtlGetVersion(&version);
+    _ = w32.RtlGetVersion(&version);
 
     var os_is_supported = false;
     if (version.dwMajorVersion > 10) {
@@ -257,15 +254,15 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         os_is_supported = true;
     }
 
-    const d3d12core_dll = w32.kernel32.LoadLibraryW(L("D3D12Core.dll"));
+    const d3d12core_dll = w32.LoadLibraryA("D3D12Core.dll");
     if (d3d12core_dll == null) {
         os_is_supported = false;
     } else {
-        _ = w32.kernel32.FreeLibrary(d3d12core_dll.?);
+        _ = w32.FreeLibrary(d3d12core_dll.?);
     }
 
     if (!os_is_supported) {
-        _ = w32.user32.messageBoxA(
+        _ = w32.MessageBoxA(
             null,
             \\This application can't run on currently installed version of Windows.
             \\Following versions are supported:
@@ -278,9 +275,9 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             \\Please update your Windows version and try again.
         ,
             "Error",
-            w32.user32.MB_OK | w32.user32.MB_ICONERROR,
-        ) catch 0;
-        w32.kernel32.ExitProcess(0);
+            w32.MB_OK | w32.MB_ICONERROR,
+        );
+        w32.ExitProcess(0);
     }
 
     // Change directory to where an executable is located.
@@ -289,23 +286,23 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     std.os.chdir(exe_path) catch {};
 
     // Check if 'd3d12' folder is present next to an executable.
-    const local_d3d12core_dll = w32.kernel32.LoadLibraryW(L("d3d12/D3D12Core.dll"));
+    const local_d3d12core_dll = w32.LoadLibraryA("d3d12/D3D12Core.dll");
     if (local_d3d12core_dll == null) {
-        _ = w32.user32.messageBoxA(
+        _ = w32.MessageBoxA(
             null,
             \\Looks like 'd3d12' folder is missing. It has to be distributed together with an application.
         ,
             "Error",
-            w32.user32.MB_OK | w32.user32.MB_ICONERROR,
-        ) catch 0;
-        w32.kernel32.ExitProcess(0);
+            w32.MB_OK | w32.MB_ICONERROR,
+        );
+        w32.ExitProcess(0);
     } else {
-        _ = w32.kernel32.FreeLibrary(local_d3d12core_dll.?);
+        _ = w32.FreeLibrary(local_d3d12core_dll.?);
     }
 
     var hwnd = zglfw.native.getWin32Window(window) catch unreachable;
 
-    var gctx = zd3d12.GraphicsContext.init(allocator, hwnd);
+    var gctx = zd3d12.GraphicsContext.init(allocator, @ptrCast(w32.HWND, hwnd));
     // Enable vsync.
     gctx.present_flags = .{ .ALLOW_TEARING = false };
     gctx.present_interval = 1;
@@ -455,7 +452,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 }
 
 pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
-    w32.ole32.CoUninitialize();
+    w32.CoUninitialize();
 
     self.gctx.finishGpuCommands();
     self.gpu_profiler.deinit();
