@@ -139,18 +139,6 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
 
     Texture2D splatmap = ResourceDescriptorHeap[instance.splatmap_index];
     uint splatmap_index = uint(splatmap.Sample(sam_linear_clamp, input.uv).r * 255); 
-    // - dirt
-    // - grass
-    // - rock
-    // - snow
-    // float3 layers[4] = {
-    //     float3(194.0 / 255.0, 183 / 255.0, 165 / 255.0),
-    //     float3(116.0 / 255.0, 199 / 255.0, 109 / 255.0),
-    //     float3(92.0 / 255.0, 80 / 255.0, 84 / 255.0),
-    //     float3(1.0, 1.0, 1.0)
-    // };
-    // float3 base_color = splatmap.Sample(sam_linear_clamp, input.uv).rrr * 10.0f;
-    // float3 base_color = layers[splatmap_index];
 
     ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[cbv_draw_const.terrain_layers_buffer_index];
     TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(splatmap_index * sizeof(TerrainLayerTextureIndices));
@@ -159,7 +147,7 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     Texture2D arm_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.arm_index)];
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
     float2 world_space_uv = input.position.xz * 0.05;
-    float3 base_color = pow(diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb, 1.0 / 2.2);
+    float3 base_color = pow(diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb, GAMMA);
     float3 n = normalize(normal_texture.Sample(sam_linear_wrap, world_space_uv).rgb * 2.0 - 1.0);
     n = mul(n, TBN);
     n = normalize(mul(n, (float3x3)instance.object_to_world));
@@ -174,7 +162,7 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
 
     float3 color = pbrShading(base_color, pbrInput, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
     color = gammaCorrect(color);
-    out_color.rgb = (n * 0.5 + 0.5);
+    out_color.rgb = color;
     out_color.a = 1;
  
     // TODO: Pass a flag to the shader to control if we want to 

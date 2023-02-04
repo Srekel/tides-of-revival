@@ -458,6 +458,73 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     return .{ .image = image_conv, .format = dxgi_format };
 }
 
+fn createDDSTextureFromFile(
+    path: []const u8,
+    arena: std.mem.Allocator,
+    gfxstate: *gfx.D3D12State,
+    heap: *d3d12.IHeap,
+    heap_size: u64,
+    heap_offset: *u64,
+) !gfx.Texture {
+    // Generate Path
+    std.log.debug("Creating texture from DDS {s}", .{path});
+
+    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+    // having the data from the first uploaded texture :(
+    gfxstate.gctx.beginFrame();
+
+    // Load DDS data into D3D12_SUBRESOURCE_DATA
+    var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
+    const dds_info = dds_loader.loadTextureFromFile(path, arena, &subresources) catch unreachable;
+
+    // Create a texture and upload all its subresources to the GPU
+    const resource = blk: {
+        // Reserve space for the texture (subresources) from a pre-allocated HEAP
+        var resource = allocateTextureMemory(
+            gfxstate,
+            heap,
+            heap_size,
+            heap_offset,
+            dds_info.width,
+            dds_info.height,
+            dds_info.format,
+            dds_info.mip_map_count,
+        ) catch unreachable;
+
+        // Set a debug name
+        {
+            var path_u16: [300]u16 = undefined;
+            assert(path.len < path_u16.len - 1);
+            const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+            path_u16[path_len] = 0;
+            _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+        }
+
+        // Upload all subresources
+        uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
+
+        break :blk resource;
+    };
+
+    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+    // having the data from the first uploaded texture :(
+    gfxstate.gctx.endFrame();
+    gfxstate.gctx.finishGpuCommands();
+
+    // Create a persisten SRV descriptor for the texture
+    const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+    gfxstate.gctx.device.CreateShaderResourceView(
+        resource,
+        null,
+        srv_allocation.cpu_handle,
+    );
+
+    return gfx.Texture{
+        .resource = resource,
+        .persistent_descriptor = srv_allocation,
+    };
+}
+
 fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_size: u64, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
     assert(gfxstate.gctx.is_cmdlist_opened);
 
@@ -583,8 +650,8 @@ fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, sub
         while (row < num_rows[subresource_index]) : (row += 1) {
             // memcpy(pDestSlice + pDest->RowPitch * row, pSrcSlice + pSrc->RowPitch * row, RowSizeInBytes);
             @memcpy(
-                memcpy_dest.pData.? + memcpy_dest.SlicePitch + (memcpy_dest.RowPitch * row),
-                subresource.pData.? + subresource.SlicePitch + (subresource.RowPitch * row),
+                memcpy_dest.pData.? + (memcpy_dest.RowPitch * row),
+                subresource.pData.? + (subresource.RowPitch * row),
                 row_sizes_in_bytes[subresource_index],
             );
         }
@@ -641,56 +708,9 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        // Load DDS data into D3D12_SUBRESOURCE_DATA
-        var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
-        const dds_info = dds_loader.loadTextureFromFile(path, arena, &subresources) catch unreachable;
-
-        // Create a texture and upload all its subresources to the GPU
-        const resource = resource_blk: {
-            // Reserve space for the texture (subresources) from a pre-allocated HEAP
-            var resource = allocateTextureMemory(
-                gfxstate,
-                textures_heap,
-                heap_size,
-                textures_heap_offset,
-                dds_info.width,
-                dds_info.height,
-                dds_info.format,
-                dds_info.mip_map_count,
-            ) catch unreachable;
-
-            // Set a debug name
-            {
-                var path_u16: [300]u16 = undefined;
-                assert(path.len < path_u16.len - 1);
-                const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
-                path_u16[path_len] = 0;
-                _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
-            }
-
-            // Upload all subresources
-            uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
-
-            break :resource_blk resource;
-        };
-
-        // Create a persisten SRV descriptor for the texture
-        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-        gfxstate.gctx.device.CreateShaderResourceView(
-            resource,
-            null,
-            srv_allocation.cpu_handle,
-        );
-
-        const t = gfx.Texture{
-            .resource = resource,
-            .persistent_descriptor = srv_allocation,
-        };
-
-        break :blk t;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
     };
 
-    // TODO:(gmodarelli) Convert this main blk into a createTextureFromDDSFile function
     const normal = blk: {
         // Generate Path
         var namebuf: [256]u8 = undefined;
@@ -700,56 +720,9 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        // Load DDS data into D3D12_SUBRESOURCE_DATA
-        var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
-        const dds_info = dds_loader.loadTextureFromFile(path, arena, &subresources) catch unreachable;
-
-        // Create a texture and upload all its subresources to the GPU
-        const resource = resource_blk: {
-            // Reserve space for the texture (subresources) from a pre-allocated HEAP
-            var resource = allocateTextureMemory(
-                gfxstate,
-                textures_heap,
-                heap_size,
-                textures_heap_offset,
-                dds_info.width,
-                dds_info.height,
-                dds_info.format,
-                dds_info.mip_map_count,
-            ) catch unreachable;
-
-            // Set a debug name
-            {
-                var path_u16: [300]u16 = undefined;
-                assert(path.len < path_u16.len - 1);
-                const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
-                path_u16[path_len] = 0;
-                _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
-            }
-
-            // Upload all subresources
-            uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
-
-            break :resource_blk resource;
-        };
-
-        // Create a persisten SRV descriptor for the texture
-        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-        gfxstate.gctx.device.CreateShaderResourceView(
-            resource,
-            null,
-            srv_allocation.cpu_handle,
-        );
-
-        const t = gfx.Texture{
-            .resource = resource,
-            .persistent_descriptor = srv_allocation,
-        };
-
-        break :blk t;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
     };
 
-    // TODO:(gmodarelli) Convert this main blk into a createTextureFromDDSFile function
     const arm = blk: {
         // Generate Path
         var namebuf: [256]u8 = undefined;
@@ -759,53 +732,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        // Load DDS data into D3D12_SUBRESOURCE_DATA
-        var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
-        const dds_info = dds_loader.loadTextureFromFile(path, arena, &subresources) catch unreachable;
-
-        // Create a texture and upload all its subresources to the GPU
-        const resource = resource_blk: {
-            // Reserve space for the texture (subresources) from a pre-allocated HEAP
-            var resource = allocateTextureMemory(
-                gfxstate,
-                textures_heap,
-                heap_size,
-                textures_heap_offset,
-                dds_info.width,
-                dds_info.height,
-                dds_info.format,
-                dds_info.mip_map_count,
-            ) catch unreachable;
-
-            // Set a debug name
-            {
-                var path_u16: [300]u16 = undefined;
-                assert(path.len < path_u16.len - 1);
-                const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
-                path_u16[path_len] = 0;
-                _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
-            }
-
-            // Upload all subresources
-            uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
-
-            break :resource_blk resource;
-        };
-
-        // Create a persisten SRV descriptor for the texture
-        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-        gfxstate.gctx.device.CreateShaderResourceView(
-            resource,
-            null,
-            srv_allocation.cpu_handle,
-        );
-
-        const t = gfx.Texture{
-            .resource = resource,
-            .persistent_descriptor = srv_allocation,
-        };
-
-        break :blk t;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
     };
 
     return .{
@@ -943,9 +870,6 @@ fn loadResources(
 
     var heap_desc = textures_heap.GetDesc();
 
-    // TODO: Schedule the upload instead of uploading immediately
-    gfxstate.gctx.beginFrame();
-
     // Load terrain layers textures
     {
         var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -968,6 +892,8 @@ fn loadResources(
         terrain_layers.append(snow) catch unreachable;
     }
 
+    // TODO: Schedule the upload instead of uploading immediately
+    gfxstate.gctx.beginFrame();
     // Load all LOD's heightmaps
     {
         var i: u32 = 0;
