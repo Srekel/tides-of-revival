@@ -7,3 +7,6 @@ src/shaders/compiled/*.cso
 content/heightmap/*
 content/audio/*
 content/patch
+.svn
+design
+content/content.csv
