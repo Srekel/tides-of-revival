@@ -188,11 +188,6 @@ fn loadMesh(
         .num_vertices = 0,
     };
 
-    // var unique_indices_map = std.StringHashMap(u32).init(allocator);
-    var unique_indices_map = std.HashMap([]const u8, u32, std.hash_map.StringContext, 80).init(allocator);
-    try unique_indices_map.ensureTotalCapacity(10 * 1024);
-    defer unique_indices_map.deinit();
-
     var indices = std.ArrayList(IndexType).init(arena);
     var vertices = std.ArrayList(Vertex).init(arena);
 
