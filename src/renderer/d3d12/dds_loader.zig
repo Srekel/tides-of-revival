@@ -66,10 +66,10 @@ pub const DdsImageInfo = struct {
     width: u32,
     height: u32,
     depth: u32,
-    arraySize: u32,
+    array_size: u32,
     mip_map_count: u32,
     format: dxgi.FORMAT,
-    resourceDimension: d3d12.RESOURCE_DIMENSION,
+    resource_dimension: d3d12.RESOURCE_DIMENSION,
 };
 
 pub fn loadTextureFromFile(
@@ -125,24 +125,24 @@ pub fn loadTextureFromFile(
     try reader.readNoEof(data);
 
     var format = dxgi.FORMAT.UNKNOWN;
-    var arraySize: u32 = 1;
+    var array_size: u32 = 1;
     var depth: u32 = 1;
-    var resourceDimension = d3d12.RESOURCE_DIMENSION.TEXTURE2D;
+    var resource_dimension = d3d12.RESOURCE_DIMENSION.TEXTURE2D;
 
     // NOTE(gmodarelli): We're only supporting 2D Textures
     if (has_dx10_extension) {
         assert(dx10.arraySize != 0);
 
-        arraySize = dx10.arraySize;
+        array_size = dx10.arraySize;
         depth = 1;
         format = getDXGIFormatFromDX10(dx10);
     } else {
-        arraySize = 1;
+        array_size = 1;
         depth = 1;
         format = getDXGIFormat(header.ddspf);
     }
 
-    // TODO(gmodarelli): Take into account arraySize and planes
+    // TODO(gmodarelli): Take into account array_size and planes
     var total_width: u32 = 0;
     var total_height: u32 = 0;
     var total_depth: u32 = 0;
@@ -200,9 +200,9 @@ pub fn loadTextureFromFile(
         .width = header.dwWidth,
         .height = header.dwHeight,
         .depth = depth,
-        .arraySize = arraySize,
+        .array_size = array_size,
         .mip_map_count = header.dwMipMapCount,
-        .resourceDimension = resourceDimension,
+        .resource_dimension = resource_dimension,
         .format = format,
     };
 }
