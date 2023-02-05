@@ -97,7 +97,6 @@ float3 pbrShading(float3 base_color, PBRInput input, float4 light_positions[MAX_
         lo += lightContrib;
     }
 
-    // TMP
     float sun_height = sin(input.time * 0.5);
     float3 sun_color = float3(1.0, 0.914 * sun_height, 0.843 * sun_height * sun_height);
     float3 sun = max(0.0, sun_height) * 0.3 * base_color * (0.0 + saturate(dot(n, normalize(sun_color))));

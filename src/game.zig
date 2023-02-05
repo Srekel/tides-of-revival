@@ -288,15 +288,23 @@ pub fn run() void {
     );
     defer procmesh_system.destroy(procmesh_sys);
 
-    var terrain_sys = try terrain_system.create(
-        IdLocal.init("terrain_system"),
-        std.heap.c_allocator,
+    var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
+        IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
+        std.heap.page_allocator,
         &gfx_state,
         &flecs_world,
-        physics_sys.physics_world,
-        terrain_noise,
     );
-    defer terrain_system.destroy(terrain_sys);
+    defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
+
+    // var terrain_sys = try terrain_system.create(
+    //     IdLocal.init("terrain_system"),
+    //     std.heap.c_allocator,
+    //     &gfx_state,
+    //     &flecs_world,
+    //     physics_sys.physics_world,
+    //     terrain_noise,
+    // );
+    // defer terrain_system.destroy(terrain_sys);
 
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,

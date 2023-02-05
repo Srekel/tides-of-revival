@@ -12,12 +12,13 @@ const config = @import("../config.zig");
 const gfx = @import("../gfx_d3d12.zig");
 const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
-const w32 = zwin32.base;
+const w32 = zwin32.w32;
 const dxgi = zwin32.dxgi;
 const wic = zwin32.wic;
 const hrPanic = zwin32.hrPanic;
 const hrPanicOnFail = zwin32.hrPanicOnFail;
 const d3d12 = zwin32.d3d12;
+const dds_loader = @import("../renderer/d3d12/dds_loader.zig");
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
@@ -25,7 +26,18 @@ const IndexType = u32;
 
 const zmesh = @import("zmesh");
 
-const Texture = gfx.Texture;
+const TerrainLayer = struct {
+    diffuse: gfx.TextureHandle,
+    normal: gfx.TextureHandle,
+    arm: gfx.TextureHandle,
+};
+
+const TerrainLayerTextureIndices = extern struct {
+    diffuse_index: u32,
+    normal_index: u32,
+    arm_index: u32,
+    padding: u32,
+};
 
 const FrameUniforms = extern struct {
     world_to_clip: zm.Mat,
@@ -43,22 +55,23 @@ const DrawUniforms = struct {
     start_instance_location: u32,
     vertex_offset: i32,
     vertex_buffer_index: u32,
-    instance_transform_buffer_index: u32,
-    instance_material_buffer_index: u32,
+    instance_data_buffer_index: u32,
+    terrain_layers_buffer_index: u32,
 };
 
 const Vertex = struct {
     position: [3]f32,
     normal: [3]f32,
     uv: [2]f32,
+    tangent: [4]f32,
 };
 
-const InstanceTransform = struct {
+const InstanceData = struct {
     object_to_world: zm.Mat,
-};
-
-const InstanceMaterial = struct {
     heightmap_index: u32,
+    splatmap_index: u32,
+    padding1: u32,
+    padding2: u32,
 };
 
 const max_instances = 100;
@@ -86,8 +99,9 @@ const QuadTreeNode = struct {
     child_indices: [4]u32,
     mesh_lod: u32,
     patch_index: [2]u32,
-    // TODO: Do not store this here when we implement streaming
+    // TODO: Do not store these here when we implement streaming
     heightmap_handle: gfx.TextureHandle,
+    splatmap_handle: gfx.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
         return !(point[0] < (self.center[0] - self.size[0]) or
@@ -124,10 +138,9 @@ const SystemState = struct {
 
     vertex_buffer: gfx.BufferHandle,
     index_buffer: gfx.BufferHandle,
-    instance_transform_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
-    instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
-    instance_transforms: std.ArrayList(InstanceTransform),
-    instance_materials: std.ArrayList(InstanceMaterial),
+    terrain_layers_buffer: gfx.BufferHandle,
+    instance_data_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
+    instance_data: std.ArrayList(InstanceData),
     draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
@@ -174,11 +187,6 @@ fn loadMesh(
         .num_indices = 0,
         .num_vertices = 0,
     };
-
-    // var unique_indices_map = std.StringHashMap(u32).init(allocator);
-    var unique_indices_map = std.HashMap([]const u8, u32, std.hash_map.StringContext, 80).init(allocator);
-    try unique_indices_map.ensureTotalCapacity(10 * 1024);
-    defer unique_indices_map.deinit();
 
     var indices = std.ArrayList(IndexType).init(arena);
     var vertices = std.ArrayList(Vertex).init(arena);
@@ -232,8 +240,104 @@ fn loadMesh(
                     .position = positions.items[position_index],
                     .normal = normals.items[normal_index],
                     .uv = uvs.items[uv_index],
+                    .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
                 }) catch unreachable;
             }
+        }
+    }
+
+    // Calculate tangents for every vertex
+    {
+        var tangents = std.ArrayList([3]f32).init(arena);
+        tangents.resize(vertices.items.len) catch unreachable;
+        var bitangents = std.ArrayList([3]f32).init(arena);
+        bitangents.resize(vertices.items.len) catch unreachable;
+
+        var i: u32 = 0;
+        while (i < tangents.items.len) : (i += 1) {
+            var t = &tangents.items[i];
+            t[0] = 0.0;
+            t[1] = 0.0;
+            t[2] = 0.0;
+
+            var b = &bitangents.items[i];
+            b[0] = 0.0;
+            b[1] = 0.0;
+            b[2] = 0.0;
+        }
+
+        var index: u32 = 0;
+        while (index < indices.items.len) : (index += 3) {
+            const vertex_0 = vertices.items[indices.items[index + 0]];
+            const vertex_1 = vertices.items[indices.items[index + 1]];
+            const vertex_2 = vertices.items[indices.items[index + 2]];
+
+            var p0 = zm.loadArr3(vertex_0.position);
+            var p1 = zm.loadArr3(vertex_1.position);
+            var p2 = zm.loadArr3(vertex_2.position);
+
+            var e1 = p1 - p0;
+            var e2 = p2 - p0;
+            const x1 = vertex_1.uv[0] - vertex_0.uv[0];
+            const x2 = vertex_2.uv[0] - vertex_0.uv[0];
+            const y1 = vertex_1.uv[1] - vertex_0.uv[1];
+            const y2 = vertex_2.uv[1] - vertex_0.uv[1];
+            const vec_x1 = zm.Vec{ x1, x1, x1, 0.0 };
+            const vec_x2 = zm.Vec{ x2, x2, x2, 0.0 };
+            const vec_y1 = zm.Vec{ y1, y1, y1, 0.0 };
+            const vec_y2 = zm.Vec{ y2, y2, y2, 0.0 };
+
+            const r = 1.0 / (x1 * y2 - x2 * y1);
+            const vec_r = zm.Vec{ r, r, r, 0.0 };
+            var tangent = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&tangent, (e1 * vec_y2 - e2 * vec_y1) * vec_r);
+            var bitangent = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&bitangent, (e2 * vec_x1 - e1 * vec_x2) * vec_r);
+
+            tangents.items[indices.items[index + 0]][0] += tangent[0];
+            tangents.items[indices.items[index + 0]][1] += tangent[1];
+            tangents.items[indices.items[index + 0]][2] += tangent[2];
+
+            tangents.items[indices.items[index + 1]][0] += tangent[0];
+            tangents.items[indices.items[index + 1]][1] += tangent[1];
+            tangents.items[indices.items[index + 1]][2] += tangent[2];
+
+            tangents.items[indices.items[index + 2]][0] += tangent[0];
+            tangents.items[indices.items[index + 2]][1] += tangent[1];
+            tangents.items[indices.items[index + 2]][2] += tangent[2];
+
+            bitangents.items[indices.items[index + 0]][0] += bitangent[0];
+            bitangents.items[indices.items[index + 0]][1] += bitangent[1];
+            bitangents.items[indices.items[index + 0]][2] += bitangent[2];
+
+            bitangents.items[indices.items[index + 1]][0] += bitangent[0];
+            bitangents.items[indices.items[index + 1]][1] += bitangent[1];
+            bitangents.items[indices.items[index + 1]][2] += bitangent[2];
+
+            bitangents.items[indices.items[index + 2]][0] += bitangent[0];
+            bitangents.items[indices.items[index + 2]][1] += bitangent[1];
+            bitangents.items[indices.items[index + 2]][2] += bitangent[2];
+        }
+
+        var vi: u32 = 0;
+        while (vi < vertices.items.len) : (vi += 1) {
+            var vertex = &vertices.items[vi];
+
+            const tangent = zm.loadArr3(tangents.items[vi]);
+            const binormal = zm.loadArr3(tangents.items[vi]);
+            const normal = zm.normalize3(zm.loadArr3(vertex.normal));
+
+            const reject = tangent - zm.dot3(tangent, normal) * normal;
+            var new_tangent = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&new_tangent, zm.normalize3(reject));
+            var result = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&result, zm.dot3(zm.cross3(tangent, binormal), normal));
+            var handedness: f32 = if (result[0] > 0.0) 1.0 else -1.0;
+
+            vertex.tangent[0] = new_tangent[0];
+            vertex.tangent[1] = new_tangent[1];
+            vertex.tangent[2] = new_tangent[2];
+            vertex.tangent[3] = handedness;
         }
     }
 
@@ -268,7 +372,10 @@ fn loadMesh(
 // NOTE(gmodarelli) This should live inside gfx_d3d12.zig or texture.zig
 // NOTE(gmodarelli) The caller must release the IFormatConverter
 // eg. image_conv.Release();
-fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatConverter {
+fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
+    image: *wic.IFormatConverter,
+    format: dxgi.FORMAT,
+} {
     var path_u16: [300]u16 = undefined;
     assert(path.len < path_u16.len - 1);
     const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
@@ -312,6 +419,7 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatCon
         if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppBGR))) break :blk 4;
         if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppBGRA))) break :blk 4;
         if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat32bppPBGRA))) break :blk 4;
+        if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat64bppRGBA))) break :blk 4;
 
         if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat8bppGray))) break :blk 1;
         if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat8bppAlpha))) break :blk 1;
@@ -324,8 +432,7 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatCon
     else
         &wic.GUID_PixelFormat32bppRGBA;
 
-    // const dxgi_format = if (num_components == 1) dxgi.FORMAT.R8_UNORM else dxgi.FORMAT.R8G8B8A8_UNORM;
-    assert(num_components == 1);
+    const dxgi_format = if (num_components == 1) dxgi.FORMAT.R8_UNORM else dxgi.FORMAT.R8G8B8A8_UNORM;
 
     const image_conv = blk: {
         var maybe_image_conv: ?*wic.IFormatConverter = null;
@@ -342,7 +449,400 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !*wic.IFormatCon
         .Custom,
     ));
 
-    return image_conv;
+    return .{ .image = image_conv, .format = dxgi_format };
+}
+
+fn createDDSTextureFromFile(
+    path: []const u8,
+    arena: std.mem.Allocator,
+    gfxstate: *gfx.D3D12State,
+    heap: *d3d12.IHeap,
+    heap_size: u64,
+    heap_offset: *u64,
+) !gfx.Texture {
+    // Generate Path
+    std.log.debug("Creating texture from DDS {s}", .{path});
+
+    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+    // having the data from the first uploaded texture :(
+    gfxstate.gctx.beginFrame();
+
+    // Load DDS data into D3D12_SUBRESOURCE_DATA
+    var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
+    const dds_info = dds_loader.loadTextureFromFile(path, arena, &subresources) catch unreachable;
+
+    // Create a texture and upload all its subresources to the GPU
+    const resource = blk: {
+        // Reserve space for the texture (subresources) from a pre-allocated HEAP
+        var resource = allocateTextureMemory(
+            gfxstate,
+            heap,
+            heap_size,
+            heap_offset,
+            dds_info.width,
+            dds_info.height,
+            dds_info.format,
+            dds_info.mip_map_count,
+        ) catch unreachable;
+
+        // Set a debug name
+        {
+            var path_u16: [300]u16 = undefined;
+            assert(path.len < path_u16.len - 1);
+            const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+            path_u16[path_len] = 0;
+            _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+        }
+
+        // Upload all subresources
+        uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
+
+        break :blk resource;
+    };
+
+    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+    // having the data from the first uploaded texture :(
+    gfxstate.gctx.endFrame();
+    gfxstate.gctx.finishGpuCommands();
+
+    // Create a persisten SRV descriptor for the texture
+    const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+    gfxstate.gctx.device.CreateShaderResourceView(
+        resource,
+        null,
+        srv_allocation.cpu_handle,
+    );
+
+    return gfx.Texture{
+        .resource = resource,
+        .persistent_descriptor = srv_allocation,
+    };
+}
+
+fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_size: u64, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
+    assert(gfxstate.gctx.is_cmdlist_opened);
+
+    var resource: *d3d12.IResource = undefined;
+    const desc = desc_blk: {
+        var desc = d3d12.RESOURCE_DESC.initTex2d(
+            format,
+            width,
+            height,
+            mip_count,
+        );
+        desc.Flags = .{};
+        break :desc_blk desc;
+    };
+
+    const descs = [_]d3d12.RESOURCE_DESC{desc};
+    const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    assert(heap_offset.* + allocation_info.SizeInBytes < heap_size);
+
+    hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
+        heap,
+        heap_offset.*,
+        &desc,
+        .{ .COPY_DEST = true },
+        null,
+        &d3d12.IID_IResource,
+        @ptrCast(*?*anyopaque, &resource),
+    ));
+
+    // NOTE(gmodarelli): The heap is aligned to 64KB and our textures are smaller than that
+    // TODO(gmodarelli): Use atlases so we don't wast as much space
+    heap_offset.* += allocation_info.SizeInBytes;
+
+    return resource;
+}
+
+fn uploadDataToTexture(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, data: *wic.IFormatConverter, state_after: d3d12.RESOURCE_STATES) !void {
+    assert(gfxstate.gctx.is_cmdlist_opened);
+
+    const desc = resource.GetDesc();
+
+    var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
+    var required_size: u64 = undefined;
+    gfxstate.gctx.device.GetCopyableFootprints(&desc, 0, 1, 0, &layout, null, null, &required_size);
+
+    const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+    layout[0].Offset = upload.buffer_offset;
+
+    hrPanicOnFail(data.CopyPixels(
+        null,
+        layout[0].Footprint.RowPitch,
+        layout[0].Footprint.RowPitch * layout[0].Footprint.Height,
+        upload.cpu_slice.ptr,
+    ));
+
+    gfxstate.gctx.cmdlist.CopyTextureRegion(&d3d12.TEXTURE_COPY_LOCATION{
+        .pResource = resource,
+        .Type = .SUBRESOURCE_INDEX,
+        .u = .{ .SubresourceIndex = 0 },
+    }, 0, 0, 0, &d3d12.TEXTURE_COPY_LOCATION{
+        .pResource = upload.buffer,
+        .Type = .PLACED_FOOTPRINT,
+        .u = .{ .PlacedFootprint = layout[0] },
+    }, null);
+
+    const barrier = d3d12.RESOURCE_BARRIER{
+        .Type = .TRANSITION,
+        .Flags = .{},
+        .u = .{
+            .Transition = .{
+                .pResource = resource,
+                .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                .StateBefore = .{ .COPY_DEST = true },
+                .StateAfter = state_after,
+            },
+        },
+    };
+    var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
+    gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
+}
+
+const max_subresources: u32 = 12;
+fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, subresources: *std.ArrayList(d3d12.SUBRESOURCE_DATA), state_after: d3d12.RESOURCE_STATES) void {
+    assert(gfxstate.gctx.is_cmdlist_opened);
+
+    const resource_desc = resource.GetDesc();
+
+    var required_size: u64 = undefined;
+    var layouts: [max_subresources]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
+    var num_rows: [max_subresources]u32 = undefined;
+    var row_sizes_in_bytes: [max_subresources]u64 = undefined;
+    // TODO: pass first subresource in
+    const first_subresource: u32 = 0;
+
+    gfxstate.gctx.device.GetCopyableFootprints(
+        &resource_desc,
+        first_subresource,
+        @intCast(c_uint, subresources.items.len),
+        0,
+        @ptrCast([*]d3d12.PLACED_SUBRESOURCE_FOOTPRINT, &layouts),
+        @ptrCast([*]c_uint, &num_rows),
+        @ptrCast([*]c_ulonglong, &row_sizes_in_bytes),
+        &required_size,
+    );
+
+    // NOTE(gmodarelli): upload.cpu_slice is mapped
+    const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+
+    var subresource_index: u32 = 0;
+    while (subresource_index < subresources.items.len) : (subresource_index += 1) {
+        assert(row_sizes_in_bytes[subresource_index] < std.math.maxInt(u32));
+        // TODO(gmodarelli): Add support for cubemaps
+        assert(layouts[subresource_index].Footprint.Depth == 1);
+
+        const memcpy_dest = d3d12.MEMCPY_DEST{
+            .pData = upload.cpu_slice.ptr + layouts[subresource_index].Offset,
+            .RowPitch = layouts[subresource_index].Footprint.RowPitch,
+            .SlicePitch = @intCast(c_uint, layouts[subresource_index].Footprint.RowPitch) * @intCast(c_uint, num_rows[subresource_index]),
+        };
+
+        var subresource = &subresources.items[subresource_index];
+        var row: u32 = 0;
+        while (row < num_rows[subresource_index]) : (row += 1) {
+            @memcpy(
+                memcpy_dest.pData.? + (memcpy_dest.RowPitch * row),
+                subresource.pData.? + (subresource.RowPitch * row),
+                row_sizes_in_bytes[subresource_index],
+            );
+        }
+    }
+
+    subresource_index = 0;
+    while (subresource_index < subresources.items.len) : (subresource_index += 1) {
+        const dest = d3d12.TEXTURE_COPY_LOCATION{
+            .pResource = resource,
+            .Type = .SUBRESOURCE_INDEX,
+            .u = .{ .SubresourceIndex = subresource_index },
+        };
+
+        const source = d3d12.TEXTURE_COPY_LOCATION{
+            .pResource = upload.buffer,
+            .Type = .PLACED_FOOTPRINT,
+            .u = .{ .PlacedFootprint = layouts[subresource_index] },
+        };
+
+        gfxstate.gctx.cmdlist.CopyTextureRegion(&dest, 0, 0, 0, &source, null);
+    }
+
+    const barrier = d3d12.RESOURCE_BARRIER{
+        .Type = .TRANSITION,
+        .Flags = .{},
+        .u = .{
+            .Transition = .{
+                .pResource = resource,
+                .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                .StateBefore = .{ .COPY_DEST = true },
+                .StateAfter = state_after,
+            },
+        },
+    };
+    var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
+    gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
+}
+
+fn loadTerrainLayer(
+    name: []const u8,
+    arena: std.mem.Allocator,
+    gfxstate: *gfx.D3D12State,
+    textures_heap: *d3d12.IHeap,
+    heap_size: u64,
+    textures_heap_offset: *u64,
+) !TerrainLayer {
+    // TODO:(gmodarelli) Convert this main blk into a createTextureFromDDSFile function
+    const diffuse = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "content/textures/{s}_diff_2k.dds",
+            .{name},
+        ) catch unreachable;
+
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+    };
+
+    const normal = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "content/textures/{s}_nor_dx_2k.dds",
+            .{name},
+        ) catch unreachable;
+
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+    };
+
+    const arm = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "content/textures/{s}_arm_2k.dds",
+            .{name},
+        ) catch unreachable;
+
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+    };
+
+    return .{
+        .diffuse = gfxstate.texture_pool.addTexture(diffuse),
+        .normal = gfxstate.texture_pool.addTexture(normal),
+        .arm = gfxstate.texture_pool.addTexture(arm),
+    };
+}
+
+fn loadHeightAndSplatMaps(
+    gfxstate: *gfx.D3D12State,
+    textures_heap: *d3d12.IHeap,
+    heap_size: u64,
+    textures_heap_offset: *u64,
+    node: *QuadTreeNode,
+) !void {
+    var heightmap_namebuf: [256]u8 = undefined;
+    const heightmap_path = std.fmt.bufPrintZ(
+        heightmap_namebuf[0..heightmap_namebuf.len],
+        "content/patch/lod{}/heightmap_x{}_y{}.png",
+        .{
+            node.mesh_lod,
+            node.patch_index[0],
+            node.patch_index[1],
+        },
+    ) catch unreachable;
+
+    var splatmap_namebuf: [256]u8 = undefined;
+    const splatmap_path = std.fmt.bufPrintZ(
+        splatmap_namebuf[0..splatmap_namebuf.len],
+        "content/patch/splatmap/lod{}/heightmap_x{}_y{}.png",
+        .{
+            node.mesh_lod,
+            node.patch_index[0],
+            node.patch_index[1],
+        },
+    ) catch unreachable;
+
+    var heightmap_texture_data = loadTexture(&gfxstate.gctx, heightmap_path) catch unreachable;
+    defer _ = heightmap_texture_data.image.Release();
+    var splatmap_texture_data = loadTexture(&gfxstate.gctx, splatmap_path) catch unreachable;
+    defer _ = splatmap_texture_data.image.Release();
+
+    const heightmap_wh = blk: {
+        var width: u32 = undefined;
+        var height: u32 = undefined;
+        hrPanicOnFail(heightmap_texture_data.image.GetSize(&width, &height));
+        break :blk .{ .w = width, .h = height };
+    };
+
+    var heightmap_texture_resource = allocateTextureMemory(
+        gfxstate,
+        textures_heap,
+        heap_size,
+        textures_heap_offset,
+        heightmap_wh.w,
+        heightmap_wh.h,
+        heightmap_texture_data.format,
+        1,
+    ) catch unreachable;
+
+    uploadDataToTexture(gfxstate, heightmap_texture_resource, heightmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
+
+    const splatmap_wh = blk: {
+        var width: u32 = undefined;
+        var splat: u32 = undefined;
+        hrPanicOnFail(splatmap_texture_data.image.GetSize(&width, &splat));
+        break :blk .{ .w = width, .h = splat };
+    };
+
+    var splatmap_texture_resource = allocateTextureMemory(
+        gfxstate,
+        textures_heap,
+        heap_size,
+        textures_heap_offset,
+        splatmap_wh.w,
+        splatmap_wh.h,
+        splatmap_texture_data.format,
+        1,
+    ) catch unreachable;
+
+    uploadDataToTexture(gfxstate, splatmap_texture_resource, splatmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
+
+    const heightmap = blk: {
+        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+        gfxstate.gctx.device.CreateShaderResourceView(
+            heightmap_texture_resource,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        const t = gfx.Texture{
+            .resource = heightmap_texture_resource,
+            .persistent_descriptor = srv_allocation,
+        };
+
+        break :blk t;
+    };
+
+    const splatmap = blk: {
+        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+        gfxstate.gctx.device.CreateShaderResourceView(
+            splatmap_texture_resource,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        const t = gfx.Texture{
+            .resource = splatmap_texture_resource,
+            .persistent_descriptor = srv_allocation,
+        };
+
+        break :blk t;
+    };
+
+    node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+    node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);
 }
 
 fn loadResources(
@@ -354,149 +854,51 @@ fn loadResources(
     meshes: *std.ArrayList(Mesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
+    terrain_layers: *std.ArrayList(TerrainLayer),
 ) !void {
     loadMesh(allocator, "content/meshes/LOD0.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     loadMesh(allocator, "content/meshes/LOD1.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     loadMesh(allocator, "content/meshes/LOD2.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     loadMesh(allocator, "content/meshes/LOD3.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 
+    var heap_desc = textures_heap.GetDesc();
+
+    // Load terrain layers textures
+    {
+        var arena_state = std.heap.ArenaAllocator.init(allocator);
+        defer arena_state.deinit();
+        const arena = arena_state.allocator();
+
+        const dry_ground = loadTerrainLayer("dry_ground_rocks", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
+        const forest_ground = loadTerrainLayer("forrest_ground_01", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
+        const rock_ground = loadTerrainLayer("rock_ground", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
+        const snow = loadTerrainLayer("snow_02", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
+
+        // NOTE: There's an implicit dependency on the order of the Splatmap here
+        // - 0 dirt
+        // - 1 grass
+        // - 2 rock
+        // - 3 snow
+        terrain_layers.append(dry_ground) catch unreachable;
+        terrain_layers.append(forest_ground) catch unreachable;
+        terrain_layers.append(rock_ground) catch unreachable;
+        terrain_layers.append(snow) catch unreachable;
+    }
+
+    // TODO: Schedule the upload instead of uploading immediately
+    gfxstate.gctx.beginFrame();
     // Load all LOD's heightmaps
     {
-        // TODO: Schedule the upload instead of uploading immediately
-        gfxstate.gctx.beginFrame();
-
-        var namebuf: [256]u8 = undefined;
-
-        var heap_desc = textures_heap.GetDesc();
-
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             var node = &quad_tree_nodes.items[i];
-
-            const namebufslice = std.fmt.bufPrintZ(
-                namebuf[0..namebuf.len],
-                "content/patch/lod{}/heightmap_x{}_y{}.png",
-                .{
-                    node.mesh_lod,
-                    node.patch_index[0],
-                    node.patch_index[1],
-                },
-            ) catch unreachable;
-
-            std.debug.print("Loading patch: {s}\n", .{namebufslice});
-            var texture_data = loadTexture(&gfxstate.gctx, namebufslice) catch unreachable;
-            defer _ = texture_data.Release();
-
-            const image_wh = blk: {
-                var width: u32 = undefined;
-                var height: u32 = undefined;
-                hrPanicOnFail(texture_data.GetSize(&width, &height));
-                break :blk .{ .w = width, .h = height };
-            };
-
-            // Place texture resource on the textures_heap
-            var texture_resource = blk: {
-                var resource: *d3d12.IResource = undefined;
-                const desc = desc_blk: {
-                    var desc = d3d12.RESOURCE_DESC.initTex2d(
-                        dxgi.FORMAT.R8_UNORM,
-                        image_wh.w,
-                        image_wh.h,
-                        1,
-                    );
-                    desc.Flags = .{};
-                    break :desc_blk desc;
-                };
-
-                const descs = [_]d3d12.RESOURCE_DESC{desc};
-                const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
-                assert(textures_heap_offset.* + allocation_info.SizeInBytes < heap_desc.SizeInBytes);
-
-                hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
-                    textures_heap,
-                    textures_heap_offset.*,
-                    &desc,
-                    .{ .COPY_DEST = true },
-                    null,
-                    &d3d12.IID_IResource,
-                    @ptrCast(*?*anyopaque, &resource),
-                ));
-
-                // NOTE(gmodarelli): The heap is aligned to 64KB and our textures are smaller than that
-                // TODO(gmodarelli): Use atlases so we don't wast as much space
-                textures_heap_offset.* += allocation_info.SizeInBytes;
-                break :blk resource;
-            };
-
-            // Upload texture data to the GPU
-            {
-                const desc = texture_resource.GetDesc();
-
-                var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
-                var required_size: u64 = undefined;
-                gfxstate.gctx.device.GetCopyableFootprints(&desc, 0, 1, 0, &layout, null, null, &required_size);
-
-                const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
-                layout[0].Offset = upload.buffer_offset;
-
-                hrPanicOnFail(texture_data.CopyPixels(
-                    null,
-                    layout[0].Footprint.RowPitch,
-                    layout[0].Footprint.RowPitch * layout[0].Footprint.Height,
-                    upload.cpu_slice.ptr,
-                ));
-
-                gfxstate.gctx.cmdlist.CopyTextureRegion(&d3d12.TEXTURE_COPY_LOCATION{
-                    .pResource = texture_resource,
-                    .Type = .SUBRESOURCE_INDEX,
-                    .u = .{ .SubresourceIndex = 0 },
-                }, 0, 0, 0, &d3d12.TEXTURE_COPY_LOCATION{
-                    .pResource = upload.buffer,
-                    .Type = .PLACED_FOOTPRINT,
-                    .u = .{ .PlacedFootprint = layout[0] },
-                }, null);
-            }
-
-            const texture = blk: {
-                const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-                gfxstate.gctx.device.CreateShaderResourceView(
-                    texture_resource,
-                    null,
-                    srv_allocation.cpu_handle,
-                );
-
-                // NOTE(gmodarelli): Our texture_resource is not handled by zd3d12.zig and so we can't
-                // use its addTransitionBarrier
-                const barrier = d3d12.RESOURCE_BARRIER{
-                    .Type = .TRANSITION,
-                    .Flags = .{},
-                    .u = .{
-                        .Transition = .{
-                            .pResource = texture_resource,
-                            .Subresource = d3d12.RESOURCE_BARRIER_ALL_SUBRESOURCES,
-                            .StateBefore = .{ .COPY_DEST = true },
-                            .StateAfter = d3d12.RESOURCE_STATES.GENERIC_READ,
-                        },
-                    },
-                };
-                var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
-                gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
-
-                const t = Texture{
-                    .resource = texture_resource,
-                    .persistent_descriptor = srv_allocation,
-                };
-
-                break :blk t;
-            };
-
-            node.heightmap_handle = gfxstate.texture_pool.addTexture(texture);
+            loadHeightAndSplatMaps(gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset, node) catch unreachable;
         }
-
-        // TODO: Schedule the upload instead of uploading immediately
-        gfxstate.gctx.endFrame();
-        gfxstate.gctx.finishGpuCommands();
     }
+
+    // TODO: Schedule the upload instead of uploading immediately
+    gfxstate.gctx.endFrame();
+    gfxstate.gctx.finishGpuCommands();
 }
 
 fn divideQuadTreeNode(
@@ -522,6 +924,7 @@ fn divideQuadTreeNode(
             .mesh_lod = node.mesh_lod - 1,
             .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
             .heightmap_handle = undefined,
+            .splatmap_handle = undefined,
         };
 
         node.child_indices[child_index] = @intCast(u32, nodes.items.len);
@@ -551,7 +954,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // NOTE(gmodarelli): We're currently loading 85 1-channel PNGs per sector, so we need roughly
     // 100MB of space.
     const heap_desc = d3d12.HEAP_DESC{
-        .SizeInBytes = 500 * 1024 * 1024,
+        .SizeInBytes = 1000 * 1024 * 1024,
         .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
         .Alignment = 0, // 64KiB
         .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
@@ -580,6 +983,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
                     .mesh_lod = 3,
                     .patch_index = [2]u32{ patch_x, patch_y },
                     .heightmap_handle = undefined,
+                    .splatmap_handle = undefined,
                 });
             }
         }
@@ -597,10 +1001,14 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
+    zmesh.init(arena);
+    defer zmesh.deinit();
+
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
-    loadResources(allocator, &terrain_quad_tree_nodes, gfxstate, textures_heap, &textures_heap_offset, &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
+    var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
+    loadResources(allocator, &terrain_quad_tree_nodes, gfxstate, textures_heap, &textures_heap_offset, &meshes, &meshes_indices, &meshes_vertices, &terrain_layers) catch unreachable;
 
     const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
@@ -627,33 +1035,24 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .has_uav = false,
     }) catch unreachable;
 
+    var terrain_layers_buffer = gfxstate.createBuffer(.{
+        .size = terrain_layers.items.len * @sizeOf(TerrainLayerTextureIndices),
+        .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+        .name = L("Terrain Layers Buffer"),
+        .persistent = true,
+        .has_cbv = false,
+        .has_srv = true,
+        .has_uav = false,
+    }) catch unreachable;
+
     // Create instance buffers.
-    const instance_transform_buffers = blk: {
+    const instance_data_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
-                .size = max_instances * @sizeOf(InstanceTransform),
+                .size = max_instances * @sizeOf(InstanceData),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Terrain Quad Tree Instance Transform Buffer"),
-                .persistent = true,
-                .has_cbv = false,
-                .has_srv = true,
-                .has_uav = false,
-            };
-
-            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
-        }
-
-        break :blk buffers;
-    };
-
-    const instance_material_buffers = blk: {
-        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
-        for (buffers) |_, buffer_index| {
-            const bufferDesc = gfx.BufferDesc{
-                .size = max_instances * @sizeOf(InstanceMaterial),
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Terrain Quad Tree Instance Material Buffer"),
+                .name = L("Terrain Quad Tree Instance Data Buffer"),
                 .persistent = true,
                 .has_cbv = false,
                 .has_srv = true,
@@ -667,11 +1066,26 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     };
 
     var draw_calls = std.ArrayList(DrawCall).init(allocator);
-    var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
-    var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
+    var instance_data = std.ArrayList(InstanceData).init(allocator);
 
     gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
     gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
+
+    var terrain_layer_texture_indices = std.ArrayList(TerrainLayerTextureIndices).initCapacity(arena, terrain_layers.items.len) catch unreachable;
+    var terrain_layer_index: u32 = 0;
+    while (terrain_layer_index < terrain_layers.items.len) : (terrain_layer_index += 1) {
+        const terrain_layer = &terrain_layers.items[terrain_layer_index];
+        const diffuse = gfxstate.lookupTexture(terrain_layer.diffuse);
+        const normal = gfxstate.lookupTexture(terrain_layer.normal);
+        const arm = gfxstate.lookupTexture(terrain_layer.arm);
+        terrain_layer_texture_indices.appendAssumeCapacity(.{
+            .diffuse_index = diffuse.?.persistent_descriptor.index,
+            .normal_index = normal.?.persistent_descriptor.index,
+            .arm_index = arm.?.persistent_descriptor.index,
+            .padding = 42,
+        });
+    }
+    gfxstate.scheduleUploadDataToBuffer(TerrainLayerTextureIndices, terrain_layers_buffer, 0, terrain_layer_texture_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
@@ -683,13 +1097,12 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .gfx = gfxstate,
         .vertex_buffer = vertex_buffer,
         .index_buffer = index_buffer,
-        .instance_transform_buffers = instance_transform_buffers,
-        .instance_material_buffers = instance_material_buffers,
+        .instance_data_buffers = instance_data_buffers,
         .draw_calls = draw_calls,
         .textures_heap = textures_heap,
         .textures_heap_offset = textures_heap_offset,
-        .instance_transforms = instance_transforms,
-        .instance_materials = instance_materials,
+        .instance_data = instance_data,
+        .terrain_layers_buffer = terrain_layers_buffer,
         .terrain_lod_meshes = meshes,
         .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
         .quads_to_render = quads_to_render,
@@ -708,8 +1121,7 @@ pub fn destroy(state: *SystemState) void {
     state.textures_heap.* = undefined;
 
     state.terrain_lod_meshes.deinit();
-    state.instance_transforms.deinit();
-    state.instance_materials.deinit();
+    state.instance_data.deinit();
     state.terrain_quad_tree_nodes.deinit();
     state.quads_to_render.deinit();
     state.draw_calls.deinit();
@@ -793,8 +1205,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // Reset transforms, materials and draw calls array list
     state.quads_to_render.clearRetainingCapacity();
-    state.instance_transforms.clearRetainingCapacity();
-    state.instance_materials.clearRetainingCapacity();
+    state.instance_data.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
 
     {
@@ -820,11 +1231,17 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const quad = &state.terrain_quad_tree_nodes.items[quad_index];
 
             const object_to_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
-            state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
             // TODO: Generate from quad.patch_index
-            const texture = state.gfx.lookupTexture(quad.heightmap_handle);
+            const heightmap = state.gfx.lookupTexture(quad.heightmap_handle);
+            const splatmap = state.gfx.lookupTexture(quad.splatmap_handle);
             // TODO: Add splatmap and UV offset and tiling (for atlases)
-            state.instance_materials.append(.{ .heightmap_index = texture.?.persistent_descriptor.index }) catch unreachable;
+            state.instance_data.append(.{
+                .object_to_world = zm.transpose(object_to_world),
+                .heightmap_index = heightmap.?.persistent_descriptor.index,
+                .splatmap_index = splatmap.?.persistent_descriptor.index,
+                .padding1 = 42,
+                .padding2 = 42,
+            }) catch unreachable;
 
             const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
 
@@ -842,23 +1259,21 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const frame_index = state.gfx.gctx.frame_index;
-    if (state.instance_transforms.items.len > 0) {
-        assert(state.instance_transforms.items.len == state.instance_materials.items.len);
-        state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
-        state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
+    if (state.instance_data.items.len > 0) {
+        state.gfx.uploadDataToBuffer(InstanceData, state.instance_data_buffers[frame_index], 0, state.instance_data.items);
     }
 
     const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
-    const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
-    const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
+    const instance_data_buffer = state.gfx.lookupBuffer(state.instance_data_buffers[frame_index]);
+    const terrain_layers_buffer = state.gfx.lookupBuffer(state.terrain_layers_buffer);
 
     for (state.draw_calls.items) |draw_call| {
         const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
         mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
         mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
         mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-        mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
-        mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].instance_data_buffer_index = instance_data_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].terrain_layers_buffer_index = terrain_layers_buffer.?.persistent_descriptor.index;
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         state.gfx.gctx.cmdlist.DrawIndexedInstanced(

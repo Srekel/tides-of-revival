@@ -20,14 +20,15 @@ struct Vertex {
     float3 position;
     float3 normal;
     float2 uv;
+    float4 tangent;
 };
 
 struct DrawConst {
     uint start_instance_location;
     int vertex_offset;
     uint vertex_buffer_index;
-    uint instance_transform_buffer_index;
-    uint instance_material_buffer_index;
+    uint instance_data_buffer_index;
+    uint terrain_layers_buffer_index;
 };
 
 struct FrameConst {
@@ -42,12 +43,19 @@ struct FrameConst {
     float4 light_radiances[MAX_LIGHTS];
 };
 
-struct InstanceTransform {
+struct InstanceData {
     float4x4 object_to_world;
+    uint heightmap_index;
+    uint splatmap_index;
+    uint padding1;
+    uint padding2;
 };
 
-struct InstanceMaterial {
-    uint heightmap_index;
+struct TerrainLayerTextureIndices {
+    uint diffuse_index;
+    uint normal_index;
+    uint arm_index;
+    uint padding;
 };
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
@@ -56,6 +64,7 @@ ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
 struct InstancedVertexOut {
     float4 position_vs : SV_Position;
     float3 normal : NORMAL;
+    float4 tangent : TANGENT;
     float3 position : TEXCOORD0;
     float2 uv : TEXCOORD1;
     uint instanceID: SV_InstanceID;
@@ -70,13 +79,11 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     ByteAddressBuffer vertex_buffer = ResourceDescriptorHeap[cbv_draw_const.vertex_buffer_index];
     Vertex vertex = vertex_buffer.Load<Vertex>((vertex_id + cbv_draw_const.vertex_offset) * sizeof(Vertex));
 
-    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_transform_buffer_index];
+    ByteAddressBuffer instance_data_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_data_buffer_index];
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
-    InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
+    InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
-    ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
-    InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
-    Texture2D heightmap = ResourceDescriptorHeap[material.heightmap_index];
+    Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
     float height = heightmap.SampleLevel(sam_linear_clamp, vertex.uv, 0).r;
 
     float3 displaced_position = vertex.position;
@@ -87,6 +94,7 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     output.position = mul(float4(displaced_position, 1.0), instance.object_to_world).xyz;
 
     output.normal = vertex.normal;
+    output.tangent = vertex.tangent;
     output.uv = vertex.uv;
 
     return output;
@@ -98,23 +106,18 @@ static const float2 texel = 1.0f / float2(65.0f, 65.0f);
 
 [RootSignature(ROOT_SIGNATURE)]
 void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics*/, out float4 out_color : SV_Target0) {
-    float3 base_colors[5] = {
-        float3(0.0, 0.1, 0.7),
-        float3(1.0, 1.0, 0.0),
-        float3(0.3, 0.8, 0.2),
-        float3(0.7, 0.7, 0.7),
-        float3(0.95, 0.95, 0.95),
-    };
+    ByteAddressBuffer instance_data_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_data_buffer_index];
+    uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
+    InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
+
 
     float3 normal = normalize(input.normal);
+    float3 tangent = input.tangent.xyz;
 
     // Derive normals from the heightmap 
     // https://www.shadertoy.com/view/3sSSW1
     {
-        uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
-        ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
-        InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
-        Texture2D heightmap = ResourceDescriptorHeap[material.heightmap_index];
+        Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
         float height = heightmap.Sample(sam_linear_clamp, input.uv).r;
         float height_h = heightmap.Sample(sam_linear_clamp, input.uv + texel * float2(1.0, 0.0)).r; 
@@ -123,19 +126,38 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
         n *= 20.0;
         n += 0.5;
         normal = normalize(float3(n.xy, 1.0));
+
+        // NOTE: recalculating the tangent now that the normal has been adjusted.
+        // I'm not sure this is correct.
+        float3 tmp = normalize(cross(normal, tangent));
+        tangent = normalize(cross(normal, tmp));
     }
 
-    float3 base_color = base_colors[0];
-    base_color = lerp(base_color, base_colors[1], step(0.005, input.position.y * 0.01));
-    base_color = lerp(base_color, base_colors[2], step(0.02, input.position.y * 0.01));
-    base_color = lerp(base_color, base_colors[3], step(1.0, input.position.y * 0.01 + 0.5 * (1.0 - dot(normal, float3(0.0, 1.0, 0.0))) ));
-    base_color = lerp(base_color, base_colors[4], step(3.5, input.position.y * 0.01 + 1.5 * dot(normal, float3(0.0, 1.0, 0.0)) ));
+    // Compute TBN matrix
+    const float3 bitangent = normalize(cross(normal, tangent)) * input.tangent.w;
+    const float3x3 TBN = float3x3(tangent, bitangent, normal);
+
+    Texture2D splatmap = ResourceDescriptorHeap[instance.splatmap_index];
+    uint splatmap_index = uint(splatmap.Sample(sam_linear_clamp, input.uv).r * 255); 
+
+    ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[cbv_draw_const.terrain_layers_buffer_index];
+    TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(splatmap_index * sizeof(TerrainLayerTextureIndices));
+    Texture2D diffuse_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.diffuse_index)];
+    Texture2D normal_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.normal_index)];
+    Texture2D arm_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.arm_index)];
+    // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
+    float2 world_space_uv = input.position.xz * 0.05;
+    float3 base_color = pow(diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb, GAMMA);
+    float3 n = normalize(normal_texture.Sample(sam_linear_wrap, world_space_uv).rgb * 2.0 - 1.0);
+    n = mul(n, TBN);
+    n = normalize(mul(n, (float3x3)instance.object_to_world));
+    float3 arm = arm_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
 
     PBRInput pbrInput;
     pbrInput.view_position = cbv_frame_const.camera_position;
     pbrInput.position = input.position;
-    pbrInput.normal = normal;
-    pbrInput.roughness = 0.5f;
+    pbrInput.normal = n;
+    pbrInput.roughness = arm.g;
     pbrInput.time = cbv_frame_const.time;
 
     float3 color = pbrShading(base_color, pbrInput, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
