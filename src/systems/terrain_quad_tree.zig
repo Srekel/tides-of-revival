@@ -424,7 +424,6 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
         if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat8bppGray))) break :blk 1;
         if (eql(u8, asBytes(&pixel_format), asBytes(&wic.GUID_PixelFormat8bppAlpha))) break :blk 1;
 
-
         unreachable;
     };
 
