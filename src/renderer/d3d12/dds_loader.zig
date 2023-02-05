@@ -1,3 +1,5 @@
+// Ported from DirectXTK
+// https://github.com/microsoft/DirectXTK12/blob/main/Src/DDSTextureLoader.cpp
 const std = @import("std");
 const assert = std.debug.assert;
 const zwin32 = @import("zwin32");
