@@ -77,23 +77,24 @@
 ✅ exit flecs crash
 ✅ gamepad freefly camera
 ✅ splat map
-🔵 newsletter
-🔵 patch loading
+✅ svn
+🟡 newsletter
+🟡 patch loading
+🔵 namechange: youtube, github, cohost, mastodon, twitter, ingame
 🔵 physics
 🔵 forest in offline generation
 🔵 cities in offline generation
-🔵 svn
 
 
 🔥 promotion 🔥
 --------------
-🔵 newsletter
-🔵 SVN / content distribution method
+🟡 newsletter
+✅ SVN / content distribution method
 🔵 "podcast"
-🔵 lighting setup
+🟡 lighting setup
 🔵 recording game/camera separately
 🔵 two-person OBS setup
 🔵 one-person OBS setup
 🔵 Davinci video template/setup
 🔵 Logo
-🔵 Name change
+🟡 Name change
