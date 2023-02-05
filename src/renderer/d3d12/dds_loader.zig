@@ -4,7 +4,6 @@ const zwin32 = @import("zwin32");
 const w32 = zwin32.w32;
 const dxgi = zwin32.dxgi;
 const d3d12 = zwin32.d3d12;
-// const HRESULT = w32.HRESULT;
 
 const DDS_MAGIC: u32 = 0x20534444; // "DDS "
 
@@ -164,19 +163,13 @@ pub fn loadTextureFromFile(
                 total_depth = depth;
             }
 
-            // TODO(gmodarelli): Check why this fails for mip 11
-            if (data_size <= data_offset + @intCast(u32, surface_info.num_bytes) * depth) {
-                std.debug.print("Failing to index into mip map {d}\n", .{mip_map_index});
-            }
-            // assert(data_size > data_offset + @intCast(u32, surface_info.num_bytes) * depth);
-
             var resource = d3d12.SUBRESOURCE_DATA{
                 .pData = @ptrCast([*]u8, data[data_offset..]),
                 .RowPitch = @intCast(c_uint, surface_info.row_bytes),
                 .SlicePitch = @intCast(c_uint, surface_info.num_bytes),
             };
 
-            // TODO: AdjustPlaneResources (only needed for a couple of formats)
+            // TODO(gmodarelli): AdjustPlaneResources (only needed for a couple of formats)
             resources.append(resource) catch unreachable;
         } else if (mip_map_index == 0) {
             skip_mip += 1;
@@ -213,7 +206,7 @@ pub fn loadTextureFromFile(
 }
 
 fn getDXGIFormatFromDX10(header: DDS_HEADER_DXT10) dxgi.FORMAT {
-    // TODO(gmodarelli): Format validation
+    // TODO(gmodarelli): Perform format validation
     return header.dxgiFormat;
 }
 

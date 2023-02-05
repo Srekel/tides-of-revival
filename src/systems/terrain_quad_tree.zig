@@ -648,7 +648,6 @@ fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, sub
         var subresource = &subresources.items[subresource_index];
         var row: u32 = 0;
         while (row < num_rows[subresource_index]) : (row += 1) {
-            // memcpy(pDestSlice + pDest->RowPitch * row, pSrcSlice + pSrc->RowPitch * row, RowSizeInBytes);
             @memcpy(
                 memcpy_dest.pData.? + (memcpy_dest.RowPitch * row),
                 subresource.pData.? + (subresource.RowPitch * row),
