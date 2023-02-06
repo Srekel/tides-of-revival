@@ -84,10 +84,14 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
     Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
-    float height = heightmap.SampleLevel(sam_linear_clamp, vertex.uv, 0).r;
+    float2 uv = float2(vertex.uv.x, 1.0 - vertex.uv.y);
+    float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r * 2.0 - 1.0;
 
     float3 displaced_position = vertex.position;
-    displaced_position.y = lerp(0.0f, 200.0f, height);    // TODO: Pass min/max heights to shader
+    // TODO(gmodarelli): Pass noise_scale_y and noise_offset_y to the shader
+    float noise_scale_y = 200.0;
+    float noise_offset_y = 0.0;
+    displaced_position.y = noise_scale_y * (height + noise_offset_y);
 
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
     output.position_vs = mul(float4(displaced_position, 1.0), object_to_clip);
@@ -95,7 +99,7 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
 
     output.normal = vertex.normal;
     output.tangent = vertex.tangent;
-    output.uv = vertex.uv;
+    output.uv = uv;
 
     return output;
 }
@@ -110,18 +114,18 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
     InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
-
     float3 normal = normalize(input.normal);
     float3 tangent = input.tangent.xyz;
+    float2 uv = input.uv;
 
     // Derive normals from the heightmap 
     // https://www.shadertoy.com/view/3sSSW1
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
-        float height = heightmap.Sample(sam_linear_clamp, input.uv).r;
-        float height_h = heightmap.Sample(sam_linear_clamp, input.uv + texel * float2(1.0, 0.0)).r; 
-        float height_v = heightmap.Sample(sam_linear_clamp, input.uv + texel * float2(0.0, 1.0)).r; 
+        float height = heightmap.Sample(sam_linear_clamp, uv).r;
+        float height_h = heightmap.Sample(sam_linear_clamp, uv + texel * float2(1.0, 0.0)).r; 
+        float height_v = heightmap.Sample(sam_linear_clamp, uv + texel * float2(0.0, 1.0)).r; 
         float2 n = height - float2(height_h, height_v);
         n *= 20.0;
         n += 0.5;
@@ -138,7 +142,7 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     const float3x3 TBN = float3x3(tangent, bitangent, normal);
 
     Texture2D splatmap = ResourceDescriptorHeap[instance.splatmap_index];
-    uint splatmap_index = uint(splatmap.Sample(sam_linear_clamp, input.uv).r * 255); 
+    uint splatmap_index = uint(splatmap.Sample(sam_linear_clamp, uv).r * 255); 
 
     ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[cbv_draw_const.terrain_layers_buffer_index];
     TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(splatmap_index * sizeof(TerrainLayerTextureIndices));
