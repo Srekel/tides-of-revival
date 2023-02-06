@@ -111,11 +111,6 @@ const QuadTreeNode = struct {
     }
 
     pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
-        const invalid_index = std.math.maxInt(u32);
-        if (self.child_indices[0] == invalid_index) {
-            return false;
-        }
-
         if (!self.containsPoint(point)) {
             return false;
         }
@@ -936,7 +931,7 @@ fn divideQuadTreeNode(
     var child_index: u32 = 0;
     while (child_index < 4) : (child_index += 1) {
         var center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
-        var center_y = if (child_index < 2) node.center[1] - node.size[1] * 0.5 else node.center[1] + node.size[1] * 0.5;
+        var center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
         var patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
         var patch_index_y: u32 = if (child_index < 2) 1 else 0;
 
@@ -1013,11 +1008,11 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
         assert(terrain_quad_tree_nodes.items.len == 64);
 
-        // var sector_index: u32 = 0;
-        // while (sector_index < 64) : (sector_index += 1) {
-        //     var node = &terrain_quad_tree_nodes.items[sector_index];
-        //     divideQuadTreeNode(&terrain_quad_tree_nodes, node);
-        // }
+        var sector_index: u32 = 0;
+        while (sector_index < 64) : (sector_index += 1) {
+            var node = &terrain_quad_tree_nodes.items[sector_index];
+            divideQuadTreeNode(&terrain_quad_tree_nodes, node);
+        }
     }
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
