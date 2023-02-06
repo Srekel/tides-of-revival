@@ -255,10 +255,10 @@ pub fn run() void {
     defer state_machine_system.destroy(state_machine_sys);
 
     const terrain_noise: znoise.FnlGenerator = .{
-        .seed = @intCast(i32, 1234),
+        .seed = @intCast(i32, 1),
         .fractal_type = .fbm,
-        .frequency = 0.0001,
-        .octaves = 7,
+        .frequency = 0.001,
+        .octaves = 10,
     };
 
     var city_sys = try city_system.create(
