@@ -111,6 +111,11 @@ const QuadTreeNode = struct {
     }
 
     pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
+        const invalid_index = std.math.maxInt(u32);
+        if (self.child_indices[0] == invalid_index) {
+            return false;
+        }
+
         if (!self.containsPoint(point)) {
             return false;
         }
@@ -745,7 +750,7 @@ fn loadHeightAndSplatMaps(
     var heightmap_namebuf: [256]u8 = undefined;
     const heightmap_path = std.fmt.bufPrintZ(
         heightmap_namebuf[0..heightmap_namebuf.len],
-        "content/patch/lod{}/heightmap_x{}_y{}.png",
+        "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
         .{
             node.mesh_lod,
             node.patch_index[0],
@@ -787,6 +792,15 @@ fn loadHeightAndSplatMaps(
         1,
     ) catch unreachable;
 
+    // Set a debug name
+    {
+        var path_u16: [300]u16 = undefined;
+        assert(heightmap_path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], heightmap_path) catch unreachable;
+        path_u16[path_len] = 0;
+        _ = heightmap_texture_resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+    }
+
     uploadDataToTexture(gfxstate, heightmap_texture_resource, heightmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
 
     const splatmap_wh = blk: {
@@ -806,6 +820,15 @@ fn loadHeightAndSplatMaps(
         splatmap_texture_data.format,
         1,
     ) catch unreachable;
+
+    // Set a debug name
+    {
+        var path_u16: [300]u16 = undefined;
+        assert(splatmap_path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], splatmap_path) catch unreachable;
+        path_u16[path_len] = 0;
+        _ = splatmap_texture_resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+    }
 
     uploadDataToTexture(gfxstate, splatmap_texture_resource, splatmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
 
@@ -952,7 +975,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
     // but for now it's here to speed test it out and speed things along
     // NOTE(gmodarelli): We're currently loading 85 1-channel PNGs per sector, so we need roughly
-    // 100MB of space.
+    // 1GB of space.
     const heap_desc = d3d12.HEAP_DESC{
         .SizeInBytes = 1000 * 1024 * 1024,
         .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
@@ -977,7 +1000,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
             var patch_x: u32 = 0;
             while (patch_x < 8) : (patch_x += 1) {
                 terrain_quad_tree_nodes.appendAssumeCapacity(.{
-                    .center = [2]f32{ @intToFloat(f32, patch_x * config.patch_width) - 2048.0, -(@intToFloat(f32, patch_y * config.patch_width)) + 2048.0 },
+                    .center = [2]f32{ @intToFloat(f32, patch_x * config.patch_width) + patch_half_size, (@intToFloat(f32, patch_y * config.patch_width)) + patch_half_size },
                     .size = [2]f32{ patch_half_size, patch_half_size },
                     .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
                     .mesh_lod = 3,
@@ -990,11 +1013,11 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
         assert(terrain_quad_tree_nodes.items.len == 64);
 
-        var sector_index: u32 = 0;
-        while (sector_index < 64) : (sector_index += 1) {
-            var node = &terrain_quad_tree_nodes.items[sector_index];
-            divideQuadTreeNode(&terrain_quad_tree_nodes, node);
-        }
+        // var sector_index: u32 = 0;
+        // while (sector_index < 64) : (sector_index += 1) {
+        //     var node = &terrain_quad_tree_nodes.items[sector_index];
+        //     divideQuadTreeNode(&terrain_quad_tree_nodes, node);
+        // }
     }
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
