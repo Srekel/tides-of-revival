@@ -43,8 +43,8 @@ const FrameUniforms = extern struct {
     world_to_clip: zm.Mat,
     camera_position: [3]f32,
     time: f32,
-    padding1: u32,
-    padding2: u32,
+    noise_offset_y: f32,
+    noise_scale_y: f32,
     padding3: u32,
     light_count: u32,
     light_positions: [32][4]f32,
@@ -1200,6 +1200,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
         mem.cpu_slice[0].camera_position = camera_position;
         mem.cpu_slice[0].time = world_time;
+        mem.cpu_slice[0].noise_offset_y = config.noise_offset_y;
+        mem.cpu_slice[0].noise_scale_y = config.noise_scale_y;
         mem.cpu_slice[0].light_count = 0;
 
         var entity_iter_lights = state.query_lights.iterator(struct {

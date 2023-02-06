@@ -35,8 +35,8 @@ struct FrameConst {
     float4x4 world_to_clip;
     float3 camera_position;
     float time;
-    uint padding1;
-    uint padding2;
+    float noise_offset_y;
+    float noise_scale_y;
     uint padding3;
     uint light_count;
     float4 light_positions[MAX_LIGHTS];
@@ -88,10 +88,7 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r * 2.0 - 1.0;
 
     float3 displaced_position = vertex.position;
-    // TODO(gmodarelli): Pass noise_scale_y and noise_offset_y to the shader
-    float noise_scale_y = 200.0;
-    float noise_offset_y = 0.0;
-    displaced_position.y = noise_scale_y * (height + noise_offset_y);
+    displaced_position.y = cbv_frame_const.noise_scale_y * (height + cbv_frame_const.noise_offset_y);
 
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
     output.position_vs = mul(float4(displaced_position, 1.0), object_to_clip);
@@ -171,7 +168,6 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
  
     // TODO: Pass a flag to the shader to control if we want to 
     // render the wireframe or not
-    // wireframe
     // float3 barys = barycentrics;
     // barys.z = 1.0 - barys.x - barys.y;
     // float3 deltas = fwidth(barys);
