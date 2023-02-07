@@ -255,10 +255,10 @@ pub fn run() void {
     defer state_machine_system.destroy(state_machine_sys);
 
     const terrain_noise: znoise.FnlGenerator = .{
-        .seed = @intCast(i32, 1234),
+        .seed = @intCast(i32, 1),
         .fractal_type = .fbm,
-        .frequency = 0.0001,
-        .octaves = 7,
+        .frequency = 0.001,
+        .octaves = 10,
     };
 
     var city_sys = try city_system.create(
@@ -354,17 +354,22 @@ pub fn run() void {
     };
 
     // const entity3 = flecs_world.newEntity();
-    // entity3.set(fd.Transform.init(150, 500, 0.6));
-    // entity3.set(fd.Scale.createScalar(10.5));
-    // // entity3.set(fd.Velocity{ .x = -10, .y = 0, .z = 0 });
+    // entity3.set(fd.Transform.initWithScale(0, 0, 0, 100));
     // entity3.set(fd.CIShapeMeshInstance{
     //     .id = IdLocal.id64("sphere"),
-    //     .basecolor_roughness = .{ .r = 0.7, .g = 0.0, .b = 1.0, .roughness = 0.8 },
+    //     .basecolor_roughness = .{ .r = 1.0, .g = 0.0, .b = 0.0, .roughness = 0.8 },
     // });
     // entity3.set(fd.CIPhysicsBody{
     //     .shape_type = .sphere,
     //     .mass = 1,
     //     .sphere = .{ .radius = 10.5 },
+    // });
+
+    // const entity4 = flecs_world.newEntity();
+    // entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
+    // entity4.set(fd.CIShapeMeshInstance{
+    //     .id = IdLocal.id64("sphere"),
+    //     .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     // });
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);

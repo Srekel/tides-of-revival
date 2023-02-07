@@ -104,18 +104,17 @@ pub fn createEntities(state: *SystemState) void {
     var rand1 = std.rand.DefaultPrng.init(0);
     var rand = rand1.random();
     var villageCount: u32 = 0;
-    var x: f32 = -2;
-    while (x <= 2 or villageCount < 3) : (x += 1.5) {
-        var z: f32 = -2;
-        while (z <= 2) : (z += 1.5) {
+    var x: f32 = 1;
+    while (x <= 5 or villageCount < 3) : (x += 1.5) {
+        var z: f32 = 1;
+        while (z <= 5) : (z += 1.5) {
             var city_pos = .{
                 .x = (x + rand.float(f32) * 1) * config.patch_width,
                 .y = 0,
                 .z = (z + rand.float(f32) * 1) * config.patch_width,
             };
             const city_height = util.heightAtXZ(city_pos.x, city_pos.z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
-            // const city_height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(city_pos.x * config.noise_scale_xz, city_pos.z * config.noise_scale_xz));
-            if (city_height < 100) {
+            if (city_height < 10) {
                 continue;
             }
 
