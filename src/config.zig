@@ -8,7 +8,7 @@ const IdLocal = @import("variant.zig").IdLocal;
 //    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
 
 pub const patch_width = 512;
-pub const noise_scale_xz = 1.0;
+pub const noise_scale_xz = 1.0 / 2.0;
 pub const noise_scale_y = 200;
 pub const noise_offset_y = 0.0;
 

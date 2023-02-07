@@ -144,7 +144,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         var y_world = patch_y * patch_width + y;
                         // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
                         // and then we're converting it to a 16-bit unsigned integer
-                        var height_sample: f32 = data.noise.noise2(@intToFloat(f32, x_world), @intToFloat(f32, y_world)) * 0.5 + 0.5;
+                        var height_sample: f32 = data.noise.noise2(@intToFloat(f32, x_world) * config.noise_scale_xz, @intToFloat(f32, y_world) * config.noise_scale_xz) * 0.5 + 0.5;
                         heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 65535);
                         // heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 127);
                         // std.debug.print("({},{})", .{ x_world, y_world });
