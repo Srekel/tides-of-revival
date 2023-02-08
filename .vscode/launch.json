@@ -8,7 +8,7 @@
             "name": "(Windows) Launch",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/zig-out/bin/ElvengroinLegacy.exe",
+            "program": "${workspaceFolder}/zig-out/bin/TidesOfRevival.exe",
             "args": [],
             // "args": ["--offlinegen"],
             "stopAtEntry": false,

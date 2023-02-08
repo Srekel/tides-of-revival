@@ -16,7 +16,7 @@ const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
 const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
 
 pub fn build(b: *Builder) void {
-    const exe = b.addExecutable("ElvengroinLegacy", "src/main.zig");
+    const exe = b.addExecutable("TidesOfRevival", "src/main.zig");
 
     exe.setTarget(b.standardTargetOptions(.{}));
     exe.setBuildMode(b.standardReleaseOptions());
@@ -116,7 +116,7 @@ pub fn build(b: *Builder) void {
 
 fn buildShaders(b: *std.build.Builder) *std.build.Step {
     const dxc_step = b.step(
-        "elvengroin-legacy-dxc",
+        "tides-of-revival-dxc",
         "Build shaders",
     );
 

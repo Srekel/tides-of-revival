@@ -7,7 +7,7 @@ const c = zgpu.cimgui;
 const zm = @import("zmath");
 
 // const imgui_font = @import("build_options").imgui_font;
-const window_title = "The Elvengroin Legacy";
+const window_title = "Tides of Revival";
 
 var windows: std.ArrayList(*zglfw.Window) = undefined;
 

@@ -47,7 +47,7 @@ pub fn run() void {
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
-    const main_window = window.createWindow("The Elvengroin Legacy") catch unreachable;
+    const main_window = window.createWindow("Tides of Revival") catch unreachable;
     main_window.setInputMode(.cursor, .disabled);
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
@@ -283,6 +283,7 @@ pub fn run() void {
     var procmesh_sys = try procmesh_system.create(
         IdLocal.initFormat("procmesh_system_{}", .{0}),
         std.heap.page_allocator,
+
         &gfx_state,
         &flecs_world,
     );

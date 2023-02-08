@@ -66,7 +66,8 @@ const WorldPatchManager = struct {
     comptime lod_0_patch_size: comptime_float = undefined,
     allocator: std.Allocator,
     requesters: std.ArrayList(IdLocal),
-    patches: std.AutoArrayHashMap(PatchLookup, Patch),
+    patch_map: std.AutoArrayHashMap(PatchLookup, Patch),
+    patch_queue: std.PriorityQueue(QueuedPatch),
 
     pub fn create(allocator: std.Allocator, lod_0_patch_size: comptime_float) WorldPatchManager {
         var res = WorldPatchManager{
@@ -105,7 +106,7 @@ const WorldPatchManager = struct {
                     .patch_type = patch_type,
                 };
 
-                const patch_opt = self.patches.get(patch_lookup);
+                const patch_opt = self.patch_map.get(patch_lookup);
                 if (patch_opt) |*patch| {
                     patch.requesters[patch.request_count].id = requester_id;
                     patch.requesters[patch.request_count].prio = prio;
@@ -117,13 +118,59 @@ const WorldPatchManager = struct {
                 const patch = Patch{};
                 patch.request_count = 1;
                 patch.prio = prio;
-                self.patches.put(patch_lookup, patch);
+                self.patch_map.put(patch_lookup, patch);
+
+                // TODO: Add to queue
+            }
+        }
+    }
+
+    pub fn removeLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type: PatchType, area: RequestArea, lod: LoD, prio: Priority) void {
+        const world_stride = self.lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod), 2);
+        const world_x_begin = @divFloor(area.x, world_stride);
+        const world_z_begin = @divFloor(area.z, world_stride);
+        const world_x_end = @divFloor(area.x + area.width - 1, world_stride) + 1;
+        const world_z_end = @divFloor(area.z + area.height - 1, world_stride) + 1;
+        const patch_x_begin = @divExact(world_x_begin, world_stride);
+        const patch_z_begin = @divExact(world_z_begin, world_stride);
+        const patch_x_end = @divExact(world_x_end, world_stride);
+        const patch_z_end = @divExact(world_z_end, world_stride);
+
+        var patch_z = patch_z_begin;
+        while (patch_z < patch_z_end) {
+            var patch_x = patch_x_begin;
+            while (patch_x < patch_x_end) {
+                const patch_lookup = PatchLookup{
+                    .x = patch_x,
+                    .z = patch_z,
+                    .lod = lod,
+                    .patch_type = patch_type,
+                };
+
+                const patch_opt = self.patch_map.remove(patch_lookup);
+                if (patch_opt) |*patch| {
+                    for (patch.requesters) |*requester, i| {
+                        if (requester.id == requester_id) {
+                            if (requester.prio == patch.highest_prio) {
+                                // TODO: Update highest
+                            }
+                            requester = patch.requesters[patch.request_count - 1];
+                            patch.request_count -= 1;
+
+                            if (patch.request_count == 0) {
+                                // TODO: Remove from queue
+                            }
+
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
 
     fn tryGetPatch(self: WorldPatchManager, patch_lookup: PatchLookup, T: type) ?[]T {
-        const patch_opt = self.patches.get(patch_lookup);
+        const patch_opt = self.patch_map.get(patch_lookup);
         if (patch_opt) |patch| {
             return patch.data;
         }
