@@ -258,9 +258,19 @@ pub fn createEntities(state: *SystemState) void {
                 zm.storeMat43(&house_transform.matrix, z_srt_matrix);
 
                 var house_ent = flecs_world.newEntity();
+                var house_mesh_id: u64 = undefined;
+                var house_rand_value: f32 = rand.float(f32);
+                if (house_rand_value < 0.8) {
+                    house_mesh_id = if (house_rand_value < 0.4) IdLocal.id64("small_house") else IdLocal.id64("small_house_fireplace");
+                } else if (house_rand_value < 0.9) {
+                    house_mesh_id = IdLocal.id64("medium_house");
+                } else {
+                    house_mesh_id = IdLocal.id64("big_house");
+                }
+
                 house_ent.set(house_transform);
                 house_ent.set(fd.CIShapeMeshInstance{
-                    .id = IdLocal.id64("small_house"),
+                    .id = house_mesh_id,
                     .basecolor_roughness = .{ .r = 1.0, .g = 0.2, .b = 0.2, .roughness = 0.8 },
                 });
             }

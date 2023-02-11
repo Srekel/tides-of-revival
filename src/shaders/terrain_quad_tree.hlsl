@@ -148,7 +148,7 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     Texture2D normal_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.normal_index)];
     Texture2D arm_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.arm_index)];
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
-    float2 world_space_uv = input.position.xz * 0.05;
+    float2 world_space_uv = input.position.xz * 0.1;
     float3 base_color = pow(diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb, GAMMA);
     float3 n = normalize(normal_texture.Sample(sam_linear_wrap, world_space_uv).rgb * 2.0 - 1.0);
     n = mul(n, TBN);
