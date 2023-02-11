@@ -676,8 +676,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 std.debug.print("patch {} h{} x{} z{}\n", .{ patch.lookup, patch.hash, patch.pos[0], patch.pos[1] });
 
                 // Upload patch vertices to vertex buffer
-                const vertex_buffer_offset = patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex);
-                state.gfx.uploadDataToBuffer(Vertex, state.vertex_buffer, vertex_buffer_offset, patch.vertices[0..patch.vertices.len]);
+                // const vertex_buffer_offset = patch.lookup * config.patch_width * config.patch_width * @sizeOf(Vertex);
+                // state.gfx.uploadDataToBuffer(Vertex, state.vertex_buffer, vertex_buffer_offset, patch.vertices[0..patch.vertices.len]);
 
                 var rand1 = std.rand.DefaultPrng.init(patch.lookup);
                 var rand = rand1.random();
@@ -691,54 +691,20 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                         if (height > 10 and height < 300) {
                             const noise = state.noise.noise2((world_x + 1000) * 4, (world_z + 1000) * 4);
                             if (noise > -0.1) {
-                                const trunk_pos = fd.Position.init(world_x, height, world_z);
-                                const trunk_scale = fd.Scale.create(0.4 + rand.float(f32) * 0.1, 3.0, 0.4 + rand.float(f32) * 0.1);
-                                var trunk_transform: fd.Transform = undefined;
-                                const z_trunk_scale_matrix = zm.scaling(trunk_scale.x, trunk_scale.y, trunk_scale.z);
-                                const z_trunk_translate_matrix = zm.translation(trunk_pos.x, trunk_pos.y, trunk_pos.z);
-                                const z_trunk_st_matrix = zm.mul(z_trunk_scale_matrix, z_trunk_translate_matrix);
-                                zm.storeMat43(trunk_transform.matrix[0..], z_trunk_st_matrix);
+                                const tree_pos = fd.Position.init(world_x, height, world_z);
+                                const uniform_scale: f32 = 1.0 + rand.float(f32) * 0.1;
+                                var tree_transform: fd.Transform = undefined;
+                                const z_tree_scale_matrix = zm.scaling(uniform_scale, uniform_scale, uniform_scale);
+                                const z_tree_translate_matrix = zm.translation(tree_pos.x, tree_pos.y, tree_pos.z);
+                                const z_tree_st_matrix = zm.mul(z_tree_scale_matrix, z_tree_translate_matrix);
+                                zm.storeMat43(tree_transform.matrix[0..], z_tree_st_matrix);
 
-                                var tree_trunk_ent = state.flecs_world.newEntity();
-                                tree_trunk_ent.set(trunk_transform);
-                                tree_trunk_ent.set(trunk_pos);
-                                tree_trunk_ent.set(trunk_scale);
-                                tree_trunk_ent.set(fd.CIShapeMeshInstance{
-                                    .id = IdLocal.id64("tree_trunk"),
+                                var tree_ent = state.flecs_world.newEntity();
+                                tree_ent.set(tree_transform);
+                                tree_ent.set(fd.CIShapeMeshInstance{
+                                    .id = IdLocal.id64("pine"),
                                     .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
                                 });
-
-                                // CROWN
-                                const crown_pos = fd.Position.init(world_x, height + 0.5 + rand.float(f32) * 2, world_z);
-                                const crown_scale = fd.Scale.create(1.0 + rand.float(f32) * 0.3, 4.0 + rand.float(f32) * 8, 1.0 + rand.float(f32) * 0.3);
-                                var crown_transform: fd.Transform = undefined;
-                                const z_crown_scale_matrix = zm.scaling(crown_scale.x, crown_scale.y, crown_scale.z);
-                                const z_crown_translate_matrix = zm.translation(crown_pos.x, crown_pos.y, crown_pos.z);
-                                const z_crown_st_matrix = zm.mul(z_crown_scale_matrix, z_crown_translate_matrix);
-                                zm.storeMat43(crown_transform.matrix[0..], z_crown_st_matrix);
-
-                                var tree_crown_ent = state.flecs_world.newEntity();
-                                tree_crown_ent.set(crown_transform);
-                                tree_crown_ent.set(crown_pos);
-                                tree_crown_ent.set(fd.EulerRotation.init(0, 0, 0));
-                                tree_crown_ent.set(crown_scale);
-                                tree_crown_ent.set(fd.CIShapeMeshInstance{
-                                    .id = IdLocal.id64("tree_crown"),
-                                    .basecolor_roughness = .{ .r = rand.float(f32) * 0.3, .g = 0.6 + rand.float(f32) * 0.4, .b = rand.float(f32) * 0.2, .roughness = 0.8 },
-                                });
-
-                                // if (rand.boolean()) {
-                                //     const crown_pos2 = zm.translation(world_x, height + 2 + rand.float(f32), world_z);
-                                //     var crown_transform2: fd.Transform = undefined;
-                                //     zm.storeMat43(crown_transform2.matrix[0..], crown_pos2);
-                                //     var tree_crown_ent2 = state.flecs_world.newEntity();
-                                //     tree_crown_ent2.set(crown_transform2);
-                                //     tree_crown_ent2.set(fd.Scale.create(1.0 + rand.float(f32) * 0.3, 4.0 + rand.float(f32) * 4, 1.0 + rand.float(f32) * 0.3));
-                                //     tree_crown_ent2.set(fd.CIShapeMeshInstance{
-                                //         .id = IdLocal.id64("tree_crown"),
-                                //         .basecolor_roughness = .{ .r = 0.2, .g = 1.0, .b = 0.2, .roughness = 0.2 },
-                                //     });
-                                // }
                             }
                         }
                     }
@@ -776,86 +742,86 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         return;
     }
 
-    var gctx = state.gfx.gctx;
-    state.gpu_draw_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain System: Draw");
+    // var gctx = state.gfx.gctx;
+    // state.gpu_draw_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain System: Draw");
 
-    // Set input assembler (IA) state.
-    gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
-    const vertex_buffer_resource = gctx.lookupResource(vertex_buffer.?.resource);
-    gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
-        .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
-        .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
-        .StrideInBytes = @sizeOf(Vertex),
-    }});
-    const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
-    const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
-    gctx.cmdlist.IASetIndexBuffer(&.{
-        .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-        .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
-    });
+    // // Set input assembler (IA) state.
+    // gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+    // const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+    // const vertex_buffer_resource = gctx.lookupResource(vertex_buffer.?.resource);
+    // gctx.cmdlist.IASetVertexBuffers(0, 1, &[_]d3d12.VERTEX_BUFFER_VIEW{.{
+    //     .BufferLocation = vertex_buffer_resource.?.GetGPUVirtualAddress(),
+    //     .SizeInBytes = @intCast(c_uint, vertex_buffer_resource.?.GetDesc().Width),
+    //     .StrideInBytes = @sizeOf(Vertex),
+    // }});
+    // const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
+    // const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
+    // gctx.cmdlist.IASetIndexBuffer(&.{
+    //     .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+    //     .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+    //     .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+    // });
 
-    const pipeline = state.gfx.getPipeline(IdLocal.init("terrain"));
-    gctx.setCurrentPipeline(pipeline.?.pipeline_handle);
+    // const pipeline = state.gfx.getPipeline(IdLocal.init("terrain"));
+    // gctx.setCurrentPipeline(pipeline.?.pipeline_handle);
 
-    // Upload per-frame constant data.
-    {
-        const cam = camera_comps.?.cam;
-        const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
-        const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
-        const world_time = environment_info.world_time;
-        const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
-        mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
-        mem.cpu_slice[0].camera_position = camera_comps.?.pos.elemsConst().*;
-        mem.cpu_slice[0].time = world_time;
-        mem.cpu_slice[0].light_count = 0;
+    // // Upload per-frame constant data.
+    // {
+    //     const cam = camera_comps.?.cam;
+    //     const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
+    //     const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    //     const world_time = environment_info.world_time;
+    //     const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
+    //     mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
+    //     mem.cpu_slice[0].camera_position = camera_comps.?.pos.elemsConst().*;
+    //     mem.cpu_slice[0].time = world_time;
+    //     mem.cpu_slice[0].light_count = 0;
 
-        var entity_iter_lights = state.query_lights.iterator(struct {
-            light: *fd.Light,
-            transform: *fd.Transform,
-        });
+    //     var entity_iter_lights = state.query_lights.iterator(struct {
+    //         light: *fd.Light,
+    //         transform: *fd.Transform,
+    //     });
 
-        var light_i: u32 = 0;
-        while (entity_iter_lights.next()) |comps| {
-            const light_pos = comps.transform.getPos00();
-            std.mem.copy(f32, mem.cpu_slice[0].light_positions[light_i][0..], light_pos[0..]);
-            std.mem.copy(f32, mem.cpu_slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
-            mem.cpu_slice[0].light_radiances[light_i][3] = comps.light.range;
-            // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });
+    //     var light_i: u32 = 0;
+    //     while (entity_iter_lights.next()) |comps| {
+    //         const light_pos = comps.transform.getPos00();
+    //         std.mem.copy(f32, mem.cpu_slice[0].light_positions[light_i][0..], light_pos[0..]);
+    //         std.mem.copy(f32, mem.cpu_slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
+    //         mem.cpu_slice[0].light_radiances[light_i][3] = comps.light.range;
+    //         // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });
 
-            light_i += 1;
-        }
-        mem.cpu_slice[0].light_count = light_i;
+    //         light_i += 1;
+    //     }
+    //     mem.cpu_slice[0].light_count = light_i;
 
-        gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-    }
+    //     gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+    // }
 
-    for (state.patches.items) |*patch| {
-        if (patch.status == .loaded) {
-            // const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
-            // const transform = zm.loadMat43(comps.transform.matrix[0..]);
-            // const object_to_world = zm.mul(scale_matrix, transform);
-            const posmat = zm.translation(
-                @intToFloat(f32, patch.pos[0]),
-                @intToFloat(f32, 0),
-                @intToFloat(f32, patch.pos[1]),
-            );
-            // const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
+    // for (state.patches.items) |*patch| {
+    //     if (patch.status == .loaded) {
+    //         // const scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
+    //         // const transform = zm.loadMat43(comps.transform.matrix[0..]);
+    //         // const object_to_world = zm.mul(scale_matrix, transform);
+    //         const posmat = zm.translation(
+    //             @intToFloat(f32, patch.pos[0]),
+    //             @intToFloat(f32, 0),
+    //             @intToFloat(f32, patch.pos[1]),
+    //         );
+    //         // const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
 
-            const mem = gctx.allocateUploadMemory(DrawUniforms, 1);
-            mem.cpu_slice[0].object_to_world = zm.transpose(posmat);
-            mem.cpu_slice[0].basecolor_roughness[0] = 1;
-            mem.cpu_slice[0].basecolor_roughness[1] = 1;
-            mem.cpu_slice[0].basecolor_roughness[2] = 0;
-            mem.cpu_slice[0].basecolor_roughness[3] = 1;
-            gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+    //         const mem = gctx.allocateUploadMemory(DrawUniforms, 1);
+    //         mem.cpu_slice[0].object_to_world = zm.transpose(posmat);
+    //         mem.cpu_slice[0].basecolor_roughness[0] = 1;
+    //         mem.cpu_slice[0].basecolor_roughness[1] = 1;
+    //         mem.cpu_slice[0].basecolor_roughness[2] = 0;
+    //         mem.cpu_slice[0].basecolor_roughness[3] = 1;
+    //         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-            // Draw.
-            // var vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
-            gctx.cmdlist.DrawIndexedInstanced(indices_per_patch, 1, patch.index_offset, patch.vertex_offset, 0);
-        }
-    }
+    //         // Draw.
+    //         // var vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
+    //         gctx.cmdlist.DrawIndexedInstanced(indices_per_patch, 1, patch.index_offset, patch.vertex_offset, 0);
+    //     }
+    // }
 
-    state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_draw_profiler_index, state.gfx.gctx.frame_index);
+    // state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_draw_profiler_index, state.gfx.gctx.frame_index);
 }
