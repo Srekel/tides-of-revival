@@ -26,8 +26,6 @@ const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
 
-const zmesh = @import("zmesh");
-
 const TerrainLayer = struct {
     diffuse: gfx.TextureHandle,
     normal: gfx.TextureHandle,
@@ -826,9 +824,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
-
-    // zmesh.init(arena);
-    // defer zmesh.deinit();
 
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
