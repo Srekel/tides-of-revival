@@ -10,14 +10,15 @@ const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 
 const gfx = @import("../gfx_d3d12.zig");
-const Vertex = gfx.Vertex;
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 
-const IndexType = zmesh.Shape.IndexType;
+const Vertex = @import("../renderer/renderer_types.zig").Vertex;
+const IndexType = @import("../renderer/renderer_types.zig").IndexType;
+const mesh_loader = @import("../renderer/mesh_loader.zig");
 
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
@@ -147,6 +148,8 @@ fn appendMesh(
         meshes_vertices.append(.{
             .position = mesh.positions[i],
             .normal = mesh.normals.?[i],
+            .uv = [2]f32{ 0.0, 0.0 },
+            .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
         }) catch unreachable;
     }
 
@@ -225,6 +228,7 @@ fn initScene(
 
         _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
     }
+
     {
         var mesh = zmesh.Shape.initCone(4, 4);
         defer mesh.deinit();

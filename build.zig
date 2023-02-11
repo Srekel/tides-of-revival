@@ -25,7 +25,7 @@ pub fn build(b: *Builder) void {
     // exe.addPackagePath("qoi", "external/zig-qoi/src/qoi.zig");
     exe.addPackagePath("args", "external/zig-args/args.zig");
 
-    const zmesh_options = zmesh.BuildOptionsStep.init(b, .{});
+    const zmesh_options = zmesh.BuildOptionsStep.init(b, .{ .shape_use_32bit_indices = true });
     const zmesh_pkg = zmesh.getPkg(&.{zmesh_options.getPkg()});
 
     const ztracy_enable = b.option(bool, "ztracy-enable", "Enable Tracy profiler") orelse false;
