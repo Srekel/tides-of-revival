@@ -7,4 +7,5 @@ pub const Vertex = struct {
     normal: [3]f32,
     uv: [2]f32,
     tangent: [4]f32,
+    color: [3]f32,
 };

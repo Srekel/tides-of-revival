@@ -21,6 +21,7 @@ struct Vertex {
     float3 normal;
     float2 uv;
     float4 tangent;
+    float3 color;
 };
 
 struct DrawConst {

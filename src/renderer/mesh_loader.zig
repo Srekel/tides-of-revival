@@ -16,9 +16,6 @@ pub fn loadObjMeshFromFile(
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    zmesh.init(arena);
-    defer zmesh.deinit();
-
     var file = std.fs.cwd().openFile(path, .{}) catch |err| {
         std.log.warn("Unable to open file: {s}", .{@errorName(err)});
         return err;
@@ -32,6 +29,7 @@ pub fn loadObjMeshFromFile(
     var vertices = std.ArrayList(Vertex).init(arena);
 
     var positions = std.ArrayList([3]f32).init(arena);
+    var colors = std.ArrayList([3]f32).init(arena);
     var normals = std.ArrayList([3]f32).init(arena);
     var uvs = std.ArrayList([2]f32).init(arena);
 
@@ -47,6 +45,11 @@ pub fn loadObjMeshFromFile(
             position[1] = try std.fmt.parseFloat(f32, it.next().?);
             position[2] = try std.fmt.parseFloat(f32, it.next().?);
             try positions.append(position);
+            var color: [3]f32 = undefined;
+            color[0] = try std.fmt.parseFloat(f32, it.next().?);
+            color[1] = try std.fmt.parseFloat(f32, it.next().?);
+            color[2] = try std.fmt.parseFloat(f32, it.next().?);
+            try colors.append(color);
         } else if (std.mem.eql(u8, first, "vn")) {
             var normal: [3]f32 = undefined;
             normal[0] = try std.fmt.parseFloat(f32, it.next().?);
@@ -81,6 +84,7 @@ pub fn loadObjMeshFromFile(
                     .normal = normals.items[normal_index],
                     .uv = uvs.items[uv_index],
                     .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
+                    .color = colors.items[position_index],
                 });
             }
         }

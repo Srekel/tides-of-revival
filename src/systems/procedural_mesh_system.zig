@@ -125,7 +125,7 @@ const SystemState = struct {
     } = .{},
 };
 
-fn appendMesh(
+fn appendShapeMesh(
     id: IdLocal,
     // entity: flecs.EntityId,
     mesh: zmesh.Shape,
@@ -150,8 +150,32 @@ fn appendMesh(
             .normal = mesh.normals.?[i],
             .uv = [2]f32{ 0.0, 0.0 },
             .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
+            .color = [3]f32{ 1.0, 1.0, 1.0 },
         }) catch unreachable;
     }
+
+    return meshes.items.len - 1;
+}
+
+fn appendObjMesh(
+    allocator: std.mem.Allocator,
+    id: IdLocal,
+    path: []const u8,
+    meshes: *std.ArrayList(Mesh),
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_vertices: *std.ArrayList(Vertex),
+) !u64 {
+    const index_offset = @intCast(u32, meshes_indices.items.len);
+    const vertex_offset = @intCast(i32, meshes_vertices.items.len);
+    const result = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
+
+    meshes.append(.{
+        .id = id,
+        .index_offset = index_offset,
+        .vertex_offset = vertex_offset,
+        .num_indices = result.num_indices,
+        .num_vertices = result.num_vertices,
+    }) catch unreachable;
 
     return meshes.items.len - 1;
 }
@@ -162,13 +186,6 @@ fn initScene(
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
 ) void {
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    zmesh.init(arena);
-    defer zmesh.deinit();
-
     {
         var mesh = zmesh.Shape.initParametricSphere(20, 20);
         defer mesh.deinit();
@@ -176,7 +193,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -185,7 +202,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -214,7 +231,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -226,7 +243,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -238,7 +255,11 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
+    }
+
+    {
+        _ = appendObjMesh(allocator, IdLocal.init("small_house"), "content/meshes/small_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     }
 }
 

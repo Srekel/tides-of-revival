@@ -23,6 +23,7 @@ const IdLocal = @import("variant.zig").IdLocal;
 const zaudio = @import("zaudio");
 const znoise = @import("znoise");
 const ztracy = @import("ztracy");
+const zmesh = @import("zmesh");
 
 const fsm = @import("fsm/fsm.zig");
 
@@ -279,6 +280,12 @@ pub fn run() void {
         &input_frame_data,
     );
     defer camera_system.destroy(camera_sys);
+
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    zmesh.init(arena);
+    defer zmesh.deinit();
 
     var procmesh_sys = try procmesh_system.create(
         IdLocal.initFormat("procmesh_system_{}", .{0}),

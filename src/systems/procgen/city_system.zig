@@ -250,18 +250,17 @@ pub fn createEntities(state: *SystemState) void {
                 }
 
                 var house_transform: fd.Transform = undefined;
-                const z_scale_matrix = zm.scaling(7, 3, 4);
+                const z_scale_matrix = zm.scaling(1, 1, 1);
                 const z_rot_matrix = zm.matFromRollPitchYaw(0, angle_radians, 0);
-                const z_translate_matrix = zm.translation(housePos.x, houseY - 2, housePos.z);
+                const z_translate_matrix = zm.translation(housePos.x, houseY, housePos.z);
                 const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
                 const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
                 zm.storeMat43(&house_transform.matrix, z_srt_matrix);
 
                 var house_ent = flecs_world.newEntity();
                 house_ent.set(house_transform);
-                house_ent.set(fd.Scale.create(7, 3, 4));
                 house_ent.set(fd.CIShapeMeshInstance{
-                    .id = IdLocal.id64("cube"),
+                    .id = IdLocal.id64("small_house"),
                     .basecolor_roughness = .{ .r = 1.0, .g = 0.2, .b = 0.2, .roughness = 0.8 },
                 });
             }
