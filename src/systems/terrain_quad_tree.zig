@@ -20,6 +20,7 @@ const hrPanicOnFail = zwin32.hrPanicOnFail;
 const d3d12 = zwin32.d3d12;
 const dds_loader = @import("../renderer/d3d12/dds_loader.zig");
 
+const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const IndexType = u32;
@@ -129,6 +130,7 @@ const QuadTreeNode = struct {
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
     sys: flecs.EntityId,
 
     gfx: *gfx.D3D12State,
@@ -741,7 +743,9 @@ fn loadHeightAndSplatMaps(
     heap_size: u64,
     textures_heap_offset: *u64,
     node: *QuadTreeNode,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !void {
+    _ = world_patch_mgr;
     var heightmap_namebuf: [256]u8 = undefined;
     const heightmap_path = std.fmt.bufPrintZ(
         heightmap_namebuf[0..heightmap_namebuf.len],
@@ -873,6 +877,7 @@ fn loadResources(
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
     terrain_layers: *std.ArrayList(TerrainLayer),
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !void {
     loadMesh(allocator, "content/meshes/LOD0.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     loadMesh(allocator, "content/meshes/LOD1.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
@@ -910,7 +915,14 @@ fn loadResources(
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             var node = &quad_tree_nodes.items[i];
-            loadHeightAndSplatMaps(gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset, node) catch unreachable;
+            loadHeightAndSplatMaps(
+                gfxstate,
+                textures_heap,
+                heap_desc.SizeInBytes,
+                textures_heap_offset,
+                node,
+                world_patch_mgr,
+            ) catch unreachable;
         }
     }
 
@@ -953,7 +965,13 @@ fn divideQuadTreeNode(
     }
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World) !*SystemState {
+pub fn create(
+    name: IdLocal,
+    allocator: std.mem.Allocator,
+    gfxstate: *gfx.D3D12State,
+    flecs_world: *flecs.World,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+) !*SystemState {
     // Queries
     var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_camera
@@ -1026,7 +1044,18 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
     var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
-    loadResources(allocator, &terrain_quad_tree_nodes, gfxstate, textures_heap, &textures_heap_offset, &meshes, &meshes_indices, &meshes_vertices, &terrain_layers) catch unreachable;
+    loadResources(
+        allocator,
+        &terrain_quad_tree_nodes,
+        gfxstate,
+        textures_heap,
+        &textures_heap_offset,
+        &meshes,
+        &meshes_indices,
+        &meshes_vertices,
+        &terrain_layers,
+        world_patch_mgr,
+    ) catch unreachable;
 
     const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
@@ -1111,6 +1140,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     state.* = .{
         .allocator = allocator,
         .flecs_world = flecs_world,
+        .world_patch_mgr = world_patch_mgr,
         .sys = sys,
         .gfx = gfxstate,
         .vertex_buffer = vertex_buffer,

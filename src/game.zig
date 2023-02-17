@@ -2,6 +2,8 @@ const std = @import("std");
 const args = @import("args");
 const flecs = @import("flecs");
 const RndGen = std.rand.DefaultPrng;
+const AssetManager = @import("core/asset_manager.zig").AssetManager;
+const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 
 const window = @import("window.zig");
 const gfx = @import("gfx_d3d12.zig");
@@ -231,11 +233,43 @@ pub fn run() void {
     var input_frame_data = input.FrameData.create(std.heap.page_allocator, keymap, input_target_defaults, main_window);
     var input_sys = try input_system.create(
         IdLocal.init("input_sys"),
-        std.heap.c_allocator,
+        std.heap.page_allocator,
         &flecs_world,
         &input_frame_data,
     );
     defer input_system.destroy(input_sys);
+
+    // const HeightmapPatchLoader = struct {
+    //     pub fn load(patch: *world_patch_manager.Patch) void {
+    //         _ = patch;
+    //     }
+    // };
+
+    var asset_manager = AssetManager.create(std.heap.page_allocator);
+    defer asset_manager.destroy();
+
+    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, asset_manager);
+    // _ = world_patch_mgr;
+    const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
+    // _ = rid;
+    // const patch_type = world_patch_mgr.registerPatchType(.{
+    //     .id = IdLocal.init("terrainqt_heightmap"),
+    //     .loadFunc = HeightmapPatchLoader.load,
+    // });
+    // _ = patch_type;
+    world_patch_mgr.addLoadRequest(
+        rid,
+        0,
+        .{ .x = 0, .z = 0, .width = 64, .height = 64 },
+        0,
+        .high,
+    );
+    const lookup = world_patch_manager.WorldPatchManager.getLookup(10, 10, 0, 0);
+    const lol1 = world_patch_mgr.tryGetPatch(lookup, u8);
+    _ = lol1;
+    world_patch_mgr.tick();
+    const lol2 = world_patch_mgr.tryGetPatch(lookup, u8);
+    _ = lol2;
 
     var physics_sys = try physics_system.create(
         IdLocal.init("physics_system_{}"),
@@ -246,7 +280,7 @@ pub fn run() void {
 
     var state_machine_sys = try state_machine_system.create(
         IdLocal.init("state_machine_sys"),
-        std.heap.c_allocator,
+        std.heap.page_allocator,
         &flecs_world,
         &input_frame_data,
         physics_sys.physics_world,
@@ -263,7 +297,7 @@ pub fn run() void {
 
     var city_sys = try city_system.create(
         IdLocal.init("city_system"),
-        std.heap.c_allocator,
+        std.heap.page_allocator,
         &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
@@ -294,12 +328,13 @@ pub fn run() void {
         std.heap.page_allocator,
         &gfx_state,
         &flecs_world,
+        &world_patch_mgr,
     );
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
 
     // var terrain_sys = try terrain_system.create(
     //     IdLocal.init("terrain_system"),
-    //     std.heap.c_allocator,
+    //     std.heap.page_allocator,
     //     &gfx_state,
     //     &flecs_world,
     //     physics_sys.physics_world,

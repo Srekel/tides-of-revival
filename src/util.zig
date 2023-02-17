@@ -3,6 +3,25 @@ const flecs = @import("flecs");
 const fd = @import("flecs_data.zig");
 const znoise = @import("znoise");
 
+pub fn sliceOfInstance(comptime T: type, instance: *T) []T {
+    var arrptr: *[1]T = instance;
+    var slice: []T = arrptr;
+    return slice;
+}
+
+pub fn sliceOfInstanceConst(comptime T: type, instance: *const T) []const T {
+    var arrptr: *const [1]T = instance;
+    var slice: []const T = arrptr;
+    return slice;
+}
+
+// pub fn sliceOfInstance2(comptime T: type, instance: *T) []T {
+//     var slice: []T = undefined;
+//     slice.ptr = @ptrCast([*]T, instance);
+//     slice.len = 1;
+//     return slice;
+// }
+
 pub fn castBytes(comptime T: type, slice: []u8) *T {
     const ptr = std.mem.bytesAsValue(T, slice[0..@sizeOf(T)]);
     return @alignCast(@alignOf(T), ptr);

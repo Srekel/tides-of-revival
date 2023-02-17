@@ -65,9 +65,7 @@ pub const IdLocal = struct {
     }
 
     pub fn eqlStr(self: IdLocal, other: []const u8) bool {
-        // todo memcmp
-        const hash = std.hash.Wyhash.hash(0, other);
-        return self.hash == hash;
+        return std.mem.eql(u8, self.str[0..self.strlen], other);
     }
     pub fn eqlHash(self: IdLocal, other: u64) bool {
         return self.hash == other;
