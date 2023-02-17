@@ -120,7 +120,7 @@ pub const WorldPatchManager = struct {
             .patch_map_by_handle = std.AutoArrayHashMap(PatchHandle, Patch).init(allocator),
             .handle_map_by_lookup = std.AutoArrayHashMap(PatchLookup, PatchHandle).init(allocator),
             .patch_pool = PatchPool.initCapacity(allocator, 8) catch unreachable, // temporarily low for testing
-            .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8, 8, 8, 8 }), // temporarily low for testing
+            .bucket_queue = PatchQueue.create(allocator, [_]u32{ 64, 64, 64, 64 }), // temporarily low for testing
             .asset_manager = asset_manager,
         };
 
@@ -306,7 +306,7 @@ pub const WorldPatchManager = struct {
                 var heightmap_namebuf: [256]u8 = undefined;
                 const heightmap_path = std.fmt.bufPrintZ(
                     heightmap_namebuf[0..heightmap_namebuf.len],
-                    "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
+                    "content/patch/heightmap/lod{}/heightmap_x{}_y{}.dds",
                     .{
                         patch.lookup.lod,
                         patch.patch_x,

@@ -458,6 +458,70 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     return .{ .image = image_conv, .format = dxgi_format };
 }
 
+fn createDDSTextureFromMemory(
+    data: []u8,
+    arena: std.mem.Allocator,
+    gfxstate: *gfx.D3D12State,
+    heap: *d3d12.IHeap,
+    heap_size: u64,
+    heap_offset: *u64,
+) !gfx.Texture {
+    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+    // having the data from the first uploaded texture :(
+    gfxstate.gctx.beginFrame();
+
+    // Load DDS data into D3D12_SUBRESOURCE_DATA
+    var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
+    const dds_info = dds_loader.loadTextureFromMemory(data, arena, &subresources) catch unreachable;
+
+    // Create a texture and upload all its subresources to the GPU
+    const resource = blk: {
+        // Reserve space for the texture (subresources) from a pre-allocated HEAP
+        var resource = allocateTextureMemory(
+            gfxstate,
+            heap,
+            heap_size,
+            heap_offset,
+            dds_info.width,
+            dds_info.height,
+            dds_info.format,
+            dds_info.mip_map_count,
+        ) catch unreachable;
+
+        // TODO: Set a debug name
+        // {
+        //     var path_u16: [300]u16 = undefined;
+        //     assert(path.len < path_u16.len - 1);
+        //     const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+        //     path_u16[path_len] = 0;
+        //     _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+        // }
+
+        // Upload all subresources
+        uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
+
+        break :blk resource;
+    };
+
+    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+    // having the data from the first uploaded texture :(
+    gfxstate.gctx.endFrame();
+    gfxstate.gctx.finishGpuCommands();
+
+    // Create a persisten SRV descriptor for the texture
+    const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
+    gfxstate.gctx.device.CreateShaderResourceView(
+        resource,
+        null,
+        srv_allocation.cpu_handle,
+    );
+
+    return gfx.Texture{
+        .resource = resource,
+        .persistent_descriptor = srv_allocation,
+    };
+}
+
 fn createDDSTextureFromFile(
     path: []const u8,
     arena: std.mem.Allocator,
@@ -749,22 +813,15 @@ fn loadHeightAndSplatMaps(
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !void {
-    _ = world_patch_mgr;
-
     const heightmap = blk: {
-        // Generate Path
-        var namebuf: [256]u8 = undefined;
-        const path = std.fmt.bufPrintZ(
-            namebuf[0..namebuf.len],
-            "content/patch/heightmap/lod{}/heightmap_x{}_y{}.dds",
-            .{
-                node.mesh_lod,
-                node.patch_index[0],
-                node.patch_index[1],
-            },
-        ) catch unreachable;
-
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+        const lookup = world_patch_manager.PatchLookup{
+            .world_x = @intCast(u16, node.patch_index[0]),
+            .world_z = @intCast(u16, node.patch_index[1]),
+            .lod = @intCast(u4, node.mesh_lod),
+            .patch_type_id = 0,
+        };
+        const patch = world_patch_mgr.tryGetPatch(lookup, u8);
+        break :blk createDDSTextureFromMemory(patch.?, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
     };
     node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
 
@@ -876,6 +933,17 @@ fn loadResources(
         terrain_layers.append(rock_ground) catch unreachable;
         terrain_layers.append(snow) catch unreachable;
     }
+
+    // Ask the World Patch Manager to load all LOD3 for the current world extents
+    const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
+    world_patch_mgr.addLoadRequest(
+        rid,
+        0,
+        .{ .x = 0, .z = 0, .width = 4096, .height = 4096 },
+        3,
+        .high,
+    );
+    world_patch_mgr.tick();
 
     // Load all LOD's heightmaps
     {
