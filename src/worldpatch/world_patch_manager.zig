@@ -153,7 +153,7 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn getLookup(world_x: f32, world_z: f32, lod: LoD, patch_type_id: PatchTypeId) PatchLookup {
-        const world_stride = lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod + 1), 2);
+        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
         const world_x_begin = world_stride * @divFloor(world_x, world_stride);
         const world_z_begin = world_stride * @divFloor(world_z, world_stride);
         const patch_x_begin = @floatToInt(u16, @divExact(world_x_begin, world_stride));
@@ -167,7 +167,7 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn addLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD, prio: Priority) void {
-        const world_stride = lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod + 1), 2);
+        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
         const world_x_begin = @divFloor(area.x, world_stride);
         const world_z_begin = @divFloor(area.z, world_stride);
         const world_x_end = world_stride * (@divFloor(area.x + area.width - 1, world_stride) + 1);
