@@ -117,6 +117,10 @@ const QuadTreeNode = struct {
         }
 
         for (self.child_indices) |child_index| {
+            if (child_index == std.math.maxInt(u32)) {
+                return false;
+            }
+
             var node = nodes.items[child_index];
             if (node.containsPoint(point)) {
                 return true;
@@ -693,7 +697,6 @@ fn loadTerrainLayer(
     heap_size: u64,
     textures_heap_offset: *u64,
 ) !TerrainLayer {
-    // TODO:(gmodarelli) Convert this main blk into a createTextureFromDDSFile function
     const diffuse = blk: {
         // Generate Path
         var namebuf: [256]u8 = undefined;
@@ -738,6 +741,7 @@ fn loadTerrainLayer(
 }
 
 fn loadHeightAndSplatMaps(
+    arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     textures_heap: *d3d12.IHeap,
     heap_size: u64,
@@ -746,16 +750,26 @@ fn loadHeightAndSplatMaps(
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !void {
     _ = world_patch_mgr;
-    var heightmap_namebuf: [256]u8 = undefined;
-    const heightmap_path = std.fmt.bufPrintZ(
-        heightmap_namebuf[0..heightmap_namebuf.len],
-        "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
-        .{
-            node.mesh_lod,
-            node.patch_index[0],
-            node.patch_index[1],
-        },
-    ) catch unreachable;
+
+    const heightmap = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "content/patch/heightmap/lod{}/heightmap_x{}_y{}.dds",
+            .{
+                node.mesh_lod,
+                node.patch_index[0],
+                node.patch_index[1],
+            },
+        ) catch unreachable;
+
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+    };
+    node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+
+    // TODO: Schedule the upload instead of uploading immediately
+    gfxstate.gctx.beginFrame();
 
     var splatmap_namebuf: [256]u8 = undefined;
     const splatmap_path = std.fmt.bufPrintZ(
@@ -768,39 +782,8 @@ fn loadHeightAndSplatMaps(
         },
     ) catch unreachable;
 
-    var heightmap_texture_data = loadTexture(&gfxstate.gctx, heightmap_path) catch unreachable;
-    defer _ = heightmap_texture_data.image.Release();
     var splatmap_texture_data = loadTexture(&gfxstate.gctx, splatmap_path) catch unreachable;
     defer _ = splatmap_texture_data.image.Release();
-
-    const heightmap_wh = blk: {
-        var width: u32 = undefined;
-        var height: u32 = undefined;
-        hrPanicOnFail(heightmap_texture_data.image.GetSize(&width, &height));
-        break :blk .{ .w = width, .h = height };
-    };
-
-    var heightmap_texture_resource = allocateTextureMemory(
-        gfxstate,
-        textures_heap,
-        heap_size,
-        textures_heap_offset,
-        heightmap_wh.w,
-        heightmap_wh.h,
-        heightmap_texture_data.format,
-        1,
-    ) catch unreachable;
-
-    // Set a debug name
-    {
-        var path_u16: [300]u16 = undefined;
-        assert(heightmap_path.len < path_u16.len - 1);
-        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], heightmap_path) catch unreachable;
-        path_u16[path_len] = 0;
-        _ = heightmap_texture_resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
-    }
-
-    uploadDataToTexture(gfxstate, heightmap_texture_resource, heightmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
 
     const splatmap_wh = blk: {
         var width: u32 = undefined;
@@ -831,21 +814,8 @@ fn loadHeightAndSplatMaps(
 
     uploadDataToTexture(gfxstate, splatmap_texture_resource, splatmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
 
-    const heightmap = blk: {
-        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-        gfxstate.gctx.device.CreateShaderResourceView(
-            heightmap_texture_resource,
-            null,
-            srv_allocation.cpu_handle,
-        );
-
-        const t = gfx.Texture{
-            .resource = heightmap_texture_resource,
-            .persistent_descriptor = srv_allocation,
-        };
-
-        break :blk t;
-    };
+    gfxstate.gctx.endFrame();
+    gfxstate.gctx.finishGpuCommands();
 
     const splatmap = blk: {
         const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
@@ -863,7 +833,6 @@ fn loadHeightAndSplatMaps(
         break :blk t;
     };
 
-    node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);
 }
 
@@ -886,12 +855,12 @@ fn loadResources(
 
     var heap_desc = textures_heap.GetDesc();
 
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
     // Load terrain layers textures
     {
-        var arena_state = std.heap.ArenaAllocator.init(allocator);
-        defer arena_state.deinit();
-        const arena = arena_state.allocator();
-
         const dry_ground = loadTerrainLayer("dry_ground_rocks", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
         const forest_ground = loadTerrainLayer("forrest_ground_01", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
         const rock_ground = loadTerrainLayer("rock_ground", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
@@ -908,14 +877,13 @@ fn loadResources(
         terrain_layers.append(snow) catch unreachable;
     }
 
-    // TODO: Schedule the upload instead of uploading immediately
-    gfxstate.gctx.beginFrame();
     // Load all LOD's heightmaps
     {
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             var node = &quad_tree_nodes.items[i];
             loadHeightAndSplatMaps(
+                arena,
                 gfxstate,
                 textures_heap,
                 heap_desc.SizeInBytes,
@@ -925,10 +893,6 @@ fn loadResources(
             ) catch unreachable;
         }
     }
-
-    // TODO: Schedule the upload instead of uploading immediately
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
 }
 
 fn divideQuadTreeNode(
@@ -1026,11 +990,11 @@ pub fn create(
 
         assert(terrain_quad_tree_nodes.items.len == 64);
 
-        var sector_index: u32 = 0;
-        while (sector_index < 64) : (sector_index += 1) {
-            var node = &terrain_quad_tree_nodes.items[sector_index];
-            divideQuadTreeNode(&terrain_quad_tree_nodes, node);
-        }
+        // var sector_index: u32 = 0;
+        // while (sector_index < 64) : (sector_index += 1) {
+        //     var node = &terrain_quad_tree_nodes.items[sector_index];
+        //     divideQuadTreeNode(&terrain_quad_tree_nodes, node);
+        // }
     }
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -1341,6 +1305,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 // Algorithm that walks a quad tree and generates a list of quad tree nodes to render
 fn collectQuadsToRenderForSector(position: [2]f32, node: *QuadTreeNode, node_index: u32, nodes: *std.ArrayList(QuadTreeNode), quads_to_render: *std.ArrayList(u32)) !void {
     assert(node_index != std.math.maxInt(u32));
+
+    if (node.mesh_lod == 2) {
+        return;
+    }
 
     if (node.mesh_lod == 0) {
         return;
