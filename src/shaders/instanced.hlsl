@@ -9,6 +9,9 @@
 struct Vertex {
     float3 position;
     float3 normal;
+    float2 uv;
+    float4 tangent;
+    float3 color;
 };
 
 struct DrawConst {
@@ -39,8 +42,6 @@ struct InstanceMaterial {
     float4 basecolor_roughness;
 };
 
-// ConstantBuffer<DrawConst> cbv_draw_const : register(b0, per_object_space);
-// ConstantBuffer<FrameConst> cbv_frame_const : register(b0, per_pass_space);
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
 
@@ -48,6 +49,7 @@ struct InstancedVertexOut {
     float4 position_vs : SV_Position;
     float3 position : TEXCOORD0;
     float3 normal : NORMAL;
+    float3 color : COLOR;
     uint instanceID: SV_InstanceID;
 };
 
@@ -67,6 +69,7 @@ InstancedVertexOut vsInstanced(uint vertex_id : SV_VertexID, uint instanceID : S
     output.position_vs = mul(float4(vertex.position, 1.0), object_to_clip);
     output.position = mul(float4(vertex.position, 1.0), instance.object_to_world).xyz;
     output.normal = vertex.normal; // object-space normal
+    output.color = vertex.color;
 
     return output;
 }
@@ -78,6 +81,7 @@ void psInstanced(InstancedVertexOut input, out float4 out_color : SV_Target0) {
     InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
 
     float3 base_color = material.basecolor_roughness.rgb;
+    base_color = pow(input.color, GAMMA);
 
     PBRInput pbrInput;
     pbrInput.view_position = cbv_frame_const.camera_position;
