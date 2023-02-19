@@ -51,9 +51,9 @@ pub const AssetManager = struct {
             const contents_snug = self.allocator.alloc(u8, contents.len) catch unreachable;
             std.mem.copy(u8, contents_snug, contents);
             self.allocator.free(contents);
-            asset.data = contents;
+            asset.data = contents_snug;
             asset.status = .loaded;
-            return contents;
+            return contents_snug;
         }
 
         const file = std.fs.cwd().openFile(id.toString(), .{ .mode = .read_only }) catch unreachable;
@@ -64,10 +64,10 @@ pub const AssetManager = struct {
         self.allocator.free(contents);
         var asset = Asset{
             .status = .loaded,
-            .data = contents,
+            .data = contents_snug,
             .timestamp = std.time.timestamp(),
         };
         self.assets.putAssumeCapacity(id.hash, asset);
-        return contents;
+        return contents_snug;
     }
 };
