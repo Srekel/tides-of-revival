@@ -169,7 +169,6 @@ pub const WorldPatchManager = struct {
     requesters: std.ArrayList(IdLocal) = undefined,
     patch_types: std.ArrayList(PatchType) = undefined,
     handle_map_by_lookup: std.AutoArrayHashMap(PatchLookup, PatchHandle) = undefined,
-    // patch_queue: std.PriorityQueue(QueuedPatch) = undefined,
     patch_pool: PatchPool = undefined,
     bucket_queue: PatchQueue = undefined,
     asset_manager: AssetManager = undefined,
@@ -257,12 +256,12 @@ pub const WorldPatchManager = struct {
                 const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
                 if (patch_handle_opt) |patch_handle| {
                     const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+                    const prio_old = patch.highest_prio;
                     patch.addOrUpdateRequester(requester_id, prio);
+                    if (patch.highest_prio != prio_old) {
+                        self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
+                    }
                     continue;
-                    // if (patch_opt) |patch| {
-                    // }
-
-                    // unreachable;
                 }
 
                 var patch = Patch{
@@ -274,13 +273,7 @@ pub const WorldPatchManager = struct {
                 patch.requesters[patch.request_count].requester_id = requester_id;
                 patch.requesters[patch.request_count].prio = prio;
                 patch.request_count = 1;
-                patch.highest_prio = @intToEnum(
-                    Priority,
-                    std.math.min(
-                        @enumToInt(patch.highest_prio),
-                        @enumToInt(prio),
-                    ),
-                );
+                patch.highest_prio = prio;
                 patch.patch_type_id = patch_type_id;
 
                 const patch_handle = self.patch_pool.add(.{ .patch = patch }) catch unreachable;
@@ -308,13 +301,20 @@ pub const WorldPatchManager = struct {
                     .patch_type_id = patch_type_id,
                 };
 
-                // const patch_handle_opt = self.handle_map_by_lookup.remove(patch_lookup);
                 const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
                 if (patch_handle_opt) |patch_handle| {
                     const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+                    const prio_old = patch.highest_prio;
                     patch.removeRequester(requester_id);
-                    self.patch_pool.removeAssumeLive(patch_handle_opt);
-                    _ = self.handle_map_by_lookup.remove(patch_lookup);
+                    if (patch.request_count == 0) {
+                        self.patch_pool.removeAssumeLive(patch_handle_opt);
+                        _ = self.handle_map_by_lookup.remove(patch_lookup);
+                        continue;
+                    }
+
+                    if (patch.highest_prio != prio_old) {
+                        self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
+                    }
                 }
             }
         }
