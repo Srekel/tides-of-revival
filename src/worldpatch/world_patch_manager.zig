@@ -22,6 +22,10 @@ pub const Priority = enum {
     high,
     medium,
     low,
+
+    fn lessThan(self: Priority, other: Priority) bool {
+        return @enumToInt(self) < @enumToInt(other);
+    }
 };
 pub const RequesterId = u8;
 pub const PatchTypeId = u8;
@@ -80,6 +84,65 @@ pub const Patch = struct {
     request_count: u8 = 0,
     highest_prio: Priority = .low,
     patch_type_id: PatchTypeId,
+
+    pub fn isRequester(self: Patch, requester_id: RequesterId) bool {
+        var i_req: u32 = 0;
+        while (i_req < self.request_count) : (i_req += 1) {
+            var requester = &self.requesters[i_req];
+            if (requester.requester_id == requester_id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn addOrUpdateRequester(self: *Patch, requester_id: RequesterId, prio: Priority) void {
+        var i_req: u32 = 0;
+        while (i_req < self.request_count) : (i_req += 1) {
+            var requester = &self.requesters[i_req];
+            if (requester.requester_id == requester_id) {
+                if (requester.prio != prio) {
+                    requester.prio = prio;
+                    self.calcPriority();
+                }
+
+                return;
+            }
+        }
+
+        self.requesters[self.request_count].requester_id = requester_id;
+        self.requesters[self.request_count].prio = prio;
+        self.request_count += 1;
+
+        if (self.highest_prio.lessThan(prio)) {
+            self.highest_prio = prio;
+        }
+    }
+
+    pub fn removeRequester(self: *Patch, requester_id: RequesterId) void {
+        var i_req: u32 = 0;
+        while (i_req < self.request_count) : (i_req += 1) {
+            var requester = &self.requesters[i_req];
+            if (requester.requester_id == requester_id) {
+                self.request_count -= 1;
+                requester.* = self.requesters[self.request_count];
+                self.calcPriority();
+                return;
+            }
+        }
+
+        unreachable;
+    }
+
+    fn calcPriority(self: *Patch) void {
+        self.highest_prio = Priority.low;
+        var i_req: u32 = 0;
+        while (i_req < self.request_count) : (i_req += 1) {
+            if (self.highest_prio.lessThan(self.requesters[i_req].prio)) {
+                self.highest_prio = self.requesters[i_req].prio;
+            }
+        }
+    }
 };
 
 pub const PatchPool = Pool(16, 16, void, struct {
@@ -105,9 +168,7 @@ pub const WorldPatchManager = struct {
     allocator: std.mem.Allocator,
     requesters: std.ArrayList(IdLocal) = undefined,
     patch_types: std.ArrayList(PatchType) = undefined,
-    patch_map_by_handle: std.AutoArrayHashMap(PatchHandle, Patch) = undefined,
     handle_map_by_lookup: std.AutoArrayHashMap(PatchLookup, PatchHandle) = undefined,
-    // patch_queue: std.PriorityQueue(QueuedPatch) = undefined,
     patch_pool: PatchPool = undefined,
     bucket_queue: PatchQueue = undefined,
     asset_manager: AssetManager = undefined,
@@ -117,7 +178,6 @@ pub const WorldPatchManager = struct {
             .allocator = allocator,
             .requesters = std.ArrayList(IdLocal).initCapacity(allocator, max_requesters) catch unreachable,
             .patch_types = std.ArrayList(PatchType).initCapacity(allocator, max_patch_types) catch unreachable,
-            .patch_map_by_handle = std.AutoArrayHashMap(PatchHandle, Patch).init(allocator),
             .handle_map_by_lookup = std.AutoArrayHashMap(PatchLookup, PatchHandle).init(allocator),
             .patch_pool = PatchPool.initCapacity(allocator, 8) catch unreachable, // temporarily low for testing
             .bucket_queue = PatchQueue.create(allocator, [_]u32{ 64, 64, 64, 64 }), // temporarily low for testing
@@ -166,16 +226,21 @@ pub const WorldPatchManager = struct {
         };
     }
 
+    // pub fn moveRequester(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, movement: RequestMovement, lod: LoD, prio: Priority) void {
+    //     const area_prev: RequestArea = .{
+    //         .x = movement.prev.x - movement.range,
+    //         .y = movement.prev.y - movement.range,
+    //         .width = movement.width,
+    //         .hei
+    //     };
+    // }
+
     pub fn addLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD, prio: Priority) void {
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
-        const world_x_begin = @divFloor(area.x, world_stride);
-        const world_z_begin = @divFloor(area.z, world_stride);
-        const world_x_end = world_stride * (@divFloor(area.x + area.width - 1, world_stride) + 1);
-        const world_z_end = world_stride * (@divFloor(area.z + area.height - 1, world_stride) + 1);
-        const patch_x_begin = @floatToInt(u16, @divExact(world_x_begin, world_stride));
-        const patch_z_begin = @floatToInt(u16, @divExact(world_z_begin, world_stride));
-        const patch_x_end = @floatToInt(u16, @divExact(world_x_end, world_stride));
-        const patch_z_end = @floatToInt(u16, @divExact(world_z_end, world_stride));
+        const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
+        const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));
+        const patch_x_end = @floatToInt(u16, @divFloor(area.x + area.width, world_stride) + 1);
+        const patch_z_end = @floatToInt(u16, @divFloor(area.z + area.height, world_stride) + 1);
 
         var patch_z = patch_z_begin;
         while (patch_z < patch_z_end) : (patch_z += 1) {
@@ -190,22 +255,13 @@ pub const WorldPatchManager = struct {
 
                 const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
                 if (patch_handle_opt) |patch_handle| {
-                    const patch_opt = self.patch_map_by_handle.getPtr(patch_handle);
-                    if (patch_opt) |patch| {
-                        patch.requesters[patch.request_count].requester_id = requester_id;
-                        patch.requesters[patch.request_count].prio = prio;
-                        patch.request_count += 1;
-                        patch.highest_prio = @intToEnum(
-                            Priority,
-                            std.math.min(
-                                @enumToInt(patch.highest_prio),
-                                @enumToInt(prio),
-                            ),
-                        );
-                        continue;
+                    const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+                    const prio_old = patch.highest_prio;
+                    patch.addOrUpdateRequester(requester_id, prio);
+                    if (patch.highest_prio != prio_old) {
+                        self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
                     }
-
-                    unreachable;
+                    continue;
                 }
 
                 var patch = Patch{
@@ -217,34 +273,22 @@ pub const WorldPatchManager = struct {
                 patch.requesters[patch.request_count].requester_id = requester_id;
                 patch.requesters[patch.request_count].prio = prio;
                 patch.request_count = 1;
-                patch.highest_prio = @intToEnum(
-                    Priority,
-                    std.math.min(
-                        @enumToInt(patch.highest_prio),
-                        @enumToInt(prio),
-                    ),
-                );
+                patch.highest_prio = prio;
                 patch.patch_type_id = patch_type_id;
 
                 const patch_handle = self.patch_pool.add(.{ .patch = patch }) catch unreachable;
-                self.bucket_queue.pushElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio);
-
                 self.handle_map_by_lookup.put(patch_lookup, patch_handle) catch unreachable;
-                // self.patch_map_by_handle.put(patch_handle, patch);
+                self.bucket_queue.pushElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio);
             }
         }
     }
 
     pub fn removeLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD) void {
         const world_stride = lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod), 2);
-        const world_x_begin = @divFloor(area.x, world_stride);
-        const world_z_begin = @divFloor(area.z, world_stride);
-        const world_x_end = @divFloor(area.x + area.width - 1, world_stride) + 1;
-        const world_z_end = @divFloor(area.z + area.height - 1, world_stride) + 1;
-        const patch_x_begin = @divExact(world_x_begin, world_stride);
-        const patch_z_begin = @divExact(world_z_begin, world_stride);
-        const patch_x_end = @divExact(world_x_end, world_stride);
-        const patch_z_end = @divExact(world_z_end, world_stride);
+        const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
+        const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));
+        const patch_x_end = @floatToInt(u16, @divFloor(area.x + area.width, world_stride) + 1);
+        const patch_z_end = @floatToInt(u16, @divFloor(area.z + area.height, world_stride) + 1);
 
         var patch_z = patch_z_begin;
         while (patch_z < patch_z_end) {
@@ -257,24 +301,19 @@ pub const WorldPatchManager = struct {
                     .patch_type_id = patch_type_id,
                 };
 
-                const patch_opt = self.patch_map_by_lookup.remove(patch_lookup);
-                if (patch_opt) |*patch| {
-                    for (patch.requesters) |*requester, i| {
-                        _ = i;
+                const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
+                if (patch_handle_opt) |patch_handle| {
+                    const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+                    const prio_old = patch.highest_prio;
+                    patch.removeRequester(requester_id);
+                    if (patch.request_count == 0) {
+                        self.patch_pool.removeAssumeLive(patch_handle_opt);
+                        _ = self.handle_map_by_lookup.remove(patch_lookup);
+                        continue;
+                    }
 
-                        if (requester.id == requester_id) {
-                            if (requester.prio == patch.highest_prio) {
-                                // TODO: Update highest
-                            }
-                            requester = patch.requesters[patch.request_count - 1];
-                            patch.request_count -= 1;
-
-                            if (patch.request_count == 0) {
-                                // TODO: Remove from queue
-                            }
-
-                            break;
-                        }
+                    if (patch.highest_prio != prio_old) {
+                        self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
                     }
                 }
             }
@@ -284,10 +323,8 @@ pub const WorldPatchManager = struct {
     pub fn tryGetPatch(self: WorldPatchManager, patch_lookup: PatchLookup, comptime T: type) ?[]T {
         const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
         if (patch_handle_opt) |patch_handle| {
-            const patch_opt: ?*Patch = self.patch_pool.getColumnPtrIfLive(patch_handle, .patch);
-            if (patch_opt) |patch| {
-                return patch.data;
-            }
+            const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+            return patch.data;
         }
         return null;
     }
@@ -298,32 +335,31 @@ pub const WorldPatchManager = struct {
         // var lol2: []PatchHandle = lol1;
         while (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
             // if (self.bucket_queue.popElems((&patch_handle)[0..])) {
-            var patch_opt = self.patch_pool.getColumnPtrIfLive(patch_handle, .patch);
-            if (patch_opt) |patch| {
+            var patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
 
-                // const patch_type = &self.patch_types[patch.patch_type_id];
-                // patch_type.loadFunc(patch);
-                var heightmap_namebuf: [256]u8 = undefined;
-                const heightmap_path = std.fmt.bufPrintZ(
-                    heightmap_namebuf[0..heightmap_namebuf.len],
-                    "content/patch/heightmap/lod{}/heightmap_x{}_y{}.dds",
-                    .{
-                        patch.lookup.lod,
-                        patch.patch_x,
-                        patch.patch_z,
-                    },
-                ) catch unreachable;
+            // const patch_type = &self.patch_types[patch.patch_type_id];
+            // patch_type.loadFunc(patch);
+            var heightmap_namebuf: [256]u8 = undefined;
+            const heightmap_path = std.fmt.bufPrintZ(
+                heightmap_namebuf[0..heightmap_namebuf.len],
+                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
+                .{
+                    patch.lookup.lod,
+                    patch.patch_x,
+                    patch.patch_z,
+                },
+            ) catch unreachable;
 
-                const asset_id = IdLocal.init(heightmap_path);
-                var data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
-                patch.data = data;
+            const asset_id = IdLocal.init(heightmap_path);
+            var data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
+            patch.data = data;
 
-                // const file = std.fs.cwd().openFile(heightmap_path, .{}) catch unreachable;
-                // defer file.close();
-                // var stream_source = std.io.StreamSource{ .file = file };
-                // const image = png.PNG.readImage(self.allocator, &stream_source);
-                // _ = image;
-            }
+            // const file = std.fs.cwd().openFile(heightmap_path, .{}) catch unreachable;
+            // defer file.close();
+            // var stream_source = std.io.StreamSource{ .file = file };
+            // const image = png.PNG.readImage(self.allocator, &stream_source);
+            // _ = image;
+
         }
     }
 };

@@ -10,14 +10,15 @@ const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 
 const gfx = @import("../gfx_d3d12.zig");
-const Vertex = gfx.Vertex;
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 
-const IndexType = zmesh.Shape.IndexType;
+const Vertex = @import("../renderer/renderer_types.zig").Vertex;
+const IndexType = @import("../renderer/renderer_types.zig").IndexType;
+const mesh_loader = @import("../renderer/mesh_loader.zig");
 
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
@@ -124,7 +125,7 @@ const SystemState = struct {
     } = .{},
 };
 
-fn appendMesh(
+fn appendShapeMesh(
     id: IdLocal,
     // entity: flecs.EntityId,
     mesh: zmesh.Shape,
@@ -147,8 +148,34 @@ fn appendMesh(
         meshes_vertices.append(.{
             .position = mesh.positions[i],
             .normal = mesh.normals.?[i],
+            .uv = [2]f32{ 0.0, 0.0 },
+            .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
+            .color = [3]f32{ 1.0, 1.0, 1.0 },
         }) catch unreachable;
     }
+
+    return meshes.items.len - 1;
+}
+
+fn appendObjMesh(
+    allocator: std.mem.Allocator,
+    id: IdLocal,
+    path: []const u8,
+    meshes: *std.ArrayList(Mesh),
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_vertices: *std.ArrayList(Vertex),
+) !u64 {
+    const index_offset = @intCast(u32, meshes_indices.items.len);
+    const vertex_offset = @intCast(i32, meshes_vertices.items.len);
+    const result = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
+
+    meshes.append(.{
+        .id = id,
+        .index_offset = index_offset,
+        .vertex_offset = vertex_offset,
+        .num_indices = result.num_indices,
+        .num_vertices = result.num_vertices,
+    }) catch unreachable;
 
     return meshes.items.len - 1;
 }
@@ -159,13 +186,6 @@ fn initScene(
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
 ) void {
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    zmesh.init(arena);
-    defer zmesh.deinit();
-
     {
         var mesh = zmesh.Shape.initParametricSphere(20, 20);
         defer mesh.deinit();
@@ -173,7 +193,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("sphere"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -182,7 +202,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("cube"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -211,7 +231,7 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     {
@@ -223,8 +243,9 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
     }
+
     {
         var mesh = zmesh.Shape.initCone(4, 4);
         defer mesh.deinit();
@@ -234,8 +255,15 @@ fn initScene(
         mesh.unweld();
         mesh.computeNormals();
 
-        _ = appendMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
+        _ = appendShapeMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
     }
+
+    _ = appendObjMesh(allocator, IdLocal.init("small_house"), "content/meshes/small_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("small_house_fireplace"), "content/meshes/small_house_fireplace.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("medium_house"), "content/meshes/medium_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("big_house"), "content/meshes/big_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("long_house"), "content/meshes/long_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("pine"), "content/meshes/pine.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 }
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World) !*SystemState {

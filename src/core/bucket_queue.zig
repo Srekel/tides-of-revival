@@ -65,6 +65,17 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             }
             return count;
         }
+
+        pub fn updateElems(self: *Self, elems: []const QueueElement, prio_old: BucketEnum, prio_new: BucketEnum) void {
+            const prio_index_old = @enumToInt(prio_old);
+            const prio_index_new = @enumToInt(prio_new);
+            var bucket_old = &self.buckets[prio_index_old];
+            var bucket_new = &self.buckets[prio_index_new];
+            for (elems) |elem| {
+                bucket_old.swapRemove(elem);
+                bucket_new.appendAssumeCapacity(elem);
+            }
+        }
     };
 }
 
