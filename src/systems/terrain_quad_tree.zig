@@ -101,14 +101,18 @@ const QuadTreeNode = struct {
     mesh_lod: u32,
     patch_index: [2]u32,
     // TODO: Do not store these here when we implement streaming
-    heightmap_handle: gfx.TextureHandle,
-    splatmap_handle: gfx.TextureHandle,
+    heightmap_handle: ?gfx.TextureHandle,
+    splatmap_handle: ?gfx.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
         return !(point[0] < (self.center[0] - self.size[0]) or
             point[0] > (self.center[0] + self.size[0]) or
             point[1] < (self.center[1] - self.size[1]) or
             point[1] > (self.center[1] + self.size[1]));
+    }
+
+    pub inline fn isLoaded(self: *QuadTreeNode) bool {
+        return self.heightmap_handle != null;
     }
 
     pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
@@ -804,6 +808,29 @@ fn loadTerrainLayer(
     };
 }
 
+fn loadNodeHeightmap(
+    arena: std.mem.Allocator,
+    gfxstate: *gfx.D3D12State,
+    textures_heap: *d3d12.IHeap,
+    heap_size: u64,
+    textures_heap_offset: *u64,
+    node: *QuadTreeNode,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+) !void {
+    const lookup = world_patch_manager.PatchLookup{
+        .world_x = @intCast(u16, node.patch_index[0]),
+        .world_z = @intCast(u16, node.patch_index[1]),
+        .lod = @intCast(u4, node.mesh_lod),
+        .patch_type_id = 0,
+    };
+
+    const maybe_patch = world_patch_mgr.tryGetPatch(lookup, u8);
+    if (maybe_patch) |patch| {
+        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+        node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+    }
+}
+
 fn loadHeightAndSplatMaps(
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
@@ -813,17 +840,7 @@ fn loadHeightAndSplatMaps(
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !void {
-    const heightmap = blk: {
-        const lookup = world_patch_manager.PatchLookup{
-            .world_x = @intCast(u16, node.patch_index[0]),
-            .world_z = @intCast(u16, node.patch_index[1]),
-            .lod = @intCast(u4, node.mesh_lod),
-            .patch_type_id = 0,
-        };
-        const patch = world_patch_mgr.tryGetPatch(lookup, u8);
-        break :blk createDDSTextureFromMemory(patch.?, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
-    };
-    node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+    loadNodeHeightmap(arena, gfxstate, textures_heap, heap_size, textures_heap_offset, node, world_patch_mgr) catch unreachable;
 
     // TODO: Schedule the upload instead of uploading immediately
     gfxstate.gctx.beginFrame();
@@ -936,14 +953,15 @@ fn loadResources(
 
     // Ask the World Patch Manager to load all LOD3 for the current world extents
     const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
-    world_patch_mgr.addLoadRequest(
-        rid,
-        0,
-        .{ .x = 0, .z = 0, .width = 4096, .height = 4096 },
-        3,
-        .high,
-    );
+    const area = world_patch_manager.RequestArea{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
+    world_patch_mgr.addLoadRequest(rid, 0, area, 3, .high);
+    // Make sure all LOD3 are resident
     world_patch_mgr.tick();
+    // TODO(gmodarelli): The batch queue is too small to accept other requests
+    // Request loading all the other LODs
+    // world_patch_mgr.addLoadRequest(rid, 0, area, 2, .high);
+    // world_patch_mgr.addLoadRequest(rid, 0, area, 1, .high);
+    // world_patch_mgr.addLoadRequest(rid, 0, area, 0, .high);
 
     // Load all LOD's heightmaps
     {
@@ -985,8 +1003,8 @@ fn divideQuadTreeNode(
             .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
             .mesh_lod = node.mesh_lod - 1,
             .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
-            .heightmap_handle = undefined,
-            .splatmap_handle = undefined,
+            .heightmap_handle = null,
+            .splatmap_handle = null,
         };
 
         node.child_indices[child_index] = @intCast(u32, nodes.items.len);
@@ -1050,8 +1068,8 @@ pub fn create(
                     .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
                     .mesh_lod = 3,
                     .patch_index = [2]u32{ patch_x, patch_y },
-                    .heightmap_handle = undefined,
-                    .splatmap_handle = undefined,
+                    .heightmap_handle = null,
+                    .splatmap_handle = null,
                 });
             }
         }
@@ -1218,6 +1236,9 @@ pub fn destroy(state: *SystemState) void {
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
+    // TODO
+    // state.world_patch_mgr.tickOne();
+
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
@@ -1297,11 +1318,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
             collectQuadsToRenderForSector(
+                state,
                 camera_point,
                 lod3_node,
                 sector_index,
-                &state.terrain_quad_tree_nodes,
-                &state.quads_to_render,
             ) catch unreachable;
         }
     }
@@ -1314,8 +1334,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             const object_to_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
             // TODO: Generate from quad.patch_index
-            const heightmap = state.gfx.lookupTexture(quad.heightmap_handle);
-            const splatmap = state.gfx.lookupTexture(quad.splatmap_handle);
+            const heightmap = state.gfx.lookupTexture(quad.heightmap_handle.?);
+            const splatmap = state.gfx.lookupTexture(quad.splatmap_handle.?);
             // TODO: Add splatmap and UV offset and tiling (for atlases)
             state.instance_data.append(.{
                 .object_to_world = zm.transpose(object_to_world),
@@ -1371,7 +1391,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 }
 
 // Algorithm that walks a quad tree and generates a list of quad tree nodes to render
-fn collectQuadsToRenderForSector(position: [2]f32, node: *QuadTreeNode, node_index: u32, nodes: *std.ArrayList(QuadTreeNode), quads_to_render: *std.ArrayList(u32)) !void {
+fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, node: *QuadTreeNode, node_index: u32) !void {
     assert(node_index != std.math.maxInt(u32));
 
     if (node.mesh_lod == 2) {
@@ -1382,26 +1402,27 @@ fn collectQuadsToRenderForSector(position: [2]f32, node: *QuadTreeNode, node_ind
         return;
     }
 
-    if (node.containedInsideChildren(position, nodes)) {
+    if (node.containedInsideChildren(position, &state.terrain_quad_tree_nodes)) {
         var higher_lod_node_index: u32 = std.math.maxInt(u32);
         for (node.child_indices) |node_child_index| {
-            var child_node = &nodes.items[node_child_index];
-            if (child_node.containsPoint(position)) {
+            var child_node = &state.terrain_quad_tree_nodes.items[node_child_index];
+            // The camera is inside this child and its heightmap is loaded in memory
+            if (child_node.containsPoint(position) and child_node.isLoaded()) {
                 if (child_node.mesh_lod == 1) {
-                    quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
+                    state.quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
                 } else {
                     higher_lod_node_index = node_child_index;
                 }
             } else {
-                quads_to_render.append(node_child_index) catch unreachable;
+                state.quads_to_render.append(node_child_index) catch unreachable;
             }
         }
 
         if (higher_lod_node_index != std.math.maxInt(u32)) {
-            var child_node = &nodes.items[higher_lod_node_index];
-            collectQuadsToRenderForSector(position, child_node, higher_lod_node_index, nodes, quads_to_render) catch unreachable;
+            var child_node = &state.terrain_quad_tree_nodes.items[higher_lod_node_index];
+            collectQuadsToRenderForSector(state, position, child_node, higher_lod_node_index) catch unreachable;
         }
     } else {
-        quads_to_render.append(node_index) catch unreachable;
+        state.quads_to_render.append(node_index) catch unreachable;
     }
 }
