@@ -71,8 +71,9 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             const prio_index_new = @enumToInt(prio_new);
             var bucket_old = &self.buckets[prio_index_old];
             var bucket_new = &self.buckets[prio_index_new];
-            for (elems) |elem| {
-                bucket_old.swapRemove(elem);
+            var i: usize = 0;
+            while (i < elems.len) : (i += 1) {
+                const elem = bucket_old.swapRemove(i);
                 bucket_new.appendAssumeCapacity(elem);
             }
         }

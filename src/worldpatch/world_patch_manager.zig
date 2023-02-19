@@ -239,8 +239,8 @@ pub const WorldPatchManager = struct {
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
         const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
         const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));
-        const patch_x_end = @floatToInt(u16, @divFloor(area.x + area.width, world_stride) + 1);
-        const patch_z_end = @floatToInt(u16, @divFloor(area.z + area.height, world_stride) + 1);
+        const patch_x_end = @floatToInt(u16, @divFloor(area.x + area.width, world_stride));
+        const patch_z_end = @floatToInt(u16, @divFloor(area.z + area.height, world_stride));
 
         var patch_z = patch_z_begin;
         while (patch_z < patch_z_end) : (patch_z += 1) {
@@ -287,8 +287,8 @@ pub const WorldPatchManager = struct {
         const world_stride = lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod), 2);
         const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
         const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));
-        const patch_x_end = @floatToInt(u16, @divFloor(area.x + area.width, world_stride) + 1);
-        const patch_z_end = @floatToInt(u16, @divFloor(area.z + area.height, world_stride) + 1);
+        const patch_x_end = @floatToInt(u16, @divFloor(area.x + area.width, world_stride));
+        const patch_z_end = @floatToInt(u16, @divFloor(area.z + area.height, world_stride));
 
         var patch_z = patch_z_begin;
         while (patch_z < patch_z_end) {
