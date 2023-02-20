@@ -722,17 +722,9 @@ fn loadResources(
     gfxstate: *gfx.D3D12State,
     textures_heap: *d3d12.IHeap,
     textures_heap_offset: *u64,
-    meshes: *std.ArrayList(Mesh),
-    meshes_indices: *std.ArrayList(IndexType),
-    meshes_vertices: *std.ArrayList(Vertex),
     terrain_layers: *std.ArrayList(TerrainLayer),
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !void {
-    loadMesh(allocator, "content/meshes/LOD0.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
-    loadMesh(allocator, "content/meshes/LOD1.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
-    loadMesh(allocator, "content/meshes/LOD2.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
-    loadMesh(allocator, "content/meshes/LOD3.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
-
     var heap_desc = textures_heap.GetDesc();
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -763,11 +755,10 @@ fn loadResources(
     world_patch_mgr.addLoadRequest(rid, 0, area, 3, .high);
     // Make sure all LOD3 are resident
     world_patch_mgr.tick();
-    // TODO(gmodarelli): The batch queue is too small to accept other requests
     // Request loading all the other LODs
-    // world_patch_mgr.addLoadRequest(rid, 0, area, 2, .high);
-    // world_patch_mgr.addLoadRequest(rid, 0, area, 1, .high);
-    // world_patch_mgr.addLoadRequest(rid, 0, area, 0, .high);
+    world_patch_mgr.addLoadRequest(rid, 0, area, 0, .high);
+    world_patch_mgr.addLoadRequest(rid, 0, area, 1, .high);
+    world_patch_mgr.addLoadRequest(rid, 0, area, 2, .high);
 
     // Load all LOD's heightmaps
     {
@@ -896,19 +887,11 @@ pub fn create(
     var meshes = std.ArrayList(Mesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
-    var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
-    loadResources(
-        allocator,
-        &terrain_quad_tree_nodes,
-        gfxstate,
-        textures_heap,
-        &textures_heap_offset,
-        &meshes,
-        &meshes_indices,
-        &meshes_vertices,
-        &terrain_layers,
-        world_patch_mgr,
-    ) catch unreachable;
+
+    loadMesh(allocator, "content/meshes/LOD0.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
+    loadMesh(allocator, "content/meshes/LOD1.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
+    loadMesh(allocator, "content/meshes/LOD2.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
+    loadMesh(allocator, "content/meshes/LOD3.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
 
     const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
     const total_num_indices = @intCast(u32, meshes_indices.items.len);
@@ -934,6 +917,17 @@ pub fn create(
         .has_srv = false,
         .has_uav = false,
     }) catch unreachable;
+
+    var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
+    loadResources(
+        allocator,
+        &terrain_quad_tree_nodes,
+        gfxstate,
+        textures_heap,
+        &textures_heap_offset,
+        &terrain_layers,
+        world_patch_mgr,
+    ) catch unreachable;
 
     var terrain_layers_buffer = gfxstate.createBuffer(.{
         .size = terrain_layers.items.len * @sizeOf(TerrainLayerTextureIndices),
@@ -1039,8 +1033,7 @@ pub fn destroy(state: *SystemState) void {
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
-    // TODO
-    // state.world_patch_mgr.tickOne();
+    state.world_patch_mgr.tickOne();
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,

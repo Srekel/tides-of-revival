@@ -180,7 +180,7 @@ pub const WorldPatchManager = struct {
             .patch_types = std.ArrayList(PatchType).initCapacity(allocator, max_patch_types) catch unreachable,
             .handle_map_by_lookup = std.AutoArrayHashMap(PatchLookup, PatchHandle).init(allocator),
             .patch_pool = PatchPool.initCapacity(allocator, 8) catch unreachable, // temporarily low for testing
-            .bucket_queue = PatchQueue.create(allocator, [_]u32{ 128, 128, 128, 128 }), // temporarily low for testing
+            .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
             .asset_manager = asset_manager,
         };
 
@@ -360,6 +360,28 @@ pub const WorldPatchManager = struct {
             // const image = png.PNG.readImage(self.allocator, &stream_source);
             // _ = image;
 
+        }
+    }
+
+    pub fn tickOne(self: *WorldPatchManager) void {
+        var patch_handle: PatchHandle = PatchHandle.init(0, 0);
+        if (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
+            var patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+
+            var heightmap_namebuf: [256]u8 = undefined;
+            const heightmap_path = std.fmt.bufPrintZ(
+                heightmap_namebuf[0..heightmap_namebuf.len],
+                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.dds",
+                .{
+                    patch.lookup.lod,
+                    patch.patch_x,
+                    patch.patch_z,
+                },
+            ) catch unreachable;
+
+            const asset_id = IdLocal.init(heightmap_path);
+            var data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
+            patch.data = data;
         }
     }
 };

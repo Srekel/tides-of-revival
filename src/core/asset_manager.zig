@@ -28,7 +28,7 @@ pub const AssetManager = struct {
             .allocator = allocator,
             .assets = std.AutoHashMap(u64, Asset).init(allocator),
         };
-        res.assets.ensureTotalCapacity(100) catch unreachable;
+        res.assets.ensureTotalCapacity(8192) catch unreachable;
         return res;
     }
 
@@ -56,7 +56,6 @@ pub const AssetManager = struct {
             return contents_snug;
         }
 
-        std.log.debug("Attempting to load '{s}'", .{id.toString()});
         const file = std.fs.cwd().openFile(id.toString(), .{ .mode = .read_only }) catch unreachable;
         defer file.close();
         const contents = file.reader().readAllAlloc(self.allocator, 256 * 1024) catch unreachable;
