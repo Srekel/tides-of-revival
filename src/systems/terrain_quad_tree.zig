@@ -630,8 +630,8 @@ fn loadNodeHeightmap(
         .patch_type_id = 0,
     };
 
-    const maybe_patch = world_patch_mgr.tryGetPatch(lookup, u8);
-    if (maybe_patch) |patch| {
+    const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
+    if (patch_opt) |patch| {
         const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
