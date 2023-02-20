@@ -742,7 +742,7 @@ fn loadResources(
     // Load terrain layers textures
     {
         const dry_ground = loadTerrainLayer("dry_ground_rocks", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
-        const forest_ground = loadTerrainLayer("forrest_ground_01", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
+        const forest_ground = loadTerrainLayer("forest_ground_01", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
         const rock_ground = loadTerrainLayer("rock_ground", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
         const snow = loadTerrainLayer("snow_02", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
 
