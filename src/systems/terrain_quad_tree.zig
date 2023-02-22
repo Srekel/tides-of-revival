@@ -1240,6 +1240,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     state.world_patch_mgr.tickOne();
 
+    // NOTE(gmodarelli): we need to close the command list before we can submit upload commands
+    // TODO(gmodarelli): move the uploading logic to gfx_d3d12.zig and centralize the texture handling
+    // and upload there.
+    state.gfx.gctx.finishGpuCommands();
+
     for (state.quads_to_load.items) |quad_index| {
         var node = &state.terrain_quad_tree_nodes.items[quad_index];
         loadHeightAndSplatMaps(
@@ -1251,8 +1256,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             state.world_patch_mgr,
             true, // in frame
         ) catch unreachable;
+        state.gfx.gctx.finishGpuCommands();
     }
-    state.gfx.gctx.finishGpuCommands();
 }
 
 // Algorithm that walks a quad tree and generates a list of quad tree nodes to render
@@ -1269,7 +1274,6 @@ fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, node: *Q
             var child_node = &state.terrain_quad_tree_nodes.items[node_child_index];
             if (child_node.containsPoint(position)) {
                 if (child_node.mesh_lod == 1 and child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
-                    std.log.debug("Appending all LOD0 nodes", .{});
                     state.quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
                 } else if (child_node.mesh_lod == 1 and !child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
                     state.quads_to_render.append(node_child_index) catch unreachable;
