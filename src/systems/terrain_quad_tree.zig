@@ -1086,7 +1086,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
