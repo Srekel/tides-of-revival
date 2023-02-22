@@ -99,10 +99,10 @@ const QuadTreeNode = struct {
     splatmap_handle: ?gfx.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
-        return !(point[0] < (self.center[0] - self.size[0]) or
-            point[0] > (self.center[0] + self.size[0]) or
-            point[1] < (self.center[1] - self.size[1]) or
-            point[1] > (self.center[1] + self.size[1]));
+        return (point[0] > (self.center[0] - self.size[0]) and
+            point[0] < (self.center[0] + self.size[0]) and
+            point[1] > (self.center[1] - self.size[1]) and
+            point[1] < (self.center[1] + self.size[1]));
     }
 
     pub inline fn isLoaded(self: *QuadTreeNode) bool {
