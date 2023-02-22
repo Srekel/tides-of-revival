@@ -87,6 +87,7 @@ const Mesh = struct {
     num_vertices: u32,
 };
 
+const invalid_index = std.math.maxInt(u32);
 const QuadTreeNode = struct {
     center: [2]f32,
     size: [2]f32,
@@ -105,7 +106,7 @@ const QuadTreeNode = struct {
     }
 
     pub inline fn isLoaded(self: *QuadTreeNode) bool {
-        return self.heightmap_handle != null;
+        return self.heightmap_handle != null and self.splatmap_handle != null;
     }
 
     pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
@@ -125,6 +126,25 @@ const QuadTreeNode = struct {
         }
 
         return false;
+    }
+
+    pub fn areChildrenLoaded(self: *QuadTreeNode, nodes: *std.ArrayList(QuadTreeNode)) bool {
+        if (!self.isLoaded()) {
+            return false;
+        }
+
+        for (self.child_indices) |child_index| {
+            if (child_index == std.math.maxInt(u32)) {
+                return false;
+            }
+
+            var node = nodes.items[child_index];
+            if (!node.isLoaded()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 };
 
@@ -155,6 +175,7 @@ const SystemState = struct {
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(Mesh),
     quads_to_render: std.ArrayList(u32),
+    quads_to_load: std.ArrayList(u32),
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -273,12 +294,14 @@ fn createDDSTextureFromMemory(
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
-    heap_size: u64,
     heap_offset: *u64,
+    in_frame: bool,
 ) !gfx.Texture {
-    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
-    // having the data from the first uploaded texture :(
-    gfxstate.gctx.beginFrame();
+    if (!in_frame) {
+        // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+        // having the data from the first uploaded texture :(
+        gfxstate.gctx.beginFrame();
+    }
 
     // Load DDS data into D3D12_SUBRESOURCE_DATA
     var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
@@ -290,7 +313,6 @@ fn createDDSTextureFromMemory(
         var resource = allocateTextureMemory(
             gfxstate,
             heap,
-            heap_size,
             heap_offset,
             dds_info.width,
             dds_info.height,
@@ -313,10 +335,12 @@ fn createDDSTextureFromMemory(
         break :blk resource;
     };
 
-    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
-    // having the data from the first uploaded texture :(
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
+    if (!in_frame) {
+        // NOTE(gmodarelli): If I schedule all of these uploads in a single frame I end up with all the textures
+        // having the data from the first uploaded texture :(
+        gfxstate.gctx.endFrame();
+        gfxstate.gctx.finishGpuCommands();
+    }
 
     // Create a persisten SRV descriptor for the texture
     const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
@@ -337,15 +361,17 @@ fn createDDSTextureFromFile(
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
-    heap_size: u64,
     heap_offset: *u64,
+    in_frame: bool,
 ) !gfx.Texture {
     // Generate Path
     std.log.debug("Creating texture from DDS {s}", .{path});
 
-    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
-    // having the data from the first uploaded texture :(
-    gfxstate.gctx.beginFrame();
+    if (!in_frame) {
+        // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+        // having the data from the first uploaded texture :(
+        gfxstate.gctx.beginFrame();
+    }
 
     // Load DDS data into D3D12_SUBRESOURCE_DATA
     var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
@@ -357,7 +383,6 @@ fn createDDSTextureFromFile(
         var resource = allocateTextureMemory(
             gfxstate,
             heap,
-            heap_size,
             heap_offset,
             dds_info.width,
             dds_info.height,
@@ -380,10 +405,12 @@ fn createDDSTextureFromFile(
         break :blk resource;
     };
 
-    // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
-    // having the data from the first uploaded texture :(
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
+    if (!in_frame) {
+        // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
+        // having the data from the first uploaded texture :(
+        gfxstate.gctx.endFrame();
+        gfxstate.gctx.finishGpuCommands();
+    }
 
     // Create a persisten SRV descriptor for the texture
     const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
@@ -399,8 +426,11 @@ fn createDDSTextureFromFile(
     };
 }
 
-fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_size: u64, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
+fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
     assert(gfxstate.gctx.is_cmdlist_opened);
+
+    var heap_desc = heap.GetDesc();
+    const heap_size = heap_desc.SizeInBytes;
 
     var resource: *d3d12.IResource = undefined;
     const desc = desc_blk: {
@@ -568,7 +598,6 @@ fn loadTerrainLayer(
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     textures_heap: *d3d12.IHeap,
-    heap_size: u64,
     textures_heap_offset: *u64,
 ) !TerrainLayer {
     const diffuse = blk: {
@@ -580,7 +609,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
     };
 
     const normal = blk: {
@@ -592,7 +621,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
     };
 
     const arm = blk: {
@@ -604,7 +633,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
     };
 
     return .{
@@ -618,11 +647,13 @@ fn loadNodeHeightmap(
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     textures_heap: *d3d12.IHeap,
-    heap_size: u64,
     textures_heap_offset: *u64,
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    in_frame: bool,
 ) !void {
+    assert(node.heightmap_handle == null);
+
     const lookup = world_patch_manager.PatchLookup{
         .world_x = @intCast(u16, node.patch_index[0]),
         .world_z = @intCast(u16, node.patch_index[1]),
@@ -632,7 +663,7 @@ fn loadNodeHeightmap(
 
     const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_opt) |patch| {
-        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, heap_size, textures_heap_offset) catch unreachable;
+        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
 }
@@ -641,15 +672,31 @@ fn loadHeightAndSplatMaps(
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     textures_heap: *d3d12.IHeap,
-    heap_size: u64,
     textures_heap_offset: *u64,
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    in_frame: bool,
 ) !void {
-    loadNodeHeightmap(arena, gfxstate, textures_heap, heap_size, textures_heap_offset, node, world_patch_mgr) catch unreachable;
+    if (node.heightmap_handle == null) {
+        loadNodeHeightmap(arena, gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame) catch unreachable;
+    }
 
-    // TODO: Schedule the upload instead of uploading immediately
-    gfxstate.gctx.beginFrame();
+    // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
+    // this improves up startup times
+    if (node.heightmap_handle == null) {
+        return;
+    }
+
+    if (node.splatmap_handle != null) {
+        return;
+    }
+
+    assert(node.splatmap_handle == null);
+
+    if (!in_frame) {
+        // TODO: Schedule the upload instead of uploading immediately
+        gfxstate.gctx.beginFrame();
+    }
 
     var splatmap_namebuf: [256]u8 = undefined;
     const splatmap_path = std.fmt.bufPrintZ(
@@ -675,7 +722,6 @@ fn loadHeightAndSplatMaps(
     var splatmap_texture_resource = allocateTextureMemory(
         gfxstate,
         textures_heap,
-        heap_size,
         textures_heap_offset,
         splatmap_wh.w,
         splatmap_wh.h,
@@ -694,8 +740,10 @@ fn loadHeightAndSplatMaps(
 
     uploadDataToTexture(gfxstate, splatmap_texture_resource, splatmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
 
-    gfxstate.gctx.endFrame();
-    gfxstate.gctx.finishGpuCommands();
+    if (!in_frame) {
+        gfxstate.gctx.endFrame();
+        gfxstate.gctx.finishGpuCommands();
+    }
 
     const splatmap = blk: {
         const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
@@ -725,18 +773,16 @@ fn loadResources(
     terrain_layers: *std.ArrayList(TerrainLayer),
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !void {
-    var heap_desc = textures_heap.GetDesc();
-
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
     // Load terrain layers textures
     {
-        const dry_ground = loadTerrainLayer("dry_ground_rocks", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
-        const forest_ground = loadTerrainLayer("forest_ground_01", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
-        const rock_ground = loadTerrainLayer("rock_ground", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
-        const snow = loadTerrainLayer("snow_02", arena, gfxstate, textures_heap, heap_desc.SizeInBytes, textures_heap_offset) catch unreachable;
+        const dry_ground = loadTerrainLayer("dry_ground_rocks", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
+        const forest_ground = loadTerrainLayer("forest_ground_01", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
+        const rock_ground = loadTerrainLayer("rock_ground", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
+        const snow = loadTerrainLayer("snow_02", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
 
         // NOTE: There's an implicit dependency on the order of the Splatmap here
         // - 0 dirt
@@ -759,6 +805,8 @@ fn loadResources(
     world_patch_mgr.addLoadRequest(rid, 0, area, 0, .high);
     world_patch_mgr.addLoadRequest(rid, 0, area, 1, .high);
     world_patch_mgr.addLoadRequest(rid, 0, area, 2, .high);
+    // NOTE(gmodarelli): Testing memory corruption of loading texture in flight
+    // world_patch_mgr.tick();
 
     // Load all LOD's heightmaps
     {
@@ -769,10 +817,10 @@ fn loadResources(
                 arena,
                 gfxstate,
                 textures_heap,
-                heap_desc.SizeInBytes,
                 textures_heap_offset,
                 node,
                 world_patch_mgr,
+                false, // in frame
             ) catch unreachable;
         }
     }
@@ -786,7 +834,6 @@ fn divideQuadTreeNode(
         return;
     }
 
-    const invalid_index = std.math.maxInt(u32);
     var child_index: u32 = 0;
     while (child_index < 4) : (child_index += 1) {
         var center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
@@ -846,11 +893,11 @@ pub fn create(
     hrPanicOnFail(gfxstate.gctx.device.CreateHeap(&heap_desc, &d3d12.IID_IHeap, @ptrCast(*?*anyopaque, &textures_heap)));
     var textures_heap_offset: u64 = 0;
 
-    const invalid_index = std.math.maxInt(u32);
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
     const max_quad_tree_nodes: usize = 85 * 64;
     var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
     var quads_to_render = std.ArrayList(u32).init(allocator);
+    var quads_to_load = std.ArrayList(u32).init(allocator);
 
     // Create initial sectors
     {
@@ -873,11 +920,11 @@ pub fn create(
 
         assert(terrain_quad_tree_nodes.items.len == 64);
 
-        // var sector_index: u32 = 0;
-        // while (sector_index < 64) : (sector_index += 1) {
-        //     var node = &terrain_quad_tree_nodes.items[sector_index];
-        //     divideQuadTreeNode(&terrain_quad_tree_nodes, node);
-        // }
+        var sector_index: u32 = 0;
+        while (sector_index < 64) : (sector_index += 1) {
+            var node = &terrain_quad_tree_nodes.items[sector_index];
+            divideQuadTreeNode(&terrain_quad_tree_nodes, node);
+        }
     }
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -1001,6 +1048,7 @@ pub fn create(
         .terrain_lod_meshes = meshes,
         .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
         .quads_to_render = quads_to_render,
+        .quads_to_load = quads_to_load,
         .query_camera = query_camera,
         .query_lights = query_lights,
     };
@@ -1019,6 +1067,7 @@ pub fn destroy(state: *SystemState) void {
     state.instance_data.deinit();
     state.terrain_quad_tree_nodes.deinit();
     state.quads_to_render.deinit();
+    state.quads_to_load.deinit();
     state.draw_calls.deinit();
     state.allocator.destroy(state);
 }
@@ -1033,7 +1082,10 @@ pub fn destroy(state: *SystemState) void {
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
 
-    state.world_patch_mgr.tickOne();
+    var arena_state = std.heap.ArenaAllocator.init(state.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
@@ -1104,6 +1156,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     // Reset transforms, materials and draw calls array list
     state.quads_to_render.clearRetainingCapacity();
+    state.quads_to_load.clearRetainingCapacity();
     state.instance_data.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
 
@@ -1118,6 +1171,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 camera_point,
                 lod3_node,
                 sector_index,
+                arena,
             ) catch unreachable;
         }
     }
@@ -1184,29 +1238,44 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
+
+    state.world_patch_mgr.tickOne();
+
+    for (state.quads_to_load.items) |quad_index| {
+        var node = &state.terrain_quad_tree_nodes.items[quad_index];
+        loadHeightAndSplatMaps(
+            state.allocator,
+            state.gfx,
+            state.textures_heap,
+            &state.textures_heap_offset,
+            node,
+            state.world_patch_mgr,
+            true, // in frame
+        ) catch unreachable;
+    }
+    state.gfx.gctx.finishGpuCommands();
 }
 
 // Algorithm that walks a quad tree and generates a list of quad tree nodes to render
-fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, node: *QuadTreeNode, node_index: u32) !void {
-    assert(node_index != std.math.maxInt(u32));
-
-    if (node.mesh_lod == 2) {
-        return;
-    }
+fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, node: *QuadTreeNode, node_index: u32, allocator: std.mem.Allocator) !void {
+    assert(node_index != invalid_index);
 
     if (node.mesh_lod == 0) {
         return;
     }
 
-    if (node.containedInsideChildren(position, &state.terrain_quad_tree_nodes)) {
-        var higher_lod_node_index: u32 = std.math.maxInt(u32);
+    if (node.containedInsideChildren(position, &state.terrain_quad_tree_nodes) and node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
+        var higher_lod_node_index: u32 = invalid_index;
         for (node.child_indices) |node_child_index| {
             var child_node = &state.terrain_quad_tree_nodes.items[node_child_index];
-            // The camera is inside this child and its heightmap is loaded in memory
-            if (child_node.containsPoint(position) and child_node.isLoaded()) {
-                if (child_node.mesh_lod == 1) {
+            if (child_node.containsPoint(position)) {
+                if (child_node.mesh_lod == 1 and child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
+                    std.log.debug("Appending all LOD0 nodes", .{});
                     state.quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
-                } else {
+                } else if (child_node.mesh_lod == 1 and !child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
+                    state.quads_to_render.append(node_child_index) catch unreachable;
+                    state.quads_to_load.appendSlice(child_node.child_indices[0..4]) catch unreachable;
+                } else if (child_node.mesh_lod > 1) {
                     higher_lod_node_index = node_child_index;
                 }
             } else {
@@ -1214,11 +1283,18 @@ fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, node: *Q
             }
         }
 
-        if (higher_lod_node_index != std.math.maxInt(u32)) {
+        if (higher_lod_node_index != invalid_index) {
             var child_node = &state.terrain_quad_tree_nodes.items[higher_lod_node_index];
-            collectQuadsToRenderForSector(state, position, child_node, higher_lod_node_index) catch unreachable;
+            collectQuadsToRenderForSector(state, position, child_node, higher_lod_node_index, allocator) catch unreachable;
         }
-    } else {
+    } else if (node.containedInsideChildren(position, &state.terrain_quad_tree_nodes) and !node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
         state.quads_to_render.append(node_index) catch unreachable;
+        state.quads_to_load.appendSlice(node.child_indices[0..4]) catch unreachable;
+    } else {
+        if (node.isLoaded()) {
+            state.quads_to_render.append(node_index) catch unreachable;
+        } else {
+            state.quads_to_load.append(node_index) catch unreachable;
+        }
     }
 }
