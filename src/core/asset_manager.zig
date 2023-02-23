@@ -28,7 +28,7 @@ pub const AssetManager = struct {
             .allocator = allocator,
             .assets = std.AutoHashMap(u64, Asset).init(allocator),
         };
-        res.assets.ensureTotalCapacity(100) catch unreachable;
+        res.assets.ensureTotalCapacity(8192) catch unreachable;
         return res;
     }
 

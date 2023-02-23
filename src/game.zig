@@ -251,26 +251,26 @@ pub fn run() void {
 
     var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, asset_manager);
     // _ = world_patch_mgr;
-    const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
+    // const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
     // _ = rid;
     // const patch_type = world_patch_mgr.registerPatchType(.{
     //     .id = IdLocal.init("terrainqt_heightmap"),
     //     .loadFunc = HeightmapPatchLoader.load,
     // });
     // _ = patch_type;
-    world_patch_mgr.addLoadRequest(
-        rid,
-        0,
-        .{ .x = 0, .z = 0, .width = 64, .height = 64 },
-        0,
-        .high,
-    );
-    const lookup = world_patch_manager.WorldPatchManager.getLookup(10, 10, 0, 0);
-    const lol1 = world_patch_mgr.tryGetPatch(lookup, u8);
-    _ = lol1;
-    world_patch_mgr.tick();
-    const lol2 = world_patch_mgr.tryGetPatch(lookup, u8);
-    _ = lol2;
+    // world_patch_mgr.addLoadRequest(
+    //     rid,
+    //     0,
+    //     .{ .x = 0, .z = 0, .width = 64, .height = 64 },
+    //     3,
+    //     .high,
+    // );
+    // const lookup = world_patch_manager.WorldPatchManager.getLookup(10, 10, 0, 0);
+    // const lol1 = world_patch_mgr.tryGetPatch(lookup, u8);
+    // _ = lol1;
+    // world_patch_mgr.tick();
+    // const lol2 = world_patch_mgr.tryGetPatch(lookup, u8);
+    // _ = lol2;
 
     var physics_sys = try physics_system.create(
         IdLocal.init("physics_system_{}"),

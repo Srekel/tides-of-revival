@@ -72,7 +72,15 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             var bucket_old = &self.buckets[prio_index_old];
             var bucket_new = &self.buckets[prio_index_new];
             for (elems) |elem| {
-                bucket_old.swapRemove(elem);
+                const bucket_old_elem_index = blk: {
+                    for (bucket_old.items) |bucket_old_elem, i| {
+                        if (std.mem.eql(u8, std.mem.asBytes(&elem), std.mem.asBytes(&bucket_old_elem))) {
+                            break :blk i;
+                        }
+                    }
+                    unreachable;
+                };
+                _ = bucket_old.swapRemove(bucket_old_elem_index);
                 bucket_new.appendAssumeCapacity(elem);
             }
         }

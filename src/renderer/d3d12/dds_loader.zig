@@ -93,6 +93,10 @@ pub fn loadTextureFromFile(
     var read_bytes = file.readAll(file_data) catch unreachable;
     assert(read_bytes == file_size);
 
+    return loadTextureFromMemory(file_data, arena, resources);
+}
+
+pub fn loadTextureFromMemory(file_data: []u8, arena: std.mem.Allocator, resources: *std.ArrayList(d3d12.SUBRESOURCE_DATA)) !DdsImageInfo {
     // Create a stream
     var stream = std.io.StreamSource{ .buffer = std.io.fixedBufferStream(file_data) };
     var reader = stream.reader();
@@ -110,13 +114,13 @@ pub fn loadTextureFromFile(
     var has_dx10_extension = false;
     var dx10: DDS_HEADER_DXT10 = undefined;
     if ((header.ddspf.dwFlags & DDS_FOURCC) == DDS_FOURCC and makeFourCC('D', 'X', '1', '0') == header.ddspf.dwFourCC) {
-        assert(file_size > @sizeOf(u32) + @sizeOf(DDS_HEADER) + @sizeOf(DDS_HEADER_DXT10));
+        assert(file_data.len > @sizeOf(u32) + @sizeOf(DDS_HEADER) + @sizeOf(DDS_HEADER_DXT10));
 
         has_dx10_extension = true;
         dx10 = try reader.readStruct(DDS_HEADER_DXT10);
     }
 
-    var data_size = file_size - (@sizeOf(u32) + @sizeOf(DDS_HEADER));
+    var data_size = file_data.len - (@sizeOf(u32) + @sizeOf(DDS_HEADER));
     if (has_dx10_extension) {
         data_size -= @sizeOf(DDS_HEADER_DXT10);
     }
