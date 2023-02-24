@@ -74,7 +74,7 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             for (elems) |elem| {
                 const bucket_old_elem_index = blk: {
                     for (bucket_old.items) |bucket_old_elem, i| {
-                        if (std.mem.eql(u8, std.mem.asBytes(&elem), std.mem.asBytes(&bucket_old_elem))) {
+                        if (std.meta.eql(elem, bucket_old_elem)) {
                             break :blk i;
                         }
                     }
