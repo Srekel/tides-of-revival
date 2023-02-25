@@ -295,7 +295,6 @@ fn createDDSTextureFromMemory(
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
     heap_offset: *u64,
-    small_resource: bool,
     in_frame: bool,
 ) !gfx.Texture {
     if (!in_frame) {
@@ -319,7 +318,6 @@ fn createDDSTextureFromMemory(
             dds_info.height,
             dds_info.format,
             dds_info.mip_map_count,
-            small_resource,
         ) catch unreachable;
 
         // TODO: Set a debug name
@@ -364,7 +362,6 @@ fn createDDSTextureFromFile(
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
     heap_offset: *u64,
-    small_resource: bool,
     in_frame: bool,
 ) !gfx.Texture {
     // Generate Path
@@ -391,7 +388,6 @@ fn createDDSTextureFromFile(
             dds_info.height,
             dds_info.format,
             dds_info.mip_map_count,
-            small_resource,
         ) catch unreachable;
 
         // Set a debug name
@@ -430,7 +426,7 @@ fn createDDSTextureFromFile(
     };
 }
 
-fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32, small_resource: bool) !*d3d12.IResource {
+fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
     assert(gfxstate.gctx.is_cmdlist_opened);
 
     var heap_desc = heap.GetDesc();
@@ -448,25 +444,16 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         break :desc_blk desc;
     };
 
-    const allocation_info = blk: {
-        if (small_resource) {
-            // TODO(gmodarelli): move this do d3d12.zig
-            const d3d12_small_resource_placement_alignment: u32 = 4096;
-            desc.Alignment = d3d12_small_resource_placement_alignment;
-            var descs = [_]d3d12.RESOURCE_DESC{desc};
-            const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
-            if (allocation_info.Alignment == d3d12_small_resource_placement_alignment) {
-                break :blk allocation_info;
-            } else {
-                desc.Alignment = 0;
-                descs[0] = desc;
-                break :blk gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
-            }
-        } else {
-            const descs = [_]d3d12.RESOURCE_DESC{desc};
-            break :blk gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
-        }
-    };
+    // TODO(gmodarelli): move this do d3d12.zig
+    const d3d12_small_resource_placement_alignment: u32 = 4096;
+    desc.Alignment = d3d12_small_resource_placement_alignment;
+    var descs = [_]d3d12.RESOURCE_DESC{desc};
+    var allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    if (allocation_info.Alignment != d3d12_small_resource_placement_alignment) {
+        desc.Alignment = 0;
+        descs[0] = desc;
+        allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    }
 
     assert(heap_offset.* + allocation_info.SizeInBytes < heap_size);
 
@@ -643,7 +630,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
     };
 
     const normal = blk: {
@@ -655,7 +642,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
     };
 
     const arm = blk: {
@@ -667,7 +654,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
     };
 
     return .{
@@ -697,7 +684,7 @@ fn loadNodeHeightmap(
 
     const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_opt) |patch| {
-        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, textures_heap_offset, true, in_frame) catch unreachable;
+        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
 }
@@ -761,7 +748,6 @@ fn loadHeightAndSplatMaps(
         splatmap_wh.h,
         splatmap_texture_data.format,
         1,
-        true, // small resource
     ) catch unreachable;
 
     // Set a debug name
