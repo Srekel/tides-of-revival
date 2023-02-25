@@ -468,21 +468,6 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
     ));
 
     heap_offset.* += allocation_info.SizeInBytes;
-
-    // TODO:(gmodarelli) pResourceBefore needs a null pointer
-    // const barrier = d3d12.RESOURCE_BARRIER{
-    //     .Type = .ALIASING,
-    //     .Flags = .{},
-    //     .u = .{
-    //         .Aliasing = .{
-    //             .pResourceBefore = undefined,
-    //             .pResourceAfter = resource,
-    //         },
-    //     },
-    // };
-    // var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
-    // gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
-
     return resource;
 }
 
