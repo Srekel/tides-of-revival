@@ -304,7 +304,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // Create instance buffers.
     const instance_transform_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
-        for (buffers) |_, buffer_index| {
+        for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceTransform),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
@@ -323,7 +323,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     const instance_material_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
-        for (buffers) |_, buffer_index| {
+        for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceMaterial),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
@@ -628,7 +628,7 @@ fn onSetCIShapeMeshInstance(it: *flecs.Iterator(ShapeMeshInstanceObserverCallbac
         var ci = @ptrCast(*fd.CIShapeMeshInstance, @alignCast(@alignOf(fd.CIShapeMeshInstance), ci_ptr));
 
         const mesh_index = mesh_blk: {
-            for (state.meshes.items) |mesh, i| {
+            for (state.meshes.items, 0..) |mesh, i| {
                 if (mesh.id.eqlHash(ci.id)) {
                     break :mesh_blk i;
                 }

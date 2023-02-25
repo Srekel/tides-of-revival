@@ -204,7 +204,7 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn getPatchTypeId(self: *WorldPatchManager, id: IdLocal) PatchTypeId {
-        for (self.patch_types) |patch_type, i| {
+        for (self.patch_types, 0..) |patch_type, i| {
             if (patch_type.id.eql(id)) {
                 return i;
             }

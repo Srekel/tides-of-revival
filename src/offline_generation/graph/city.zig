@@ -184,7 +184,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     }
 
     for (cities.items) |city| {
-        for (city.border_pos.items) |pos_curr, i| {
+        for (city.border_pos.items, 0..) |pos_curr, i| {
             const posNSWE = [_]Pos{
                 .{
                     pos_curr[0],
@@ -309,7 +309,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         std.debug.print("..cities\n", .{});
         for (cities.items) |city| {
             std.debug.print("....city pos:{any} size:{}\n", .{ city.pos, city.border_pos.items.len });
-            for (city.border_pos.items) |pos, i| {
+            for (city.border_pos.items, 0..) |pos, i| {
                 const is_border = city.is_border.items[i];
                 var city_y: i64 = 0;
                 while (city_y < CITY_HEIGHT_TEST_SKIP) : (city_y += stride) {
