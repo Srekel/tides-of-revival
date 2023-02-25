@@ -1095,6 +1095,7 @@ pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.query_lights.deinit();
 
+    state.gfx.releaseAllTextures();
     _ = state.textures_heap.Release();
     state.textures_heap.* = undefined;
 
