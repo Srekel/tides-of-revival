@@ -230,8 +230,8 @@ pub const D3D12State = struct {
         return self.texture_pool.addTexture(texture);
     }
 
-    pub fn destroyTexture(self: *D3D12State, handle: TextureHandle) void {
-        self.texture_pool.destroyTexture(handle, &self.gctx);
+    pub fn releaseAllTextures(self: *D3D12State) void {
+        self.texture_pool.releaseAllTextures();
     }
 
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {

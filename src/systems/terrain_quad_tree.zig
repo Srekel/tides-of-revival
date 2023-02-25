@@ -433,7 +433,7 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
     const heap_size = heap_desc.SizeInBytes;
 
     var resource: *d3d12.IResource = undefined;
-    const desc = desc_blk: {
+    var desc = desc_blk: {
         var desc = d3d12.RESOURCE_DESC.initTex2d(
             format,
             width,
@@ -444,8 +444,17 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         break :desc_blk desc;
     };
 
-    const descs = [_]d3d12.RESOURCE_DESC{desc};
-    const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    // TODO(gmodarelli): move this do d3d12.zig
+    const d3d12_small_resource_placement_alignment: u32 = 4096;
+    desc.Alignment = d3d12_small_resource_placement_alignment;
+    var descs = [_]d3d12.RESOURCE_DESC{desc};
+    var allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    if (allocation_info.Alignment != d3d12_small_resource_placement_alignment) {
+        desc.Alignment = 0;
+        descs[0] = desc;
+        allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    }
+
     assert(heap_offset.* + allocation_info.SizeInBytes < heap_size);
 
     hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
@@ -458,10 +467,7 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         @ptrCast(*?*anyopaque, &resource),
     ));
 
-    // NOTE(gmodarelli): The heap is aligned to 64KB and our textures are smaller than that
-    // TODO(gmodarelli): Use atlases so we don't wast as much space
     heap_offset.* += allocation_info.SizeInBytes;
-
     return resource;
 }
 
@@ -881,12 +887,12 @@ pub fn create(
 
     // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
     // but for now it's here to speed test it out and speed things along
-    // NOTE(gmodarelli): We're currently loading 85 1-channel PNGs per sector, so we need roughly
-    // 1GB of space.
+    // NOTE(gmodarelli): We're currently loading up to 10880 1-channel R8_UNORM textures, so we need roughly
+    // 150MB of space.
     const heap_desc = d3d12.HEAP_DESC{
-        .SizeInBytes = 1000 * 1024 * 1024,
+        .SizeInBytes = 150 * 1024 * 1024,
         .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
-        .Alignment = 0, // 64KiB
+        .Alignment = 0,
         .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
     };
     var textures_heap: *d3d12.IHeap = undefined;
@@ -1060,6 +1066,7 @@ pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.query_lights.deinit();
 
+    state.gfx.releaseAllTextures();
     _ = state.textures_heap.Release();
     state.textures_heap.* = undefined;
 
