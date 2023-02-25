@@ -2,7 +2,6 @@ const std = @import("std");
 const Builder = std.build.Builder;
 
 const flecs = @import("external/zig-flecs/build.zig");
-// const glfw = @import("external/zig-gamedev/libs/mach-glfw/build.zig");
 const zaudio = @import("external/zig-gamedev/libs/zaudio/build.zig");
 const zbullet = @import("external/zig-gamedev/libs/zbullet/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
@@ -15,32 +14,62 @@ const zpool = @import("external/zig-gamedev/libs/zpool/build.zig");
 const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
 const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
 
-pub fn build(b: *Builder) void {
-    const exe = b.addExecutable("TidesOfRevival", "src/main.zig");
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
-    exe.setTarget(b.standardTargetOptions(.{}));
-    exe.setBuildMode(b.standardReleaseOptions());
+    const exe = b.addExecutable(.{
+        .name = "TidesOfRevival",
+        .root_source_file = .{ .path = thisDir() ++ "/src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
 
-    exe.addPackagePath("zigimg", "external/zigimg/zigimg.zig");
-    // exe.addPackagePath("qoi", "external/zig-qoi/src/qoi.zig");
-    exe.addPackagePath("args", "external/zig-args/args.zig");
+    exe.install();
 
-    const zmesh_options = zmesh.BuildOptionsStep.init(b, .{ .shape_use_32bit_indices = true });
-    const zmesh_pkg = zmesh.getPkg(&.{zmesh_options.getPkg()});
+    exe.addModule("zigimg", b.createModule(.{
+        .source_file = .{ .path = thisDir() ++ "/external/zigimg/zigimg.zig" },
+        .dependencies = &.{},
+    }));
+    exe.addModule("args", b.createModule(.{
+        .source_file = .{ .path = thisDir() ++ "/external/zig-args/args.zig" },
+        .dependencies = &.{},
+    }));
+
+    const zaudio_pkg = zaudio.Package.build(b, target, optimize, .{});
+
+    const zbullet_pkg = zbullet.Package.build(b, target, optimize, .{});
+
+    const zglfw_pkg = zglfw.Package.build(b, target, optimize, .{});
+
+    const zmath_pkg = zmath.Package.build(b, .{});
+
+    const zmesh_options = zmesh.Package.Options{ .shape_use_32bit_indices = true };
+    const zmesh_pkg = zmesh.Package.build(b, target, optimize, .{ .options = zmesh_options });
+
+    const znoise_pkg = znoise.Package.build(b, target, optimize, .{});
+
+    const zpool_pkg = zpool.Package.build(b, .{});
+
+    const zstbi_pkg = zstbi.Package.build(b, target, optimize, .{});
 
     const ztracy_enable = b.option(bool, "ztracy-enable", "Enable Tracy profiler") orelse false;
-    const ztracy_options = ztracy.BuildOptionsStep.init(b, .{ .enable_ztracy = ztracy_enable });
-    const ztracy_pkg = ztracy.getPkg(&.{ztracy_options.getPkg()});
+    const ztracy_options = ztracy.Package.Options{ .enable_ztracy = ztracy_enable };
+    const ztracy_pkg = ztracy.Package.build(b, target, optimize, .{ .options = ztracy_options });
+
+    const zwin32_pkg = zwin32.Package.build(b, .{});
 
     const zd3d12_enable_debug_layer = b.option(bool, "zd3d12-enable_debug_layer", "Enable D3D12 Debug Layer") orelse false;
     const zd3d12_enable_gbv = b.option(bool, "zd3d12-enable_gbv", "Enable D3D12 GPU Based Validation") orelse false;
-    const zd3d12_options = zd3d12.BuildOptionsStep.init(b, .{
-        .enable_debug_layer = zd3d12_enable_debug_layer,
-        .enable_gbv = zd3d12_enable_gbv,
-        .enable_d2d = true,
-        .upload_heap_capacity = 256 * 1024 * 1024,
+    const zd3d12_pkg = zd3d12.Package.build(b, .{
+        .options = .{
+            .enable_debug_layer = zd3d12_enable_debug_layer,
+            .enable_gbv = zd3d12_enable_gbv,
+            .enable_d2d = true,
+            .upload_heap_capacity = 56 * 1024 * 1024,
+        },
+        .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
     });
-    const zd3d12_pkg = zd3d12.getPkg(&.{ zwin32.pkg, zd3d12_options.getPkg() });
 
     const dxc_step = buildShaders(b);
     const install_shaders_step = b.addInstallDirectory(.{
@@ -80,28 +109,30 @@ pub fn build(b: *Builder) void {
     // is required by DirectX 12 Agility SDK.
     exe.rdynamic = true;
 
-    exe.addPackage(flecs.pkg);
-    exe.addPackage(zaudio.pkg);
-    exe.addPackage(zbullet.pkg);
-    exe.addPackage(zd3d12_pkg);
-    exe.addPackage(zglfw.pkg);
-    exe.addPackage(zmath.pkg);
-    exe.addPackage(zmesh_pkg);
-    exe.addPackage(znoise.pkg);
-    exe.addPackage(zpool.pkg);
-    exe.addPackage(zstbi.pkg);
-    exe.addPackage(ztracy_pkg);
-    exe.addPackage(zwin32.pkg);
+    const zig_flecs_pkg = flecs.Package.build(b, target, optimize, .{});
 
-    flecs.link(exe, exe.target);
-    zaudio.link(exe);
-    zbullet.link(exe);
-    zd3d12.link(exe, zd3d12_options);
-    zglfw.link(exe);
-    zmesh.link(exe, zmesh_options);
-    znoise.link(exe);
-    zstbi.link(exe);
-    ztracy.link(exe, ztracy_options);
+    exe.addModule("flecs", zig_flecs_pkg.flecs);
+    exe.addModule("zaudio", zaudio_pkg.zaudio);
+    exe.addModule("zbullet", zbullet_pkg.zbullet);
+    exe.addModule("zd3d12", zd3d12_pkg.zd3d12);
+    exe.addModule("zglfw", zglfw_pkg.zglfw);
+    exe.addModule("zmath", zmath_pkg.zmath);
+    exe.addModule("zmesh", zmesh_pkg.zmesh);
+    exe.addModule("znoise", znoise_pkg.znoise);
+    exe.addModule("zpool", zpool_pkg.zpool);
+    exe.addModule("zstbi", zstbi_pkg.zstbi);
+    exe.addModule("ztracy", ztracy_pkg.ztracy);
+    exe.addModule("zwin32", zwin32_pkg.zwin32);
+
+    zig_flecs_pkg.link(exe);
+    zaudio_pkg.link(exe);
+    zbullet_pkg.link(exe);
+    zd3d12_pkg.link(exe);
+    zglfw_pkg.link(exe);
+    zmesh_pkg.link(exe);
+    znoise_pkg.link(exe);
+    zstbi_pkg.link(exe);
+    ztracy_pkg.link(exe);
 
     exe.install();
 

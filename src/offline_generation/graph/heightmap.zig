@@ -163,7 +163,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     // const hm = output_data.patches[0];
                     const hmimg = img.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8) catch unreachable;
                     // _ = hm;
-                    for (heightmap) |pixel, i| {
+                    for (heightmap, 0..) |pixel, i| {
                         hmimg.pixels.grayscale8[i].value = @intCast(u8, pixel / 255);
                     }
 

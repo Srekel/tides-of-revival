@@ -181,7 +181,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     // const hm = output_data.patches[0];
                     const hmimg = img.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8) catch unreachable;
                     // _ = hm;
-                    for (splatmap) |pixel, i| {
+                    for (splatmap, 0..) |pixel, i| {
                         hmimg.pixels.grayscale8[i].value = @intCast(u8, pixel);
                     }
 

@@ -60,7 +60,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
         std.fs.cwd().makeDir(folderbufslice) catch {};
 
         const lod_pixel_stride = std.math.pow(u32, 2, lod) / precision;
-        const image_bytes_per_component = @intCast(u32, patch_element_byte_size);
+        const image_bytes_per_component = 1; // @intCast(u32, patch_element_byte_size);
         var image = zstbi.Image{
             .data = context.frame_allocator.alloc(u8, artifact_patch_width * artifact_patch_width * 2 * 1) catch unreachable,
             .width = @intCast(u32, artifact_patch_width),
@@ -116,6 +116,37 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                 while (lod_patch_y < lod_patch_count_per_side) : (lod_patch_y += 1) {
                     var lod_patch_x: u32 = 0;
                     while (lod_patch_x < lod_patch_count_per_side) : (lod_patch_x += 1) {
+                        const range = range_blk: {
+                            var max_value: u16 = 0;
+                            var min_value: u16 = std.math.maxInt(u16);
+                            _ = switch (patch_element_byte_size) {
+                                1 => {
+                                    min_value = 0;
+                                    max_value = 255;
+                                    break :range_blk .{ .min = min_value, .max = max_value };
+                                },
+                                2 => {
+                                    var pixel_y: u32 = 0;
+                                    while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
+                                        var pixel_x: u32 = 0;
+                                        while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
+                                            const world_x = @intCast(i64, hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
+                                            const world_y = @intCast(i64, hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride);
+                                            const value = patches.getValueDynamic(world_x, world_y, u16);
+                                            min_value = std.math.min(min_value, value);
+                                            max_value = std.math.max(max_value, value);
+                                        }
+                                    }
+
+                                    break :range_blk .{ .min = min_value, .max = max_value };
+                                },
+                                else => unreachable,
+                            };
+                        };
+
+                        const range_diff = @intToFloat(f64, range.max - range.min);
+                        // const full_range_diff = @intToFloat(f64, std.math.maxInt(u16));
+
                         var pixel_y: u32 = 0;
                         while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
                             var pixel_x: u32 = 0;
@@ -131,8 +162,17 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                     2 => {
                                         const value = patches.getValueDynamic(world_x, world_y, u16);
 
-                                        image.data[img_i] = @intCast(u8, value >> 8);
-                                        image.data[img_i + 1] = @intCast(u8, value & 0xFF);
+                                        // TODO: Do range mapping optionally based on parameter
+                                        if (range_diff == 0) {
+                                            image.data[img_i] = @intCast(u8, 0);
+                                            // image.data[img_i + 1] = @intCast(u8, 0);
+                                            continue;
+                                        }
+
+                                        const value_mapped = @floatToInt(u8, (@intToFloat(f64, (value - range.min)) / range_diff) * 255);
+                                        image.data[img_i] = @intCast(u8, value_mapped);
+                                        // image.data[img_i] = @intCast(u8, value >> 8);
+                                        // image.data[img_i + 1] = @intCast(u8, value & 0xFF);
                                     },
                                     else => unreachable,
                                 };
@@ -155,6 +195,34 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         //     hm_patch_x * worst_lod_width + lod_patch_y * lod_patch_width + 0 * lod_pixel_stride,
                         // });
                         image.writeToFile(namebufslice, .png) catch unreachable;
+
+                        if (patch_element_byte_size == 2) {
+                            const remap_namebufslice = std.fmt.bufPrintZ(
+                                namebuf[0..namebuf.len],
+                                "{s}/heightmap_x{}_y{}.txt",
+                                .{
+                                    folderbufslice,
+                                    hm_patch_x * lod_patch_count_per_side + lod_patch_x,
+                                    hm_patch_y * lod_patch_count_per_side + lod_patch_y,
+                                },
+                            ) catch unreachable;
+                            const remap_file = std.fs.cwd().createFile(
+                                remap_namebufslice,
+                                .{ .read = true },
+                            ) catch unreachable;
+                            defer remap_file.close();
+
+                            const remap_content_slice = std.fmt.bufPrintZ(
+                                namebuf[0..namebuf.len],
+                                "{},{}",
+                                .{
+                                    range.min,
+                                    range.max,
+                                },
+                            ) catch unreachable;
+                            const bytes_written =  remap_file.writeAll(remap_content_slice) catch unreachable;
+                            _ = bytes_written;
+                        }
                     }
                 }
 

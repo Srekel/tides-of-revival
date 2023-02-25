@@ -13,15 +13,14 @@ const SystemState = struct {
     physics_world: zbt.World,
     sys: flecs.EntityId,
 
-    // bodies: std.ArrayList(zbt.Body),
-    comp_query: flecs.Query,
+    comp_query_body: flecs.Query,
 };
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World) !*SystemState {
-    var query_builder = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder.with(fd.PhysicsBody)
+    var query_builder_body = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_body.with(fd.PhysicsBody)
         .with(fd.Transform);
-    var comp_query = query_builder.buildQuery();
+    const comp_query_body = query_builder_body.buildQuery();
 
     zbt.init(allocator);
     const physics_world = zbt.initWorld();
@@ -34,8 +33,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.W
         .flecs_world = flecs_world,
         .physics_world = physics_world,
         .sys = sys,
-        // .bodies = std.ArrayList(zbt.Body).init(),
-        .comp_query = comp_query,
+        .comp_query_body = comp_query_body,
     };
 
     flecs_world.observer(ObserverCallback, .on_set, state);
@@ -54,46 +52,32 @@ pub fn destroy(state: *SystemState) void {
         }
     }
 
-    state.comp_query.deinit();
+    state.comp_query_body.deinit();
     state.physics_world.deinit();
     zbt.deinit();
     state.allocator.destroy(state);
 }
 
-var lol: i32 = 0;
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
-    // _ = state.physics_world.stepSimulation(0.0166, .{});
+    updateBodies(state);
+}
 
-    var entity_iter = state.comp_query.iterator(struct {
+fn updateBodies(state: *SystemState) void {
+    var entity_iter = state.comp_query_body.iterator(struct {
         PhysicsBody: *fd.PhysicsBody,
         transform: *fd.Transform,
     });
 
-    lol += 1;
     while (entity_iter.next()) |comps| {
         var body_comp = comps.PhysicsBody;
         var body = body_comp.body;
-        // body = body;
-        // var transform: [12]f32 = undefined;
         body.getGraphicsWorldTransform(&comps.transform.matrix);
-        // std.debug.print("{}\t{d}\n", .{ lol, comps.transform.matrix[10] });
-
-        // var impulse = [3]f32{ 0, 0, 1 };
-        // body.applyCentralImpulse(&impulse);
-        // var ztransform = zm.loadMat43(transform[0..]);
-        // comps.pos.x = transform[9];
-        // comps.pos.y = transform[10];
-        // comps.pos.z = transform[11];
-        // var transform: [12]f32 = undefined;
-        // break :blk zm.loadMat43(transform[0..]);
-        // };
     }
 }
 
 const ObserverCallback = struct {
-    // pos: *const fd.Position,
     body: *const fd.CIPhysicsBody,
 
     pub const name = "CIPhysicsBody";
@@ -108,13 +92,6 @@ fn onSetCIPhysicsBody(it: *flecs.Iterator(ObserverCallback)) void {
         var ci = @ptrCast(*fd.CIPhysicsBody, @alignCast(@alignOf(fd.CIPhysicsBody), ci_ptr));
 
         var transform = it.entity().getMut(fd.Transform).?;
-        // const transform = [_]f32{
-        //     1.0, 0.0, 0.0, // orientation
-        //     0.0, 1.0, 0.0,
-        //     0.0, 0.0, 1.0,
-        //     pos.x, pos.y, pos.z, // translation
-        // };
-
         const shape = switch (ci.shape_type) {
             .box => zbt.initBoxShape(&.{ ci.box.size, ci.box.size, ci.box.size }).asShape(),
             .sphere => zbt.initSphereShape(ci.sphere.radius).asShape(),

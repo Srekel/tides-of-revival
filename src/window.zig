@@ -51,7 +51,7 @@ pub fn createWindow(title: [:0]const u8) !*zglfw.Window {
 }
 
 pub fn destroyWindow(window_to_destroy: *zglfw.Window) void {
-    for (windows.items) |window, i| {
+    for (windows.items, 0..) |window, i| {
         if (window == window_to_destroy) {
             _ = windows.swapRemove(i);
             break;

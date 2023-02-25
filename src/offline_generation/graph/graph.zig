@@ -16,9 +16,9 @@ pub const Graph = struct {
         }
 
         std.debug.print("Connecting {} nodes...\n", .{self.nodes.items.len});
-        for (self.nodes.items) |*node1, ni1| {
+        for (self.nodes.items, 0..) |*node1, ni1| {
             std.debug.print("{} n1: {s}\n", .{ ni1, node1.name.toString() });
-            for (node1.inputs) |*input1| {
+            for (&node1.inputs) |*input1| {
                 if (input1.template == null) {
                     break;
                 }
@@ -27,13 +27,13 @@ pub const Graph = struct {
                 }
 
                 std.debug.print("..i1:{s}, ref:{s}\n", .{ input1.template.?.name.toString(), input1.reference.toString() });
-                outer: for (self.nodes.items) |*node2, ni2| {
+                outer: for (self.nodes.items, 0..) |*node2, ni2| {
                     if (ni1 == ni2) {
                         continue;
                     }
 
                     // var outputs2 = ;
-                    for (node2.outputs) |*output2| {
+                    for (&node2.outputs) |*output2| {
                         if (output2.template == null) {
                             break;
                         }
@@ -96,7 +96,7 @@ pub const Graph = struct {
             defer frame_allocator.deinit();
 
             for (self.nodes.items) |*node| {
-                for (node.outputs) |*output| {
+                for (&node.outputs) |*output| {
                     // std.debug.print("Node {s} had output {s} with reference {s}\n", .{ node.name.toString(), output.template.?.name.toString(), output.reference.toString() });
                     if (output.template == null) {
                         break;
@@ -185,13 +185,13 @@ pub const Node = struct {
     output_artifacts: bool = false,
 
     pub fn init(self: *Node) void {
-        for (self.template.func.inputs) |*input, ni| {
+        for (&self.template.func.inputs, 0..) |*input, ni| {
             if (!input.name.isUnset()) {
                 // self.inputs.appendAssumeCapacity(.{});
                 self.inputs[ni].template = input;
             }
         }
-        for (self.template.func.outputs) |*output, ni| {
+        for (&self.template.func.outputs, 0..) |*output, ni| {
             if (!output.name.isUnset()) {
                 self.outputs[ni].template = output;
                 self.outputs[ni].node = self;
@@ -205,7 +205,7 @@ pub const Node = struct {
     }
 
     pub fn getInput(self: *Node, name: IdLocal) *NodeInput {
-        for (self.*.template.func.inputs) |*input, ni| {
+        for (&self.*.template.func.inputs, 0..) |*input, ni| {
             if (input.name.eql(name)) {
                 return &self.inputs[ni];
             }
@@ -214,7 +214,7 @@ pub const Node = struct {
     }
 
     pub fn getOutput(self: *Node, name: IdLocal) *NodeOutput {
-        for (self.*.template.func.outputs) |*output, ni| {
+        for (&self.*.template.func.outputs, 0..) |*output, ni| {
             if (output.name.eql(name)) {
                 return &self.outputs[ni];
             }
@@ -224,7 +224,7 @@ pub const Node = struct {
     }
 
     pub fn setOutputReference(self: *Node, name: IdLocal, ref: IdLocal) void {
-        for (self.*.template.func.outputs) |conn, i| {
+        for (&self.*.template.func.outputs, 0..) |conn, i| {
             if (conn.name.eql(name)) {
                 // std.mem.copy(u8, self.*.outputs[i].reference, ref);
                 self.*.outputs[i].reference = ref;

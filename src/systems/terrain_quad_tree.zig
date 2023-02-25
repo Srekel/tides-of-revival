@@ -1024,7 +1024,7 @@ pub fn create(
     // Create instance buffers.
     const instance_data_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
-        for (buffers) |_, buffer_index| {
+        for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceData),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,

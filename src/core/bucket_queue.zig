@@ -16,7 +16,7 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             var result = Self{
                 .allocator = allocator,
             };
-            for (result.buckets) |*bucket, i| {
+            for (&result.buckets, 0..) |*bucket, i| {
                 bucket.* = Bucket.init(allocator);
                 bucket.*.ensureTotalCapacity(bucket_sizes[i]) catch unreachable;
             }
@@ -73,8 +73,8 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             var bucket_new = &self.buckets[prio_index_new];
             for (elems) |elem| {
                 const bucket_old_elem_index = blk: {
-                    for (bucket_old.items) |bucket_old_elem, i| {
-                        if (std.mem.eql(u8, std.mem.asBytes(&elem), std.mem.asBytes(&bucket_old_elem))) {
+                    for (bucket_old.items, 0..) |bucket_old_elem, i| {
+                        if (std.meta.eql(elem, bucket_old_elem)) {
                             break :blk i;
                         }
                     }

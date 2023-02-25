@@ -41,7 +41,7 @@ pub const LRUCache = struct {
         const values = self.entries.items(.value);
         const timestamps = self.entries.items(.timestamp);
 
-        for (keys) |entry_key, i| {
+        for (keys, 0..) |entry_key, i| {
             if (entry_key == key) {
                 timestamps[i] = time.nanoTimestamp();
                 return &values[i];
@@ -53,7 +53,7 @@ pub const LRUCache = struct {
         }
 
         var last_timestamp: i128 = std.math.maxInt(i128);
-        for (timestamps) |entry_timestamp, i| {
+        for (timestamps, 0..) |entry_timestamp, i| {
             if (entry_timestamp < last_timestamp) {
                 last_timestamp = timestamps[i];
                 evict_key.* = keys[i];
@@ -78,7 +78,7 @@ pub const LRUCache = struct {
     pub fn remove(self: *LRUCache, key: LRUKey) *LRUValue {
         const keys = self.entries.items(.key);
         const values = self.entries.items(.value);
-        for (keys) |entry_key, i| {
+        for (keys, 0..) |entry_key, i| {
             if (entry_key == key) {
                 const value_ptr = values[i];
                 self.entries.swapRemove(i);
@@ -97,7 +97,7 @@ pub const LRUCache = struct {
         const values = self.entries.items(.value);
         const timestamps = self.entries.items(.timestamp);
 
-        for (keys) |entry_key, i| {
+        for (keys, 0..) |entry_key, i| {
             if (entry_key == old_key) {
                 keys[i] = new_key;
                 values[i] = new_value;
@@ -112,7 +112,7 @@ pub const LRUCache = struct {
     pub fn touch(self: *LRUCache, key: LRUKey) void {
         const keys = self.entries.items(.key);
         const timestamps = self.entries.items(.timestamp);
-        for (keys) |entry_key, i| {
+        for (keys, 0..) |entry_key, i| {
             if (entry_key == key) {
                 timestamps[i] = time.nanoTimestamp();
                 return;

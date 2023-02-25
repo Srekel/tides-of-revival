@@ -197,7 +197,7 @@ fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
                 unreachable;
             };
 
-            for (system.instances.items) |*smi, i| {
+            for (system.instances.items, 0..) |*smi, i| {
                 if (smi.state_machine == state_machine) {
                     break :blk_smi_i .{
                         .smi = smi,
