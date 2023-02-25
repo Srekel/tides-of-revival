@@ -890,7 +890,7 @@ pub fn create(
     // NOTE(gmodarelli): We're currently loading up to 10880 1-channel R8_UNORM textures, so we need roughly
     // 150MB of space.
     const heap_desc = d3d12.HEAP_DESC{
-        .SizeInBytes = 100 * 1024 * 1024,
+        .SizeInBytes = 150 * 1024 * 1024,
         .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
         .Alignment = 0,
         .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
