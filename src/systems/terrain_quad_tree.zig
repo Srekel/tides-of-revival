@@ -295,6 +295,7 @@ fn createDDSTextureFromMemory(
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
     heap_offset: *u64,
+    small_resource: bool,
     in_frame: bool,
 ) !gfx.Texture {
     if (!in_frame) {
@@ -318,6 +319,7 @@ fn createDDSTextureFromMemory(
             dds_info.height,
             dds_info.format,
             dds_info.mip_map_count,
+            small_resource,
         ) catch unreachable;
 
         // TODO: Set a debug name
@@ -362,6 +364,7 @@ fn createDDSTextureFromFile(
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
     heap_offset: *u64,
+    small_resource: bool,
     in_frame: bool,
 ) !gfx.Texture {
     // Generate Path
@@ -388,6 +391,7 @@ fn createDDSTextureFromFile(
             dds_info.height,
             dds_info.format,
             dds_info.mip_map_count,
+            small_resource,
         ) catch unreachable;
 
         // Set a debug name
@@ -426,14 +430,14 @@ fn createDDSTextureFromFile(
     };
 }
 
-fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
+fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32, small_resource: bool) !*d3d12.IResource {
     assert(gfxstate.gctx.is_cmdlist_opened);
 
     var heap_desc = heap.GetDesc();
     const heap_size = heap_desc.SizeInBytes;
 
     var resource: *d3d12.IResource = undefined;
-    const desc = desc_blk: {
+    var desc = desc_blk: {
         var desc = d3d12.RESOURCE_DESC.initTex2d(
             format,
             width,
@@ -444,8 +448,26 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         break :desc_blk desc;
     };
 
-    const descs = [_]d3d12.RESOURCE_DESC{desc};
-    const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+    const allocation_info = blk: {
+        if (small_resource) {
+            // TODO(gmodarelli): move this do d3d12.zig
+            const d3d12_small_resource_placement_alignment: u32 = 4096;
+            desc.Alignment = d3d12_small_resource_placement_alignment;
+            var descs = [_]d3d12.RESOURCE_DESC{desc};
+            const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+            if (allocation_info.Alignment == d3d12_small_resource_placement_alignment) {
+                break :blk allocation_info;
+            } else {
+                desc.Alignment = 0;
+                descs[0] = desc;
+                break :blk gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+            }
+        } else {
+            const descs = [_]d3d12.RESOURCE_DESC{desc};
+            break :blk gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+        }
+    };
+
     assert(heap_offset.* + allocation_info.SizeInBytes < heap_size);
 
     hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
@@ -458,9 +480,21 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         @ptrCast(*?*anyopaque, &resource),
     ));
 
-    // NOTE(gmodarelli): The heap is aligned to 64KB and our textures are smaller than that
-    // TODO(gmodarelli): Use atlases so we don't wast as much space
     heap_offset.* += allocation_info.SizeInBytes;
+
+    // TODO:(gmodarelli) pResourceBefore needs a null pointer
+    // const barrier = d3d12.RESOURCE_BARRIER{
+    //     .Type = .ALIASING,
+    //     .Flags = .{},
+    //     .u = .{
+    //         .Aliasing = .{
+    //             .pResourceBefore = undefined,
+    //             .pResourceAfter = resource,
+    //         },
+    //     },
+    // };
+    // var barriers = [_]d3d12.RESOURCE_BARRIER{barrier};
+    // gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
 
     return resource;
 }
@@ -609,7 +643,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false, false) catch unreachable;
     };
 
     const normal = blk: {
@@ -621,7 +655,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false, false) catch unreachable;
     };
 
     const arm = blk: {
@@ -633,7 +667,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false, false) catch unreachable;
     };
 
     return .{
@@ -663,7 +697,7 @@ fn loadNodeHeightmap(
 
     const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_opt) |patch| {
-        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
+        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, textures_heap_offset, true, in_frame) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
 }
@@ -727,6 +761,7 @@ fn loadHeightAndSplatMaps(
         splatmap_wh.h,
         splatmap_texture_data.format,
         1,
+        true, // small resource
     ) catch unreachable;
 
     // Set a debug name
@@ -881,12 +916,12 @@ pub fn create(
 
     // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
     // but for now it's here to speed test it out and speed things along
-    // NOTE(gmodarelli): We're currently loading 85 1-channel PNGs per sector, so we need roughly
-    // 1GB of space.
+    // NOTE(gmodarelli): We're currently loading up to 10880 1-channel R8_UNORM textures, so we need roughly
+    // 150MB of space.
     const heap_desc = d3d12.HEAP_DESC{
-        .SizeInBytes = 1000 * 1024 * 1024,
+        .SizeInBytes = 100 * 1024 * 1024,
         .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
-        .Alignment = 0, // 64KiB
+        .Alignment = 0,
         .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
     };
     var textures_heap: *d3d12.IHeap = undefined;
