@@ -5,13 +5,14 @@ const zm = @import("zmath");
 
 const IndexType = @import("renderer_types.zig").IndexType;
 const Vertex = @import("renderer_types.zig").Vertex;
+const Mesh = @import("renderer_types.zig").Mesh;
 
 pub fn loadObjMeshFromFile(
     allocator: std.mem.Allocator,
     path: []const u8,
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
-) !struct { num_indices: u32, num_vertices: u32 } {
+) !Mesh {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -205,8 +206,20 @@ pub fn loadObjMeshFromFile(
         remapped_indices.items,
     );
 
+    var mesh = Mesh{
+        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
+        .vertex_count = @intCast(u32, optimized_vertices.items.len),
+        .num_lods = 1,
+        .lods = undefined,
+    };
+
+    mesh.lods[0] = .{
+        .index_offset = @intCast(u32, meshes_indices.items.len),
+        .index_count = @intCast(u32, remapped_indices.items.len),
+    };
+
     meshes_indices.appendSlice(remapped_indices.items) catch unreachable;
     meshes_vertices.appendSlice(optimized_vertices.items) catch unreachable;
 
-    return .{ .num_indices = @intCast(u32, remapped_indices.items.len), .num_vertices = @intCast(u32, optimized_vertices.items.len) };
+    return mesh;
 }
