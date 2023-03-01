@@ -175,7 +175,7 @@ fn appendObjMesh(
 ) !u64 {
     const mesh = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
 
-    meshes.append(.{.id = id, .mesh = mesh}) catch unreachable;
+    meshes.append(.{ .id = id, .mesh = mesh }) catch unreachable;
 
     return meshes.items.len - 1;
 }
