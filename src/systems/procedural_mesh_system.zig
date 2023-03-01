@@ -135,8 +135,6 @@ fn appendShapeMesh(
         .id = id,
         // .entity = entity,
         .mesh = .{
-            .vertex_offset = @intCast(u32, meshes_vertices.items.len),
-            .vertex_count = @intCast(u32, z_mesh.positions.len),
             .num_lods = 1,
             .lods = undefined,
         },
@@ -145,6 +143,8 @@ fn appendShapeMesh(
     mesh.mesh.lods[0] = .{
         .index_offset = @intCast(u32, meshes_indices.items.len),
         .index_count = @intCast(u32, z_mesh.indices.len),
+        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
+        .vertex_count = @intCast(u32, z_mesh.positions.len),
     };
 
     meshes.append(mesh) catch unreachable;
@@ -261,7 +261,8 @@ fn initScene(
     _ = appendObjMesh(allocator, IdLocal.init("small_house_fireplace"), "content/meshes/small_house_fireplace.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("medium_house"), "content/meshes/medium_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("big_house"), "content/meshes/big_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
-    _ = appendObjMesh(allocator, IdLocal.init("long_house"), "content/meshes/long_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    // TODO(gmodarelli): the OBJ loader fails to load this model
+    // _ = appendObjMesh(allocator, IdLocal.init("long_house"), "content/meshes/long_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("pine"), "content/meshes/pine.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 }
 
@@ -500,10 +501,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         if (last_mesh_index == 0xffffffff) {
             last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
             const mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
-            const lod_index = mesh.num_lods - 1;
+            const lod_index: u32 = if (mesh.num_lods > 2) 2 else 0;
             last_mesh_index_count = mesh.lods[lod_index].index_count;
             last_mesh_index_offset = mesh.lods[lod_index].index_offset;
-            last_mesh_vertex_offset = @intCast(i32, mesh.vertex_offset);
+            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
         }
 
         if (last_mesh_index != comps.mesh.mesh_index or instance_count == max_instances_per_draw_call) {
@@ -521,10 +522,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
             const mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
-            const lod_index = mesh.num_lods - 1;
+            const lod_index: u32 = if (mesh.num_lods > 2) 2 else 0;
             last_mesh_index_count = mesh.lods[lod_index].index_count;
             last_mesh_index_offset = mesh.lods[lod_index].index_offset;
-            last_mesh_vertex_offset = @intCast(i32, mesh.vertex_offset);
+            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
         } else {
             instance_count += 1;
         }

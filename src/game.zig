@@ -339,15 +339,15 @@ pub fn run() void {
     );
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
 
-    // var terrain_sys = try terrain_system.create(
-    //     IdLocal.init("terrain_system"),
-    //     std.heap.page_allocator,
-    //     &gfx_state,
-    //     &flecs_world,
-    //     physics_sys.physics_world,
-    //     terrain_noise,
-    // );
-    // defer terrain_system.destroy(terrain_sys);
+    var terrain_sys = try terrain_system.create(
+        IdLocal.init("terrain_system"),
+        std.heap.page_allocator,
+        &gfx_state,
+        &flecs_world,
+        physics_sys.physics_world,
+        terrain_noise,
+    );
+    defer terrain_system.destroy(terrain_sys);
 
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,

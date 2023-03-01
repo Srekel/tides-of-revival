@@ -1192,7 +1192,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .index_count = mesh.lods[0].index_count,
                 .instance_count = 1,
                 .index_offset = mesh.lods[0].index_offset,
-                .vertex_offset = @intCast(i32, mesh.vertex_offset),
+                .vertex_offset = @intCast(i32, mesh.lods[0].vertex_offset),
                 .start_instance_location = start_instance_location,
             }) catch unreachable;
 
