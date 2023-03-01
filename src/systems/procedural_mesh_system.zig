@@ -51,6 +51,7 @@ const InstanceMaterial = struct {
 
 const max_instances = 100000;
 const max_instances_per_draw_call = 4096;
+const max_draw_distance: f32 = 500.0;
 
 const DrawCall = struct {
     mesh_index: u32,
@@ -492,22 +493,60 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     var instance_count: u32 = 0;
     var start_instance_location: u32 = 0;
+
+    var last_lod_index: u32 = 0;
     var last_mesh_index: u32 = 0xffffffff;
     var last_mesh_index_count: u32 = 0;
     var last_mesh_index_offset: u32 = 0;
     var last_mesh_vertex_offset: i32 = 0;
+    var lod_index: u32 = 0;
 
     while (entity_iter_mesh.next()) |comps| {
+        var mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+        lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+
         if (last_mesh_index == 0xffffffff) {
             last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
-            const mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
-            const lod_index: u32 = if (mesh.num_lods > 2) 2 else 0;
+            last_lod_index = lod_index;
             last_mesh_index_count = mesh.lods[lod_index].index_count;
             last_mesh_index_offset = mesh.lods[lod_index].index_offset;
             last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
         }
 
-        if (last_mesh_index != comps.mesh.mesh_index or instance_count == max_instances_per_draw_call) {
+        if (last_mesh_index == comps.mesh.mesh_index and lod_index == last_lod_index) {
+            if (instance_count < max_instances_per_draw_call) {
+                instance_count += 1;
+            } else {
+                state.draw_calls.append(.{
+                    .mesh_index = last_mesh_index,
+                    .index_count = last_mesh_index_count,
+                    .instance_count = instance_count,
+                    .index_offset = last_mesh_index_offset,
+                    .vertex_offset = last_mesh_vertex_offset,
+                    .start_instance_location = start_instance_location,
+                }) catch unreachable;
+
+                start_instance_location += instance_count;
+                instance_count = 1;
+            }
+        } else if (last_mesh_index == comps.mesh.mesh_index and lod_index != last_lod_index) {
+            state.draw_calls.append(.{
+                .mesh_index = last_mesh_index,
+                .index_count = last_mesh_index_count,
+                .instance_count = instance_count,
+                .index_offset = last_mesh_index_offset,
+                .vertex_offset = last_mesh_vertex_offset,
+                .start_instance_location = start_instance_location,
+            }) catch unreachable;
+
+            start_instance_location += instance_count;
+            instance_count = 1;
+            last_lod_index = lod_index;
+            mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+            last_mesh_index_count = mesh.lods[lod_index].index_count;
+            last_mesh_index_offset = mesh.lods[lod_index].index_offset;
+            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
+        } else if (last_mesh_index != comps.mesh.mesh_index) {
             state.draw_calls.append(.{
                 .mesh_index = last_mesh_index,
                 .index_count = last_mesh_index_count,
@@ -521,13 +560,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             instance_count = 1;
 
             last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
-            const mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
-            const lod_index: u32 = if (mesh.num_lods > 2) 2 else 0;
+            mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+            lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+
+            last_lod_index = lod_index;
             last_mesh_index_count = mesh.lods[lod_index].index_count;
             last_mesh_index_offset = mesh.lods[lod_index].index_offset;
             last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
-        } else {
-            instance_count += 1;
         }
 
         const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
@@ -580,6 +619,31 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
+}
+
+fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32, num_lods: u32) u32 {
+    if (num_lods == 1) {
+        return 0;
+    }
+
+    const z_camera_postion = zm.loadArr3(camera_position);
+    const z_entity_postion = zm.loadArr3(entity_position);
+    const squared_distance: f32 = zm.lengthSq3(z_camera_postion - z_entity_postion)[0];
+
+    const squared_draw_distance = draw_distance * draw_distance;
+    const t = squared_distance / squared_draw_distance;
+
+    // TODO(gmodarelli): Store these LODs percentages in the Mesh itself.
+    assert(num_lods == 4);
+    if (t <= 0.05) {
+        return 0;
+    } else if (t <= 0.1) {
+        return 1;
+    } else if (t <= 0.2) {
+        return 2;
+    } else {
+        return 3;
+    }
 }
 
 // const ShapeMeshDefinitionObserverCallback = struct {
