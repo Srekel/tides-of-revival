@@ -655,8 +655,8 @@ fn loadNodeHeightmap(
     assert(node.heightmap_handle == null);
 
     const lookup = world_patch_manager.PatchLookup{
-        .world_x = @intCast(u16, node.patch_index[0]),
-        .world_z = @intCast(u16, node.patch_index[1]),
+        .patch_x = @intCast(u16, node.patch_index[0]),
+        .patch_z = @intCast(u16, node.patch_index[1]),
         .lod = @intCast(u4, node.mesh_lod),
         .patch_type_id = 0,
     };
@@ -797,14 +797,14 @@ fn loadResources(
 
     // Ask the World Patch Manager to load all LOD3 for the current world extents
     const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
-    const area = world_patch_manager.RequestArea{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
+    const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
     world_patch_mgr.addLoadRequest(rid, 0, area, 3, .high);
     // Make sure all LOD3 are resident
     world_patch_mgr.tick();
     // Request loading all the other LODs
-    world_patch_mgr.addLoadRequest(rid, 0, area, 0, .high);
-    world_patch_mgr.addLoadRequest(rid, 0, area, 1, .high);
-    world_patch_mgr.addLoadRequest(rid, 0, area, 2, .high);
+    world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
+    world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
+    world_patch_mgr.addLoadRequest(rid, 0, area, 2, .medium);
     // NOTE(gmodarelli): Testing memory corruption of loading texture in flight
     // world_patch_mgr.tick();
 
@@ -901,13 +901,16 @@ pub fn create(
 
     // Create initial sectors
     {
-        var patch_half_size = @intToFloat(f32, config.patch_width) / 2.0;
+        var patch_half_size = @intToFloat(f32, config.largest_patch_width) / 2.0;
         var patch_y: u32 = 0;
         while (patch_y < 8) : (patch_y += 1) {
             var patch_x: u32 = 0;
             while (patch_x < 8) : (patch_x += 1) {
                 terrain_quad_tree_nodes.appendAssumeCapacity(.{
-                    .center = [2]f32{ @intToFloat(f32, patch_x * config.patch_width) + patch_half_size, (@intToFloat(f32, patch_y * config.patch_width)) + patch_half_size },
+                    .center = [2]f32{
+                        @intToFloat(f32, patch_x * config.largest_patch_width) + patch_half_size,
+                        @intToFloat(f32, patch_y * config.largest_patch_width) + patch_half_size,
+                    },
                     .size = [2]f32{ patch_half_size, patch_half_size },
                     .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
                     .mesh_lod = 3,

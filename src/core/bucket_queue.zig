@@ -83,6 +83,10 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
                 _ = bucket_old.swapRemove(bucket_old_elem_index);
                 bucket_new.appendAssumeCapacity(elem);
             }
+
+            if (prio_index_new < self.current_highest_prio) {
+                self.current_highest_prio = prio_index_new;
+            }
         }
     };
 }

@@ -7,6 +7,7 @@ const IdLocal = @import("variant.zig").IdLocal;
 //    ██║   ███████╗██║  ██║██║  ██║██║  ██║██║██║ ╚████║
 //    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
 
+pub const largest_patch_width = 512;
 pub const patch_width = 512;
 pub const noise_scale_xz = 1.0 / 2.0;
 pub const noise_scale_y = 200;

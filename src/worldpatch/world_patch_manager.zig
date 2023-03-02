@@ -8,8 +8,8 @@ const util = @import("../util.zig");
 
 const LoD = u4;
 const min_patch_size = 64; // 2^6 m
-const max_patch_size = 8192; // 2^(6+7) m
-const max_world_size = 512 * 1024; // 500 km
+// const max_patch_size = 8192; // 2^(6+7) m
+const max_world_size = 4 * 1024; // 512 * 1024; // 500 km
 const max_patch = max_world_size / min_patch_size; // 8k patches
 const max_patch_int_bits = 16; // 2**13 = 8k
 const max_patch_int = std.meta.Int(.unsigned, max_patch_int_bits);
@@ -23,8 +23,8 @@ pub const Priority = enum {
     medium,
     low,
 
-    fn lessThan(self: Priority, other: Priority) bool {
-        return @enumToInt(self) < @enumToInt(other);
+    fn lowerThan(self: Priority, other: Priority) bool {
+        return @enumToInt(self) > @enumToInt(other);
     }
 };
 pub const RequesterId = u8;
@@ -41,14 +41,17 @@ const PatchRequest = struct {
 //     return res;
 // }
 pub const PatchLookup = struct {
-    world_x: max_patch_int,
-    world_z: max_patch_int,
+    patch_x: max_patch_int,
+    patch_z: max_patch_int,
     lod: LoD,
     patch_type_id: PatchTypeId,
 
     // comptime {
     //     std.debug.assert(@sizeOf(@This()) == @sizeOf(u32));
     // }
+    pub fn eql(self: PatchLookup, other: PatchLookup) bool {
+        return std.meta.eql(self, other);
+    }
 };
 
 // pub const PatchLookupHashContext = struct {
@@ -114,7 +117,7 @@ pub const Patch = struct {
         self.requesters[self.request_count].prio = prio;
         self.request_count += 1;
 
-        if (self.highest_prio.lessThan(prio)) {
+        if (self.highest_prio.lowerThan(prio)) {
             self.highest_prio = prio;
         }
     }
@@ -138,7 +141,7 @@ pub const Patch = struct {
         self.highest_prio = Priority.low;
         var i_req: u32 = 0;
         while (i_req < self.request_count) : (i_req += 1) {
-            if (self.highest_prio.lessThan(self.requesters[i_req].prio)) {
+            if (self.highest_prio.lowerThan(self.requesters[i_req].prio)) {
                 self.highest_prio = self.requesters[i_req].prio;
             }
         }
@@ -152,7 +155,7 @@ pub const PatchPool = Pool(16, 16, void, struct {
 pub const PatchHandle = PatchPool.Handle;
 pub const PatchQueue = BucketQueue(PatchHandle, Priority);
 
-pub const RequestArea = struct {
+pub const RequestRectangle = struct {
     x: f32,
     z: f32,
     width: f32,
@@ -168,7 +171,7 @@ pub const WorldPatchManager = struct {
     allocator: std.mem.Allocator,
     requesters: std.ArrayList(IdLocal) = undefined,
     patch_types: std.ArrayList(PatchType) = undefined,
-    handle_map_by_lookup: std.AutoArrayHashMap(PatchLookup, PatchHandle) = undefined,
+    handle_map_by_lookup: std.AutoHashMap(PatchLookup, PatchHandle) = undefined,
     patch_pool: PatchPool = undefined,
     bucket_queue: PatchQueue = undefined,
     asset_manager: AssetManager = undefined,
@@ -178,7 +181,7 @@ pub const WorldPatchManager = struct {
             .allocator = allocator,
             .requesters = std.ArrayList(IdLocal).initCapacity(allocator, max_requesters) catch unreachable,
             .patch_types = std.ArrayList(PatchType).initCapacity(allocator, max_patch_types) catch unreachable,
-            .handle_map_by_lookup = std.AutoArrayHashMap(PatchLookup, PatchHandle).init(allocator),
+            .handle_map_by_lookup = std.AutoHashMap(PatchLookup, PatchHandle).init(allocator),
             .patch_pool = PatchPool.initCapacity(allocator, 8) catch unreachable, // temporarily low for testing
             .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
             .asset_manager = asset_manager,
@@ -219,15 +222,15 @@ pub const WorldPatchManager = struct {
         const patch_x_begin = @floatToInt(u16, @divExact(world_x_begin, world_stride));
         const patch_z_begin = @floatToInt(u16, @divExact(world_z_begin, world_stride));
         return PatchLookup{
-            .world_x = patch_x_begin,
-            .world_z = patch_z_begin,
+            .patch_x = patch_x_begin,
+            .patch_z = patch_z_begin,
             .lod = lod,
             .patch_type_id = patch_type_id,
         };
     }
 
     // pub fn moveRequester(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, movement: RequestMovement, lod: LoD, prio: Priority) void {
-    //     const area_prev: RequestArea = .{
+    //     const area_prev: RequestRectangle = .{
     //         .x = movement.prev.x - movement.range,
     //         .y = movement.prev.y - movement.range,
     //         .width = movement.width,
@@ -247,8 +250,8 @@ pub const WorldPatchManager = struct {
             var patch_x = patch_x_begin;
             while (patch_x < patch_x_end) : (patch_x += 1) {
                 const patch_lookup = PatchLookup{
-                    .world_x = patch_x,
-                    .world_z = patch_z,
+                    .patch_x = patch_x,
+                    .patch_z = patch_z,
                     .lod = lod,
                     .patch_type_id = patch_type_id,
                 };
@@ -295,8 +298,8 @@ pub const WorldPatchManager = struct {
             var patch_x = patch_x_begin;
             while (patch_x < patch_x_end) {
                 const patch_lookup = PatchLookup{
-                    .x = patch_x,
-                    .z = patch_z,
+                    .patch_x = patch_x,
+                    .patch_z = patch_z,
                     .lod = lod,
                     .patch_type_id = patch_type_id,
                 };
