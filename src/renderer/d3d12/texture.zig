@@ -51,12 +51,19 @@ pub const TexturePool = struct {
         };
     }
 
-    pub fn deinit(pool: *TexturePool, allocator: std.mem.Allocator) void {
-        for (pool.textures) |texture| {
+    pub fn releaseAllTextures(pool: *TexturePool) void {
+        var texture_index: u32 = 0;
+        while (texture_index < pool.textures.len) : (texture_index += 1) {
+            var texture = &pool.textures[texture_index];
             if (texture.resource != null) {
                 _ = texture.resource.?.Release();
+                texture.resource = null;
             }
         }
+    }
+
+    pub fn deinit(pool: *TexturePool, allocator: std.mem.Allocator) void {
+        pool.releaseAllTextures();
 
         allocator.free(pool.textures);
         allocator.free(pool.generations);
