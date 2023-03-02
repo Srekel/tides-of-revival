@@ -238,7 +238,62 @@ pub const WorldPatchManager = struct {
     //     };
     // }
 
-    pub fn addLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD, prio: Priority) void {
+    pub fn getLookupsFromRectangle(patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD, out_lookups: *std.ArrayList(PatchLookup)) void {
+        const area_x = std.math.clamp(area.x, 0, max_world_size);
+        const area_z = std.math.clamp(area.z, 0, max_world_size);
+        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
+        const patch_x_begin = @floatToInt(u16, @divFloor(area_x, world_stride));
+        const patch_z_begin = @floatToInt(u16, @divFloor(area_z, world_stride));
+        const patch_x_end = @floatToInt(u16, @divFloor(area_x + area.width, world_stride));
+        const patch_z_end = @floatToInt(u16, @divFloor(area_z + area.height, world_stride));
+
+        var patch_z = patch_z_begin;
+        while (patch_z < patch_z_end) : (patch_z += 1) {
+            var patch_x = patch_x_begin;
+            while (patch_x < patch_x_end) : (patch_x += 1) {
+                const patch_lookup = PatchLookup{
+                    .patch_x = patch_x,
+                    .patch_z = patch_z,
+                    .lod = lod,
+                    .patch_type_id = patch_type_id,
+                };
+                out_lookups.appendAssumeCapacity(patch_lookup);
+            }
+        }
+    }
+
+    pub fn addLoadRequestFromLookups(self: *WorldPatchManager, requester_id: RequesterId, lookups: []PatchLookup, prio: Priority) void {
+        for (lookups) |patch_lookup| {
+            const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
+            if (patch_handle_opt) |patch_handle| {
+                const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+                const prio_old = patch.highest_prio;
+                patch.addOrUpdateRequester(requester_id, prio);
+                if (patch.highest_prio != prio_old) {
+                    self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
+                }
+                continue;
+            }
+
+            var patch = Patch{
+                .lookup = patch_lookup,
+                .patch_x = patch_lookup.patch_x,
+                .patch_z = patch_lookup.patch_z,
+                .patch_type_id = patch_lookup.patch_type_id,
+            };
+            patch.requesters[patch.request_count].requester_id = requester_id;
+            patch.requesters[patch.request_count].prio = prio;
+            patch.request_count = 1;
+            patch.highest_prio = prio;
+            patch.patch_type_id = patch_lookup.patch_type_id;
+
+            const patch_handle = self.patch_pool.add(.{ .patch = patch }) catch unreachable;
+            self.handle_map_by_lookup.put(patch_lookup, patch_handle) catch unreachable;
+            self.bucket_queue.pushElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio);
+        }
+    }
+
+    pub fn addLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD, prio: Priority) void {
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
         const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
         const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));
@@ -286,7 +341,27 @@ pub const WorldPatchManager = struct {
         }
     }
 
-    pub fn removeLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD) void {
+    pub fn removeLoadRequestFromLookups(self: *WorldPatchManager, requester_id: RequesterId, lookups: []PatchLookup) void {
+        for (lookups) |patch_lookup| {
+            const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
+            if (patch_handle_opt) |patch_handle| {
+                const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+                const prio_old = patch.highest_prio;
+                patch.removeRequester(requester_id);
+                if (patch.request_count == 0) {
+                    self.patch_pool.removeAssumeLive(patch_handle);
+                    _ = self.handle_map_by_lookup.remove(patch_lookup);
+                    continue;
+                }
+
+                if (patch.highest_prio != prio_old) {
+                    self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
+                }
+            }
+        }
+    }
+
+    pub fn removeLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD) void {
         const world_stride = lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod), 2);
         const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
         const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));

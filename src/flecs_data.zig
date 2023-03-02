@@ -289,6 +289,7 @@ pub const TerrainPatchLookup = struct {
 
 pub const WorldLoader = struct {
     range: i32 = undefined,
+    physics: bool = false,
 };
 
 pub const WorldPatch = struct {

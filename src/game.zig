@@ -276,6 +276,7 @@ pub fn run() void {
         IdLocal.init("physics_system_{}"),
         std.heap.page_allocator,
         &flecs_world,
+        &world_patch_mgr,
     );
     defer physics_system.destroy(physics_sys);
 
@@ -462,6 +463,7 @@ pub fn run() void {
     });
     player_ent.set(fd.WorldLoader{
         .range = 2,
+        .physics = true,
     });
     player_ent.set(fd.Input{ .active = false, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
