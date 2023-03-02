@@ -18,6 +18,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
+const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
 
 const FrameUniforms = struct {
@@ -50,6 +51,7 @@ const InstanceMaterial = struct {
 
 const max_instances = 100000;
 const max_instances_per_draw_call = 4096;
+const max_draw_distance: f32 = 500.0;
 
 const DrawCall = struct {
     mesh_index: u32,
@@ -60,13 +62,10 @@ const DrawCall = struct {
     start_instance_location: u32,
 };
 
-const Mesh = struct {
+const ProcMesh = struct {
     // entity: flecs.EntityId,
     id: IdLocal,
-    index_offset: u32,
-    vertex_offset: i32,
-    num_indices: u32,
-    num_vertices: u32,
+    mesh: Mesh,
 };
 
 // const SystemInit = struct {
@@ -112,7 +111,7 @@ const SystemState = struct {
     draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
-    meshes: std.ArrayList(Mesh),
+    meshes: std.ArrayList(ProcMesh),
     query_camera: flecs.Query,
     query_lights: flecs.Query,
     query_mesh: flecs.Query,
@@ -128,26 +127,35 @@ const SystemState = struct {
 fn appendShapeMesh(
     id: IdLocal,
     // entity: flecs.EntityId,
-    mesh: zmesh.Shape,
-    meshes: *std.ArrayList(Mesh),
+    z_mesh: zmesh.Shape,
+    meshes: *std.ArrayList(ProcMesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
 ) u64 {
-    meshes.append(.{
+    var mesh = ProcMesh{
         .id = id,
         // .entity = entity,
-        .index_offset = @intCast(u32, meshes_indices.items.len),
-        .vertex_offset = @intCast(i32, meshes_vertices.items.len),
-        .num_indices = @intCast(u32, mesh.indices.len),
-        .num_vertices = @intCast(u32, mesh.positions.len),
-    }) catch unreachable;
+        .mesh = .{
+            .num_lods = 1,
+            .lods = undefined,
+        },
+    };
 
-    meshes_indices.appendSlice(mesh.indices) catch unreachable;
+    mesh.mesh.lods[0] = .{
+        .index_offset = @intCast(u32, meshes_indices.items.len),
+        .index_count = @intCast(u32, z_mesh.indices.len),
+        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
+        .vertex_count = @intCast(u32, z_mesh.positions.len),
+    };
+
+    meshes.append(mesh) catch unreachable;
+
+    meshes_indices.appendSlice(z_mesh.indices) catch unreachable;
     var i: u64 = 0;
-    while (i < mesh.positions.len) : (i += 1) {
+    while (i < z_mesh.positions.len) : (i += 1) {
         meshes_vertices.append(.{
-            .position = mesh.positions[i],
-            .normal = mesh.normals.?[i],
+            .position = z_mesh.positions[i],
+            .normal = z_mesh.normals.?[i],
             .uv = [2]f32{ 0.0, 0.0 },
             .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
             .color = [3]f32{ 1.0, 1.0, 1.0 },
@@ -161,28 +169,20 @@ fn appendObjMesh(
     allocator: std.mem.Allocator,
     id: IdLocal,
     path: []const u8,
-    meshes: *std.ArrayList(Mesh),
+    meshes: *std.ArrayList(ProcMesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
 ) !u64 {
-    const index_offset = @intCast(u32, meshes_indices.items.len);
-    const vertex_offset = @intCast(i32, meshes_vertices.items.len);
-    const result = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
+    const mesh = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
 
-    meshes.append(.{
-        .id = id,
-        .index_offset = index_offset,
-        .vertex_offset = vertex_offset,
-        .num_indices = result.num_indices,
-        .num_vertices = result.num_vertices,
-    }) catch unreachable;
+    meshes.append(.{ .id = id, .mesh = mesh }) catch unreachable;
 
     return meshes.items.len - 1;
 }
 
 fn initScene(
     allocator: std.mem.Allocator,
-    meshes: *std.ArrayList(Mesh),
+    meshes: *std.ArrayList(ProcMesh),
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
 ) void {
@@ -271,7 +271,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    var meshes = std.ArrayList(Mesh).init(allocator);
+    var meshes = std.ArrayList(ProcMesh).init(allocator);
     var meshes_indices = std.ArrayList(IndexType).init(arena);
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
     initScene(allocator, &meshes, &meshes_indices, &meshes_vertices);
@@ -492,20 +492,60 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     var instance_count: u32 = 0;
     var start_instance_location: u32 = 0;
+
+    var last_lod_index: u32 = 0;
     var last_mesh_index: u32 = 0xffffffff;
     var last_mesh_index_count: u32 = 0;
     var last_mesh_index_offset: u32 = 0;
     var last_mesh_vertex_offset: i32 = 0;
+    var lod_index: u32 = 0;
 
     while (entity_iter_mesh.next()) |comps| {
+        var mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+        lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+
         if (last_mesh_index == 0xffffffff) {
             last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
-            last_mesh_index_count = state.meshes.items[comps.mesh.mesh_index].num_indices;
-            last_mesh_index_offset = state.meshes.items[comps.mesh.mesh_index].index_offset;
-            last_mesh_vertex_offset = state.meshes.items[comps.mesh.mesh_index].vertex_offset;
+            last_lod_index = lod_index;
+            last_mesh_index_count = mesh.lods[lod_index].index_count;
+            last_mesh_index_offset = mesh.lods[lod_index].index_offset;
+            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
         }
 
-        if (last_mesh_index != comps.mesh.mesh_index or instance_count == max_instances_per_draw_call) {
+        if (last_mesh_index == comps.mesh.mesh_index and lod_index == last_lod_index) {
+            if (instance_count < max_instances_per_draw_call) {
+                instance_count += 1;
+            } else {
+                state.draw_calls.append(.{
+                    .mesh_index = last_mesh_index,
+                    .index_count = last_mesh_index_count,
+                    .instance_count = instance_count,
+                    .index_offset = last_mesh_index_offset,
+                    .vertex_offset = last_mesh_vertex_offset,
+                    .start_instance_location = start_instance_location,
+                }) catch unreachable;
+
+                start_instance_location += instance_count;
+                instance_count = 1;
+            }
+        } else if (last_mesh_index == comps.mesh.mesh_index and lod_index != last_lod_index) {
+            state.draw_calls.append(.{
+                .mesh_index = last_mesh_index,
+                .index_count = last_mesh_index_count,
+                .instance_count = instance_count,
+                .index_offset = last_mesh_index_offset,
+                .vertex_offset = last_mesh_vertex_offset,
+                .start_instance_location = start_instance_location,
+            }) catch unreachable;
+
+            start_instance_location += instance_count;
+            instance_count = 1;
+            last_lod_index = lod_index;
+            mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+            last_mesh_index_count = mesh.lods[lod_index].index_count;
+            last_mesh_index_offset = mesh.lods[lod_index].index_offset;
+            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
+        } else if (last_mesh_index != comps.mesh.mesh_index) {
             state.draw_calls.append(.{
                 .mesh_index = last_mesh_index,
                 .index_count = last_mesh_index_count,
@@ -519,11 +559,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             instance_count = 1;
 
             last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
-            last_mesh_index_count = state.meshes.items[comps.mesh.mesh_index].num_indices;
-            last_mesh_index_offset = state.meshes.items[comps.mesh.mesh_index].index_offset;
-            last_mesh_vertex_offset = state.meshes.items[comps.mesh.mesh_index].vertex_offset;
-        } else {
-            instance_count += 1;
+            mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+            lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+
+            last_lod_index = lod_index;
+            last_mesh_index_count = mesh.lods[lod_index].index_count;
+            last_mesh_index_offset = mesh.lods[lod_index].index_offset;
+            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
         }
 
         const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
@@ -576,6 +618,31 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
+}
+
+fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32, num_lods: u32) u32 {
+    if (num_lods == 1) {
+        return 0;
+    }
+
+    const z_camera_postion = zm.loadArr3(camera_position);
+    const z_entity_postion = zm.loadArr3(entity_position);
+    const squared_distance: f32 = zm.lengthSq3(z_camera_postion - z_entity_postion)[0];
+
+    const squared_draw_distance = draw_distance * draw_distance;
+    const t = squared_distance / squared_draw_distance;
+
+    // TODO(gmodarelli): Store these LODs percentages in the Mesh itself.
+    assert(num_lods == 4);
+    if (t <= 0.05) {
+        return 0;
+    } else if (t <= 0.1) {
+        return 1;
+    } else if (t <= 0.2) {
+        return 2;
+    } else {
+        return 3;
+    }
 }
 
 // const ShapeMeshDefinitionObserverCallback = struct {

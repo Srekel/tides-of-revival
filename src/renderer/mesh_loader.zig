@@ -5,13 +5,14 @@ const zm = @import("zmath");
 
 const IndexType = @import("renderer_types.zig").IndexType;
 const Vertex = @import("renderer_types.zig").Vertex;
+const Mesh = @import("renderer_types.zig").Mesh;
 
 pub fn loadObjMeshFromFile(
     allocator: std.mem.Allocator,
     path: []const u8,
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
-) !struct { num_indices: u32, num_vertices: u32 } {
+) !Mesh {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -34,12 +35,61 @@ pub fn loadObjMeshFromFile(
     var uvs = std.ArrayList([2]f32).init(arena);
 
     var buf: [1024]u8 = undefined;
+    var inside_object: bool = false;
+    var previous_obj_positions_count: u32 = 0;
+    var previous_obj_uvs_count: u32 = 0;
+    var previous_obj_normals_count: u32 = 0;
+
+    var mesh = Mesh{
+        .num_lods = 0,
+        .lods = undefined,
+    };
 
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         var it = std.mem.split(u8, line, " ");
 
         var first = it.first();
-        if (std.mem.eql(u8, first, "v")) {
+        if (std.mem.eql(u8, first, "o")) {
+            if (inside_object) {
+                try storeMeshLod(
+                    arena,
+                    &indices,
+                    &vertices,
+                    meshes_indices,
+                    meshes_vertices,
+                    &mesh,
+                );
+
+                indices.clearRetainingCapacity();
+                vertices.clearRetainingCapacity();
+
+                previous_obj_positions_count += @intCast(u32, positions.items.len);
+                previous_obj_uvs_count += @intCast(u32, uvs.items.len);
+                previous_obj_normals_count += @intCast(u32, normals.items.len);
+
+                positions.clearRetainingCapacity();
+                colors.clearRetainingCapacity();
+                normals.clearRetainingCapacity();
+                uvs.clearRetainingCapacity();
+
+                inside_object = false;
+            }
+        } else if (std.mem.eql(u8, first, "v")) {
+            if (!inside_object) {
+                inside_object = true;
+                indices.clearRetainingCapacity();
+                vertices.clearRetainingCapacity();
+
+                previous_obj_positions_count += @intCast(u32, positions.items.len);
+                previous_obj_uvs_count += @intCast(u32, uvs.items.len);
+                previous_obj_normals_count += @intCast(u32, normals.items.len);
+
+                positions.clearRetainingCapacity();
+                colors.clearRetainingCapacity();
+                normals.clearRetainingCapacity();
+                uvs.clearRetainingCapacity();
+            }
+
             var position: [3]f32 = undefined;
             position[0] = try std.fmt.parseFloat(f32, it.next().?);
             position[1] = try std.fmt.parseFloat(f32, it.next().?);
@@ -71,10 +121,13 @@ pub fn loadObjMeshFromFile(
                 // TODO(gmodarelli): Parse the OBJ in 2 passes. First collect all attributes and then generate
                 // vertices and indices. Positions and UV's must be present, Normals can be calculated.
                 var position_index = try std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10);
+                position_index -= previous_obj_positions_count;
                 position_index -= 1;
                 var uv_index = try std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10);
+                uv_index -= previous_obj_uvs_count;
                 uv_index -= 1;
                 var normal_index = try std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10);
+                normal_index -= previous_obj_normals_count;
                 normal_index -= 1;
 
                 const unique_vertex_index = @intCast(u32, vertices.items.len);
@@ -90,6 +143,30 @@ pub fn loadObjMeshFromFile(
         }
     }
 
+    if (inside_object) {
+        try storeMeshLod(
+            arena,
+            &indices,
+            &vertices,
+            meshes_indices,
+            meshes_vertices,
+            &mesh,
+        );
+
+        inside_object = false;
+    }
+
+    return mesh;
+}
+
+fn storeMeshLod(
+    arena: std.mem.Allocator,
+    indices: *std.ArrayList(IndexType),
+    vertices: *std.ArrayList(Vertex),
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_vertices: *std.ArrayList(Vertex),
+    mesh: *Mesh,
+) !void {
     // Calculate tangents for every vertex
     {
         var tangents = std.ArrayList([3]f32).init(arena);
@@ -205,8 +282,15 @@ pub fn loadObjMeshFromFile(
         remapped_indices.items,
     );
 
+    mesh.lods[mesh.num_lods] = .{
+        .index_offset = @intCast(u32, meshes_indices.items.len),
+        .index_count = @intCast(u32, remapped_indices.items.len),
+        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
+        .vertex_count = @intCast(u32, optimized_vertices.items.len),
+    };
+
+    mesh.num_lods += 1;
+
     meshes_indices.appendSlice(remapped_indices.items) catch unreachable;
     meshes_vertices.appendSlice(optimized_vertices.items) catch unreachable;
-
-    return .{ .num_indices = @intCast(u32, remapped_indices.items.len), .num_vertices = @intCast(u32, optimized_vertices.items.len) };
 }

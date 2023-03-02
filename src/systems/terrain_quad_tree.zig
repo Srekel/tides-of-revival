@@ -25,6 +25,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
+const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
 
 const TerrainLayer = struct {
@@ -78,13 +79,6 @@ const DrawCall = struct {
     index_offset: u32,
     vertex_offset: i32,
     start_instance_location: u32,
-};
-
-const Mesh = struct {
-    index_offset: u32,
-    vertex_offset: i32,
-    num_indices: u32,
-    num_vertices: u32,
 };
 
 const invalid_index = std.math.maxInt(u32);
@@ -192,17 +186,7 @@ fn loadMesh(
     meshes_indices: *std.ArrayList(IndexType),
     meshes_vertices: *std.ArrayList(Vertex),
 ) !void {
-    var mesh = Mesh{
-        .index_offset = @intCast(u32, meshes_indices.items.len),
-        .vertex_offset = @intCast(i32, meshes_vertices.items.len),
-        .num_indices = 0,
-        .num_vertices = 0,
-    };
-
-    const result = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
-    mesh.num_indices = result.num_indices;
-    mesh.num_vertices = result.num_vertices;
-
+    const mesh = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
     meshes.append(mesh) catch unreachable;
 }
 
@@ -1208,10 +1192,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             state.draw_calls.append(.{
                 .mesh_index = 0,
-                .index_count = mesh.num_indices,
+                .index_count = mesh.lods[0].index_count,
                 .instance_count = 1,
-                .index_offset = mesh.index_offset,
-                .vertex_offset = mesh.vertex_offset,
+                .index_offset = mesh.lods[0].index_offset,
+                .vertex_offset = @intCast(i32, mesh.lods[0].vertex_offset),
                 .start_instance_location = start_instance_location,
             }) catch unreachable;
 
