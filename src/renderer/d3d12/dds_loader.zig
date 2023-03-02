@@ -545,3 +545,59 @@ inline fn bitsPerPixel(format: dxgi.FORMAT) usize {
         else => 0,
     };
 }
+
+pub fn createTexture2DFromPixelBuffer(
+    buffer: []u8,
+    width: u32,
+    height: u32,
+    channel_count: usize,
+    bits_per_pixel: usize,
+    mip_map_count: u32,
+    resources: *std.ArrayList(d3d12.SUBRESOURCE_DATA),
+) !DdsImageInfo {
+    // if (width != height) {
+    //     return error.Failboat;
+    // }
+
+    // if (bits_per_pixel != 8) {
+    //     return error.Failboat;
+    // }
+
+    // if (channel_count != 1) {
+    //     return error.Failboat;
+    // }
+
+    if (mip_map_count != 1) {
+        return error.Failboat;
+    }
+
+    // Temp asserts
+    std.log.debug("lols {}, {}, ", .{ buffer.len, (bits_per_pixel / 8) * channel_count * width * height * mip_map_count });
+    std.debug.assert(bits_per_pixel % 8 == 0);
+    std.debug.assert(buffer.len == (bits_per_pixel / 8) * channel_count * width * height * mip_map_count);
+
+    const array_size = 1;
+    const depth = 1;
+    const format: dxgi.FORMAT = .R8_UNORM;
+    const buffer_offset = 0;
+    const surface_info = getSurfaceInfo(width, height, format);
+    const resource = d3d12.SUBRESOURCE_DATA{
+        .pData = @ptrCast([*]u8, buffer[buffer_offset..]),
+        .RowPitch = @intCast(c_uint, surface_info.row_bytes),
+        .SlicePitch = @intCast(c_uint, surface_info.num_bytes),
+    };
+
+    resources.append(resource) catch unreachable;
+
+    const image_info = DdsImageInfo{
+        .width = width,
+        .height = height,
+        .depth = depth,
+        .array_size = array_size,
+        .mip_map_count = mip_map_count,
+        .format = format,
+        .resource_dimension = .TEXTURE2D,
+    };
+
+    return image_info;
+}

@@ -1,5 +1,5 @@
 const std = @import("std");
-const img = @import("zigimg");
+const zigimg = @import("zigimg");
 const Pool = @import("zpool").Pool;
 const IdLocal = @import("../variant.zig").IdLocal;
 const BucketQueue = @import("../core/bucket_queue.zig").BucketQueue;
@@ -345,7 +345,7 @@ pub const WorldPatchManager = struct {
             var heightmap_namebuf: [256]u8 = undefined;
             const heightmap_path = std.fmt.bufPrintZ(
                 heightmap_namebuf[0..heightmap_namebuf.len],
-                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.dds",
+                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
                 .{
                     patch.lookup.lod,
                     patch.patch_x,
@@ -355,14 +355,15 @@ pub const WorldPatchManager = struct {
 
             const asset_id = IdLocal.init(heightmap_path);
             var data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
-            patch.data = data;
 
             // const file = std.fs.cwd().openFile(heightmap_path, .{}) catch unreachable;
             // defer file.close();
             // var stream_source = std.io.StreamSource{ .file = file };
             // const image = png.PNG.readImage(self.allocator, &stream_source);
             // _ = image;
-
+            var stream = zigimg.Image.Stream{ .buffer = std.io.fixedBufferStream(data) };
+            var image = zigimg.png.PNG.readImage(self.allocator, &stream) catch unreachable;
+            patch.data = std.mem.sliceAsBytes(image.pixels.grayscale8);
         }
     }
 
@@ -374,7 +375,7 @@ pub const WorldPatchManager = struct {
             var heightmap_namebuf: [256]u8 = undefined;
             const heightmap_path = std.fmt.bufPrintZ(
                 heightmap_namebuf[0..heightmap_namebuf.len],
-                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.dds",
+                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
                 .{
                     patch.lookup.lod,
                     patch.patch_x,
@@ -383,8 +384,10 @@ pub const WorldPatchManager = struct {
             ) catch unreachable;
 
             const asset_id = IdLocal.init(heightmap_path);
-            var data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
-            patch.data = data;
+            const data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
+            var stream = zigimg.Image.Stream{ .buffer = std.io.fixedBufferStream(data) };
+            const image = zigimg.png.PNG.readImage(self.allocator, &stream) catch unreachable;
+            patch.data = std.mem.sliceAsBytes(image.pixels.grayscale8);
         }
     }
 };

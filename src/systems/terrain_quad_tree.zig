@@ -305,7 +305,7 @@ fn createDDSTextureFromMemory(
 
     // Load DDS data into D3D12_SUBRESOURCE_DATA
     var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
-    const dds_info = dds_loader.loadTextureFromMemory(data, arena, &subresources) catch unreachable;
+    const dds_info = dds_loader.createTexture2DFromPixelBuffer(data, 65, 65, 1, 8, 1, &subresources) catch unreachable;
 
     // Create a texture and upload all its subresources to the GPU
     const resource = blk: {
