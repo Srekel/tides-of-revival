@@ -17,7 +17,7 @@ const wic = zwin32.wic;
 const hrPanic = zwin32.hrPanic;
 const hrPanicOnFail = zwin32.hrPanicOnFail;
 const d3d12 = zwin32.d3d12;
-const dds_loader = @import("../renderer/d3d12/dds_loader.zig");
+const dds_loader = zwin32.dds_loader;
 
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const fd = @import("../flecs_data.zig");
@@ -88,7 +88,7 @@ const QuadTreeNode = struct {
     child_indices: [4]u32,
     mesh_lod: u32,
     patch_index: [2]u32,
-    // TODO: Do not store these here when we implement streaming
+    // TODO(gmodarelli): Do not store these here when we implement streaming
     heightmap_handle: ?gfx.TextureHandle,
     splatmap_handle: ?gfx.TextureHandle,
 
@@ -190,8 +190,9 @@ fn loadMesh(
     meshes.append(mesh) catch unreachable;
 }
 
-// NOTE(gmodarelli) This should live inside gfx_d3d12.zig or texture.zig
-// NOTE(gmodarelli) The caller must release the IFormatConverter
+// TODO(gmodarelli): Remove this function once we add splatmaps to the patch manager or
+// once we add load/create function variants to zd3d12
+// NOTE(gmodarelli): The caller must release the IFormatConverter
 // eg. image_conv.Release();
 fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     image: *wic.IFormatConverter,
@@ -273,9 +274,8 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     return .{ .image = image_conv, .format = dxgi_format };
 }
 
-fn createDDSTextureFromMemory(
+fn createHeightmapFromPixelBuffer(
     data: []u8,
-    arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
     heap_offset: *u64,
@@ -287,9 +287,21 @@ fn createDDSTextureFromMemory(
         gfxstate.gctx.beginFrame();
     }
 
-    // Load DDS data into D3D12_SUBRESOURCE_DATA
-    var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
-    const dds_info = dds_loader.createTexture2DFromPixelBuffer(data, 65, 65, 1, 8, 1, &subresources) catch unreachable;
+    // TODO(gmodarelli): These consts should be stored inside config.zig
+    const width: u32 = 65;
+    const height: u32 = 65;
+    const format = dxgi.FORMAT.R8_UNORM;
+
+    const bpp = format.pixelSizeInBits();
+    const row_bytes = @divFloor(@intCast(u64, width) * bpp + 7, 8); // round up to nearest byte
+    const num_bytes = row_bytes * height;
+
+    const subresource = d3d12.SUBRESOURCE_DATA{
+        .pData = @ptrCast([*]u8, data[0..]),
+        .RowPitch = @intCast(c_uint, row_bytes),
+        .SlicePitch = @intCast(c_uint, num_bytes),
+    };
+    var subresources = [1]d3d12.SUBRESOURCE_DATA{subresource};
 
     // Create a texture and upload all its subresources to the GPU
     const resource = blk: {
@@ -298,13 +310,13 @@ fn createDDSTextureFromMemory(
             gfxstate,
             heap,
             heap_offset,
-            dds_info.width,
-            dds_info.height,
-            dds_info.format,
-            dds_info.mip_map_count,
+            width,
+            height,
+            format,
+            1,
         ) catch unreachable;
 
-        // TODO: Set a debug name
+        // TODO(gmodarelli): Set a debug name
         // {
         //     var path_u16: [300]u16 = undefined;
         //     assert(path.len < path_u16.len - 1);
@@ -359,7 +371,7 @@ fn createDDSTextureFromFile(
 
     // Load DDS data into D3D12_SUBRESOURCE_DATA
     var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
-    const dds_info = dds_loader.loadTextureFromFile(path, arena, &subresources) catch unreachable;
+    const dds_info = dds_loader.loadTextureFromFile(path, arena, gfxstate.gctx.device, 0, &subresources) catch unreachable;
 
     // Create a texture and upload all its subresources to the GPU
     const resource = blk: {
@@ -384,7 +396,7 @@ fn createDDSTextureFromFile(
         }
 
         // Upload all subresources
-        uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
+        uploadSubResources(gfxstate, resource, subresources.items, d3d12.RESOURCE_STATES.GENERIC_READ);
 
         break :blk resource;
     };
@@ -500,71 +512,52 @@ fn uploadDataToTexture(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, da
     gfxstate.gctx.cmdlist.ResourceBarrier(1, &barriers);
 }
 
-const max_subresources: u32 = 12;
-fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, subresources: *std.ArrayList(d3d12.SUBRESOURCE_DATA), state_after: d3d12.RESOURCE_STATES) void {
+fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, subresources: []d3d12.SUBRESOURCE_DATA, state_after: d3d12.RESOURCE_STATES) void {
     assert(gfxstate.gctx.is_cmdlist_opened);
 
     const resource_desc = resource.GetDesc();
 
-    var required_size: u64 = undefined;
-    var layouts: [max_subresources]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
-    var num_rows: [max_subresources]u32 = undefined;
-    var row_sizes_in_bytes: [max_subresources]u64 = undefined;
-    // TODO: pass first subresource in
-    const first_subresource: u32 = 0;
+    for (0..subresources.len) |index| {
+        const subresource_index = @intCast(u32, index);
 
-    gfxstate.gctx.device.GetCopyableFootprints(
-        &resource_desc,
-        first_subresource,
-        @intCast(c_uint, subresources.items.len),
-        0,
-        @ptrCast([*]d3d12.PLACED_SUBRESOURCE_FOOTPRINT, &layouts),
-        @ptrCast([*]c_uint, &num_rows),
-        @ptrCast([*]c_ulonglong, &row_sizes_in_bytes),
-        &required_size,
-    );
+        var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
+        var num_rows: [1]u32 = undefined;
+        var row_size_in_bytes: [1]u64 = undefined;
+        var required_size: u64 = undefined;
 
-    // NOTE(gmodarelli): upload.cpu_slice is mapped
-    const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+        gfxstate.gctx.device.GetCopyableFootprints(
+            &resource_desc,
+            subresource_index,
+            layout.len,
+            0,
+            &layout,
+            &num_rows,
+            &row_size_in_bytes,
+            &required_size,
+        );
 
-    var subresource_index: u32 = 0;
-    while (subresource_index < subresources.items.len) : (subresource_index += 1) {
-        assert(row_sizes_in_bytes[subresource_index] < std.math.maxInt(u32));
-        // TODO(gmodarelli): Add support for cubemaps
-        assert(layouts[subresource_index].Footprint.Depth == 1);
+        const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+        layout[0].Offset = upload.buffer_offset;
 
-        const memcpy_dest = d3d12.MEMCPY_DEST{
-            .pData = upload.cpu_slice.ptr + layouts[subresource_index].Offset,
-            .RowPitch = layouts[subresource_index].Footprint.RowPitch,
-            .SlicePitch = @intCast(c_uint, layouts[subresource_index].Footprint.RowPitch) * @intCast(c_uint, num_rows[subresource_index]),
-        };
-
-        var subresource = &subresources.items[subresource_index];
+        var subresource = &subresources[subresource_index];
         var row: u32 = 0;
-        while (row < num_rows[subresource_index]) : (row += 1) {
+        while (row < num_rows[0]) : (row += 1) {
             @memcpy(
-                memcpy_dest.pData.? + (memcpy_dest.RowPitch * row),
-                subresource.pData.? + (subresource.RowPitch * row),
-                row_sizes_in_bytes[subresource_index],
+                upload.cpu_slice.ptr + layout[0].Footprint.RowPitch * row,
+                subresource.pData.? + row_size_in_bytes[0] * row,
+                row_size_in_bytes[0],
             );
         }
-    }
 
-    subresource_index = 0;
-    while (subresource_index < subresources.items.len) : (subresource_index += 1) {
-        const dest = d3d12.TEXTURE_COPY_LOCATION{
+        gfxstate.gctx.cmdlist.CopyTextureRegion(&.{
             .pResource = resource,
             .Type = .SUBRESOURCE_INDEX,
             .u = .{ .SubresourceIndex = subresource_index },
-        };
-
-        const source = d3d12.TEXTURE_COPY_LOCATION{
+        }, 0, 0, 0, &.{
             .pResource = upload.buffer,
             .Type = .PLACED_FOOTPRINT,
-            .u = .{ .PlacedFootprint = layouts[subresource_index] },
-        };
-
-        gfxstate.gctx.cmdlist.CopyTextureRegion(&dest, 0, 0, 0, &source, null);
+            .u = .{ .PlacedFootprint = layout[0] },
+        }, null);
     }
 
     const barrier = d3d12.RESOURCE_BARRIER{
@@ -634,7 +627,6 @@ fn loadTerrainLayer(
 }
 
 fn loadNodeHeightmap(
-    arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     textures_heap: *d3d12.IHeap,
     textures_heap_offset: *u64,
@@ -653,13 +645,12 @@ fn loadNodeHeightmap(
 
     const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_opt) |patch| {
-        const heightmap = createDDSTextureFromMemory(patch, arena, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
+        const heightmap = createHeightmapFromPixelBuffer(patch, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
 }
 
 fn loadHeightAndSplatMaps(
-    arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     textures_heap: *d3d12.IHeap,
     textures_heap_offset: *u64,
@@ -668,11 +659,11 @@ fn loadHeightAndSplatMaps(
     in_frame: bool,
 ) !void {
     if (node.heightmap_handle == null) {
-        loadNodeHeightmap(arena, gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame) catch unreachable;
+        loadNodeHeightmap(gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame) catch unreachable;
     }
 
     // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
-    // this improves up startup times
+    // This improves up startup times
     if (node.heightmap_handle == null) {
         return;
     }
@@ -795,8 +786,6 @@ fn loadResources(
     world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
     world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
     world_patch_mgr.addLoadRequest(rid, 0, area, 2, .medium);
-    // NOTE(gmodarelli): Testing memory corruption of loading texture in flight
-    // world_patch_mgr.tick();
 
     // Load all LOD's heightmaps
     {
@@ -804,7 +793,6 @@ fn loadResources(
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             var node = &quad_tree_nodes.items[i];
             loadHeightAndSplatMaps(
-                arena,
                 gfxstate,
                 textures_heap,
                 textures_heap_offset,
@@ -1179,7 +1167,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             // TODO: Generate from quad.patch_index
             const heightmap = state.gfx.lookupTexture(quad.heightmap_handle.?);
             const splatmap = state.gfx.lookupTexture(quad.splatmap_handle.?);
-            // TODO: Add splatmap and UV offset and tiling (for atlases)
             state.instance_data.append(.{
                 .object_to_world = zm.transpose(object_to_world),
                 .heightmap_index = heightmap.?.persistent_descriptor.index,
@@ -1234,15 +1221,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     state.world_patch_mgr.tickOne();
 
-    // NOTE(gmodarelli): we need to close the command list before we can submit upload commands
-    // TODO(gmodarelli): move the uploading logic to gfx_d3d12.zig and centralize the texture handling
-    // and upload there.
-    state.gfx.gctx.finishGpuCommands();
-
     for (state.quads_to_load.items) |quad_index| {
         var node = &state.terrain_quad_tree_nodes.items[quad_index];
         loadHeightAndSplatMaps(
-            state.allocator,
             state.gfx,
             state.textures_heap,
             &state.textures_heap_offset,
@@ -1250,7 +1231,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             state.world_patch_mgr,
             true, // in frame
         ) catch unreachable;
-        state.gfx.gctx.finishGpuCommands();
     }
 }
 
