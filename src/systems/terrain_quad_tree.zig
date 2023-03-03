@@ -88,7 +88,7 @@ const QuadTreeNode = struct {
     child_indices: [4]u32,
     mesh_lod: u32,
     patch_index: [2]u32,
-    // TODO: Do not store these here when we implement streaming
+    // TODO(gmodarelli): Do not store these here when we implement streaming
     heightmap_handle: ?gfx.TextureHandle,
     splatmap_handle: ?gfx.TextureHandle,
 
@@ -190,8 +190,9 @@ fn loadMesh(
     meshes.append(mesh) catch unreachable;
 }
 
-// NOTE(gmodarelli) This should live inside gfx_d3d12.zig or texture.zig
-// NOTE(gmodarelli) The caller must release the IFormatConverter
+// TODO(gmodarelli): Remove this function once we add splatmaps to the patch manager or
+// once we add load/create function variants to zd3d12
+// NOTE(gmodarelli): The caller must release the IFormatConverter
 // eg. image_conv.Release();
 fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     image: *wic.IFormatConverter,
@@ -286,7 +287,7 @@ fn createHeightmapFromPixelBuffer(
         gfxstate.gctx.beginFrame();
     }
 
-    // TODO(gmodarelli): These const should be stored inside config.zig
+    // TODO(gmodarelli): These consts should be stored inside config.zig
     const width: u32 = 65;
     const height: u32 = 65;
     const format = dxgi.FORMAT.R8_UNORM;
@@ -300,7 +301,7 @@ fn createHeightmapFromPixelBuffer(
         .RowPitch = @intCast(c_uint, row_bytes),
         .SlicePitch = @intCast(c_uint, num_bytes),
     };
-    var subresources = [1]d3d12.SUBRESOURCE_DATA{ subresource };
+    var subresources = [1]d3d12.SUBRESOURCE_DATA{subresource};
 
     // Create a texture and upload all its subresources to the GPU
     const resource = blk: {
@@ -315,7 +316,7 @@ fn createHeightmapFromPixelBuffer(
             1,
         ) catch unreachable;
 
-        // TODO: Set a debug name
+        // TODO(gmodarelli): Set a debug name
         // {
         //     var path_u16: [300]u16 = undefined;
         //     assert(path.len < path_u16.len - 1);
@@ -662,7 +663,7 @@ fn loadHeightAndSplatMaps(
     }
 
     // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
-    // this improves up startup times
+    // This improves up startup times
     if (node.heightmap_handle == null) {
         return;
     }
@@ -785,8 +786,6 @@ fn loadResources(
     world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
     world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
     world_patch_mgr.addLoadRequest(rid, 0, area, 2, .medium);
-    // NOTE(gmodarelli): Testing memory corruption of loading texture in flight
-    // world_patch_mgr.tick();
 
     // Load all LOD's heightmaps
     {
@@ -1168,7 +1167,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             // TODO: Generate from quad.patch_index
             const heightmap = state.gfx.lookupTexture(quad.heightmap_handle.?);
             const splatmap = state.gfx.lookupTexture(quad.splatmap_handle.?);
-            // TODO: Add splatmap and UV offset and tiling (for atlases)
             state.instance_data.append(.{
                 .object_to_world = zm.transpose(object_to_world),
                 .heightmap_index = heightmap.?.persistent_descriptor.index,
