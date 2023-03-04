@@ -28,6 +28,8 @@ const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
 
+const lod_load_range = 300;
+
 const TerrainLayer = struct {
     diffuse: gfx.TextureHandle,
     normal: gfx.TextureHandle,
@@ -99,12 +101,37 @@ const QuadTreeNode = struct {
             point[1] < (self.center[1] + self.size[1]));
     }
 
+    pub inline fn nearPoint(self: *QuadTreeNode, point: [2]f32, range: f32) bool {
+        const half_size = self.size[0] / 2;
+        const circle_distance_x = @fabs(point[0] - self.center[0]);
+        const circle_distance_y = @fabs(point[1] - self.center[1]);
+
+        if (circle_distance_x > (half_size + range)) {
+            return false;
+        }
+        if (circle_distance_y > (half_size + range)) {
+            return false;
+        }
+
+        if (circle_distance_x <= (half_size)) {
+            return true;
+        }
+        if (circle_distance_y <= (half_size)) {
+            return true;
+        }
+
+        const corner_distance_sq = (circle_distance_x - half_size) * (circle_distance_x - half_size) +
+            (circle_distance_y - half_size) * (circle_distance_y - half_size);
+
+        return (corner_distance_sq <= (range * range));
+    }
+
     pub inline fn isLoaded(self: *QuadTreeNode) bool {
         return self.heightmap_handle != null and self.splatmap_handle != null;
     }
 
-    pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
-        if (!self.containsPoint(point)) {
+    pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, range: f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
+        if (!self.nearPoint(point, range)) {
             return false;
         }
 
@@ -114,7 +141,7 @@ const QuadTreeNode = struct {
             }
 
             var node = nodes.items[child_index];
-            if (node.containsPoint(point)) {
+            if (node.nearPoint(point, range)) {
                 return true;
             }
         }
@@ -783,8 +810,8 @@ fn loadResources(
     // Make sure all LOD3 are resident
     world_patch_mgr.tick();
     // Request loading all the other LODs
-    world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
-    world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
+    // world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
+    // world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
     world_patch_mgr.addLoadRequest(rid, 0, area, 2, .medium);
 
     // Load all LOD's heightmaps
@@ -1150,6 +1177,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             collectQuadsToRenderForSector(
                 state,
                 camera_point,
+                lod_load_range,
                 lod3_node,
                 sector_index,
                 arena,
@@ -1235,36 +1263,40 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 }
 
 // Algorithm that walks a quad tree and generates a list of quad tree nodes to render
-fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, node: *QuadTreeNode, node_index: u32, allocator: std.mem.Allocator) !void {
+fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, range: f32, node: *QuadTreeNode, node_index: u32, allocator: std.mem.Allocator) !void {
     assert(node_index != invalid_index);
 
     if (node.mesh_lod == 0) {
         return;
     }
 
-    if (node.containedInsideChildren(position, &state.terrain_quad_tree_nodes) and node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
-        var higher_lod_node_index: u32 = invalid_index;
-        for (node.child_indices) |node_child_index| {
+    if (node.containedInsideChildren(position, range, &state.terrain_quad_tree_nodes) and node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
+        var higher_lod_node_indices: [4]u32 = .{ invalid_index, invalid_index, invalid_index, invalid_index };
+        for (node.child_indices, 0..) |node_child_index, i| {
             var child_node = &state.terrain_quad_tree_nodes.items[node_child_index];
-            if (child_node.containsPoint(position)) {
+            if (child_node.nearPoint(position, range)) {
                 if (child_node.mesh_lod == 1 and child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
                     state.quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
                 } else if (child_node.mesh_lod == 1 and !child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
                     state.quads_to_render.append(node_child_index) catch unreachable;
                     state.quads_to_load.appendSlice(child_node.child_indices[0..4]) catch unreachable;
                 } else if (child_node.mesh_lod > 1) {
-                    higher_lod_node_index = node_child_index;
+                    higher_lod_node_indices[i] = node_child_index;
                 }
             } else {
                 state.quads_to_render.append(node_child_index) catch unreachable;
             }
         }
 
-        if (higher_lod_node_index != invalid_index) {
-            var child_node = &state.terrain_quad_tree_nodes.items[higher_lod_node_index];
-            collectQuadsToRenderForSector(state, position, child_node, higher_lod_node_index, allocator) catch unreachable;
+        for (higher_lod_node_indices) |higher_lod_node_index| {
+            if (higher_lod_node_index != invalid_index) {
+                var child_node = &state.terrain_quad_tree_nodes.items[higher_lod_node_index];
+                collectQuadsToRenderForSector(state, position, range, child_node, higher_lod_node_index, allocator) catch unreachable;
+            } else {
+                // state.quads_to_render.append(node.child_indices[i]) catch unreachable;
+            }
         }
-    } else if (node.containedInsideChildren(position, &state.terrain_quad_tree_nodes) and !node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
+    } else if (node.containedInsideChildren(position, range, &state.terrain_quad_tree_nodes) and !node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
         state.quads_to_render.append(node_index) catch unreachable;
         state.quads_to_load.appendSlice(node.child_indices[0..4]) catch unreachable;
     } else {
