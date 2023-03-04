@@ -21,6 +21,7 @@ const WorldLoaderData = struct {
 
 const Patch = struct {
     body_opt: ?zbt.Body = null,
+    physics_shape_opt: ?zbt.Shape = null,
     lookup: world_patch_manager.PatchLookup,
 };
 
@@ -105,7 +106,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
     updateBodies(state);
     updateLoaders(state);
-    // updatePatches(state);
+    updatePatches(state);
 }
 
 fn updateBodies(state: *SystemState) void {
@@ -224,15 +225,14 @@ fn updatePatches(state: *SystemState) void {
         if (data_opt) |data| {
             // _ = data;
 
+            const world_pos = patch.lookup.getWorldPos();
             var vertices: [config.patch_resolution * config.patch_resolution][3]f32 = undefined;
             var z: u32 = 0;
             while (z < config.patch_resolution) : (z += 1) {
                 var x: u32 = 0;
                 while (x < config.patch_resolution) : (x += 1) {
-                    // const world_x = @intToFloat(f32, patch.pos[0] + x);
-                    // const world_z = @intToFloat(f32, patch.pos[1] + z);
                     const index = @intCast(u32, x + z * config.patch_resolution);
-                    const height = @intToFloat(f32, data[index]);
+                    const height = config.noise_scale_y * (config.noise_offset_y + 2 * @intToFloat(f32, data[index]) / 255.0 - 1);
 
                     vertices[index][0] = @intToFloat(f32, x);
                     vertices[index][1] = height;
@@ -298,8 +298,27 @@ fn updatePatches(state: *SystemState) void {
             );
             trimesh.finish();
 
-            // const shape = trimesh.asShape();
-            // patch.physics_shape = shape;
+            const shape = trimesh.asShape();
+            patch.physics_shape_opt = shape;
+
+            const transform = [_]f32{
+                1.0,                                 0.0, 0.0,
+                0.0,                                 1.0, 0.0,
+                0.0,                                 0.0, 1.0,
+                @intToFloat(f32, world_pos.world_x), 0,   @intToFloat(f32, world_pos.world_z),
+            };
+
+            const body = zbt.initBody(
+                0,
+                &transform,
+                patch.physics_shape_opt.?,
+            );
+
+            body.setDamping(0.1, 0.1);
+            body.setRestitution(0.5);
+            body.setFriction(0.2);
+            patch.body_opt = body;
+            state.physics_world.addBody(body);
         }
     }
 }

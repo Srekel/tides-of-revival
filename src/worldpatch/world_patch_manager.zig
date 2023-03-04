@@ -5,15 +5,14 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const BucketQueue = @import("../core/bucket_queue.zig").BucketQueue;
 const AssetManager = @import("../core/asset_manager.zig").AssetManager;
 const util = @import("../util.zig");
+const config = @import("../config.zig");
 
 const LoD = u4;
-const min_patch_size = 64; // 2^6 m
-// const max_patch_size = 8192; // 2^(6+7) m
+const lod_0_patch_size = config.patch_size;
 const max_world_size = 4 * 1024; // 512 * 1024; // 500 km
-const max_patch = max_world_size / min_patch_size; // 8k patches
+const max_patch = max_world_size / lod_0_patch_size; // 8k patches
 const max_patch_int_bits = 16; // 2**13 = 8k
 const max_patch_int = std.meta.Int(.unsigned, max_patch_int_bits);
-const lod_0_patch_size = 64;
 
 const max_requesters = 8;
 const max_patch_types = 8;
@@ -52,6 +51,14 @@ pub const PatchLookup = struct {
     pub fn eql(self: PatchLookup, other: PatchLookup) bool {
         return std.meta.eql(self, other);
     }
+
+    pub fn getWorldPos(self: PatchLookup) struct { world_x: u32, world_z: u32 } {
+        const world_stride = lod_0_patch_size * std.math.pow(u32, 2, self.lod);
+        return .{
+            .world_x = self.patch_x * world_stride,
+            .world_z = self.patch_z * world_stride,
+        };
+    }
 };
 
 // pub const PatchLookupHashContext = struct {
@@ -82,6 +89,8 @@ pub const Patch = struct {
     lookup: PatchLookup,
     patch_x: u32,
     patch_z: u32,
+    world_x: u32,
+    world_z: u32,
     data: ?[]u8 = null,
     requesters: [max_requesters]PatchRequest = undefined,
     request_count: u8 = 0,
@@ -275,10 +284,13 @@ pub const WorldPatchManager = struct {
                 continue;
             }
 
+            const world_stride = lod_0_patch_size * std.math.pow(u32, 2, patch_lookup.lod);
             var patch = Patch{
                 .lookup = patch_lookup,
                 .patch_x = patch_lookup.patch_x,
                 .patch_z = patch_lookup.patch_z,
+                .world_x = patch_lookup.patch_x * world_stride,
+                .world_z = patch_lookup.patch_z * world_stride,
                 .patch_type_id = patch_lookup.patch_type_id,
             };
             patch.requesters[patch.request_count].requester_id = requester_id;
@@ -326,6 +338,8 @@ pub const WorldPatchManager = struct {
                     .lookup = patch_lookup,
                     .patch_x = patch_x,
                     .patch_z = patch_z,
+                    .world_x = patch_lookup.patch_x * @floatToInt(u32, world_stride),
+                    .world_z = patch_lookup.patch_z * @floatToInt(u32, world_stride),
                     .patch_type_id = patch_type_id,
                 };
                 patch.requesters[patch.request_count].requester_id = requester_id;
