@@ -269,7 +269,7 @@ pub const WorldPatchManager = struct {
                 const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
                 const prio_old = patch.highest_prio;
                 patch.addOrUpdateRequester(requester_id, prio);
-                if (patch.highest_prio != prio_old) {
+                if (patch.highest_prio != prio_old and patch.data == null) {
                     self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
                 }
                 continue;
@@ -354,7 +354,7 @@ pub const WorldPatchManager = struct {
                     continue;
                 }
 
-                if (patch.highest_prio != prio_old) {
+                if (patch.highest_prio != prio_old and patch.data == null) {
                     self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
                 }
             }
