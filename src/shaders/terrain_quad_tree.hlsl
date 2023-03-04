@@ -116,14 +116,14 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     float3 tangent = input.tangent.xyz;
     float2 uv = input.uv;
 
-    // Derive normals from the heightmap 
+    // Derive normals from the heightmap
     // https://www.shadertoy.com/view/3sSSW1
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
         float height = heightmap.Sample(sam_linear_clamp, uv).r;
-        float height_h = heightmap.Sample(sam_linear_clamp, uv + texel * float2(1.0, 0.0)).r; 
-        float height_v = heightmap.Sample(sam_linear_clamp, uv + texel * float2(0.0, 1.0)).r; 
+        float height_h = heightmap.Sample(sam_linear_clamp, uv + texel * float2(1.0, 0.0)).r;
+        float height_v = heightmap.Sample(sam_linear_clamp, uv + texel * float2(0.0, 1.0)).r;
         float2 n = height - float2(height_h, height_v);
         n *= 20.0;
         n += 0.5;
@@ -140,7 +140,7 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     const float3x3 TBN = float3x3(tangent, bitangent, normal);
 
     Texture2D splatmap = ResourceDescriptorHeap[instance.splatmap_index];
-    uint splatmap_index = uint(splatmap.Sample(sam_linear_clamp, uv).r * 255); 
+    uint splatmap_index = uint(splatmap.Sample(sam_linear_clamp, uv).r * 255);
 
     ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[cbv_draw_const.terrain_layers_buffer_index];
     TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(splatmap_index * sizeof(TerrainLayerTextureIndices));
@@ -165,9 +165,11 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     float3 color = pbrShading(base_color, pbrInput, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
     color = gammaCorrect(color);
     out_color.rgb = color;
+    // float lol = smoothstep(0.01, 0.02, 1 - saturate(length(cbv_frame_const.camera_position.xz-input.position.xz)/300));
+    // out_color.rgb = float3(input.uv, lol);
     out_color.a = 1;
- 
-    // TODO: Pass a flag to the shader to control if we want to 
+
+    // TODO: Pass a flag to the shader to control if we want to
     // render the wireframe or not
     // float3 barys = barycentrics;
     // barys.z = 1.0 - barys.x - barys.y;
