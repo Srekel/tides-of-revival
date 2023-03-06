@@ -16,8 +16,11 @@ def sync_lib(folder, git_path, commit_sha):
     # os.system("git pull " + commit_sha)
     os.chdir("..")
 
+external_dir = "external"
+if not os.path.isdir(external_dir):
+    os.mkdir(external_dir)
 
-os.chdir("external")
+os.chdir(external_dir)
 sync_lib("zig-args", "https://github.com/MasterQ32/zig-args.git", "e0fd4e607a22c80977a75186798f1cb98b7ed698")
 # sync_lib("zig-flecs", "https://github.com/prime31/zig-flecs.git")
 sync_lib("zig-gamedev", "https://github.com/Srekel/zig-gamedev.git", "ffad172eb7af99fcce2f025b1bbda31d2c8bce58")
