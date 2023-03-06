@@ -421,16 +421,17 @@ pub const WorldPatchManager = struct {
         return null;
     }
 
-    pub fn tick(self: *WorldPatchManager) void {
+    pub fn tickAll(self: *WorldPatchManager) void {
+        while (self.bucket_queue.peek()) {
+            self.tickOne();
+        }
+    }
+
+    pub fn tickOne(self: *WorldPatchManager) void {
         var patch_handle: PatchHandle = PatchHandle.init(0, 0);
-        // var lol1: *[1]PatchHandle = &patch_handle;
-        // var lol2: []PatchHandle = lol1;
-        while (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
-            // if (self.bucket_queue.popElems((&patch_handle)[0..])) {
+        if (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
             var patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
 
-            // const patch_type = &self.patch_types[patch.patch_type_id];
-            // patch_type.loadFunc(patch);
             var heightmap_namebuf: [256]u8 = undefined;
             const heightmap_path = std.fmt.bufPrintZ(
                 heightmap_namebuf[0..heightmap_namebuf.len],
@@ -442,24 +443,6 @@ pub const WorldPatchManager = struct {
                 },
             ) catch unreachable;
 
-            const asset_id = IdLocal.init(heightmap_path);
-            var data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
-
-            // const file = std.fs.cwd().openFile(heightmap_path, .{}) catch unreachable;
-            // defer file.close();
-            // var stream_source = std.io.StreamSource{ .file = file };
-            // const image = png.PNG.readImage(self.allocator, &stream_source);
-            // _ = image;
-            var stream = zigimg.Image.Stream{ .buffer = std.io.fixedBufferStream(data) };
-            var image = zigimg.png.PNG.readImage(self.allocator, &stream) catch unreachable;
-            patch.data = std.mem.sliceAsBytes(image.pixels.grayscale8);
-        }
-    }
-
-    pub fn tickOne(self: *WorldPatchManager) void {
-        var patch_handle: PatchHandle = PatchHandle.init(0, 0);
-        if (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
-            var patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
 
             var heightmap_namebuf: [256]u8 = undefined;
             const heightmap_path = std.fmt.bufPrintZ(

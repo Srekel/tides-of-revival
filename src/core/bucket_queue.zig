@@ -41,6 +41,13 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
         //     return self.popElems(elem_out[0..1]) == 1;
         // }
 
+        pub fn peek(self: Self) bool {
+            if (self.buckets[self.current_highest_prio].items.len == 0) {
+                return false;
+            }
+            return true;
+        }
+
         pub fn popElems(self: *Self, elems_out: []QueueElement) u32 {
             if (self.buckets[self.current_highest_prio].items.len == 0) {
                 return 0;

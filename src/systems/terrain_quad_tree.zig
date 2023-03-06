@@ -808,7 +808,7 @@ fn loadResources(
     const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
     world_patch_mgr.addLoadRequest(rid, 0, area, 3, .high);
     // Make sure all LOD3 are resident
-    world_patch_mgr.tick();
+    world_patch_mgr.tickAll();
     // Request loading all the other LODs
     // world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
     // world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
