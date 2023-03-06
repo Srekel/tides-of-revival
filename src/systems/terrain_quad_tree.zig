@@ -317,7 +317,7 @@ fn createHeightmapFromPixelBuffer(
     // TODO(gmodarelli): These consts should be stored inside config.zig
     const width: u32 = 65;
     const height: u32 = 65;
-    const format = dxgi.FORMAT.R8_UNORM;
+    const format = dxgi.FORMAT.R32_FLOAT;
 
     const bpp = format.pixelSizeInBits();
     const row_bytes = @divFloor(@intCast(u64, width) * bpp + 7, 8); // round up to nearest byte

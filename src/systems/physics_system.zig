@@ -105,8 +105,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
     updateBodies(state);
-    updateLoaders(state);
-    updatePatches(state);
+    // updateLoaders(state);
+    // updatePatches(state);
 }
 
 fn updateBodies(state: *SystemState) void {

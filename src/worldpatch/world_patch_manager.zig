@@ -1,11 +1,15 @@
 const std = @import("std");
-const zigimg = @import("zigimg");
 const Pool = @import("zpool").Pool;
 const IdLocal = @import("../variant.zig").IdLocal;
 const BucketQueue = @import("../core/bucket_queue.zig").BucketQueue;
 const AssetManager = @import("../core/asset_manager.zig").AssetManager;
 const util = @import("../util.zig");
 const config = @import("../config.zig");
+
+// temp
+const zm = @import("zmath");
+const zigimg = @import("zigimg");
+const zstbi = @import("zstbi");
 
 const LoD = u4;
 const lod_0_patch_size = config.patch_size;
@@ -363,6 +367,10 @@ pub const WorldPatchManager = struct {
                 const prio_old = patch.highest_prio;
                 patch.removeRequester(requester_id);
                 if (patch.request_count == 0) {
+                    if (patch.data) {
+                        self.allocator.free(patch.data);
+                        patch.data = null;
+                    }
                     self.patch_pool.removeAssumeLive(patch_handle);
                     _ = self.handle_map_by_lookup.remove(patch_lookup);
                     continue;
@@ -416,7 +424,11 @@ pub const WorldPatchManager = struct {
         const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
         if (patch_handle_opt) |patch_handle| {
             const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
-            return patch.data;
+            if (patch.data) |data| {
+                // const aligned_data = @ptrCast(u8, @align@alignOf(T))
+                return std.mem.bytesAsSlice(T, @alignCast(@alignOf(T), data));
+            }
+            return null;
         }
         return null;
     }
@@ -443,11 +455,18 @@ pub const WorldPatchManager = struct {
                 },
             ) catch unreachable;
 
+            const heightmap_asset_id = IdLocal.init(heightmap_path);
+            const heightmap_data = self.asset_manager.loadAssetBlocking(heightmap_asset_id, .instant_blocking);
+            var heightmap_image = zstbi.Image.loadFromMemory(heightmap_data, 1) catch unreachable;
+            defer heightmap_image.deinit();
+            // heightmap_image.
+            // var heightmap_stream = zigimg.Image.Stream{ .buffer = std.io.fixedBufferStream(heightmap_data) };
+            // const heightmap_image = zigimg.png.PNG.readImage(self.allocator, &heightmap_stream) catch unreachable;
 
-            var heightmap_namebuf: [256]u8 = undefined;
-            const heightmap_path = std.fmt.bufPrintZ(
-                heightmap_namebuf[0..heightmap_namebuf.len],
-                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
+            var range_namebuf: [256]u8 = undefined;
+            const range_path = std.fmt.bufPrintZ(
+                range_namebuf[0..range_namebuf.len],
+                "content/patch/heightmap/lod{}/heightmap_x{}_y{}.txt",
                 .{
                     patch.lookup.lod,
                     patch.patch_x,
@@ -455,11 +474,34 @@ pub const WorldPatchManager = struct {
                 },
             ) catch unreachable;
 
-            const asset_id = IdLocal.init(heightmap_path);
-            const data = self.asset_manager.loadAssetBlocking(asset_id, .instant_blocking);
-            var stream = zigimg.Image.Stream{ .buffer = std.io.fixedBufferStream(data) };
-            const image = zigimg.png.PNG.readImage(self.allocator, &stream) catch unreachable;
-            patch.data = std.mem.sliceAsBytes(image.pixels.grayscale8);
+            const range_asset_id = IdLocal.init(range_path);
+            const range_data = self.asset_manager.loadAssetBlocking(range_asset_id, .instant_blocking);
+            const range_str_comma = std.mem.indexOfScalar(u8, range_data, ","[0]).?;
+            const range_low_str = range_data[0..range_str_comma];
+            const range_low = std.fmt.parseFloat(f32, range_low_str) catch unreachable;
+            const range_high_str = range_data[range_str_comma + 1 ..];
+            const range_high = std.fmt.parseFloat(f32, range_high_str) catch unreachable;
+            const diff = range_high - range_low;
+            _ = diff;
+            // var range_stream = std.io.fixedBufferStream(range_data);
+            // const range_reader = range_stream.reader();
+            // range_reader.readUntilDelimiter(&buf, ',');
+            var patch_data: []f32 = self.allocator.alloc(f32, config.patch_samples) catch unreachable;
+            for (heightmap_image.data, patch_data) |height_image, *height_patch| {
+                const height_image_0_255 = @intToFloat(f32, height_image);
+                const height_0_65535 = zm.map_linear(height_image_0_255, 0, 255, range_low, range_high);
+                // _ = height_0_65535;
+                height_patch.* = zm.map_linear(height_0_65535, 0, 65535, config.terrain_min, config.terrain_max);
+            }
+
+            patch.data = std.mem.sliceAsBytes(patch_data);
+            // std.log.debug("loaded patch ({any},{any}) type:{any}, lod:{any}", .{
+            //     patch.lookup.patch_x,
+            //     patch.lookup.patch_z,
+            //     patch.patch_type_id,
+            //     patch.highest_prio,
+            // });
+
         }
     }
 };

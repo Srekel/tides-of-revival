@@ -86,10 +86,11 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
 
     Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
     float2 uv = float2(vertex.uv.x, 1.0 - vertex.uv.y);
-    float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r * 2.0 - 1.0;
+    float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r;// * 2.0 - 1.0;
 
     float3 displaced_position = vertex.position;
-    displaced_position.y = cbv_frame_const.noise_scale_y * (height + cbv_frame_const.noise_offset_y);
+    // displaced_position.y = cbv_frame_const.noise_scale_y * (height + cbv_frame_const.noise_offset_y);
+    displaced_position.y = height;
 
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
     output.position_vs = mul(float4(displaced_position, 1.0), object_to_clip);
