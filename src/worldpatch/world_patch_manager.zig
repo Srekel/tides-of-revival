@@ -367,8 +367,8 @@ pub const WorldPatchManager = struct {
                 const prio_old = patch.highest_prio;
                 patch.removeRequester(requester_id);
                 if (patch.request_count == 0) {
-                    if (patch.data) {
-                        self.allocator.free(patch.data);
+                    if (patch.data != null) {
+                        self.allocator.free(patch.data.?);
                         patch.data = null;
                     }
                     self.patch_pool.removeAssumeLive(patch_handle);

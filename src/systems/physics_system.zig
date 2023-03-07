@@ -105,8 +105,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
     updateBodies(state);
-    // updateLoaders(state);
-    // updatePatches(state);
+    updateLoaders(state);
+    updatePatches(state);
 }
 
 fn updateBodies(state: *SystemState) void {
@@ -221,7 +221,7 @@ fn updatePatches(state: *SystemState) void {
             continue;
         }
 
-        const data_opt = state.world_patch_mgr.tryGetPatch(patch.lookup, u8);
+        const data_opt = state.world_patch_mgr.tryGetPatch(patch.lookup, f32);
         if (data_opt) |data| {
             // _ = data;
 
@@ -232,7 +232,7 @@ fn updatePatches(state: *SystemState) void {
                 var x: u32 = 0;
                 while (x < config.patch_resolution) : (x += 1) {
                     const index = @intCast(u32, x + z * config.patch_resolution);
-                    const height = config.noise_scale_y * (config.noise_offset_y + 2 * @intToFloat(f32, data[index]) / 255.0 - 1);
+                    const height = data[index];
 
                     vertices[index][0] = @intToFloat(f32, x);
                     vertices[index][1] = height;

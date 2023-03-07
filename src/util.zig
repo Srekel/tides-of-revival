@@ -45,7 +45,7 @@ pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y
     // _ = noise_offset_y;
     // _ = noise;
     // return 100 + 10 * (@sin(world_x * 0.01) + @cos(world_z * 0.01)) + 2 * (@sin(world_x * 0.1) + @cos(world_z * 0.1));
-    return noise_scale_y * (noise_offset_y + noise.noise2(world_x * noise_scale_xz, world_z * noise_scale_xz));
+    return noise_scale_y * (noise_offset_y + noise.noise2(world_x * noise_scale_xz, world_z * noise_scale_xz) + 1) * 0.5;
 }
 
 // pub fn applyTransformRecursively(

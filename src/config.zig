@@ -13,11 +13,11 @@ pub const patch_resolution = 65;
 pub const patch_samples = patch_resolution * patch_resolution;
 pub const patch_width = 512; // obsolete
 pub const noise_scale_xz = 1.0 / 2.0;
-pub const noise_scale_y = 200;
+pub const noise_scale_y = terrain_span;
 pub const noise_offset_y = 0.0;
 
 pub const terrain_height_ocean_floor = 0;
-pub const terrain_height_mountain_top = 1000;
+pub const terrain_height_mountain_top = 500;
 pub const terrain_min = terrain_height_ocean_floor;
 pub const terrain_max = terrain_height_mountain_top;
 pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floor;
