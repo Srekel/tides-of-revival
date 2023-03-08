@@ -12,6 +12,11 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
         .id = IdLocal.init("heightmap"),
         .loadFn = heightmapLoad,
     });
+
+    _ = world_patch_mgr.registerPatchType(.{
+        .id = IdLocal.init("splatmap"),
+        .loadFn = splatmapLoad,
+    });
 }
 
 // ██╗  ██╗███████╗██╗ ██████╗ ██╗  ██╗████████╗███╗   ███╗ █████╗ ██████╗
@@ -74,4 +79,33 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     //     patch.patch_type_id,
     //     patch.highest_prio,
     // });
+}
+
+// ███████╗██████╗ ██╗      █████╗ ████████╗███╗   ███╗ █████╗ ██████╗
+// ██╔════╝██╔══██╗██║     ██╔══██╗╚══██╔══╝████╗ ████║██╔══██╗██╔══██╗
+// ███████╗██████╔╝██║     ███████║   ██║   ██╔████╔██║███████║██████╔╝
+// ╚════██║██╔═══╝ ██║     ██╔══██║   ██║   ██║╚██╔╝██║██╔══██║██╔═══╝
+// ███████║██║     ███████╗██║  ██║   ██║   ██║ ╚═╝ ██║██║  ██║██║
+// ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
+
+fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeLoadContext) void {
+    var splatmap_namebuf: [256]u8 = undefined;
+    const splatmap_path = std.fmt.bufPrintZ(
+        splatmap_namebuf[0..splatmap_namebuf.len],
+        "content/patch/splatmap/lod{}/splatmap_x{}_y{}.png",
+        .{
+            patch.lookup.lod,
+            patch.lookup.patch_x,
+            patch.lookup.patch_z,
+        },
+    ) catch unreachable;
+
+    const splatmap_asset_id = IdLocal.init(splatmap_path);
+    const splatmap_data = ctx.asset_manager.loadAssetBlocking(splatmap_asset_id, .instant_blocking);
+    var splatmap_image = zstbi.Image.loadFromMemory(splatmap_data, 1) catch unreachable;
+    defer splatmap_image.deinit();
+
+    var data = ctx.allocator.alloc(u8, splatmap_image.data.len) catch unreachable;
+    std.mem.copy(u8, data, splatmap_image.data);
+    patch.data = data;
 }

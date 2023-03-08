@@ -198,12 +198,8 @@ const SystemState = struct {
     quads_to_render: std.ArrayList(u32),
     quads_to_load: std.ArrayList(u32),
 
-    camera: struct {
-        position: [3]f32 = .{ 0.0, 4.0, -4.0 },
-        forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
-        pitch: f32 = 0.15 * math.pi,
-        yaw: f32 = 0.0,
-    } = .{},
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
+    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
 };
 
 fn loadMesh(
@@ -660,6 +656,7 @@ fn loadNodeHeightmap(
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     in_frame: bool,
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
 ) !void {
     assert(node.heightmap_handle == null);
 
@@ -667,13 +664,43 @@ fn loadNodeHeightmap(
         .patch_x = @intCast(u16, node.patch_index[0]),
         .patch_z = @intCast(u16, node.patch_index[1]),
         .lod = @intCast(u4, node.mesh_lod),
-        .patch_type_id = 0,
+        .patch_type_id = heightmap_patch_type_id,
     };
 
     const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_opt) |patch| {
         const heightmap = createHeightmapFromPixelBuffer(patch, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+    }
+}
+
+fn loadNodeSplatmap(
+    gfxstate: *gfx.D3D12State,
+    textures_heap: *d3d12.IHeap,
+    textures_heap_offset: *u64,
+    node: *QuadTreeNode,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    in_frame: bool,
+    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
+) !void {
+    assert(node.splatmap_handle == null);
+    _ = gfxstate;
+    _ = textures_heap;
+    _ = textures_heap_offset;
+    _ = in_frame;
+
+    const lookup = world_patch_manager.PatchLookup{
+        .patch_x = @intCast(u16, node.patch_index[0]),
+        .patch_z = @intCast(u16, node.patch_index[1]),
+        .lod = @intCast(u4, node.mesh_lod),
+        .patch_type_id = splatmap_patch_type_id,
+    };
+
+    const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
+    if (patch_opt) |patch| {
+        _ = patch;
+        // const splatmap = createSplatmapFromPixelBuffer(patch, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
+        // node.splatmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
 }
 
@@ -684,15 +711,21 @@ fn loadHeightAndSplatMaps(
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     in_frame: bool,
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
+    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
 ) !void {
     if (node.heightmap_handle == null) {
-        loadNodeHeightmap(gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame) catch unreachable;
+        loadNodeHeightmap(gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame, heightmap_patch_type_id) catch unreachable;
     }
 
     // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
     // This improves up startup times
     if (node.heightmap_handle == null) {
         return;
+    }
+
+    if (node.splatmap_handle == null) {
+        loadNodeSplatmap(gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame, splatmap_patch_type_id) catch unreachable;
     }
 
     if (node.splatmap_handle != null) {
@@ -780,6 +813,8 @@ fn loadResources(
     textures_heap_offset: *u64,
     terrain_layers: *std.ArrayList(TerrainLayer),
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
+    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
 ) !void {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -826,6 +861,8 @@ fn loadResources(
                 node,
                 world_patch_mgr,
                 false, // in frame
+                heightmap_patch_type_id,
+                splatmap_patch_type_id,
             ) catch unreachable;
         }
     }
@@ -973,6 +1010,9 @@ pub fn create(
         .has_uav = false,
     }) catch unreachable;
 
+    const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
+    const splatmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("splatmap"));
+
     var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
     loadResources(
         allocator,
@@ -982,6 +1022,8 @@ pub fn create(
         &textures_heap_offset,
         &terrain_layers,
         world_patch_mgr,
+        heightmap_patch_type_id,
+        splatmap_patch_type_id,
     ) catch unreachable;
 
     var terrain_layers_buffer = gfxstate.createBuffer(.{
@@ -1059,6 +1101,8 @@ pub fn create(
         .quads_to_load = quads_to_load,
         .query_camera = query_camera,
         .query_lights = query_lights,
+        .heightmap_patch_type_id = heightmap_patch_type_id,
+        .splatmap_patch_type_id = splatmap_patch_type_id,
     };
 
     return state;
@@ -1258,6 +1302,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             node,
             state.world_patch_mgr,
             true, // in frame
+            state.heightmap_patch_type_id,
+            state.splatmap_patch_type_id,
         ) catch unreachable;
     }
 }
