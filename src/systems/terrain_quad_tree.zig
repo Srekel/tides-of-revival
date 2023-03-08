@@ -297,8 +297,17 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     return .{ .image = image_conv, .format = dxgi_format };
 }
 
-fn createHeightmapFromPixelBuffer(
+// TODO(gmodarelli): Add mip count, array size and resource dimension
+// TODO(gmodarelli): Move to texture.zig when we need this in other systems
+const TextureDesc = struct {
+    width: u32,
+    height: u32,
+    format: dxgi.FORMAT,
     data: []u8,
+};
+
+fn createTextureFromPixelBuffer(
+    texture_desc: TextureDesc,
     gfxstate: *gfx.D3D12State,
     heap: *d3d12.IHeap,
     heap_offset: *u64,
@@ -310,17 +319,12 @@ fn createHeightmapFromPixelBuffer(
         gfxstate.gctx.beginFrame();
     }
 
-    // TODO(gmodarelli): These consts should be stored inside config.zig
-    const width: u32 = 65;
-    const height: u32 = 65;
-    const format = dxgi.FORMAT.R32_FLOAT;
-
-    const bpp = format.pixelSizeInBits();
-    const row_bytes = @divFloor(@intCast(u64, width) * bpp + 7, 8); // round up to nearest byte
-    const num_bytes = row_bytes * height;
+    const bpp = texture_desc.format.pixelSizeInBits();
+    const row_bytes = @divFloor(@intCast(u64, texture_desc.width) * bpp + 7, 8); // round up to nearest byte
+    const num_bytes = row_bytes * texture_desc.height;
 
     const subresource = d3d12.SUBRESOURCE_DATA{
-        .pData = @ptrCast([*]u8, data[0..]),
+        .pData = @ptrCast([*]u8, texture_desc.data[0..]),
         .RowPitch = @intCast(c_uint, row_bytes),
         .SlicePitch = @intCast(c_uint, num_bytes),
     };
@@ -333,9 +337,9 @@ fn createHeightmapFromPixelBuffer(
             gfxstate,
             heap,
             heap_offset,
-            width,
-            height,
-            format,
+            texture_desc.width,
+            texture_desc.height,
+            texture_desc.format,
             1,
         ) catch unreachable;
 
@@ -669,7 +673,13 @@ fn loadNodeHeightmap(
 
     const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_opt) |patch| {
-        const heightmap = createHeightmapFromPixelBuffer(patch, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
+        const texture_desc = TextureDesc{
+            .width = 65,
+            .height = 65,
+            .format = .R32_FLOAT,
+            .data = patch,
+        };
+        const heightmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
 }
@@ -684,10 +694,6 @@ fn loadNodeSplatmap(
     splatmap_patch_type_id: world_patch_manager.PatchTypeId,
 ) !void {
     assert(node.splatmap_handle == null);
-    _ = gfxstate;
-    _ = textures_heap;
-    _ = textures_heap_offset;
-    _ = in_frame;
 
     const lookup = world_patch_manager.PatchLookup{
         .patch_x = @intCast(u16, node.patch_index[0]),
@@ -698,9 +704,14 @@ fn loadNodeSplatmap(
 
     const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_opt) |patch| {
-        _ = patch;
-        // const splatmap = createSplatmapFromPixelBuffer(patch, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
-        // node.splatmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+        const texture_desc = TextureDesc{
+            .width = 65,
+            .height = 65,
+            .format = .R8_UNORM,
+            .data = patch,
+        };
+        const splatmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
+        node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);
     }
 }
 
@@ -727,82 +738,6 @@ fn loadHeightAndSplatMaps(
     if (node.splatmap_handle == null) {
         loadNodeSplatmap(gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame, splatmap_patch_type_id) catch unreachable;
     }
-
-    if (node.splatmap_handle != null) {
-        return;
-    }
-
-    assert(node.splatmap_handle == null);
-
-    if (!in_frame) {
-        // TODO: Schedule the upload instead of uploading immediately
-        gfxstate.gctx.beginFrame();
-    }
-
-    var splatmap_namebuf: [256]u8 = undefined;
-    const splatmap_path = std.fmt.bufPrintZ(
-        splatmap_namebuf[0..splatmap_namebuf.len],
-        "content/patch/splatmap/lod{}/splatmap_x{}_y{}.png",
-        .{
-            node.mesh_lod,
-            node.patch_index[0],
-            node.patch_index[1],
-        },
-    ) catch unreachable;
-
-    var splatmap_texture_data = loadTexture(&gfxstate.gctx, splatmap_path) catch unreachable;
-    defer _ = splatmap_texture_data.image.Release();
-
-    const splatmap_wh = blk: {
-        var width: u32 = undefined;
-        var splat: u32 = undefined;
-        hrPanicOnFail(splatmap_texture_data.image.GetSize(&width, &splat));
-        break :blk .{ .w = width, .h = splat };
-    };
-
-    var splatmap_texture_resource = allocateTextureMemory(
-        gfxstate,
-        textures_heap,
-        textures_heap_offset,
-        splatmap_wh.w,
-        splatmap_wh.h,
-        splatmap_texture_data.format,
-        1,
-    ) catch unreachable;
-
-    // Set a debug name
-    {
-        var path_u16: [300]u16 = undefined;
-        assert(splatmap_path.len < path_u16.len - 1);
-        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], splatmap_path) catch unreachable;
-        path_u16[path_len] = 0;
-        _ = splatmap_texture_resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
-    }
-
-    uploadDataToTexture(gfxstate, splatmap_texture_resource, splatmap_texture_data.image, d3d12.RESOURCE_STATES.GENERIC_READ) catch unreachable;
-
-    if (!in_frame) {
-        gfxstate.gctx.endFrame();
-        gfxstate.gctx.finishGpuCommands();
-    }
-
-    const splatmap = blk: {
-        const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-        gfxstate.gctx.device.CreateShaderResourceView(
-            splatmap_texture_resource,
-            null,
-            srv_allocation.cpu_handle,
-        );
-
-        const t = gfx.Texture{
-            .resource = splatmap_texture_resource,
-            .persistent_descriptor = srv_allocation,
-        };
-
-        break :blk t;
-    };
-
-    node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);
 }
 
 fn loadResources(
@@ -841,13 +776,15 @@ fn loadResources(
     // Ask the World Patch Manager to load all LOD3 for the current world extents
     const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
     const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
-    world_patch_mgr.addLoadRequest(rid, 0, area, 3, .high);
+    world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 3, .high);
+    world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 3, .high);
     // Make sure all LOD3 are resident
     world_patch_mgr.tickAll();
     // Request loading all the other LODs
     // world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
     // world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
-    world_patch_mgr.addLoadRequest(rid, 0, area, 2, .medium);
+    world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 2, .medium);
+    world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 2, .medium);
 
     // Load all LOD's heightmaps
     {
