@@ -296,7 +296,7 @@ pub fn generate() void {
     graph.nodes.append(worldWidthNode) catch unreachable;
     graph.nodes.append(heightmapNode) catch unreachable;
     graph.nodes.append(splatmapNode) catch unreachable;
-    graph.nodes.append(cityNode) catch unreachable;
+    // graph.nodes.append(cityNode) catch unreachable;
     graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
     graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(pcgNode) catch unreachable;

@@ -167,15 +167,6 @@ pub const WorldPatchManager = struct {
         return patch_type_id;
     }
 
-    pub fn getPatchTypeId(self: *WorldPatchManager, id: IdLocal) PatchTypeId {
-        for (self.patch_types) |patch_type, i| {
-            if (patch_type.id.eql(id)) {
-                return i;
-            }
-        }
-        unreachable;
-    }
-
     pub fn addLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD, prio: Priority) void {
         const world_stride = self.lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod), 2);
         const world_x_begin = @divFloor(area.x, world_stride);
@@ -244,7 +235,7 @@ pub const WorldPatchManager = struct {
 
                 const patch_opt = self.patch_map.remove(patch_lookup);
                 if (patch_opt) |*patch| {
-                    for (patch.requesters) |*requester, i| {
+                    for (patch.requesters, 0..) |*requester, i| {
                         _ = i;
 
                         if (requester.id == requester_id) {

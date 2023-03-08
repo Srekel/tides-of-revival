@@ -61,6 +61,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
         const lod_pixel_stride = std.math.pow(u32, 2, lod) / precision;
         const image_bytes_per_component = 1; // @intCast(u32, patch_element_byte_size);
+        // const image_bytes_per_component = @intCast(u32, patch_element_byte_size);
         var image = zstbi.Image{
             .data = context.frame_allocator.alloc(u8, artifact_patch_width * artifact_patch_width * 2 * 1) catch unreachable,
             .width = @intCast(u32, artifact_patch_width),
@@ -126,6 +127,9 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                     break :range_blk .{ .min = min_value, .max = max_value };
                                 },
                                 2 => {
+                                    // min_value = 0;
+                                    // max_value = std.math.maxInt(u16);
+                                    // break :range_blk .{ .min = min_value, .max = max_value };
                                     var pixel_y: u32 = 0;
                                     while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
                                         var pixel_x: u32 = 0;
@@ -220,7 +224,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                     range.max,
                                 },
                             ) catch unreachable;
-                            const bytes_written =  remap_file.writeAll(remap_content_slice) catch unreachable;
+                            const bytes_written = remap_file.writeAll(remap_content_slice) catch unreachable;
                             _ = bytes_written;
                         }
                     }

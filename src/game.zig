@@ -1,16 +1,26 @@
 const std = @import("std");
+const RndGen = std.rand.DefaultPrng;
 const args = @import("args");
 const flecs = @import("flecs");
+const zaudio = @import("zaudio");
+const zmesh = @import("zmesh");
+const znoise = @import("znoise");
 const zstbi = @import("zstbi");
-const RndGen = std.rand.DefaultPrng;
-const AssetManager = @import("core/asset_manager.zig").AssetManager;
-const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
+const ztracy = @import("ztracy");
 
-const window = @import("window.zig");
+const AssetManager = @import("core/asset_manager.zig").AssetManager;
+const IdLocal = @import("variant.zig").IdLocal;
+const config = @import("config.zig");
+const fd = @import("flecs_data.zig");
+const fr = @import("flecs_relation.zig");
+const fsm = @import("fsm/fsm.zig");
 const gfx = @import("gfx_d3d12.zig");
+const window = @import("window.zig");
+const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
+// const quality = @import("data/quality.zig");
+
 const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
-// const gui_system = @import("systems/gui_system.zig");
 const input_system = @import("systems/input_system.zig");
 const input = @import("input.zig");
 const physics_system = @import("systems/physics_system.zig");
@@ -18,17 +28,7 @@ const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
-const fd = @import("flecs_data.zig");
-const fr = @import("flecs_relation.zig");
-const config = @import("config.zig");
-// const quality = @import("data/quality.zig");
-const IdLocal = @import("variant.zig").IdLocal;
-const zaudio = @import("zaudio");
-const znoise = @import("znoise");
-const ztracy = @import("ztracy");
-const zmesh = @import("zmesh");
-
-const fsm = @import("fsm/fsm.zig");
+// const gui_system = @import("systems/gui_system.zig");
 
 pub fn run() void {
     const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
@@ -257,10 +257,6 @@ pub fn run() void {
     // _ = world_patch_mgr;
     // const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
     // _ = rid;
-    // const patch_type = world_patch_mgr.registerPatchType(.{
-    //     .id = IdLocal.init("terrainqt_heightmap"),
-    //     .loadFunc = HeightmapPatchLoader.load,
-    // });
     // _ = patch_type;
     // world_patch_mgr.addLoadRequest(
     //     rid,
