@@ -21,11 +21,11 @@ if not os.path.isdir(external_dir):
     os.mkdir(external_dir)
 
 os.chdir(external_dir)
-sync_lib("zig-args", "https://github.com/MasterQ32/zig-args.git", "e0fd4e607a22c80977a75186798f1cb98b7ed698")
+sync_lib("zig-args", "https://github.com/MasterQ32/zig-args.git", "c84f9709405b31ef3e72ab26b20ba3c37826f8ec")
 # sync_lib("zig-flecs", "https://github.com/prime31/zig-flecs.git")
-sync_lib("zig-gamedev", "https://github.com/Srekel/zig-gamedev.git", "ffad172eb7af99fcce2f025b1bbda31d2c8bce58")
+sync_lib("zig-gamedev", "https://github.com/Srekel/zig-gamedev.git", "e21d14906d0c128008c4f1ffca9308de452b1159")
 sync_lib("zig-flecs", "https://github.com/Srekel/zig-flecs.git", "fe1f47d99ebd7495b16e4e56011426cd408138dc")
-sync_lib("zigimg", "https://github.com/zigimg/zigimg.git", "729dfd8dfb64252863e0a23803106e1fa6d009f9")
+sync_lib("zigimg", "https://github.com/zigimg/zigimg.git", "fed06c060a300e6ccf37614927efa86af3e69ac0")
 # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 os.chdir("..")
 

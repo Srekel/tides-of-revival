@@ -132,12 +132,6 @@ fn updateLoaders(state: *SystemState) void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    for (state.loaders) |loader| {
-        if (loader.ent == 0) {
-            break;
-        }
-    }
-
     while (entity_iter.next()) |comps| {
         var loader_comp = comps.WorldLoader;
         if (!loader_comp.physics) {
@@ -153,7 +147,7 @@ fn updateLoaders(state: *SystemState) void {
 
             // HACK
             state.loaders[0].ent = entity_iter.entity().id;
-            break &state.loaders[0];
+            break :blk &state.loaders[0];
 
             // unreachable;
         };
