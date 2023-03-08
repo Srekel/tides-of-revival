@@ -223,7 +223,7 @@ pub fn generate() void {
         node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
-        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed("patch/heightmap", 1);
+        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed("heightmap", 1);
 
         break :blk node;
     };
@@ -243,7 +243,7 @@ pub fn generate() void {
         node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
-        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed("patch/splatmap", 1);
+        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed("splatmap", 1);
 
         break :blk node;
     };

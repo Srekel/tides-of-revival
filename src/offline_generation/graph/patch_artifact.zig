@@ -38,7 +38,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
     var folderbufslice = std.fmt.bufPrintZ(
         folderbuf[0..folderbuf.len],
-        "content/{s}",
+        "content/patch/{s}",
         .{folder},
     ) catch unreachable;
     std.fs.cwd().makeDir(folderbufslice) catch {};
@@ -54,7 +54,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
     while (lod <= worst_lod) : (lod += 1) {
         folderbufslice = std.fmt.bufPrintZ(
             folderbuf[0..folderbuf.len],
-            "content/{s}/lod{}",
+            "content/patch/{s}/lod{}",
             .{ folder, lod },
         ) catch unreachable;
         std.fs.cwd().makeDir(folderbufslice) catch {};
@@ -185,9 +185,10 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
                         const namebufslice = std.fmt.bufPrintZ(
                             namebuf[0..namebuf.len],
-                            "{s}/heightmap_x{}_y{}.png",
+                            "{s}/{s}_x{}_y{}.png",
                             .{
                                 folderbufslice,
+                                folder,
                                 hm_patch_x * lod_patch_count_per_side + lod_patch_x,
                                 hm_patch_y * lod_patch_count_per_side + lod_patch_y,
                             },
@@ -203,9 +204,10 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         if (patch_element_byte_size == 2) {
                             const remap_namebufslice = std.fmt.bufPrintZ(
                                 namebuf[0..namebuf.len],
-                                "{s}/heightmap_x{}_y{}.txt",
+                                "{s}/{s}_x{}_y{}.txt",
                                 .{
                                     folderbufslice,
+                                    folder,
                                     hm_patch_x * lod_patch_count_per_side + lod_patch_x,
                                     hm_patch_y * lod_patch_count_per_side + lod_patch_y,
                                 },

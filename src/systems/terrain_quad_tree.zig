@@ -709,7 +709,7 @@ fn loadHeightAndSplatMaps(
     var splatmap_namebuf: [256]u8 = undefined;
     const splatmap_path = std.fmt.bufPrintZ(
         splatmap_namebuf[0..splatmap_namebuf.len],
-        "content/patch/splatmap/lod{}/heightmap_x{}_y{}.png",
+        "content/patch/splatmap/lod{}/splatmap_x{}_y{}.png",
         .{
             node.mesh_lod,
             node.patch_index[0],
