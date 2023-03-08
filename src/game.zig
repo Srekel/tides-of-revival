@@ -517,7 +517,7 @@ pub fn run() void {
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
-        const window_status = window.update() catch unreachable;
+        const window_status = window.update(&gfx_state) catch unreachable;
         if (window_status == .no_windows) {
             break;
         }
