@@ -16,6 +16,8 @@ const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const gfx = @import("gfx_d3d12.zig");
 const window = @import("window.zig");
+
+const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
 
@@ -257,6 +259,7 @@ pub fn run() void {
     // _ = world_patch_mgr;
     // const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
     // _ = rid;
+    patch_types.registerPatchTypes(&world_patch_mgr);
     // _ = patch_type;
     // world_patch_mgr.addLoadRequest(
     //     rid,
