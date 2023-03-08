@@ -33,11 +33,6 @@ const PatchRequest = struct {
     prio: Priority,
 };
 
-// const PatchLookup = u32;
-// fn calcPatchLookup(x: u32, z: u32, lod: LoD) u32 {
-//     const res = x | (z << max_patch_int_bits) | (lod << (max_patch_int_bits * 2));
-//     return res;
-// }
 pub const PatchLookup = struct {
     patch_x: max_patch_int,
     patch_z: max_patch_int,
@@ -59,30 +54,6 @@ pub const PatchLookup = struct {
         };
     }
 };
-
-// pub const PatchLookupHashContext = struct {
-//     pub fn hash(self: @This(), pl: PatchLookup) u32 {
-//         _ = self;
-//         return @ptrCast();
-//     }
-//     pub fn eql(self: @This(), a: PatchLookup, b: PatchLookup, b_index: usize) bool {
-//         _ = self;
-//         _ = b_index;
-//         return eqlString(a, b);
-//     }
-// };
-
-// pub const PatchLoader = struct {
-//     __v = *const VTable,
-
-//     pub usingnamespace Methods(@This);
-
-//     pub fn Methods(comptime T:type) type {
-//         return extern struct {
-//             pub inline load(self)
-//         }
-//     }
-// }
 
 pub const Patch = struct {
     lookup: PatchLookup,
@@ -241,15 +212,6 @@ pub const WorldPatchManager = struct {
             .patch_type_id = patch_type_id,
         };
     }
-
-    // pub fn moveRequester(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, movement: RequestMovement, lod: LoD, prio: Priority) void {
-    //     const area_prev: RequestRectangle = .{
-    //         .x = movement.prev.x - movement.range,
-    //         .y = movement.prev.y - movement.range,
-    //         .width = movement.width,
-    //         .hei
-    //     };
-    // }
 
     pub fn getLookupsFromRectangle(patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD, out_lookups: *std.ArrayList(PatchLookup)) void {
         const area_x = std.math.clamp(area.x, 0, max_world_size);
@@ -451,25 +413,3 @@ pub const WorldPatchManager = struct {
         }
     }
 };
-
-// test "world_patch_manager" {
-//     const TestPatchLoader = struct {
-//         pub fn load(patch: *Patch) void {
-//             _ = patch;
-//         }
-//     };
-//     var world_patch_manager = WorldPatchManager.create(std.testing.allocator, 64);
-//     const rid = world_patch_manager.registerRequester(IdLocal.init("test_requester"));
-//     const patch_type = world_patch_manager.registerPatchType(.{
-//         .id = IdLocal.init("test_heightmap"),
-//         .loadFunc = TestPatchLoader.load,
-//     });
-//     world_patch_manager.addLoadRequest(
-//         rid,
-//         patch_type,
-//         .{ .x = 0, .z = 0, .width = 64, .height = 64 },
-//         0,
-//         Priority.high,
-//     );
-//     world_patch_manager.tick();
-// }
