@@ -524,6 +524,7 @@ pub fn run() void {
             break;
         }
 
+        world_patch_mgr.tickOne();
         update(&flecs_world, &gfx_state);
     }
 }

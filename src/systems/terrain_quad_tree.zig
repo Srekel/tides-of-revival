@@ -781,8 +781,10 @@ fn loadResources(
     // Make sure all LOD3 are resident
     world_patch_mgr.tickAll();
     // Request loading all the other LODs
-    // world_patch_mgr.addLoadRequest(rid, 0, area, 0, .medium);
-    // world_patch_mgr.addLoadRequest(rid, 0, area, 1, .medium);
+    // world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 0, .medium);
+    // world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 0, .medium);
+    // world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 1, .medium);
+    // world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 1, .medium);
     world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 2, .medium);
     world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 2, .medium);
 
@@ -1227,8 +1229,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
-
-    state.world_patch_mgr.tickOne();
 
     for (state.quads_to_load.items) |quad_index| {
         var node = &state.terrain_quad_tree_nodes.items[quad_index];
