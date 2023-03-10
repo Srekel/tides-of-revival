@@ -143,12 +143,14 @@ pub const RequestRectangle = struct {
 
 pub const PatchType = struct {
     id: IdLocal,
+    // highest_physical_lod
     loadFn: *const fn (*Patch, PatchTypeLoadContext) void,
 };
 
 pub const PatchTypeLoadContext = struct {
     asset_manager: *AssetManager,
     allocator: std.mem.Allocator,
+    world_patch_mgr: *WorldPatchManager,
 };
 
 pub const WorldPatchManager = struct {
@@ -408,6 +410,7 @@ pub const WorldPatchManager = struct {
             const ctx = PatchTypeLoadContext{
                 .allocator = self.allocator,
                 .asset_manager = &self.asset_manager,
+                .world_patch_mgr = self,
             };
             patch_type.loadFn(patch, ctx);
         }

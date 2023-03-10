@@ -4,6 +4,7 @@ const zstbi = @import("zstbi");
 const IdLocal = @import("../variant.zig").IdLocal;
 const config = @import("../config.zig");
 const world_patch_manager = @import("world_patch_manager.zig");
+const util = @import("../util.zig");
 
 // const zigimg = @import("zigimg");
 
@@ -27,6 +28,7 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
 // ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
 
 fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeLoadContext) void {
+    // if (patch.lookup.lod > 1) {
     var heightmap_namebuf: [256]u8 = undefined;
     const heightmap_path = std.fmt.bufPrintZ(
         heightmap_namebuf[0..heightmap_namebuf.len],
@@ -79,6 +81,30 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     //     patch.patch_type_id,
     //     patch.highest_prio,
     // });
+    // } else {
+    //     const patch_lookup_lower_lod = world_patch_manager.PatchLookup{
+    //         .patch_x = patch.lookup.patch_x,
+    //         .patch_z = patch.lookup.patch_z,
+    //         .lod = patch.lookup.lod + 1,
+    //         .patch_type_id = patch.lookup.patch_type_id,
+    //     };
+
+    //     const patch_lower_lod_opt = ctx.world_patch_mgr.tryGetPatch(patch_lookup_lower_lod, f32);
+    //     if (patch_lower_lod_opt) |patchlower_lod| {
+    //         _ = patchlower_lod;
+
+    //         for (patch_data) |*height_patch| {
+    //             height_patch.* = config.terrain_max / 2;
+    //         }
+    //         var patch_data: []f32 = ctx.allocator.alloc(f32, config.patch_samples) catch unreachable;
+    //         patch.data = std.mem.sliceAsBytes(patch_data);
+    //     } else if (ctx.world_patch_mgr.hasScheduled(patch_lookup_lower_lod)) {
+    //         ctx.world_patch_mgr.reschedule(patch.lookup);
+    //         ctx.world_patch_mgr.bumpScheduling(patch_lookup_lower_lod);
+    //     } else {
+    //         ctx.world_patch_mgr.addLoadRequestFromLookups(123, util.sliceOfInstance(world_patch_manager.PatchLookup, &patch.lookup));
+    //     }
+    // }
 }
 
 // ███████╗██████╗ ██╗      █████╗ ████████╗███╗   ███╗ █████╗ ██████╗

@@ -37,6 +37,14 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             }
         }
 
+        pub fn pushElemsToBottomOfBucket(self: *Self, elems: []const QueueElement, prio: BucketEnum) void {
+            const prio_index = @enumToInt(prio);
+            self.buckets[prio_index].insertSlice(0, elems) catch unreachable;
+            if (prio_index < self.current_highest_prio) {
+                self.current_highest_prio = prio_index;
+            }
+        }
+
         // pub fn popElem(self: *Self, elem_out: *QueueElement) bool {
         //     return self.popElems(elem_out[0..1]) == 1;
         // }
