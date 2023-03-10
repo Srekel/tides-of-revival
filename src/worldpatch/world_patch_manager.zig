@@ -334,6 +334,8 @@ pub const WorldPatchManager = struct {
                     if (patch.data != null) {
                         self.allocator.free(patch.data.?);
                         patch.data = null;
+                    } else {
+                        self.bucket_queue.removeElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle));
                     }
                     self.patch_pool.removeAssumeLive(patch_handle);
                     _ = self.handle_map_by_lookup.remove(patch_lookup);

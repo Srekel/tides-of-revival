@@ -81,6 +81,31 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             return count;
         }
 
+        pub fn removeElems(self: *Self, elems: []const QueueElement) void {
+            elem_loop: for (elems) |elem| {
+                for (&self.buckets, 0..) |*bucket, prio| {
+                    for (bucket.items, 0..) |bucket_elem, i| {
+                        if (std.meta.eql(bucket_elem, elem)) {
+                            _ = bucket.orderedRemove(i);
+
+                            if (prio == self.current_highest_prio) {
+                                while (self.buckets[self.current_highest_prio].items.len == 0) {
+                                    if (self.current_highest_prio == lowest_prio) {
+                                        continue :elem_loop;
+                                    }
+                                    self.current_highest_prio += 1;
+                                }
+                            }
+
+                            continue :elem_loop;
+                        }
+                    }
+                }
+
+                unreachable;
+            }
+        }
+
         pub fn updateElems(self: *Self, elems: []const QueueElement, prio_old: BucketEnum, prio_new: BucketEnum) void {
             const prio_index_old = @enumToInt(prio_old);
             const prio_index_new = @enumToInt(prio_new);
