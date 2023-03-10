@@ -29,6 +29,13 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             }
         }
 
+        pub fn peek(self: Self) bool {
+            if (self.buckets[self.current_highest_prio].items.len == 0) {
+                return false;
+            }
+            return true;
+        }
+
         pub fn pushElems(self: *Self, elems: []const QueueElement, prio: BucketEnum) void {
             const prio_index = @enumToInt(prio);
             self.buckets[prio_index].appendSliceAssumeCapacity(elems);
@@ -43,17 +50,6 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             if (prio_index < self.current_highest_prio) {
                 self.current_highest_prio = prio_index;
             }
-        }
-
-        // pub fn popElem(self: *Self, elem_out: *QueueElement) bool {
-        //     return self.popElems(elem_out[0..1]) == 1;
-        // }
-
-        pub fn peek(self: Self) bool {
-            if (self.buckets[self.current_highest_prio].items.len == 0) {
-                return false;
-            }
-            return true;
         }
 
         pub fn popElems(self: *Self, elems_out: []QueueElement) u32 {

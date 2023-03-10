@@ -358,43 +358,6 @@ pub const WorldPatchManager = struct {
         }
     }
 
-    pub fn removeLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD) void {
-        const world_stride = lod_0_patch_size * std.math.pow(f32, @intToFloat(f32, lod), 2);
-        const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
-        const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));
-        const patch_x_end = @floatToInt(u16, @ceil((area.x + area.width) / world_stride));
-        const patch_z_end = @floatToInt(u16, @ceil((area.z + area.height) / world_stride));
-
-        var patch_z = patch_z_begin;
-        while (patch_z < patch_z_end) {
-            var patch_x = patch_x_begin;
-            while (patch_x < patch_x_end) {
-                const patch_lookup = PatchLookup{
-                    .patch_x = patch_x,
-                    .patch_z = patch_z,
-                    .lod = lod,
-                    .patch_type_id = patch_type_id,
-                };
-
-                const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
-                if (patch_handle_opt) |patch_handle| {
-                    const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
-                    const prio_old = patch.highest_prio;
-                    patch.removeRequester(requester_id);
-                    if (patch.request_count == 0) {
-                        self.patch_pool.removeAssumeLive(patch_handle_opt);
-                        _ = self.handle_map_by_lookup.remove(patch_lookup);
-                        continue;
-                    }
-
-                    if (patch.highest_prio != prio_old) {
-                        self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
-                    }
-                }
-            }
-        }
-    }
-
     pub fn tryGetPatch(self: WorldPatchManager, patch_lookup: PatchLookup, comptime T: type) ?[]T {
         const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
         if (patch_handle_opt) |patch_handle| {
@@ -414,7 +377,7 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn tickOne(self: *WorldPatchManager) void {
-        var patch_handle: PatchHandle = PatchHandle.init(0, 0);
+        var patch_handle: PatchHandle = PatchHandle.nil;
         if (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
             var patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
             const patch_type = self.patch_types.items[patch.patch_type_id];
