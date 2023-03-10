@@ -186,6 +186,15 @@ pub const WorldPatchManager = struct {
         return requester_id;
     }
 
+    pub fn getRequester(self: *WorldPatchManager, id: IdLocal) RequesterId {
+        for (self.requesters.items, 0..) |requester_id, i| {
+            if (requester_id.eql(id)) {
+                return @intCast(RequesterId, i);
+            }
+        }
+        unreachable;
+    }
+
     pub fn registerPatchType(self: *WorldPatchManager, patch_type: PatchType) PatchTypeId {
         const patch_type_id = @intCast(u8, self.patch_types.items.len);
         self.patch_types.appendAssumeCapacity(patch_type);

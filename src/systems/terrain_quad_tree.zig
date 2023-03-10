@@ -22,6 +22,7 @@ const dds_loader = zwin32.dds_loader;
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
+const tides_math = @import("../core/math.zig");
 
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
@@ -200,6 +201,8 @@ const SystemState = struct {
 
     heightmap_patch_type_id: world_patch_manager.PatchTypeId,
     splatmap_patch_type_id: world_patch_manager.PatchTypeId,
+
+    cam_pos_old: [3]f32 = .{ 0, 0, 0 }, // NOTE(Anders): Assumes only one camera
 };
 
 fn loadMesh(
@@ -1242,6 +1245,55 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             state.heightmap_patch_type_id,
             state.splatmap_patch_type_id,
         ) catch unreachable;
+    }
+
+    // Load high-lod patches near camera
+    if (tides_math.dist3_xz(state.cam_pos_old, camera_position) > 32) {
+        var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+        var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+
+        const area_old = world_patch_manager.RequestRectangle{
+            .x = state.cam_pos_old[0] - 512,
+            .z = state.cam_pos_old[2] - 512,
+            .width = 1024,
+            .height = 1024,
+        };
+
+        const area_new = world_patch_manager.RequestRectangle{
+            .x = camera_position[0] - 512,
+            .z = camera_position[2] - 512,
+            .width = 1024,
+            .height = 1024,
+        };
+
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_old, 1, &lookups_old);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_old, 1, &lookups_old);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_new, 1, &lookups_new);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_new, 1, &lookups_new);
+
+        var i_old: u32 = 0;
+        blk: while (i_old < lookups_old.items.len) {
+            var i_new: u32 = 0;
+            while (i_new < lookups_new.items.len) {
+                if (lookups_old.items[i_old].eql(lookups_new.items[i_new])) {
+                    _ = lookups_old.swapRemove(i_old);
+                    _ = lookups_new.swapRemove(i_new);
+                    continue :blk;
+                }
+                i_new += 1;
+            }
+            i_old += 1;
+        }
+
+        const rid = state.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
+        // NOTE(Anders): HACK
+        if (state.cam_pos_old[0] != 0) {
+            state.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
+        }
+
+        state.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
+
+        state.cam_pos_old = camera_position;
     }
 }
 
