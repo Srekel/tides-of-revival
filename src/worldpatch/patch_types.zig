@@ -69,9 +69,9 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     var patch_data: []f32 = ctx.allocator.alloc(f32, config.patch_samples) catch unreachable;
     for (heightmap_image.data, patch_data) |height_image, *height_patch| {
         const height_image_0_255 = @intToFloat(f32, height_image);
-        const height_0_65535 = zm.map_linearV(height_image_0_255, 0, 255, range_low, range_high);
+        const height_0_65535 = zm.mapLinearV(height_image_0_255, 0, 255, range_low, range_high);
         // _ = height_0_65535;
-        height_patch.* = zm.map_linearV(height_0_65535, 0, 65535, config.terrain_min, config.terrain_max);
+        height_patch.* = zm.mapLinearV(height_0_65535, 0, 65535, config.terrain_min, config.terrain_max);
     }
 
     patch.data = std.mem.sliceAsBytes(patch_data);
