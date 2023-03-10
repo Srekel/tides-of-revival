@@ -571,7 +571,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             switch (patch.status) {
             .not_used => continue,
             .in_queue => blk: {
-                break :blk .generating_heights_setup;
+                break :blk .writing_gfx;
             },
             .generating_heights_setup => blk: {
                 const thread_config = .{};
