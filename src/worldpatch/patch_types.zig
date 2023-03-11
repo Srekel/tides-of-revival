@@ -1,12 +1,13 @@
 const std = @import("std");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
-const IdLocal = @import("../variant.zig").IdLocal;
+
 const config = @import("../config.zig");
-const world_patch_manager = @import("world_patch_manager.zig");
+const IdLocal = @import("../variant.zig").IdLocal;
 const util = @import("../util.zig");
 
-// const zigimg = @import("zigimg");
+const world_patch_manager = @import("world_patch_manager.zig");
+const PatchLookup = world_patch_manager.PatchLookup;
 
 pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManager) void {
     _ = world_patch_mgr.registerPatchType(.{
@@ -27,7 +28,8 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
 // ██║  ██║███████╗██║╚██████╔╝██║  ██║   ██║   ██║ ╚═╝ ██║██║  ██║██║
 // ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
 
-fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeLoadContext) void {
+
+fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeContext) void {
     // if (patch.lookup.lod > 1) {
     var heightmap_namebuf: [256]u8 = undefined;
     const heightmap_path = std.fmt.bufPrintZ(
@@ -114,7 +116,7 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
 // ███████║██║     ███████╗██║  ██║   ██║   ██║ ╚═╝ ██║██║  ██║██║
 // ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
 
-fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeLoadContext) void {
+fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeContext) void {
     var splatmap_namebuf: [256]u8 = undefined;
     const splatmap_path = std.fmt.bufPrintZ(
         splatmap_namebuf[0..splatmap_namebuf.len],

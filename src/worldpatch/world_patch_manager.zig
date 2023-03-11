@@ -25,6 +25,7 @@ pub const Priority = enum {
         return @enumToInt(self) > @enumToInt(other);
     }
 };
+
 pub const RequesterId = u8;
 pub const PatchTypeId = u8;
 
@@ -143,11 +144,10 @@ pub const RequestRectangle = struct {
 
 pub const PatchType = struct {
     id: IdLocal,
-    // highest_physical_lod
-    loadFn: *const fn (*Patch, PatchTypeLoadContext) void,
+    loadFn: *const fn (*Patch, PatchTypeContext) void,
 };
 
-pub const PatchTypeLoadContext = struct {
+pub const PatchTypeContext = struct {
     asset_manager: *AssetManager,
     allocator: std.mem.Allocator,
     world_patch_mgr: *WorldPatchManager,
@@ -211,6 +211,8 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn getLookup(world_x: f32, world_z: f32, lod: LoD, patch_type_id: PatchTypeId) PatchLookup {
+        // NOTE(Anders): In case I get confused again, yes this is a static function....
+        // https://github.com/ziglang/zig/issues/14880
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
         const world_x_begin = world_stride * @divFloor(world_x, world_stride);
         const world_z_begin = world_stride * @divFloor(world_z, world_stride);
@@ -270,11 +272,7 @@ pub const WorldPatchManager = struct {
                 .world_z = patch_lookup.patch_z * world_stride,
                 .patch_type_id = patch_lookup.patch_type_id,
             };
-            patch.requesters[patch.request_count].requester_id = requester_id;
-            patch.requesters[patch.request_count].prio = prio;
-            patch.request_count = 1;
-            patch.highest_prio = prio;
-            patch.patch_type_id = patch_lookup.patch_type_id;
+            patch.addOrUpdateRequester(requester_id, prio);
 
             const patch_handle = self.patch_pool.add(.{ .patch = patch }) catch unreachable;
             self.handle_map_by_lookup.put(patch_lookup, patch_handle) catch unreachable;
@@ -381,7 +379,7 @@ pub const WorldPatchManager = struct {
         if (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
             var patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
             const patch_type = self.patch_types.items[patch.patch_type_id];
-            const ctx = PatchTypeLoadContext{
+            const ctx = PatchTypeContext{
                 .allocator = self.allocator,
                 .asset_manager = &self.asset_manager,
                 .world_patch_mgr = self,
