@@ -116,7 +116,7 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
                     }
                     unreachable;
                 };
-                _ = bucket_old.swapRemove(bucket_old_elem_index);
+                _ = bucket_old.orderedRemove(bucket_old_elem_index);
                 bucket_new.appendAssumeCapacity(elem);
             }
 

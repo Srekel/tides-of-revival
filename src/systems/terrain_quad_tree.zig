@@ -779,17 +779,20 @@ fn loadResources(
     // Ask the World Patch Manager to load all LOD3 for the current world extents
     const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
     const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
-    world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 3, .high);
-    world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 3, .high);
+    var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
+    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 3, &lookups);
+    world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
     // Make sure all LOD3 are resident
     world_patch_mgr.tickAll();
+
     // Request loading all the other LODs
-    // world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 0, .medium);
-    // world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 0, .medium);
-    // world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 1, .medium);
-    // world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 1, .medium);
-    world_patch_mgr.addLoadRequest(rid, heightmap_patch_type_id, area, 2, .medium);
-    world_patch_mgr.addLoadRequest(rid, splatmap_patch_type_id, area, 2, .medium);
+    lookups.clearRetainingCapacity();
+    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 2, &lookups);
+    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 2, &lookups);
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 1 &lookups);
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 1, &lookups);
+    world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .medium);
 
     // Load all LOD's heightmaps
     {
@@ -1266,10 +1269,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .height = 1024,
         };
 
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_old, 1, &lookups_old);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_old, 1, &lookups_old);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_new, 1, &lookups_new);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_new, 1, &lookups_new);
+        const lod = 0;
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_old, lod, &lookups_old);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_old, lod, &lookups_old);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_new, lod, &lookups_new);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_new, lod, &lookups_new);
 
         var i_old: u32 = 0;
         blk: while (i_old < lookups_old.items.len) {

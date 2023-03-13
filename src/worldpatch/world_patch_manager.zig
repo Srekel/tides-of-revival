@@ -28,6 +28,7 @@ pub const Priority = enum {
 
 pub const RequesterId = u8;
 pub const PatchTypeId = u8;
+const dependency_requester_id = 0;
 
 const PatchRequest = struct {
     requester_id: u64,
@@ -54,6 +55,11 @@ pub const PatchLookup = struct {
             .world_z = self.patch_z * world_stride,
         };
     }
+    pub fn format(lookup: PatchLookup, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.print("PL(T{}, L{}, ({any},{any}))", .{ lookup.patch_type_id, lookup.lod, lookup.patch_x, lookup.patch_z });
+    }
 };
 
 pub const Patch = struct {
@@ -65,6 +71,7 @@ pub const Patch = struct {
     data: ?[]u8 = null,
     requesters: [max_requesters]PatchRequest = undefined,
     request_count: u8 = 0,
+    request_count_dependents: u8 = 0,
     highest_prio: Priority = .low,
     patch_type_id: PatchTypeId,
 
@@ -79,23 +86,31 @@ pub const Patch = struct {
         return false;
     }
 
+    pub fn hasRequests(self: Patch) bool {
+        return self.request_count > 0 and self.request_count_dependents > 0;
+    }
+
     pub fn addOrUpdateRequester(self: *Patch, requester_id: RequesterId, prio: Priority) void {
-        var i_req: u32 = 0;
-        while (i_req < self.request_count) : (i_req += 1) {
-            var requester = &self.requesters[i_req];
-            if (requester.requester_id == requester_id) {
-                if (requester.prio != prio) {
-                    requester.prio = prio;
-                    self.calcPriority();
+        if (requester_id == dependency_requester_id) {
+            self.request_count_dependents += 1;
+        } else {
+            var i_req: u32 = 0;
+            while (i_req < self.request_count) : (i_req += 1) {
+                var requester = &self.requesters[i_req];
+                if (requester.requester_id == requester_id) {
+                    if (requester.prio != prio) {
+                        requester.prio = prio;
+                        self.updatePriority();
+                    }
+
+                    return;
                 }
-
-                return;
             }
-        }
 
-        self.requesters[self.request_count].requester_id = requester_id;
-        self.requesters[self.request_count].prio = prio;
-        self.request_count += 1;
+            self.requesters[self.request_count].requester_id = requester_id;
+            self.requesters[self.request_count].prio = prio;
+            self.request_count += 1;
+        }
 
         if (self.highest_prio.lowerThan(prio)) {
             self.highest_prio = prio;
@@ -103,13 +118,24 @@ pub const Patch = struct {
     }
 
     pub fn removeRequester(self: *Patch, requester_id: RequesterId) void {
+        if (requester_id == dependency_requester_id) {
+            self.request_count_dependents -= 1;
+            return;
+        }
+
         var i_req: u32 = 0;
         while (i_req < self.request_count) : (i_req += 1) {
             var requester = &self.requesters[i_req];
             if (requester.requester_id == requester_id) {
                 self.request_count -= 1;
                 requester.* = self.requesters[self.request_count];
-                self.calcPriority();
+
+                if (self.request_count_dependents == 0) {
+                    // NOTE(Anders): Don't update (i.e. lower) priority when we remove requesters
+                    // if we have requests from dependents.
+                    // This is because we don't store the priority of dependency requests.
+                    self.updatePriority();
+                }
                 return;
             }
         }
@@ -117,8 +143,12 @@ pub const Patch = struct {
         unreachable;
     }
 
-    fn calcPriority(self: *Patch) void {
-        self.highest_prio = Priority.low;
+    fn updatePriority(self: *Patch) void {
+        // TODO(Anders): Add support for going down in priority.
+        // It's disabled for now as a way to simplify things, plus it's not too bad
+        // if something remains a higher priority than what it needs to be.
+        // self.highest_prio = Priority.low;
+
         var i_req: u32 = 0;
         while (i_req < self.request_count) : (i_req += 1) {
             if (self.highest_prio.lowerThan(self.requesters[i_req].prio)) {
@@ -144,6 +174,7 @@ pub const RequestRectangle = struct {
 
 pub const PatchType = struct {
     id: IdLocal,
+    dependenciesFn: ?*const fn (PatchLookup, *[2]PatchLookup, PatchTypeContext) []PatchLookup = null,
     loadFn: *const fn (*Patch, PatchTypeContext) void,
 };
 
@@ -172,6 +203,9 @@ pub const WorldPatchManager = struct {
             .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
             .asset_manager = asset_manager,
         };
+
+        const dependent_rid = res.registerRequester(IdLocal.init("dependent"));
+        std.debug.assert(dependent_rid == dependency_requester_id);
 
         return res;
     }
@@ -250,16 +284,63 @@ pub const WorldPatchManager = struct {
         }
     }
 
+    fn updateDependencyPrioritiesRecursively(self: *WorldPatchManager, patch: *Patch, dependency_ctx: PatchTypeContext) void {
+        const patch_type = self.patch_types.items[patch.lookup.patch_type_id];
+        if (patch_type.dependenciesFn) |dependenciesFn| {
+            var dependency_list: [2]PatchLookup = undefined;
+            const dependency_slice = dependenciesFn(patch.lookup, &dependency_list, dependency_ctx);
+            for (dependency_slice) |dependency_lookup| {
+                const dependency_patch_handle = self.handle_map_by_lookup.get(dependency_lookup).?;
+                const dependency_patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(dependency_patch_handle, .patch);
+
+                // Update the bucket placement even if we are at the same priority. Dependencies need to be loaded first.
+                const dependency_is_same_or_lower_prio = !patch.highest_prio.lowerThan(dependency_patch.highest_prio);
+                if (dependency_is_same_or_lower_prio) {
+                    const prio_old = dependency_patch.highest_prio;
+                    dependency_patch.highest_prio = patch.highest_prio;
+                    if (dependency_patch.data == null) {
+                        // This dependency hasn't been loaded yet
+                        self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &dependency_patch_handle), prio_old, dependency_patch.highest_prio);
+                        self.updateDependencyPrioritiesRecursively(dependency_patch, dependency_ctx);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn addLoadRequestFromLookups(self: *WorldPatchManager, requester_id: RequesterId, lookups: []PatchLookup, prio: Priority) void {
+        // // NOTE(Anders) 2 is ultimately quite low, its just to see if we hit it.
+        var dependency_list: [2]PatchLookup = undefined;
+
+        const dependency_ctx = PatchTypeContext{
+            .allocator = self.allocator,
+            .asset_manager = &self.asset_manager,
+            .world_patch_mgr = self,
+        };
+
         for (lookups) |patch_lookup| {
             const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
+            const patch_type = self.patch_types.items[patch_lookup.patch_type_id];
             if (patch_handle_opt) |patch_handle| {
+                // This is a patch that something else has already requested to be loaded.
+
                 const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
                 const prio_old = patch.highest_prio;
                 patch.addOrUpdateRequester(requester_id, prio);
-                if (patch.highest_prio != prio_old and patch.data == null) {
+
+                if (requester_id == dependency_requester_id and patch.data == null) {
+                    // A patch indicated this lookup is a dependency for it, and we are already queued.
+                    // We need to move ourselves to the top of the bucket, *then* ensure that any of *our*
+                    // dependencies are moved top the top too.
                     self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
+                    self.updateDependencyPrioritiesRecursively(patch, dependency_ctx);
+                } else if (prio_old.lowerThan(patch.highest_prio) and patch.data == null) {
+                    // We got a new non-dependency request for this patch, update our position in the queue
+                    // and the priority of any dependencies.
+                    self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
+                    self.updateDependencyPrioritiesRecursively(patch, dependency_ctx);
                 }
+
                 continue;
             }
 
@@ -274,58 +355,16 @@ pub const WorldPatchManager = struct {
             };
             patch.addOrUpdateRequester(requester_id, prio);
 
+
+            // NOTE(Anders): Since the bucket queue is LIFO, it's important that we add this patch first
+            // before any potential dependencies, so that they are loaded first.
             const patch_handle = self.patch_pool.add(.{ .patch = patch }) catch unreachable;
             self.handle_map_by_lookup.put(patch_lookup, patch_handle) catch unreachable;
             self.bucket_queue.pushElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio);
-        }
-    }
 
-    pub fn addLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD, prio: Priority) void {
-        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
-        const patch_x_begin = @floatToInt(u16, @divFloor(area.x, world_stride));
-        const patch_z_begin = @floatToInt(u16, @divFloor(area.z, world_stride));
-        const patch_x_end = @floatToInt(u16, @ceil((area.x + area.width) / world_stride));
-        const patch_z_end = @floatToInt(u16, @ceil((area.z + area.height) / world_stride));
-
-        var patch_z = patch_z_begin;
-        while (patch_z < patch_z_end) : (patch_z += 1) {
-            var patch_x = patch_x_begin;
-            while (patch_x < patch_x_end) : (patch_x += 1) {
-                const patch_lookup = PatchLookup{
-                    .patch_x = patch_x,
-                    .patch_z = patch_z,
-                    .lod = lod,
-                    .patch_type_id = patch_type_id,
-                };
-
-                const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
-                if (patch_handle_opt) |patch_handle| {
-                    const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
-                    const prio_old = patch.highest_prio;
-                    patch.addOrUpdateRequester(requester_id, prio);
-                    if (patch.highest_prio != prio_old) {
-                        self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
-                    }
-                    continue;
-                }
-
-                var patch = Patch{
-                    .lookup = patch_lookup,
-                    .patch_x = patch_x,
-                    .patch_z = patch_z,
-                    .world_x = patch_lookup.patch_x * @floatToInt(u32, world_stride),
-                    .world_z = patch_lookup.patch_z * @floatToInt(u32, world_stride),
-                    .patch_type_id = patch_type_id,
-                };
-                patch.requesters[patch.request_count].requester_id = requester_id;
-                patch.requesters[patch.request_count].prio = prio;
-                patch.request_count = 1;
-                patch.highest_prio = prio;
-                patch.patch_type_id = patch_type_id;
-
-                const patch_handle = self.patch_pool.add(.{ .patch = patch }) catch unreachable;
-                self.handle_map_by_lookup.put(patch_lookup, patch_handle) catch unreachable;
-                self.bucket_queue.pushElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio);
+            if (patch_type.dependenciesFn) |dependenciesFn| {
+                const dependency_slice = dependenciesFn(patch_lookup, &dependency_list, dependency_ctx);
+                self.addLoadRequestFromLookups(0, dependency_slice, prio);
             }
         }
     }
@@ -337,7 +376,7 @@ pub const WorldPatchManager = struct {
                 const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
                 const prio_old = patch.highest_prio;
                 patch.removeRequester(requester_id);
-                if (patch.request_count == 0) {
+                if (!patch.hasRequests()) {
                     if (patch.data != null) {
                         self.allocator.free(patch.data.?);
                         patch.data = null;
@@ -385,6 +424,33 @@ pub const WorldPatchManager = struct {
                 .world_patch_mgr = self,
             };
             patch_type.loadFn(patch, ctx);
+
+            // if (patch_type.dependenciesFn) |dependenciesFn| {
+            //     const dependency_ctx = PatchTypeContext{
+            //         .allocator = self.allocator,
+            //         .asset_manager = &self.asset_manager,
+            //         .world_patch_mgr = self,
+            //     };
+
+            //     var dependency_list: [2]PatchLookup = undefined;
+            //     const dependency_slice = dependenciesFn(patch.lookup, &dependency_list, dependency_ctx);
+            //     for (dependency_slice) |dependency_lookup| {
+            //         const dependency_patch_handle = self.handle_map_by_lookup.get(dependency_lookup).?;
+            //         const dependency_patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(dependency_patch_handle, .patch);
+            //         dependency_patch.request_count_dependents -= 1;
+            //         if (!dependency_patch.hasRequests()) {
+            //             // TODO: Extract to deinit-function
+            //             if (patch.data != null) {
+            //                 self.allocator.free(patch.data.?);
+            //                 patch.data = null;
+            //             } else {
+            //                 self.bucket_queue.removeElems(util.sliceOfInstanceConst(PatchHandle, &dependency_patch_handle));
+            //             }
+            //             self.patch_pool.removeAssumeLive(dependency_patch_handle);
+            //             _ = self.handle_map_by_lookup.remove(dependency_patch.lookup);
+            //         }
+            //     }
+            // }
         }
     }
 };

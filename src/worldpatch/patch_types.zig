@@ -12,6 +12,7 @@ const PatchLookup = world_patch_manager.PatchLookup;
 pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManager) void {
     _ = world_patch_mgr.registerPatchType(.{
         .id = IdLocal.init("heightmap"),
+        .dependenciesFn = heightmapDependencies,
         .loadFn = heightmapLoad,
     });
 
@@ -28,6 +29,21 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
 // ██║  ██║███████╗██║╚██████╔╝██║  ██║   ██║   ██║ ╚═╝ ██║██║  ██║██║
 // ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
 
+fn heightmapDependencies(patch_lookup: world_patch_manager.PatchLookup, dependencies: *[2]PatchLookup, ctx: world_patch_manager.PatchTypeContext) []PatchLookup {
+    if (patch_lookup.lod >= 2) {
+        return dependencies[0..0];
+    }
+    _ = ctx;
+    const patch_world_pos = patch_lookup.getWorldPos();
+    const parent_patch = world_patch_manager.WorldPatchManager.getLookup(
+        @intToFloat(f32, patch_world_pos.world_x),
+        @intToFloat(f32, patch_world_pos.world_z),
+        patch_lookup.lod + 1,
+        patch_lookup.patch_type_id,
+    );
+    dependencies[0] = parent_patch;
+    return dependencies[0..1];
+}
 
 fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeContext) void {
     // if (patch.lookup.lod > 1) {
