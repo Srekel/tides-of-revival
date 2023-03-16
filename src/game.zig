@@ -256,6 +256,8 @@ pub fn run() void {
     defer asset_manager.destroy();
 
     var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, asset_manager);
+    world_patch_mgr.debug_server.run();
+    defer world_patch_mgr.destroy();
     // _ = world_patch_mgr;
     // const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
     // _ = rid;

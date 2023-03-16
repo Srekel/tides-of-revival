@@ -27,6 +27,10 @@ pub fn build(b: *std.Build) void {
 
     exe.install();
 
+    exe.addModule("websocket", b.createModule(.{
+        .source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
+        .dependencies = &.{},
+    }));
     exe.addModule("zigimg", b.createModule(.{
         .source_file = .{ .path = thisDir() ++ "/external/zigimg/zigimg.zig" },
         .dependencies = &.{},

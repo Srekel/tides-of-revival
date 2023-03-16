@@ -5,6 +5,7 @@ const BucketQueue = @import("../core/bucket_queue.zig").BucketQueue;
 const AssetManager = @import("../core/asset_manager.zig").AssetManager;
 const util = @import("../util.zig");
 const config = @import("../config.zig");
+const debug_server = @import("../network/debug_server.zig");
 
 const LoD = u4;
 const lod_0_patch_size = config.patch_size;
@@ -192,6 +193,7 @@ pub const WorldPatchManager = struct {
     patch_pool: PatchPool = undefined,
     bucket_queue: PatchQueue = undefined,
     asset_manager: AssetManager = undefined,
+    debug_server: debug_server.DebugServer = undefined,
 
     pub fn create(allocator: std.mem.Allocator, asset_manager: AssetManager) WorldPatchManager {
         var res = WorldPatchManager{
@@ -202,6 +204,7 @@ pub const WorldPatchManager = struct {
             .patch_pool = PatchPool.initCapacity(allocator, 8) catch unreachable, // temporarily low for testing
             .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
             .asset_manager = asset_manager,
+            .debug_server = debug_server.DebugServer.create(1234),
         };
 
         const dependent_rid = res.registerRequester(IdLocal.init("dependent"));
@@ -211,6 +214,7 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn destroy(self: *WorldPatchManager) void {
+        self.debug_server.stop();
         self.patch_pool.deinit();
     }
 
