@@ -261,7 +261,7 @@ pub fn run() void {
     // _ = world_patch_mgr;
     // const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
     // _ = rid;
-    patch_types.registerPatchTypes(&world_patch_mgr);
+    patch_types.registerPatchTypes(world_patch_mgr);
     // _ = patch_type;
     // world_patch_mgr.addLoadRequest(
     //     rid,
@@ -281,7 +281,7 @@ pub fn run() void {
         IdLocal.init("physics_system_{}"),
         std.heap.page_allocator,
         &flecs_world,
-        &world_patch_mgr,
+        world_patch_mgr,
     );
     defer physics_system.destroy(physics_sys);
 
@@ -341,7 +341,7 @@ pub fn run() void {
         std.heap.page_allocator,
         &gfx_state,
         &flecs_world,
-        &world_patch_mgr,
+        world_patch_mgr,
     );
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
 

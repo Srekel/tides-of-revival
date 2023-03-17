@@ -5,37 +5,47 @@
 <head>
 
     <script type="text/javascript">
+        let connectionInterval = null;
+        let msgInterval = null;
+        let connecting = false;
+        window.addEventListener("load", (event) => {
+            // console.log("page is fully loaded");
+            connectionInterval = setInterval(WebSocketTest, 1500);
+            document.getElementById('status').innerText = "waiting to connect...";
+        });
+
         function WebSocketTest() {
+            connecting = true;
 
-            if ("WebSocket" in window) {
-                alert("WebSocket is supported by your Browser!");
+            document.getElementById('status').innerText = "trying to connect to ws://localhost:1234";
+            var ws = new WebSocket("ws://localhost:1234");
+            clearInterval(connectionInterval);
+            connectionInterval = null;
 
-                // Let us open a web socket
-                var ws = new WebSocket("ws://localhost:9233");
+            ws.onopen = function () {
+                document.getElementById('status').innerText = "connected!";
+                msgInterval = setInterval(lol, 1, ws);
+            };
 
-                ws.onopen = function () {
+            ws.onmessage = function (evt) {
+                const json_data = JSON.parse(evt.data);
+                document.getElementById('bucket0').innerText = "bucket0: " + json_data["buckets"]["bucket0"];
+                document.getElementById('bucket1').innerText = "bucket1: " + json_data["buckets"]["bucket1"];
+                document.getElementById('bucket2').innerText = "bucket2: " + json_data["buckets"]["bucket2"];
+                document.getElementById('current_highest_prio').innerText = json_data["buckets"]["current_highest_prio"];
+                document.getElementById('timeoflast').innerText = Date.now().toString() + json_data["lods"];
+            };
 
-                    // Web Socket is connected, send data using send()
-                    ws.send("Message to send");
-                    alert("Message is sent...");
-                };
+            ws.onclose = function () {
+                document.getElementById('status').innerText = "closed websocket, reconnecting...";
+                connectionInterval = setInterval(WebSocketTest, 1500);
+                clearInterval(msgInterval);
+                msgInterval = null;
+            };
+        }
 
-                ws.onmessage = function (evt) {
-                    var received_msg = evt.data;
-                    alert("Message is received...");
-                    alert(received_msg);
-                };
-
-                ws.onclose = function () {
-
-                    // websocket is closed.
-                    alert("Connection is closed...");
-                };
-            } else {
-
-                // The browser doesn't support WebSocket
-                alert("WebSocket NOT supported by your Browser!");
-            }
+        function lol(ws) {
+            ws.send("wpm/buckets");
         }
     </script>
 
@@ -46,6 +56,12 @@
         <a href="javascript:WebSocketTest()">Run WebSocket</a>
     </div>
 
+    <p id="status">waiting</p>
+    <p id="timeoflast">0</p>
+    <p id="bucket0"></p>
+    <p id="bucket1"></p>
+    <p id="bucket2"></p>
+    <p id="current_highest_prio"></p>
 </body>
 
 </html>

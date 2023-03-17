@@ -185,6 +185,54 @@ pub const PatchTypeContext = struct {
     world_patch_mgr: *WorldPatchManager,
 };
 
+// const lol = "hello from the world patch manager!";
+fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyopaque) []const u8 {
+    _ = data;
+    // _ = allocator;
+    // _ = ctx;
+    var world_patch_mgr = @ptrCast(*WorldPatchManager, @alignCast(@alignOf(*WorldPatchManager), ctx));
+
+    const buckets = .{
+        .bucket0 = world_patch_mgr.bucket_queue.buckets[0].items.len,
+        .bucket1 = world_patch_mgr.bucket_queue.buckets[1].items.len,
+        .bucket2 = world_patch_mgr.bucket_queue.buckets[2].items.len,
+        .current_highest_prio = world_patch_mgr.bucket_queue.current_highest_prio,
+    };
+
+    var lods: [4][max_patch]bool = undefined;
+    // _ = lods;
+    // var lookups = .{
+    //     .lods = lods,
+    // };
+
+    for (&lods) |*lod| {
+        for (lod) |*p| {
+            p.* = false;
+        }
+    }
+
+    var live_handles = world_patch_mgr.patch_pool.liveHandles();
+    while (live_handles.next()) |patch_handle| {
+        // _ = patch_handle;
+        const patch: *Patch = world_patch_mgr.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
+        lods[patch.lookup.lod][patch.patch_x] = true;
+    }
+    // while (world_patch_mgr.handle_map_by_lookup.keyIterator().next()) |key| {
+
+    // }
+
+    var output = .{
+        .buckets = buckets,
+        .lods = lods,
+    };
+
+    var string = std.ArrayList(u8).init(allocator);
+    std.json.stringify(output, .{}, string.writer()) catch unreachable;
+
+    return string.items;
+    // return data;
+}
+
 pub const WorldPatchManager = struct {
     allocator: std.mem.Allocator,
     requesters: std.ArrayList(IdLocal) = undefined,
@@ -195,8 +243,9 @@ pub const WorldPatchManager = struct {
     asset_manager: AssetManager = undefined,
     debug_server: debug_server.DebugServer = undefined,
 
-    pub fn create(allocator: std.mem.Allocator, asset_manager: AssetManager) WorldPatchManager {
-        var res = WorldPatchManager{
+    pub fn create(allocator: std.mem.Allocator, asset_manager: AssetManager) *WorldPatchManager {
+        var res = allocator.create(WorldPatchManager) catch unreachable;
+        res.* = .{
             .allocator = allocator,
             .requesters = std.ArrayList(IdLocal).initCapacity(allocator, max_requesters) catch unreachable,
             .patch_types = std.ArrayList(PatchType).initCapacity(allocator, max_patch_types) catch unreachable,
@@ -204,9 +253,10 @@ pub const WorldPatchManager = struct {
             .patch_pool = PatchPool.initCapacity(allocator, 8) catch unreachable, // temporarily low for testing
             .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
             .asset_manager = asset_manager,
-            .debug_server = debug_server.DebugServer.create(1234),
+            .debug_server = debug_server.DebugServer.create(1234, allocator),
         };
 
+        res.debug_server.registerHandler(IdLocal.init("wpm"), debugServerHandle, res);
         const dependent_rid = res.registerRequester(IdLocal.init("dependent"));
         std.debug.assert(dependent_rid == dependency_requester_id);
 
