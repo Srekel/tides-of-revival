@@ -4,6 +4,7 @@
 
 <head>
 
+
     <script type="text/javascript">
         let connectionInterval = null;
         let msgInterval = null;
@@ -11,33 +12,67 @@
         window.addEventListener("load", (event) => {
             // console.log("page is fully loaded");
             connectionInterval = setInterval(WebSocketTest, 1500);
-            document.getElementById('status').innerText = "waiting to connect...";
+            document.getElementById("status").innerText = "waiting to connect...";
+            tableCreate(8, "lod3_table");
+            tableCreate(16, "lod2_table");
+            tableCreate(32, "lod1_table");
+            tableCreate(64, "lod0_table");
         });
 
         function WebSocketTest() {
             connecting = true;
 
-            document.getElementById('status').innerText = "trying to connect to ws://localhost:1234";
+            document.getElementById("status").innerText = "trying to connect to ws://localhost:1234";
             var ws = new WebSocket("ws://localhost:1234");
             clearInterval(connectionInterval);
             connectionInterval = null;
 
             ws.onopen = function () {
-                document.getElementById('status').innerText = "connected!";
+                document.getElementById("status").innerText = "connected!";
                 msgInterval = setInterval(lol, 1, ws);
+
+                for (let lod = 0; lod < 4; lod++) {
+                    const lodData = json_data["lods"][lod];
+                    const lod_stride = 8 * Math.pow(2, 3 - lod)
+                    var myTable = document.getElementById("lod" + lod.toString() + "_table");
+                    for (let z = 0; z < lod_stride; z++) {
+                        for (let x = 0; x < lod_stride; x++) {
+                            myTable.rows[z].cells[x].style.background = "black";
+                        }
+                    }
+                }
             };
 
             ws.onmessage = function (evt) {
                 const json_data = JSON.parse(evt.data);
-                document.getElementById('bucket0').innerText = "bucket0: " + json_data["buckets"]["bucket0"];
-                document.getElementById('bucket1').innerText = "bucket1: " + json_data["buckets"]["bucket1"];
-                document.getElementById('bucket2').innerText = "bucket2: " + json_data["buckets"]["bucket2"];
-                document.getElementById('current_highest_prio').innerText = json_data["buckets"]["current_highest_prio"];
-                document.getElementById('timeoflast').innerText = Date.now().toString() + json_data["lods"];
+                document.getElementById("bucket0").innerText = "bucket0: " + json_data["buckets"]["bucket0"];
+                document.getElementById("bucket1").innerText = "bucket1: " + json_data["buckets"]["bucket1"];
+                document.getElementById("bucket2").innerText = "bucket2: " + json_data["buckets"]["bucket2"];
+                document.getElementById("current_highest_prio").innerText = "current_highest_prio: " + json_data["buckets"]["current_highest_prio"];
+                document.getElementById("timeoflast").innerText = Date.now().toLocaleString();// + json_data["lods"];
+
+                for (let lod = 0; lod < 4; lod++) {
+                    const str = "lod" + lod.toString() + ": Queued=" + json_data["lods_queued"][lod] + ", Loaded=" + json_data["lods_loaded"][lod];
+                    document.getElementById("lod" + lod.toString()).innerText = str;
+
+                    const lodData = json_data["lods"][lod];
+                    const lod_stride = 8 * Math.pow(2, 3 - lod)
+                    var myTable = document.getElementById("lod" + lod.toString() + "_table");
+                    for (let z = 0; z < lod_stride; z++) {
+                        for (let x = 0; x < lod_stride; x++) {
+                            if (lodData[x + z * lod_stride] == 1) {
+                                myTable.rows[z].cells[x].style.background = "yellow";
+                            }
+                            else if (lodData[x + z * lod_stride] == 2) {
+                                myTable.rows[z].cells[x].style.background = "green";
+                            }
+                        }
+                    }
+                }
             };
 
             ws.onclose = function () {
-                document.getElementById('status').innerText = "closed websocket, reconnecting...";
+                document.getElementById("status").innerText = "closed websocket, reconnecting...";
                 connectionInterval = setInterval(WebSocketTest, 1500);
                 clearInterval(msgInterval);
                 msgInterval = null;
@@ -47,21 +82,89 @@
         function lol(ws) {
             ws.send("wpm/buckets");
         }
+
+        function tableCreate(size, id) {
+            const body = document.body;
+            const tbl = document.createElement("table");
+            tbl.style.width = "600px";
+            tbl.style.height = "600px";
+            tbl.style.border = "1px solid red";
+            tbl.style.background = "grey";
+            tbl.style.fontFamily = "consolas";
+            tbl.style.float = "left";
+            tbl.style.margin = "5px";
+            tbl.style.borderCollapse = "collapse";
+            tbl.id = id;
+
+            header = tbl.createTHead();
+            header.innerText = id;
+            header.style.display = "table-caption";
+            header.style.background = "#222";
+
+            for (let i = 0; i < size; i++) {
+                const tr = tbl.insertRow();
+                tr.style.margin = "1px";
+                for (let j = 0; j < size; j++) {
+                    const td = tr.insertCell();
+                    td.style.background = "black";
+                    td.style.margin = "1px";
+                    td.style.padding = "1px";
+                    td.style.border = "1px solid #444";
+                }
+            }
+            body.appendChild(tbl);
+        }
     </script>
 
 </head>
 
-<body>
-    <div id="sse">
-        <a href="javascript:WebSocketTest()">Run WebSocket</a>
-    </div>
-
+<body style="background-color:#333; color: silver;">
     <p id="status">waiting</p>
-    <p id="timeoflast">0</p>
-    <p id="bucket0"></p>
-    <p id="bucket1"></p>
-    <p id="bucket2"></p>
+    <p id="timeoflast">time</p>
+    <p id="bucket0">bucket0</p>
+    <p id="bucket1">bucket1</p>
+    <p id="bucket2">bucket2</p>
+    <p id="lod0">lod0</p>
+    <p id="lod1">lod1</p>
+    <p id="lod2">lod2</p>
+    <p id="lod3">lod3</p>
     <p id="current_highest_prio"></p>
+
+    <!-- <style type="text/css">
+        .tg {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+
+        .tg td {
+            border-color: black;
+            border-style: solid;
+            border-width: 1px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            overflow: hidden;
+            padding: 10px 5px;
+            word-break: normal;
+        }
+
+        .tg th {
+            border-color: black;
+            border-style: solid;
+            border-width: 1px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            font-weight: normal;
+            overflow: hidden;
+            padding: 10px 5px;
+            word-break: normal;
+        }
+
+        .tg .tg-0lax {
+            text-align: left;
+            vertical-align: top
+        }
+    </style> -->
+
 </body>
 
 </html>

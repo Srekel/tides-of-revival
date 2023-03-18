@@ -199,7 +199,9 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
         .current_highest_prio = world_patch_mgr.bucket_queue.current_highest_prio,
     };
 
-    var lods: [4][max_patch]bool = undefined;
+    var lods: [4][max_patch * max_patch]u32 = undefined;
+    var lods_loaded: [4]u32 = .{ 0, 0, 0, 0 };
+    var lods_queued: [4]u32 = .{ 0, 0, 0, 0 };
     // _ = lods;
     // var lookups = .{
     //     .lods = lods,
@@ -207,7 +209,7 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
 
     for (&lods) |*lod| {
         for (lod) |*p| {
-            p.* = false;
+            p.* = 0;
         }
     }
 
@@ -215,7 +217,12 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
     while (live_handles.next()) |patch_handle| {
         // _ = patch_handle;
         const patch: *Patch = world_patch_mgr.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
-        lods[patch.lookup.lod][patch.patch_x] = true;
+        if (patch.lookup.patch_type_id == 0) {
+            const patch_stride = 8 * std.math.pow(u32, 2, 3 - patch.lookup.lod);
+            lods[patch.lookup.lod][patch.patch_x + patch.patch_z * patch_stride] = if (patch.data != null) 2 else 1;
+            lods_loaded[patch.lookup.lod] += if (patch.data != null) 1 else 0;
+            lods_queued[patch.lookup.lod] += if (patch.data == null) 1 else 0;
+        }
     }
     // while (world_patch_mgr.handle_map_by_lookup.keyIterator().next()) |key| {
 
@@ -224,6 +231,8 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
     var output = .{
         .buckets = buckets,
         .lods = lods,
+        .lods_loaded = lods_loaded,
+        .lods_queued = lods_queued,
     };
 
     var string = std.ArrayList(u8).init(allocator);
