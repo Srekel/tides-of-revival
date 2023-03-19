@@ -38,6 +38,13 @@ const PatchRequest = struct {
     prio: Priority,
 };
 
+// ██████╗  █████╗ ████████╗ ██████╗██╗  ██╗██╗      ██████╗  ██████╗ ██╗  ██╗██╗   ██╗██████╗
+// ██╔══██╗██╔══██╗╚══██╔══╝██╔════╝██║  ██║██║     ██╔═══██╗██╔═══██╗██║ ██╔╝██║   ██║██╔══██╗
+// ██████╔╝███████║   ██║   ██║     ███████║██║     ██║   ██║██║   ██║█████╔╝ ██║   ██║██████╔╝
+// ██╔═══╝ ██╔══██║   ██║   ██║     ██╔══██║██║     ██║   ██║██║   ██║██╔═██╗ ██║   ██║██╔═══╝
+// ██║     ██║  ██║   ██║   ╚██████╗██║  ██║███████╗╚██████╔╝╚██████╔╝██║  ██╗╚██████╔╝██║
+// ╚═╝     ╚═╝  ╚═╝   ╚═╝    ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝
+
 pub const PatchLookup = struct {
     patch_x: max_patch_int,
     patch_z: max_patch_int,
@@ -61,9 +68,16 @@ pub const PatchLookup = struct {
     pub fn format(lookup: PatchLookup, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = fmt;
         _ = options;
-        try writer.print("PL(PT{}, LoD{}, ({any},{any}))", .{ lookup.patch_type_id, lookup.lod, lookup.patch_x, lookup.patch_z });
+        try writer.print("PL(({any: >3},{any: >3}), PT{}, LoD{})", .{ lookup.patch_x, lookup.patch_z, lookup.patch_type_id, lookup.lod });
     }
 };
+
+// ██████╗  █████╗ ████████╗ ██████╗██╗  ██╗
+// ██╔══██╗██╔══██╗╚══██╔══╝██╔════╝██║  ██║
+// ██████╔╝███████║   ██║   ██║     ███████║
+// ██╔═══╝ ██╔══██║   ██║   ██║     ██╔══██║
+// ██║     ██║  ██║   ██║   ╚██████╗██║  ██║
+// ╚═╝     ╚═╝  ╚═╝   ╚═╝    ╚═════╝╚═╝  ╚═╝
 
 pub const Patch = struct {
     lookup: PatchLookup,
@@ -96,6 +110,7 @@ pub const Patch = struct {
     pub fn addOrUpdateRequester(self: *Patch, requester_id: RequesterId, prio: Priority) void {
         if (requester_id == dependency_requester_id) {
             self.request_count_dependents += 1;
+            std.log.debug("WPM: Requesting dependency #{} on {}, Pr{}", .{ self.request_count_dependents, self.lookup, @enumToInt(prio) });
         } else {
             var i_req: u32 = 0;
             while (i_req < self.request_count) : (i_req += 1) {
@@ -123,6 +138,7 @@ pub const Patch = struct {
     pub fn removeRequester(self: *Patch, requester_id: RequesterId) void {
         if (requester_id == dependency_requester_id) {
             self.request_count_dependents -= 1;
+            std.log.debug("WPM: Removing dependency #{} on {}", .{ self.request_count_dependents, self.lookup });
             return;
         }
 
@@ -187,11 +203,8 @@ pub const PatchTypeContext = struct {
     world_patch_mgr: *WorldPatchManager,
 };
 
-// const lol = "hello from the world patch manager!";
 fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyopaque) []const u8 {
     _ = data;
-    // _ = allocator;
-    // _ = ctx;
     var world_patch_mgr = @ptrCast(*WorldPatchManager, @alignCast(@alignOf(*WorldPatchManager), ctx));
 
     const buckets = .{
@@ -204,10 +217,6 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
     var lods: [4][max_patch * max_patch]u32 = undefined;
     var lods_loaded: [4]u32 = .{ 0, 0, 0, 0 };
     var lods_queued: [4]u32 = .{ 0, 0, 0, 0 };
-    // _ = lods;
-    // var lookups = .{
-    //     .lods = lods,
-    // };
 
     for (&lods) |*lod| {
         for (lod) |*p| {
@@ -226,9 +235,6 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
             lods_queued[patch.lookup.lod] += if (patch.data == null) 1 else 0;
         }
     }
-    // while (world_patch_mgr.handle_map_by_lookup.keyIterator().next()) |key| {
-
-    // }
 
     var output = .{
         .buckets = buckets,
@@ -241,8 +247,14 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
     std.json.stringify(output, .{}, string.writer()) catch unreachable;
 
     return string.items;
-    // return data;
 }
+
+// ███╗   ███╗ █████╗ ███╗   ██╗ █████╗  ██████╗ ███████╗██████╗
+// ████╗ ████║██╔══██╗████╗  ██║██╔══██╗██╔════╝ ██╔════╝██╔══██╗
+// ██╔████╔██║███████║██╔██╗ ██║███████║██║  ███╗█████╗  ██████╔╝
+// ██║╚██╔╝██║██╔══██║██║╚██╗██║██╔══██║██║   ██║██╔══╝  ██╔══██╗
+// ██║ ╚═╝ ██║██║  ██║██║ ╚████║██║  ██║╚██████╔╝███████╗██║  ██║
+// ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const WorldPatchManager = struct {
     allocator: std.mem.Allocator,
@@ -310,8 +322,6 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn getLookup(world_x: f32, world_z: f32, lod: LoD, patch_type_id: PatchTypeId) PatchLookup {
-        // NOTE(Anders): In case I get confused again, yes this is a static function....
-        // https://github.com/ziglang/zig/issues/14880
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
         const world_x_begin = world_stride * @divFloor(world_x, world_stride);
         const world_z_begin = world_stride * @divFloor(world_z, world_stride);
@@ -426,6 +436,7 @@ pub const WorldPatchManager = struct {
             };
             patch.addOrUpdateRequester(requester_id, prio);
 
+            std.log.debug("WPM: Pushing {}, Pr{} to queue", .{ patch.lookup, @enumToInt(patch.highest_prio) });
 
             // NOTE(Anders): Since the bucket queue is LIFO, it's important that we add this patch first
             // before any potential dependencies, so that they are loaded first.
@@ -494,6 +505,7 @@ pub const WorldPatchManager = struct {
                 .asset_manager = &self.asset_manager,
                 .world_patch_mgr = self,
             };
+            std.log.debug("WPM: Loading {}, Pr{}", .{ patch.lookup, @enumToInt(patch.highest_prio) });
             patch_type.loadFn(patch, ctx);
 
             // if (patch_type.dependenciesFn) |dependenciesFn| {
