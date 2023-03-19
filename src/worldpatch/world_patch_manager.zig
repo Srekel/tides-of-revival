@@ -326,13 +326,19 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn getLookupsFromRectangle(patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD, out_lookups: *std.ArrayList(PatchLookup)) void {
-        const area_x = std.math.clamp(area.x, 0, max_world_size);
-        const area_z = std.math.clamp(area.z, 0, max_world_size);
+
+        // NOTE(Anders) HACK!
+        const patch_lod_end = 8 * std.math.pow(u16, 2, 3 - lod);
+
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @intToFloat(f32, lod));
-        const patch_x_begin = @floatToInt(u16, @divFloor(area_x, world_stride));
-        const patch_z_begin = @floatToInt(u16, @divFloor(area_z, world_stride));
-        const patch_x_end = @floatToInt(u16, @ceil((area.x + area.width) / world_stride));
-        const patch_z_end = @floatToInt(u16, @ceil((area.z + area.height) / world_stride));
+        const patch_x_begin_i = @floatToInt(i32, @divFloor(area.x, world_stride));
+        const patch_z_begin_i = @floatToInt(i32, @divFloor(area.z, world_stride));
+        const patch_x_end_i = @floatToInt(i32, @ceil((area.x + area.width) / world_stride));
+        const patch_z_end_i = @floatToInt(i32, @ceil((area.z + area.height) / world_stride));
+        const patch_x_begin = @intCast(u16, std.math.clamp(patch_x_begin_i, 0, patch_lod_end));
+        const patch_z_begin = @intCast(u16, std.math.clamp(patch_z_begin_i, 0, patch_lod_end));
+        const patch_x_end = @intCast(u16, std.math.clamp(patch_x_end_i, 0, patch_lod_end));
+        const patch_z_end = @intCast(u16, std.math.clamp(patch_z_end_i, 0, patch_lod_end));
 
         var patch_z = patch_z_begin;
         while (patch_z < patch_z_end) : (patch_z += 1) {
