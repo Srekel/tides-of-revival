@@ -104,7 +104,7 @@ pub const Patch = struct {
     }
 
     pub fn hasRequests(self: Patch) bool {
-        return self.request_count > 0 and self.request_count_dependents > 0;
+        return self.request_count > 0 or self.request_count_dependents > 0;
     }
 
     pub fn addOrUpdateRequester(self: *Patch, requester_id: RequesterId, prio: Priority) void {
@@ -459,14 +459,7 @@ pub const WorldPatchManager = struct {
                 const prio_old = patch.highest_prio;
                 patch.removeRequester(requester_id);
                 if (!patch.hasRequests()) {
-                    if (patch.data != null) {
-                        self.allocator.free(patch.data.?);
-                        patch.data = null;
-                    } else {
-                        self.bucket_queue.removeElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle));
-                    }
-                    self.patch_pool.removeAssumeLive(patch_handle);
-                    _ = self.handle_map_by_lookup.remove(patch_lookup);
+                    self.unloadPatch(patch_handle, patch);
                     continue;
                 }
 
@@ -508,32 +501,60 @@ pub const WorldPatchManager = struct {
             std.log.debug("WPM: Loading {}, Pr{}", .{ patch.lookup, @enumToInt(patch.highest_prio) });
             patch_type.loadFn(patch, ctx);
 
-            // if (patch_type.dependenciesFn) |dependenciesFn| {
-            //     const dependency_ctx = PatchTypeContext{
-            //         .allocator = self.allocator,
-            //         .asset_manager = &self.asset_manager,
-            //         .world_patch_mgr = self,
-            //     };
+            // Unload any dependency patches
+            if (patch_type.dependenciesFn) |dependenciesFn| {
+                const dependency_ctx = PatchTypeContext{
+                    .allocator = self.allocator,
+                    .asset_manager = &self.asset_manager,
+                    .world_patch_mgr = self,
+                };
 
-            //     var dependency_list: [max_dependencies]PatchLookup = undefined;
-            //     const dependency_slice = dependenciesFn(patch.lookup, &dependency_list, dependency_ctx);
-            //     for (dependency_slice) |dependency_lookup| {
-            //         const dependency_patch_handle = self.handle_map_by_lookup.get(dependency_lookup).?;
-            //         const dependency_patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(dependency_patch_handle, .patch);
-            //         dependency_patch.request_count_dependents -= 1;
-            //         if (!dependency_patch.hasRequests()) {
-            //             // TODO: Extract to deinit-function
-            //             if (patch.data != null) {
-            //                 self.allocator.free(patch.data.?);
-            //                 patch.data = null;
-            //             } else {
-            //                 self.bucket_queue.removeElems(util.sliceOfInstanceConst(PatchHandle, &dependency_patch_handle));
-            //             }
-            //             self.patch_pool.removeAssumeLive(dependency_patch_handle);
-            //             _ = self.handle_map_by_lookup.remove(dependency_patch.lookup);
-            //         }
-            //     }
-            // }
+                var dependency_list: [max_dependencies]PatchLookup = undefined;
+                const dependency_slice = dependenciesFn(patch.lookup, &dependency_list, dependency_ctx);
+                for (dependency_slice) |dependency_lookup| {
+                    const dependency_patch_handle = self.handle_map_by_lookup.get(dependency_lookup).?;
+                    const dependency_patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(dependency_patch_handle, .patch);
+                    dependency_patch.removeRequester(dependency_requester_id);
+                    if (!dependency_patch.hasRequests()) {
+                        std.log.debug("WPM: Unloading {} dependent={}", .{ dependency_patch.lookup, patch.lookup });
+                        self.unloadPatch(dependency_patch_handle, dependency_patch);
+                    }
+                }
+            }
         }
+    }
+
+    fn unloadPatch(self: *WorldPatchManager, patch_handle: PatchHandle, patch: *Patch) void {
+        // std.log.debug("WPM: Unloading {}, lastreq={any}", .{ patch.lookup, requester_id });
+        if (patch.data != null) {
+            self.allocator.free(patch.data.?);
+            patch.data = null;
+        } else {
+            self.bucket_queue.removeElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle));
+
+            // Unload any dependency patches
+            const patch_type = self.patch_types.items[patch.patch_type_id];
+            if (patch_type.dependenciesFn) |dependenciesFn| {
+                const dependency_ctx = PatchTypeContext{
+                    .allocator = self.allocator,
+                    .asset_manager = &self.asset_manager,
+                    .world_patch_mgr = self,
+                };
+
+                var dependency_list: [max_dependencies]PatchLookup = undefined;
+                const dependency_slice = dependenciesFn(patch.lookup, &dependency_list, dependency_ctx);
+                for (dependency_slice) |dependency_lookup| {
+                    const dependency_patch_handle = self.handle_map_by_lookup.get(dependency_lookup).?;
+                    const dependency_patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(dependency_patch_handle, .patch);
+                    dependency_patch.removeRequester(dependency_requester_id);
+                    if (!dependency_patch.hasRequests()) {
+                        self.unloadPatch(dependency_patch_handle, dependency_patch);
+                    }
+                }
+            }
+        }
+
+        self.patch_pool.removeAssumeLive(patch_handle);
+        _ = self.handle_map_by_lookup.remove(patch.lookup);
     }
 };
