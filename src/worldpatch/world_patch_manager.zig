@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const Pool = @import("zpool").Pool;
 const IdLocal = @import("../variant.zig").IdLocal;
 const BucketQueue = @import("../core/bucket_queue.zig").BucketQueue;
@@ -29,6 +30,7 @@ pub const Priority = enum {
 
 pub const RequesterId = u8;
 pub const PatchTypeId = u8;
+pub const max_dependencies = 2; // intentially low for testing
 const dependency_requester_id = 0;
 
 const PatchRequest = struct {
@@ -59,7 +61,7 @@ pub const PatchLookup = struct {
     pub fn format(lookup: PatchLookup, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = fmt;
         _ = options;
-        try writer.print("PL(T{}, L{}, ({any},{any}))", .{ lookup.patch_type_id, lookup.lod, lookup.patch_x, lookup.patch_z });
+        try writer.print("PL(PT{}, LoD{}, ({any},{any}))", .{ lookup.patch_type_id, lookup.lod, lookup.patch_x, lookup.patch_z });
     }
 };
 
@@ -175,7 +177,7 @@ pub const RequestRectangle = struct {
 
 pub const PatchType = struct {
     id: IdLocal,
-    dependenciesFn: ?*const fn (PatchLookup, *[2]PatchLookup, PatchTypeContext) []PatchLookup = null,
+    dependenciesFn: ?*const fn (PatchLookup, *[max_dependencies]PatchLookup, PatchTypeContext) []PatchLookup = null,
     loadFn: *const fn (*Patch, PatchTypeContext) void,
 };
 
@@ -259,7 +261,7 @@ pub const WorldPatchManager = struct {
             .requesters = std.ArrayList(IdLocal).initCapacity(allocator, max_requesters) catch unreachable,
             .patch_types = std.ArrayList(PatchType).initCapacity(allocator, max_patch_types) catch unreachable,
             .handle_map_by_lookup = std.AutoHashMap(PatchLookup, PatchHandle).init(allocator),
-            .patch_pool = PatchPool.initCapacity(allocator, 8) catch unreachable, // temporarily low for testing
+            .patch_pool = PatchPool.initCapacity(allocator, 512) catch unreachable, // temporarily low for testing
             .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
             .asset_manager = asset_manager,
             .debug_server = debug_server.DebugServer.create(1234, allocator),
@@ -350,7 +352,7 @@ pub const WorldPatchManager = struct {
     fn updateDependencyPrioritiesRecursively(self: *WorldPatchManager, patch: *Patch, dependency_ctx: PatchTypeContext) void {
         const patch_type = self.patch_types.items[patch.lookup.patch_type_id];
         if (patch_type.dependenciesFn) |dependenciesFn| {
-            var dependency_list: [2]PatchLookup = undefined;
+            var dependency_list: [max_dependencies]PatchLookup = undefined;
             const dependency_slice = dependenciesFn(patch.lookup, &dependency_list, dependency_ctx);
             for (dependency_slice) |dependency_lookup| {
                 const dependency_patch_handle = self.handle_map_by_lookup.get(dependency_lookup).?;
@@ -373,7 +375,7 @@ pub const WorldPatchManager = struct {
 
     pub fn addLoadRequestFromLookups(self: *WorldPatchManager, requester_id: RequesterId, lookups: []PatchLookup, prio: Priority) void {
         // // NOTE(Anders) 2 is ultimately quite low, its just to see if we hit it.
-        var dependency_list: [2]PatchLookup = undefined;
+        var dependency_list: [max_dependencies]PatchLookup = undefined;
 
         const dependency_ctx = PatchTypeContext{
             .allocator = self.allocator,
@@ -495,7 +497,7 @@ pub const WorldPatchManager = struct {
             //         .world_patch_mgr = self,
             //     };
 
-            //     var dependency_list: [2]PatchLookup = undefined;
+            //     var dependency_list: [max_dependencies]PatchLookup = undefined;
             //     const dependency_slice = dependenciesFn(patch.lookup, &dependency_list, dependency_ctx);
             //     for (dependency_slice) |dependency_lookup| {
             //         const dependency_patch_handle = self.handle_map_by_lookup.get(dependency_lookup).?;

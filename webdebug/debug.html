@@ -32,12 +32,11 @@
                 msgInterval = setInterval(lol, 1, ws);
 
                 for (let lod = 0; lod < 4; lod++) {
-                    const lodData = json_data["lods"][lod];
                     const lod_stride = 8 * Math.pow(2, 3 - lod)
                     var myTable = document.getElementById("lod" + lod.toString() + "_table");
                     for (let z = 0; z < lod_stride; z++) {
                         for (let x = 0; x < lod_stride; x++) {
-                            myTable.rows[z].cells[x].style.background = "black";
+                            myTable.rows[x].cells[z].style.background = "black";
                         }
                     }
                 }
@@ -45,9 +44,7 @@
 
             ws.onmessage = function (evt) {
                 const json_data = JSON.parse(evt.data);
-                document.getElementById("bucket0").innerText = "bucket0: " + json_data["buckets"]["bucket0"];
-                document.getElementById("bucket1").innerText = "bucket1: " + json_data["buckets"]["bucket1"];
-                document.getElementById("bucket2").innerText = "bucket2: " + json_data["buckets"]["bucket2"];
+                document.getElementById("bucket").innerText = "bucket queue:" + " high=" + json_data["buckets"]["bucket0"] + " med=" + json_data["buckets"]["bucket1"] + " low=" + json_data["buckets"]["bucket2"];
                 document.getElementById("current_highest_prio").innerText = "current_highest_prio: " + json_data["buckets"]["current_highest_prio"];
                 document.getElementById("timeoflast").innerText = Date.now().toLocaleString();// + json_data["lods"];
 
@@ -61,10 +58,13 @@
                     for (let z = 0; z < lod_stride; z++) {
                         for (let x = 0; x < lod_stride; x++) {
                             if (lodData[x + z * lod_stride] == 1) {
-                                myTable.rows[z].cells[x].style.background = "yellow";
+                                myTable.rows[x].cells[z].style.background = "yellow";
                             }
                             else if (lodData[x + z * lod_stride] == 2) {
-                                myTable.rows[z].cells[x].style.background = "green";
+                                myTable.rows[x].cells[z].style.background = "green";
+                            }
+                            else {
+                                myTable.rows[x].cells[z].style.background = "black";
                             }
                         }
                     }
@@ -109,7 +109,13 @@
                     td.style.background = "black";
                     td.style.margin = "1px";
                     td.style.padding = "1px";
-                    td.style.border = "1px solid #444";
+                    td.style.border = "1px solid #222";
+                    if (i % 8 == 7) {
+                        td.style.borderBottom = "1px solid #444";
+                    }
+                    if (j % 8 == 7) {
+                        td.style.borderRight = "1px solid #444";
+                    }
                 }
             }
             body.appendChild(tbl);
@@ -121,9 +127,7 @@
 <body style="background-color:#333; color: silver;">
     <p id="status">waiting</p>
     <p id="timeoflast">time</p>
-    <p id="bucket0">bucket0</p>
-    <p id="bucket1">bucket1</p>
-    <p id="bucket2">bucket2</p>
+    <p id="bucket">bucket queue</p>
     <p id="lod0">lod0</p>
     <p id="lod1">lod1</p>
     <p id="lod2">lod2</p>

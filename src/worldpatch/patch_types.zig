@@ -29,7 +29,11 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
 // ██║  ██║███████╗██║╚██████╔╝██║  ██║   ██║   ██║ ╚═╝ ██║██║  ██║██║
 // ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
 
-fn heightmapDependencies(patch_lookup: world_patch_manager.PatchLookup, dependencies: *[2]PatchLookup, ctx: world_patch_manager.PatchTypeContext) []PatchLookup {
+fn heightmapDependencies(
+    patch_lookup: world_patch_manager.PatchLookup,
+    dependencies: *[world_patch_manager.max_dependencies]PatchLookup,
+    ctx: world_patch_manager.PatchTypeContext,
+) []PatchLookup {
     if (patch_lookup.lod >= 2) {
         return dependencies[0..0];
     }
