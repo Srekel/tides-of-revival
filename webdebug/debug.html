@@ -32,11 +32,11 @@
                 msgInterval = setInterval(lol, 1, ws);
 
                 for (let lod = 0; lod < 4; lod++) {
-                    const lod_stride = 8 * Math.pow(2, 3 - lod)
+                    const lodStride = 8 * Math.pow(2, 3 - lod)
                     var myTable = document.getElementById("lod" + lod.toString() + "_table");
-                    for (let z = 0; z < lod_stride; z++) {
-                        for (let x = 0; x < lod_stride; x++) {
-                            myTable.rows[x].cells[z].style.background = "black";
+                    for (let z = 0; z < lodStride; z++) {
+                        for (let x = 0; x < lodStride; x++) {
+                            myTable.rows[lodStride - z - 1].cells[x].style.background = "black";
                         }
                     }
                 }
@@ -53,18 +53,18 @@
                     document.getElementById("lod" + lod.toString()).innerText = str;
 
                     const lodData = json_data["lods"][lod];
-                    const lod_stride = 8 * Math.pow(2, 3 - lod)
+                    const lodStride = 8 * Math.pow(2, 3 - lod)
                     var myTable = document.getElementById("lod" + lod.toString() + "_table");
-                    for (let z = 0; z < lod_stride; z++) {
-                        for (let x = 0; x < lod_stride; x++) {
-                            if (lodData[x + z * lod_stride] == 1) {
-                                myTable.rows[x].cells[z].style.background = "yellow";
+                    for (let z = 0; z < lodStride; z++) {
+                        for (let x = 0; x < lodStride; x++) {
+                            if (lodData[x + z * lodStride] == 1) {
+                                myTable.rows[lodStride - z - 1].cells[x].style.background = "yellow";
                             }
-                            else if (lodData[x + z * lod_stride] == 2) {
-                                myTable.rows[x].cells[z].style.background = "green";
+                            else if (lodData[x + z * lodStride] == 2) {
+                                myTable.rows[lodStride - z - 1].cells[x].style.background = "green";
                             }
                             else {
-                                myTable.rows[x].cells[z].style.background = "black";
+                                myTable.rows[lodStride - z - 1].cells[x].style.background = "black";
                             }
                         }
                     }
@@ -110,11 +110,17 @@
                     td.style.margin = "1px";
                     td.style.padding = "1px";
                     td.style.border = "1px solid #222";
+                    if (i % 4 == 3) {
+                        td.style.borderBottom = "1px solid #333";
+                    }
+                    if (j % 4 == 3) {
+                        td.style.borderRight = "1px solid #333";
+                    }
                     if (i % 8 == 7) {
-                        td.style.borderBottom = "1px solid #444";
+                        td.style.borderBottom = "1px solid #555";
                     }
                     if (j % 8 == 7) {
-                        td.style.borderRight = "1px solid #444";
+                        td.style.borderRight = "1px solid #555";
                     }
                 }
             }
