@@ -1254,12 +1254,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     if (tides_math.dist3_xz(state.cam_pos_old, camera_position) > 32) {
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-        for (0..1) |lod| {
-            // for (0..3) |lod| {
+        for (0..3) |lod| {
             lookups_old.clearRetainingCapacity();
             lookups_new.clearRetainingCapacity();
 
-            const area_width = 3 * config.patch_size * @intToFloat(f32, std.math.pow(usize, 2, lod));
+            const area_width = 1 * config.patch_size * @intToFloat(f32, std.math.pow(usize, 2, lod));
 
             const area_old = world_patch_manager.RequestRectangle{
                 .x = state.cam_pos_old[0] - area_width,
