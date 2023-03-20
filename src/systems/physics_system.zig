@@ -16,7 +16,7 @@ const indices_per_patch: u32 = (config.patch_resolution - 1) * (config.patch_res
 
 const WorldLoaderData = struct {
     ent: flecs.EntityId = 0,
-    pos_old: [3]f32 = .{ 0, 0, 0 },
+    pos_old: [3]f32 = .{ -100000, 0, -100000 },
 };
 
 const Patch = struct {
@@ -192,7 +192,7 @@ fn updateLoaders(state: *SystemState) void {
         }
 
         // HACK
-        if (loader.pos_old[0] != 0) {
+        if (loader.pos_old[0] != -100000) {
             state.world_patch_mgr.removeLoadRequestFromLookups(state.requester_id, lookups_old.items);
         }
 

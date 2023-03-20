@@ -202,7 +202,7 @@ const SystemState = struct {
     heightmap_patch_type_id: world_patch_manager.PatchTypeId,
     splatmap_patch_type_id: world_patch_manager.PatchTypeId,
 
-    cam_pos_old: [3]f32 = .{ 0, 0, 0 }, // NOTE(Anders): Assumes only one camera
+    cam_pos_old: [3]f32 = .{ -100000, 0, -100000 }, // NOTE(Anders): Assumes only one camera
 };
 
 fn loadMesh(
@@ -1297,7 +1297,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
             const rid = state.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
             // NOTE(Anders): HACK
-            if (state.cam_pos_old[0] != 0) {
+            if (state.cam_pos_old[0] != -100000) {
                 state.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
             }
 
