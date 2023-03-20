@@ -12,7 +12,7 @@ const PatchLookup = world_patch_manager.PatchLookup;
 pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManager) void {
     _ = world_patch_mgr.registerPatchType(.{
         .id = IdLocal.init("heightmap"),
-        .dependenciesFn = heightmapDependencies,
+        // .dependenciesFn = heightmapDependencies,
         .loadFn = heightmapLoad,
     });
 
