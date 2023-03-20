@@ -788,11 +788,11 @@ fn loadResources(
 
     // Request loading all the other LODs
     lookups.clearRetainingCapacity();
-    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 2, &lookups);
-    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 2, &lookups);
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 2, &lookups);
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 2, &lookups);
     // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 1 &lookups);
     // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 1, &lookups);
-    world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .medium);
+    // world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .medium);
 
     // Load all LOD's heightmaps
     {
@@ -1254,48 +1254,55 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     if (tides_math.dist3_xz(state.cam_pos_old, camera_position) > 32) {
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+        for (0..1) |lod| {
+            // for (0..3) |lod| {
+            lookups_old.clearRetainingCapacity();
+            lookups_new.clearRetainingCapacity();
 
-        const area_old = world_patch_manager.RequestRectangle{
-            .x = state.cam_pos_old[0] - 512,
-            .z = state.cam_pos_old[2] - 512,
-            .width = 1024,
-            .height = 1024,
-        };
+            const area_width = 3 * config.patch_size * @intToFloat(f32, std.math.pow(usize, 2, lod));
 
-        const area_new = world_patch_manager.RequestRectangle{
-            .x = camera_position[0] - 512,
-            .z = camera_position[2] - 512,
-            .width = 1024,
-            .height = 1024,
-        };
+            const area_old = world_patch_manager.RequestRectangle{
+                .x = state.cam_pos_old[0] - area_width,
+                .z = state.cam_pos_old[2] - area_width,
+                .width = area_width * 2,
+                .height = area_width * 2,
+            };
 
-        const lod = 0;
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_old, lod, &lookups_old);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_old, lod, &lookups_old);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_new, lod, &lookups_new);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_new, lod, &lookups_new);
+            const area_new = world_patch_manager.RequestRectangle{
+                .x = camera_position[0] - area_width,
+                .z = camera_position[2] - area_width,
+                .width = area_width * 2,
+                .height = area_width * 2,
+            };
 
-        var i_old: u32 = 0;
-        blk: while (i_old < lookups_old.items.len) {
-            var i_new: u32 = 0;
-            while (i_new < lookups_new.items.len) {
-                if (lookups_old.items[i_old].eql(lookups_new.items[i_new])) {
-                    _ = lookups_old.swapRemove(i_old);
-                    _ = lookups_new.swapRemove(i_new);
-                    continue :blk;
+            const lod_u4 = @intCast(u4, lod);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_old, lod_u4, &lookups_old);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_old, lod_u4, &lookups_old);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_new, lod_u4, &lookups_new);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_new, lod_u4, &lookups_new);
+
+            var i_old: u32 = 0;
+            blk: while (i_old < lookups_old.items.len) {
+                var i_new: u32 = 0;
+                while (i_new < lookups_new.items.len) {
+                    if (lookups_old.items[i_old].eql(lookups_new.items[i_new])) {
+                        _ = lookups_old.swapRemove(i_old);
+                        _ = lookups_new.swapRemove(i_new);
+                        continue :blk;
+                    }
+                    i_new += 1;
                 }
-                i_new += 1;
+                i_old += 1;
             }
-            i_old += 1;
-        }
 
-        const rid = state.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
-        // NOTE(Anders): HACK
-        if (state.cam_pos_old[0] != 0) {
-            state.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
-        }
+            const rid = state.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
+            // NOTE(Anders): HACK
+            if (state.cam_pos_old[0] != 0) {
+                state.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
+            }
 
-        state.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
+            state.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
+        }
 
         state.cam_pos_old = camera_position;
     }
