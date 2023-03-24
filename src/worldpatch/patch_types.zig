@@ -20,6 +20,11 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
         .id = IdLocal.init("splatmap"),
         .loadFn = splatmapLoad,
     });
+
+    _ = world_patch_mgr.registerPatchType(.{
+        .id = IdLocal.init("props"),
+        .loadFn = propsLoad,
+    });
 }
 
 // ██╗  ██╗███████╗██╗ ██████╗ ██╗  ██╗████████╗███╗   ███╗ █████╗ ██████╗
@@ -156,4 +161,73 @@ fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Patc
     var data = ctx.allocator.alloc(u8, splatmap_image.data.len) catch unreachable;
     std.mem.copy(u8, data, splatmap_image.data);
     patch.data = data;
+}
+
+// ██████╗ ██████╗  ██████╗ ██████╗ ███████╗
+// ██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔════╝
+// ██████╔╝██████╔╝██║   ██║██████╔╝███████╗
+// ██╔═══╝ ██╔══██╗██║   ██║██╔═══╝ ╚════██║
+// ██║     ██║  ██║╚██████╔╝██║     ███████║
+// ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚══════╝
+
+fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeContext) void {
+    var props_namebuf: [256]u8 = undefined;
+    const props_path = std.fmt.bufPrintZ(
+        props_namebuf[0..props_namebuf.len],
+        "content/patch/props/lod{}/props_x{}_y{}.txt",
+        .{
+            patch.lookup.lod,
+            patch.lookup.patch_x,
+            patch.lookup.patch_z,
+        },
+    ) catch unreachable;
+
+    const Prop = struct {
+        id: IdLocal,
+        pos: [3]f32,
+        rot: f32,
+    };
+
+    const props_asset_id = IdLocal.init(props_path);
+    const props_data = ctx.asset_manager.loadAssetBlocking(props_asset_id, .instant_blocking);
+    if (props_data.len == 0) {
+        // NOTE: HACK!
+        var data = ctx.allocator.alloc(Prop, 1) catch unreachable;
+        patch.data = std.mem.sliceAsBytes(data);
+        return;
+    }
+
+    var props = std.ArrayList(Prop).initCapacity(ctx.allocator, props_data.len / 30) catch unreachable;
+    var buf_reader = std.io.fixedBufferStream(props_data);
+    var in_stream = buf_reader.reader();
+    var buf: [1024]u8 = undefined;
+    while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
+        var comma_curr: usize = 0;
+        var comma_next: usize = std.mem.indexOfScalar(u8, line, ","[0]).?;
+        const name = line[comma_curr..comma_next];
+
+        comma_curr = comma_next + 1;
+        comma_next = comma_curr + std.mem.indexOfScalar(u8, line[comma_curr..], ","[0]).?;
+        const pos_x = std.fmt.parseFloat(f32, line[comma_curr..comma_next]) catch unreachable;
+
+        comma_curr = comma_next + 1;
+        comma_next = comma_curr + std.mem.indexOfScalar(u8, line[comma_curr..], ","[0]).?;
+        const pos_y = std.fmt.parseFloat(f32, line[comma_curr..comma_next]) catch unreachable;
+
+        comma_curr = comma_next + 1;
+        comma_next = comma_curr + std.mem.indexOfScalar(u8, line[comma_curr..], ","[0]).?;
+        const pos_z = std.fmt.parseFloat(f32, line[comma_curr..comma_next]) catch unreachable;
+
+        comma_curr = comma_next + 1;
+        const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
+
+        const tree = Prop{
+            .id = IdLocal.init(name),
+            .pos = .{ pos_x, pos_y, pos_z },
+            .rot = rot_y,
+        };
+        props.appendAssumeCapacity(tree);
+    }
+
+    patch.data = std.mem.sliceAsBytes(props.items);
 }

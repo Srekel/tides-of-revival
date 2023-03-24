@@ -27,6 +27,7 @@ const input_system = @import("systems/input_system.zig");
 const input = @import("input.zig");
 const physics_system = @import("systems/physics_system.zig");
 const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
+const patch_prop_system = @import("systems/patch_prop_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const terrain_system = @import("systems/terrain_system.zig");
@@ -327,10 +328,17 @@ pub fn run() void {
     zmesh.init(arena);
     defer zmesh.deinit();
 
+    var patch_prop_sys = try patch_prop_system.create(
+        IdLocal.initFormat("patch_prop_system_{}", .{0}),
+        std.heap.page_allocator,
+        &flecs_world,
+        world_patch_mgr,
+    );
+    defer patch_prop_system.destroy(patch_prop_sys);
+
     var procmesh_sys = try procmesh_system.create(
         IdLocal.initFormat("procmesh_system_{}", .{0}),
         std.heap.page_allocator,
-
         &gfx_state,
         &flecs_world,
     );
@@ -345,15 +353,15 @@ pub fn run() void {
     );
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
 
-    var terrain_sys = try terrain_system.create(
-        IdLocal.init("terrain_system"),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-        physics_sys.physics_world,
-        terrain_noise,
-    );
-    defer terrain_system.destroy(terrain_sys);
+    // var terrain_sys = try terrain_system.create(
+    //     IdLocal.init("terrain_system"),
+    //     std.heap.page_allocator,
+    //     &gfx_state,
+    //     &flecs_world,
+    //     physics_sys.physics_world,
+    //     terrain_noise,
+    // );
+    // defer terrain_system.destroy(terrain_sys);
 
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,
@@ -438,6 +446,7 @@ pub fn run() void {
     });
     debug_camera_ent.set(fd.WorldLoader{
         .range = 2,
+        .props = true,
     });
     debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
