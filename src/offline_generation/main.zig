@@ -7,6 +7,7 @@ const IdLocal = v.IdLocal;
 
 const graph_util = @import("graph/util.zig");
 const graph_city = @import("graph/city.zig");
+const graph_forest = @import("graph/forest.zig");
 const graph_heightmap = @import("graph/heightmap.zig");
 const graph_patch_artifact = @import("graph/patch_artifact.zig");
 const graph_terrain_splatmap = @import("graph/terrain_splatmap.zig");
@@ -249,19 +250,34 @@ pub fn generate() void {
     };
 
     //
-    var cityNode = g.Node{
-        .name = IdLocal.init("City"),
-        .template = cityNodeTemplate,
-        .allocator = std.heap.page_allocator,
-        // .output_artifacts = true,
+    var cityNode = blk: {
+        var node = g.Node{
+            .name = IdLocal.init("City"),
+            .template = cityNodeTemplate,
+            .allocator = std.heap.page_allocator,
+            // .output_artifacts = true,
+        };
+        node.init();
+        node.getInput(IdLocal.init("Heightmap Patches")).reference = IdLocal.init("heightmapPatches");
+        node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
+        node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
+        break :blk node;
     };
-    cityNode.init();
-    var cityPatchesInputValue = cityNode.getInput(IdLocal.init("Heightmap Patches"));
-    cityPatchesInputValue.reference = IdLocal.init("heightmapPatches");
-    var citySeedInputValue = cityNode.getInput(IdLocal.init("Seed"));
-    citySeedInputValue.reference = IdLocal.init("seed");
-    var cityWorldWidthInputValue = cityNode.getInput(IdLocal.init("World Width"));
-    cityWorldWidthInputValue.reference = IdLocal.init("worldWidth");
+
+    const forestNodeTemplate = graph_forest.forestNodeTemplate;
+    var forestNode = blk: {
+        var node = g.Node{
+            .name = IdLocal.init("Forest"),
+            .template = forestNodeTemplate,
+            .allocator = std.heap.page_allocator,
+            .output_artifacts = true,
+        };
+        node.init();
+        node.getInput(IdLocal.init("Heightmap Patches")).reference = IdLocal.init("heightmapPatches");
+        node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
+        node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
+        break :blk node;
+    };
     // var cityOutputValue = cityNode.getOutput(IdLocal.init("Cities"));
     // cityOutputValue.reference.set("cities");
 
@@ -297,14 +313,15 @@ pub fn generate() void {
     graph.nodes.append(heightmapNode) catch unreachable;
     graph.nodes.append(splatmapNode) catch unreachable;
     // graph.nodes.append(cityNode) catch unreachable;
-    graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
-    graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
+    graph.nodes.append(forestNode) catch unreachable;
+    // graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
+    // graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(pcgNode) catch unreachable;
     // graph.nodes.append(addNode) catch unreachable;
     // _ = splatmapNode;
-    // _ = cityNode;
-    // _ = splatmapPatchArtifactNode;
-    // _ = heightmapPatchArtifactNode;
+    _ = cityNode;
+    _ = splatmapPatchArtifactNode;
+    _ = heightmapPatchArtifactNode;
 
     std.debug.print("Graph:", .{});
     graph.connect();
