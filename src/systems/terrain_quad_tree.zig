@@ -674,13 +674,13 @@ fn loadNodeHeightmap(
         .patch_type_id = heightmap_patch_type_id,
     };
 
-    const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
-    if (patch_opt) |patch| {
+    const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
+    if (patch_info.data_opt) |data| {
         const texture_desc = TextureDesc{
             .width = 65,
             .height = 65,
             .format = .R32_FLOAT,
-            .data = patch,
+            .data = data,
         };
         const heightmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
@@ -705,13 +705,13 @@ fn loadNodeSplatmap(
         .patch_type_id = splatmap_patch_type_id,
     };
 
-    const patch_opt = world_patch_mgr.tryGetPatch(lookup, u8);
-    if (patch_opt) |patch| {
+    const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
+    if (patch_info.data_opt) |data| {
         const texture_desc = TextureDesc{
             .width = 65,
             .height = 65,
             .format = .R8_UNORM,
-            .data = patch,
+            .data = data,
         };
         const splatmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
         node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);

@@ -9,8 +9,9 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/TidesOfRevival.exe",
-            "args": [],
-            // "args": ["--offlinegen"],
+            "args": [
+                // "--offlinegen",
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

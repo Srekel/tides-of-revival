@@ -180,8 +180,8 @@ fn updatePatches(system: *SystemState) void {
             rot: f32,
         };
 
-        const data_opt = system.world_patch_mgr.tryGetPatch(patch.lookup, Prop);
-        if (data_opt) |data| {
+        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, Prop);
+        if (patch_info.data_opt) |data| {
             patch.loaded = true;
             if (data.len == 1) {
                 // NOTE: HACK!

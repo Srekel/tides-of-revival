@@ -216,8 +216,8 @@ fn updatePatches(state: *SystemState) void {
             continue;
         }
 
-        const data_opt = state.world_patch_mgr.tryGetPatch(patch.lookup, f32);
-        if (data_opt) |data| {
+        const patch_info = state.world_patch_mgr.tryGetPatch(patch.lookup, f32);
+        if (patch_info.data_opt) |data| {
             // _ = data;
 
             const world_pos = patch.lookup.getWorldPos();

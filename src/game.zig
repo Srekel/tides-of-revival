@@ -259,24 +259,7 @@ pub fn run() void {
     var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, asset_manager);
     world_patch_mgr.debug_server.run();
     defer world_patch_mgr.destroy();
-    // _ = world_patch_mgr;
-    // const rid = world_patch_mgr.registerRequester(IdLocal.init("test_requester"));
-    // _ = rid;
     patch_types.registerPatchTypes(world_patch_mgr);
-    // _ = patch_type;
-    // world_patch_mgr.addLoadRequest(
-    //     rid,
-    //     0,
-    //     .{ .x = 0, .z = 0, .width = 64, .height = 64 },
-    //     3,
-    //     .high,
-    // );
-    // const lookup = world_patch_manager.WorldPatchManager.getLookup(10, 10, 0, 0);
-    // const lol1 = world_patch_mgr.tryGetPatch(lookup, u8);
-    // _ = lol1;
-    // world_patch_mgr.tick();
-    // const lol2 = world_patch_mgr.tryGetPatch(lookup, u8);
-    // _ = lol2;
 
     var physics_sys = try physics_system.create(
         IdLocal.init("physics_system_{}"),

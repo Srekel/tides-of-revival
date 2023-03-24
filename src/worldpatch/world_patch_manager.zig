@@ -79,12 +79,20 @@ pub const PatchLookup = struct {
 // ██║     ██║  ██║   ██║   ╚██████╗██║  ██║
 // ╚═╝     ╚═╝  ╚═╝   ╚═╝    ╚═════╝╚═╝  ╚═╝
 
+pub const PatchStatus = enum {
+    not_loaded,
+    loaded,
+    loaded_empty,
+    nonexistent,
+};
+
 pub const Patch = struct {
     lookup: PatchLookup,
     patch_x: u32,
     patch_z: u32,
     world_x: u32,
     world_z: u32,
+    status: PatchStatus = .not_loaded,
     data: ?[]u8 = null,
     requesters: [max_requesters]PatchRequest = undefined,
     request_count: u8 = 0,
@@ -470,16 +478,17 @@ pub const WorldPatchManager = struct {
         }
     }
 
-    pub fn tryGetPatch(self: WorldPatchManager, patch_lookup: PatchLookup, comptime T: type) ?[]T {
+    pub fn tryGetPatch(self: WorldPatchManager, patch_lookup: PatchLookup, comptime T: type) struct { status: PatchStatus, data_opt: ?[]T } {
         const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
         if (patch_handle_opt) |patch_handle| {
             const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
             if (patch.data) |data| {
-                return std.mem.bytesAsSlice(T, @alignCast(@alignOf(T), data));
+                return .{ .status = .loaded, .data_opt = std.mem.bytesAsSlice(T, @alignCast(@alignOf(T), data)) };
             }
-            return null;
+            return .{ .status = patch.status, .data_opt = null };
         }
-        return null;
+
+        return .{ .status = .nonexistent, .data_opt = null };
     }
 
     pub fn tickAll(self: *WorldPatchManager) void {
