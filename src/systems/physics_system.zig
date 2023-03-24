@@ -174,8 +174,9 @@ fn updateLoaders(state: *SystemState) void {
             .height = 128,
         };
 
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(0, area_old, 0, &lookups_old);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(0, area_new, 0, &lookups_new);
+        const patch_type_id = state.world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_old, 0, &lookups_old);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_new, 0, &lookups_new);
 
         var i_old: u32 = 0;
         blk: while (i_old < lookups_old.items.len) {
@@ -237,6 +238,7 @@ fn updatePatches(state: *SystemState) void {
             var indices = &state.indices;
             // var indices: [indices_per_patch]IndexType = undefined;
 
+            // TODO: Optimize, don't do it for every frame!
             var i: u32 = 0;
             z = 0;
             const width = @intCast(u32, config.patch_resolution);
