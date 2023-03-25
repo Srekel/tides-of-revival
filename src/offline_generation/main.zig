@@ -255,7 +255,7 @@ pub fn generate() void {
             .name = IdLocal.init("City"),
             .template = cityNodeTemplate,
             .allocator = std.heap.page_allocator,
-            // .output_artifacts = true,
+            .output_artifacts = true,
         };
         node.init();
         node.getInput(IdLocal.init("Heightmap Patches")).reference = IdLocal.init("heightmapPatches");
@@ -312,14 +312,15 @@ pub fn generate() void {
     graph.nodes.append(worldWidthNode) catch unreachable;
     graph.nodes.append(heightmapNode) catch unreachable;
     graph.nodes.append(splatmapNode) catch unreachable;
-    // graph.nodes.append(cityNode) catch unreachable;
-    graph.nodes.append(forestNode) catch unreachable;
+    graph.nodes.append(cityNode) catch unreachable;
+    // graph.nodes.append(forestNode) catch unreachable;
     // graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(pcgNode) catch unreachable;
     // graph.nodes.append(addNode) catch unreachable;
     // _ = splatmapNode;
-    _ = cityNode;
+    // _ = cityNode;
+    _ = forestNode;
     _ = splatmapPatchArtifactNode;
     _ = heightmapPatchArtifactNode;
 
