@@ -119,7 +119,6 @@ pub fn build(b: *std.Build) void {
     exe.addModule("flecs", zig_flecs_pkg.flecs);
     exe.addModule("zaudio", zaudio_pkg.zaudio);
     exe.addModule("zbullet", zbullet_pkg.zbullet);
-    exe.addModule("zd3d12", zd3d12_pkg.zd3d12);
     exe.addModule("zglfw", zglfw_pkg.zglfw);
     exe.addModule("zmath", zmath_pkg.zmath);
     exe.addModule("zmesh", zmesh_pkg.zmesh);
@@ -127,11 +126,11 @@ pub fn build(b: *std.Build) void {
     exe.addModule("zpool", zpool_pkg.zpool);
     exe.addModule("zstbi", zstbi_pkg.zstbi);
     exe.addModule("ztracy", ztracy_pkg.ztracy);
-    exe.addModule("zwin32", zwin32_pkg.zwin32);
 
     zig_flecs_pkg.link(exe);
     zaudio_pkg.link(exe);
     zbullet_pkg.link(exe);
+    zwin32_pkg.link(exe, .{ .d3d12 = true });
     zd3d12_pkg.link(exe);
     zglfw_pkg.link(exe);
     zmesh_pkg.link(exe);
