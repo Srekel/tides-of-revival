@@ -1,6 +1,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
+const zpix = @import("zpix");
 const zwin32 = @import("zwin32");
 const w32 = zwin32.w32;
 const d2d1 = zwin32.d2d1;
@@ -485,6 +486,8 @@ pub fn update(state: *D3D12State) void {
     // Begin DirectX 12 rendering.
     gctx.beginFrame();
 
+    zpix.beginEvent(gctx.cmdlist, "Render Scene");
+
     state.gpu_frame_profiler_index = state.gpu_profiler.startProfile(state.gctx.cmdlist, "Frame");
 
     // Get current back buffer resource and transition it to 'render target' state.
@@ -510,6 +513,7 @@ pub fn update(state: *D3D12State) void {
 pub fn draw(state: *D3D12State) void {
     var gctx = &state.gctx;
 
+    zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
     state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
 

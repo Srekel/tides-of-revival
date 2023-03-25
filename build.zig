@@ -7,6 +7,7 @@ const zbullet = @import("external/zig-gamedev/libs/zbullet/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
 const zd3d12 = @import("external/zig-gamedev/libs/zd3d12/build.zig");
+const zpix = @import("external/zig-gamedev/libs/zpix/build.zig");
 const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
 const zmesh = @import("external/zig-gamedev/libs/zmesh/build.zig");
 const znoise = @import("external/zig-gamedev/libs/znoise/build.zig");
@@ -76,6 +77,12 @@ pub fn build(b: *std.Build) void {
         .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
     });
 
+    const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
+    const zpix_pkg = zpix.package(b, target, optimize, .{
+        .options = .{ .enable = zpix_enable },
+        .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
+    });
+
     const dxc_step = buildShaders(b);
     const install_shaders_step = b.addInstallDirectory(.{
         .source_dir = thisDir() ++ "/src/shaders/compiled",
@@ -132,6 +139,7 @@ pub fn build(b: *std.Build) void {
     zbullet_pkg.link(exe);
     zwin32_pkg.link(exe, .{ .d3d12 = true });
     zd3d12_pkg.link(exe);
+    zpix_pkg.link(exe);
     zglfw_pkg.link(exe);
     zmesh_pkg.link(exe);
     znoise_pkg.link(exe);
