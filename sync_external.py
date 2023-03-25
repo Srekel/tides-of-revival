@@ -21,7 +21,7 @@ if not os.path.isdir(external_dir):
     os.mkdir(external_dir)
 
 os.chdir(external_dir)
-sync_lib("websocket", "https://github.com/karlseguin/websocket.zig.git", "b5ccdb1bafe6b3f59f84f275fb82603265bedc88")
+sync_lib("websocket.zig", "https://github.com/karlseguin/websocket.zig.git", "b5ccdb1bafe6b3f59f84f275fb82603265bedc88")
 sync_lib("zig-args", "https://github.com/MasterQ32/zig-args.git", "c84f9709405b31ef3e72ab26b20ba3c37826f8ec")
 sync_lib("zig-gamedev", "https://github.com/Srekel/zig-gamedev.git", "b332a64052376dc7150d381cc459484b6794552e")
 sync_lib("zig-flecs", "https://github.com/Srekel/zig-flecs.git", "fe1f47d99ebd7495b16e4e56011426cd408138dc")
