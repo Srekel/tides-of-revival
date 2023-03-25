@@ -40,32 +40,33 @@ pub fn build(b: *std.Build) void {
         .dependencies = &.{},
     }));
 
-    const zaudio_pkg = zaudio.Package.build(b, target, optimize, .{});
+    const zaudio_pkg = zaudio.package(b, target, optimize, .{});
 
-    const zbullet_pkg = zbullet.Package.build(b, target, optimize, .{});
+    const zbullet_pkg = zbullet.package(b, target, optimize, .{});
 
-    const zglfw_pkg = zglfw.Package.build(b, target, optimize, .{});
+    const zglfw_pkg = zglfw.package(b, target, optimize, .{});
 
-    const zmath_pkg = zmath.Package.build(b, .{});
+    const zmath_pkg = zmath.package(b, target, optimize, .{
+        .options = .{ .enable_cross_platform_determinism = false },
+    });
+    const zmesh_options = zmesh.Options{ .shape_use_32bit_indices = true };
+    const zmesh_pkg = zmesh.package(b, target, optimize, .{ .options = zmesh_options });
 
-    const zmesh_options = zmesh.Package.Options{ .shape_use_32bit_indices = true };
-    const zmesh_pkg = zmesh.Package.build(b, target, optimize, .{ .options = zmesh_options });
+    const znoise_pkg = znoise.package(b, target, optimize, .{});
 
-    const znoise_pkg = znoise.Package.build(b, target, optimize, .{});
+    const zpool_pkg = zpool.package(b, target, optimize, .{});
 
-    const zpool_pkg = zpool.Package.build(b, .{});
-
-    const zstbi_pkg = zstbi.Package.build(b, target, optimize, .{});
+    const zstbi_pkg = zstbi.package(b, target, optimize, .{});
 
     const ztracy_enable = b.option(bool, "ztracy-enable", "Enable Tracy profiler") orelse false;
-    const ztracy_options = ztracy.Package.Options{ .enable_ztracy = ztracy_enable };
-    const ztracy_pkg = ztracy.Package.build(b, target, optimize, .{ .options = ztracy_options });
+    const ztracy_options = ztracy.Options{ .enable_ztracy = ztracy_enable };
+    const ztracy_pkg = ztracy.package(b, target, optimize, .{ .options = ztracy_options });
 
-    const zwin32_pkg = zwin32.Package.build(b, .{});
+    const zwin32_pkg = zwin32.package(b, target, optimize, .{});
 
     const zd3d12_enable_debug_layer = b.option(bool, "zd3d12-enable_debug_layer", "Enable D3D12 Debug Layer") orelse false;
     const zd3d12_enable_gbv = b.option(bool, "zd3d12-enable_gbv", "Enable D3D12 GPU Based Validation") orelse false;
-    const zd3d12_pkg = zd3d12.Package.build(b, .{
+    const zd3d12_pkg = zd3d12.package(b, target, optimize, .{
         .options = .{
             .enable_debug_layer = zd3d12_enable_debug_layer,
             .enable_gbv = zd3d12_enable_gbv,

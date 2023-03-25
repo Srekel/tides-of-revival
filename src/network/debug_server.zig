@@ -77,12 +77,10 @@ pub const DebugServer = struct {
 
         while (true) {
             if (server.accept()) |conn| {
-                const stream = ws_client.NetStream{ .stream = conn.stream };
                 const args = .{
                     Handler,
-                    ws_client.NetStream,
                     Handler.Context{ .debug_server = self },
-                    stream,
+                    conn,
                     client_config,
                     allocator,
                 };
