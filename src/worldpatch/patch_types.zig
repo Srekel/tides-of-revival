@@ -182,18 +182,21 @@ fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTy
         },
     ) catch unreachable;
 
+    const props_asset_id = IdLocal.init(props_path);
+    if (!ctx.asset_manager.doesAssetExist(props_asset_id)) {
+        patch.status = .nonexistent;
+        return;
+    }
+
     const Prop = struct {
         id: IdLocal,
         pos: [3]f32,
         rot: f32,
     };
 
-    const props_asset_id = IdLocal.init(props_path);
     const props_data = ctx.asset_manager.loadAssetBlocking(props_asset_id, .instant_blocking);
     if (props_data.len == 0) {
-        // NOTE: HACK!
-        var data = ctx.allocator.alloc(Prop, 1) catch unreachable;
-        patch.data = std.mem.sliceAsBytes(data);
+        patch.status = .loaded_empty;
         return;
     }
 

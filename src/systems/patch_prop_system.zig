@@ -181,15 +181,12 @@ fn updatePatches(system: *SystemState) void {
         };
 
         const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, Prop);
-        if (patch_info.data_opt) |data| {
+        if (patch_info.status != .not_loaded) {
             patch.loaded = true;
-            if (data.len == 1) {
-                // NOTE: HACK!
+            if (patch_info.status == .loaded_empty or patch_info.status == .nonexistent) {
                 break;
             }
-            // const world_pos = patch.lookup.getWorldPos();
-            // _ = world_pos;
-            // const props = std.mem.bytesAsSlice(Prop, data);
+            const data = patch_info.data_opt.?;
 
             var rand1 = std.rand.DefaultPrng.init(data.len);
             var rand = rand1.random();

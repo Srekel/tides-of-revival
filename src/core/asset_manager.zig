@@ -36,6 +36,14 @@ pub const AssetManager = struct {
         self.assets.deinit();
     }
 
+    pub fn doesAssetExist(self: AssetManager, id: IdLocal) bool {
+        _ = self;
+        std.fs.cwd().access(id.toString(), .{ .mode = .read_only }) catch {
+            return false;
+        };
+        return true;
+    }
+
     pub fn loadAssetBlocking(self: *AssetManager, id: IdLocal, urgency: Urgency) []u8 {
         _ = urgency;
         var asset_opt = self.assets.getPtr(id.hash);
@@ -45,7 +53,7 @@ pub const AssetManager = struct {
                 return data;
             }
 
-            const file = std.fs.cwd().openFile(&id.str, .{ .mode = .read_only }) catch unreachable;
+            const file = std.fs.cwd().openFile(id.toString(), .{ .mode = .read_only }) catch unreachable;
             defer file.close();
             const contents = file.reader().readAllAlloc(self.allocator, 256 * 1024) catch unreachable;
             const contents_snug = self.allocator.alloc(u8, contents.len) catch unreachable;

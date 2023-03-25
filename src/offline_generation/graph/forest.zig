@@ -125,10 +125,10 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
                     },
                 ) catch unreachable;
 
-                // if (trees.items.len == 0) {
-                //     std.fs.cwd().deleteFile(namebufslice) catch {};
-                //     continue;
-                // }
+                if (trees.items.len == 0) {
+                    std.fs.cwd().deleteFile(namebufslice) catch {};
+                    continue;
+                }
 
                 const remap_file = std.fs.cwd().createFile(
                     namebufslice,

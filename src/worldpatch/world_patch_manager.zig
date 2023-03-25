@@ -509,6 +509,9 @@ pub const WorldPatchManager = struct {
             };
             std.log.debug("WPM: Loading {}, Pr{}", .{ patch.lookup, @enumToInt(patch.highest_prio) });
             patch_type.loadFn(patch, ctx);
+            if (patch.data != null) {
+                patch.status = .loaded;
+            }
 
             // Unload any dependency patches
             if (patch_type.dependenciesFn) |dependenciesFn| {
