@@ -238,9 +238,9 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
         const patch: *Patch = world_patch_mgr.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
         if (patch.lookup.patch_type_id == 0) {
             const patch_stride = 8 * std.math.pow(u32, 2, 3 - patch.lookup.lod);
-            lods[patch.lookup.lod][patch.patch_x + patch.patch_z * patch_stride] = if (patch.data != null) 2 else 1;
-            lods_loaded[patch.lookup.lod] += if (patch.data != null) 1 else 0;
-            lods_queued[patch.lookup.lod] += if (patch.data == null) 1 else 0;
+            lods[patch.lookup.lod][patch.patch_x + patch.patch_z * patch_stride] = if (patch.status == .loaded) 2 else 1;
+            lods_loaded[patch.lookup.lod] += if (patch.status == .loaded) 1 else 0;
+            lods_queued[patch.lookup.lod] += if (patch.status == .not_loaded) 1 else 0;
         }
     }
 
@@ -417,13 +417,13 @@ pub const WorldPatchManager = struct {
                 const prio_old = patch.highest_prio;
                 patch.addOrUpdateRequester(requester_id, prio);
 
-                if (requester_id == dependency_requester_id and patch.data == null) {
+                if (requester_id == dependency_requester_id and patch.status == .not_loaded) {
                     // A patch indicated this lookup is a dependency for it, and we are already queued.
                     // We need to move ourselves to the top of the bucket, *then* ensure that any of *our*
                     // dependencies are moved top the top too.
                     self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
                     self.updateDependencyPrioritiesRecursively(patch, dependency_ctx);
-                } else if (prio_old.lowerThan(patch.highest_prio) and patch.data == null) {
+                } else if (prio_old.lowerThan(patch.highest_prio) and patch.status == .not_loaded) {
                     // We got a new non-dependency request for this patch, update our position in the queue
                     // and the priority of any dependencies.
                     self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
@@ -471,7 +471,7 @@ pub const WorldPatchManager = struct {
                     continue;
                 }
 
-                if (patch.highest_prio != prio_old and patch.data == null) {
+                if (patch.highest_prio != prio_old and patch.status == .not_loaded) {
                     self.bucket_queue.updateElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle), prio_old, patch.highest_prio);
                 }
             }
@@ -483,7 +483,7 @@ pub const WorldPatchManager = struct {
         if (patch_handle_opt) |patch_handle| {
             const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
             if (patch.data) |data| {
-                return .{ .status = .loaded, .data_opt = std.mem.bytesAsSlice(T, @alignCast(@alignOf(T), data)) };
+                return .{ .status = patch.status, .data_opt = std.mem.bytesAsSlice(T, @alignCast(@alignOf(T), data)) };
             }
             return .{ .status = patch.status, .data_opt = null };
         }
@@ -512,6 +512,7 @@ pub const WorldPatchManager = struct {
             if (patch.data != null) {
                 patch.status = .loaded;
             }
+            std.debug.assert(patch.status != .not_loaded);
 
             // Unload any dependency patches
             if (patch_type.dependenciesFn) |dependenciesFn| {
@@ -537,12 +538,14 @@ pub const WorldPatchManager = struct {
     }
 
     fn unloadPatch(self: *WorldPatchManager, patch_handle: PatchHandle, patch: *Patch) void {
-        // std.log.debug("WPM: Unloading {}, lastreq={any}", .{ patch.lookup, requester_id });
+        std.log.debug("WPM: Unloading {}", .{patch.lookup});
         if (patch.data != null) {
             self.allocator.free(patch.data.?);
             patch.data = null;
         } else {
-            self.bucket_queue.removeElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle));
+            if (patch.status == .not_loaded) {
+                self.bucket_queue.removeElems(util.sliceOfInstanceConst(PatchHandle, &patch_handle));
+            }
 
             // Unload any dependency patches
             const patch_type = self.patch_types.items[patch.patch_type_id];

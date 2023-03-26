@@ -195,6 +195,18 @@ fn updateLoaders(state: *SystemState) void {
         // HACK
         if (loader.pos_old[0] != -100000) {
             state.world_patch_mgr.removeLoadRequestFromLookups(state.requester_id, lookups_old.items);
+
+            for (lookups_old.items) |lookup| {
+                for (state.patches.items, 0..) |*patch, i| {
+                    if (patch.lookup.eql(lookup)) {
+                        state.physics_world.removeBody(patch.body_opt.?);
+                        patch.physics_shape_opt.?.deinit();
+
+                        _ = state.patches.swapRemove(i);
+                        break;
+                    }
+                }
+            }
         }
 
         state.world_patch_mgr.addLoadRequestFromLookups(state.requester_id, lookups_new.items, .high);
