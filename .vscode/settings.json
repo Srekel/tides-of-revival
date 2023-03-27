@@ -2,7 +2,9 @@
     "debug.allowBreakpointsEverywhere": true,
     "cSpell.words": [
         "FLECS",
-        "gamepad"
+        "gamedev",
+        "gamepad",
+        "zigimg"
     ],
     "cSpell.ignorePaths": [
         "package-lock.json",

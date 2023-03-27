@@ -135,10 +135,10 @@ pub const Variant = struct {
     pub fn createSlice(slice: anytype, tag: Tag) Variant {
         assert(tag != 0);
         return Variant{
-            .value = .{ .ptr_array = @ptrToInt(slice.ptr) },
+            .value = .{ .ptr_array = slice.ptr },
             .tag = tag,
-            .array_count = slice.len,
-            .elem_size = @intCast(u16, @sizeOf(slice.ptr.*)),
+            .array_count = @intCast(u16, slice.len),
+            .elem_size = @intCast(u16, @sizeOf(@TypeOf(slice[0]))),
         };
     }
 
@@ -206,7 +206,7 @@ pub const Variant = struct {
 
     pub fn getSlice(self: Variant, comptime T: type, tag: Tag) []T {
         assert(tag == self.tag);
-        var ptr = @ptrCast([*]T, self.value.ptr_array);
+        var ptr = @ptrCast([*]T, @alignCast(@alignOf(T), self.value.ptr_array));
         return ptr[0..self.array_count];
     }
 

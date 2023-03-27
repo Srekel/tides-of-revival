@@ -153,6 +153,21 @@ fn updateLoaders(system: *SystemState) void {
         // HACK
         if (loader.pos_old != null) {
             system.world_patch_mgr.removeLoadRequestFromLookups(system.requester_id, lookups_old.items);
+
+            for (lookups_old.items) |lookup| {
+                for (system.patches.items, 0..) |*patch, i| {
+                    if (patch.lookup.eql(lookup)) {
+                        // TODO: Batch delete
+                        for (patch.entities.items) |ent| {
+                            system.flecs_world.delete(ent);
+                        }
+
+                        patch.entities.deinit();
+                        _ = system.patches.swapRemove(i);
+                        break;
+                    }
+                }
+            }
         }
         loader.pos_old = pos_new;
 

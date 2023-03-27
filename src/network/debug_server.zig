@@ -72,40 +72,8 @@ pub const DebugServer = struct {
             allocator,
             listen_config,
         ) catch |err| {
-            std.log.debug("listen error {}", .{err} );
+            std.log.debug("listen error {}", .{err});
         };
-
-        // var server = net.StreamServer.init(.{ .reuse_address = true });
-        // defer server.deinit();
-
-        // try server.listen(net.Address.parseIp(address, self.port) catch unreachable);
-        // std.log.info("listening at {}", .{server.listen_address});
-        // const client_config = ws_client.Config{
-        //     .path = path,
-        //     .max_size = max_size,
-        //     .buffer_size = buffer_size,
-        //     .max_request_size = max_request_size,
-        // };
-
-        // while (true) {
-        //     if (server.accept()) |conn| {
-        //         const args = .{
-        //             Handler,
-        //             Handler.Context{ .debug_server = self },
-        //             conn,
-        //             client_config,
-        //             allocator,
-        //         };
-        //         if (comptime std.io.is_async) {
-        //             try Loop.instance.?.runDetached(allocator, ws_client.handle, args);
-        //         } else {
-        //             const t = try std.Thread.spawn(.{}, ws_client.handle, args);
-        //             t.detach();
-        //         }
-        //     } else |err| {
-        //         std.log.err("failed to accept connection {}", .{err});
-        //     }
-        // }
     }
 
     pub fn handleMessage(self: *DebugServer, data: []const u8, allocator: std.mem.Allocator) []const u8 {
