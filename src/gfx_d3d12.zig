@@ -11,6 +11,7 @@ const dwrite = zwin32.dwrite;
 const hrPanic = zwin32.hrPanic;
 const hrPanicOnFail = zwin32.hrPanicOnFail;
 const zd3d12 = @import("zd3d12");
+const dds_loader = zwin32.dds_loader;
 const zglfw = @import("zglfw");
 const profiler_module = @import("renderer/d3d12/profiler.zig");
 const IdLocal = @import("variant.zig").IdLocal;
@@ -101,6 +102,11 @@ pub const D3D12State = struct {
 
     depth_texture: zd3d12.ResourceHandle,
     depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
+
+    // NOTE(gmodarelli): just a test
+    radiance_texture: TextureHandle,
+    irradiance_texture: TextureHandle,
+    specular_texture: TextureHandle,
 
     buffer_pool: BufferPool,
     texture_pool: TexturePool,
@@ -219,6 +225,53 @@ pub const D3D12State = struct {
 
             const t = Texture{
                 .resource = resource,
+                .persistent_descriptor = srv_allocation,
+            };
+
+            break :blk t;
+        };
+
+        self.gctx.endFrame();
+        self.gctx.finishGpuCommands();
+
+        return self.texture_pool.addTexture(texture);
+    }
+
+    pub fn scheduleLoadTextureCubemap(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
+        // TODO: Schedule the upload instead of uploading immediately
+        self.gctx.beginFrame();
+
+        const resource = try self.gctx.createAndUploadTexCubeFromDdsFile(path, arena);
+        var path_u16: [300]u16 = undefined;
+        assert(path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+        path_u16[path_len] = 0;
+        _ = self.gctx.lookupResource(resource).?.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+
+        const resource_desc = self.gctx.lookupResource(resource).?.GetDesc();
+        const texture = blk: {
+            const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
+            self.gctx.device.CreateShaderResourceView(
+                self.gctx.lookupResource(resource).?,
+                &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                    .Format = resource_desc.Format,
+                    .ViewDimension = .TEXTURECUBE,
+                    .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                    .u = .{
+                        .TextureCube = .{
+                            .MipLevels = resource_desc.MipLevels,
+                            .MostDetailedMip = 0,
+                            .ResourceMinLODClamp = 0.0,
+                        },
+                    },
+                },
+                srv_allocation.cpu_handle,
+            );
+
+            self.gctx.addTransitionBarrier(resource, textureDesc.state);
+
+            const t = Texture{
+                .resource = self.gctx.lookupResource(resource).?,
                 .persistent_descriptor = srv_allocation,
             };
 
@@ -438,7 +491,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         depth_texture_dsv,
     );
 
-    return D3D12State{
+    var d3d12_state = D3D12State{
         .gctx = gctx,
         .gpu_profiler = gpu_profiler,
         .stats = FrameStats.init(),
@@ -446,10 +499,49 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .stats_text_format = stats_text_format,
         .depth_texture = depth_texture,
         .depth_texture_dsv = depth_texture_dsv,
+        .radiance_texture = undefined,
+        .irradiance_texture = undefined,
+        .specular_texture = undefined,
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
     };
+
+    // Radiance
+    {
+        const texture_desc = TextureDesc{
+            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .name = L("Radiance"),
+        };
+        const path = "content/textures/env/alps_field_2k_cube_radiance.dds";
+        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        d3d12_state.radiance_texture = texture_handle;
+    }
+
+    // Irradiance
+    {
+        const texture_desc = TextureDesc{
+            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .name = L("Irradiance"),
+        };
+        const path = "content/textures/env/alps_field_2k_cube_irradiance.dds";
+        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        d3d12_state.irradiance_texture = texture_handle;
+    }
+
+    // Specular
+    {
+        const texture_desc = TextureDesc{
+            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .name = L("Specular"),
+        };
+        const path = "content/textures/env/alps_field_2k_cube_specular.dds";
+        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        d3d12_state.specular_texture = texture_handle;
+    }
+
+
+    return d3d12_state;
 }
 
 pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
