@@ -178,6 +178,9 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "psTerrainQuadTree", "terrain_quad_tree.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
+    dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
     return dxc_step;
 }
 

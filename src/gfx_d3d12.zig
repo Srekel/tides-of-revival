@@ -107,6 +107,7 @@ pub const D3D12State = struct {
     radiance_texture: TextureHandle,
     irradiance_texture: TextureHandle,
     specular_texture: TextureHandle,
+    brdf_integration_texture: TextureHandle,
 
     buffer_pool: BufferPool,
     texture_pool: TexturePool,
@@ -290,6 +291,72 @@ pub const D3D12State = struct {
 
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
         return self.texture_pool.lookupTexture(handle);
+    }
+
+    pub fn generateBrdfIntegrationTexture(self: *D3D12State, arena: std.mem.Allocator) !TextureHandle {
+        self.gctx.beginFrame();
+
+        var compute_desc = d3d12.COMPUTE_PIPELINE_STATE_DESC.initDefault();
+        const generate_brdf_integration_texture_pso = self.gctx.createComputeShaderPipeline(
+            arena,
+            &compute_desc,
+            "shaders/generate_brdf_integration_texture.cs.cso",
+        );
+
+        const brdf_integration_texture_resolution = 512;
+        const resource = try self.gctx.createCommittedResource(
+            .DEFAULT,
+            .{},
+            &blk: {
+                var desc = d3d12.RESOURCE_DESC.initTex2d(
+                    .R16G16_FLOAT,
+                    brdf_integration_texture_resolution,
+                    brdf_integration_texture_resolution,
+                    1, // mip levels
+                );
+                desc.Flags = .{ .ALLOW_UNORDERED_ACCESS = true };
+                break :blk desc;
+            },
+            .{ .UNORDERED_ACCESS = true },
+            null,
+        );
+        _ = self.gctx.lookupResource(resource).?.SetName(L("BRDF Integration"));
+
+        const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
+        self.gctx.device.CreateShaderResourceView(
+            self.gctx.lookupResource(resource).?,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        const texture = Texture{
+            .resource = self.gctx.lookupResource(resource).?,
+            .persistent_descriptor = srv_allocation,
+        };
+
+        const uav = self.gctx.allocateTempCpuDescriptors(.CBV_SRV_UAV, 1);
+        self.gctx.device.CreateUnorderedAccessView(
+            self.gctx.lookupResource(resource).?,
+            null,
+            null,
+            uav,
+        );
+
+        self.gctx.setCurrentPipeline(generate_brdf_integration_texture_pso);
+        self.gctx.cmdlist.SetComputeRootDescriptorTable(0, self.gctx.copyDescriptorsToGpuHeap(1, uav));
+        const num_groups = @divExact(brdf_integration_texture_resolution, 8);
+        self.gctx.cmdlist.Dispatch(num_groups, num_groups, 1);
+
+        self.gctx.addTransitionBarrier(resource, .{ .PIXEL_SHADER_RESOURCE = true });
+        self.gctx.flushResourceBarriers();
+        self.gctx.deallocateAllTempCpuDescriptors(.CBV_SRV_UAV);
+
+        self.gctx.destroyPipeline(generate_brdf_integration_texture_pso);
+
+        self.gctx.endFrame();
+        self.gctx.finishGpuCommands();
+
+        return self.texture_pool.addTexture(texture);
     }
 };
 
@@ -502,6 +569,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .radiance_texture = undefined,
         .irradiance_texture = undefined,
         .specular_texture = undefined,
+        .brdf_integration_texture = undefined,
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
@@ -540,6 +608,11 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         d3d12_state.specular_texture = texture_handle;
     }
 
+    // BRDF Integration
+    {
+        const texture_handle = d3d12_state.generateBrdfIntegrationTexture(arena) catch unreachable;
+        d3d12_state.brdf_integration_texture = texture_handle;
+    }
 
     return d3d12_state;
 }
