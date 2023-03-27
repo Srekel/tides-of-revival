@@ -163,12 +163,7 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
         "Build shaders",
     );
 
-    var dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "vsTerrain", "terrain.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "psTerrain", "terrain.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
+    var dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psInstanced", "instanced.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);

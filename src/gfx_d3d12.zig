@@ -293,6 +293,16 @@ pub const D3D12State = struct {
         return self.texture_pool.lookupTexture(handle);
     }
 
+    pub fn lookupIBLTextures(self: *D3D12State)
+    struct{ irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture} {
+        return .{
+            .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
+            .specular = self.texture_pool.lookupTexture(self.specular_texture),
+            .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
+        };
+    }
+
+
     pub fn generateBrdfIntegrationTexture(self: *D3D12State, arena: std.mem.Allocator) !TextureHandle {
         self.gctx.beginFrame();
 

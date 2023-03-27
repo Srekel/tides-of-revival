@@ -6,15 +6,18 @@
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
     "CBV(b1), " \
+    "CBV(b2), " \
     "StaticSampler(s0, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP), " \
     "StaticSampler(s1, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP), " \
     "StaticSampler(s2, filter = FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP), " \
-    "StaticSampler(s3, filter = FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP)"
+    "StaticSampler(s3, filter = FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP), " \
+    "StaticSampler(s4, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_PIXEL)"
 
 SamplerState sam_aniso_clamp : register(s0);
 SamplerState sam_aniso_wrap : register(s1);
 SamplerState sam_linear_clamp : register(s2);
 SamplerState sam_linear_wrap : register(s3);
+SamplerState sam_aniso : register(s4);
 
 struct Vertex {
     float3 position;
@@ -22,6 +25,12 @@ struct Vertex {
     float2 uv;
     float4 tangent;
     float3 color;
+};
+
+struct SceneConst {
+    uint irradiance_texture_index;
+    uint specular_texture_index;
+    uint brdf_integration_texture_index;
 };
 
 struct DrawConst {
@@ -61,6 +70,7 @@ struct TerrainLayerTextureIndices {
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
+ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 
 struct InstancedVertexOut {
     float4 position_vs : SV_Position;
@@ -153,14 +163,42 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     n = normalize(mul(n, (float3x3)instance.object_to_world));
     float3 arm = arm_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
 
-    PBRInput pbrInput;
-    pbrInput.view_position = cbv_frame_const.camera_position;
-    pbrInput.position = input.position;
-    pbrInput.normal = n;
-    pbrInput.roughness = arm.g;
-    pbrInput.time = cbv_frame_const.time;
+    const float3 v = normalize(cbv_frame_const.camera_position - input.position);
 
-    float3 color = pbrShading(base_color, pbrInput, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
+    TextureCube ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
+    TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.specular_texture_index];
+    Texture2D ibl_brdf_integration_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
+
+    const float3 ibl_irradiance = ibl_irradiance_texture.SampleLevel(sam_aniso, n, 0.0).rgb;
+
+    const float3 r = reflect(-v, input.normal);
+    const float3 ibl_specular = ibl_specular_texture.SampleLevel(
+        sam_aniso,
+        r,
+        arm.g * 5.0 // roughness * (num_mip_levels - 1.0)
+    ).rgb;
+
+    const float n_dot_v = saturate(dot(input.normal, v));
+    const float2 ibl_brdf = ibl_brdf_integration_texture.SampleLevel(
+        sam_aniso,
+        float2(min(n_dot_v, 0.999), arm.g),
+        0.0
+    ).rg;
+
+    PBRInput pbr_input;
+    pbr_input.base_color = base_color;
+    pbr_input.view_direction = v;
+    pbr_input.position = input.position;
+    pbr_input.normal = n;
+    pbr_input.roughness = arm.g;
+    pbr_input.metallic = arm.b;
+    pbr_input.ao = arm.r;
+    pbr_input.ibl_irradiance = ibl_irradiance;
+    pbr_input.ibl_specular = ibl_specular;
+    pbr_input.ibl_brdf = ibl_brdf;
+    pbr_input.time = cbv_frame_const.time;
+
+    float3 color = pbrShading(pbr_input, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
     color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;

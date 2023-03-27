@@ -4,7 +4,11 @@
 #define ROOT_SIGNATURE \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
-    "CBV(b1), "
+    "CBV(b1), " \
+    "CBV(b2), " \
+    "StaticSampler(s0, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_PIXEL)"
+
+SamplerState sam_aniso : register(s0);
 
 struct Vertex {
     float3 position;
@@ -20,6 +24,12 @@ struct DrawConst {
     uint vertex_buffer_index;
     uint instance_transform_buffer_index;
     uint instance_material_buffer_index;
+};
+
+struct SceneConst {
+    uint irradiance_texture_index;
+    uint specular_texture_index;
+    uint brdf_integration_texture_index;
 };
 
 struct FrameConst {
@@ -44,6 +54,7 @@ struct InstanceMaterial {
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
+ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 
 struct InstancedVertexOut {
     float4 position_vs : SV_Position;
@@ -83,14 +94,42 @@ void psInstanced(InstancedVertexOut input, out float4 out_color : SV_Target0) {
     float3 base_color = material.basecolor_roughness.rgb;
     base_color = pow(input.color, GAMMA);
 
-    PBRInput pbrInput;
-    pbrInput.view_position = cbv_frame_const.camera_position;
-    pbrInput.position = input.position;
-    pbrInput.normal = input.normal;
-    pbrInput.roughness = material.basecolor_roughness.a;
-    pbrInput.time = cbv_frame_const.time;
+    const float3 v = normalize(cbv_frame_const.camera_position - input.position);
 
-    float3 color = pbrShading(base_color, pbrInput, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
+    TextureCube ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
+    TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.specular_texture_index];
+    Texture2D ibl_brdf_integration_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
+
+    const float3 ibl_irradiance = ibl_irradiance_texture.SampleLevel(sam_aniso, input.normal, 0.0).rgb;
+
+    const float3 r = reflect(-v, input.normal);
+    const float3 ibl_specular = ibl_specular_texture.SampleLevel(
+        sam_aniso,
+        r,
+        material.basecolor_roughness.a * 5.0 // roughness * (num_mip_levels - 1.0)
+    ).rgb;
+
+    const float n_dot_v = saturate(dot(input.normal, v));
+    const float2 ibl_brdf = ibl_brdf_integration_texture.SampleLevel(
+        sam_aniso,
+        float2(min(n_dot_v, 0.999), material.basecolor_roughness.a),
+        0.0
+    ).rg;
+
+    PBRInput pbr_input;
+    pbr_input.base_color = base_color;
+    pbr_input.view_direction = v;
+    pbr_input.position = input.position;
+    pbr_input.normal = input.normal;
+    pbr_input.roughness = material.basecolor_roughness.a;
+    pbr_input.metallic = 0.0;
+    pbr_input.ao = 1.0;
+    pbr_input.ibl_irradiance = ibl_irradiance;
+    pbr_input.ibl_specular = ibl_specular;
+    pbr_input.ibl_brdf = ibl_brdf;
+    pbr_input.time = cbv_frame_const.time;
+
+    float3 color = pbrShading(pbr_input, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
     color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;
