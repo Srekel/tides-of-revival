@@ -90,8 +90,8 @@ const ModelViewerState = struct {
     arm: gfx.TextureHandle,
 
     camera: struct {
-        position: [3]f32 = .{ 0.0, 0.0, -4.0 },
-        forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
+        position: [3]f32 = .{ 0.0, 0.0, 4.0 },
+        forward: [3]f32 = .{ 0.0, 0.0, -1.0 },
         pitch: f32 = 0.0,
         yaw: f32 = 0.0,
     } = .{},
@@ -296,8 +296,7 @@ pub fn run() !void {
 }
 
 fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) void {
-    // const stats = gfx_state.stats;
-    // const dt = @floatCast(f32, stats.delta_time);
+    const stats = gfx_state.stats;
 
     gfx.update(gfx_state);
 
@@ -380,7 +379,7 @@ fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         const normal = gfx_state.lookupTexture(model_viewer_state.normal);
         const arm = gfx_state.lookupTexture(model_viewer_state.arm);
 
-        const object_to_world = zm.identity();
+        const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
         model_viewer_state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
         model_viewer_state.instance_materials.append(.{
             .albedo_texture_index = albedo.?.persistent_descriptor.index,
@@ -391,32 +390,32 @@ fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
 
     const frame_index = gfx_state.gctx.frame_index;
     gfx_state.uploadDataToBuffer(InstanceTransform, model_viewer_state.instance_transform_buffers[frame_index], 0, model_viewer_state.instance_transforms.items);
-        gfx_state.uploadDataToBuffer(InstanceMaterial, model_viewer_state.instance_material_buffers[frame_index], 0, model_viewer_state.instance_materials.items);
+    gfx_state.uploadDataToBuffer(InstanceMaterial, model_viewer_state.instance_material_buffers[frame_index], 0, model_viewer_state.instance_materials.items);
 
-        const vertex_buffer = gfx_state.lookupBuffer(model_viewer_state.vertex_buffer);
-        const instance_transform_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_transform_buffers[frame_index]);
-        const instance_material_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_material_buffers[frame_index]);
+    const vertex_buffer = gfx_state.lookupBuffer(model_viewer_state.vertex_buffer);
+    const instance_transform_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_transform_buffers[frame_index]);
+    const instance_material_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_material_buffers[frame_index]);
 
-        for (model_viewer_state.draw_calls.items) |draw_call| {
-            const mem = gfx_state.gctx.allocateUploadMemory(DrawUniforms, 1);
-            mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-            mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
-            mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-            mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
-            mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
-            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+    for (model_viewer_state.draw_calls.items) |draw_call| {
+        const mem = gfx_state.gctx.allocateUploadMemory(DrawUniforms, 1);
+        mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+        mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
+        mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+        gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-            gfx_state.gctx.cmdlist.DrawIndexedInstanced(
-                draw_call.index_count,
-                draw_call.instance_count,
-                draw_call.index_offset,
-                draw_call.vertex_offset,
-                draw_call.start_instance_location,
-            );
-        }
-
-        gfx.draw(gfx_state);
+        gfx_state.gctx.cmdlist.DrawIndexedInstanced(
+            draw_call.index_count,
+            draw_call.instance_count,
+            draw_call.index_offset,
+            draw_call.vertex_offset,
+            draw_call.start_instance_location,
+        );
     }
+
+    gfx.draw(gfx_state);
+}
 
     fn appendObjMesh(
         allocator: std.mem.Allocator,

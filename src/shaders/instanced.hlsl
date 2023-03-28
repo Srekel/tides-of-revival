@@ -135,9 +135,9 @@ void psInstanced(InstancedVertexOut input, out float4 out_color : SV_Target0) {
         float3(0.0, 1.0, 0.0),
     };
     float3 lightColor[3] = {
-        float3(1.0, 1.0, 1.0),
-        float3(1.0, 1.0, 1.0),
-        float3(1.0, 1.0, 1.0),
+        float3(1.0, 0.953, 0.945),
+        float3(1.0, 0.953, 0.945),
+        float3(1.0, 0.953, 0.945),
     };
 
     float3 color = LightSurface(v, n, 1, lightColor, lightDirection, base_color, arm.g, arm.b, arm.r, ibl_radiance_texture, ibl_irradiance_texture, sam_aniso_clamp, 10);
