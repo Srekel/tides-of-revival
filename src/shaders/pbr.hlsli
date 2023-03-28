@@ -1,133 +1,150 @@
-#ifndef __PBR_HLSL__
-#define __PBR_HLSL__
+#ifndef __PBR_HLSLI__
+#define __PBR_HLSLI__
 
-#include "common.hlsli"
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+//
+// http://go.microsoft.com/fwlink/?LinkId=248926
+// http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 
-float geometrySchlickGgx(float cos_theta, float roughness) {
-    const float k = (roughness * roughness) * 0.5;
-    return cos_theta / (cos_theta * (1.0 - k) + k);
+#define PI 3.14159265f
+#define EPSILON 1e-6f
+
+// Shlick's approximation of Fresnel
+// https://en.wikipedia.org/wiki/Schlick%27s_approximation
+float3 Fresnel_Shlick(in float3 f0, in float3 f90, in float x)
+{
+    return f0 + (f90 - f0) * pow(1.f - x, 5.f);
 }
 
-float geometrySmith(float n_dot_l, float n_dot_v, float roughness) {
-    return geometrySchlickGgx(n_dot_v, roughness) * geometrySchlickGgx(n_dot_l, roughness);
+// Burley B. "Physically Based Shading at Disney"
+// SIGGRAPH 2012 Course: Practical Physically Based Shading in Film and Game Production, 2012.
+float Diffuse_Burley(in float NdotL, in float NdotV, in float LdotH, in float roughness)
+{
+    float fd90 = 0.5f + 2.f * roughness * LdotH * LdotH;
+    return Fresnel_Shlick(1, fd90, NdotL).x * Fresnel_Shlick(1, fd90, NdotV).x;
 }
 
-float3 fresnelSchlickRoughness(float cos_theta, float3 f0, float roughness) {
-    return f0 + (max(1.0 - roughness, f0) - f0) * pow(1.0 - cos_theta, 5.0);
+// GGX specular D (normal distribution)
+// https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
+float Specular_D_GGX(in float alpha, in float NdotH)
+{
+    const float alpha2 = alpha * alpha;
+    const float lower = (NdotH * NdotH * (alpha2 - 1)) + 1;
+    return alpha2 / max(EPSILON, PI * lower * lower);
 }
 
-// TODO: pass needed frame data in
-// float3 pointLight(float3 light_position, float4 light_data, float3 position, float3 base_color, float3 v, float3 f0, float3 n, float alpha, float k, float metallic, float time) {
-//     float3 lvec = light_position - position;
-// 
-//     float3 l = normalize(lvec);
-//     float3 h = normalize(l + v);
-// 
-//     float range = light_data.w;
-//     float range_sq = range * range;
-//     float distance_sq = dot(lvec, lvec);
-//     if (range_sq < distance_sq) {
-//         return float3(0.0, 0.0, 0.0);
-//     }
-// 
-//     // https://lisyarus.github.io/blog/graphics/2022/07/30/point-light-attenuation.html
-//     float distance = length(lvec);
-//     float attenuation_real = min(1.0, 1.0 / (1.0 + distance_sq));
-//     float attenuation_el = (distance_sq / range_sq ) * (2.0 * distance / range - 3.0) + 1.0;
-//     float attenuation_nik_s2 = distance_sq / range_sq;
-//     float attenuation_nik = (1.0 - attenuation_nik_s2) * (1.0 - attenuation_nik_s2) / (1.0 + 5.0 * attenuation_nik_s2);
-//     float attenuation = attenuation_nik;
-//     float variance = 1.0 + 0.2 * sin(time * 1.7);
-//     float3 radiance = light_data.xyz * attenuation * variance;
-// 
-//     float3 f = fresnelSchlick(saturate(dot(h, v)), f0);
-// 
-//     float ndf = distributionGgx(n, h, alpha);
-//     float g = geometrySmith(n, v, l, k);
-// 
-//     float3 numerator = ndf * g * f;
-//     float denominator = 4.0 * saturate(dot(n, v)) * saturate(dot(n, l));
-//     float3 specular = numerator / max(denominator, 0.001);
-// 
-//     float3 ks = f;
-//     float3 kd = (float3(1.0, 1.0, 1.0) - ks) * (1.0 - metallic);
-// 
-//     float n_dot_l = saturate(dot(n, l));
-//     // return base_color * radiance * n_dot_l;
-//     return (kd * base_color / PI + specular) * radiance * n_dot_l;
-// }
+// Schlick-Smith specular G (visibility) with Hable's LdotH optimization
+// http://www.cs.virginia.edu/~jdl/bib/appearance/analytic%20models/schlick94b.pdf
+// http://graphicrants.blogspot.se/2013/08/specular-brdf-reference.html
+float G_Shlick_Smith_Hable(float alpha, float LdotH)
+{
+    return rcp(lerp(LdotH * LdotH, 1, alpha * alpha * 0.25f));
+}
 
-struct PBRInput {
-    float3 base_color;
-    float3 view_direction;
-    float3 position;
-    float3 normal;
-    float roughness;
-    float metallic;
-    float ao;
-    float3 ibl_irradiance;
-    float3 ibl_specular;
-    float2 ibl_brdf;
-    // TMP
-    float time;
-};
+// A microfacet based BRDF.
+//
+// alpha:           This is roughness * roughness as in the "Disney" PBR model by Burley et al.
+//
+// specularColor:   The F0 reflectance value - 0.04 for non-metals, or RGB for metals. This follows model 
+//                  used by Unreal Engine 4.
+//
+// NdotV, NdotL, LdotH, NdotH: vector relationships between,
+//      N - surface normal
+//      V - eye normal
+//      L - light normal
+//      H - half vector between L & V.
+float3 Specular_BRDF(in float alpha, in float3 specularColor, in float NdotV, in float NdotL, in float LdotH, in float NdotH)
+{
+    // Specular D (microfacet normal distribution) component
+    float specular_D = Specular_D_GGX(alpha, NdotH);
 
-float3 pbrShading(PBRInput input, float4 light_positions[MAX_LIGHTS], float4 light_radiances[MAX_LIGHTS], uint light_count) {
-    const float n_dot_v = saturate(dot(input.view_direction, input.normal));
-    float3 f0 = float3(0.04, 0.04, 0.04);
-    f0 = lerp(f0, input.base_color, input.metallic);
+    // Specular Fresnel
+    float3 specular_F = Fresnel_Shlick(specularColor, 1, LdotH);
 
-    const float3 r = reflect(-input.view_direction, input.normal);
-    const float3 f = fresnelSchlickRoughness(n_dot_v, f0, input.roughness);
+    // Specular G (visibility) component
+    float specular_G = G_Shlick_Smith_Hable(alpha, LdotH);
 
-    const float3 kd = (1.0 - f) * (1.0 - input.metallic);
+    return specular_D * specular_F * specular_G;
+}
 
-    const float3 diffuse = input.ibl_irradiance * input.base_color;
-    const float3 specular = input.ibl_specular * (f * input.ibl_brdf.x + input.ibl_brdf.y);
-    const float3 ambient = (kd * diffuse + specular) * input.ao;
+// Diffuse irradiance
+float3 Diffuse_IBL(in SamplerState samplerState, in TextureCube<float3> irradianceTexture, in float3 N)
+{
+    return irradianceTexture.Sample(samplerState, N);
+}
 
-    // TODO(gmodarelli): Add directional light contribution
-    // TODO(gmodarelli): Add point lights contribution
-    return ambient;
+// Approximate specular image based lighting by sampling radiance map at lower mips 
+// according to roughness, then modulating by Fresnel term. 
+float3 Specular_IBL(in SamplerState samplerState, in TextureCube<float3> radianceTexture, in float3 N, in float3 V, in float lodBias, in int mipLevels)
+{
+    float mip = lodBias * mipLevels;
+    float3 dir = reflect(-V, N);
+    return radianceTexture.SampleLevel(samplerState, dir, mip);
+}
 
-    // float3 v = normalize(input.view_position - input.position);
-    // float3 n = normalize(input.normal);
+// Apply Disney-style physically based rendering to a surface with:
+//
+// V, N:             Eye and surface normals
+//
+// numLights:        Number of directional lights.
+//
+// lightColor[]:     Color and intensity of directional light.
+//
+// lightDirection[]: Light direction.
+float3 LightSurface(
+    in float3 V, in float3 N,
+    in int numLights, in float3 lightColor[3], in float3 lightDirection[3],
+    in float3 albedo, in float roughness, in float metallic, in float ambientOcclusion,
+    in TextureCube<float3> radianceTexture, in TextureCube<float3> irradianceTexture, in SamplerState iblSampler, in int radianceMipLevels)
+{
+    // Specular coefficiant - fixed reflectance value for non-metals
+    static const float kSpecularCoefficient = 0.04;
 
-    // float ao = 1.0;
-    // float roughness = input.roughness;
-    // float metallic = 0.0;
-    // if (roughness < 0.0) { metallic = 1.0; } else { metallic = 0.0; }
-    // roughness = abs(roughness);
+    const float NdotV = saturate(dot(N, V));
 
-    // float alpha = roughness * roughness;
-    // float k = alpha + 1.0;
-    // k = (k * k) / 8.0;
-    // float3 f0 = float3(0.04, 0.04, 0.04);
-    // f0 = lerp(f0, base_color, metallic);
+    // Burley roughness bias
+    const float alpha = roughness * roughness;
 
-    // float3 lo = float3(0.0, 0.0, 0.0);
-    // for (uint light_index = 0u; light_index < light_count; light_index = light_index + 1u) {
-    //     float3 lightContrib = pointLight(light_positions[light_index].xyz, light_radiances[light_index], input.position, base_color, v, f0, n, alpha, k, metallic, input.time);
-    //     lo += lightContrib;
-    // }
+    // Blend base colors
+    const float3 c_diff = lerp(albedo, float3(0, 0, 0), metallic)       * ambientOcclusion;
+    const float3 c_spec = lerp(kSpecularCoefficient, albedo, metallic)  * ambientOcclusion;
 
-    // float sun_height = sin(input.time * 0.5);
-    // float3 sun_color = float3(1.0, 0.914 * sun_height, 0.843 * sun_height * sun_height);
-    // float3 sun = max(0.0, sun_height) * 0.3 * base_color * (0.0 + saturate(dot(n, normalize(sun_color))));
-    // float3 sun2 = 0.5 * base_color * saturate(dot(n, normalize( float3(0.0, 1.0, 0.0))));
+    // Output color
+    float3 acc_color = 0;
 
-    // float ambient_day_value = 0.0002 * saturate(sun_height + 0.1);
-    // float3 ambient_day = float3(ambient_day_value, ambient_day_value, ambient_day_value) * float3(0.9, 0.9, 1.0) * base_color;
-    // float ambient_night_value = 0.05 * saturate(sign(-sun_height + 0.1));
-    // float3 ambient_night = float3(ambient_night_value, ambient_night_value, ambient_night_value) * float3(0.2, 0.2, 1.0) * base_color;
-    // float3 ambient = (ambient_day + ambient_night) * ao * saturate(dot(n, float3(0.0, 1.0, 0.0)));
-    // float fog_dist = length(input.position - input.view_position);
-    // float fog_start = 500.0;
-    // float fog_end = 2500.0;
-    // float fog = saturate((fog_dist - fog_start) / (fog_end - fog_start));
-    // float3 color = ambient + lo + sun;
-    // color = lerp(color, float3(0.5, 0.5, 0.4), 1.0 * saturate(fog * fog * max(0.0, sun_height)));
-    // return color;
+    // Accumulate light values
+    for (int i = 0; i < numLights; i++)
+    {
+        // light vector (to light)
+        const float3 L = normalize(-lightDirection[i]);
+
+        // Half vector
+        const float3 H = normalize(L + V);
+
+        // products
+        const float NdotL = saturate(dot(N, L));
+        const float LdotH = saturate(dot(L, H));
+        const float NdotH = saturate(dot(N, H));
+
+        // Diffuse & specular factors
+        float diffuse_factor = Diffuse_Burley(NdotL, NdotV, LdotH, roughness);
+        float3 specular = Specular_BRDF(alpha, c_spec, NdotV, NdotL, LdotH, NdotH);
+
+        // Directional light
+        acc_color += NdotL * lightColor[i] * (((c_diff * diffuse_factor) + specular));
+    }
+
+    // Add diffuse irradiance
+    float3 diffuse_env = Diffuse_IBL(iblSampler, irradianceTexture, N);
+    acc_color += c_diff * diffuse_env;
+
+    // Add specular radiance 
+    float3 specular_env = Specular_IBL(iblSampler, radianceTexture, N, V, roughness, radianceMipLevels);
+    acc_color += c_spec * specular_env;
+
+    return acc_color;
 }
 
 #endif

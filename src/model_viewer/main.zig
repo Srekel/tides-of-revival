@@ -30,6 +30,7 @@ const FrameUniforms = struct {
 };
 
 const SceneUniforms = extern struct {
+    radiance_texture_index: u32,
     irradiance_texture_index: u32,
     specular_texture_index: u32,
     brdf_integration_texture_index: u32,
@@ -89,8 +90,8 @@ const ModelViewerState = struct {
     arm: gfx.TextureHandle,
 
     camera: struct {
-        position: [3]f32 = .{ 0.0, 0.0, 4.0 },
-        forward: [3]f32 = .{ 0.0, 0.0, -1.0 },
+        position: [3]f32 = .{ 0.0, 0.0, -4.0 },
+        forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
         pitch: f32 = 0.0,
         yaw: f32 = 0.0,
     } = .{},
@@ -316,6 +317,7 @@ fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     {
         const ibl_textures = gfx_state.lookupIBLTextures();
         const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
+        mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
         mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
         mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
         mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;

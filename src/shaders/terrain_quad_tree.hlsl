@@ -28,6 +28,7 @@ struct Vertex {
 };
 
 struct SceneConst {
+    uint radiance_texture_index;
     uint irradiance_texture_index;
     uint specular_texture_index;
     uint brdf_integration_texture_index;
@@ -165,40 +166,23 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
 
     const float3 v = normalize(cbv_frame_const.camera_position - input.position);
 
-    TextureCube ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
-    TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.specular_texture_index];
-    Texture2D ibl_brdf_integration_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
+    TextureCube<float3> ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
+    TextureCube<float3> ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
+    // TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.specular_texture_index];
+    // Texture2D ibl_brdf_integration_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
 
-    const float3 ibl_irradiance = ibl_irradiance_texture.SampleLevel(sam_aniso, n, 0.0).rgb;
+    float3 lightDirection[3] = {
+        float3(0.0, 1.0, 0.0),
+        float3(0.0, 1.0, 0.0),
+        float3(0.0, 1.0, 0.0),
+    };
+    float3 lightColor[3] = {
+        float3(1.0, 1.0, 1.0),
+        float3(1.0, 1.0, 1.0),
+        float3(1.0, 1.0, 1.0),
+    };
 
-    const float3 r = reflect(-v, input.normal);
-    const float3 ibl_specular = ibl_specular_texture.SampleLevel(
-        sam_aniso,
-        r,
-        arm.g * 5.0 // roughness * (num_mip_levels - 1.0)
-    ).rgb;
-
-    const float n_dot_v = saturate(dot(input.normal, v));
-    const float2 ibl_brdf = ibl_brdf_integration_texture.SampleLevel(
-        sam_aniso,
-        float2(min(n_dot_v, 0.999), arm.g),
-        0.0
-    ).rg;
-
-    PBRInput pbr_input;
-    pbr_input.base_color = base_color;
-    pbr_input.view_direction = v;
-    pbr_input.position = input.position;
-    pbr_input.normal = n;
-    pbr_input.roughness = arm.g;
-    pbr_input.metallic = arm.b;
-    pbr_input.ao = arm.r;
-    pbr_input.ibl_irradiance = ibl_irradiance;
-    pbr_input.ibl_specular = ibl_specular;
-    pbr_input.ibl_brdf = ibl_brdf;
-    pbr_input.time = cbv_frame_const.time;
-
-    float3 color = pbrShading(pbr_input, cbv_frame_const.light_positions, cbv_frame_const.light_radiances, cbv_frame_const.light_count);
+    float3 color = LightSurface(v, n, 1, lightColor, lightDirection, base_color, arm.g, arm.b, arm.r, ibl_radiance_texture, ibl_irradiance_texture, sam_aniso_clamp, 10);
     color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;

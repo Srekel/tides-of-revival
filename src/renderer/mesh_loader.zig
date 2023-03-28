@@ -110,6 +110,8 @@ pub fn loadObjMeshFromFile(
             var uv: [2]f32 = undefined;
             uv[0] = try std.fmt.parseFloat(f32, it.next().?);
             uv[1] = try std.fmt.parseFloat(f32, it.next().?);
+            // NOTE(gmodarelli): Figure out if we always need to do this
+            uv[1] = 1.0 - uv[1];
             try uvs.append(uv);
         } else if (std.mem.eql(u8, first, "f")) {
             var triangle_index: u32 = 0;

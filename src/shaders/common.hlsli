@@ -10,8 +10,6 @@
 #define MAX_LIGHTS 32
 #define GAMMA 2.2
 
-#define PI 3.1415926
-
 float3 gammaCorrect(float3 color) {
     float gamma = 1.0 / GAMMA;
     color = pow(color, float3(gamma, gamma, gamma));
