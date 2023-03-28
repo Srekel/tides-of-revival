@@ -294,8 +294,9 @@ pub const D3D12State = struct {
     }
 
     pub fn lookupIBLTextures(self: *D3D12State)
-    struct{ irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture} {
+    struct{ radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture} {
         return .{
+            .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
             .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
             .specular = self.texture_pool.lookupTexture(self.specular_texture),
             .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
