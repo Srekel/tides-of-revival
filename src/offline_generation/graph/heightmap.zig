@@ -49,6 +49,15 @@ pub const HeightmapOutputData = struct {
     }
 
     pub fn getHeightWorld(self: HeightmapOutputData, world_x: anytype, world_y: anytype) f32 {
+        if (@typeInfo(@TypeOf(world_x)) == .Float) {
+            const height = self.getHeight(
+                @floatToInt(i32, @floor(world_x)),
+                @floatToInt(i32, @floor(world_y)),
+            );
+            const height_0_1 = @intToFloat(f32, height) / @intToFloat(f32, std.math.maxInt(u16));
+            return config.noise_scale_y * height_0_1;
+        }
+
         const height = self.getHeight(world_x, world_y);
         const height_0_1 = @intToFloat(f32, height) / @intToFloat(f32, std.math.maxInt(u16));
         return config.noise_scale_y * height_0_1;

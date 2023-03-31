@@ -26,26 +26,60 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
     const world_width = getInputResult(world_width_input, context).getUInt64();
 
     const forest_props_input = node.getInputByString("Forest Props");
+    const city_props_input = node.getInputByString("City Props");
 
     std.fs.cwd().makeDir("content/patch") catch {};
     std.fs.cwd().makeDir("content/patch/props") catch {};
+
+    const props_city: []Prop = city_blk: {
+        const prevNodeOutput = city_props_input.source orelse unreachable;
+        const prevNode = prevNodeOutput.node orelse unreachable;
+        const res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
+            .{
+                .name = IdLocal.init("world_x"),
+                .value = v.Variant.createUInt64(0),
+            },
+            .{
+                .name = IdLocal.init("world_z"),
+                .value = v.Variant.createUInt64(0),
+            },
+            .{
+                .name = IdLocal.init("width"),
+                .value = v.Variant.createUInt64(world_width),
+            },
+            .{
+                .name = IdLocal.init("height"),
+                .value = v.Variant.createUInt64(world_width),
+            },
+        }));
+
+        if (res != .success) {
+            const foo: []Prop = &.{};
+            break :city_blk foo;
+        }
+
+        const props_city = res.success.getSlice(Prop, 1);
+        break :city_blk props_city;
+    };
 
     const PROPS_LOD = 1;
     const PROPS_PATCH_SIZE = config.patch_size * std.math.pow(u32, 2, PROPS_LOD);
     const PATCH_COUNT = world_width / PROPS_PATCH_SIZE;
     for (0..PATCH_COUNT) |patch_z| {
         for (0..PATCH_COUNT) |patch_x| {
-            const props = forest_blk: {
+            const patch_x_world = patch_x * PROPS_PATCH_SIZE;
+            const patch_z_world = patch_z * PROPS_PATCH_SIZE;
+            const props_forest = forest_blk: {
                 const prevNodeOutput = forest_props_input.source orelse unreachable;
                 const prevNode = prevNodeOutput.node orelse unreachable;
                 const res = prevNode.template.func.func(prevNode, prevNodeOutput, context, &([_]g.NodeFuncParam{
                     .{
                         .name = IdLocal.init("world_x"),
-                        .value = v.Variant.createUInt64(patch_x * PROPS_PATCH_SIZE),
+                        .value = v.Variant.createUInt64(patch_x_world),
                     },
                     .{
                         .name = IdLocal.init("world_z"),
-                        .value = v.Variant.createUInt64(patch_z * PROPS_PATCH_SIZE),
+                        .value = v.Variant.createUInt64(patch_z_world),
                     },
                     .{
                         .name = IdLocal.init("width"),
@@ -62,8 +96,8 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     break :forest_blk foo;
                 }
 
-                const props = res.success.getSlice(Prop, 1);
-                break :forest_blk props;
+                const props_forest = res.success.getSlice(Prop, 1);
+                break :forest_blk props_forest;
             };
 
             if (node.output_artifacts) {
@@ -87,7 +121,7 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     },
                 ) catch unreachable;
 
-                if (props.len == 0) {
+                if (props_forest.len == 0) {
                     std.fs.cwd().deleteFile(namebufslice) catch {};
                     continue;
                 }
@@ -98,10 +132,33 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                 ) catch unreachable;
                 defer remap_file.close();
 
-                for (props) |prop| {
+                for (props_forest) |prop| {
                     const prop_slice = std.fmt.bufPrintZ(
                         namebuf[0..namebuf.len],
-                        "prop,{d:.3},{d:.3},{d:.3},{d:.3}\n",
+                        "tree,{d:.3},{d:.3},{d:.3},{d:.3}\n",
+                        .{
+                            prop.pos[0], prop.pos[1], prop.pos[2], prop.rot,
+                        },
+                    ) catch unreachable;
+                    const bytes_written = remap_file.writeAll(prop_slice) catch unreachable;
+                    _ = bytes_written;
+                }
+
+                const patch_x_world_f = @intToFloat(f32, patch_x_world);
+                const patch_z_world_f = @intToFloat(f32, patch_z_world);
+                const patch_x_world_end_f = patch_x_world_f + @intToFloat(f32, PROPS_PATCH_SIZE);
+                const patch_z_world_end_f = patch_z_world_f + @intToFloat(f32, PROPS_PATCH_SIZE);
+                for (props_city) |prop| {
+                    if (prop.pos[0] < patch_x_world_f or prop.pos[0] >= patch_x_world_end_f) {
+                        continue;
+                    }
+                    if (prop.pos[2] < patch_z_world_f or prop.pos[2] >= patch_z_world_end_f) {
+                        continue;
+                    }
+
+                    const prop_slice = std.fmt.bufPrintZ(
+                        namebuf[0..namebuf.len],
+                        "wall,{d:.3},{d:.3},{d:.3},{d:.3}\n",
                         .{
                             prop.pos[0], prop.pos[1], prop.pos[2], prop.rot,
                         },
@@ -132,7 +189,7 @@ pub const propsFunc = g.NodeFuncTemplate{
         ++
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Forest Props") }}) //
         ++ //
-        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("City Props") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{}} ** 13),
     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Props") }}) //

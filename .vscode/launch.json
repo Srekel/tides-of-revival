@@ -11,6 +11,7 @@
             "program": "${workspaceFolder}/zig-out/bin/TidesOfRevival.exe",
             "args": [
                 // "--offlinegen",
+                // "--model_viewer",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
