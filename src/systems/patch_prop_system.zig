@@ -205,22 +205,35 @@ fn updatePatches(system: *SystemState) void {
 
             const tree_id = IdLocal.init("tree");
             const wall_id = IdLocal.init("wall");
-            _ = wall_id;
+            const house_id = IdLocal.init("house");
             var rand1 = std.rand.DefaultPrng.init(data.len);
             var rand = rand1.random();
             for (data) |prop| {
                 const prop_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
-                const uniform_scale: f32 = 1.0 + rand.float(f32) * 0.2;
+                const prop_scale: f32 = 1.0 + rand.float(f32) * 0.2;
+                const prop_rot = fd.EulerRotation.init(0, prop.rot + std.math.pi * 0.5, 0);
+
                 var prop_transform: fd.Transform = undefined;
-                const z_prop_scale_matrix = zm.scaling(uniform_scale, uniform_scale, uniform_scale);
+                const z_prop_scale_matrix = zm.scaling(prop_scale, prop_scale, prop_scale);
+                const z_prop_rot_matrix = zm.matFromRollPitchYaw(prop_rot.pitch, prop_rot.yaw, prop_rot.roll);
                 const z_prop_translate_matrix = zm.translation(prop_pos.x, prop_pos.y, prop_pos.z);
-                const z_prop_st_matrix = zm.mul(z_prop_scale_matrix, z_prop_translate_matrix);
-                zm.storeMat43(prop_transform.matrix[0..], z_prop_st_matrix);
+                const z_prop_sr_matrix = zm.mul(z_prop_scale_matrix, z_prop_rot_matrix);
+                const z_prop_srt_matrix = zm.mul(z_prop_sr_matrix, z_prop_translate_matrix);
+                zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
 
                 var prop_ent = system.flecs_world.newEntity();
                 prop_ent.set(prop_transform);
                 prop_ent.set(fd.CIShapeMeshInstance{
-                    .id = if (prop.id.hash == tree_id.hash) IdLocal.id64("pine") else IdLocal.id64("long_house"),
+                    .id = blk: {
+                        if (prop.id.hash == tree_id.hash) {
+                            break :blk IdLocal.id64("pine");
+                        } else if (prop.id.hash == wall_id.hash) {
+                            break :blk IdLocal.id64("long_house");
+                        } else if (prop.id.hash == house_id.hash) {
+                            break :blk IdLocal.id64("small_house");
+                        }
+                        unreachable;
+                    },
                     .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
                 });
                 patch.entities.append(prop_ent.id) catch unreachable;

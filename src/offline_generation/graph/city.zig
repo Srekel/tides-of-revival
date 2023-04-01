@@ -1,5 +1,6 @@
 const std = @import("std");
 const img = @import("zigimg");
+const zm = @import("zmath");
 
 const g = @import("graph.zig");
 const lru = @import("../../lru_cache.zig");
@@ -11,7 +12,7 @@ const graph_props = @import("props.zig");
 const graph_util = @import("util.zig");
 const getInputResult = graph_util.getInputResult;
 const HeightmapOutputData = graph_heightmap.HeightmapOutputData;
-const Pos = [3]f64;
+const Pos = [3]f32;
 
 const config_patch_width = 512;
 
@@ -53,12 +54,12 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     while (world_z < world_width - CITY_MARGIN_EDGE) : (world_z += CITY_SKIP) {
         var world_x: i64 = CITY_MARGIN_EDGE;
         x_loop: while (world_x < world_width - CITY_MARGIN_EDGE) : (world_x += CITY_SKIP) {
-            const world_x_f = @intToFloat(f64, world_x);
-            const world_z_f = @intToFloat(f64, world_z);
+            const world_x_f = @intToFloat(f32, world_x);
+            const world_z_f = @intToFloat(f32, world_z);
             for (cities.items) |city| {
                 const city_diff_x = @fabs(city.pos[0] - world_x_f);
                 const city_diff_z = @fabs(city.pos[2] - world_z_f);
-                if (city_diff_x + city_diff_z - @intToFloat(f64, (city.border_pos.items.len - CITY_MIN_BORDERS) * 1) < CITY_MARGIN_CITY) {
+                if (city_diff_x + city_diff_z - @intToFloat(f32, (city.border_pos.items.len - CITY_MIN_BORDERS) * 1) < CITY_MARGIN_CITY) {
                     continue :x_loop;
                 }
             }
@@ -185,7 +186,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         }
                     }
 
-                    city.border_pos.append([_]f64{ pos[0], height_side, pos[2] }) catch unreachable;
+                    city.border_pos.append([_]f32{ pos[0], height_side, pos[2] }) catch unreachable;
                     city.is_border.append(false) catch unreachable;
                 }
             }
@@ -394,14 +395,30 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
     }
 
+    var rand1 = std.rand.DefaultPrng.init(0);
+    var rand = rand1.random();
     if (output.template.?.name.eqlStr("City Props")) {
+        const house_id = IdLocal.init("house");
         const wall_id = IdLocal.init("wall");
         var props = std.ArrayList(graph_props.Prop).initCapacity(context.frame_allocator, 1000) catch unreachable;
         for (cities.items) |city| {
             for (city.border_pos.items, city.is_border.items) |pos, is_border| {
                 if (!is_border) {
+                    if (rand.float(f32) < 0.05) {
+                        props.append(.{
+                            .id = house_id,
+                            .pos = .{
+                                @floatCast(f32, pos[0]),
+                                @floatCast(f32, pos[1]),
+                                @floatCast(f32, pos[2]),
+                            },
+                            .rot = rand.float(f32) * std.math.pi * 2,
+                        }) catch unreachable;
+                    }
                     continue;
                 }
+
+                const dir_to_city = zm.normalize3(zm.loadArr3(pos) - zm.loadArr3(city.pos));
 
                 props.append(.{
                     .id = wall_id,
@@ -410,7 +427,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         @floatCast(f32, pos[1]),
                         @floatCast(f32, pos[2]),
                     },
-                    .rot = 0,
+                    .rot = std.math.atan2(f32, -dir_to_city[2], dir_to_city[0]),
                 }) catch unreachable;
             }
         }

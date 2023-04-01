@@ -6,6 +6,7 @@ const lru = @import("../../lru_cache.zig");
 const v = @import("../../variant.zig");
 const config = @import("../../config.zig");
 const IdLocal = v.IdLocal;
+const tides_math = @import("../../core/math.zig");
 
 const graph_util = @import("util.zig");
 const getInputResult = graph_util.getInputResult;
@@ -132,12 +133,24 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                 ) catch unreachable;
                 defer remap_file.close();
 
-                for (props_forest) |prop| {
+                blk_tree: for (props_forest) |prop_tree| {
+                    const patch_x_world_f = @intToFloat(f32, patch_x_world);
+                    const patch_z_world_f = @intToFloat(f32, patch_z_world);
+                    const patch_x_world_end_f = patch_x_world_f + @intToFloat(f32, PROPS_PATCH_SIZE);
+                    _ = patch_x_world_end_f;
+                    const patch_z_world_end_f = patch_z_world_f + @intToFloat(f32, PROPS_PATCH_SIZE);
+                    _ = patch_z_world_end_f;
+                    for (props_city) |prop_city| {
+                        if (tides_math.dist3_xz(prop_city.pos, prop_tree.pos) < 30) {
+                            continue :blk_tree;
+                        }
+                    }
+
                     const prop_slice = std.fmt.bufPrintZ(
                         namebuf[0..namebuf.len],
                         "tree,{d:.3},{d:.3},{d:.3},{d:.3}\n",
                         .{
-                            prop.pos[0], prop.pos[1], prop.pos[2], prop.rot,
+                            prop_tree.pos[0], prop_tree.pos[1], prop_tree.pos[2], prop_tree.rot,
                         },
                     ) catch unreachable;
                     const bytes_written = remap_file.writeAll(prop_slice) catch unreachable;
@@ -158,9 +171,9 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
 
                     const prop_slice = std.fmt.bufPrintZ(
                         namebuf[0..namebuf.len],
-                        "wall,{d:.3},{d:.3},{d:.3},{d:.3}\n",
+                        "{s},{d:.3},{d:.3},{d:.3},{d:.3}\n",
                         .{
-                            prop.pos[0], prop.pos[1], prop.pos[2], prop.rot,
+                            prop.id.toString(), prop.pos[0], prop.pos[1], prop.pos[2], prop.rot,
                         },
                     ) catch unreachable;
                     const bytes_written = remap_file.writeAll(prop_slice) catch unreachable;
