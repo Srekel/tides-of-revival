@@ -2,7 +2,7 @@
 #include "pbr.hlsli"
 
 #define ROOT_SIGNATURE \
-    "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
+    "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
     "CBV(b1), " \
     "CBV(b2), " \

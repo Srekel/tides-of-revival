@@ -173,6 +173,11 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "psTerrainQuadTree", "terrain_quad_tree.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
+    dxc_command = makeDxcCmd("src/shaders/sample_env_texture.hlsl", "vsSampleEnvTexture", "sample_env_texture.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/sample_env_texture.hlsl", "psSampleEnvTexture", "sample_env_texture.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
     dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 

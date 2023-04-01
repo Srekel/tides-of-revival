@@ -488,36 +488,32 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         );
     };
 
-    const terrain_pipeline = blk: {
-        // TODO: Replace InputAssembly with vertex fetch in shader
-        const input_layout_desc = [_]d3d12.INPUT_ELEMENT_DESC{
-            d3d12.INPUT_ELEMENT_DESC.init("POSITION", 0, .R32G32B32_FLOAT, 0, 0, .PER_VERTEX_DATA, 0),
-            d3d12.INPUT_ELEMENT_DESC.init("_Normal", 0, .R32G32B32_FLOAT, 0, @offsetOf(Vertex, "normal"), .PER_VERTEX_DATA, 0),
-        };
-
+    const sample_env_texture_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
-        // TODO: Replace InputAssembly with vertex fetch in shader
         pso_desc.InputLayout = .{
-            .pInputElementDescs = &input_layout_desc,
-            .NumElements = input_layout_desc.len,
+            .pInputElementDescs = null,
+            .NumElements = 0,
         };
         pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
         pso_desc.NumRenderTargets = 1;
-        pso_desc.DSVFormat = .D32_FLOAT;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.RasterizerState.CullMode = .FRONT;
+        pso_desc.DepthStencilState.DepthFunc = .LESS_EQUAL;
+        pso_desc.DepthStencilState.DepthWriteMask = .ZERO;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
 
         break :blk gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/terrain.vs.cso",
-            "shaders/terrain.ps.cso",
+            "shaders/sample_env_texture.vs.cso",
+            "shaders/sample_env_texture.ps.cso",
         );
     };
 
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
-    pipelines.put(IdLocal.init("terrain"), PipelineInfo{ .pipeline_handle = terrain_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("sample_env_texture"), PipelineInfo{ .pipeline_handle = sample_env_texture_pso }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
 
