@@ -40,6 +40,50 @@ pub const Vertex = struct {
     normal: [3]f32,
 };
 
+pub const RenderTarget = struct {
+    resource_handle: zd3d12.ResourceHandle,
+    descriptor: d3d12.CPU_DESCRIPTOR_HANDLE,
+    persistent_descriptor: zd3d12.PersistentDescriptor,
+};
+
+pub const RenderTargetDesc = struct {
+    format: dxgi.FORMAT,
+    width: u32,
+    height: u32,
+    flags: d3d12.RESOURCE_FLAGS,
+    initial_state: d3d12.RESOURCE_STATES,
+    clear_value: d3d12.CLEAR_VALUE,
+    create_srv: bool,
+
+    pub fn initColor(format: dxgi.FORMAT, in_color: *const [4]w32.FLOAT, width: u32, height: u32) RenderTargetDesc {
+        var v = std.mem.zeroes(@This());
+        v = .{
+            .format = format,
+            .width = width,
+            .height = height,
+            .flags = .{ .ALLOW_RENDER_TARGET = true },
+            .initial_state = .{ .RENDER_TARGET = true },
+            .clear_value = d3d12.CLEAR_VALUE.initColor(format, in_color),
+            .create_srv = true,
+        };
+        return v;
+    }
+
+    pub fn initDepthStencil(format: dxgi.FORMAT, depth: w32.FLOAT, stencil: w32.UINT8, width: u32, height: u32) RenderTargetDesc {
+        var v = std.mem.zeroes(@This());
+        v = .{
+            .format = format,
+            .width = width,
+            .height = height,
+            .flags = .{ .ALLOW_DEPTH_STENCIL = true },
+            .initial_state = .{ .DEPTH_WRITE = true },
+            .clear_value = d3d12.CLEAR_VALUE.initDepthStencil(format, depth, stencil),
+            .create_srv = false,
+        };
+        return v;
+    }
+};
+
 pub const FrameStats = struct {
     time: f64,
     delta_time: f32,
@@ -100,8 +144,12 @@ pub const D3D12State = struct {
     stats_brush: *d2d1.ISolidColorBrush,
     stats_text_format: *dwrite.ITextFormat,
 
-    depth_texture: zd3d12.ResourceHandle,
-    depth_texture_dsv: d3d12.CPU_DESCRIPTOR_HANDLE,
+    depth_rt: RenderTarget,
+
+    gbuffer_0: RenderTarget,
+    gbuffer_1: RenderTarget,
+    gbuffer_2: RenderTarget,
+    // gbuffer_3: RenderTarget,
 
     // NOTE(gmodarelli): just a test
     radiance_texture: TextureHandle,
@@ -546,24 +594,30 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     hrPanicOnFail(stats_text_format.SetTextAlignment(.LEADING));
     hrPanicOnFail(stats_text_format.SetParagraphAlignment(.NEAR));
 
-    const depth_texture = gctx.createCommittedResource(
-        .DEFAULT,
-        .{},
-        &blk: {
-            var desc = d3d12.RESOURCE_DESC.initTex2d(.D32_FLOAT, gctx.viewport_width, gctx.viewport_height, 1);
-            desc.Flags = .{ .ALLOW_DEPTH_STENCIL = true, .DENY_SHADER_RESOURCE = true };
-            break :blk desc;
-        },
-        .{ .DEPTH_WRITE = true },
-        &d3d12.CLEAR_VALUE.initDepthStencil(.D32_FLOAT, 1.0, 0),
-    ) catch |err| hrPanic(err);
+    const depth_rt = blk: {
+        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height);
+        break :blk createRenderTarget(&gctx, &desc);
+    };
 
-    const depth_texture_dsv = gctx.allocateCpuDescriptors(.DSV, 1);
-    gctx.device.CreateDepthStencilView(
-        gctx.lookupResource(depth_texture).?,
-        null,
-        depth_texture_dsv,
-    );
+    const gbuffer_0 = blk: {
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM_SRGB, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const gbuffer_1 = blk: {
+        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const gbuffer_2 = blk: {
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    // const gbuffer_3 = blk: {
+    //     const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
+    //     break :blk createRenderTarget(gctx, &desc);
+    // };
 
     var d3d12_state = D3D12State{
         .gctx = gctx,
@@ -571,8 +625,10 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .stats = FrameStats.init(),
         .stats_brush = stats_brush,
         .stats_text_format = stats_text_format,
-        .depth_texture = depth_texture,
-        .depth_texture_dsv = depth_texture_dsv,
+        .depth_rt = depth_rt,
+        .gbuffer_0 = gbuffer_0,
+        .gbuffer_1 = gbuffer_1,
+        .gbuffer_2 = gbuffer_2,
         .radiance_texture = undefined,
         .irradiance_texture = undefined,
         .specular_texture = undefined,
@@ -671,7 +727,7 @@ pub fn update(state: *D3D12State) void {
         1,
         &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
         w32.TRUE,
-        &state.depth_texture_dsv,
+        &state.depth_rt.descriptor,
     );
     gctx.cmdlist.ClearRenderTargetView(
         back_buffer.descriptor_handle,
@@ -679,7 +735,7 @@ pub fn update(state: *D3D12State) void {
         0,
         null,
     );
-    gctx.cmdlist.ClearDepthStencilView(state.depth_texture_dsv, .{ .DEPTH = true }, 1.0, 0, 0, null);
+    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 1.0, 0, 0, null);
 }
 
 pub fn draw(state: *D3D12State) void {
@@ -802,4 +858,61 @@ fn drawText(
         d2d1.DRAW_TEXT_OPTIONS_NONE,
         .NATURAL,
     );
+}
+
+fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderTargetDesc) RenderTarget {
+    const resource = gctx.createCommittedResource(
+        .DEFAULT,
+        .{},
+        &blk: {
+            var desc = d3d12.RESOURCE_DESC.initTex2d(rt_desc.format, rt_desc.width, rt_desc.height, 1);
+            desc.Flags = rt_desc.flags;
+            break :blk desc;
+        },
+        rt_desc.initial_state,
+        &rt_desc.clear_value,
+    ) catch |err| hrPanic(err);
+
+    var descriptor: d3d12.CPU_DESCRIPTOR_HANDLE = undefined;
+    // TODO(gmodarelli): support multiple depth formats
+    if (rt_desc.format == .D32_FLOAT) {
+        descriptor = gctx.allocateCpuDescriptors(.DSV, 1);
+        gctx.device.CreateDepthStencilView(
+            gctx.lookupResource(resource).?,
+            null,
+            descriptor,
+        );
+    } else {
+        descriptor = gctx.allocateCpuDescriptors(.RTV, 1);
+        gctx.device.CreateRenderTargetView(
+            gctx.lookupResource(resource).?,
+            &d3d12.RENDER_TARGET_VIEW_DESC{
+                .Format = rt_desc.format,
+                .ViewDimension = .TEXTURE2D,
+                .u = .{
+                    .Texture2D = .{
+                        .MipSlice = 0,
+                        .PlaneSlice = 0,
+                    },
+                },
+            },
+            descriptor,
+        );
+    }
+
+    var persistent_descriptor: zd3d12.PersistentDescriptor = undefined;
+    if (rt_desc.create_srv) {
+        persistent_descriptor = gctx.allocatePersistentGpuDescriptors(1);
+        gctx.device.CreateShaderResourceView(
+            gctx.lookupResource(resource).?,
+            null,
+            persistent_descriptor.cpu_handle,
+        );
+    }
+
+    return .{
+        .resource_handle = resource,
+        .descriptor = descriptor,
+        .persistent_descriptor = persistent_descriptor,
+    };
 }
