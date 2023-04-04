@@ -99,8 +99,15 @@ InstancedVertexOut vsInstanced(uint vertex_id : SV_VertexID, uint instanceID : S
     return output;
 }
 
+struct GBufferOutput {
+    float4 albedo : SV_Target0;         // R8B8G8A8_UNORM_SRGB
+    float4 emissive : SV_Target1;       // R11G11B10_FLOAT
+    float2 normal : SV_Target2;         // RG16_UNORM
+    float4 material : SV_Target3;       // R8G8B8A8_UNORM
+};
+
 [RootSignature(ROOT_SIGNATURE)]
-void psInstanced(InstancedVertexOut input, out float4 out_color : SV_Target0) {
+GBufferOutput psInstanced(InstancedVertexOut input) {
     ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
     uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
     InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
@@ -122,6 +129,13 @@ void psInstanced(InstancedVertexOut input, out float4 out_color : SV_Target0) {
     n = normalize(mul(n, (float3x3)instance.object_to_world));
     float3 arm = arm_texture.Sample(sam_linear_wrap, input.uv).rgb;
 
+    GBufferOutput output = (GBufferOutput)0;
+    output.albedo = float4(base_color.rgb, 1.0);
+    output.normal = n.xy;
+    output.material = float4(arm, 1.0);
+    return output;
+
+    /*
     const float3 v = normalize(cbv_frame_const.camera_position - input.position);
 
     TextureCube<float3> ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
@@ -144,4 +158,5 @@ void psInstanced(InstancedVertexOut input, out float4 out_color : SV_Target0) {
     color = gammaCorrect(color);
     out_color.rgb = color;
     out_color.a = 1;
+    */
 }

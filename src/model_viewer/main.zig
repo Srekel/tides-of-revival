@@ -7,6 +7,7 @@ const args = @import("args");
 
 const gfx = @import("../gfx_d3d12.zig");
 const zwin32 = @import("zwin32");
+const zpix = @import("zpix");
 const d3d12 = zwin32.d3d12;
 const window = @import("../window.zig");
 
@@ -296,11 +297,16 @@ pub fn run() !void {
         // }
 
         // world_patch_mgr.tickOne();
-        update(&gfx_state, &model_viewer_state);
+        update(&model_viewer_state);
+        render(&gfx_state, &model_viewer_state);
     }
 }
 
-fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) void {
+fn update(model_viewer_state: *ModelViewerState) void {
+    _ = model_viewer_state;
+}
+
+fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) void {
     const stats = gfx_state.stats;
 
     // Camera
@@ -328,7 +334,10 @@ fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     const ibl_textures = gfx_state.lookupIBLTextures();
 
     // Start rendering the frame
-    gfx.update(gfx_state);
+    gfx.beginFrame(gfx_state);
+
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "GBuffer");
+    gfx.bindGBuffer(gfx_state);
 
     // Draw Model
     {
@@ -424,8 +433,10 @@ fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             );
         }
     }
+    zpix.endEvent(gfx_state.gctx.cmdlist);
 
     // Environment Map
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Skybox");
     {
         const pipeline_info = gfx_state.getPipeline(IdLocal.init("sample_env_texture"));
         gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
@@ -451,7 +462,7 @@ fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
 
         const vertex_buffer = gfx_state.lookupBuffer(model_viewer_state.vertex_buffer);
 
-        const cube_mesh_index: u32 = 1;
+        const cube_mesh_index: u32 = 0;
         var mesh = &model_viewer_state.meshes.items[cube_mesh_index].mesh;
         const lod_index: u32 = 0;
 
@@ -473,21 +484,22 @@ fn update(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             0,
         );
     }
+    zpix.endEvent(gfx_state.gctx.cmdlist);
 
-    gfx.draw(gfx_state);
+    gfx.endFrame(gfx_state);
 }
 
-    fn appendObjMesh(
-        allocator: std.mem.Allocator,
-        id: IdLocal,
-        path: []const u8,
-        meshes: *std.ArrayList(ProcMesh),
-        meshes_indices: *std.ArrayList(IndexType),
-        meshes_vertices: *std.ArrayList(Vertex),
-    ) !u64 {
-        const mesh = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
+fn appendObjMesh(
+    allocator: std.mem.Allocator,
+    id: IdLocal,
+    path: []const u8,
+    meshes: *std.ArrayList(ProcMesh),
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_vertices: *std.ArrayList(Vertex),
+) !u64 {
+    const mesh = mesh_loader.loadObjMeshFromFile(allocator, path, meshes_indices, meshes_vertices) catch unreachable;
 
-        meshes.append(.{ .id = id, .mesh = mesh }) catch unreachable;
+    meshes.append(.{ .id = id, .mesh = mesh }) catch unreachable;
 
-        return meshes.items.len - 1;
-    }
+    return meshes.items.len - 1;
+}

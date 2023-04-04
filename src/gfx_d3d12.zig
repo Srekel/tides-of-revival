@@ -44,6 +44,7 @@ pub const RenderTarget = struct {
     resource_handle: zd3d12.ResourceHandle,
     descriptor: d3d12.CPU_DESCRIPTOR_HANDLE,
     persistent_descriptor: zd3d12.PersistentDescriptor,
+    clear_value: d3d12.CLEAR_VALUE,
 };
 
 pub const RenderTargetDesc = struct {
@@ -54,10 +55,10 @@ pub const RenderTargetDesc = struct {
     initial_state: d3d12.RESOURCE_STATES,
     clear_value: d3d12.CLEAR_VALUE,
     create_srv: bool,
+    name: [*:0]const u16,
 
-    pub fn initColor(format: dxgi.FORMAT, in_color: *const [4]w32.FLOAT, width: u32, height: u32) RenderTargetDesc {
-        var v = std.mem.zeroes(@This());
-        v = .{
+    pub fn initColor(format: dxgi.FORMAT, in_color: *const [4]w32.FLOAT, width: u32, height: u32, name: [*:0]const u16) RenderTargetDesc {
+        return .{
             .format = format,
             .width = width,
             .height = height,
@@ -65,13 +66,12 @@ pub const RenderTargetDesc = struct {
             .initial_state = .{ .RENDER_TARGET = true },
             .clear_value = d3d12.CLEAR_VALUE.initColor(format, in_color),
             .create_srv = true,
+            .name = name,
         };
-        return v;
     }
 
-    pub fn initDepthStencil(format: dxgi.FORMAT, depth: w32.FLOAT, stencil: w32.UINT8, width: u32, height: u32) RenderTargetDesc {
-        var v = std.mem.zeroes(@This());
-        v = .{
+    pub fn initDepthStencil(format: dxgi.FORMAT, depth: w32.FLOAT, stencil: w32.UINT8, width: u32, height: u32, name: [*:0]const u16) RenderTargetDesc {
+        return .{
             .format = format,
             .width = width,
             .height = height,
@@ -79,8 +79,8 @@ pub const RenderTargetDesc = struct {
             .initial_state = .{ .DEPTH_WRITE = true },
             .clear_value = d3d12.CLEAR_VALUE.initDepthStencil(format, depth, stencil),
             .create_srv = false,
+            .name = name,
         };
-        return v;
     }
 };
 
@@ -149,7 +149,7 @@ pub const D3D12State = struct {
     gbuffer_0: RenderTarget,
     gbuffer_1: RenderTarget,
     gbuffer_2: RenderTarget,
-    // gbuffer_3: RenderTarget,
+    gbuffer_3: RenderTarget,
 
     // NOTE(gmodarelli): just a test
     radiance_texture: TextureHandle,
@@ -595,29 +595,29 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     hrPanicOnFail(stats_text_format.SetParagraphAlignment(.NEAR));
 
     const depth_rt = blk: {
-        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height);
+        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height, L("Depth"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_0 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM_SRGB, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM_SRGB, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT0_Albedo"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_1 = blk: {
-        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
+        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT1_Emissive"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_2 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
+        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT2_Normal"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
-    // const gbuffer_3 = blk: {
-    //     const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height);
-    //     break :blk createRenderTarget(gctx, &desc);
-    // };
+    const gbuffer_3 = blk: {
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 1.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT3_PBR"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
 
     var d3d12_state = D3D12State{
         .gctx = gctx,
@@ -629,6 +629,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_0 = gbuffer_0,
         .gbuffer_1 = gbuffer_1,
         .gbuffer_2 = gbuffer_2,
+        .gbuffer_3 = gbuffer_3,
         .radiance_texture = undefined,
         .irradiance_texture = undefined,
         .specular_texture = undefined,
@@ -705,7 +706,7 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     self.* = undefined;
 }
 
-pub fn update(state: *D3D12State) void {
+pub fn beginFrame(state: *D3D12State) void {
     // Update frame counter and fps stats.
     state.stats.update();
 
@@ -717,6 +718,14 @@ pub fn update(state: *D3D12State) void {
     zpix.beginEvent(gctx.cmdlist, "Render Scene");
 
     state.gpu_frame_profiler_index = state.gpu_profiler.startProfile(state.gctx.cmdlist, "Frame");
+}
+
+pub fn endFrame(state: *D3D12State) void {
+    var gctx = &state.gctx;
+
+    zpix.endEvent(gctx.cmdlist);
+    state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
+    state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
 
     // Get current back buffer resource and transition it to 'render target' state.
     const back_buffer = gctx.getBackBuffer();
@@ -727,23 +736,15 @@ pub fn update(state: *D3D12State) void {
         1,
         &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
         w32.TRUE,
-        &state.depth_rt.descriptor,
+        null,
     );
+
     gctx.cmdlist.ClearRenderTargetView(
         back_buffer.descriptor_handle,
-        &.{ 0.0, 0.0, 0.0, 1.0 },
+        &.{ 0.0, 0.0, 0.0, 0.0 },
         0,
         null,
     );
-    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 1.0, 0, 0, null);
-}
-
-pub fn draw(state: *D3D12State) void {
-    var gctx = &state.gctx;
-
-    zpix.endEvent(gctx.cmdlist);
-    state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
-    state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
 
     gctx.beginDraw2d();
     {
@@ -830,12 +831,58 @@ pub fn draw(state: *D3D12State) void {
     // End Direct2D rendering and transition back buffer to 'present' state.
     gctx.endDraw2d();
 
-    const back_buffer = gctx.getBackBuffer();
     gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATES.PRESENT);
     gctx.flushResourceBarriers();
 
     // Call 'Present' and prepare for the next frame.
     gctx.endFrame();
+}
+
+pub fn bindGBuffer(state: *D3D12State) void {
+    var gctx = &state.gctx;
+    assert(gctx.is_cmdlist_opened);
+
+    gctx.cmdlist.OMSetRenderTargets(
+        4,
+        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{
+            state.gbuffer_0.descriptor,
+            state.gbuffer_1.descriptor,
+            state.gbuffer_2.descriptor,
+            state.gbuffer_3.descriptor,
+        },
+        w32.FALSE,
+        &state.depth_rt.descriptor,
+    );
+
+    gctx.cmdlist.ClearRenderTargetView(
+        state.gbuffer_0.descriptor,
+        &state.gbuffer_0.clear_value.u.Color,
+        0,
+        null,
+    );
+
+    gctx.cmdlist.ClearRenderTargetView(
+        state.gbuffer_1.descriptor,
+        &state.gbuffer_1.clear_value.u.Color,
+        0,
+        null,
+    );
+
+    gctx.cmdlist.ClearRenderTargetView(
+        state.gbuffer_2.descriptor,
+        &state.gbuffer_2.clear_value.u.Color,
+        0,
+        null,
+    );
+
+    gctx.cmdlist.ClearRenderTargetView(
+        state.gbuffer_3.descriptor,
+        &state.gbuffer_3.clear_value.u.Color,
+        0,
+        null,
+    );
+
+    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 1.0, 0, 0, null);
 }
 
 fn drawText(
@@ -860,7 +907,7 @@ fn drawText(
     );
 }
 
-fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderTargetDesc) RenderTarget {
+pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderTargetDesc) RenderTarget {
     const resource = gctx.createCommittedResource(
         .DEFAULT,
         .{},
@@ -872,6 +919,8 @@ fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderTarge
         rt_desc.initial_state,
         &rt_desc.clear_value,
     ) catch |err| hrPanic(err);
+
+    _ = gctx.lookupResource(resource).?.SetName(rt_desc.name);
 
     var descriptor: d3d12.CPU_DESCRIPTOR_HANDLE = undefined;
     // TODO(gmodarelli): support multiple depth formats
@@ -914,5 +963,6 @@ fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderTarge
         .resource_handle = resource,
         .descriptor = descriptor,
         .persistent_descriptor = persistent_descriptor,
+        .clear_value = rt_desc.clear_value,
     };
 }

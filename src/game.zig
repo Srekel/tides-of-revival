@@ -539,10 +539,10 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
         environment_info.world_time = world_time;
     }
 
-    gfx.update(gfx_state);
+    gfx.beginFrame(gfx_state);
     // gui_system.preUpdate(&gui_sys);
 
     flecs_world.progress(dt);
     // gui_system.update(&gui_sys);
-    gfx.draw(gfx_state);
+    gfx.endFrame(gfx_state);
 }
