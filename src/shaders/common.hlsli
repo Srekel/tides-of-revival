@@ -16,4 +16,4 @@ float3 gammaCorrect(float3 color) {
     return color;
 }
 
-#endif
+#endif // __COMMON_HLSL__

@@ -44,6 +44,7 @@ pub const RenderTarget = struct {
     resource_handle: zd3d12.ResourceHandle,
     descriptor: d3d12.CPU_DESCRIPTOR_HANDLE,
     persistent_descriptor: zd3d12.PersistentDescriptor,
+    format: dxgi.FORMAT,
     clear_value: d3d12.CLEAR_VALUE,
 };
 
@@ -362,6 +363,9 @@ pub const D3D12State = struct {
             "shaders/generate_brdf_integration_texture.cs.cso",
         );
 
+        const pipeline = self.gctx.pipeline_pool.lookupPipeline(generate_brdf_integration_texture_pso);
+        _ = pipeline.?.pso.?.SetName(L("Generate BRDF Integration Texture PSO"));
+
         const brdf_integration_texture_resolution = 512;
         const resource = try self.gctx.createCommittedResource(
             .DEFAULT,
@@ -410,10 +414,10 @@ pub const D3D12State = struct {
         self.gctx.flushResourceBarriers();
         self.gctx.deallocateAllTempCpuDescriptors(.CBV_SRV_UAV);
 
-        self.gctx.destroyPipeline(generate_brdf_integration_texture_pso);
-
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
+
+        self.gctx.destroyPipeline(generate_brdf_integration_texture_pso);
 
         return self.texture_pool.addTexture(texture);
     }
@@ -494,6 +498,33 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
+    // TODO(gmodarelli): Switch to reverse depth
+    const depth_rt = blk: {
+        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height, L("Depth"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const gbuffer_0 = blk: {
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM_SRGB, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT0_Albedo"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const gbuffer_1 = blk: {
+        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT1_Emissive"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const gbuffer_2 = blk: {
+        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT2_Normal"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const gbuffer_3 = blk: {
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 1.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT3_PBR"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+
     var pipelines = PipelineHashMap.init(allocator);
 
     const instanced_pipeline = blk: {
@@ -502,18 +533,26 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .pInputElementDescs = null,
             .NumElements = 0,
         };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.RTVFormats[0] = gbuffer_0.format;
+        pso_desc.RTVFormats[1] = gbuffer_1.format;
+        pso_desc.RTVFormats[2] = gbuffer_2.format;
+        pso_desc.RTVFormats[3] = gbuffer_3.format;
+        pso_desc.NumRenderTargets = 4;
+        pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
 
-        break :blk gctx.createGraphicsShaderPipeline(
+        const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
             "shaders/instanced.vs.cso",
             "shaders/instanced.ps.cso",
         );
+
+        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
     };
 
     const terrain_quad_tree_pipeline = blk: {
@@ -522,41 +561,55 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .pInputElementDescs = null,
             .NumElements = 0,
         };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.DSVFormat = .D32_FLOAT;
+        pso_desc.RTVFormats[0] = gbuffer_0.format;
+        pso_desc.RTVFormats[1] = gbuffer_1.format;
+        pso_desc.RTVFormats[2] = gbuffer_2.format;
+        pso_desc.RTVFormats[3] = gbuffer_3.format;
+        pso_desc.NumRenderTargets = 4;
+        pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
 
-        break :blk gctx.createGraphicsShaderPipeline(
+        const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
             "shaders/terrain_quad_tree.vs.cso",
             "shaders/terrain_quad_tree.ps.cso",
         );
+
+        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        _ = pipeline.?.pso.?.SetName(L("Terrain Quad Tree PSO"));
+
+        break :blk pso_handle;
     };
 
+    // TODO(gmodarelli): Which GBuffer RTs should the skybox write to?
     const sample_env_texture_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
             .pInputElementDescs = null,
             .NumElements = 0,
         };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.NumRenderTargets = 1;
+        pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
-        pso_desc.DSVFormat = .D32_FLOAT;
         pso_desc.RasterizerState.CullMode = .FRONT;
         pso_desc.DepthStencilState.DepthFunc = .LESS_EQUAL;
         pso_desc.DepthStencilState.DepthWriteMask = .ZERO;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
 
-        break :blk gctx.createGraphicsShaderPipeline(
+        const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
             "shaders/sample_env_texture.vs.cso",
             "shaders/sample_env_texture.ps.cso",
         );
+
+        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        _ = pipeline.?.pso.?.SetName(L("Sample Env Texture PSO"));
+
+        break :blk pso_handle;
     };
 
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
@@ -565,6 +618,10 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
 
+    // NOTE(gmodarelli): Using Direct2D forces DirectX11on12 which prevents
+    // us from using NVIDIA Nsight to caputer and profile frames.
+    // TODO(gmodarelli): Add an ImGUI glfw_d3d12 backend to zig-gamedev to
+    // get rid of Direct2D
     // Create Direct2D brush which will be needed to display text.
     const stats_brush = blk: {
         var brush: ?*d2d1.ISolidColorBrush = null;
@@ -593,31 +650,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     };
     hrPanicOnFail(stats_text_format.SetTextAlignment(.LEADING));
     hrPanicOnFail(stats_text_format.SetParagraphAlignment(.NEAR));
-
-    const depth_rt = blk: {
-        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height, L("Depth"));
-        break :blk createRenderTarget(&gctx, &desc);
-    };
-
-    const gbuffer_0 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM_SRGB, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT0_Albedo"));
-        break :blk createRenderTarget(&gctx, &desc);
-    };
-
-    const gbuffer_1 = blk: {
-        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT1_Emissive"));
-        break :blk createRenderTarget(&gctx, &desc);
-    };
-
-    const gbuffer_2 = blk: {
-        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT2_Normal"));
-        break :blk createRenderTarget(&gctx, &desc);
-    };
-
-    const gbuffer_3 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 1.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT3_PBR"));
-        break :blk createRenderTarget(&gctx, &desc);
-    };
 
     var d3d12_state = D3D12State{
         .gctx = gctx,
@@ -907,6 +939,7 @@ fn drawText(
     );
 }
 
+// TODO(gmodarelli): Pass different formats in RenderTargetDesc for RTV, DST, SRV and UAV
 pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderTargetDesc) RenderTarget {
     const resource = gctx.createCommittedResource(
         .DEFAULT,
@@ -963,6 +996,7 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
         .resource_handle = resource,
         .descriptor = descriptor,
         .persistent_descriptor = persistent_descriptor,
+        .format = rt_desc.format,
         .clear_value = rt_desc.clear_value,
     };
 }

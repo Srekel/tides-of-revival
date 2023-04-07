@@ -1,5 +1,6 @@
 #include "common.hlsli"
 #include "pbr.hlsli"
+#include "gbuffer.hlsli"
 
 // TODO: Split the static sampler declarations and move them to common.hlsli
 #define ROOT_SIGNATURE \
@@ -119,7 +120,7 @@ static const float g_wireframe_thickness = 0.25;
 static const float2 texel = 1.0f / float2(65.0f, 65.0f);
 
 [RootSignature(ROOT_SIGNATURE)]
-void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics*/, out float4 out_color : SV_Target0) {
+GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics*/) {
     ByteAddressBuffer instance_data_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_data_buffer_index];
     uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
     InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
@@ -164,6 +165,13 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     n = normalize(mul(n, (float3x3)instance.object_to_world));
     float3 arm = arm_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
 
+    GBufferTargets gbuffer = (GBufferTargets)0;
+    gbuffer.encode_albedo(base_color.rgb);
+    gbuffer.encode_normals(n.xyz);
+    gbuffer.encode_material(arm.g, arm.b, arm.r);
+    return gbuffer;
+
+    /*
     const float3 v = normalize(cbv_frame_const.camera_position - input.position);
 
     TextureCube<float3> ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
@@ -201,4 +209,5 @@ void psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Bary
     // min_bary = 1.0;
 
     // out_color = float4(min_bary * color, 1.0);
+    */
 }
