@@ -7,6 +7,7 @@ struct RenderTargetsConst {
     uint gbuffer_2_index;
     uint gbuffer_3_index;
     uint depth_texture_index;
+    uint hdr_texture_index;
 };
 
 struct GBufferTargets {

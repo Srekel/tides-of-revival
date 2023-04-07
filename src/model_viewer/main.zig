@@ -18,8 +18,18 @@ const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
 
+const RenderTargetsUniforms = struct {
+    gbuffer_0_index: u32,
+    gbuffer_1_index: u32,
+    gbuffer_2_index: u32,
+    gbuffer_3_index: u32,
+    depth_texture_index: u32,
+    hdr_texture_index: u32,
+};
+
 const FrameUniforms = struct {
     world_to_clip: zm.Mat,
+    view_projection_inverted: zm.Mat,
     camera_position: [3]f32,
     time: f32,
     padding1: u32,
@@ -331,6 +341,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     );
 
     const world_to_clip = zm.mul(z_world_to_view, z_view_to_clip);
+    const view_projection_inverted = zm.inverse(world_to_clip);
     const ibl_textures = gfx_state.lookupIBLTextures();
 
     // Start rendering the frame
@@ -367,6 +378,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         {
             const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
             mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
             mem.cpu_slice[0].camera_position = camera_position;
             mem.cpu_slice[0].time = 0;
             mem.cpu_slice[0].light_count = 0;
@@ -483,6 +495,54 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             @intCast(i32, mesh.lods[lod_index].vertex_offset),
             0,
         );
+    }
+    zpix.endEvent(gfx_state.gctx.cmdlist);
+
+    // Deferred Lighting
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Deferred Lighting");
+    {
+        const pipeline_info = gfx_state.getPipeline(IdLocal.init("deferred_lighting"));
+        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        // Upload per-scene constant data.
+        {
+            const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
+            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
+            mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
+            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
+        }
+
+        // Upload per-frame constant data.
+        {
+            const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
+            mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+            mem.cpu_slice[0].camera_position = camera_position;
+            mem.cpu_slice[0].time = 0;
+            mem.cpu_slice[0].light_count = 0;
+
+            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
+        }
+
+        // Upload render targets constant data.
+        {
+            const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
+
+            mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].gbuffer_3_index = gfx_state.gbuffer_3.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
+
+            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
+        }
+
+        const num_groups_x = @divExact(gfx_state.hdr_rt.width, 8);
+        const num_groups_y = @divExact(gfx_state.hdr_rt.height, 8);
+        gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
     }
     zpix.endEvent(gfx_state.gctx.cmdlist);
 
