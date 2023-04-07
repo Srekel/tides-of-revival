@@ -34,25 +34,6 @@ struct DrawConst {
     uint instance_material_buffer_index;
 };
 
-struct SceneConst {
-    uint radiance_texture_index;
-    uint irradiance_texture_index;
-    uint specular_texture_index;
-    uint brdf_integration_texture_index;
-};
-
-struct FrameConst {
-    float4x4 world_to_clip;
-    float3 camera_position;
-    float time;
-    uint padding1;
-    uint padding2;
-    uint padding3;
-    uint light_count;
-    float4 light_positions[MAX_LIGHTS];
-    float4 light_radiances[MAX_LIGHTS];
-};
-
 struct InstanceTransform {
     float4x4 object_to_world;
 };

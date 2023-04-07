@@ -43,8 +43,11 @@ pub const Vertex = struct {
 pub const RenderTarget = struct {
     resource_handle: zd3d12.ResourceHandle,
     descriptor: d3d12.CPU_DESCRIPTOR_HANDLE,
-    persistent_descriptor: zd3d12.PersistentDescriptor,
+    srv_persistent_descriptor: zd3d12.PersistentDescriptor,
+    uav_persistent_descriptor: zd3d12.PersistentDescriptor,
     format: dxgi.FORMAT,
+    width: u32,
+    height: u32,
     clear_value: d3d12.CLEAR_VALUE,
 };
 
@@ -55,31 +58,54 @@ pub const RenderTargetDesc = struct {
     flags: d3d12.RESOURCE_FLAGS,
     initial_state: d3d12.RESOURCE_STATES,
     clear_value: d3d12.CLEAR_VALUE,
-    create_srv: bool,
+    srv: bool,
+    uav: bool,
     name: [*:0]const u16,
 
-    pub fn initColor(format: dxgi.FORMAT, in_color: *const [4]w32.FLOAT, width: u32, height: u32, name: [*:0]const u16) RenderTargetDesc {
+    pub fn initColor(format: dxgi.FORMAT, in_color: *const [4]w32.FLOAT, width: u32, height: u32, srv: bool, uav: bool, name: [*:0]const u16) RenderTargetDesc {
+        var flags = d3d12.RESOURCE_FLAGS{ .ALLOW_RENDER_TARGET = true };
+
+        if (!srv) {
+            flags.DENY_SHADER_RESOURCE = true;
+        }
+
+        if (uav) {
+            flags.ALLOW_UNORDERED_ACCESS = true;
+        }
+
         return .{
             .format = format,
             .width = width,
             .height = height,
-            .flags = .{ .ALLOW_RENDER_TARGET = true },
-            .initial_state = .{ .RENDER_TARGET = true },
+            .flags = flags,
+            .initial_state = .{ .RENDER_TARGET = true },    // TODO(gmodarelli): This is not true for render targets when using compute shaders
             .clear_value = d3d12.CLEAR_VALUE.initColor(format, in_color),
-            .create_srv = true,
+            .srv = srv,
+            .uav = uav,
             .name = name,
         };
     }
 
-    pub fn initDepthStencil(format: dxgi.FORMAT, depth: w32.FLOAT, stencil: w32.UINT8, width: u32, height: u32, name: [*:0]const u16) RenderTargetDesc {
+    pub fn initDepthStencil(format: dxgi.FORMAT, depth: w32.FLOAT, stencil: w32.UINT8, width: u32, height: u32, srv: bool, uav: bool, name: [*:0]const u16) RenderTargetDesc {
+        var flags = d3d12.RESOURCE_FLAGS{ .ALLOW_DEPTH_STENCIL = true };
+
+        if (!srv) {
+            flags.DENY_SHADER_RESOURCE = true;
+        }
+
+        if (uav) {
+            flags.ALLOW_UNORDERED_ACCESS = true;
+        }
+
         return .{
             .format = format,
             .width = width,
             .height = height,
-            .flags = .{ .ALLOW_DEPTH_STENCIL = true },
+            .flags = flags,
             .initial_state = .{ .DEPTH_WRITE = true },
             .clear_value = d3d12.CLEAR_VALUE.initDepthStencil(format, depth, stencil),
-            .create_srv = false,
+            .srv = srv,
+            .uav = uav,
             .name = name,
         };
     }
@@ -151,6 +177,8 @@ pub const D3D12State = struct {
     gbuffer_1: RenderTarget,
     gbuffer_2: RenderTarget,
     gbuffer_3: RenderTarget,
+
+    hdr_rt: RenderTarget,
 
     // NOTE(gmodarelli): just a test
     radiance_texture: TextureHandle,
@@ -500,30 +528,34 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     // TODO(gmodarelli): Switch to reverse depth
     const depth_rt = blk: {
-        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height, L("Depth"));
+        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height, true, false, L("Depth"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_0 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM_SRGB, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT0_Albedo"));
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM_SRGB, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT0_Albedo"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_1 = blk: {
-        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT1_Emissive"));
+        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT1_Emissive"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_2 = blk: {
-        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT2_Normal"));
+        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT2_Normal"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_3 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 1.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, L("RT3_PBR"));
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 1.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT3_PBR"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
+    const hdr_rt = blk: {
+        const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("HDR_RT"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
 
     var pipelines = PipelineHashMap.init(allocator);
 
@@ -583,6 +615,20 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
+    const deferred_lighting_pso = blk: {
+        var compute_desc = d3d12.COMPUTE_PIPELINE_STATE_DESC.initDefault();
+        const pso_handle = gctx.createComputeShaderPipeline(
+            arena,
+            &compute_desc,
+            "shaders/deferred_lighting.cs.cso",
+        );
+
+        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        _ = pipeline.?.pso.?.SetName(L("Deferred Lighting PSO"));
+
+        break :blk pso_handle;
+    };
+
     // TODO(gmodarelli): Which GBuffer RTs should the skybox write to?
     const sample_env_texture_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
@@ -614,6 +660,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("sample_env_texture"), PipelineInfo{ .pipeline_handle = sample_env_texture_pso }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
@@ -662,6 +709,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_1 = gbuffer_1,
         .gbuffer_2 = gbuffer_2,
         .gbuffer_3 = gbuffer_3,
+        .hdr_rt = hdr_rt,
         .radiance_texture = undefined,
         .irradiance_texture = undefined,
         .specular_texture = undefined,
@@ -939,6 +987,14 @@ fn drawText(
     );
 }
 
+fn getDepthFormatSRV(format: dxgi.FORMAT) dxgi.FORMAT {
+    if (format == .D32_FLOAT) {
+        return .R32_FLOAT;
+    }
+
+    return format;
+}
+
 // TODO(gmodarelli): Pass different formats in RenderTargetDesc for RTV, DST, SRV and UAV
 pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderTargetDesc) RenderTarget {
     const resource = gctx.createCommittedResource(
@@ -982,21 +1038,58 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
         );
     }
 
-    var persistent_descriptor: zd3d12.PersistentDescriptor = undefined;
-    if (rt_desc.create_srv) {
-        persistent_descriptor = gctx.allocatePersistentGpuDescriptors(1);
+    var srv_persistent_descriptor: zd3d12.PersistentDescriptor = undefined;
+    if (rt_desc.srv) {
+        const srv_format = getDepthFormatSRV(rt_desc.format);
+
+        srv_persistent_descriptor = gctx.allocatePersistentGpuDescriptors(1);
         gctx.device.CreateShaderResourceView(
             gctx.lookupResource(resource).?,
+            &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                .Format = srv_format,
+                .ViewDimension = .TEXTURE2D,
+                .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .u = .{
+                    .Texture2D = .{
+                        .MostDetailedMip = 0,
+                        .MipLevels = 1,
+                        .PlaneSlice = 0,
+                        .ResourceMinLODClamp = 0.0,
+                    },
+                },
+            },
+            srv_persistent_descriptor.cpu_handle,
+        );
+    }
+
+    var uav_persistent_descriptor: zd3d12.PersistentDescriptor = undefined;
+    if (rt_desc.uav) {
+        uav_persistent_descriptor = gctx.allocatePersistentGpuDescriptors(1);
+        gctx.device.CreateUnorderedAccessView(
+            gctx.lookupResource(resource).?,
             null,
-            persistent_descriptor.cpu_handle,
+            &d3d12.UNORDERED_ACCESS_VIEW_DESC{
+                .Format = rt_desc.format,
+                .ViewDimension = .TEXTURE2D,
+                .u = .{
+                    .Texture2D = .{
+                        .MipSlice = 0,
+                        .PlaneSlice = 0,
+                    }
+                }
+            },
+            uav_persistent_descriptor.cpu_handle,
         );
     }
 
     return .{
         .resource_handle = resource,
         .descriptor = descriptor,
-        .persistent_descriptor = persistent_descriptor,
+        .srv_persistent_descriptor = srv_persistent_descriptor,
+        .uav_persistent_descriptor = uav_persistent_descriptor,
         .format = rt_desc.format,
+        .width = rt_desc.width,
+        .height = rt_desc.height,
         .clear_value = rt_desc.clear_value,
     };
 }

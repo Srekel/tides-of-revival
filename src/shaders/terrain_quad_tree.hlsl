@@ -28,31 +28,12 @@ struct Vertex {
     float3 color;
 };
 
-struct SceneConst {
-    uint radiance_texture_index;
-    uint irradiance_texture_index;
-    uint specular_texture_index;
-    uint brdf_integration_texture_index;
-};
-
 struct DrawConst {
     uint start_instance_location;
     int vertex_offset;
     uint vertex_buffer_index;
     uint instance_data_buffer_index;
     uint terrain_layers_buffer_index;
-};
-
-struct FrameConst {
-    float4x4 world_to_clip;
-    float3 camera_position;
-    float time;
-    float noise_offset_y;
-    float noise_scale_y;
-    uint padding3;
-    uint light_count;
-    float4 light_positions[MAX_LIGHTS];
-    float4 light_radiances[MAX_LIGHTS];
 };
 
 struct InstanceData {

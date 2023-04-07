@@ -1,6 +1,14 @@
 #ifndef __GBUFFER_HLSL__
 #define __GBUFFER_HLSL__
 
+struct RenderTargetsConst {
+    uint gbuffer_0_index;
+    uint gbuffer_1_index;
+    uint gbuffer_2_index;
+    uint gbuffer_3_index;
+    uint depth_texture_index;
+};
+
 struct GBufferTargets {
     float4 albedo : SV_Target0;         // R8B8G8A8_UNORM_SRGB
     float4 emissive : SV_Target1;       // R11G11B10_FLOAT
