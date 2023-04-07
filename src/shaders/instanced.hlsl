@@ -98,7 +98,7 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     Texture2D normal_texture = ResourceDescriptorHeap[material.normal_texture_index];
     Texture2D arm_texture = ResourceDescriptorHeap[material.arm_texture_index];
 
-    float3 base_color = pow(albedo_texture.Sample(sam_linear_wrap, input.uv).rgb, GAMMA);
+    float3 base_color = albedo_texture.Sample(sam_linear_wrap, input.uv).rgb;
     float3 n = normalize(normal_texture.Sample(sam_linear_wrap, input.uv).rgb * 2.0 - 1.0);
     n = mul(n, TBN);
     n = normalize(mul(n, (float3x3)instance.object_to_world));
@@ -109,29 +109,4 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     gbuffer.encode_normals(n.xyz);
     gbuffer.encode_material(arm.g, arm.b, arm.r);
     return gbuffer;
-
-    /*
-    const float3 v = normalize(cbv_frame_const.camera_position - input.position);
-
-    TextureCube<float3> ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
-    TextureCube<float3> ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
-    // TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.specular_texture_index];
-    // Texture2D ibl_brdf_integration_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
-
-    float3 lightDirection[3] = {
-        float3(0.0, 1.0, 0.0),
-        float3(0.0, 1.0, 0.0),
-        float3(0.0, 1.0, 0.0),
-    };
-    float3 lightColor[3] = {
-        float3(1.0, 0.953, 0.945),
-        float3(1.0, 0.953, 0.945),
-        float3(1.0, 0.953, 0.945),
-    };
-
-    float3 color = LightSurface(v, n, 1, lightColor, lightDirection, base_color, arm.g, arm.b, arm.r, ibl_radiance_texture, ibl_irradiance_texture, sam_aniso_clamp, 10);
-    color = gammaCorrect(color);
-    out_color.rgb = color;
-    out_color.a = 1;
-    */
 }

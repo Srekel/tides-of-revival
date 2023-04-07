@@ -140,7 +140,7 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     Texture2D arm_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.arm_index)];
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
     float2 world_space_uv = input.position.xz * 0.1;
-    float3 base_color = pow(diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb, GAMMA);
+    float3 base_color = diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
     float3 n = normalize(normal_texture.Sample(sam_linear_wrap, world_space_uv).rgb * 2.0 - 1.0);
     n = mul(n, TBN);
     n = normalize(mul(n, (float3x3)instance.object_to_world));
@@ -151,44 +151,4 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     gbuffer.encode_normals(n.xyz);
     gbuffer.encode_material(arm.g, arm.b, arm.r);
     return gbuffer;
-
-    /*
-    const float3 v = normalize(cbv_frame_const.camera_position - input.position);
-
-    TextureCube<float3> ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
-    TextureCube<float3> ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
-    // TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.specular_texture_index];
-    // Texture2D ibl_brdf_integration_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
-
-    float3 lightDirection[3] = {
-        float3(0.0, 1.0, 0.0),
-        float3(0.0, 1.0, 0.0),
-        float3(0.0, 1.0, 0.0),
-    };
-    float3 lightColor[3] = {
-        float3(1.0, 1.0, 1.0),
-        float3(1.0, 1.0, 1.0),
-        float3(1.0, 1.0, 1.0),
-    };
-
-    float3 color = LightSurface(v, n, 1, lightColor, lightDirection, base_color, arm.g, arm.b, arm.r, ibl_radiance_texture, ibl_irradiance_texture, sam_aniso_clamp, 10);
-    color = gammaCorrect(color);
-    out_color.rgb = color;
-    out_color.a = 1;
-
-    // TODO: Pass a flag to the shader to control if we want to
-    // render the wireframe or not
-    // float3 barys = barycentrics;
-    // barys.z = 1.0 - barys.x - barys.y;
-    // float3 deltas = fwidth(barys);
-    // float3 smoothing = deltas * g_wireframe_smoothing;
-    // float3 thickness = deltas * g_wireframe_thickness;
-    // barys = smoothstep(thickness, thickness + smoothing, barys);
-    // float min_bary = min(barys.x, min(barys.y, barys.z));
-
-    // color = lerp(float3(0.3, 0.3, 0.3), color, min_bary);
-    // min_bary = 1.0;
-
-    // out_color = float4(min_bary * color, 1.0);
-    */
 }
