@@ -22,7 +22,6 @@ const RenderTargetsUniforms = struct {
     gbuffer_0_index: u32,
     gbuffer_1_index: u32,
     gbuffer_2_index: u32,
-    gbuffer_3_index: u32,
     depth_texture_index: u32,
     hdr_texture_index: u32,
 };
@@ -65,9 +64,15 @@ const InstanceTransform = struct {
 };
 
 const InstanceMaterial = struct {
+    albedo_color: [4]f32,
+    roughness: f32,
+    metallic: f32,
+    normal_intensity: f32,
     albedo_texture_index: u32,
+    emissive_texture_index: u32,
     normal_texture_index: u32,
     arm_texture_index: u32,
+    padding: u32,
 };
 
 const max_instances = 100000;
@@ -102,8 +107,13 @@ const ModelViewerState = struct {
     // TODO(gmodarelli): Place these in a hash so they can be associated to a Material
     // PBR textures
     albedo: gfx.TextureHandle,
+    emissive: gfx.TextureHandle,
     normal: gfx.TextureHandle,
     arm: gfx.TextureHandle,
+    albedo_color: [4]f32,
+    roughness: f32,
+    metallic: f32,
+    normal_intensity: f32,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 0.0, 4.0 },
@@ -233,6 +243,29 @@ pub fn run() !void {
         break :blk gfx_state.texture_pool.addTexture(texture);
     };
 
+    const emissive_texture_handle = blk: {
+        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_emissive.dds", arena);
+        const resource = gfx_state.gctx.lookupResource(resource_handle);
+        _ = resource.?.SetName(L("damaged_helmet_emissive.dds"));
+
+        const srv_allocation = gfx_state.gctx.allocatePersistentGpuDescriptors(1);
+        gfx_state.gctx.device.CreateShaderResourceView(
+            resource.?,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        gfx_state.gctx.addTransitionBarrier(resource_handle, .{ .PIXEL_SHADER_RESOURCE = true });
+        gfx_state.gctx.flushResourceBarriers();
+
+        const texture = gfx.Texture{
+            .resource = resource.?,
+            .persistent_descriptor = srv_allocation,
+        };
+
+        break :blk gfx_state.texture_pool.addTexture(texture);
+    };
+
     const normal_texture_handle = blk: {
         const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_normal.dds", arena);
         const resource = gfx_state.gctx.lookupResource(resource_handle);
@@ -292,8 +325,13 @@ pub fn run() !void {
         .draw_calls= draw_calls,
         .meshes = meshes,
         .albedo = albedo_texture_handle,
+        .emissive = emissive_texture_handle,
         .normal = normal_texture_handle,
         .arm = arm_texture_handle,
+        .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+        .roughness = 1.0,
+        .metallic = 1.0,
+        .normal_intensity = 1.0,
     };
 
     while (true) {
@@ -407,15 +445,22 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             }) catch unreachable;
 
             const albedo = gfx_state.lookupTexture(model_viewer_state.albedo);
+            const emissive = gfx_state.lookupTexture(model_viewer_state.emissive);
             const normal = gfx_state.lookupTexture(model_viewer_state.normal);
             const arm = gfx_state.lookupTexture(model_viewer_state.arm);
 
             const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
             model_viewer_state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
             model_viewer_state.instance_materials.append(.{
+                .albedo_color = model_viewer_state.albedo_color,
+                .roughness = model_viewer_state.roughness,
+                .metallic = model_viewer_state.metallic,
+                .normal_intensity = model_viewer_state.normal_intensity,
                 .albedo_texture_index = albedo.?.persistent_descriptor.index,
+                .emissive_texture_index = emissive.?.persistent_descriptor.index,
                 .normal_texture_index = normal.?.persistent_descriptor.index,
                 .arm_texture_index = arm.?.persistent_descriptor.index,
+                .padding = 42,
             }) catch unreachable;
         }
 
@@ -533,7 +578,6 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
             mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
             mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_3_index = gfx_state.gbuffer_3.srv_persistent_descriptor.index;
             mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
             mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
 

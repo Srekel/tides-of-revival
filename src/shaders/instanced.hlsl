@@ -39,9 +39,15 @@ struct InstanceTransform {
 };
 
 struct InstanceMaterial {
+    float4 albedo_color;
+    float roughness;
+    float metallic;
+    float normal_intensity;
     uint albedo_texture_index;
+    uint emissive_texture_index;
     uint normal_texture_index;
     uint arm_texture_index;
+    uint padding;
 };
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
@@ -91,22 +97,60 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
     // Compute TBN matrix
-    const float3 bitangent = normalize(cross(input.normal, input.tangent.xyz)) * input.tangent.w;
-    const float3x3 TBN = float3x3(input.tangent.xyz, bitangent, input.normal);
+    float3x3 TBN = 0.0f;
+    if (has_valid_texture(material.normal_texture_index))
+    {
+        TBN = makeTBN(input.normal.xyz, input.tangent.xyz);
+    }
 
-    Texture2D albedo_texture = ResourceDescriptorHeap[material.albedo_texture_index];
-    Texture2D normal_texture = ResourceDescriptorHeap[material.normal_texture_index];
-    Texture2D arm_texture = ResourceDescriptorHeap[material.arm_texture_index];
+    // Albedo
+    float4 albedo = material.albedo_color;
+    if (has_valid_texture(material.albedo_texture_index))
+    {
+        Texture2D albedo_texture = ResourceDescriptorHeap[material.albedo_texture_index];
+        float3 albedo_sample = albedo_texture.Sample(sam_aniso_wrap, input.uv).rgb;
+        albedo_sample.rgb = degamma(albedo_sample.rgb);
+        albedo.rgb *= albedo_sample.rgb;
+        albedo.a = 1.0;
+    }
 
-    float3 base_color = albedo_texture.Sample(sam_linear_wrap, input.uv).rgb;
-    float3 n = normalize(normal_texture.Sample(sam_linear_wrap, input.uv).rgb * 2.0 - 1.0);
-    n = mul(n, TBN);
-    n = normalize(mul(n, (float3x3)instance.object_to_world));
-    float3 arm = arm_texture.Sample(sam_linear_wrap, input.uv).rgb;
+    // Roughness, Metallic and Occlusion
+    float roughness = material.roughness;
+    float metallic = material.metallic;
+    float occlusion = 1.0f;
+    if (has_valid_texture(material.arm_texture_index))
+    {
+        Texture2D arm_texture = ResourceDescriptorHeap[material.arm_texture_index];
+        float3 arm = arm_texture.Sample(sam_aniso_wrap, input.uv).rgb;
+        roughness *= arm.g;
+        metallic *= arm.b;
+        occlusion *= arm.r;
+    }
 
-    GBufferTargets gbuffer = (GBufferTargets)0;
-    gbuffer.encode_albedo(base_color.rgb);
-    gbuffer.encode_normals(n.xyz);
-    gbuffer.encode_material(arm.g, arm.b, arm.r);
+    // Normal
+    float3 normal = input.normal.xyz;
+    if (has_valid_texture(material.normal_texture_index))
+    {
+        Texture2D normal_texture = ResourceDescriptorHeap[material.normal_texture_index];
+        float3 tangent_normal = normalize(unpack(normal_texture.Sample(sam_aniso_wrap, input.uv).rgb));
+        float normal_intensity = clamp(material.normal_intensity, 0.012f, material.normal_intensity);
+        tangent_normal.xy *= saturate(normal_intensity);
+        normal = normalize(mul(tangent_normal, TBN));
+    }
+
+    // Emission
+    float emission = 0.0f;
+    if (has_valid_texture(material.emissive_texture_index))
+    {
+        Texture2D emissive_texture = ResourceDescriptorHeap[material.emissive_texture_index];
+        float3 emissive_color = emissive_texture.Sample(sam_aniso_wrap, input.uv).rgb;
+        emission = luminance(emissive_color);
+        albedo.rgb += emissive_color;
+    }
+
+    GBufferTargets gbuffer;
+    gbuffer.albedo = albedo;
+    gbuffer.normal = float4(normal, 0.0);
+    gbuffer.material = float4(roughness, metallic, emission, occlusion);
     return gbuffer;
 }

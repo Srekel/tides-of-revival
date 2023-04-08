@@ -5,16 +5,14 @@ struct RenderTargetsConst {
     uint gbuffer_0_index;
     uint gbuffer_1_index;
     uint gbuffer_2_index;
-    uint gbuffer_3_index;
     uint depth_texture_index;
     uint hdr_texture_index;
 };
 
 struct GBufferTargets {
-    float4 albedo : SV_Target0;         // R8B8G8A8_UNORM_SRGB
-    float4 emissive : SV_Target1;       // R11G11B10_FLOAT
-    float4 normal : SV_Target2;         // R10G10B10A2_UNORM
-    float4 material : SV_Target3;       // R8G8B8A8_UNORM
+    float4 albedo : SV_Target0;         // R8B8G8A8_UNORM
+    float4 normal : SV_Target1;         // R10G10B10A2_UNORM
+    float4 material : SV_Target2;       // R8G8B8A8_UNORM
 
     void encode_albedo(float3 input_albedo) {
         albedo = float4(input_albedo, 1.0);
@@ -24,11 +22,11 @@ struct GBufferTargets {
         normal = float4(input_normal * 0.5 + 0.5, 0.0);
     }
 
-    void encode_material(float roughness, float metallic, float ao) {
+    void encode_material(float roughness, float metallic, float occlusion, float emissive) {
         material.r = roughness;
         material.g = metallic;
-        material.b = ao;
-        material.a = 0.0;
+        material.b = emissive;
+        material.a = occlusion;
     }
 };
 

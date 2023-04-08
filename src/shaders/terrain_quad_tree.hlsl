@@ -146,9 +146,9 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     n = normalize(mul(n, (float3x3)instance.object_to_world));
     float3 arm = arm_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
 
-    GBufferTargets gbuffer = (GBufferTargets)0;
-    gbuffer.encode_albedo(base_color.rgb);
-    gbuffer.encode_normals(n.xyz);
-    gbuffer.encode_material(arm.g, arm.b, arm.r);
+    GBufferTargets gbuffer;
+    gbuffer.albedo = float4(base_color.rgb, 1.0);
+    gbuffer.normal = float4(n.xyz, 0.0);
+    gbuffer.material = float4(arm.g, arm.b, 0.0, arm.r);
     return gbuffer;
 }

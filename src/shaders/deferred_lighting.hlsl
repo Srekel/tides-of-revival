@@ -44,12 +44,11 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     Texture2D gbuffer_0 = ResourceDescriptorHeap[cbv_render_targets_const.gbuffer_0_index];
     Texture2D gbuffer_1 = ResourceDescriptorHeap[cbv_render_targets_const.gbuffer_1_index];
     Texture2D gbuffer_2 = ResourceDescriptorHeap[cbv_render_targets_const.gbuffer_2_index];
-    Texture2D gbuffer_3 = ResourceDescriptorHeap[cbv_render_targets_const.gbuffer_3_index];
 
     const float3 v = normalize(cbv_frame_const.camera_position - position_ws);
     float3 base_color = gbuffer_0.SampleLevel(sam_aniso_clamp, uv, 0).rgb;
-    float3 n = gbuffer_2.SampleLevel(sam_aniso_clamp, uv, 0).rgb * 2.0 - 1.0;
-    float3 material = gbuffer_3.SampleLevel(sam_aniso_clamp, uv, 0).rgb;
+    float3 n = gbuffer_1.SampleLevel(sam_aniso_clamp, uv, 0).rgb;
+    float4 material = gbuffer_2.SampleLevel(sam_aniso_clamp, uv, 0);
 
     TextureCube<float3> ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
     TextureCube<float3> ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
@@ -65,7 +64,7 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         float3(1.0, 0.953, 0.945),
     };
 
-    float3 color = LightSurface(v, n, 1, lightColor, lightDirection, base_color, material.r, material.g, material.b, ibl_radiance_texture, ibl_irradiance_texture, sam_aniso_clamp, 10);
+    float3 color = LightSurface(v, n, 1, lightColor, lightDirection, base_color, material.r, material.g, material.a, ibl_radiance_texture, ibl_irradiance_texture, sam_aniso_clamp, 10);
 
     hdr_texture[dispatch_id.xy] = float4(color, 1.0);
 }
