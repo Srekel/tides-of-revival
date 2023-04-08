@@ -177,6 +177,8 @@ pub const D3D12State = struct {
     gbuffer_1: RenderTarget,
     gbuffer_2: RenderTarget,
 
+    light_diffuse_rt: RenderTarget,
+    light_specular_rt: RenderTarget,
     hdr_rt: RenderTarget,
 
     // NOTE(gmodarelli): just a test
@@ -537,12 +539,22 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     };
 
     const gbuffer_1 = blk: {
-        const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT2_Normal"));
+        const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT1_Normal"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_2 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 1.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT3_PBR"));
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 1.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT2_PBR"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const light_diffuse_rt = blk: {
+        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Light_Diffuse_RT"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const light_specular_rt = blk: {
+        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Light_Specular_RT"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
@@ -700,6 +712,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_0 = gbuffer_0,
         .gbuffer_1 = gbuffer_1,
         .gbuffer_2 = gbuffer_2,
+        .light_diffuse_rt = light_diffuse_rt,
+        .light_specular_rt = light_specular_rt,
         .hdr_rt = hdr_rt,
         .radiance_texture = undefined,
         .irradiance_texture = undefined,

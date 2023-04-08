@@ -1,150 +1,69 @@
 #ifndef __PBR_HLSLI__
 #define __PBR_HLSLI__
 
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-//
-// http://go.microsoft.com/fwlink/?LinkId=248926
-// http://go.microsoft.com/fwlink/?LinkId=248929
-// http://go.microsoft.com/fwlink/?LinkID=615561
+#include "common.hlsli"
 
 #define PI 3.14159265f
 #define EPSILON 1e-6f
 
-// Shlick's approximation of Fresnel
-// https://en.wikipedia.org/wiki/Schlick%27s_approximation
-float3 Fresnel_Shlick(in float3 f0, in float3 f90, in float x)
+// Appoximation of joint Smith term for GGX
+// [Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"]
+inline float V_SmithJointApprox(float a, float n_dot_v, float n_dot_l)
 {
-    return f0 + (f90 - f0) * pow(1.f - x, 5.f);
+    float Vis_SmithV = n_dot_l * (n_dot_v * (1 - a) + a);
+    float Vis_SmithL = n_dot_v * (n_dot_l * (1 - a) + a);
+    return saturate_16(0.5 * rcp(Vis_SmithV + Vis_SmithL));
 }
 
-// Burley B. "Physically Based Shading at Disney"
-// SIGGRAPH 2012 Course: Practical Physically Based Shading in Film and Game Production, 2012.
-float Diffuse_Burley(in float NdotL, in float NdotV, in float LdotH, in float roughness)
+// GGX / Trowbridge-Reitz
+// [Walter et al. 2007, "Microfacet models for refraction through rough surfaces"]
+float D_GGX(float roughness_alpha_squared, float n_dot_h)
 {
-    float fd90 = 0.5f + 2.f * roughness * LdotH * LdotH;
-    return Fresnel_Shlick(1, fd90, NdotL).x * Fresnel_Shlick(1, fd90, NdotV).x;
+    float f = (n_dot_h * roughness_alpha_squared - n_dot_h) * n_dot_h + 1.0f;
+    return roughness_alpha_squared / (PI * f * f + FLT_MIN);
 }
 
-// GGX specular D (normal distribution)
-// https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
-float Specular_D_GGX(in float alpha, in float NdotH)
+float3 F_Schlick(const float3 f0, float f90, float v_dot_h)
 {
-    const float alpha2 = alpha * alpha;
-    const float lower = (NdotH * NdotH * (alpha2 - 1)) + 1;
-    return alpha2 / max(EPSILON, PI * lower * lower);
+    // Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"
+    return f0 + (f90 - f0) * pow(1.0 - v_dot_h, 5.0);
 }
 
-// Schlick-Smith specular G (visibility) with Hable's LdotH optimization
-// http://www.cs.virginia.edu/~jdl/bib/appearance/analytic%20models/schlick94b.pdf
-// http://graphicrants.blogspot.se/2013/08/specular-brdf-reference.html
-float G_Shlick_Smith_Hable(float alpha, float LdotH)
+float3 F_Schlick(const float3 f0, float v_dot_h)
 {
-    return rcp(lerp(LdotH * LdotH, 1, alpha * alpha * 0.25f));
+    float f = pow(1.0 - v_dot_h, 5.0);
+    return f + f0 * (1.0 - f);
 }
 
-// A microfacet based BRDF.
-//
-// alpha:           This is roughness * roughness as in the "Disney" PBR model by Burley et al.
-//
-// specularColor:   The F0 reflectance value - 0.04 for non-metals, or RGB for metals. This follows model 
-//                  used by Unreal Engine 4.
-//
-// NdotV, NdotL, LdotH, NdotH: vector relationships between,
-//      N - surface normal
-//      V - eye normal
-//      L - light normal
-//      H - half vector between L & V.
-float3 Specular_BRDF(in float alpha, in float3 specularColor, in float NdotV, in float NdotL, in float LdotH, in float NdotH)
+float3 computeDiffuseEnergy(float3 F, float metallic)
 {
-    // Specular D (microfacet normal distribution) component
-    float specular_D = Specular_D_GGX(alpha, NdotH);
-
-    // Specular Fresnel
-    float3 specular_F = Fresnel_Shlick(specularColor, 1, LdotH);
-
-    // Specular G (visibility) component
-    float specular_G = G_Shlick_Smith_Hable(alpha, LdotH);
-
-    return specular_D * specular_F * specular_G;
+    float3 kS = F;          // The energy of light that gets reflected - Equal to Fresnel
+    float3 kD = 1.0f - kS;  // Remaining energy, light that gets refracted
+    kD *= 1.0f - metallic;  // Multiply kD by the inverse metalness such that only non-metals have diffuse lighting
+    
+    return kD;
 }
 
-// Diffuse irradiance
-float3 Diffuse_IBL(in SamplerState samplerState, in TextureCube<float3> irradianceTexture, in float3 N)
+// Gotanda 2012, "Beyond a Simple Physically Based Blinn-Phong Model in Real-Time"
+float3 BRDF_Diffuse_OrenNayar(float3 albedo, float roughness, float roughness_alpha_squared, float v_dot_h, float n_dot_l, float n_dot_v)
 {
-    return irradianceTexture.Sample(samplerState, N);
+    float v_dot_l = 2 * v_dot_h * v_dot_h - 1;
+    float cosri = v_dot_l - n_dot_v * n_dot_l;
+    float c1 = 1 - 0.5 * roughness_alpha_squared / (roughness_alpha_squared + 0.33);
+    float c2 = 0.45 * roughness_alpha_squared / (roughness_alpha_squared + 0.09) * cosri * (cosri >= 0 ? rcp(max(n_dot_l, n_dot_v + 0.0001f)) : 1);
+    return albedo / PI * (c1 + c2) * (1 + roughness * 0.5);
 }
 
-// Approximate specular image based lighting by sampling radiance map at lower mips 
-// according to roughness, then modulating by Fresnel term. 
-float3 Specular_IBL(in SamplerState samplerState, in TextureCube<float3> radianceTexture, in float3 N, in float3 V, in float lodBias, in int mipLevels)
+float3 BRDF_Specular_Isotropic(float roughness_alpha, float roughness_alpha_squared, float3 F0, float metallic, float n_dot_v, float n_dot_l, float n_dot_h, float v_dot_h, inout float3 diffuse_energy, inout float3 specular_energy)
 {
-    float mip = lodBias * mipLevels;
-    float3 dir = reflect(-V, N);
-    return radianceTexture.SampleLevel(samplerState, dir, mip);
+    float  V = V_SmithJointApprox(roughness_alpha, n_dot_v, n_dot_l);
+    float  D = D_GGX(roughness_alpha_squared, n_dot_h);
+    float3 F = F_Schlick(F0, v_dot_h);
+
+    diffuse_energy  *= computeDiffuseEnergy(F, metallic);
+    specular_energy *= F;
+
+    return D * V * F;
 }
 
-// Apply Disney-style physically based rendering to a surface with:
-//
-// V, N:             Eye and surface normals
-//
-// numLights:        Number of directional lights.
-//
-// lightColor[]:     Color and intensity of directional light.
-//
-// lightDirection[]: Light direction.
-float3 LightSurface(
-    in float3 V, in float3 N,
-    in int numLights, in float3 lightColor[3], in float3 lightDirection[3],
-    in float3 albedo, in float roughness, in float metallic, in float ambientOcclusion,
-    in TextureCube<float3> radianceTexture, in TextureCube<float3> irradianceTexture, in SamplerState iblSampler, in int radianceMipLevels)
-{
-    // Specular coefficiant - fixed reflectance value for non-metals
-    static const float kSpecularCoefficient = 0.04;
-
-    const float NdotV = saturate(dot(N, V));
-
-    // Burley roughness bias
-    const float alpha = roughness * roughness;
-
-    // Blend base colors
-    const float3 c_diff = lerp(albedo, float3(0, 0, 0), metallic)       * ambientOcclusion;
-    const float3 c_spec = lerp(kSpecularCoefficient, albedo, metallic)  * ambientOcclusion;
-
-    // Output color
-    float3 acc_color = 0;
-
-    // Accumulate light values
-    for (int i = 0; i < numLights; i++)
-    {
-        // light vector (to light)
-        const float3 L = normalize(-lightDirection[i]);
-
-        // Half vector
-        const float3 H = normalize(L + V);
-
-        // products
-        const float NdotL = saturate(dot(N, L));
-        const float LdotH = saturate(dot(L, H));
-        const float NdotH = saturate(dot(N, H));
-
-        // Diffuse & specular factors
-        float diffuse_factor = Diffuse_Burley(NdotL, NdotV, LdotH, roughness);
-        float3 specular = Specular_BRDF(alpha, c_spec, NdotV, NdotL, LdotH, NdotH);
-
-        // Directional light
-        acc_color += NdotL * lightColor[i] * (((c_diff * diffuse_factor) + specular));
-    }
-
-    // Add diffuse irradiance
-    float3 diffuse_env = Diffuse_IBL(iblSampler, irradianceTexture, N);
-    acc_color += c_diff * diffuse_env;
-
-    // Add specular radiance 
-    float3 specular_env = Specular_IBL(iblSampler, radianceTexture, N, V, roughness, radianceMipLevels);
-    acc_color += c_spec * specular_env;
-
-    return acc_color;
-}
-
-#endif
+#endif // __PBR_HLSLI__

@@ -3,8 +3,13 @@
 
 // TMP
 #define MAX_LIGHTS 32
-#define GAMMA 2.2
-#define INVALID_TEXTURE_INDEX 0xFFFFFFFF
+
+static const float GAMMA = 2.2;
+static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
+
+static const float FLT_MIN             = 0.00000001f;
+static const float FLT_MAX_11          = 1023.0f;
+static const float FLT_MAX_16          = 32767.0f;
 
 #define per_object_space   space0
 #define per_material_space space1
@@ -46,7 +51,16 @@ float3x3 makeTBN(float3 n, float3 t)
     // compute bitangent
     float3 b = cross(n, t);
     // create matrix
-    return float3x3(t, b, n); 
+    return float3x3(t, b, n);
+}
+
+float3 getPositionFromDepth(float depth, float2 uv, float4x4 view_projection_inverted)
+{
+    float x = uv.x * 2.0f - 1.0f;
+    float y = (1.0f - uv.y) * 2.0f - 1.0f;
+    float4 position_cs = float4(x, y, depth, 1.0f);
+    float4 position_ws = mul(position_cs, view_projection_inverted);
+    return position_ws.xyz / position_ws.w;
 }
 
 /*------------------------------------------------------------------------------
@@ -63,5 +77,18 @@ float luminance(float4 color)
 {
     return max(dot(color.rgb, lumCoeff), 0.0001f);
 }
+
+/*------------------------------------------------------------------------------
+    SATURATE
+------------------------------------------------------------------------------*/
+float  saturate_11(float x)  { return clamp(x, 0.0f, FLT_MAX_11); }
+float2 saturate_11(float2 x) { return clamp(x, 0.0f, FLT_MAX_11); }
+float3 saturate_11(float3 x) { return clamp(x, 0.0f, FLT_MAX_11); }
+float4 saturate_11(float4 x) { return clamp(x, 0.0f, FLT_MAX_11); }
+
+float  saturate_16(float x)  { return clamp(x, 0.0f, FLT_MAX_16); }
+float2 saturate_16(float2 x) { return clamp(x, 0.0f, FLT_MAX_16); }
+float3 saturate_16(float3 x) { return clamp(x, 0.0f, FLT_MAX_16); }
+float4 saturate_16(float4 x) { return clamp(x, 0.0f, FLT_MAX_16); }
 
 #endif // __COMMON_HLSL__

@@ -6,6 +6,8 @@ struct RenderTargetsConst {
     uint gbuffer_1_index;
     uint gbuffer_2_index;
     uint depth_texture_index;
+    uint light_diffuse_texture_index;
+    uint light_specular_texture_index;
     uint hdr_texture_index;
 };
 

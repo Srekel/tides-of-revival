@@ -23,6 +23,8 @@ const RenderTargetsUniforms = struct {
     gbuffer_1_index: u32,
     gbuffer_2_index: u32,
     depth_texture_index: u32,
+    light_diffuse_texture_index: u32,
+    light_specular_texture_index: u32,
     hdr_texture_index: u32,
 };
 
@@ -579,13 +581,14 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
             mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
             mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
+            mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.uav_persistent_descriptor.index;
+            mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.uav_persistent_descriptor.index;
 
             gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
         }
 
-        const num_groups_x = @divExact(gfx_state.hdr_rt.width, 8);
-        const num_groups_y = @divExact(gfx_state.hdr_rt.height, 8);
+        const num_groups_x = @divExact(gfx_state.light_diffuse_rt.width, 8);
+        const num_groups_y = @divExact(gfx_state.light_diffuse_rt.height, 8);
         gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
     }
     zpix.endEvent(gfx_state.gctx.cmdlist);
