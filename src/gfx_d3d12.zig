@@ -633,6 +633,20 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
+    const lighting_composition_pso = blk: {
+        var compute_desc = d3d12.COMPUTE_PIPELINE_STATE_DESC.initDefault();
+        const pso_handle = gctx.createComputeShaderPipeline(
+            arena,
+            &compute_desc,
+            "shaders/lighting_composition.cs.cso",
+        );
+
+        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        _ = pipeline.?.pso.?.SetName(L("Lighting Composition PSO"));
+
+        break :blk pso_handle;
+    };
+
     // TODO(gmodarelli): Which GBuffer RTs should the skybox write to?
     const sample_env_texture_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
@@ -665,6 +679,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("lighting_composition"), PipelineInfo{ .pipeline_handle = lighting_composition_pso }) catch unreachable;
     pipelines.put(IdLocal.init("sample_env_texture"), PipelineInfo{ .pipeline_handle = sample_env_texture_pso }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
