@@ -256,7 +256,7 @@ pub fn run() void {
     var asset_manager = AssetManager.create(std.heap.page_allocator);
     defer asset_manager.destroy();
 
-    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, asset_manager);
+    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, &asset_manager);
     world_patch_mgr.debug_server.run();
     defer world_patch_mgr.destroy();
     patch_types.registerPatchTypes(world_patch_mgr);

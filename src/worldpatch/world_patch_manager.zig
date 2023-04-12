@@ -271,10 +271,10 @@ pub const WorldPatchManager = struct {
     handle_map_by_lookup: std.AutoHashMap(PatchLookup, PatchHandle) = undefined,
     patch_pool: PatchPool = undefined,
     bucket_queue: PatchQueue = undefined,
-    asset_manager: AssetManager = undefined,
+    asset_manager: *AssetManager = undefined,
     debug_server: debug_server.DebugServer = undefined,
 
-    pub fn create(allocator: std.mem.Allocator, asset_manager: AssetManager) *WorldPatchManager {
+    pub fn create(allocator: std.mem.Allocator, asset_manager: *AssetManager) *WorldPatchManager {
         var res = allocator.create(WorldPatchManager) catch unreachable;
         res.* = .{
             .allocator = allocator,
@@ -403,7 +403,7 @@ pub const WorldPatchManager = struct {
 
         const dependency_ctx = PatchTypeContext{
             .allocator = self.allocator,
-            .asset_manager = &self.asset_manager,
+            .asset_manager = self.asset_manager,
             .world_patch_mgr = self,
         };
 
@@ -504,7 +504,7 @@ pub const WorldPatchManager = struct {
             const patch_type = self.patch_types.items[patch.patch_type_id];
             const ctx = PatchTypeContext{
                 .allocator = self.allocator,
-                .asset_manager = &self.asset_manager,
+                .asset_manager = self.asset_manager,
                 .world_patch_mgr = self,
             };
             std.log.debug("WPM: Loading {}, Pr{}", .{ patch.lookup, @enumToInt(patch.highest_prio) });
@@ -518,7 +518,7 @@ pub const WorldPatchManager = struct {
             if (patch_type.dependenciesFn) |dependenciesFn| {
                 const dependency_ctx = PatchTypeContext{
                     .allocator = self.allocator,
-                    .asset_manager = &self.asset_manager,
+                    .asset_manager = self.asset_manager,
                     .world_patch_mgr = self,
                 };
 
@@ -552,7 +552,7 @@ pub const WorldPatchManager = struct {
             if (patch_type.dependenciesFn) |dependenciesFn| {
                 const dependency_ctx = PatchTypeContext{
                     .allocator = self.allocator,
-                    .asset_manager = &self.asset_manager,
+                    .asset_manager = self.asset_manager,
                     .world_patch_mgr = self,
                 };
 
