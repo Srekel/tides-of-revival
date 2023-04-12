@@ -3,6 +3,7 @@ const math = std.math;
 const flecs = @import("flecs");
 const zm = @import("zmath");
 const fd = @import("../flecs_data.zig");
+const fr = @import("../flecs_relation.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const tides_math = @import("../core/math.zig");
@@ -183,6 +184,9 @@ fn updateLoaders(system: *SystemState) void {
     }
 }
 
+// hack
+var added_spawn = false;
+
 fn updatePatches(system: *SystemState) void {
     for (system.patches.items) |*patch| {
         if (patch.loaded) {
@@ -206,6 +210,7 @@ fn updatePatches(system: *SystemState) void {
             const tree_id = IdLocal.init("tree");
             const wall_id = IdLocal.init("wall");
             const house_id = IdLocal.init("house");
+            const city_id = IdLocal.init("city");
             var rand1 = std.rand.DefaultPrng.init(data.len);
             var rand = rand1.random();
             for (data) |prop| {
@@ -223,19 +228,43 @@ fn updatePatches(system: *SystemState) void {
 
                 var prop_ent = system.flecs_world.newEntity();
                 prop_ent.set(prop_transform);
-                prop_ent.set(fd.CIShapeMeshInstance{
-                    .id = blk: {
-                        if (prop.id.hash == tree_id.hash) {
-                            break :blk IdLocal.id64("pine");
-                        } else if (prop.id.hash == wall_id.hash) {
-                            break :blk IdLocal.id64("long_house");
-                        } else if (prop.id.hash == house_id.hash) {
-                            break :blk IdLocal.id64("small_house");
-                        }
-                        unreachable;
-                    },
-                    .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
-                });
+                if (prop.id.hash == city_id.hash) {
+                    // var light_ent = system.flecs_world.newEntity();
+                    // light_ent.set(fd.Transform.initFromPosition(.{ .x = prop.pos[0], .y = prop.pos[1] + 2 + 10, .z = prop.pos[2] }));
+                    // light_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 100 });
+
+                    // // var light_viz_ent = system.flecs_world.newEntity();
+                    // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
+                    // // light_viz_ent.set(fd.Scale.createScalar(1));
+                    // // light_viz_ent.set(fd.CIShapeMeshInstance{
+                    // //     .id = IdLocal.id64("sphere"),
+                    // //     .basecolor_roughness = city_params.center_color,
+                    // // });
+
+                    // if (!added_spawn) {
+                    //     added_spawn = true;
+                    //     var spawn_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
+                    //     var spawn_ent = system.flecs_world.newEntity();
+                    //     spawn_ent.set(spawn_pos);
+                    //     spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
+                    //     spawn_ent.addPair(fr.Hometown, prop_ent);
+                    //     // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
+                    // }
+                } else {
+                    prop_ent.set(fd.CIShapeMeshInstance{
+                        .id = blk: {
+                            if (prop.id.hash == tree_id.hash) {
+                                break :blk IdLocal.id64("pine");
+                            } else if (prop.id.hash == wall_id.hash) {
+                                break :blk IdLocal.id64("long_house");
+                            } else if (prop.id.hash == house_id.hash) {
+                                break :blk IdLocal.id64("small_house");
+                            }
+                            unreachable;
+                        },
+                        .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
+                    });
+                }
                 patch.entities.append(prop_ent.id) catch unreachable;
             }
         }
