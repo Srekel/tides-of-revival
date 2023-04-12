@@ -43,9 +43,9 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
     var cities = std.ArrayList(City).init(context.frame_allocator);
 
-    const CITY_WIDTH_MAX = 256;
+    const CITY_WIDTH_MAX = 128;
     const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 2;
-    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 4;
+    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 8;
     const CITY_SKIP = 16;
     const CITY_HEIGHT_TEST_SKIP = 16;
     const CITY_MIN_BORDERS = 15;
@@ -95,7 +95,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             };
 
             const world_y = patches.getHeightWorld(world_x, world_z);
-            if (world_y < 200 or world_y > 400) {
+            if (world_y < 50 or world_y > 200) {
                 continue;
             }
 
@@ -262,7 +262,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     //     }
     // }
 
-    const write_image = false;
+    const write_image = true;
 
     if (node.output_artifacts and write_image) {
         std.debug.print("city: outputting artifact...\n", .{});
@@ -395,13 +395,63 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
     }
 
+    const write_cities = node.getInput(IdLocal.init("Write Cities")).value.getUInt64() == 1;
+    if (write_cities and node.output_artifacts) {
+        var folderbuf: [256]u8 = undefined;
+        var namebuf: [256]u8 = undefined;
+
+        var folderbufslice = std.fmt.bufPrintZ(
+            folderbuf[0..folderbuf.len],
+            "content/systems",
+            .{},
+        ) catch unreachable;
+        std.fs.cwd().makeDir(folderbufslice) catch {};
+
+        const namebufslice = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "{s}/cities.txt",
+            .{
+                folderbufslice,
+            },
+        ) catch unreachable;
+
+        const remap_file = std.fs.cwd().createFile(
+            namebufslice,
+            .{ .read = true },
+        ) catch unreachable;
+        defer remap_file.close();
+
+        for (cities.items) |city| {
+            const prop_slice = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "city,{d:.3},{d:.3},{d:.3},{any}\n",
+                .{
+                    city.pos[0], city.pos[1], city.pos[2], city.border_pos.items.len,
+                },
+            ) catch unreachable;
+            const bytes_written = remap_file.writeAll(prop_slice) catch unreachable;
+            _ = bytes_written;
+        }
+    }
+
     var rand1 = std.rand.DefaultPrng.init(0);
     var rand = rand1.random();
     if (output.template.?.name.eqlStr("City Props")) {
+        const city_id = IdLocal.init("city");
         const house_id = IdLocal.init("house");
         const wall_id = IdLocal.init("wall");
         var props = std.ArrayList(graph_props.Prop).initCapacity(context.frame_allocator, 1000) catch unreachable;
         for (cities.items) |city| {
+            props.append(.{
+                .id = city_id,
+                .pos = .{
+                    @floatCast(f32, city.pos[0]),
+                    @floatCast(f32, city.pos[1]),
+                    @floatCast(f32, city.pos[2]),
+                },
+                .rot = 0,
+            }) catch unreachable;
+
             for (city.border_pos.items, city.is_border.items) |pos, is_border| {
                 if (!is_border) {
                     if (rand.float(f32) < 0.05) {
@@ -459,7 +509,9 @@ pub const cityFunc = g.NodeFuncTemplate{
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
         ++ //
-        ([_]g.NodeInputTemplate{.{}} ** 13),
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Write Cities") }}) //
+        ++ //
+        ([_]g.NodeInputTemplate{.{}} ** 12),
     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Cities") }}) //
         ++ //
         ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("City Props") }}) //

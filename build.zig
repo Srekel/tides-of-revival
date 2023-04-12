@@ -109,6 +109,14 @@ pub fn build(b: *std.Build) void {
     install_textures_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_textures_step.step);
 
+    const install_systems_step = b.addInstallDirectory(.{
+        .source_dir = thisDir() ++ "/content/systems",
+        .install_dir = .{ .custom = "" },
+        .install_subdir = "bin/content/systems",
+    });
+    install_systems_step.step.dependOn(dxc_step);
+    exe.step.dependOn(&install_systems_step.step);
+
     // This is needed to export symbols from an .exe file.
     // We export D3D12SDKVersion and D3D12SDKPath symbols which
     // is required by DirectX 12 Agility SDK.
