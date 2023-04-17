@@ -1,29 +1,13 @@
 #include "common.hlsli"
+#include "gbuffer.hlsli"
 
 #define root_signature \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
-    "CBV(b1), " \
-    "StaticSampler(" \
-    "   s0, " \
-    "   filter = FILTER_MIN_MAG_MIP_LINEAR, " \
-    "   visibility = SHADER_VISIBILITY_PIXEL, " \
-    "   addressU = TEXTURE_ADDRESS_CLAMP, " \
-    "   addressV = TEXTURE_ADDRESS_CLAMP, " \
-    "   addressW = TEXTURE_ADDRESS_CLAMP" \
-    ")"
+    "CBV(b1)"
 
 struct Const {
     float4x4 object_to_clip;
-    uint env_texture_index;
-};
-
-struct DrawConst {
-    uint start_instance_location;
-    int vertex_offset;
-    uint vertex_buffer_index;
-    uint instance_transform_buffer_index;
-    uint instance_material_buffer_index;
 };
 
 struct Vertex {
@@ -34,12 +18,20 @@ struct Vertex {
     float3 color;
 };
 
+struct DrawConst {
+    uint start_instance_location;
+    int vertex_offset;
+    uint vertex_buffer_index;
+    uint instance_transform_buffer_index;
+    uint instance_material_buffer_index;
+};
+
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<Const> cbv_const : register(b1);
 SamplerState sam_s0 : register(s0);
 
 [RootSignature(root_signature)]
-void vsSampleEnvTexture(
+void vsSkybox(
     uint vertex_id : SV_VertexID,
     out float4 out_position_clip : SV_Position,
     out float3 out_uvw : _Uvw
@@ -52,13 +44,14 @@ void vsSampleEnvTexture(
 }
 
 [RootSignature(root_signature)]
-void psSampleEnvTexture(
+GBufferTargets psSkybox(
     float4 position_clip : SV_Position,
-    float3 uvw : _Uvw,
-    out float4 out_color : SV_Target0
+    float3 uvw : _Uvw
 ) {
-    TextureCube srv_env_texture = ResourceDescriptorHeap[cbv_const.env_texture_index];
-    float3 env_color = srv_env_texture.Sample(sam_s0, uvw).rgb;
-    env_color = env_color / (env_color + 1.0);
-    out_color = float4(pow(env_color, 1.0 / GAMMA), 1.0);
+    GBufferTargets gbuffer;
+    gbuffer.albedo = 0;
+    gbuffer.normal = float4(uvw, 0.0);
+    gbuffer.material = float4(0.0, 0.0, 0.0, 1.0);
+
+    return gbuffer;
 }

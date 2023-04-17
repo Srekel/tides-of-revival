@@ -3,9 +3,6 @@
 
 #include "common.hlsli"
 
-#define PI 3.14159265f
-#define EPSILON 1e-6f
-
 // Appoximation of joint Smith term for GGX
 // [Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"]
 inline float V_SmithJointApprox(float a, float n_dot_v, float n_dot_l)

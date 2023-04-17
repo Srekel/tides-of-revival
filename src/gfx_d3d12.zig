@@ -184,7 +184,6 @@ pub const D3D12State = struct {
     // NOTE(gmodarelli): just a test
     radiance_texture: TextureHandle,
     irradiance_texture: TextureHandle,
-    specular_texture: TextureHandle,
     brdf_integration_texture: TextureHandle,
 
     buffer_pool: BufferPool,
@@ -281,16 +280,16 @@ pub const D3D12State = struct {
         self.gctx.flushResourceBarriers();
     }
 
-    pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc) !TextureHandle {
+    pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        const resource = self.gctx.createAndUploadTex2dFromFile(path, .{}) catch |err| hrPanic(err);
+        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena);
         var path_u16: [300]u16 = undefined;
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
         path_u16[path_len] = 0;
-        _ = self.gctx.lookupResource(resource).?.SetName(path_u16);
+        _ = self.gctx.lookupResource(resource).?.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
 
         const texture = blk: {
             const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
@@ -303,7 +302,7 @@ pub const D3D12State = struct {
             self.gctx.addTransitionBarrier(resource, textureDesc.state);
 
             const t = Texture{
-                .resource = resource,
+                .resource = self.gctx.lookupResource(resource).?,
                 .persistent_descriptor = srv_allocation,
             };
 
@@ -372,11 +371,10 @@ pub const D3D12State = struct {
     }
 
     pub fn lookupIBLTextures(self: *D3D12State)
-    struct{ radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture} {
+    struct{ radiance: ?*Texture, irradiance: ?*Texture, brdf: ?*Texture} {
         return .{
             .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
             .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
-            .specular = self.texture_pool.lookupTexture(self.specular_texture),
             .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
         };
     }
@@ -647,15 +645,16 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
-    // TODO(gmodarelli): Which GBuffer RTs should the skybox write to?
-    const sample_env_texture_pso = blk: {
+    const skybox_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
             .pInputElementDescs = null,
             .NumElements = 0,
         };
         pso_desc.RTVFormats[0] = gbuffer_0.format;
-        pso_desc.NumRenderTargets = 1;
+        pso_desc.RTVFormats[1] = gbuffer_1.format;
+        pso_desc.RTVFormats[2] = gbuffer_2.format;
+        pso_desc.NumRenderTargets = 3;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.RasterizerState.CullMode = .FRONT;
@@ -666,12 +665,12 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/sample_env_texture.vs.cso",
-            "shaders/sample_env_texture.ps.cso",
+            "shaders/skybox.vs.cso",
+            "shaders/skybox.ps.cso",
         );
 
         const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        _ = pipeline.?.pso.?.SetName(L("Sample Env Texture PSO"));
+        _ = pipeline.?.pso.?.SetName(L("Skybox PSO"));
 
         break :blk pso_handle;
     };
@@ -680,7 +679,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("lighting_composition"), PipelineInfo{ .pipeline_handle = lighting_composition_pso }) catch unreachable;
-    pipelines.put(IdLocal.init("sample_env_texture"), PipelineInfo{ .pipeline_handle = sample_env_texture_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
 
@@ -732,7 +731,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .hdr_rt = hdr_rt,
         .radiance_texture = undefined,
         .irradiance_texture = undefined,
-        .specular_texture = undefined,
         .brdf_integration_texture = undefined,
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
@@ -747,6 +745,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         };
         const path = "content/textures/env/alps_field_2k_cube_radiance.dds";
         const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        // const texture_handle = d3d12_state.scheduleLoadTexture(path, texture_desc, arena) catch unreachable;
         d3d12_state.radiance_texture = texture_handle;
     }
 
@@ -758,18 +757,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         };
         const path = "content/textures/env/alps_field_2k_cube_irradiance.dds";
         const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        // const texture_handle = d3d12_state.scheduleLoadTexture(path, texture_desc, arena) catch unreachable;
         d3d12_state.irradiance_texture = texture_handle;
-    }
-
-    // Specular
-    {
-        const texture_desc = TextureDesc{
-            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-            .name = L("Specular"),
-        };
-        const path = "content/textures/env/alps_field_2k_cube_specular.dds";
-        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
-        d3d12_state.specular_texture = texture_handle;
     }
 
     // BRDF Integration

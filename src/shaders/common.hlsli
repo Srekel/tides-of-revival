@@ -11,6 +11,10 @@ static const float FLT_MIN             = 0.00000001f;
 static const float FLT_MAX_11          = 1023.0f;
 static const float FLT_MAX_16          = 32767.0f;
 
+static const float PI = 3.14159265f;
+static const float INV_PI = 1.0f / PI;
+static const float EPSILON = 1e-6f;
+
 #define per_object_space   space0
 #define per_material_space space1
 #define per_pass_space     space2
@@ -32,7 +36,6 @@ struct FrameConst {
 struct SceneConst {
     uint radiance_texture_index;
     uint irradiance_texture_index;
-    uint specular_texture_index;
     uint brdf_integration_texture_index;
 };
 

@@ -35,7 +35,6 @@ const FrameUniforms = struct {
 
 const SceneUniforms = extern struct {
     irradiance_texture_index: u32,
-    specular_texture_index: u32,
     brdf_integration_texture_index: u32,
 };
 
@@ -460,7 +459,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         const ibl_textures = state.gfx.lookupIBLTextures();
         const mem = state.gfx.gctx.allocateUploadMemory(SceneUniforms, 1);
         mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-        mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
         mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
     }
