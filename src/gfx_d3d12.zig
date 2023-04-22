@@ -78,7 +78,7 @@ pub const RenderTargetDesc = struct {
             .width = width,
             .height = height,
             .flags = flags,
-            .initial_state = .{ .RENDER_TARGET = true },    // TODO(gmodarelli): This is not true for render targets when using compute shaders
+            .initial_state = .{ .RENDER_TARGET = true }, // TODO(gmodarelli): This is not true for render targets when using compute shaders
             .clear_value = d3d12.CLEAR_VALUE.initColor(format, in_color),
             .srv = srv,
             .uav = uav,
@@ -284,7 +284,7 @@ pub const D3D12State = struct {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena);
+        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, false);
         var path_u16: [300]u16 = undefined;
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
@@ -319,7 +319,7 @@ pub const D3D12State = struct {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        const resource = try self.gctx.createAndUploadTexCubeFromDdsFile(path, arena);
+        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, true);
         var path_u16: [300]u16 = undefined;
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
@@ -370,15 +370,13 @@ pub const D3D12State = struct {
         return self.texture_pool.lookupTexture(handle);
     }
 
-    pub fn lookupIBLTextures(self: *D3D12State)
-    struct{ radiance: ?*Texture, irradiance: ?*Texture, brdf: ?*Texture} {
+    pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, brdf: ?*Texture } {
         return .{
             .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
             .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
             .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
         };
     }
-
 
     pub fn generateBrdfIntegrationTexture(self: *D3D12State, arena: std.mem.Allocator) !TextureHandle {
         self.gctx.beginFrame();
@@ -390,8 +388,8 @@ pub const D3D12State = struct {
             "shaders/generate_brdf_integration_texture.cs.cso",
         );
 
-        const pipeline = self.gctx.pipeline_pool.lookupPipeline(generate_brdf_integration_texture_pso);
-        _ = pipeline.?.pso.?.SetName(L("Generate BRDF Integration Texture PSO"));
+        // const pipeline = self.gctx.pipeline_pool.lookupPipeline(generate_brdf_integration_texture_pso);
+        // _ = pipeline.?.pso.?.SetName(L("Generate BRDF Integration Texture PSO"));
 
         const brdf_integration_texture_resolution = 512;
         const resource = try self.gctx.createCommittedResource(
@@ -584,8 +582,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             "shaders/instanced.ps.cso",
         );
 
-        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
 
         break :blk pso_handle;
     };
@@ -611,8 +609,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             "shaders/terrain_quad_tree.ps.cso",
         );
 
-        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        _ = pipeline.?.pso.?.SetName(L("Terrain Quad Tree PSO"));
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Terrain Quad Tree PSO"));
 
         break :blk pso_handle;
     };
@@ -625,8 +623,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             "shaders/deferred_lighting.cs.cso",
         );
 
-        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        _ = pipeline.?.pso.?.SetName(L("Deferred Lighting PSO"));
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Deferred Lighting PSO"));
 
         break :blk pso_handle;
     };
@@ -639,8 +637,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             "shaders/lighting_composition.cs.cso",
         );
 
-        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        _ = pipeline.?.pso.?.SetName(L("Lighting Composition PSO"));
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Lighting Composition PSO"));
 
         break :blk pso_handle;
     };
@@ -669,8 +667,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             "shaders/skybox.ps.cso",
         );
 
-        const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        _ = pipeline.?.pso.?.SetName(L("Skybox PSO"));
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Skybox PSO"));
 
         break :blk pso_handle;
     };
@@ -1069,16 +1067,10 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
         gctx.device.CreateUnorderedAccessView(
             gctx.lookupResource(resource).?,
             null,
-            &d3d12.UNORDERED_ACCESS_VIEW_DESC{
-                .Format = rt_desc.format,
-                .ViewDimension = .TEXTURE2D,
-                .u = .{
-                    .Texture2D = .{
-                        .MipSlice = 0,
-                        .PlaneSlice = 0,
-                    }
-                }
-            },
+            &d3d12.UNORDERED_ACCESS_VIEW_DESC{ .Format = rt_desc.format, .ViewDimension = .TEXTURE2D, .u = .{ .Texture2D = .{
+                .MipSlice = 0,
+                .PlaneSlice = 0,
+            } } },
             uav_persistent_descriptor.cpu_handle,
         );
     }
