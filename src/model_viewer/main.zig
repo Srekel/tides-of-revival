@@ -221,7 +221,7 @@ pub fn run() !void {
     gfx_state.gctx.beginFrame();
 
     const albedo_texture_handle = blk: {
-        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_albedo.dds", arena, false);
+        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_albedo.dds", arena, .{});
         const resource = gfx_state.gctx.lookupResource(resource_handle);
         _ = resource.?.SetName(L("damaged_helmet_albedo.dds"));
 
@@ -244,7 +244,7 @@ pub fn run() !void {
     };
 
     const emissive_texture_handle = blk: {
-        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_emissive.dds", arena, false);
+        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_emissive.dds", arena, .{});
         const resource = gfx_state.gctx.lookupResource(resource_handle);
         _ = resource.?.SetName(L("damaged_helmet_emissive.dds"));
 
@@ -267,7 +267,7 @@ pub fn run() !void {
     };
 
     const normal_texture_handle = blk: {
-        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_normal.dds", arena, false);
+        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_normal.dds", arena, .{});
         const resource = gfx_state.gctx.lookupResource(resource_handle);
         _ = resource.?.SetName(L("damaged_helmet_normal.dds"));
 
@@ -290,7 +290,7 @@ pub fn run() !void {
     };
 
     const arm_texture_handle = blk: {
-        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_arm.dds", arena, false);
+        const resource_handle = try gfx_state.gctx.createAndUploadTex2dFromDdsFile("content/textures/damaged_helmet_arm.dds", arena, .{});
         const resource = gfx_state.gctx.lookupResource(resource_handle);
         _ = resource.?.SetName(L("damaged_helmet_arm.dds"));
 

@@ -319,7 +319,7 @@ pub const D3D12State = struct {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, true);
+        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = true });
         var path_u16: [300]u16 = undefined;
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
