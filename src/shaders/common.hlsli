@@ -39,6 +39,11 @@ struct SceneConst {
     uint brdf_integration_texture_index;
 };
 
+struct FullscreenTriangleOutput {
+    float4 position : SV_Position;
+    float2 uv : TEXCOORD0;
+};
+
 bool has_valid_texture(uint texture_index) { return texture_index != INVALID_TEXTURE_INDEX; }
 
 float3 gamma(float3 color) { return pow(color, 1.0f / GAMMA); }

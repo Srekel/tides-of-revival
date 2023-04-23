@@ -163,7 +163,13 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
         "Build shaders",
     );
 
-    var dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
+    var dxc_command = makeDxcCmd("src/shaders/fullscreen_triangle.hlsl", "vsFullscreenTriangle", "fullscreen_triangle.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    // NOTE(gmodarelli): Temp
+    dxc_command = makeDxcCmd("src/shaders/fullscreen_triangle.hlsl", "psFinalBlit", "final_blit.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psInstanced", "instanced.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);

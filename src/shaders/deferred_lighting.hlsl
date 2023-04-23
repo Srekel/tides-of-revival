@@ -62,11 +62,12 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     // Light information
     // =================
     // NOTE(gmodarelli): Hardcoding a directional light (sun)
-    float3 light_color = float3(0.7, 0.8, 1.0);
-    float light_intensity = 5.0;
+    float3 light_color = float3(1.0, 1.0, 1.0);
+    float light_intensity = 10.0;
     float3 light_direction = float3(0.0, 1.0, 0.0);
     // TODO(gmodarelli): This turns everything to black
-    float light_attenuation = 1.0;// saturate(dot(-light_direction, float3(0.0, 1.0, 0.0)));
+    // float light_attenuation = 1.0;// saturate(dot(-light_direction, float3(0.0, 1.0, 0.0)));
+    float light_attenuation = saturate(dot(light_direction, float3(0.0, 1.0, 0.0)));
     float3 light_radiance = light_color * light_intensity * light_attenuation * saturate(dot(normal, -light_direction));
 
     // Angular information

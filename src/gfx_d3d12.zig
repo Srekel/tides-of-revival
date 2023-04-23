@@ -181,7 +181,8 @@ pub const D3D12State = struct {
     light_specular_rt: RenderTarget,
     hdr_rt: RenderTarget,
 
-    // NOTE(gmodarelli): just a test
+    // NOTE(gmodarelli): just a test, these textures should
+    // be loaded by the "world material"
     radiance_texture: TextureHandle,
     irradiance_texture: TextureHandle,
     brdf_integration_texture: TextureHandle,
@@ -561,6 +562,31 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var pipelines = PipelineHashMap.init(allocator);
 
+    const final_blit_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DepthStencilState.DepthEnable = 0;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        const pso_handle = gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/fullscreen_triangle.vs.cso",
+            "shaders/final_blit.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
+    };
+
     const instanced_pipeline = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
@@ -673,6 +699,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
+    pipelines.put(IdLocal.init("final_blit"), PipelineInfo{ .pipeline_handle = final_blit_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
@@ -738,7 +765,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     // Radiance
     {
         const texture_desc = TextureDesc{
-            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Radiance"),
         };
         const path = "content/textures/env/alps_field_2k_cube_radiance.dds";
@@ -750,7 +777,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     // Irradiance
     {
         const texture_desc = TextureDesc{
-            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Irradiance"),
         };
         const path = "content/textures/env/alps_field_2k_cube_irradiance.dds";
@@ -802,7 +829,7 @@ pub fn beginFrame(state: *D3D12State) void {
     // Begin DirectX 12 rendering.
     gctx.beginFrame();
 
-    zpix.beginEvent(gctx.cmdlist, "Render Scene");
+    zpix.beginEvent(gctx.cmdlist, "Render Scene", .{ .color = 0xff_ff_ff_ff });
 
     state.gpu_frame_profiler_index = state.gpu_profiler.startProfile(state.gctx.cmdlist, "Frame");
 }
@@ -826,12 +853,12 @@ pub fn endFrame(state: *D3D12State) void {
         null,
     );
 
-    gctx.cmdlist.ClearRenderTargetView(
-        back_buffer.descriptor_handle,
-        &.{ 0.0, 0.0, 0.0, 0.0 },
-        0,
-        null,
-    );
+    // gctx.cmdlist.ClearRenderTargetView(
+    //     back_buffer.descriptor_handle,
+    //     &.{ 0.0, 0.0, 0.0, 0.0 },
+    //     0,
+    //     null,
+    // );
 
     gctx.beginDraw2d();
     {
@@ -962,6 +989,29 @@ pub fn bindGBuffer(state: *D3D12State) void {
     );
 
     gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 1.0, 0, 0, null);
+}
+
+pub fn bindBackBuffer(state: *D3D12State) void {
+    var gctx = &state.gctx;
+    assert(gctx.is_cmdlist_opened);
+
+    const back_buffer = gctx.getBackBuffer();
+
+    gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.flushResourceBarriers();
+
+    gctx.cmdlist.OMSetRenderTargets(
+        1,
+        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
+        w32.TRUE,
+        null,
+    );
+    gctx.cmdlist.ClearRenderTargetView(
+        back_buffer.descriptor_handle,
+        &[4]f32{ 0.0, 0.0, 0.0, 0.0 },
+        0,
+        null,
+    );
 }
 
 fn drawText(

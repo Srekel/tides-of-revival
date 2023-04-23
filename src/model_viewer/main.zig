@@ -150,7 +150,7 @@ pub fn run() !void {
     // Create a vertex buffer.
     var vertex_buffer = gfx_state.createBuffer(.{
         .size = total_num_vertices * @sizeOf(Vertex),
-        .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+        .state = d3d12.RESOURCE_STATES.COMMON,
         .name = L("Vertex Buffer"),
         .persistent = true,
         .has_cbv = false,
@@ -175,7 +175,7 @@ pub fn run() !void {
         for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceTransform),
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .state = d3d12.RESOURCE_STATES.COMMON,
                 .name = L("Instance Transform Buffer"),
                 .persistent = true,
                 .has_cbv = false,
@@ -194,7 +194,7 @@ pub fn run() !void {
         for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceMaterial),
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .state = d3d12.RESOURCE_STATES.COMMON,
                 .name = L("Instance Material Buffer"),
                 .persistent = true,
                 .has_cbv = false,
@@ -355,7 +355,7 @@ fn update(model_viewer_state: *ModelViewerState) void {
 }
 
 fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) void {
-    const stats = gfx_state.stats;
+    // const stats = gfx_state.stats;
 
     // Camera
     const framebuffer_width = gfx_state.gctx.viewport_width;
@@ -385,12 +385,12 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     // Start rendering the frame
     gfx.beginFrame(gfx_state);
 
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "GBuffer");
-    gfx.bindGBuffer(gfx_state);
-
     // GBuffer
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "GBuffer", .{ .color = 0xff_ff_ff_ff });
     {
-        zpix.beginEvent(gfx_state.gctx.cmdlist, "Instanced Objects");
+        gfx.bindGBuffer(gfx_state);
+
+        zpix.beginEvent(gfx_state.gctx.cmdlist, "Instanced Objects", .{ .color = 0xff_ff_ff_ff });
         // Draw static objects
         {
             const pipeline_info = gfx_state.getPipeline(IdLocal.init("instanced"));
@@ -451,7 +451,8 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
                 const normal = gfx_state.lookupTexture(model_viewer_state.normal);
                 const arm = gfx_state.lookupTexture(model_viewer_state.arm);
 
-                const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
+                // const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
+                const object_to_world = zm.rotationY(3.14);
                 model_viewer_state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
                 model_viewer_state.instance_materials.append(.{
                     .albedo_color = model_viewer_state.albedo_color,
@@ -494,7 +495,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         }
         zpix.endEvent(gfx_state.gctx.cmdlist);
 
-        zpix.beginEvent(gfx_state.gctx.cmdlist, "Skybox");
+        zpix.beginEvent(gfx_state.gctx.cmdlist, "Skybox", .{ .color = 0xff_ff_ff_ff });
         {
             const pipeline_info = gfx_state.getPipeline(IdLocal.init("skybox"));
             gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
@@ -547,7 +548,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     zpix.endEvent(gfx_state.gctx.cmdlist);
 
     // Deferred Lighting
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Deferred Lighting");
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Deferred Lighting", .{ .color = 0xff_ff_ff_ff });
     {
         const pipeline_info = gfx_state.getPipeline(IdLocal.init("deferred_lighting"));
         gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
@@ -594,7 +595,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     zpix.endEvent(gfx_state.gctx.cmdlist);
 
     // Lighting Composition
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Lighting Composition");
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Lighting Composition", .{ .color = 0xff_ff_ff_ff });
     {
         const pipeline_info = gfx_state.getPipeline(IdLocal.init("lighting_composition"));
         gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
@@ -638,6 +639,22 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         const num_groups_x = @divExact(gfx_state.light_diffuse_rt.width, 8);
         const num_groups_y = @divExact(gfx_state.light_diffuse_rt.height, 8);
         gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
+    }
+    zpix.endEvent(gfx_state.gctx.cmdlist);
+
+    // Final blit
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Final Blit", .{ .color = 0xff_ff_ff_ff });
+    {
+        gfx.bindBackBuffer(gfx_state);
+
+        const pipeline_info = gfx_state.getPipeline(IdLocal.init("final_blit"));
+        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        const mem = gfx_state.gctx.allocateUploadMemory(u32, 1);
+        mem.cpu_slice[0] = gfx_state.hdr_rt.srv_persistent_descriptor.index;
+        gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+        gfx_state.gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
     }
     zpix.endEvent(gfx_state.gctx.cmdlist);
 
