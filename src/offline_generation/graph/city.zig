@@ -44,8 +44,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     var cities = std.ArrayList(City).init(context.frame_allocator);
 
     const CITY_WIDTH_MAX = 128;
-    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 2;
-    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 8;
+    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 4;
+    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 16;
     const CITY_SKIP = 16;
     const CITY_HEIGHT_TEST_SKIP = 16;
     const CITY_MIN_BORDERS = 15;
@@ -164,7 +164,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     }
                     // const slope_height_diff = max_slope_center + @divFloor((max_slope_edge - max_slope_center) * dist, CITY_WIDTH_MAX);
                     if (height_diff > slope_height_diff) {
-                        city.is_border.items[stack_index - 1] = true;
+                        city.is_border.items[stack_index - 1] = false;
                         // std.debug.print("LOLsi: {}, height_curr:{}, height_side:{}, max_slope_center: {}, height_diff_i: {}, slope_height_diff: {}\n", .{ stack_index, height_curr, height_side, max_slope_center, height_diff_i, slope_height_diff });
                         continue;
                         // continue :city_blk;
@@ -198,7 +198,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         }
     }
 
-    for (cities.items) |city| {
+    for (cities.items) |*city| {
+        var to_remove = std.BoundedArray(u64, 512).init(0) catch unreachable;
         for (city.border_pos.items, 0..) |pos_curr, i| {
             const posNSWE = [_]Pos{
                 .{
@@ -223,17 +224,34 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 },
             };
 
-            var count: u64 = 0;
+            var border_count: u64 = 0;
+            var inside_count: u64 = 0;
             for (posNSWE) |pos| {
-                for (city.border_pos.items) |border_pos| {
+                for (city.border_pos.items, city.is_border.items) |border_pos, is_border| {
                     if (border_pos[0] == pos[0] and border_pos[2] == pos[2]) {
-                        count += 1;
+                        if (is_border) {
+                            border_count += 1;
+                        } else {
+                            inside_count += 1;
+                        }
                         break;
                     }
                 }
             }
 
-            city.is_border.items[i] = count < 4;
+            city.is_border.items[i] = false;
+            if (inside_count == 0) {
+                to_remove.appendAssumeCapacity(i);
+            } 
+            if (border_count + inside_count < 4) {
+                city.is_border.items[i] = true;
+            }
+        }
+
+        while (to_remove.len > 0) {
+            const i = to_remove.pop();
+            _ = city.border_pos.swapRemove(i);
+            _ = city.is_border.swapRemove(i);
         }
     }
 
@@ -324,14 +342,14 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         pixels[pixels_index].g = height;
                         pixels[pixels_index].b = height;
                         pixels[pixels_index].a = 255;
-                        if (height < 80) {
+                        if (height < 10) {
                             pixels[pixels_index].r = 50 + height / 2;
                             pixels[pixels_index].g = 50 + height / 2;
                             pixels[pixels_index].b = 90 + height * 2;
                         } else if (height > 200) {
-                            pixels[pixels_index].r = 140 + (height - 200) * 2;
-                            pixels[pixels_index].g = 140 + (height - 200) * 2;
-                            pixels[pixels_index].b = 140 + (height - 200) * 2;
+                            pixels[pixels_index].r = 145 + (height - 200) * 2;
+                            pixels[pixels_index].g = 145 + (height - 200) * 2;
+                            pixels[pixels_index].b = 145 + (height - 200) * 2;
                         } else {
                             pixels[pixels_index].r = 20 + height / 2;
                             pixels[pixels_index].g = 50 + height / 2;
@@ -388,10 +406,10 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         std.debug.print("..writing image {}\n", .{image_width});
 
         var namebuf: [256]u8 = undefined;
-        const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "citymap_{}_{}.qoi", .{ world_width, image_width }) catch unreachable;
+        const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "citymap_{}_{}.png", .{ world_width, image_width }) catch unreachable;
 
-        var enc_opt: img.AllFormats.QOI.EncoderOptions = .{ .colorspace = .linear };
-        const encoder_options = img.AllFormats.ImageEncoderOptions{ .qoi = enc_opt };
+        var enc_opt: img.AllFormats.PNG.EncoderOptions = .{};
+        const encoder_options = img.AllFormats.ImageEncoderOptions{ .png = enc_opt };
         hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
     }
 
