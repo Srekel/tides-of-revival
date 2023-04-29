@@ -355,7 +355,7 @@ fn update(model_viewer_state: *ModelViewerState) void {
 }
 
 fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) void {
-    // const stats = gfx_state.stats;
+    const stats = gfx_state.stats;
 
     // Camera
     const framebuffer_width = gfx_state.gctx.viewport_width;
@@ -451,8 +451,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
                 const normal = gfx_state.lookupTexture(model_viewer_state.normal);
                 const arm = gfx_state.lookupTexture(model_viewer_state.arm);
 
-                // const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
-                const object_to_world = zm.rotationY(3.14);
+                const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
                 model_viewer_state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
                 model_viewer_state.instance_materials.append(.{
                     .albedo_color = model_viewer_state.albedo_color,
@@ -642,12 +641,60 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     }
     zpix.endEvent(gfx_state.gctx.cmdlist);
 
-    // Final blit
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Final Blit", .{ .color = 0xff_ff_ff_ff });
+    // Image Based Lighting
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "IBL", .{ .color = 0xff_ff_ff_ff });
+    {
+        gfx.bindHDRTarget(gfx_state);
+
+        const pipeline_info = gfx_state.getPipeline(IdLocal.init("ibl"));
+        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        // Upload per-scene constant data.
+        {
+            const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
+            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
+            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
+        }
+
+        // Upload per-frame constant data.
+        {
+            const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
+            mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+            mem.cpu_slice[0].camera_position = camera_position;
+            mem.cpu_slice[0].time = 0;
+            mem.cpu_slice[0].light_count = 0;
+
+            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+        }
+
+        // Upload render targets constant data.
+        {
+            const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
+
+            mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
+
+            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+        }
+
+        gfx_state.gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+    }
+    zpix.endEvent(gfx_state.gctx.cmdlist);
+
+    // Tonemapping
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Tonemapping", .{ .color = 0xff_ff_ff_ff });
     {
         gfx.bindBackBuffer(gfx_state);
 
-        const pipeline_info = gfx_state.getPipeline(IdLocal.init("final_blit"));
+        const pipeline_info = gfx_state.getPipeline(IdLocal.init("tonemapping"));
         gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
         const mem = gfx_state.gctx.allocateUploadMemory(u32, 1);

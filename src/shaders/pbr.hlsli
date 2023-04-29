@@ -32,6 +32,12 @@ float3 F_Schlick(const float3 f0, float v_dot_h)
     return f + f0 * (1.0 - f);
 }
 
+float3 F_Schlick_Roughness(float3 f0, float cosTheta, float roughness)
+{
+    float3 a = 1.0 - roughness;
+    return f0 + (max(a, f0) - f0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
 float3 computeDiffuseEnergy(float3 F, float metallic)
 {
     float3 kS = F;          // The energy of light that gets reflected - Equal to Fresnel
@@ -61,6 +67,15 @@ float3 BRDF_Specular_Isotropic(float roughness_alpha, float roughness_alpha_squa
     specular_energy *= F;
 
     return D * V * F;
+}
+
+float3 compute_diffuse_energy(float3 F, float metallic)
+{
+    float3 kS = F;          // The energy of light that gets reflected - Equal to Fresnel
+    float3 kD = 1.0f - kS;  // Remaining energy, light that gets refracted
+    kD *= 1.0f - metallic;  // Multiply kD by the inverse metalness such that only non-metals have diffuse lighting
+    
+    return kD;
 }
 
 #endif // __PBR_HLSLI__

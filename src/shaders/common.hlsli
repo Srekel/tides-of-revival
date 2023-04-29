@@ -71,6 +71,15 @@ float3 getPositionFromDepth(float depth, float2 uv, float4x4 view_projection_inv
     return position_ws.xyz / position_ws.w;
 }
 
+// From Sebastien Lagarde Moving Frostbite to PBR page 69
+float3 get_dominant_specular_direction(float3 normal, float3 reflection, float roughness)
+{
+    const float smoothness = 1.0f - roughness;
+    const float alpha = smoothness * (sqrt(smoothness) + roughness);
+    
+    return lerp(normal, reflection, alpha);
+}
+
 /*------------------------------------------------------------------------------
     LUMINANCE
 ------------------------------------------------------------------------------*/

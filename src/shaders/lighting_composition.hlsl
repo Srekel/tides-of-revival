@@ -45,7 +45,6 @@ void csLightingComposition(uint3 dispatch_id : SV_DispatchThreadID) {
     float4 gbuffer_2_sample = gbuffer_2.SampleLevel(sam_aniso_clamp, uv, 0);
 
     float4 color = float4(0.0, 0.0, 0.0, 1.0);
-    // TODO(gmodarelli): Handle fog and ambient light
 
     if (gbuffer_0_sample.a > 0)
     {
@@ -53,15 +52,10 @@ void csLightingComposition(uint3 dispatch_id : SV_DispatchThreadID) {
         float3 light_diffuse  = light_diffuse_texture.SampleLevel(sam_aniso_clamp, uv, 0).rgb;
         float3 light_specular = light_specular_texture.SampleLevel(sam_aniso_clamp, uv, 0).rgb;
 
-        // Light - Refraction
-        float3 light_refraction = 0.0f;
-        // TODO(gmodarelli): Handle transparency
-
         // Compose everything
-        float3 light_ds = light_diffuse * gbuffer_0_sample.rgb + light_specular;
-        color.rgb += lerp(light_ds, light_refraction, 1.0f - gbuffer_0_sample.a);
+        color.rgb += light_diffuse * gbuffer_0_sample.rgb + light_specular;
     }
-    else // TODO(gmodarelli): Draw the sky
+    else
     {
         float3 normal = gbuffer_1_sample.xyz;
         color.rgb += environment_texture.SampleLevel(sam_bilinear_clamp, normal, 0).rgb;

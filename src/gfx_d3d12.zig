@@ -562,7 +562,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var pipelines = PipelineHashMap.init(allocator);
 
-    const final_blit_pipeline = blk: {
+    const tonemapping_pipeline = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
             .pInputElementDescs = null,
@@ -577,8 +577,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/fullscreen_triangle.vs.cso",
-            "shaders/final_blit.ps.cso",
+            "shaders/tonemapping.vs.cso",
+            "shaders/tonemapping.ps.cso",
         );
 
         // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
@@ -669,6 +669,31 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
+    const ibl_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = hdr_rt.format;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DepthStencilState.DepthEnable = 0;
+        pso_desc.BlendState = d3d12.BLEND_DESC.initAdditive();
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        const pso_handle = gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/ibl.vs.cso",
+            "shaders/ibl.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
+    };
+
     const skybox_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
@@ -699,11 +724,12 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
-    pipelines.put(IdLocal.init("final_blit"), PipelineInfo{ .pipeline_handle = final_blit_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("tonemapping"), PipelineInfo{ .pipeline_handle = tonemapping_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("lighting_composition"), PipelineInfo{ .pipeline_handle = lighting_composition_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("ibl"), PipelineInfo{ .pipeline_handle = ibl_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
@@ -1010,6 +1036,21 @@ pub fn bindBackBuffer(state: *D3D12State) void {
         back_buffer.descriptor_handle,
         &[4]f32{ 0.0, 0.0, 0.0, 0.0 },
         0,
+        null,
+    );
+}
+
+pub fn bindHDRTarget(state: *D3D12State) void {
+    var gctx = &state.gctx;
+    assert(gctx.is_cmdlist_opened);
+
+    gctx.addTransitionBarrier(state.hdr_rt.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.flushResourceBarriers();
+
+    gctx.cmdlist.OMSetRenderTargets(
+        1,
+        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.hdr_rt.descriptor},
+        w32.TRUE,
         null,
     );
 }
