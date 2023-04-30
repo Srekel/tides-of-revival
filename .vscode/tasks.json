@@ -38,6 +38,27 @@
                 // "showReuseMessage": false,
                 // "revealProblems": "onProblem"
             }
+        },
+        {
+            "label": "World Gen",
+            "type": "process",
+            "command": "python",
+            "args": [
+                "full_pull.py",
+                "--world-gen"
+            ],
+            "group": {
+                "kind": "none",
+                "isDefault": false
+            },
+            // "problemMatcher": [
+            //     "$gcc"
+            // ],
+            "presentation": {
+                "clear": true,
+                // "showReuseMessage": false,
+                // "revealProblems": "onProblem"
+            }
         }
     ]
 }
