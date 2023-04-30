@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.install();
+    b.installArtifact(exe);
 
     exe.addModule("websocket", b.createModule(.{
         .source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
@@ -146,9 +146,9 @@ pub fn build(b: *std.Build) void {
     zstbi_pkg.link(exe);
     ztracy_pkg.link(exe);
 
-    exe.install();
+    b.installArtifact(exe);
 
-    const run_cmd = exe.run();
+    const run_cmd = b.addRunArtifact(exe);
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
