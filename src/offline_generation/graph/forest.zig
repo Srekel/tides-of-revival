@@ -77,16 +77,16 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
     const tree_id = IdLocal.init("tree");
 
     const noise = znoise.FnlGenerator{
-        .seed = @intCast(i32, 1),
+        .seed = @intCast(i32, 123),
         .fractal_type = .fbm,
-        .frequency = 1,
-        .octaves = 3,
+        .frequency = 0.001,
+        .octaves = 8,
     };
 
     const PROPS_LOD = 1;
     const PROPS_PATCH_SIZE = config.patch_size * std.math.pow(u64, 2, PROPS_LOD);
     const PROPS_PATCH_SIZE_F = @intToFloat(f32, config.patch_size * std.math.pow(u64, 2, PROPS_LOD));
-    const TREE_STEP = 8;
+    const TREE_STEP = 16;
     const TREE_STEP_F = @intToFloat(f32, TREE_STEP);
     const SAMPLES = @divFloor(PROPS_PATCH_SIZE, TREE_STEP);
     const PATCH_BEGIN_X = span_world_x / PROPS_PATCH_SIZE;
@@ -102,8 +102,8 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
                 for (0..SAMPLES) |local_x| {
                     const local_x_f = @intToFloat(f32, local_x);
                     const local_z_f = @intToFloat(f32, local_z);
-                    const world_x = patch_x_f * PROPS_PATCH_SIZE_F + local_x_f * TREE_STEP_F + rand.float(f32) * TREE_STEP_F * 0.005;
-                    const world_z = patch_z_f * PROPS_PATCH_SIZE_F + local_z_f * TREE_STEP_F + rand.float(f32) * TREE_STEP_F * 0.005;
+                    const world_x = patch_x_f * PROPS_PATCH_SIZE_F + local_x_f * TREE_STEP_F + rand.float(f32) * TREE_STEP_F * 0.995;
+                    const world_z = patch_z_f * PROPS_PATCH_SIZE_F + local_z_f * TREE_STEP_F + rand.float(f32) * TREE_STEP_F * 0.995;
 
                     // TODO: Pass in non-integer coords
                     const world_y = patches.getHeightWorld(
@@ -115,7 +115,7 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
                         continue;
                     }
 
-                    if (noise.noise2(world_x, world_z) < 0.75) {
+                    if (noise.noise2(world_x, world_z) < -0.15) {
                         continue;
                     }
 

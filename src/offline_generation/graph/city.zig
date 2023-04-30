@@ -43,8 +43,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
     var cities = std.ArrayList(City).init(context.frame_allocator);
 
-    const CITY_WIDTH_MAX = 128;
-    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 4;
+    const CITY_WIDTH_MAX = 64;
+    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 16;
     const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 16;
     const CITY_SKIP = 16;
     const CITY_HEIGHT_TEST_SKIP = 16;
@@ -242,7 +242,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             city.is_border.items[i] = false;
             if (inside_count == 0) {
                 to_remove.appendAssumeCapacity(i);
-            } 
+            }
             if (border_count + inside_count < 4) {
                 city.is_border.items[i] = true;
             }
@@ -280,7 +280,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     //     }
     // }
 
-    const write_image = true;
+    const write_image = false;
 
     if (node.output_artifacts and write_image) {
         std.debug.print("city: outputting artifact...\n", .{});
@@ -454,10 +454,12 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
     var rand1 = std.rand.DefaultPrng.init(0);
     var rand = rand1.random();
+    _ = rand;
     if (output.template.?.name.eqlStr("City Props")) {
         const city_id = IdLocal.init("city");
         const house_id = IdLocal.init("house");
         const wall_id = IdLocal.init("wall");
+        _ = wall_id;
         var props = std.ArrayList(graph_props.Prop).initCapacity(context.frame_allocator, 1000) catch unreachable;
         for (cities.items) |city| {
             props.append(.{
@@ -470,34 +472,44 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 .rot = 0,
             }) catch unreachable;
 
-            for (city.border_pos.items, city.is_border.items) |pos, is_border| {
-                if (!is_border) {
-                    if (rand.float(f32) < 0.05) {
-                        props.append(.{
-                            .id = house_id,
-                            .pos = .{
-                                @floatCast(f32, pos[0]),
-                                @floatCast(f32, pos[1]),
-                                @floatCast(f32, pos[2]),
-                            },
-                            .rot = rand.float(f32) * std.math.pi * 2,
-                        }) catch unreachable;
-                    }
-                    continue;
-                }
+            props.append(.{
+                .id = house_id,
+                .pos = .{
+                    @floatCast(f32, city.pos[0]),
+                    @floatCast(f32, city.pos[1]),
+                    @floatCast(f32, city.pos[2]),
+                },
+                .rot = 0,
+            }) catch unreachable;
 
-                const dir_to_city = zm.normalize3(zm.loadArr3(pos) - zm.loadArr3(city.pos));
+            // for (city.border_pos.items, city.is_border.items) |pos, is_border| {
+            //     if (!is_border) {
+            //         if (rand.float(f32) < 0.05) {
+            //             props.append(.{
+            //                 .id = house_id,
+            //                 .pos = .{
+            //                     @floatCast(f32, pos[0]),
+            //                     @floatCast(f32, pos[1]),
+            //                     @floatCast(f32, pos[2]),
+            //                 },
+            //                 .rot = rand.float(f32) * std.math.pi * 2,
+            //             }) catch unreachable;
+            //         }
+            //         continue;
+            //     }
 
-                props.append(.{
-                    .id = wall_id,
-                    .pos = .{
-                        @floatCast(f32, pos[0]),
-                        @floatCast(f32, pos[1]),
-                        @floatCast(f32, pos[2]),
-                    },
-                    .rot = std.math.atan2(f32, -dir_to_city[2], dir_to_city[0]),
-                }) catch unreachable;
-            }
+            //     const dir_to_city = zm.normalize3(zm.loadArr3(pos) - zm.loadArr3(city.pos));
+
+            //     props.append(.{
+            //         .id = wall_id,
+            //         .pos = .{
+            //             @floatCast(f32, pos[0]),
+            //             @floatCast(f32, pos[1]),
+            //             @floatCast(f32, pos[2]),
+            //         },
+            //         .rot = std.math.atan2(f32, -dir_to_city[2], dir_to_city[0]),
+            //     }) catch unreachable;
+            // }
         }
 
         // HACK: need to handle this memory properly
