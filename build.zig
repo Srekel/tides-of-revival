@@ -167,10 +167,6 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "psTonemapping", "tonemapping.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/image_based_lighting.hlsl", "vsFullscreenTriangle", "ibl.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/image_based_lighting.hlsl", "psImageBasedLighting", "ibl.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
@@ -188,9 +184,6 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     dxc_command = makeDxcCmd("src/shaders/deferred_lighting.hlsl", "csDeferredLighting", "deferred_lighting.cs.cso", "cs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/lighting_composition.hlsl", "csLightingComposition", "lighting_composition.cs.cso", "cs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");

@@ -386,11 +386,11 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     gfx.beginFrame(gfx_state);
 
     // GBuffer
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "GBuffer", .{ .color = 0xff_ff_ff_ff });
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "GBuffer");
     {
         gfx.bindGBuffer(gfx_state);
 
-        zpix.beginEvent(gfx_state.gctx.cmdlist, "Instanced Objects", .{ .color = 0xff_ff_ff_ff });
+        zpix.beginEvent(gfx_state.gctx.cmdlist, "Instanced Objects");
         // Draw static objects
         {
             const pipeline_info = gfx_state.getPipeline(IdLocal.init("instanced"));
@@ -494,7 +494,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         }
         zpix.endEvent(gfx_state.gctx.cmdlist);
 
-        zpix.beginEvent(gfx_state.gctx.cmdlist, "Skybox", .{ .color = 0xff_ff_ff_ff });
+        zpix.beginEvent(gfx_state.gctx.cmdlist, "Skybox");
         {
             const pipeline_info = gfx_state.getPipeline(IdLocal.init("skybox"));
             gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
@@ -547,7 +547,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     zpix.endEvent(gfx_state.gctx.cmdlist);
 
     // Deferred Lighting
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Deferred Lighting", .{ .color = 0xff_ff_ff_ff });
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Deferred Lighting");
     {
         const pipeline_info = gfx_state.getPipeline(IdLocal.init("deferred_lighting"));
         gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
@@ -581,116 +581,117 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
             mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
             mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.uav_persistent_descriptor.index;
-            mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.uav_persistent_descriptor.index;
-
-            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
-        }
-
-        const num_groups_x = @divExact(gfx_state.light_diffuse_rt.width, 8);
-        const num_groups_y = @divExact(gfx_state.light_diffuse_rt.height, 8);
-        gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
-    }
-    zpix.endEvent(gfx_state.gctx.cmdlist);
-
-    // Lighting Composition
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Lighting Composition", .{ .color = 0xff_ff_ff_ff });
-    {
-        const pipeline_info = gfx_state.getPipeline(IdLocal.init("lighting_composition"));
-        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-        // Upload per-scene constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
-            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
-            mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-            mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
-        }
-
-        // Upload per-frame constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
-            mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
-            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-            mem.cpu_slice[0].camera_position = camera_position;
-            mem.cpu_slice[0].time = 0;
-            mem.cpu_slice[0].light_count = 0;
-
-            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
-        }
-
-        // Upload render targets constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
-
-            mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.srv_persistent_descriptor.index;
+            // mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.uav_persistent_descriptor.index;
+            // mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.uav_persistent_descriptor.index;
             mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
 
             gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
         }
 
-        const num_groups_x = @divExact(gfx_state.light_diffuse_rt.width, 8);
-        const num_groups_y = @divExact(gfx_state.light_diffuse_rt.height, 8);
+        const num_groups_x = @divExact(gfx_state.hdr_rt.width, 8);
+        const num_groups_y = @divExact(gfx_state.hdr_rt.height, 8);
         gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
     }
     zpix.endEvent(gfx_state.gctx.cmdlist);
 
-    // Image Based Lighting
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "IBL", .{ .color = 0xff_ff_ff_ff });
-    {
-        gfx.bindHDRTarget(gfx_state);
+    // // Lighting Composition
+    // zpix.beginEvent(gfx_state.gctx.cmdlist, "Lighting Composition");
+    // {
+    //     const pipeline_info = gfx_state.getPipeline(IdLocal.init("lighting_composition"));
+    //     gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-        const pipeline_info = gfx_state.getPipeline(IdLocal.init("ibl"));
-        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+    //     // Upload per-scene constant data.
+    //     {
+    //         const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
+    //         mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
+    //         mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+    //         mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
+    //         gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
+    //     }
 
-        // Upload per-scene constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
-            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
-            mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-            mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
-        }
+    //     // Upload per-frame constant data.
+    //     {
+    //         const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
+    //         mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
+    //         mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+    //         mem.cpu_slice[0].camera_position = camera_position;
+    //         mem.cpu_slice[0].time = 0;
+    //         mem.cpu_slice[0].light_count = 0;
 
-        // Upload per-frame constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
-            mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
-            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-            mem.cpu_slice[0].camera_position = camera_position;
-            mem.cpu_slice[0].time = 0;
-            mem.cpu_slice[0].light_count = 0;
+    //         gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
+    //     }
 
-            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-        }
+    //     // Upload render targets constant data.
+    //     {
+    //         const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
 
-        // Upload render targets constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
+    //         mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
 
-            mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
+    //         gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
+    //     }
 
-            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-        }
+    //     const num_groups_x = @divExact(gfx_state.light_diffuse_rt.width, 8);
+    //     const num_groups_y = @divExact(gfx_state.light_diffuse_rt.height, 8);
+    //     gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
+    // }
+    // zpix.endEvent(gfx_state.gctx.cmdlist);
 
-        gfx_state.gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
-    }
-    zpix.endEvent(gfx_state.gctx.cmdlist);
+    // // Image Based Lighting
+    // zpix.beginEvent(gfx_state.gctx.cmdlist, "IBL");
+    // {
+    //     gfx.bindHDRTarget(gfx_state);
+
+    //     const pipeline_info = gfx_state.getPipeline(IdLocal.init("ibl"));
+    //     gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+    //     // Upload per-scene constant data.
+    //     {
+    //         const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
+    //         mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
+    //         mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+    //         mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
+    //         gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
+    //     }
+
+    //     // Upload per-frame constant data.
+    //     {
+    //         const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
+    //         mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
+    //         mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+    //         mem.cpu_slice[0].camera_position = camera_position;
+    //         mem.cpu_slice[0].time = 0;
+    //         mem.cpu_slice[0].light_count = 0;
+
+    //         gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+    //     }
+
+    //     // Upload render targets constant data.
+    //     {
+    //         const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
+
+    //         mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.srv_persistent_descriptor.index;
+    //         mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
+
+    //         gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+    //     }
+
+    //     gfx_state.gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+    // }
+    // zpix.endEvent(gfx_state.gctx.cmdlist);
 
     // Tonemapping
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Tonemapping", .{ .color = 0xff_ff_ff_ff });
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Tonemapping");
     {
         gfx.bindBackBuffer(gfx_state);
 

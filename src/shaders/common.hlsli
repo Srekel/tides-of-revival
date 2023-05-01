@@ -52,14 +52,14 @@ float3 degamma(float3 color) { return pow(color, GAMMA); }
 float3 unpack(float3 value) { return value * 2.0f - 1.0f; }
 float3 pack(float3 value) { return value * 0.5f + 0.5f; }
 
-float3x3 makeTBN(float3 n, float3 t)
+float3x3 makeTBN(float3 n, float4 t)
 {
     // re-orthogonalize T with respect to N
-    t = normalize(t - dot(t, n) * n);
+    t.xyz = normalize(t.xyz - dot(t.xyz, n) * n);
     // compute bitangent
-    float3 b = cross(n, t);
+    float3 b = cross(n, t.xyz) * t.w;
     // create matrix
-    return float3x3(t, b, n);
+    return float3x3(t.xyz, b, n);
 }
 
 float3 getPositionFromDepth(float depth, float2 uv, float4x4 view_projection_inverted)
@@ -69,15 +69,6 @@ float3 getPositionFromDepth(float depth, float2 uv, float4x4 view_projection_inv
     float4 position_cs = float4(x, y, depth, 1.0f);
     float4 position_ws = mul(position_cs, view_projection_inverted);
     return position_ws.xyz / position_ws.w;
-}
-
-// From Sebastien Lagarde Moving Frostbite to PBR page 69
-float3 get_dominant_specular_direction(float3 normal, float3 reflection, float roughness)
-{
-    const float smoothness = 1.0f - roughness;
-    const float alpha = smoothness * (sqrt(smoothness) + roughness);
-    
-    return lerp(normal, reflection, alpha);
 }
 
 /*------------------------------------------------------------------------------

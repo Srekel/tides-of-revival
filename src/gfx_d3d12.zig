@@ -177,8 +177,6 @@ pub const D3D12State = struct {
     gbuffer_1: RenderTarget,
     gbuffer_2: RenderTarget,
 
-    light_diffuse_rt: RenderTarget,
-    light_specular_rt: RenderTarget,
     hdr_rt: RenderTarget,
 
     // NOTE(gmodarelli): just a test, these textures should
@@ -545,16 +543,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk createRenderTarget(&gctx, &desc);
     };
 
-    const light_diffuse_rt = blk: {
-        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Light_Diffuse_RT"));
-        break :blk createRenderTarget(&gctx, &desc);
-    };
-
-    const light_specular_rt = blk: {
-        const desc = RenderTargetDesc.initColor(.R11G11B10_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Light_Specular_RT"));
-        break :blk createRenderTarget(&gctx, &desc);
-    };
-
     const hdr_rt = blk: {
         const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("HDR_RT"));
         break :blk createRenderTarget(&gctx, &desc);
@@ -655,45 +643,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
-    const lighting_composition_pso = blk: {
-        var compute_desc = d3d12.COMPUTE_PIPELINE_STATE_DESC.initDefault();
-        const pso_handle = gctx.createComputeShaderPipeline(
-            arena,
-            &compute_desc,
-            "shaders/lighting_composition.cs.cso",
-        );
-
-        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        // _ = pipeline.?.pso.?.SetName(L("Lighting Composition PSO"));
-
-        break :blk pso_handle;
-    };
-
-    const ibl_pipeline = blk: {
-        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
-        pso_desc.InputLayout = .{
-            .pInputElementDescs = null,
-            .NumElements = 0,
-        };
-        pso_desc.RTVFormats[0] = hdr_rt.format;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.DepthStencilState.DepthEnable = 0;
-        pso_desc.BlendState = d3d12.BLEND_DESC.initAdditive();
-        pso_desc.PrimitiveTopologyType = .TRIANGLE;
-
-        const pso_handle = gctx.createGraphicsShaderPipeline(
-            arena,
-            &pso_desc,
-            "shaders/ibl.vs.cso",
-            "shaders/ibl.ps.cso",
-        );
-
-        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
-        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
-
-        break :blk pso_handle;
-    };
-
     const skybox_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
@@ -728,8 +677,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
-    pipelines.put(IdLocal.init("lighting_composition"), PipelineInfo{ .pipeline_handle = lighting_composition_pso }) catch unreachable;
-    pipelines.put(IdLocal.init("ibl"), PipelineInfo{ .pipeline_handle = ibl_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
@@ -777,8 +724,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_0 = gbuffer_0,
         .gbuffer_1 = gbuffer_1,
         .gbuffer_2 = gbuffer_2,
-        .light_diffuse_rt = light_diffuse_rt,
-        .light_specular_rt = light_specular_rt,
         .hdr_rt = hdr_rt,
         .radiance_texture = undefined,
         .irradiance_texture = undefined,
@@ -855,7 +800,7 @@ pub fn beginFrame(state: *D3D12State) void {
     // Begin DirectX 12 rendering.
     gctx.beginFrame();
 
-    zpix.beginEvent(gctx.cmdlist, "Render Scene", .{ .color = 0xff_ff_ff_ff });
+    zpix.beginEvent(gctx.cmdlist, "Render Scene");
 
     state.gpu_frame_profiler_index = state.gpu_profiler.startProfile(state.gctx.cmdlist, "Frame");
 }

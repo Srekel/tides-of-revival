@@ -1,5 +1,4 @@
 #include "common.hlsli"
-#include "pbr.hlsli"
 #include "gbuffer.hlsli"
 
 #define ROOT_SIGNATURE \
@@ -100,7 +99,7 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     float3x3 TBN = 0.0f;
     if (has_valid_texture(material.normal_texture_index))
     {
-        TBN = makeTBN(input.normal.xyz, input.tangent.xyz);
+        TBN = makeTBN(input.normal.xyz, input.tangent);
     }
 
     // Albedo
@@ -133,9 +132,10 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     {
         Texture2D normal_texture = ResourceDescriptorHeap[material.normal_texture_index];
         float3 tangent_normal = normalize(unpack(normal_texture.Sample(sam_aniso_wrap, input.uv).rgb));
-        float normal_intensity = clamp(material.normal_intensity, 0.012f, material.normal_intensity);
-        tangent_normal.xy *= saturate(normal_intensity);
+        // float normal_intensity = clamp(material.normal_intensity, 0.012f, material.normal_intensity);
+        // tangent_normal.xy *= saturate(normal_intensity);
         normal = normalize(mul(tangent_normal, TBN));
+        normal = normalize(mul(normal, (float3x3)instance.object_to_world));
     }
 
     // Emission

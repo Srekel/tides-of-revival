@@ -1,5 +1,4 @@
 #include "common.hlsli"
-#include "pbr.hlsli"
 #include "gbuffer.hlsli"
 
 // TODO: Split the static sampler declarations and move them to common.hlsli
