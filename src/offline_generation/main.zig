@@ -229,6 +229,7 @@ pub fn generate() void {
 
         break :blk node;
     };
+    _ = heightmapPatchArtifactNode;
 
     var splatmapPatchArtifactNode = blk: {
         var node = g.Node{
@@ -249,6 +250,7 @@ pub fn generate() void {
 
         break :blk node;
     };
+    _ = splatmapPatchArtifactNode;
 
     //
     var cityNode = blk: {
@@ -262,6 +264,8 @@ pub fn generate() void {
         node.getInput(IdLocal.init("Heightmap Patches")).reference = IdLocal.init("heightmapPatches");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
+        node.getInput(IdLocal.init("Write Cities")).value = v.Variant.createUInt64(1);
+        node.getOutput(IdLocal.init("City Props")).reference.set("cityProps");
         break :blk node;
     };
 
@@ -292,6 +296,7 @@ pub fn generate() void {
         node.init();
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
         node.getInput(IdLocal.init("Forest Props")).reference = IdLocal.init("forestProps");
+        node.getInput(IdLocal.init("City Props")).reference = IdLocal.init("cityProps");
         // node.getInput(IdLocal.init("City Props")).reference = IdLocal.init("City Props");
         break :blk node;
     };
@@ -328,19 +333,14 @@ pub fn generate() void {
     graph.nodes.append(artifactPatchWidthNode) catch unreachable;
     graph.nodes.append(worldWidthNode) catch unreachable;
     graph.nodes.append(heightmapNode) catch unreachable;
-    // graph.nodes.append(splatmapNode) catch unreachable;
-    // graph.nodes.append(cityNode) catch unreachable;
+    graph.nodes.append(splatmapNode) catch unreachable;
+    graph.nodes.append(cityNode) catch unreachable;
     graph.nodes.append(forestNode) catch unreachable;
     graph.nodes.append(propsNode) catch unreachable;
     // graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(pcgNode) catch unreachable;
     // graph.nodes.append(addNode) catch unreachable;
-    _ = splatmapNode;
-    _ = cityNode;
-    // _ = forestNode;
-    _ = splatmapPatchArtifactNode;
-    _ = heightmapPatchArtifactNode;
 
     std.debug.print("Graph:", .{});
     graph.connect();

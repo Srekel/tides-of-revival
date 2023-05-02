@@ -256,7 +256,7 @@ pub fn run() void {
     var asset_manager = AssetManager.create(std.heap.page_allocator);
     defer asset_manager.destroy();
 
-    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, asset_manager);
+    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, &asset_manager);
     world_patch_mgr.debug_server.run();
     defer world_patch_mgr.destroy();
     patch_types.registerPatchTypes(world_patch_mgr);
@@ -279,20 +279,13 @@ pub fn run() void {
     );
     defer state_machine_system.destroy(state_machine_sys);
 
-    const terrain_noise: znoise.FnlGenerator = .{
-        .seed = @intCast(i32, 1),
-        .fractal_type = .fbm,
-        .frequency = 0.001,
-        .octaves = 10,
-    };
-
     var city_sys = try city_system.create(
         IdLocal.init("city_system"),
         std.heap.page_allocator,
         &gfx_state,
         &flecs_world,
         physics_sys.physics_world,
-        terrain_noise,
+        &asset_manager,
     );
     defer city_system.destroy(city_sys);
 

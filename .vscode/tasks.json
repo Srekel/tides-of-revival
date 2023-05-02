@@ -6,7 +6,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "zig build -Dztracy-enable=false -Dzd3d12-enable_debug_layer=false",
+            "command": "zig build -Dztracy-enable=false -Dzd3d12-enable_debug_layer=false -fsummary",
             "group": "build",
             "problemMatcher": [
                 "$gcc"
@@ -29,6 +29,27 @@
             "group": {
                 "kind": "test",
                 "isDefault": true
+            },
+            // "problemMatcher": [
+            //     "$gcc"
+            // ],
+            "presentation": {
+                "clear": true,
+                // "showReuseMessage": false,
+                // "revealProblems": "onProblem"
+            }
+        },
+        {
+            "label": "World Gen",
+            "type": "process",
+            "command": "python",
+            "args": [
+                "full_pull.py",
+                "--world-gen"
+            ],
+            "group": {
+                "kind": "none",
+                "isDefault": false
             },
             // "problemMatcher": [
             //     "$gcc"

@@ -577,11 +577,17 @@ fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, sub
 
         var subresource = &subresources[subresource_index];
         var row: u32 = 0;
+        const row_size_in_bytes_fixed = row_size_in_bytes[0];
+        var cpu_slice_as_bytes = std.mem.sliceAsBytes(upload.cpu_slice);
+        const subresource_slice = subresource.pData.?;
         while (row < num_rows[0]) : (row += 1) {
+            const cpu_slice_begin = layout[0].Footprint.RowPitch * row;
+            const cpu_slice_end = cpu_slice_begin + row_size_in_bytes_fixed;
+            const subresource_slice_begin = row_size_in_bytes[0] * row;
+            const subresource_slice_end = subresource_slice_begin + row_size_in_bytes_fixed;
             @memcpy(
-                upload.cpu_slice.ptr + layout[0].Footprint.RowPitch * row,
-                subresource.pData.? + row_size_in_bytes[0] * row,
-                row_size_in_bytes[0],
+                cpu_slice_as_bytes[cpu_slice_begin..cpu_slice_end],
+                subresource_slice[subresource_slice_begin..subresource_slice_end],
             );
         }
 

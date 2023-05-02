@@ -1,18 +1,30 @@
 const std = @import("std");
 const img = @import("zigimg");
+const zm = @import("zmath");
 
 const g = @import("graph.zig");
 const lru = @import("../../lru_cache.zig");
 const v = @import("../../variant.zig");
 const IdLocal = v.IdLocal;
 
-const graph_util = @import("util.zig");
 const graph_heightmap = @import("heightmap.zig");
+const graph_props = @import("props.zig");
+const graph_util = @import("util.zig");
 const getInputResult = graph_util.getInputResult;
 const HeightmapOutputData = graph_heightmap.HeightmapOutputData;
-const Pos = [2]i64;
+const Pos = [3]f32;
 
 const config_patch_width = 512;
+
+pub const City = struct {
+    pos: Pos,
+    border_pos: std.ArrayList(Pos),
+    is_border: std.ArrayList(bool),
+};
+
+pub const CityOutputData = struct {
+    cities: std.ArrayList(City),
+};
 
 //  ██████╗██╗████████╗██╗   ██╗
 // ██╔════╝██║╚══██╔══╝╚██╗ ██╔╝
@@ -22,14 +34,7 @@ const config_patch_width = 512;
 //  ╚═════╝╚═╝   ╚═╝      ╚═╝
 
 pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
-    _ = output;
     _ = params;
-
-    const City = struct {
-        pos: Pos,
-        border_pos: std.ArrayList(Pos),
-        is_border: std.ArrayList(bool),
-    };
 
     const world_width_input = node.getInputByString("World Width");
     const world_width = getInputResult(world_width_input, context).getUInt64();
@@ -38,20 +43,23 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
     var cities = std.ArrayList(City).init(context.frame_allocator);
 
-    const CITY_WIDTH_MAX = 256;
-    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 2;
-    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 4;
+    const CITY_WIDTH_MAX = 64;
+    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 16;
+    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 16;
     const CITY_SKIP = 16;
     const CITY_HEIGHT_TEST_SKIP = 16;
+    const CITY_MIN_BORDERS = 15;
 
     var world_z: i64 = CITY_MARGIN_EDGE;
     while (world_z < world_width - CITY_MARGIN_EDGE) : (world_z += CITY_SKIP) {
         var world_x: i64 = CITY_MARGIN_EDGE;
         x_loop: while (world_x < world_width - CITY_MARGIN_EDGE) : (world_x += CITY_SKIP) {
+            const world_x_f = @intToFloat(f32, world_x);
+            const world_z_f = @intToFloat(f32, world_z);
             for (cities.items) |city| {
-                const city_diff_x = std.math.absInt(city.pos[0] - world_x) catch unreachable;
-                const city_diff_z = std.math.absInt(city.pos[1] - world_z) catch unreachable;
-                if (city_diff_x + city_diff_z - @intCast(i64, (city.border_pos.items.len - 15) * 1) < CITY_MARGIN_CITY) {
+                const city_diff_x = @fabs(city.pos[0] - world_x_f);
+                const city_diff_z = @fabs(city.pos[2] - world_z_f);
+                if (city_diff_x + city_diff_z - @intToFloat(f32, (city.border_pos.items.len - CITY_MIN_BORDERS) * 1) < CITY_MARGIN_CITY) {
                     continue :x_loop;
                 }
             }
@@ -86,13 +94,13 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 break :patch_blk data;
             };
 
-            const height_center = patches.getHeightWorld(world_x, world_z);
-            if (height_center < 200 or height_center > 400) {
+            const world_y = patches.getHeightWorld(world_x, world_z);
+            if (world_y < 50 or world_y > 200) {
                 continue;
             }
 
             var city: City = .{
-                .pos = .{ world_x, world_z },
+                .pos = .{ world_x_f, world_y, world_z_f },
                 .border_pos = std.ArrayList(Pos).init(context.frame_allocator),
                 .is_border = std.ArrayList(bool).init(context.frame_allocator),
             };
@@ -103,53 +111,60 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             // city_blk:
             while (stack_index < city.border_pos.items.len) {
                 const pos_curr = city.border_pos.items[stack_index];
-                const height_curr = patches.getHeightWorld(pos_curr[0], pos_curr[1]);
+                const height_curr = patches.getHeightWorld(pos_curr[0], pos_curr[2]);
                 stack_index += 1;
 
                 const posNSWE = [_]Pos{
                     .{
                         pos_curr[0],
-                        pos_curr[1] + CITY_HEIGHT_TEST_SKIP,
+                        0,
+                        pos_curr[2] + CITY_HEIGHT_TEST_SKIP,
                     },
                     .{
                         pos_curr[0],
-                        pos_curr[1] - CITY_HEIGHT_TEST_SKIP,
+                        0,
+                        pos_curr[2] - CITY_HEIGHT_TEST_SKIP,
                     },
                     .{
                         pos_curr[0] - CITY_HEIGHT_TEST_SKIP,
-                        pos_curr[1],
+                        0,
+                        pos_curr[2],
                     },
                     .{
                         pos_curr[0] + CITY_HEIGHT_TEST_SKIP,
-                        pos_curr[1],
+                        0,
+                        pos_curr[2],
                     },
                 };
 
                 // const pos_curr_diff_x = std.math.absInt(city.pos[0] - pos_curr[0]) catch unreachable;
-                // const pos_curr_diff_z = std.math.absInt(city.pos[1] - pos_curr[1]) catch unreachable;
+                // const pos_curr_diff_z = std.math.absInt(city.pos[2] - pos_curr[2]) catch unreachable;
                 const max_slope_center = 10;
                 const max_slope_edge = 3;
                 nswe_blk: for (posNSWE) |pos| {
-                    const pos_diff_x = std.math.absInt(city.pos[0] - pos[0]) catch unreachable;
-                    const pos_diff_z = std.math.absInt(city.pos[1] - pos[1]) catch unreachable;
+                    const pos_diff_x = @fabs(city.pos[0] - pos[0]);
+                    const pos_diff_z = @fabs(city.pos[2] - pos[2]);
                     if (pos_diff_x >= CITY_WIDTH_MAX or pos_diff_z >= CITY_WIDTH_MAX) {
                         continue;
                     }
 
-                    const height_side = patches.getHeightWorld(pos[0], pos[1]);
+                    const height_side = patches.getHeightWorld(
+                        @floatToInt(i32, pos[0]),
+                        @floatToInt(i32, pos[2]),
+                    );
                     const height_diff = @fabs(height_side - height_curr);
                     // const height_diff = @intToFloat(f32, height_diff_i);
                     // if (height_diff > CITY_HEIGHT_TEST_SKIP / 2) {
                     // const pos_curr_diff_x = std.math.absInt(pos_curr[0] - pos[0]) catch unreachable;
-                    // const pos_curr_diff_z = std.math.absInt(pos_curr[1] - pos[1]) catch unreachable;
+                    // const pos_curr_diff_z = std.math.absInt(pos_curr[2] - pos[2]) catch unreachable;
                     const dist = pos_diff_x + pos_diff_z;
-                    var slope_height_diff = max_slope_center + (max_slope_edge - max_slope_center) * @intToFloat(f32, dist) / CITY_WIDTH_MAX;
+                    var slope_height_diff = max_slope_center + (max_slope_edge - max_slope_center) * dist / CITY_WIDTH_MAX;
                     if (stack_index < 4) {
                         slope_height_diff *= 0.02;
                     }
                     // const slope_height_diff = max_slope_center + @divFloor((max_slope_edge - max_slope_center) * dist, CITY_WIDTH_MAX);
                     if (height_diff > slope_height_diff) {
-                        city.is_border.items[stack_index - 1] = true;
+                        city.is_border.items[stack_index - 1] = false;
                         // std.debug.print("LOLsi: {}, height_curr:{}, height_side:{}, max_slope_center: {}, height_diff_i: {}, slope_height_diff: {}\n", .{ stack_index, height_curr, height_side, max_slope_center, height_diff_i, slope_height_diff });
                         continue;
                         // continue :city_blk;
@@ -164,57 +179,79 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     //     continue;
                     // }
 
-                    for (city.border_pos.items) |bp| {
-                        if (bp[0] == pos[0] and bp[1] == pos[1]) {
+                    for (city.border_pos.items) |border_pos| {
+                        if (border_pos[0] == pos[0] and border_pos[2] == pos[2]) {
                             // std.debug.print("WTFFFsi: {}, height_curr:{}, height_side:{}, height_diff: {}, height_diff_i: {}, slope_height_diff: {}\n", .{ stack_index, height_curr, height_side, height_diff, height_diff_i, slope_height_diff });
                             continue :nswe_blk;
                         }
                     }
 
-                    city.border_pos.append(pos) catch unreachable;
+                    city.border_pos.append([_]f32{ pos[0], height_side, pos[2] }) catch unreachable;
                     city.is_border.append(false) catch unreachable;
                 }
             }
 
-            if (city.border_pos.items.len > 15) {
+            if (city.border_pos.items.len > CITY_MIN_BORDERS) {
                 cities.append(city) catch unreachable;
                 std.debug.print("city: pos{any}, len{}\n", .{ city.pos, city.border_pos.items.len });
             }
         }
     }
 
-    for (cities.items) |city| {
+    for (cities.items) |*city| {
+        var to_remove = std.BoundedArray(u64, 512).init(0) catch unreachable;
         for (city.border_pos.items, 0..) |pos_curr, i| {
             const posNSWE = [_]Pos{
                 .{
                     pos_curr[0],
-                    pos_curr[1] + CITY_HEIGHT_TEST_SKIP,
+                    pos_curr[1],
+                    pos_curr[2] + CITY_HEIGHT_TEST_SKIP,
                 },
                 .{
                     pos_curr[0],
-                    pos_curr[1] - CITY_HEIGHT_TEST_SKIP,
+                    pos_curr[1],
+                    pos_curr[2] - CITY_HEIGHT_TEST_SKIP,
                 },
                 .{
                     pos_curr[0] - CITY_HEIGHT_TEST_SKIP,
                     pos_curr[1],
+                    pos_curr[2],
                 },
                 .{
                     pos_curr[0] + CITY_HEIGHT_TEST_SKIP,
                     pos_curr[1],
+                    pos_curr[2],
                 },
             };
 
-            var count: u64 = 0;
+            var border_count: u64 = 0;
+            var inside_count: u64 = 0;
             for (posNSWE) |pos| {
-                for (city.border_pos.items) |bp| {
-                    if (bp[0] == pos[0] and bp[1] == pos[1]) {
-                        count += 1;
+                for (city.border_pos.items, city.is_border.items) |border_pos, is_border| {
+                    if (border_pos[0] == pos[0] and border_pos[2] == pos[2]) {
+                        if (is_border) {
+                            border_count += 1;
+                        } else {
+                            inside_count += 1;
+                        }
                         break;
                     }
                 }
             }
 
-            city.is_border.items[i] = count < 4;
+            city.is_border.items[i] = false;
+            if (inside_count == 0) {
+                to_remove.appendAssumeCapacity(i);
+            }
+            if (border_count + inside_count < 4) {
+                city.is_border.items[i] = true;
+            }
+        }
+
+        while (to_remove.len > 0) {
+            const i = to_remove.pop();
+            _ = city.border_pos.swapRemove(i);
+            _ = city.is_border.swapRemove(i);
         }
     }
 
@@ -227,9 +264,9 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     //             while (city_z < CITY_HEIGHT_TEST_SKIP) : (city_z += stride) {
     //                 var city_x: i64 = 0;
     //                 while (city_x < CITY_HEIGHT_TEST_SKIP) : (city_x += stride) {
-    //                     pixels_index = @intCast(u64, @divFloor(pos[0] + city_x, stride) + @divFloor((pos[1] + city_z) * image_width, stride));
-    //                     // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[1] + 0) * image_width, stride));
-    //                     // const height = patches.getHeight(pos[0],pos[1]);
+    //                     pixels_index = @intCast(u64, @divFloor(pos[0] + city_x, stride) + @divFloor((pos[2] + city_z) * image_width, stride));
+    //                     // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[2] + 0) * image_width, stride));
+    //                     // const height = patches.getHeight(pos[0],pos[2]);
     //                     const height = pixels[pixels_index].r;
     //                     const add = std.math.min(100, 255 - height);
     //                     const sub = std.math.min(add, std.math.min(20, pixels[pixels_index].b));
@@ -305,14 +342,14 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         pixels[pixels_index].g = height;
                         pixels[pixels_index].b = height;
                         pixels[pixels_index].a = 255;
-                        if (height < 80) {
+                        if (height < 10) {
                             pixels[pixels_index].r = 50 + height / 2;
                             pixels[pixels_index].g = 50 + height / 2;
                             pixels[pixels_index].b = 90 + height * 2;
                         } else if (height > 200) {
-                            pixels[pixels_index].r = 140 + (height - 200) * 2;
-                            pixels[pixels_index].g = 140 + (height - 200) * 2;
-                            pixels[pixels_index].b = 140 + (height - 200) * 2;
+                            pixels[pixels_index].r = 145 + (height - 200) * 2;
+                            pixels[pixels_index].g = 145 + (height - 200) * 2;
+                            pixels[pixels_index].b = 145 + (height - 200) * 2;
                         } else {
                             pixels[pixels_index].r = 20 + height / 2;
                             pixels[pixels_index].g = 50 + height / 2;
@@ -334,17 +371,20 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         }
 
         std.debug.print("..cities\n", .{});
+        const stride_f = @intToFloat(f32, stride);
         for (cities.items) |city| {
             std.debug.print("....city pos:{any} size:{}\n", .{ city.pos, city.border_pos.items.len });
             for (city.border_pos.items, 0..) |pos, i| {
                 const is_border = city.is_border.items[i];
-                var city_z: i64 = 0;
-                while (city_z < CITY_HEIGHT_TEST_SKIP) : (city_z += stride) {
-                    var city_x: i64 = 0;
-                    while (city_x < CITY_HEIGHT_TEST_SKIP) : (city_x += stride) {
-                        pixels_index = @intCast(u64, @divFloor(pos[0] + city_x, stride) + @divFloor((pos[1] + city_z) * image_width, stride));
-                        // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[1] + 0) * image_width, stride));
-                        // const height = patches.getHeight(pos[0],pos[1]);
+                var city_z: f32 = 0;
+                while (city_z < CITY_HEIGHT_TEST_SKIP) : (city_z += stride_f) {
+                    var city_x: f32 = 0;
+                    while (city_x < CITY_HEIGHT_TEST_SKIP) : (city_x += stride_f) {
+                        pixels_index = @floatToInt(u64, //
+                            @divFloor(pos[0] + city_x, stride_f) + //
+                            @divFloor((pos[2] + city_z) * image_width, stride_f));
+                        // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[2] + 0) * image_width, stride));
+                        // const height = patches.getHeight(pos[0],pos[2]);
                         const height = pixels[pixels_index].r;
                         const add = std.math.min(100, 255 - height);
                         const sub = std.math.min(add, std.math.min(20, pixels[pixels_index].b));
@@ -366,14 +406,119 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         std.debug.print("..writing image {}\n", .{image_width});
 
         var namebuf: [256]u8 = undefined;
-        const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "citymap_{}_{}.qoi", .{ world_width, image_width }) catch unreachable;
+        const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "citymap_{}_{}.png", .{ world_width, image_width }) catch unreachable;
 
-        var enc_opt: img.AllFormats.QOI.EncoderOptions = .{ .colorspace = .linear };
-        const encoder_options = img.AllFormats.ImageEncoderOptions{ .qoi = enc_opt };
+        var enc_opt: img.AllFormats.PNG.EncoderOptions = .{};
+        const encoder_options = img.AllFormats.ImageEncoderOptions{ .png = enc_opt };
         hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
     }
 
+    const write_cities = node.getInput(IdLocal.init("Write Cities")).value.getUInt64() == 1;
+    if (write_cities and node.output_artifacts) {
+        var folderbuf: [256]u8 = undefined;
+        var namebuf: [256]u8 = undefined;
+
+        var folderbufslice = std.fmt.bufPrintZ(
+            folderbuf[0..folderbuf.len],
+            "content/systems",
+            .{},
+        ) catch unreachable;
+        std.fs.cwd().makeDir(folderbufslice) catch {};
+
+        const namebufslice = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "{s}/cities.txt",
+            .{
+                folderbufslice,
+            },
+        ) catch unreachable;
+
+        const remap_file = std.fs.cwd().createFile(
+            namebufslice,
+            .{ .read = true },
+        ) catch unreachable;
+        defer remap_file.close();
+
+        for (cities.items) |city| {
+            const prop_slice = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "city,{d:.3},{d:.3},{d:.3},{any}\n",
+                .{
+                    city.pos[0], city.pos[1], city.pos[2], city.border_pos.items.len,
+                },
+            ) catch unreachable;
+            const bytes_written = remap_file.writeAll(prop_slice) catch unreachable;
+            _ = bytes_written;
+        }
+    }
+
+    var rand1 = std.rand.DefaultPrng.init(0);
+    var rand = rand1.random();
+    _ = rand;
+    if (output.template.?.name.eqlStr("City Props")) {
+        const city_id = IdLocal.init("city");
+        const house_id = IdLocal.init("house");
+        const wall_id = IdLocal.init("wall");
+        _ = wall_id;
+        var props = std.ArrayList(graph_props.Prop).initCapacity(context.frame_allocator, 1000) catch unreachable;
+        for (cities.items) |city| {
+            props.append(.{
+                .id = city_id,
+                .pos = .{
+                    @floatCast(f32, city.pos[0]),
+                    @floatCast(f32, city.pos[1]),
+                    @floatCast(f32, city.pos[2]),
+                },
+                .rot = 0,
+            }) catch unreachable;
+
+            props.append(.{
+                .id = house_id,
+                .pos = .{
+                    @floatCast(f32, city.pos[0]),
+                    @floatCast(f32, city.pos[1]),
+                    @floatCast(f32, city.pos[2]),
+                },
+                .rot = 0,
+            }) catch unreachable;
+
+            // for (city.border_pos.items, city.is_border.items) |pos, is_border| {
+            //     if (!is_border) {
+            //         if (rand.float(f32) < 0.05) {
+            //             props.append(.{
+            //                 .id = house_id,
+            //                 .pos = .{
+            //                     @floatCast(f32, pos[0]),
+            //                     @floatCast(f32, pos[1]),
+            //                     @floatCast(f32, pos[2]),
+            //                 },
+            //                 .rot = rand.float(f32) * std.math.pi * 2,
+            //             }) catch unreachable;
+            //         }
+            //         continue;
+            //     }
+
+            //     const dir_to_city = zm.normalize3(zm.loadArr3(pos) - zm.loadArr3(city.pos));
+
+            //     props.append(.{
+            //         .id = wall_id,
+            //         .pos = .{
+            //             @floatCast(f32, pos[0]),
+            //             @floatCast(f32, pos[1]),
+            //             @floatCast(f32, pos[2]),
+            //         },
+            //         .rot = std.math.atan2(f32, -dir_to_city[2], dir_to_city[0]),
+            //     }) catch unreachable;
+            // }
+        }
+
+        // HACK: need to handle this memory properly
+        const res = .{ .success = v.Variant.createSlice(props.items, 1) };
+        return res;
+    }
+
     const res = .{ .success = .{} };
+    // const res = .{ .success = v.Variant.createPtr(trees.items, 1) };
     return res;
 }
 
@@ -394,10 +539,14 @@ pub const cityFunc = g.NodeFuncTemplate{
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
         ++ //
-        ([_]g.NodeInputTemplate{.{}} ** 13),
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Write Cities") }}) //
+        ++ //
+        ([_]g.NodeInputTemplate{.{}} ** 12),
     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Cities") }}) //
         ++ //
-        ([_]g.NodeOutputTemplate{.{}} ** 15),
+        ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("City Props") }}) //
+        ++ //
+        ([_]g.NodeOutputTemplate{.{}} ** 14),
 };
 
 pub const cityNodeTemplate = g.NodeTemplate{

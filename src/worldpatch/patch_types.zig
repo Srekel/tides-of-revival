@@ -224,12 +224,12 @@ fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTy
         comma_curr = comma_next + 1;
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
 
-        const tree = Prop{
+        const prop = Prop{
             .id = IdLocal.init(name),
             .pos = .{ pos_x, pos_y, pos_z },
             .rot = rot_y,
         };
-        props.appendAssumeCapacity(tree);
+        props.appendAssumeCapacity(prop);
     }
 
     patch.data = std.mem.sliceAsBytes(props.items);

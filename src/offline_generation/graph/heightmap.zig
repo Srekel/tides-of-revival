@@ -2,6 +2,7 @@ const std = @import("std");
 const config = @import("../../config.zig");
 const znoise = @import("znoise");
 const img = @import("zigimg");
+const zm = @import("zmath");
 
 const g = @import("graph.zig");
 const lru = @import("../../lru_cache.zig");
@@ -49,6 +50,15 @@ pub const HeightmapOutputData = struct {
     }
 
     pub fn getHeightWorld(self: HeightmapOutputData, world_x: anytype, world_y: anytype) f32 {
+        if (@typeInfo(@TypeOf(world_x)) == .Float) {
+            const height = self.getHeight(
+                @floatToInt(i32, @floor(world_x)),
+                @floatToInt(i32, @floor(world_y)),
+            );
+            const height_0_1 = @intToFloat(f32, height) / @intToFloat(f32, std.math.maxInt(u16));
+            return config.noise_scale_y * height_0_1;
+        }
+
         const height = self.getHeight(world_x, world_y);
         const height_0_1 = @intToFloat(f32, height) / @intToFloat(f32, std.math.maxInt(u16));
         return config.noise_scale_y * height_0_1;
@@ -151,6 +161,17 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
                         // and then we're converting it to a 16-bit unsigned integer
                         var height_sample: f32 = data.noise.noise2(@intToFloat(f32, x_world) * config.noise_scale_xz, @intToFloat(f32, y_world) * config.noise_scale_xz) * 0.5 + 0.5;
+                        if (height_sample < 0.1) {
+                            height_sample = zm.mapLinearV(height_sample, 0.0, 0.05, 0, 0.1);
+                        } else if (height_sample < 0.5) {
+                            height_sample = zm.mapLinearV(height_sample, 0.05, 0.5, 0.1, 0.3);
+                        } else if (height_sample < 0.6) {
+                            height_sample = zm.mapLinearV(height_sample, 0.5, 0.6, 0.3, 0.5);
+                        } else if (height_sample < 0.7) {
+                            height_sample = zm.mapLinearV(height_sample, 0.6, 0.7, 0.5, 0.6);
+                        } else {
+                            height_sample = zm.mapLinearV(height_sample, 0.7, 1, 0.6, 1);
+                        }
                         heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 65535);
                         // heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 127);
                         // std.debug.print("({},{})", .{ x_world, y_world });

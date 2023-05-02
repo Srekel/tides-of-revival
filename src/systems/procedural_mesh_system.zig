@@ -647,15 +647,15 @@ fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32,
     const t = squared_distance / squared_draw_distance;
 
     // TODO(gmodarelli): Store these LODs percentages in the Mesh itself.
-    assert(num_lods == 4);
+    // assert(num_lods == 4);
     if (t <= 0.05) {
         return 0;
     } else if (t <= 0.1) {
-        return 1;
+        return std.math.min(num_lods - 1, 1);
     } else if (t <= 0.2) {
-        return 2;
+        return std.math.min(num_lods - 1, 2);
     } else {
-        return 3;
+        return std.math.min(num_lods - 1, 3);
     }
 }
 

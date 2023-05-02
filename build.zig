@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.install();
+    b.installArtifact(exe);
 
     exe.addModule("websocket", b.createModule(.{
         .source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
@@ -100,13 +100,13 @@ pub fn build(b: *std.Build) void {
     install_meshes_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_meshes_step.step);
 
-    const install_patches_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ "/content/patch",
-        .install_dir = .{ .custom = "" },
-        .install_subdir = "bin/content/patch",
-    });
-    install_patches_step.step.dependOn(dxc_step);
-    exe.step.dependOn(&install_patches_step.step);
+    // const install_patches_step = b.addInstallDirectory(.{
+    //     .source_dir = thisDir() ++ "/content/patch",
+    //     .install_dir = .{ .custom = "" },
+    //     .install_subdir = "bin/content/patch",
+    // });
+    // install_patches_step.step.dependOn(dxc_step);
+    // exe.step.dependOn(&install_patches_step.step);
 
     const install_textures_step = b.addInstallDirectory(.{
         .source_dir = thisDir() ++ "/content/textures",
@@ -115,6 +115,14 @@ pub fn build(b: *std.Build) void {
     });
     install_textures_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_textures_step.step);
+
+    const install_systems_step = b.addInstallDirectory(.{
+        .source_dir = thisDir() ++ "/content/systems",
+        .install_dir = .{ .custom = "" },
+        .install_subdir = "bin/content/systems",
+    });
+    install_systems_step.step.dependOn(dxc_step);
+    exe.step.dependOn(&install_systems_step.step);
 
     // This is needed to export symbols from an .exe file.
     // We export D3D12SDKVersion and D3D12SDKPath symbols which
@@ -146,9 +154,9 @@ pub fn build(b: *std.Build) void {
     zstbi_pkg.link(exe);
     ztracy_pkg.link(exe);
 
-    exe.install();
+    b.installArtifact(exe);
 
-    const run_cmd = exe.run();
+    const run_cmd = b.addRunArtifact(exe);
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }

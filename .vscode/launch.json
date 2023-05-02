@@ -11,11 +11,26 @@
             "program": "${workspaceFolder}/zig-out/bin/TidesOfRevival.exe",
             "args": [
                 // "--offlinegen",
+                // "--model_viewer",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "preLaunchTask": "build"
-        }
+        },
+        // {
+        //     "name": "World gen",
+        //     "type": "cppvsdbg",
+        //     "request": "launch",
+        //     "program": "${workspaceFolder}/zig-out/bin/TidesOfRevival.exe",
+        //     "args": [
+        //         "--offlinegen",
+        //         // "--model_viewer",
+        //     ],
+        //     "stopAtEntry": false,
+        //     "cwd": "${workspaceFolder}",
+        //     "environment": [],
+        //     "preLaunchTask": "build"
+        // },
     ]
 }
