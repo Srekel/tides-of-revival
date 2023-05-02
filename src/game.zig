@@ -540,9 +540,57 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     }
 
     gfx.beginFrame(gfx_state);
-    // gui_system.preUpdate(&gui_sys);
 
     flecs_world.progress(dt);
-    // gui_system.update(&gui_sys);
-    gfx.endFrame(gfx_state);
+
+    const camera_comps = getActiveCamera(flecs_world);
+    gfx.endFrame(gfx_state, camera_comps.camera, camera_comps.transform.getPos00());
+}
+
+fn getActiveCamera(flecs_world: *flecs.World) struct { camera: *const fd.Camera, transform: *const fd.Transform } {
+    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_camera
+        .withReadonly(fd.Camera)
+        .withReadonly(fd.Transform);
+
+    var query_camera = query_builder_camera.buildQuery();
+    defer query_camera.deinit();
+
+    const CameraQueryComps = struct {
+        cam: *const fd.Camera,
+        transform: *const fd.Transform,
+    };
+    var camera_comps: ?CameraQueryComps = blk: {
+        var entity_iter_camera = query_camera.iterator(CameraQueryComps);
+        while (entity_iter_camera.next()) |comps| {
+            if (comps.cam.active) {
+                flecs.c.ecs_iter_fini(entity_iter_camera.iter);
+                break :blk comps;
+            }
+        }
+
+        break :blk null;
+    };
+
+    if (camera_comps == null) {
+        const camera = fd.Camera{
+            .near = 0.01,
+            .far = 100.0,
+            .world_to_view = undefined,
+            .view_to_clip = undefined,
+            .world_to_clip = undefined,
+            .window = undefined,
+            .active = true,
+            .class = 0,
+        };
+
+        const transform = fd.Transform{
+            .matrix = undefined,
+        };
+
+        std.log.debug("Actice camera not found", .{});
+        return .{ .camera = &camera, .transform = &transform };
+    } else {
+        return .{ .camera = camera_comps.?.cam, .transform = camera_comps.?.transform };
+    }
 }

@@ -17,35 +17,7 @@ const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
-
-const RenderTargetsUniforms = struct {
-    gbuffer_0_index: u32,
-    gbuffer_1_index: u32,
-    gbuffer_2_index: u32,
-    depth_texture_index: u32,
-    light_diffuse_texture_index: u32,
-    light_specular_texture_index: u32,
-    hdr_texture_index: u32,
-};
-
-const FrameUniforms = struct {
-    world_to_clip: zm.Mat,
-    view_projection_inverted: zm.Mat,
-    camera_position: [3]f32,
-    time: f32,
-    padding1: u32,
-    padding2: u32,
-    padding3: u32,
-    light_count: u32,
-    light_positions: [32][4]f32,
-    light_radiances: [32][4]f32,
-};
-
-const SceneUniforms = extern struct {
-    radiance_texture_index: u32,
-    irradiance_texture_index: u32,
-    brdf_integration_texture_index: u32,
-};
+const fd = @import("../flecs_data.zig");
 
 const DrawUniforms = struct {
     start_instance_location: u32,
@@ -378,144 +350,138 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         100.0,
     );
 
-    const world_to_clip = zm.mul(z_world_to_view, z_view_to_clip);
-    const view_projection_inverted = zm.inverse(world_to_clip);
+    const z_world_to_clip = zm.mul(z_world_to_view, z_view_to_clip);
+    const view_projection_inverted = zm.inverse(z_world_to_clip);
     const ibl_textures = gfx_state.lookupIBLTextures();
 
     // Start rendering the frame
     gfx.beginFrame(gfx_state);
 
-    // GBuffer
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "GBuffer");
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Instanced Objects");
+    // Draw static objects
     {
-        gfx.bindGBuffer(gfx_state);
+        const pipeline_info = gfx_state.getPipeline(IdLocal.init("instanced"));
+        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-        zpix.beginEvent(gfx_state.gctx.cmdlist, "Instanced Objects");
-        // Draw static objects
+        gfx_state.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+        const index_buffer = gfx_state.lookupBuffer(model_viewer_state.index_buffer);
+        const index_buffer_resource = gfx_state.gctx.lookupResource(index_buffer.?.resource);
+        gfx_state.gctx.cmdlist.IASetIndexBuffer(&.{
+            .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+            .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+            .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+        });
+
+        // Upload per-scene constant data.
         {
-            const pipeline_info = gfx_state.getPipeline(IdLocal.init("instanced"));
-            gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-            gfx_state.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-            const index_buffer = gfx_state.lookupBuffer(model_viewer_state.index_buffer);
-            const index_buffer_resource = gfx_state.gctx.lookupResource(index_buffer.?.resource);
-            gfx_state.gctx.cmdlist.IASetIndexBuffer(&.{
-                .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-                .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-                .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
-            });
-
-            // Upload per-scene constant data.
-            {
-                const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
-                mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
-                mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-                mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-                gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
-            }
-
-            // Upload per-frame constant data.
-            {
-                const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
-                mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
-                mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-                mem.cpu_slice[0].camera_position = camera_position;
-                mem.cpu_slice[0].time = 0;
-                mem.cpu_slice[0].light_count = 0;
-
-                gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-            }
-
-            // Reset transforms, materials and draw calls array list
-            model_viewer_state.instance_transforms.clearRetainingCapacity();
-            model_viewer_state.instance_materials.clearRetainingCapacity();
-            model_viewer_state.draw_calls.clearRetainingCapacity();
-
-            // Helmet
-            {
-                const helmet_mesh_index: u32 = 1;
-                var mesh = &model_viewer_state.meshes.items[helmet_mesh_index].mesh;
-                const lod_index: u32 = 0;
-
-                model_viewer_state.draw_calls.append(.{
-                    .mesh_index = helmet_mesh_index,
-                    .index_count = mesh.lods[lod_index].index_count,
-                    .instance_count = 1,
-                    .index_offset = mesh.lods[lod_index].index_offset,
-                    .vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset),
-                    .start_instance_location = 0,
-                }) catch unreachable;
-
-                const albedo = gfx_state.lookupTexture(model_viewer_state.albedo);
-                const emissive = gfx_state.lookupTexture(model_viewer_state.emissive);
-                const normal = gfx_state.lookupTexture(model_viewer_state.normal);
-                const arm = gfx_state.lookupTexture(model_viewer_state.arm);
-
-                const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
-                model_viewer_state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
-                model_viewer_state.instance_materials.append(.{
-                    .albedo_color = model_viewer_state.albedo_color,
-                    .roughness = model_viewer_state.roughness,
-                    .metallic = model_viewer_state.metallic,
-                    .normal_intensity = model_viewer_state.normal_intensity,
-                    .albedo_texture_index = albedo.?.persistent_descriptor.index,
-                    .emissive_texture_index = emissive.?.persistent_descriptor.index,
-                    .normal_texture_index = normal.?.persistent_descriptor.index,
-                    .arm_texture_index = arm.?.persistent_descriptor.index,
-                    .padding = 42,
-                }) catch unreachable;
-            }
-
-            const frame_index = gfx_state.gctx.frame_index;
-            gfx_state.uploadDataToBuffer(InstanceTransform, model_viewer_state.instance_transform_buffers[frame_index], 0, model_viewer_state.instance_transforms.items);
-            gfx_state.uploadDataToBuffer(InstanceMaterial, model_viewer_state.instance_material_buffers[frame_index], 0, model_viewer_state.instance_materials.items);
-
-            const vertex_buffer = gfx_state.lookupBuffer(model_viewer_state.vertex_buffer);
-            const instance_transform_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_transform_buffers[frame_index]);
-            const instance_material_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_material_buffers[frame_index]);
-
-            for (model_viewer_state.draw_calls.items) |draw_call| {
-                const mem = gfx_state.gctx.allocateUploadMemory(DrawUniforms, 1);
-                mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-                mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
-                mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-                mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
-                mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
-                gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-
-                gfx_state.gctx.cmdlist.DrawIndexedInstanced(
-                    draw_call.index_count,
-                    draw_call.instance_count,
-                    draw_call.index_offset,
-                    draw_call.vertex_offset,
-                    draw_call.start_instance_location,
-                );
-            }
+            const mem = gfx_state.gctx.allocateUploadMemory(gfx.SceneUniforms, 1);
+            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
+            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
         }
-        zpix.endEvent(gfx_state.gctx.cmdlist);
 
-        zpix.beginEvent(gfx_state.gctx.cmdlist, "Skybox");
+        // Upload per-frame constant data.
         {
-            const pipeline_info = gfx_state.getPipeline(IdLocal.init("skybox"));
-            gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+            const mem = gfx_state.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+            mem.cpu_slice[0].world_to_clip = zm.transpose(z_world_to_clip);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+            mem.cpu_slice[0].camera_position = camera_position;
+            mem.cpu_slice[0].time = 0;
+            mem.cpu_slice[0].light_count = 0;
 
-            gfx_state.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-            const index_buffer = gfx_state.lookupBuffer(model_viewer_state.index_buffer);
-            const index_buffer_resource = gfx_state.gctx.lookupResource(index_buffer.?.resource);
-            gfx_state.gctx.cmdlist.IASetIndexBuffer(&.{
-                .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-                .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-                .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
-            });
+            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+        }
 
-            z_world_to_view[3] = zm.f32x4(0.0, 0.0, 0.0, 1.0);
+        // Reset transforms, materials and draw calls array list
+        model_viewer_state.instance_transforms.clearRetainingCapacity();
+        model_viewer_state.instance_materials.clearRetainingCapacity();
+        model_viewer_state.draw_calls.clearRetainingCapacity();
 
-            {
-                const mem = gfx_state.gctx.allocateUploadMemory(EnvUniforms, 1);
-                mem.cpu_slice[0].object_to_clip = zm.transpose(zm.mul(z_world_to_view, z_view_to_clip));
+        // Helmet
+        {
+            const helmet_mesh_index: u32 = 1;
+            var mesh = &model_viewer_state.meshes.items[helmet_mesh_index].mesh;
+            const lod_index: u32 = 0;
 
-                gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-            }
+            model_viewer_state.draw_calls.append(.{
+                .mesh_index = helmet_mesh_index,
+                .index_count = mesh.lods[lod_index].index_count,
+                .instance_count = 1,
+                .index_offset = mesh.lods[lod_index].index_offset,
+                .vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset),
+                .start_instance_location = 0,
+            }) catch unreachable;
+
+            const albedo = gfx_state.lookupTexture(model_viewer_state.albedo);
+            const emissive = gfx_state.lookupTexture(model_viewer_state.emissive);
+            const normal = gfx_state.lookupTexture(model_viewer_state.normal);
+            const arm = gfx_state.lookupTexture(model_viewer_state.arm);
+
+            const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
+            model_viewer_state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
+            model_viewer_state.instance_materials.append(.{
+                .albedo_color = model_viewer_state.albedo_color,
+                .roughness = model_viewer_state.roughness,
+                .metallic = model_viewer_state.metallic,
+                .normal_intensity = model_viewer_state.normal_intensity,
+                .albedo_texture_index = albedo.?.persistent_descriptor.index,
+                .emissive_texture_index = emissive.?.persistent_descriptor.index,
+                .normal_texture_index = normal.?.persistent_descriptor.index,
+                .arm_texture_index = arm.?.persistent_descriptor.index,
+                .padding = 42,
+            }) catch unreachable;
+        }
+
+        const frame_index = gfx_state.gctx.frame_index;
+        gfx_state.uploadDataToBuffer(InstanceTransform, model_viewer_state.instance_transform_buffers[frame_index], 0, model_viewer_state.instance_transforms.items);
+        gfx_state.uploadDataToBuffer(InstanceMaterial, model_viewer_state.instance_material_buffers[frame_index], 0, model_viewer_state.instance_materials.items);
+
+        const vertex_buffer = gfx_state.lookupBuffer(model_viewer_state.vertex_buffer);
+        const instance_transform_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_transform_buffers[frame_index]);
+        const instance_material_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_material_buffers[frame_index]);
+
+        for (model_viewer_state.draw_calls.items) |draw_call| {
+            const mem = gfx_state.gctx.allocateUploadMemory(DrawUniforms, 1);
+            mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+            mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
+            mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+            mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+            mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+            gfx_state.gctx.cmdlist.DrawIndexedInstanced(
+                draw_call.index_count,
+                draw_call.instance_count,
+                draw_call.index_offset,
+                draw_call.vertex_offset,
+                draw_call.start_instance_location,
+            );
+        }
+    }
+    zpix.endEvent(gfx_state.gctx.cmdlist);
+
+    zpix.beginEvent(gfx_state.gctx.cmdlist, "Skybox");
+    {
+        const pipeline_info = gfx_state.getPipeline(IdLocal.init("skybox"));
+        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        gfx_state.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+        const index_buffer = gfx_state.lookupBuffer(model_viewer_state.index_buffer);
+        const index_buffer_resource = gfx_state.gctx.lookupResource(index_buffer.?.resource);
+        gfx_state.gctx.cmdlist.IASetIndexBuffer(&.{
+            .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+            .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+            .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+        });
+
+        z_world_to_view[3] = zm.f32x4(0.0, 0.0, 0.0, 1.0);
+
+        {
+            const mem = gfx_state.gctx.allocateUploadMemory(EnvUniforms, 1);
+            mem.cpu_slice[0].object_to_clip = zm.transpose(zm.mul(z_world_to_view, z_view_to_clip));
+
+            gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
         }
 
         const vertex_buffer = gfx_state.lookupBuffer(model_viewer_state.vertex_buffer);
@@ -541,172 +507,26 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             @intCast(i32, mesh.lods[lod_index].vertex_offset),
             0,
         );
-
-        zpix.endEvent(gfx_state.gctx.cmdlist);
     }
-    zpix.endEvent(gfx_state.gctx.cmdlist);
 
-    // Deferred Lighting
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Deferred Lighting");
-    {
-        const pipeline_info = gfx_state.getPipeline(IdLocal.init("deferred_lighting"));
-        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+    var world_to_view: [16]f32 = undefined;
+    zm.storeMat(world_to_view[0..], z_world_to_view);
 
-        // Upload per-scene constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
-            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
-            mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-            mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
-        }
+    var world_to_clip: [16]f32 = undefined;
+    zm.storeMat(world_to_clip[0..], z_world_to_clip);
 
-        // Upload per-frame constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
-            mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
-            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-            mem.cpu_slice[0].camera_position = camera_position;
-            mem.cpu_slice[0].time = 0;
-            mem.cpu_slice[0].light_count = 0;
+    const camera = fd.Camera{
+        .near = 0.01,
+        .far = 100.0,
+        .world_to_view = world_to_view,
+        .view_to_clip = undefined,
+        .world_to_clip = world_to_clip,
+        .window = undefined,
+        .active = true,
+        .class = 0,
+    };
 
-            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
-        }
-
-        // Upload render targets constant data.
-        {
-            const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
-
-            mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
-            // mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.uav_persistent_descriptor.index;
-            // mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.uav_persistent_descriptor.index;
-            mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
-
-            gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
-        }
-
-        const num_groups_x = @divExact(gfx_state.hdr_rt.width, 8);
-        const num_groups_y = @divExact(gfx_state.hdr_rt.height, 8);
-        gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
-    }
-    zpix.endEvent(gfx_state.gctx.cmdlist);
-
-    // // Lighting Composition
-    // zpix.beginEvent(gfx_state.gctx.cmdlist, "Lighting Composition");
-    // {
-    //     const pipeline_info = gfx_state.getPipeline(IdLocal.init("lighting_composition"));
-    //     gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-    //     // Upload per-scene constant data.
-    //     {
-    //         const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
-    //         mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
-    //         mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-    //         mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-    //         gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
-    //     }
-
-    //     // Upload per-frame constant data.
-    //     {
-    //         const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
-    //         mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
-    //         mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-    //         mem.cpu_slice[0].camera_position = camera_position;
-    //         mem.cpu_slice[0].time = 0;
-    //         mem.cpu_slice[0].light_count = 0;
-
-    //         gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
-    //     }
-
-    //     // Upload render targets constant data.
-    //     {
-    //         const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
-
-    //         mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
-
-    //         gfx_state.gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
-    //     }
-
-    //     const num_groups_x = @divExact(gfx_state.light_diffuse_rt.width, 8);
-    //     const num_groups_y = @divExact(gfx_state.light_diffuse_rt.height, 8);
-    //     gfx_state.gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
-    // }
-    // zpix.endEvent(gfx_state.gctx.cmdlist);
-
-    // // Image Based Lighting
-    // zpix.beginEvent(gfx_state.gctx.cmdlist, "IBL");
-    // {
-    //     gfx.bindHDRTarget(gfx_state);
-
-    //     const pipeline_info = gfx_state.getPipeline(IdLocal.init("ibl"));
-    //     gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-    //     // Upload per-scene constant data.
-    //     {
-    //         const mem = gfx_state.gctx.allocateUploadMemory(SceneUniforms, 1);
-    //         mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
-    //         mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-    //         mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-    //         gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
-    //     }
-
-    //     // Upload per-frame constant data.
-    //     {
-    //         const mem = gfx_state.gctx.allocateUploadMemory(FrameUniforms, 1);
-    //         mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
-    //         mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-    //         mem.cpu_slice[0].camera_position = camera_position;
-    //         mem.cpu_slice[0].time = 0;
-    //         mem.cpu_slice[0].light_count = 0;
-
-    //         gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-    //     }
-
-    //     // Upload render targets constant data.
-    //     {
-    //         const mem = gfx_state.gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
-
-    //         mem.cpu_slice[0].gbuffer_0_index = gfx_state.gbuffer_0.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].gbuffer_1_index = gfx_state.gbuffer_1.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].gbuffer_2_index = gfx_state.gbuffer_2.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].depth_texture_index = gfx_state.depth_rt.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].light_diffuse_texture_index = gfx_state.light_diffuse_rt.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].light_specular_texture_index = gfx_state.light_specular_rt.srv_persistent_descriptor.index;
-    //         mem.cpu_slice[0].hdr_texture_index = gfx_state.hdr_rt.uav_persistent_descriptor.index;
-
-    //         gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-    //     }
-
-    //     gfx_state.gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
-    // }
-    // zpix.endEvent(gfx_state.gctx.cmdlist);
-
-    // Tonemapping
-    zpix.beginEvent(gfx_state.gctx.cmdlist, "Tonemapping");
-    {
-        gfx.bindBackBuffer(gfx_state);
-
-        const pipeline_info = gfx_state.getPipeline(IdLocal.init("tonemapping"));
-        gfx_state.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-        const mem = gfx_state.gctx.allocateUploadMemory(u32, 1);
-        mem.cpu_slice[0] = gfx_state.hdr_rt.srv_persistent_descriptor.index;
-        gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-
-        gfx_state.gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
-    }
-    zpix.endEvent(gfx_state.gctx.cmdlist);
-
-    gfx.endFrame(gfx_state);
+    gfx.endFrame(gfx_state, &camera, camera_position);
 }
 
 fn appendObjMesh(
