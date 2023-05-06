@@ -427,6 +427,26 @@ pub fn run() void {
     debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
+    // ██████╗  ██████╗ ██╗    ██╗
+    // ██╔══██╗██╔═══██╗██║    ██║
+    // ██████╔╝██║   ██║██║ █╗ ██║
+    // ██╔══██╗██║   ██║██║███╗██║
+    // ██████╔╝╚██████╔╝╚███╔███╔╝
+    // ╚═════╝  ╚═════╝  ╚══╝╚══╝
+
+    const bow_ent = flecs_world.newEntity();
+    bow_ent.setName("bow");
+    bow_ent.set(fd.Position{ .x = 0.2, .y = 1, .z = 2 });
+    bow_ent.set(fd.EulerRotation{});
+    bow_ent.set(fd.Scale.createScalar(1));
+    bow_ent.set(fd.Transform{});
+    bow_ent.set(fd.Forward{});
+    bow_ent.set(fd.Dynamic{});
+    bow_ent.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.id64("bow"),
+        .basecolor_roughness = .{ .r = 0.6, .g = 0.4, .b = 0.1, .roughness = 1.0 },
+    });
+
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
     // ██████╔╝██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
@@ -461,6 +481,8 @@ pub fn run() void {
         player_ent.addPair(fr.Hometown, ps.city_ent);
     }
 
+    bow_ent.childOf(player_ent);
+
     const player_camera_ent = flecs_world.newEntity();
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
@@ -484,6 +506,13 @@ pub fn run() void {
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
     });
     player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
+
+    // ███████╗██╗     ███████╗ ██████╗███████╗
+    // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝
+    // █████╗  ██║     █████╗  ██║     ███████╗
+    // ██╔══╝  ██║     ██╔══╝  ██║     ╚════██║
+    // ██║     ███████╗███████╗╚██████╗███████║
+    // ╚═╝     ╚══════╝╚══════╝ ╚═════╝╚══════╝
 
     flecs_world.setSingleton(fd.EnvironmentInfo{
         .time_of_day_percent = 0,
