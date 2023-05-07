@@ -33,6 +33,11 @@ const FrameUniforms = struct {
     light_radiances: [32][4]f32,
 };
 
+const SceneUniforms = extern struct {
+    irradiance_texture_index: u32,
+    brdf_integration_texture_index: u32,
+};
+
 const DrawUniforms = struct {
     start_instance_location: u32,
     vertex_offset: i32,
@@ -46,7 +51,15 @@ const InstanceTransform = struct {
 };
 
 const InstanceMaterial = struct {
-    basecolor_roughness: [4]f32,
+    albedo_color: [4]f32,
+    roughness: f32,
+    metallic: f32,
+    normal_intensity: f32,
+    albedo_texture_index: u32,
+    emissive_texture_index: u32,
+    normal_texture_index: u32,
+    arm_texture_index: u32,
+    padding: u32,
 };
 
 const max_instances = 100000;
@@ -451,6 +464,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
+    // Upload per-scene constant data.
+    {
+        const ibl_textures = state.gfx.lookupIBLTextures();
+        const mem = state.gfx.gctx.allocateUploadMemory(SceneUniforms, 1);
+        mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+        mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
+        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
+    }
+
     // Upload per-frame constant data.
     const camera_position = camera_comps.?.transform.getPos00();
     {
@@ -571,14 +593,18 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }
 
         const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
+        const invalid_texture_index = std.math.maxInt(u32);
         state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
         state.instance_materials.append(.{
-            .basecolor_roughness = [4]f32{
-                comps.mesh.basecolor_roughness.r,
-                comps.mesh.basecolor_roughness.g,
-                comps.mesh.basecolor_roughness.b,
-                comps.mesh.basecolor_roughness.roughness,
-            },
+            .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            .roughness = 1.0,
+            .metallic = 0.0,
+            .normal_intensity = 1.0,
+            .albedo_texture_index = invalid_texture_index,
+            .emissive_texture_index = invalid_texture_index,
+            .normal_texture_index = invalid_texture_index,
+            .arm_texture_index = invalid_texture_index,
+            .padding = 42,
         }) catch unreachable;
     }
 
