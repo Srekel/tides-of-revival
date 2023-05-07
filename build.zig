@@ -7,6 +7,7 @@ const zbullet = @import("external/zig-gamedev/libs/zbullet/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
 const zd3d12 = @import("external/zig-gamedev/libs/zd3d12/build.zig");
+const zpix = @import("external/zig-gamedev/libs/zpix/build.zig");
 const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
 const zmesh = @import("external/zig-gamedev/libs/zmesh/build.zig");
 const znoise = @import("external/zig-gamedev/libs/znoise/build.zig");
@@ -76,6 +77,12 @@ pub fn build(b: *std.Build) void {
         .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
     });
 
+    const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
+    const zpix_pkg = zpix.package(b, target, optimize, .{
+        .options = .{ .enable = zpix_enable },
+        .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
+    });
+
     const dxc_step = buildShaders(b);
     const install_shaders_step = b.addInstallDirectory(.{
         .source_dir = thisDir() ++ "/src/shaders/compiled",
@@ -140,6 +147,7 @@ pub fn build(b: *std.Build) void {
     zbullet_pkg.link(exe);
     zwin32_pkg.link(exe, .{ .d3d12 = true });
     zd3d12_pkg.link(exe);
+    zpix_pkg.link(exe);
     zglfw_pkg.link(exe);
     zmesh_pkg.link(exe);
     znoise_pkg.link(exe);
@@ -163,9 +171,9 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
         "Build shaders",
     );
 
-    var dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "vsTerrain", "terrain.vs.cso", "vs", "");
+    var dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "vsFullscreenTriangle", "tonemapping.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/terrain.hlsl", "psTerrain", "terrain.ps.cso", "ps", "");
+    dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "psTonemapping", "tonemapping.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
@@ -176,6 +184,17 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "vsTerrainQuadTree", "terrain_quad_tree.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "psTerrainQuadTree", "terrain_quad_tree.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/skybox.hlsl", "vsSkybox", "skybox.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/skybox.hlsl", "psSkybox", "skybox.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/deferred_lighting.hlsl", "csDeferredLighting", "deferred_lighting.cs.cso", "cs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     return dxc_step;

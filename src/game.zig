@@ -546,7 +546,6 @@ pub fn run() void {
 }
 
 fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
-    // const stats = gfx_state.gctx.stats;
     const stats = gfx_state.stats;
     const dt = @floatCast(f32, stats.delta_time);
 
@@ -561,10 +560,53 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
         environment_info.world_time = world_time;
     }
 
-    gfx.update(gfx_state);
-    // gui_system.preUpdate(&gui_sys);
+    gfx.beginFrame(gfx_state);
 
     flecs_world.progress(dt);
-    // gui_system.update(&gui_sys);
-    gfx.draw(gfx_state);
+
+    const camera_comps = getActiveCamera(flecs_world);
+    if (camera_comps) |comps| {
+        gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
+    } else {
+        const camera = fd.Camera{
+            .near = 0.01,
+            .far = 100.0,
+            .world_to_view = undefined,
+            .view_to_clip = undefined,
+            .world_to_clip = undefined,
+            .window = undefined,
+            .active = true,
+            .class = 0,
+        };
+
+        const transform = fd.Transform{
+            .matrix = undefined,
+        };
+
+        gfx.endFrame(gfx_state, &camera, transform.getPos00());
+    }
+}
+
+fn getActiveCamera(flecs_world: *flecs.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
+    var builder = flecs.QueryBuilder.init(flecs_world.*);
+    _ = builder
+        .withReadonly(fd.Camera)
+        .withReadonly(fd.Transform);
+
+    var filter = builder.buildFilter();
+    defer filter.deinit();
+
+    const CameraQueryComps = struct {
+        cam: *const fd.Camera,
+        transform: *const fd.Transform,
+    };
+
+    var entity_iter_camera = filter.iterator(CameraQueryComps);
+    while (entity_iter_camera.next()) |comps| {
+        if (comps.cam.active) {
+            return .{ .camera = comps.cam, .transform = comps.transform };
+        }
+    }
+
+    return null;
 }
