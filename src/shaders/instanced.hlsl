@@ -108,7 +108,7 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     else
     {
         // NOTE(gmodarelli): This is temporary. Some meshes come with vertex colors
-        albedo.rgb *= input.color;
+        albedo.rgb *= degamma(input.color);
     }
 
     // Roughness, Metallic and Occlusion

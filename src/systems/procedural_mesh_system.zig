@@ -594,7 +594,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         const invalid_texture_index = std.math.maxInt(u32);
         state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
         state.instance_materials.append(.{
-            .albedo_color = [4]f32{ 0.5, 0.5, 0.5, 1.0 },
+            .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
             .roughness = 1.0,
             .metallic = 0.0,
             .normal_intensity = 1.0,

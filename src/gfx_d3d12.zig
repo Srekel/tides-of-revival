@@ -770,7 +770,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Radiance"),
         };
-        const path = "content/textures/env/alps_field_2k_cube_radiance.dds";
+        const path = "content/textures/env/SunSubMixer_diffuseIBL.dds";
         const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
         // const texture_handle = d3d12_state.scheduleLoadTexture(path, texture_desc, arena) catch unreachable;
         d3d12_state.radiance_texture = texture_handle;
@@ -782,7 +782,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Irradiance"),
         };
-        const path = "content/textures/env/alps_field_2k_cube_irradiance.dds";
+        const path = "content/textures/env/SunSubMixer_specularIBL.dds";
         const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
         // const texture_handle = d3d12_state.scheduleLoadTexture(path, texture_desc, arena) catch unreachable;
         d3d12_state.irradiance_texture = texture_handle;

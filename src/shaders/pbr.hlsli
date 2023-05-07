@@ -1,164 +1,148 @@
-#ifndef __PBR_HLSLI__
-#define __PBR_HLSLI__
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+//
+// http://go.microsoft.com/fwlink/?LinkId=248926
+// http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 
-#include "common.hlsli"
+// static const float PI = 3.14159265f;
+// static const float EPSILON = 1e-6f;
 
-// Based on https://github.com/PacktPublishing/3D-Graphics-Rendering-Cookbook/blob/master/data/shaders/chapter06/PBR.sp
-
-struct PBRInfo
+// Shlick's approximation of Fresnel
+// https://en.wikipedia.org/wiki/Schlick%27s_approximation
+float3 Fresnel_Shlick(in float3 f0, in float3 f90, in float x)
 {
-    float NdotL;
-    float NdotV;
-    float NdotH;
-    float LdotH;
-    float VdotH;
-    float perceptualRoughness;
-    float3 reflectance0;
-    float3 reflectance90;
-    float alphaRoughness;
-    float3 diffuseColor;
-    float3 specularColor;
-    float3 n;
-    float3 v;
-};
+    return f0 + (f90 - f0) * pow(1.f - x, 5.f);
+}
 
-
-// Calculation of the lighting contribution from an optional Image Based Light source.
-float3 getIBLContribution(PBRInfo pbrInputs, float3 n, float3 reflection)
+// Burley B. "Physically Based Shading at Disney"
+// SIGGRAPH 2012 Course: Practical Physically Based Shading in Film and Game Production, 2012.
+float Diffuse_Burley(in float NdotL, in float NdotV, in float LdotH, in float roughness)
 {
+    float fd90 = 0.5f + 2.f * roughness * LdotH * LdotH;
+    return Fresnel_Shlick(1, fd90, NdotL).x * Fresnel_Shlick(1, fd90, NdotV).x;
+}
+
+// GGX specular D (normal distribution)
+// https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
+float Specular_D_GGX(in float alpha, in float NdotH)
+{
+    const float alpha2 = alpha * alpha;
+    const float lower = (NdotH * NdotH * (alpha2 - 1)) + 1;
+    return alpha2 / max(EPSILON, PI * lower * lower);
+}
+
+// Schlick-Smith specular G (visibility) with Hable's LdotH optimization
+// http://www.cs.virginia.edu/~jdl/bib/appearance/analytic%20models/schlick94b.pdf
+// http://graphicrants.blogspot.se/2013/08/specular-brdf-reference.html
+float G_Shlick_Smith_Hable(float alpha, float LdotH)
+{
+    return rcp(lerp(LdotH * LdotH, 1, alpha * alpha * 0.25f));
+}
+
+// A microfacet based BRDF.
+//
+// alpha:           This is roughness * roughness as in the "Disney" PBR model by Burley et al.
+//
+// specularColor:   The F0 reflectance value - 0.04 for non-metals, or RGB for metals. This follows model 
+//                  used by Unreal Engine 4.
+//
+// NdotV, NdotL, LdotH, NdotH: vector relationships between,
+//      N - surface normal
+//      V - eye normal
+//      L - light normal
+//      H - half vector between L & V.
+float3 Specular_BRDF(in float alpha, in float3 specularColor, in float NdotV, in float NdotL, in float LdotH, in float NdotH)
+{
+    // Specular D (microfacet normal distribution) component
+    float specular_D = Specular_D_GGX(alpha, NdotH);
+
+    // Specular Fresnel
+    float3 specular_F = Fresnel_Shlick(specularColor, 1, LdotH);
+
+    // Specular G (visibility) component
+    float specular_G = G_Shlick_Smith_Hable(alpha, LdotH);
+
+    return specular_D * specular_F * specular_G;
+}
+
+// Diffuse irradiance
+float3 Diffuse_IBL(in float3 N)
+{
+    // return IrradianceTexture.Sample(IBLSampler, N);
     TextureCube ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
+    return ibl_radiance_texture.Sample(sam_aniso_clamp, N).rgb;
+}
+
+// Approximate specular image based lighting by sampling radiance map at lower mips 
+// according to roughness, then modulating by Fresnel term. 
+float3 Specular_IBL(in float3 N, in float3 V, in float lodBias)
+{
+    // float mip = lodBias * NumRadianceMipLevels;
+    float mip = lodBias * 11;
+    float3 dir = reflect(-V, N);
+    // return RadianceTexture.SampleLevel(IBLSampler, dir, mip);
     TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
-    Texture2D env_brdf_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
-
-    // TODO:(gmodarelli) Pass this value in
-    float mipCount = 8.0;
-    float lod = pbrInputs.perceptualRoughness * mipCount;
-
-    float2 brdfSamplePoint = clamp(float2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness), float2(0.0, 0.0), float2(1.0, 1.0));
-    float3 brdf = env_brdf_texture.SampleLevel(sam_bilinear_clamp, brdfSamplePoint, 0.0f).rgb;
-
-    // HDR envmaps are already linear
-    float3 diffuseLight = ibl_radiance_texture.SampleLevel(sam_aniso_clamp, n.xyz, 0.0).rgb;
-    float3 specularLight = ibl_specular_texture.SampleLevel(sam_aniso_clamp, reflection.xyz, lod).rgb;
-
-    float3 diffuse = diffuseLight * pbrInputs.diffuseColor;
-    float3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
-
-    return diffuse + specular;
+    return ibl_specular_texture.SampleLevel(sam_aniso_clamp, dir, mip).rgb;
 }
 
-// Disney Implementation of diffuse from Physically-Based Shading at Disney by Brent Burley.
-// http://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v3.pdf
-float3 diffuseBurley(PBRInfo pbrInputs)
+// Apply Disney-style physically based rendering to a surface with:
+//
+// V, N:             Eye and surface normals
+//
+// numLights:        Number of directional lights.
+//
+// lightColor[]:     Color and intensity of directional light.
+//
+// lightDirection[]: Light direction.
+float3 LightSurface(
+    in float3 V, in float3 N,
+    in float3 lightColor, in float3 lightDirection,
+    in float3 albedo, in float roughness, in float metallic, in float ambientOcclusion)
 {
-    float f90 = 2.0 * pbrInputs.LdotH * pbrInputs.LdotH * pbrInputs.alphaRoughness - 0.5;
+    // Specular coefficiant - fixed reflectance value for non-metals
+    static const float kSpecularCoefficient = 0.04;
 
-    return (pbrInputs.diffuseColor / PI) * (1.0 + f90 * pow((1.0 - pbrInputs.NdotL), 5.0)) * (1.0 + f90 * pow((1.0 - pbrInputs.NdotV), 5.0));
+    const float NdotV = saturate(dot(N, V));
+
+    // Burley roughness bias
+    const float alpha = roughness * roughness;
+
+    // Blend base colors
+    const float3 c_diff = lerp(albedo, float3(0, 0, 0), metallic)       * ambientOcclusion;
+    const float3 c_spec = lerp(kSpecularCoefficient, albedo, metallic)  * ambientOcclusion;
+
+    // Output color
+    float3 acc_color = 0;
+
+    // Accumulate light values
+    {
+        // light vector (to light)
+        const float3 L = normalize(-lightDirection);
+
+        // Half vector
+        const float3 H = normalize(L + V);
+
+        // products
+        const float NdotL = saturate(dot(N, L));
+        const float LdotH = saturate(dot(L, H));
+        const float NdotH = saturate(dot(N, H));
+
+        // Diffuse & specular factors
+        float diffuse_factor = Diffuse_Burley(NdotL, NdotV, LdotH, roughness);
+        float3 specular = Specular_BRDF(alpha, c_spec, NdotV, NdotL, LdotH, NdotH);
+
+        // Directional light
+        acc_color += NdotL * lightColor * (((c_diff * diffuse_factor) + specular));
+    }
+
+    // Add diffuse irradiance
+    float3 diffuse_env = Diffuse_IBL(N);
+    acc_color += c_diff * diffuse_env;
+
+    // Add specular radiance 
+    float3 specular_env = Specular_IBL(N, V, roughness);
+    acc_color += c_spec * specular_env;
+
+    return acc_color;
 }
-
-// The following equation models the Fresnel reflectance term of the spec equation (aka F())
-// Implementation of fresnel from [4], Equation 15
-float3 specularReflection(PBRInfo pbrInputs)
-{
-    return pbrInputs.reflectance0 + (pbrInputs.reflectance90 - pbrInputs.reflectance0) * pow(clamp(1.0 - pbrInputs.VdotH, 0.0, 1.0), 5.0);
-}
-
-// This calculates the specular geometric attenuation (aka G()),
-// where rougher material will reflect less light back to the viewer.
-// This implementation is based on [1] Equation 4, and we adopt their modifications to
-// alphaRoughness as input as originally proposed in [2].
-float geometricOcclusion(PBRInfo pbrInputs)
-{
-    float NdotL = pbrInputs.NdotL;
-    float NdotV = pbrInputs.NdotV;
-    float rSqr = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
-
-    float attenuationL = 2.0 * NdotL / (NdotL + sqrt(rSqr + (1.0 - rSqr) * (NdotL * NdotL)));
-    float attenuationV = 2.0 * NdotV / (NdotV + sqrt(rSqr + (1.0 - rSqr) * (NdotV * NdotV)));
-    return attenuationL * attenuationV;
-}
-
-// The following equation(s) model the distribution of microfacet normals across the area being drawn (aka D())
-// Implementation from "Average Irregularity Representation of a Roughened Surface for Ray Reflection" by T. S. Trowbridge, and K. P. Reitz
-// Follows the distribution function recommended in the SIGGRAPH 2013 course notes from EPIC Games [1], Equation 3.
-float microfacetDistribution(PBRInfo pbrInputs)
-{
-    float roughnessSq = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
-    float f = (pbrInputs.NdotH * roughnessSq - pbrInputs.NdotH) * pbrInputs.NdotH + 1.0;
-    return roughnessSq / (PI * f * f);
-}
-
-float3 calculatePBRInputsMetallicRoughness(float3 albedo, float3 normal, float3 cameraPos, float3 worldPos, float roughness, float metallic, out PBRInfo pbrInputs)
-{
-    const float c_MinRoughness = 0.04;
-    float perceptualRoughness = roughness;
-    perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
-    metallic = saturate(metallic);
-
-    float alphaRoughness = perceptualRoughness * perceptualRoughness;
-
-    float3 baseColor = albedo;
-
-    float3 f0 = float3(0.04, 0.04, 0.04);
-    float3 diffuseColor = baseColor * (float3(1.0, 1.0, 1.0) - f0);
-    diffuseColor *= 1.0 - metallic;
-    float3 specularColor = lerp(f0, baseColor, metallic);
-
-    float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
-
-    float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
-    float3 specularEnvironmentR0 = specularColor.rgb;
-    float3 specularEnvironmentR90 = float3(1.0, 1.0, 1.0) * reflectance90;
-
-    float3 n = normalize(normal);
-    float3 v = normalize(cameraPos - worldPos);
-    float3 reflection = normalize(reflect(-v, n));
-
-    pbrInputs.NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
-    pbrInputs.perceptualRoughness = perceptualRoughness;
-    pbrInputs.reflectance0 = specularEnvironmentR0;
-    pbrInputs.reflectance90 = specularEnvironmentR90;
-    pbrInputs.alphaRoughness = alphaRoughness;
-    pbrInputs.diffuseColor = diffuseColor;
-    pbrInputs.specularColor = specularColor;
-    pbrInputs.n = n;
-    pbrInputs.v = v;
-
-    // Calculate lighting contribution from image based lighting source (IBL)
-    float3 color = getIBLContribution(pbrInputs, n, reflection);
-    return color;
-}
-
-float3 calculatePBRLightContribution(inout PBRInfo pbrInputs, float3 lightDirection, float3 lightColor)
-{
-    float3 n = pbrInputs.n;
-    float3 v = pbrInputs.v;
-    float3 l = normalize(lightDirection); // Vector from surface point to light
-    float3 h = normalize(l + v);          // Half vector between both l and v
-
-    float NdotV = pbrInputs.NdotV;
-    float NdotL = clamp(dot(n, l), 0.001, 1.0);
-    float NdotH = clamp(dot(n, h), 0.0, 1.0);
-    float LdotH = clamp(dot(l, h), 0.0, 1.0);
-    float VdotH = clamp(dot(v, h), 0.0, 1.0);
-
-    pbrInputs.NdotL = NdotL;
-    pbrInputs.NdotH = NdotH;
-    pbrInputs.LdotH = LdotH;
-    pbrInputs.VdotH = VdotH;
-
-    // Calculate the shading terms for the microfacet specular shading model
-    float3 F = specularReflection(pbrInputs);
-    float G = geometricOcclusion(pbrInputs);
-    float D = microfacetDistribution(pbrInputs);
-
-    // Calculation of analytical lighting contribution
-    float3 diffuseContrib = (1.0 - F) * diffuseBurley(pbrInputs);
-    float3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
-    // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-    float3 color = NdotL * lightColor * (diffuseContrib + specContrib);
-
-    return color;
-}
-
-#endif // __PBR_HLSLI__

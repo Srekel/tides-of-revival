@@ -142,8 +142,7 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     float2 world_space_uv = input.position.xz * 0.1;
 
     float3 albedo = diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
-    // NOTE(gmodarelli): I think the albedo textures of the terrain have already been linearized
-    // albedo.rgb = degamma(albedo.rgb);
+    albedo.rgb = degamma(albedo.rgb);
 
     float3 n = normalize(unpack(normal_texture.Sample(sam_linear_wrap, world_space_uv).rgb));
     n = mul(n, TBN);

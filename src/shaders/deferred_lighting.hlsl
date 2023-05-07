@@ -46,20 +46,18 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
 
     if (gbuffer_0_sample.a > 0)
     {
-        PBRInfo pbrInputs;
         float3 albedo = gbuffer_0_sample.rgb;
         float3 normal = gbuffer_1_sample.xyz;
         float roughness = gbuffer_2_sample.r;
         float metallic = gbuffer_2_sample.g;
+        float occlusion = gbuffer_2_sample.a;
         float3 position = getPositionFromDepth(depth, uv, cbv_frame_const.view_projection_inverted);
-        float3 color = calculatePBRInputsMetallicRoughness(albedo, normal, cbv_frame_const.camera_position, position, roughness, metallic, pbrInputs);
+
         // TODO(gmodarelli): Apply real lights
         float3 lightColor = float3(1.0, 1.0, 1.0);
-        float3 lightDirection = normalize(float3(-1.0, -1.0, -1.0));
-        color += calculatePBRLightContribution(pbrInputs, lightDirection, lightColor);
-
-        float occlusion = gbuffer_2_sample.a;
-        color *= occlusion;
+        float3 lightDirection = normalize(float3(1.0, 1.0, 1.0));
+        const float3 V = normalize(cbv_frame_const.camera_position - position);
+        float3 color = LightSurface(V, normal, lightDirection, lightColor, albedo, roughness, metallic, occlusion);
 
         float3 emissive = gbuffer_2_sample.b * albedo;
         hdr_texture[dispatch_id.xy] = float4(color + emissive, 1.0);
