@@ -713,7 +713,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
 
     // NOTE(gmodarelli): Using Direct2D forces DirectX11on12 which prevents
-    // us from using NVIDIA Nsight to caputer and profile frames.
+    // us from using NVIDIA Nsight to capture and profile frames.
     // TODO(gmodarelli): Add an ImGUI glfw_d3d12 backend to zig-gamedev to
     // get rid of Direct2D
     // Create Direct2D brush which will be needed to display text.
