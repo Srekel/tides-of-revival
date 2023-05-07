@@ -59,7 +59,7 @@ float3x3 makeTBN(float3 n, float3 t)
     // compute bitangent
     float3 b = cross(n, t);
     // create matrix
-    return float3x3(t, b, n); 
+    return float3x3(t, b, n);
 }
 
 float3 getPositionFromDepth(float depth, float2 uv, float4x4 view_projection_inverted)
