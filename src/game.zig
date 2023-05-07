@@ -517,7 +517,6 @@ pub fn run() void {
 }
 
 fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
-    // const stats = gfx_state.gctx.stats;
     const stats = gfx_state.stats;
     const dt = @floatCast(f32, stats.delta_time);
 
@@ -537,35 +536,9 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     flecs_world.progress(dt);
 
     const camera_comps = getActiveCamera(flecs_world);
-    gfx.endFrame(gfx_state, camera_comps.camera, camera_comps.transform.getPos00());
-}
-
-fn getActiveCamera(flecs_world: *flecs.World) struct { camera: *const fd.Camera, transform: *const fd.Transform } {
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder_camera
-        .withReadonly(fd.Camera)
-        .withReadonly(fd.Transform);
-
-    var query_camera = query_builder_camera.buildQuery();
-    defer query_camera.deinit();
-
-    const CameraQueryComps = struct {
-        cam: *const fd.Camera,
-        transform: *const fd.Transform,
-    };
-    var camera_comps: ?CameraQueryComps = blk: {
-        var entity_iter_camera = query_camera.iterator(CameraQueryComps);
-        while (entity_iter_camera.next()) |comps| {
-            if (comps.cam.active) {
-                flecs.c.ecs_iter_fini(entity_iter_camera.iter);
-                break :blk comps;
-            }
-        }
-
-        break :blk null;
-    };
-
-    if (camera_comps == null) {
+    if (camera_comps) |comps| {
+        gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
+    } else {
         const camera = fd.Camera{
             .near = 0.01,
             .far = 100.0,
@@ -581,9 +554,31 @@ fn getActiveCamera(flecs_world: *flecs.World) struct { camera: *const fd.Camera,
             .matrix = undefined,
         };
 
-        std.log.debug("Actice camera not found", .{});
-        return .{ .camera = &camera, .transform = &transform };
-    } else {
-        return .{ .camera = camera_comps.?.cam, .transform = camera_comps.?.transform };
+        gfx.endFrame(gfx_state, &camera, transform.getPos00());
     }
+}
+
+fn getActiveCamera(flecs_world: *flecs.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
+    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    _ = query_builder_camera
+        .withReadonly(fd.Camera)
+        .withReadonly(fd.Transform);
+
+    var query_camera = query_builder_camera.buildQuery();
+    defer query_camera.deinit();
+
+    const CameraQueryComps = struct {
+        cam: *const fd.Camera,
+        transform: *const fd.Transform,
+    };
+
+    var entity_iter_camera = query_camera.iterator(CameraQueryComps);
+    while (entity_iter_camera.next()) |comps| {
+        if (comps.cam.active) {
+            flecs.c.ecs_iter_fini(entity_iter_camera.iter);
+            return .{ .camera = comps.cam, .transform = comps.transform };
+        }
+    }
+
+    return null;
 }
