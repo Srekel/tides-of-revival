@@ -57,7 +57,7 @@ ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 struct InstancedVertexOut {
     float4 position_vs : SV_Position;
     float3 normal : NORMAL;
-    float4 tangent : TANGENT;
+    float3 tangent : TANGENT;
     float3 position : TEXCOORD0;
     float2 uv : TEXCOORD1;
     uint instanceID: SV_InstanceID;
@@ -77,7 +77,8 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
     Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
-    float2 uv = float2(vertex.uv.x, 1.0 - vertex.uv.y);
+    // float2 uv = float2(vertex.uv.x, 1.0 - vertex.uv.y);
+    float2 uv = float2(vertex.uv.x, vertex.uv.y);
     float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r;// * 2.0 - 1.0;
 
     float3 displaced_position = vertex.position;
@@ -88,8 +89,8 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     output.position_vs = mul(float4(displaced_position, 1.0), object_to_clip);
     output.position = mul(float4(displaced_position, 1.0), instance.object_to_world).xyz;
 
-    output.normal = vertex.normal;
-    output.tangent = vertex.tangent;
+    output.normal = mul(vertex.normal, (float3x3)instance.object_to_world);
+    output.tangent = mul(vertex.tangent.xyz, (float3x3)instance.object_to_world);
     output.uv = uv;
 
     return output;
@@ -106,9 +107,10 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
     float3 normal = normalize(input.normal);
-    float3 tangent = input.tangent.xyz;
+    float3 tangent = input.tangent;
     float2 uv = input.uv;
 
+    // NOTE(gmodarelli): I'm not sure this is correct.
     // Derive normals from the heightmap
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
@@ -119,15 +121,13 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
         float b = heightmap.Sample(sam_linear_clamp, uv + texel * float2( 0.0, -1.0)).r;
         normal = normalize(float3(2.0 * (r - l), 2.0 * (b - t), -4));
 
-        // NOTE: recalculating the tangent now that the normal has been adjusted.
-        // I'm not sure this is correct.
+        // Recalculating the tangent now that the normal has been adjusted.
         float3 tmp = normalize(cross(normal, tangent));
         tangent = normalize(cross(normal, tmp));
     }
 
     // Compute TBN matrix
-    const float3 bitangent = normalize(cross(normal, tangent)) * input.tangent.w;
-    const float3x3 TBN = float3x3(tangent, bitangent, normal);
+    float3x3 TBN = makeTBN(normal, tangent);
 
     Texture2D splatmap = ResourceDescriptorHeap[instance.splatmap_index];
     uint splatmap_index = uint(splatmap.Sample(sam_linear_clamp, uv).r * 255);
@@ -137,17 +137,26 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     Texture2D diffuse_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.diffuse_index)];
     Texture2D normal_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.normal_index)];
     Texture2D arm_texture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.arm_index)];
+
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
     float2 world_space_uv = input.position.xz * 0.1;
-    float3 base_color = diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
-    float3 n = normalize(normal_texture.Sample(sam_linear_wrap, world_space_uv).rgb * 2.0 - 1.0);
+
+    float3 albedo = diffuse_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
+    // NOTE(gmodarelli): I think the albedo textures of the terrain have already been linearized
+    // albedo.rgb = degamma(albedo.rgb);
+
+    float3 n = normalize(unpack(normal_texture.Sample(sam_linear_wrap, world_space_uv).rgb));
     n = mul(n, TBN);
-    n = normalize(mul(n, (float3x3)instance.object_to_world));
+
     float3 arm = arm_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
+    float roughness = arm.g;
+    float metallic = arm.b;
+    float occlusion = arm.r;
+    float emission = 0.0;
 
     GBufferTargets gbuffer;
-    gbuffer.albedo = float4(base_color.rgb, 1.0);
+    gbuffer.albedo = float4(albedo.rgb, 1.0);
     gbuffer.normal = float4(n.xyz, 0.0);
-    gbuffer.material = float4(arm.g, arm.b, 0.0, arm.r);
+    gbuffer.material = float4(roughness, metallic, emission, occlusion);
     return gbuffer;
 }

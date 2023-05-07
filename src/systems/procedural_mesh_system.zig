@@ -51,7 +51,15 @@ const InstanceTransform = struct {
 };
 
 const InstanceMaterial = struct {
-    basecolor_roughness: [4]f32,
+    albedo_color: [4]f32,
+    roughness: f32,
+    metallic: f32,
+    normal_intensity: f32,
+    albedo_texture_index: u32,
+    emissive_texture_index: u32,
+    normal_texture_index: u32,
+    arm_texture_index: u32,
+    padding: u32,
 };
 
 const max_instances = 100000;
@@ -583,14 +591,18 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }
 
         const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
+        const invalid_texture_index = std.math.maxInt(u32);
         state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
         state.instance_materials.append(.{
-            .basecolor_roughness = [4]f32{
-                comps.mesh.basecolor_roughness.r,
-                comps.mesh.basecolor_roughness.g,
-                comps.mesh.basecolor_roughness.b,
-                comps.mesh.basecolor_roughness.roughness,
-            },
+            .albedo_color = [4]f32{ 0.5, 0.5, 0.5, 1.0 },
+            .roughness = 1.0,
+            .metallic = 0.0,
+            .normal_intensity = 1.0,
+            .albedo_texture_index = invalid_texture_index,
+            .emissive_texture_index = invalid_texture_index,
+            .normal_texture_index = invalid_texture_index,
+            .arm_texture_index = invalid_texture_index,
+            .padding = 42,
         }) catch unreachable;
     }
 

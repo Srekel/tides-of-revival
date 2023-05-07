@@ -58,7 +58,7 @@ struct InstancedVertexOut {
     float3 position : TEXCOORD0;
     float2 uv : TEXCOORD1;
     float3 normal : NORMAL;
-    float4 tangent : TANGENT;
+    float3 tangent : TANGENT;
     float3 color : COLOR;
     uint instanceID: SV_InstanceID;
 };
@@ -79,8 +79,8 @@ InstancedVertexOut vsInstanced(uint vertex_id : SV_VertexID, uint instanceID : S
     output.position_vs = mul(float4(vertex.position, 1.0), object_to_clip);
     output.position = mul(float4(vertex.position, 1.0), instance.object_to_world).xyz;
     output.uv = vertex.uv;
-    output.normal = vertex.normal; // object-space normal
-    output.tangent = vertex.tangent;
+    output.normal = mul(vertex.normal, (float3x3)instance.object_to_world);
+    output.tangent = mul(vertex.tangent.xyz, (float3x3)instance.object_to_world);
     output.color = vertex.color;
 
     return output;
@@ -94,13 +94,6 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
 
     ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_transform_buffer_index];
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
-
-    // Compute TBN matrix
-    float3x3 TBN = 0.0f;
-    if (has_valid_texture(material.normal_texture_index))
-    {
-        TBN = makeTBN(input.normal.xyz, input.tangent);
-    }
 
     // Albedo
     float4 albedo = material.albedo_color;
@@ -127,15 +120,15 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     }
 
     // Normal
-    float3 normal = input.normal.xyz;
+    float3 normal = input.normal;
     if (has_valid_texture(material.normal_texture_index))
     {
+        float3x3 TBN = makeTBN(input.normal, input.tangent);
         Texture2D normal_texture = ResourceDescriptorHeap[material.normal_texture_index];
         float3 tangent_normal = normalize(unpack(normal_texture.Sample(sam_aniso_wrap, input.uv).rgb));
-        // float normal_intensity = clamp(material.normal_intensity, 0.012f, material.normal_intensity);
-        // tangent_normal.xy *= saturate(normal_intensity);
+        float normal_intensity = clamp(material.normal_intensity, 0.012f, material.normal_intensity);
+        tangent_normal.xy *= saturate(normal_intensity);
         normal = normalize(mul(tangent_normal, TBN));
-        normal = normalize(mul(normal, (float3x3)instance.object_to_world));
     }
 
     // Emission

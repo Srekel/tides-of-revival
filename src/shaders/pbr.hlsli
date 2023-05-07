@@ -38,7 +38,7 @@ float3 getIBLContribution(PBRInfo pbrInputs, float3 n, float3 reflection)
     float3 brdf = env_brdf_texture.SampleLevel(sam_bilinear_clamp, brdfSamplePoint, 0.0f).rgb;
 
     // HDR envmaps are already linear
-    float3 diffuseLight = ibl_radiance_texture.SampleLevel(sam_aniso_clamp, -n.xyz, 0.0).rgb;
+    float3 diffuseLight = ibl_radiance_texture.SampleLevel(sam_aniso_clamp, n.xyz, 0.0).rgb;
     float3 specularLight = ibl_specular_texture.SampleLevel(sam_aniso_clamp, reflection.xyz, lod).rgb;
 
     float3 diffuse = diffuseLight * pbrInputs.diffuseColor;
