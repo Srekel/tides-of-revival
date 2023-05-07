@@ -843,6 +843,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     var gctx = &state.gctx;
 
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
+    gctx.finishGpuCommands();
 
     const ibl_textures = state.lookupIBLTextures();
     const world_to_clip = zm.loadMat(camera.world_to_clip[0..]);
@@ -894,6 +895,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     }
     zpix.endEvent(gctx.cmdlist);
 
+    gctx.finishGpuCommands();
+
     // Tonemapping
     zpix.beginEvent(gctx.cmdlist, "Tonemapping");
     {
@@ -926,6 +929,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
     }
     zpix.endEvent(gctx.cmdlist);
+    gctx.finishGpuCommands();
 
     zpix.endEvent(gctx.cmdlist); // Event: Render Scene
     state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
