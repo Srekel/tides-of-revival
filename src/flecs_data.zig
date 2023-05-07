@@ -339,6 +339,11 @@ pub const Input = struct {
     index: u32,
 };
 
+pub const Interactor = struct {
+    active: bool = false,
+    wielded_item_ent: flecs.EntityId,
+};
+
 // ███████╗██████╗  █████╗ ██╗    ██╗███╗   ██╗
 // ██╔════╝██╔══██╗██╔══██╗██║    ██║████╗  ██║
 // ███████╗██████╔╝███████║██║ █╗ ██║██╔██╗ ██║

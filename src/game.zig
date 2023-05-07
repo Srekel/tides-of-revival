@@ -25,6 +25,7 @@ const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
 const input_system = @import("systems/input_system.zig");
 const input = @import("input.zig");
+const interact_system = @import("systems/interact_system.zig");
 const physics_system = @import("systems/physics_system.zig");
 const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const patch_prop_system = @import("systems/patch_prop_system.zig");
@@ -279,6 +280,16 @@ pub fn run() void {
     );
     defer state_machine_system.destroy(state_machine_sys);
 
+    var system_context = util.Context.init(std.heap.page_allocator);
+    system_context.putConst(config.allocator, &std.heap.page_allocator);
+    system_context.put(config.flecs_world, &flecs_world);
+
+    var interact_sys = try interact_system.create(
+        IdLocal.init("interact_sys"),
+        system_context,
+    );
+    defer interact_system.destroy(interact_sys);
+
     var city_sys = try city_system.create(
         IdLocal.init("city_system"),
         std.heap.page_allocator,
@@ -436,8 +447,8 @@ pub fn run() void {
 
     const bow_ent = flecs_world.newEntity();
     bow_ent.setName("bow");
-    bow_ent.set(fd.Position{ .x = 0.2, .y = 1, .z = 2 });
-    bow_ent.set(fd.EulerRotation{});
+    bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
+    bow_ent.set(fd.EulerRotation{ .yaw = std.math.pi * -0.5 });
     bow_ent.set(fd.Scale.createScalar(1));
     bow_ent.set(fd.Transform{});
     bow_ent.set(fd.Forward{});
@@ -481,7 +492,7 @@ pub fn run() void {
         player_ent.addPair(fr.Hometown, ps.city_ent);
     }
 
-    bow_ent.childOf(player_ent);
+    player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent = bow_ent.id });
 
     const player_camera_ent = flecs_world.newEntity();
     player_camera_ent.childOf(player_ent);
@@ -506,6 +517,7 @@ pub fn run() void {
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
     });
     player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
+    bow_ent.childOf(player_camera_ent);
 
     // ███████╗██╗     ███████╗ ██████╗███████╗
     // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝

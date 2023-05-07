@@ -95,6 +95,7 @@ pub const VariantType = union(enum) {
     tag: Tag,
     hash: Hash,
     ptr_single: *anyopaque,
+    ptr_single_const: *const anyopaque,
     ptr_array: *anyopaque,
     ptr_array_const: *const anyopaque,
 };
@@ -126,6 +127,16 @@ pub const Variant = struct {
         assert(tag != 0);
         return Variant{
             .value = .{ .ptr_single = ptr },
+            .tag = tag,
+            .array_count = 1,
+            .elem_size = @intCast(u16, @sizeOf(@TypeOf(ptr.*))),
+        };
+    }
+
+    pub fn createPtrConst(ptr: anytype, tag: Tag) Variant {
+        assert(tag != 0);
+        return Variant{
+            .value = .{ .ptr_single_const = ptr },
             .tag = tag,
             .array_count = 1,
             .elem_size = @intCast(u16, @sizeOf(@TypeOf(ptr.*))),
@@ -202,6 +213,11 @@ pub const Variant = struct {
     pub fn getPtr(self: Variant, comptime T: type, tag: Tag) *T {
         assert(tag == self.tag);
         return @ptrCast(*T, @alignCast(@alignOf(T), self.value.ptr_single));
+    }
+
+    pub fn getPtrConst(self: Variant, comptime T: type, tag: Tag) *const T {
+        assert(tag == self.tag);
+        return @ptrCast(*const T, @alignCast(@alignOf(T), self.value.ptr_single_const));
     }
 
     pub fn getSlice(self: Variant, comptime T: type, tag: Tag) []T {

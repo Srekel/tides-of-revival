@@ -258,6 +258,7 @@ fn initScene(
         _ = appendShapeMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
+    _ = appendObjMesh(allocator, IdLocal.init("arrow"), "content/meshes/arrow.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("big_house"), "content/meshes/big_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("bow"), "content/meshes/bow.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("long_house"), "content/meshes/long_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
