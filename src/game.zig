@@ -559,23 +559,22 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
 }
 
 fn getActiveCamera(flecs_world: *flecs.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder_camera
+    var builder = flecs.QueryBuilder.init(flecs_world.*);
+    _ = builder
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
 
-    var query_camera = query_builder_camera.buildQuery();
-    defer query_camera.deinit();
+    var filter = builder.buildFilter();
+    defer filter.deinit();
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
     };
 
-    var entity_iter_camera = query_camera.iterator(CameraQueryComps);
+    var entity_iter_camera = filter.iterator(CameraQueryComps);
     while (entity_iter_camera.next()) |comps| {
         if (comps.cam.active) {
-            flecs.c.ecs_iter_fini(entity_iter_camera.iter);
             return .{ .camera = comps.cam, .transform = comps.transform };
         }
     }
