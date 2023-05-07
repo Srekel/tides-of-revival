@@ -3,7 +3,7 @@ const flecs = @import("flecs");
 const gfx = @import("../../gfx_d3d12.zig");
 const znoise = @import("znoise");
 const zm = @import("zmath");
-const zbt = @import("zbullet");
+const zphy = @import("zphysics");
 
 const math = @import("../../core/math.zig");
 const fd = @import("../../flecs_data.zig");
@@ -16,7 +16,7 @@ const AssetManager = @import("../../core/asset_manager.zig").AssetManager;
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
-    physics_world: zbt.World,
+    physics_world: *zphy.PhysicsSystem,
     sys: flecs.EntityId,
     asset_manager: *AssetManager = undefined,
 
@@ -44,7 +44,7 @@ pub fn create(
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     flecs_world: *flecs.World,
-    physics_world: zbt.World,
+    physics_world: *zphy.PhysicsSystem,
     asset_manager: *AssetManager,
 ) !*SystemState {
     var query_builder_city = flecs.QueryBuilder.init(flecs_world.*);

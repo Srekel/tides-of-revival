@@ -1,16 +1,16 @@
 const std = @import("std");
-const RndGen = std.rand.DefaultPrng;
 const args = @import("args");
 const flecs = @import("flecs");
 const zaudio = @import("zaudio");
 const zmesh = @import("zmesh");
-const znoise = @import("znoise");
 const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
+const Variant = @import("variant.zig").Variant;
 const IdLocal = @import("variant.zig").IdLocal;
 const config = @import("config.zig");
+const util = @import("util.zig");
 const fd = @import("flecs_data.zig");
 const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
@@ -30,7 +30,7 @@ const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const patch_prop_system = @import("systems/patch_prop_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
-const terrain_system = @import("systems/terrain_system.zig");
+// const terrain_system = @import("systems/terrain_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
 pub fn run() void {

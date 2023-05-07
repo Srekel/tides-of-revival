@@ -90,7 +90,7 @@ const max_loaded_patches = 64;
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
-    physics_world: zbt.World,
+    physics_world: *zbt.PhysicsWorld,
     sys: flecs.EntityId,
 
     gfx: *gfx.D3D12State,
@@ -210,7 +210,7 @@ pub fn create(
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
     flecs_world: *flecs.World,
-    physics_world: zbt.World,
+    physics_world: *zbt.PhysicsWorld,
     noise: znoise.FnlGenerator,
 ) !*SystemState {
     std.log.debug("Creating terrain system", .{});

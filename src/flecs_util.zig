@@ -1,7 +1,7 @@
 const std = @import("std");
 const window = @import("window.zig");
 const zglfw = @import("zglfw");
-const zbt = @import("zbullet");
+const zphy = @import("zphysics");
 const zmath = @import("zmath");
 const zmesh = @import("zmesh");
 

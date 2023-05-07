@@ -1,7 +1,7 @@
 const std = @import("std");
 const window = @import("window.zig");
 const zglfw = @import("zglfw");
-const zbt = @import("zbullet");
+const zphy = @import("zphysics");
 const zmath = @import("zmath");
 const zmesh = @import("zmesh");
 const flecs = @import("flecs");
@@ -261,18 +261,18 @@ pub const Camera = struct {
 // ██║     ██║  ██║   ██║   ███████║██║╚██████╗███████║
 // ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝ ╚═════╝╚══════╝
 
-pub const CIPhysicsBody = struct {
-    mass: f32,
-    shape_type: enum {
-        box,
-        sphere,
-    },
+// pub const CIPhysicsBody = struct {
+//     mass: f32,
+//     shape_type: enum {
+//         box,
+//         sphere,
+//     },
 
-    box: struct { size: f32 } = undefined,
-    sphere: struct { radius: f32 } = undefined,
-};
+//     box: struct { size: f32 } = undefined,
+//     sphere: struct { radius: f32 } = undefined,
+// };
 pub const PhysicsBody = struct {
-    body: zbt.Body,
+    //     body: zbt.Body,
 };
 
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗

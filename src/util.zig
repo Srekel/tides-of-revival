@@ -2,6 +2,10 @@ const std = @import("std");
 const flecs = @import("flecs");
 const fd = @import("flecs_data.zig");
 const znoise = @import("znoise");
+const v = @import("variant.zig");
+const context = @import("core/context.zig");
+
+pub const Context = context.Context;
 
 pub fn sliceOfInstance(comptime T: type, instance: *T) []T {
     var arrptr: *[1]T = instance;

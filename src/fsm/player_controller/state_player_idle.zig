@@ -10,7 +10,7 @@ const fr = @import("../../flecs_relation.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
-const zbt = @import("zbullet");
+const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
 
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
@@ -53,21 +53,18 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
     zm.store(pos.elems()[0..], cpos, 3);
 }
 
-fn updateSnapToTerrain(physics_world: zbt.World, pos: *fd.Position) void {
-    var ray_result: zbt.RayCastResult = undefined;
-    const ray_origin = fd.Position.init(pos.x, pos.y + 20, pos.z);
-    const ray_end = fd.Position.init(pos.x, pos.y - 10, pos.z);
-    const hit = physics_world.rayTestClosest(
-        ray_origin.elemsConst()[0..],
-        ray_end.elemsConst()[0..],
-        .{ .default = true }, // zbt.CBT_COLLISION_FILTER_DEFAULT,
-        zbt.CollisionFilter.all,
-        .{ .use_gjk_convex_test = true }, // zbt.CBT_RAYCAST_FLAG_USE_GJK_CONVEX_TEST,
-        &ray_result,
-    );
+fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) void {
+    const query = physics_world.getNarrowPhaseQuery();
 
-    if (hit) {
-        pos.y = ray_result.hit_point_world[1];
+    const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
+    const ray_dir = [_]f32{ 0, -1000, 0, 0 };
+    var result = query.castRay(.{
+        .origin = ray_origin,
+        .direction = ray_dir,
+    }, .{});
+
+    if (result.has_hit) {
+        pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
     }
 }
 

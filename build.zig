@@ -3,13 +3,13 @@ const Builder = std.build.Builder;
 
 const flecs = @import("external/zig-flecs/build.zig");
 const zaudio = @import("external/zig-gamedev/libs/zaudio/build.zig");
-const zbullet = @import("external/zig-gamedev/libs/zbullet/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
 const zd3d12 = @import("external/zig-gamedev/libs/zd3d12/build.zig");
 const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
 const zmesh = @import("external/zig-gamedev/libs/zmesh/build.zig");
 const znoise = @import("external/zig-gamedev/libs/znoise/build.zig");
+const zphysics = @import("external/zig-gamedev/libs/zphysics/build.zig");
 const zpool = @import("external/zig-gamedev/libs/zpool/build.zig");
 const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
 const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
@@ -42,17 +42,24 @@ pub fn build(b: *std.Build) void {
 
     const zaudio_pkg = zaudio.package(b, target, optimize, .{});
 
-    const zbullet_pkg = zbullet.package(b, target, optimize, .{});
+    // const zbullet_pkg = zbullet.package(b, target, optimize, .{});
 
     const zglfw_pkg = zglfw.package(b, target, optimize, .{});
 
     const zmath_pkg = zmath.package(b, target, optimize, .{
         .options = .{ .enable_cross_platform_determinism = false },
     });
+
     const zmesh_options = zmesh.Options{ .shape_use_32bit_indices = true };
     const zmesh_pkg = zmesh.package(b, target, optimize, .{ .options = zmesh_options });
 
     const znoise_pkg = znoise.package(b, target, optimize, .{});
+
+    const zphysics_options = zphysics.Options{
+        .use_double_precision = false,
+        .enable_cross_platform_determinism = false,
+    };
+    const zphysics_pkg = zphysics.package(b, target, optimize, .{ .options = zphysics_options });
 
     const zpool_pkg = zpool.package(b, target, optimize, .{});
 
@@ -126,7 +133,7 @@ pub fn build(b: *std.Build) void {
 
     exe.addModule("flecs", zig_flecs_pkg.flecs);
     exe.addModule("zaudio", zaudio_pkg.zaudio);
-    exe.addModule("zbullet", zbullet_pkg.zbullet);
+    // exe.addModule("zbullet", zbullet_pkg.zbullet);
     exe.addModule("zglfw", zglfw_pkg.zglfw);
     exe.addModule("zmath", zmath_pkg.zmath);
     exe.addModule("zmesh", zmesh_pkg.zmesh);
@@ -137,12 +144,13 @@ pub fn build(b: *std.Build) void {
 
     zig_flecs_pkg.link(exe);
     zaudio_pkg.link(exe);
-    zbullet_pkg.link(exe);
+    // zbullet_pkg.link(exe);
     zwin32_pkg.link(exe, .{ .d3d12 = true });
     zd3d12_pkg.link(exe);
     zglfw_pkg.link(exe);
     zmesh_pkg.link(exe);
     znoise_pkg.link(exe);
+    zphysics_pkg.link(exe);
     zstbi_pkg.link(exe);
     ztracy_pkg.link(exe);
 

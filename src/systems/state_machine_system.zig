@@ -9,7 +9,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
 const input = @import("../input.zig");
 const zaudio = @import("zaudio");
-const zbt = @import("zbullet");
+const zphy = @import("zphysics");
 
 const StatePlayerIdle = @import("../fsm/player_controller/state_player_idle.zig");
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
@@ -30,7 +30,7 @@ const SystemState = struct {
     state_machines: std.ArrayList(fsm.StateMachine),
     instances: std.ArrayList(StateMachineInstance),
     frame_data: *input.FrameData,
-    physics_world: zbt.World,
+    physics_world: *zphy.PhysicsSystem,
     audio_engine: *zaudio.Engine,
 };
 
@@ -39,7 +39,7 @@ pub fn create(
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
     frame_data: *input.FrameData,
-    physics_world: zbt.World,
+    physics_world: *zphy.PhysicsSystem,
     audio_engine: *zaudio.Engine,
 ) !*SystemState {
     var query_builder = flecs.QueryBuilder.init(flecs_world.*);

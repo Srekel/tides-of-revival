@@ -22,6 +22,13 @@ pub const terrain_min = terrain_height_ocean_floor;
 pub const terrain_max = terrain_height_mountain_top;
 pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floor;
 
+// ██╗███╗   ██╗██████╗ ██╗   ██╗████████╗
+// ██║████╗  ██║██╔══██╗██║   ██║╚══██╔══╝
+// ██║██╔██╗ ██║██████╔╝██║   ██║   ██║
+// ██║██║╚██╗██║██╔═══╝ ██║   ██║   ██║
+// ██║██║ ╚████║██║     ╚██████╔╝   ██║
+// ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝    ╚═╝
+
 pub const input_move_left = IdLocal.init("move_left");
 pub const input_move_right = IdLocal.init("move_right");
 pub const input_move_forward = IdLocal.init("move_forward");
@@ -48,3 +55,13 @@ pub const input_look_pitch = IdLocal.init("look_pitch");
 
 pub const input_camera_switch = IdLocal.init("camera_switch");
 pub const input_exit = IdLocal.init("exit");
+
+//  ██████╗████████╗██╗  ██╗
+// ██╔════╝╚══██╔══╝╚██╗██╔╝
+// ██║        ██║    ╚███╔╝
+// ██║        ██║    ██╔██╗
+// ╚██████╗   ██║   ██╔╝ ██╗
+//  ╚═════╝   ╚═╝   ╚═╝  ╚═╝
+
+pub const allocator = IdLocal.init("allocator");
+pub const flecs_world = IdLocal.init("flecs_world");
