@@ -105,6 +105,11 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
         albedo.rgb *= albedo_sample.rgb;
         albedo.a = 1.0;
     }
+    else
+    {
+        // NOTE(gmodarelli): This is temporary. Some meshes come with vertex colors
+        albedo.rgb *= input.color;
+    }
 
     // Roughness, Metallic and Occlusion
     float roughness = material.roughness;
