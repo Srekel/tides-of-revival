@@ -836,6 +836,11 @@ pub fn beginFrame(state: *D3D12State) void {
     state.gpu_frame_profiler_index = state.gpu_profiler.startProfile(state.gctx.cmdlist, "Frame");
 
     zpix.beginEvent(gctx.cmdlist, "GBuffer");
+    gctx.addTransitionBarrier(state.gbuffer_0.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.addTransitionBarrier(state.gbuffer_1.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.addTransitionBarrier(state.gbuffer_2.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.addTransitionBarrier(state.depth_rt.resource_handle, .{ .DEPTH_WRITE = true });
+    gctx.flushResourceBarriers();
     bindGBuffer(state);
 }
 
@@ -843,7 +848,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     var gctx = &state.gctx;
 
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
-    gctx.finishGpuCommands();
 
     const ibl_textures = state.lookupIBLTextures();
     const world_to_clip = zm.loadMat(camera.world_to_clip[0..]);
@@ -852,6 +856,13 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     // Deferred Lighting
     zpix.beginEvent(gctx.cmdlist, "Deferred Lighting");
     {
+        gctx.addTransitionBarrier(state.gbuffer_0.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.gbuffer_1.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.gbuffer_2.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.depth_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.hdr_rt.resource_handle, .{ .UNORDERED_ACCESS = true });
+        gctx.flushResourceBarriers();
+
         const pipeline_info = state.getPipeline(IdLocal.init("deferred_lighting"));
         gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
@@ -895,14 +906,13 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     }
     zpix.endEvent(gctx.cmdlist);
 
-    gctx.finishGpuCommands();
-
     // Tonemapping
     zpix.beginEvent(gctx.cmdlist, "Tonemapping");
     {
         const back_buffer = gctx.getBackBuffer();
 
         gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
+        gctx.addTransitionBarrier(state.hdr_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
         gctx.flushResourceBarriers();
 
         gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
@@ -929,118 +939,115 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
     }
     zpix.endEvent(gctx.cmdlist);
-    gctx.finishGpuCommands();
 
     zpix.endEvent(gctx.cmdlist); // Event: Render Scene
     state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
     state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
 
-    // Get current back buffer resource and transition it to 'render target' state.
-    const back_buffer = gctx.getBackBuffer();
-    gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
-    gctx.flushResourceBarriers();
-
-    gctx.cmdlist.OMSetRenderTargets(
-        1,
-        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
-        w32.TRUE,
-        null,
-    );
-
-    // gctx.cmdlist.ClearRenderTargetView(
-    //     back_buffer.descriptor_handle,
-    //     &.{ 0.0, 0.0, 0.0, 0.0 },
-    //     0,
-    //     null,
-    // );
-
-    gctx.beginDraw2d();
+    // GPU Stats Pass
     {
-        const stats = &state.stats;
-        state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
+        const back_buffer = gctx.getBackBuffer();
+        gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
+        gctx.flushResourceBarriers();
 
-        // FPS and CPU timings
+        gctx.cmdlist.OMSetRenderTargets(
+            1,
+            &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
+            w32.TRUE,
+            null,
+        );
+
+        gctx.beginDraw2d();
         {
-            var buffer = [_]u8{0} ** 64;
-            const text = std.fmt.bufPrint(
-                buffer[0..],
-                "FPS: {d:.1}\nCPU: {d:.3} ms",
-                .{ stats.fps, stats.average_cpu_time },
-            ) catch unreachable;
+            const stats = &state.stats;
+            state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
 
-            drawText(
-                gctx.d2d.?.context,
-                text,
-                state.stats_text_format,
-                &d2d1.RECT_F{
-                    .left = 0.0,
-                    .top = 0.0,
-                    .right = @intToFloat(f32, gctx.viewport_width),
-                    .bottom = @intToFloat(f32, gctx.viewport_height),
-                },
-                @ptrCast(*d2d1.IBrush, state.stats_brush),
-            );
+            // FPS and CPU timings
+            {
+                var buffer = [_]u8{0} ** 64;
+                const text = std.fmt.bufPrint(
+                    buffer[0..],
+                    "FPS: {d:.1}\nCPU: {d:.3} ms",
+                    .{ stats.fps, stats.average_cpu_time },
+                ) catch unreachable;
+
+                drawText(
+                    gctx.d2d.?.context,
+                    text,
+                    state.stats_text_format,
+                    &d2d1.RECT_F{
+                        .left = 0.0,
+                        .top = 0.0,
+                        .right = @intToFloat(f32, gctx.viewport_width),
+                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                    },
+                    @ptrCast(*d2d1.IBrush, state.stats_brush),
+                );
+            }
+
+            // GPU timings
+            var i: u32 = 0;
+            var line_height: f32 = 14.0;
+            var vertical_offset: f32 = 36.0;
+            while (i < state.gpu_profiler.num_profiles) : (i += 1) {
+                var frame_profile_data = state.gpu_profiler.profiles.items[i];
+                var buffer = [_]u8{0} ** 64;
+                const text = std.fmt.bufPrint(
+                    buffer[0..],
+                    "{s}: {d:.3} ms",
+                    .{ frame_profile_data.name, frame_profile_data.avg_time },
+                ) catch unreachable;
+
+                drawText(
+                    gctx.d2d.?.context,
+                    text,
+                    state.stats_text_format,
+                    &d2d1.RECT_F{
+                        .left = 0.0,
+                        .top = @intToFloat(f32, i) * line_height + vertical_offset,
+                        .right = @intToFloat(f32, gctx.viewport_width),
+                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                    },
+                    @ptrCast(*d2d1.IBrush, state.stats_brush),
+                );
+            }
+
+            // GPU Memory
+            // Collect memory usage stats
+            var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
+            hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
+            {
+                var buffer = [_]u8{0} ** 256;
+                const text = std.fmt.bufPrint(
+                    buffer[0..],
+                    "GPU Memory: {d}/{d} MB",
+                    .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
+                ) catch unreachable;
+
+                drawText(
+                    gctx.d2d.?.context,
+                    text,
+                    state.stats_text_format,
+                    &d2d1.RECT_F{
+                        .left = 0.0,
+                        .top = @intToFloat(f32, i) * line_height + vertical_offset,
+                        .right = @intToFloat(f32, gctx.viewport_width),
+                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                    },
+                    @ptrCast(*d2d1.IBrush, state.stats_brush),
+                );
+            }
         }
-
-        // GPU timings
-
-        var i: u32 = 0;
-        var line_height: f32 = 14.0;
-        var vertical_offset: f32 = 36.0;
-        while (i < state.gpu_profiler.num_profiles) : (i += 1) {
-            var frame_profile_data = state.gpu_profiler.profiles.items[i];
-            var buffer = [_]u8{0} ** 64;
-            const text = std.fmt.bufPrint(
-                buffer[0..],
-                "{s}: {d:.3} ms",
-                .{ frame_profile_data.name, frame_profile_data.avg_time },
-            ) catch unreachable;
-
-            drawText(
-                gctx.d2d.?.context,
-                text,
-                state.stats_text_format,
-                &d2d1.RECT_F{
-                    .left = 0.0,
-                    .top = @intToFloat(f32, i) * line_height + vertical_offset,
-                    .right = @intToFloat(f32, gctx.viewport_width),
-                    .bottom = @intToFloat(f32, gctx.viewport_height),
-                },
-                @ptrCast(*d2d1.IBrush, state.stats_brush),
-            );
-        }
-
-        // GPU Memory
-        // Collect memory usage stats
-        var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
-        hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
-        {
-            var buffer = [_]u8{0} ** 256;
-            const text = std.fmt.bufPrint(
-                buffer[0..],
-                "GPU Memory: {d}/{d} MB",
-                .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
-            ) catch unreachable;
-
-            drawText(
-                gctx.d2d.?.context,
-                text,
-                state.stats_text_format,
-                &d2d1.RECT_F{
-                    .left = 0.0,
-                    .top = @intToFloat(f32, i) * line_height + vertical_offset,
-                    .right = @intToFloat(f32, gctx.viewport_width),
-                    .bottom = @intToFloat(f32, gctx.viewport_height),
-                },
-                @ptrCast(*d2d1.IBrush, state.stats_brush),
-            );
-        }
+        // End Direct2D rendering and transition back buffer to 'present' state.
+        gctx.endDraw2d();
     }
-    // End Direct2D rendering and transition back buffer to 'present' state.
-    gctx.endDraw2d();
 
-    gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATES.PRESENT);
-    gctx.flushResourceBarriers();
+    // Prepare the back buffer to be presented to the screen
+    {
+        const back_buffer = gctx.getBackBuffer();
+        gctx.addTransitionBarrier(back_buffer.resource_handle, d3d12.RESOURCE_STATES.PRESENT);
+        gctx.flushResourceBarriers();
+    }
 
     // Call 'Present' and prepare for the next frame.
     gctx.endFrame();
