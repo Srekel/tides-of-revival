@@ -39,6 +39,8 @@ pub const input_move_slow = IdLocal.init("move_slow");
 pub const input_move_fast = IdLocal.init("move_fast");
 
 pub const input_interact = IdLocal.init("interact");
+pub const input_wielded_use_primary = IdLocal.init("wielded_use_primary");
+pub const input_wielded_use_secondary = IdLocal.init("wielded_use_secondary");
 
 pub const input_cursor_pos = IdLocal.init("cursor_pos");
 pub const input_cursor_movement = IdLocal.init("cursor_movement");
@@ -65,3 +67,4 @@ pub const input_exit = IdLocal.init("exit");
 
 pub const allocator = IdLocal.init("allocator");
 pub const flecs_world = IdLocal.init("flecs_world");
+pub const input_frame_data = IdLocal.init("input_frame_data");

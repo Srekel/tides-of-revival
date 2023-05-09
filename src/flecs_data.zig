@@ -341,7 +341,7 @@ pub const Input = struct {
 
 pub const Interactor = struct {
     active: bool = false,
-    wielded_item_ent: flecs.EntityId,
+    wielded_item_ent_id: flecs.EntityId,
 };
 
 // ███████╗██████╗  █████╗ ██╗    ██╗███╗   ██╗

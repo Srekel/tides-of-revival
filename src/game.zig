@@ -76,6 +76,8 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_move_slow, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_fast, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_interact, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_wielded_use_primary, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_wielded_use_secondary, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_cursor_pos, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(config.input_cursor_movement, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(config.input_cursor_movement_x, input.TargetValue{ .number = 0 });
@@ -110,6 +112,8 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .keyboard_key = .left_control } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .keyboard_key = .left_shift } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_interact, .source = input.BindingSource{ .keyboard_key = .f } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .mouse_button = .left } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .mouse_button = .right } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
 
@@ -283,6 +287,7 @@ pub fn run() void {
     var system_context = util.Context.init(std.heap.page_allocator);
     system_context.putConst(config.allocator, &std.heap.page_allocator);
     system_context.put(config.flecs_world, &flecs_world);
+    system_context.put(config.input_frame_data, &input_frame_data);
 
     var interact_sys = try interact_system.create(
         IdLocal.init("interact_sys"),
@@ -492,7 +497,7 @@ pub fn run() void {
         player_ent.addPair(fr.Hometown, ps.city_ent);
     }
 
-    player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent = bow_ent.id });
+    player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
     const player_camera_ent = flecs_world.newEntity();
     player_camera_ent.childOf(player_ent);
