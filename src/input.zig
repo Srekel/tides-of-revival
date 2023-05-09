@@ -274,7 +274,10 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                         // break; // footgun
                         break :blk TargetValue{ .number = 0 };
                     },
-                    .mouse_button => TargetValue{ .number = 1 },
+                    .mouse_button => |button| blk: {
+                        const button_action = window.getMouseButton(button);
+                        break :blk TargetValue{ .number = if (button_action == .press) 1 else 0 };
+                    },
                     .mouse_cursor => blk: {
                         const cursor_pos = window.getCursorPos();
                         const cursor_value = TargetValue{ .vector2 = .{
