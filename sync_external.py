@@ -69,12 +69,12 @@ def main():
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "dd8c9878cc0bfcacbb08fb5a35a995a51a83d9a2",
+        "86bc3b5092c33b823c6ea1d1f22d5cb6782f3a69",
     )
     sync_lib(
         "zig-flecs",
         "https://github.com/Srekel/zig-flecs.git",
-        "86bc3b5092c33b823c6ea1d1f22d5cb6782f3a69",
+        "fe1f47d99ebd7495b16e4e56011426cd408138dc",
     )
     sync_lib(
         "zigimg",
