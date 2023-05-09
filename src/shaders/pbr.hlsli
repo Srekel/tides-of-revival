@@ -70,8 +70,8 @@ float3 Specular_BRDF(in float alpha, in float3 specularColor, in float NdotV, in
 float3 Diffuse_IBL(in float3 N)
 {
     // return IrradianceTexture.Sample(IBLSampler, N);
-    TextureCube ibl_radiance_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
-    return ibl_radiance_texture.Sample(sam_aniso_clamp, N).rgb;
+    TextureCube ibl_irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
+    return ibl_irradiance_texture.Sample(sam_aniso_clamp, N).rgb;
 }
 
 // Approximate specular image based lighting by sampling radiance map at lower mips
@@ -82,7 +82,7 @@ float3 Specular_IBL(in float3 N, in float3 V, in float lodBias)
     float mip = lodBias * 11;
     float3 dir = reflect(-V, N);
     // return RadianceTexture.SampleLevel(IBLSampler, dir, mip);
-    TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
+    TextureCube ibl_specular_texture = ResourceDescriptorHeap[cbv_scene_const.specular_texture_index];
     return ibl_specular_texture.SampleLevel(sam_aniso_clamp, dir, mip).rgb;
 }
 
