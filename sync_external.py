@@ -74,12 +74,12 @@ def main():
     sync_lib(
         "zig-flecs",
         "https://github.com/Srekel/zig-flecs.git",
-        "fe1f47d99ebd7495b16e4e56011426cd408138dc",
+        "86bc3b5092c33b823c6ea1d1f22d5cb6782f3a69",
     )
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
-        "9ffad68505954c963cc80b7b5f582083dc1329b5",
+        "d60a391d062eb0a0e4aa9072ae752bb9ac31e917",
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
