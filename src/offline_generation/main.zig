@@ -229,7 +229,6 @@ pub fn generate() void {
 
         break :blk node;
     };
-    _ = heightmapPatchArtifactNode;
 
     var splatmapPatchArtifactNode = blk: {
         var node = g.Node{
@@ -250,7 +249,6 @@ pub fn generate() void {
 
         break :blk node;
     };
-    _ = splatmapPatchArtifactNode;
 
     //
     var cityNode = blk: {
@@ -337,8 +335,8 @@ pub fn generate() void {
     graph.nodes.append(cityNode) catch unreachable;
     graph.nodes.append(forestNode) catch unreachable;
     graph.nodes.append(propsNode) catch unreachable;
-    // graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
-    // graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
+    graph.nodes.append(heightmapPatchArtifactNode) catch unreachable;
+    graph.nodes.append(splatmapPatchArtifactNode) catch unreachable;
     // graph.nodes.append(pcgNode) catch unreachable;
     // graph.nodes.append(addNode) catch unreachable;
 
