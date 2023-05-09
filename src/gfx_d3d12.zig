@@ -66,8 +66,8 @@ pub const FrameUniforms = struct {
 };
 
 pub const SceneUniforms = extern struct {
-    radiance_texture_index: u32,
     irradiance_texture_index: u32,
+    specular_texture_index: u32,
     brdf_integration_texture_index: u32,
 };
 
@@ -212,8 +212,8 @@ pub const D3D12State = struct {
 
     // NOTE(gmodarelli): just a test, these textures should
     // be loaded by the "world material"
-    radiance_texture: TextureHandle,
     irradiance_texture: TextureHandle,
+    specular_texture: TextureHandle,
     brdf_integration_texture: TextureHandle,
 
     buffer_pool: BufferPool,
@@ -400,10 +400,10 @@ pub const D3D12State = struct {
         return self.texture_pool.lookupTexture(handle);
     }
 
-    pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, brdf: ?*Texture } {
+    pub fn lookupIBLTextures(self: *D3D12State) struct { irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture } {
         return .{
-            .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
             .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
+            .specular = self.texture_pool.lookupTexture(self.specular_texture),
             .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
         };
     }
@@ -756,25 +756,13 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_1 = gbuffer_1,
         .gbuffer_2 = gbuffer_2,
         .hdr_rt = hdr_rt,
-        .radiance_texture = undefined,
         .irradiance_texture = undefined,
+        .specular_texture = undefined,
         .brdf_integration_texture = undefined,
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
     };
-
-    // Radiance
-    {
-        const texture_desc = TextureDesc{
-            .state = d3d12.RESOURCE_STATES.COMMON,
-            .name = L("Radiance"),
-        };
-        const path = "content/textures/env/SunSubMixer_diffuseIBL.dds";
-        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
-        // const texture_handle = d3d12_state.scheduleLoadTexture(path, texture_desc, arena) catch unreachable;
-        d3d12_state.radiance_texture = texture_handle;
-    }
 
     // Irradiance
     {
@@ -782,10 +770,20 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Irradiance"),
         };
+        const path = "content/textures/env/SunSubMixer_diffuseIBL.dds";
+        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        d3d12_state.irradiance_texture = texture_handle;
+    }
+
+    // Specular
+    {
+        const texture_desc = TextureDesc{
+            .state = d3d12.RESOURCE_STATES.COMMON,
+            .name = L("Specular"),
+        };
         const path = "content/textures/env/SunSubMixer_specularIBL.dds";
         const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
-        // const texture_handle = d3d12_state.scheduleLoadTexture(path, texture_desc, arena) catch unreachable;
-        d3d12_state.irradiance_texture = texture_handle;
+        d3d12_state.specular_texture = texture_handle;
     }
 
     // BRDF Integration
@@ -869,8 +867,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         // Upload per-scene constant data.
         {
             const mem = gctx.allocateUploadMemory(SceneUniforms, 1);
-            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
             mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
             mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
             gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
         }

@@ -375,8 +375,8 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         // Upload per-scene constant data.
         {
             const mem = gfx_state.gctx.allocateUploadMemory(gfx.SceneUniforms, 1);
-            mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
             mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+            mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
             mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
             gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
         }
