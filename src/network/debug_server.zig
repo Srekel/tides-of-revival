@@ -57,19 +57,20 @@ pub const DebugServer = struct {
         const listen_config = websocket.Config{
             .port = self.port,
             .address = "127.0.0.1",
-            .path = "/",
-            .buffer_size = 8192,
-            .max_size = 8192,
-            .max_request_size = 1024,
+            .buffer_size = 4096,
+            .max_size = 65536,
+            .handshake_max_size = 1024,
         };
 
         var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
         const allocator = general_purpose_allocator.allocator();
 
+        var context = Handler.Context{ .debug_server = self };
+
         websocket.listen(
             Handler,
-            Handler.Context{ .debug_server = self },
             allocator,
+            &context,
             listen_config,
         ) catch |err| {
             std.log.debug("listen error {}", .{err});
@@ -89,9 +90,10 @@ const Handler = struct {
     };
 
     client: *Client,
-    context: Context,
+    context: *Context,
 
-    pub fn init(_: []const u8, _: []const u8, client: *Client, context: Context) !Handler {
+    pub fn init(h: Handshake, client: *Client, context: *Context) !Handler {
+        _ = h;
         return Handler{
             .client = client,
             .context = context,
@@ -103,7 +105,7 @@ const Handler = struct {
         switch (message.type) {
             .binary => {
                 unreachable;
-                // try self.client.write(data),
+                // try self.client.writeBin(data),
             },
             .text => {
                 if (std.unicode.utf8ValidateSlice(data)) {
@@ -112,8 +114,8 @@ const Handler = struct {
                     const arena = arena_state.allocator();
 
                     const output = self.context.debug_server.handleMessage(data, arena);
-                    // try self.client.writeText("hello");
-                    try self.client.writeText(output);
+                    // try self.client.write("hello");
+                    try self.client.write(output);
                 } else {
                     self.client.close();
                 }

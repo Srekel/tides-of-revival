@@ -53,7 +53,11 @@ pub const IdLocal = struct {
     pub fn clear(self: *IdLocal) void {
         self.hash = 0;
         self.strlen = 0;
-        std.mem.set(u8, &self.str, 0);
+
+        // Note:
+        // @memset(self.str, 0);
+        // seemingly crashes the compiler with "error code 3".
+        @memset(self.str[0..], 0);
     }
 
     pub fn isUnset(self: IdLocal) bool {

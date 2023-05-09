@@ -59,7 +59,7 @@ def main():
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "b5ccdb1bafe6b3f59f84f275fb82603265bedc88",
+        "b696c863b9849549cb2b1f09a973ab67b7a2477e",
     )
     sync_lib(
         "zig-args",
@@ -83,7 +83,7 @@ def main():
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
-    sync_zig_exe("0.11.0-dev.2892+fd6200eda")
+    sync_zig_exe("0.11.0-dev.3031+f40539e5d")
 
     os.chdir("..")
     print("Done syncing external!")
