@@ -3,6 +3,7 @@ import sys
 import shutil
 import subprocess
 import sync_external
+from pathlib import Path
 
 
 def do_task(text, task_func, skip_confirm=False):
@@ -36,8 +37,13 @@ def task_sync_svn():
 
 
 def task_build_game():
+    Path(os.path.join("zig-out", "bin", "content", "systems")).mkdir(parents=True, exist_ok=True)
     os.system("zig build")
 
+
+def task_nuke_cache():
+    if os.path.isdir("zig-cache"):
+        shutil.rmtree("zig-cache")
 
 def task_nuke_old_world():
     if os.path.isdir("zig-out\\bin\\content\\patch"):
@@ -89,11 +95,14 @@ if build == "Full Pull":
     do_task("Syncing external libs and zig.exe...", task_sync_external)
     do_task("You need to copy zig!", task_copy_zig)
     do_task("Syncing SVN...", task_sync_svn)
+    do_task("Nuking cache...", task_nuke_cache)
+    do_task("Nuking game world...", task_nuke_old_world)
     do_task("Building game...", task_build_game)
     do_task("Generating game world...", task_generate_new_world)
     do_task("Copying game world...", task_sync_world)
 elif build == "World Gen":
     do_task("Building game...", task_build_game, True)
+    do_task("Nuking game world...", task_nuke_old_world, True)
     do_task("Generating game world...", task_generate_new_world, True)
     do_task("Copying game world...", task_sync_world, True)
 
