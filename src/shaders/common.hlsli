@@ -34,8 +34,8 @@ struct FrameConst {
 };
 
 struct SceneConst {
-    uint radiance_texture_index;
     uint irradiance_texture_index;
+    uint specular_texture_index;
     uint brdf_integration_texture_index;
 };
 

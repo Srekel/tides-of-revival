@@ -56,12 +56,6 @@ const FrameUniforms = extern struct {
     light_radiances: [32][4]f32,
 };
 
-const SceneUniforms = extern struct {
-    radiance_texture_index: u32,
-    irradiance_texture_index: u32,
-    brdf_integration_texture_index: u32,
-};
-
 const DrawUniforms = struct {
     start_instance_location: u32,
     vertex_offset: i32,
@@ -477,17 +471,24 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
     };
 
     // TODO(gmodarelli): move this do d3d12.zig
-    const d3d12_small_resource_placement_alignment: u32 = 4096;
-    desc.Alignment = d3d12_small_resource_placement_alignment;
+    const most_detailed_mip_size: u32 = @divExact(format.pixelSizeInBits(), 4) * width * height;
     var descs = [_]d3d12.RESOURCE_DESC{desc};
-    var allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
-    if (allocation_info.Alignment != d3d12_small_resource_placement_alignment) {
+    var size_in_bytes: u64 = 0;
+    if (most_detailed_mip_size <= 64 * 1024) {
+        const d3d12_small_resource_placement_alignment: u32 = 4096;
+        desc.Alignment = d3d12_small_resource_placement_alignment;
+        descs[0] = desc;
+        const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+        assert(allocation_info.Alignment == d3d12_small_resource_placement_alignment);
+        size_in_bytes = allocation_info.SizeInBytes;
+    } else {
         desc.Alignment = 0;
         descs[0] = desc;
-        allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+        const allocation_info = gfxstate.gctx.device.GetResourceAllocationInfo(0, 1, &descs);
+        size_in_bytes = allocation_info.SizeInBytes;
     }
 
-    assert(heap_offset.* + allocation_info.SizeInBytes < heap_size);
+    assert(heap_offset.* + size_in_bytes < heap_size);
 
     hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
         heap,
@@ -499,7 +500,7 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         @ptrCast(*?*anyopaque, &resource),
     ));
 
-    heap_offset.* += allocation_info.SizeInBytes;
+    heap_offset.* += size_in_bytes;
     return resource;
 }
 
@@ -1069,6 +1070,11 @@ pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.query_lights.deinit();
 
+    // NOTE(gmodarelli): We need to call this to avoid releasing textures while they are still in use.
+    // This was also triggering a Device Removal error.
+    // We won't need to do this once we decouple systems from the renderer
+    state.gfx.gctx.finishGpuCommands();
+
     state.gfx.releaseAllTextures();
     _ = state.textures_heap.Release();
     state.textures_heap.* = undefined;
@@ -1135,9 +1141,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // Upload per-scene constant data.
     {
         const ibl_textures = state.gfx.lookupIBLTextures();
-        const mem = state.gfx.gctx.allocateUploadMemory(SceneUniforms, 1);
-        mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
+        const mem = state.gfx.gctx.allocateUploadMemory(gfx.SceneUniforms, 1);
         mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
+        mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
         mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
     }
