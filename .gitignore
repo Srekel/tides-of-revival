@@ -13,3 +13,4 @@ content/meshes
 design
 content/content.csv
 promotion/
+__pycache__/
