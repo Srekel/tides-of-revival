@@ -59,7 +59,7 @@ def main():
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "b696c863b9849549cb2b1f09a973ab67b7a2477e",
+        "4884f66cf3c64e6a78d761cf376c57e775b80277",
     )
     sync_lib(
         "zig-args",
