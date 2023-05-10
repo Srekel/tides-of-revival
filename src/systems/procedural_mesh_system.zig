@@ -62,7 +62,7 @@ const InstanceMaterial = struct {
     padding: u32,
 };
 
-const max_instances = 100000;
+const max_instances = 1000000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
 
