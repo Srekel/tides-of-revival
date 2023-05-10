@@ -813,10 +813,11 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
         self.pipelines.deinit();
     }
 
-    self.gctx.deinit(allocator);
-
     _ = self.stats_brush.Release();
     _ = self.stats_text_format.Release();
+
+    self.gctx.deinit(allocator);
+
     self.* = undefined;
 }
 
