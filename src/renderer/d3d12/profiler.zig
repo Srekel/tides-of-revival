@@ -71,6 +71,8 @@ pub const Profiler = struct {
     }
 
     pub fn deinit(self: *Profiler) void {
+        _ = self.readback_buffer.Release();
+        _ = self.query_heap.Release();
         self.profiles.deinit();
     }
 
