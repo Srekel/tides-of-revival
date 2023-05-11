@@ -26,7 +26,8 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
 
     var query_builder_interactor = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder_interactor.with(fd.Interactor)
+    _ = query_builder_interactor
+        .with(fd.Interactor)
         .with(fd.Transform);
     const comp_query_interactor = query_builder_interactor.buildQuery();
 
@@ -69,13 +70,33 @@ fn updateInteractors(system: *SystemState) void {
     _ = arena;
 
     const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
+    const wielded_use_primary_released = system.frame_data.held(config.input_wielded_use_primary);
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.Interactor;
 
         const item_ent = flecs.Entity.init(system.flecs_world.world, interactor_comp.wielded_item_ent_id);
+        // var weapon_comp = item_ent.getMut(fd.ProjectileWeapon).?;
+
+        // const projectile_ent = flecs.Entity.init(system.flecs_world.world, interactor_comp.wielded_item_ent_id);
+
         var item_rotation = item_ent.getMut(fd.EulerRotation).?;
         const target_roll: f32 = if (wielded_use_primary_held) 1 else 0;
         item_rotation.pitch = zm.lerpV(item_rotation.roll, target_roll, 0.1);
-        if (wielded_use_primary_held) {}
+        if (wielded_use_primary_released) {
+            // const proj_pos = fd.Position.init(proj.pos[0], proj.pos[1], proj.pos[2]);
+            // const proj_scale: f32 = 1.0 + rand.float(f32) * 0.2;
+            // const proj_rot = fd.EulerRotation.init(0, proj.rot + std.math.pi * 0.5, 0);
+
+            // var proj_transform: fd.Transform = undefined;
+            // const z_proj_scale_matrix = zm.scaling(proj_scale, proj_scale, proj_scale);
+            // const z_proj_rot_matrix = zm.matFromRollPitchYaw(proj_rot.pitch, proj_rot.yaw, proj_rot.roll);
+            // const z_proj_translate_matrix = zm.translation(proj_pos.x, proj_pos.y, proj_pos.z);
+            // const z_proj_sr_matrix = zm.mul(z_proj_scale_matrix, z_proj_rot_matrix);
+            // const z_proj_srt_matrix = zm.mul(z_proj_sr_matrix, z_proj_translate_matrix);
+            // zm.storeMat43(proj_transform.matrix[0..], z_proj_srt_matrix);
+
+            // var proj_ent = system.flecs_world.newEntity();
+            // proj_ent.set(proj_transform);
+        }
     }
 }
