@@ -93,7 +93,7 @@ pub fn loadObjMeshFromFile(
             var position: [3]f32 = undefined;
             position[0] = try std.fmt.parseFloat(f32, it.next().?);
             position[1] = try std.fmt.parseFloat(f32, it.next().?);
-            position[2] = try std.fmt.parseFloat(f32, it.next().?);
+            position[2] = try std.fmt.parseFloat(f32, it.next().?) * -1.0; // NOTE(gmodarelli): Convert to Left Hand coordinate system for DirectX
             try positions.append(position);
             var color: [3]f32 = undefined;
             color[0] = try std.fmt.parseFloat(f32, it.next().?);
@@ -104,13 +104,13 @@ pub fn loadObjMeshFromFile(
             var normal: [3]f32 = undefined;
             normal[0] = try std.fmt.parseFloat(f32, it.next().?);
             normal[1] = try std.fmt.parseFloat(f32, it.next().?);
-            normal[2] = try std.fmt.parseFloat(f32, it.next().?);
+            normal[2] = try std.fmt.parseFloat(f32, it.next().?) * -1.0; // NOTE(gmodarelli): Convert to Left Hand coordinate system for DirectX
             try normals.append(normal);
         } else if (std.mem.eql(u8, first, "vt")) {
             var uv: [2]f32 = undefined;
             uv[0] = try std.fmt.parseFloat(f32, it.next().?);
             uv[1] = try std.fmt.parseFloat(f32, it.next().?);
-            // NOTE(gmodarelli): Figure out if we always need to do this
+            // NOTE(gmodarelli): Flip the UV's for DirectX
             uv[1] = 1.0 - uv[1];
             try uvs.append(uv);
         } else if (std.mem.eql(u8, first, "f")) {
@@ -293,6 +293,18 @@ fn storeMeshLod(
 
     mesh.num_lods += 1;
 
-    meshes_indices.appendSlice(remapped_indices.items) catch unreachable;
+    // NOTE(gmodarelli): Flipping the triangles winding order so they are clock-wise
+    var flipped_indices = std.ArrayList(IndexType).init(arena);
+    try flipped_indices.ensureTotalCapacity(remapped_indices.items.len);
+    {
+        var i: u32 = 0;
+        while (i < remapped_indices.items.len) : (i += 3) {
+            flipped_indices.appendAssumeCapacity(remapped_indices.items[i + 0]);
+            flipped_indices.appendAssumeCapacity(remapped_indices.items[i + 2]);
+            flipped_indices.appendAssumeCapacity(remapped_indices.items[i + 1]);
+        }
+    }
+
+    meshes_indices.appendSlice(flipped_indices.items) catch unreachable;
     meshes_vertices.appendSlice(optimized_vertices.items) catch unreachable;
 }

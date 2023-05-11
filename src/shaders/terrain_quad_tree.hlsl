@@ -77,8 +77,7 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
     Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
-    // float2 uv = float2(vertex.uv.x, 1.0 - vertex.uv.y);
-    float2 uv = float2(vertex.uv.x, vertex.uv.y);
+    float2 uv = float2(vertex.uv.x, 1.0 - vertex.uv.y);
     float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r;// * 2.0 - 1.0;
 
     float3 displaced_position = vertex.position;
