@@ -453,14 +453,14 @@ pub fn run() void {
     const bow_ent = flecs_world.newEntity();
     bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
-    bow_ent.set(fd.EulerRotation{ .yaw = std.math.pi * -0.5 });
+    bow_ent.set(fd.EulerRotation{});
     bow_ent.set(fd.Scale.createScalar(1));
     bow_ent.set(fd.Transform{});
     bow_ent.set(fd.Forward{});
     bow_ent.set(fd.Dynamic{});
     bow_ent.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("bow"),
-        .basecolor_roughness = .{ .r = 0.6, .g = 0.4, .b = 0.1, .roughness = 1.0 },
+        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
     });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
