@@ -144,8 +144,8 @@ fn updateCameraMatrices(state: *SystemState) void {
             zm.perspectiveFovLh(
             0.25 * math.pi,
             @intToFloat(f32, framebuffer_width) / @intToFloat(f32, framebuffer_height),
-            comps.camera.near,
             comps.camera.far,
+            comps.camera.near,
         );
 
         zm.storeMat(cam.world_to_view[0..], z_world_to_view);

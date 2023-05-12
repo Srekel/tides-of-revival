@@ -555,7 +555,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     // TODO(gmodarelli): Switch to reverse depth
     const depth_rt = blk: {
-        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height, true, false, L("Depth"));
+        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 0.0, 0, gctx.viewport_width, gctx.viewport_height, true, false, L("Depth"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
@@ -619,6 +619,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
+        pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
@@ -646,6 +647,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
+        pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
@@ -1088,7 +1090,7 @@ pub fn bindGBuffer(state: *D3D12State) void {
         null,
     );
 
-    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 1.0, 0, 0, null);
+    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 0.0, 0, 0, null);
 }
 
 pub fn bindBackBuffer(state: *D3D12State) void {
