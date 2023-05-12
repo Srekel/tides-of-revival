@@ -9,9 +9,15 @@ pub const MeshLod = struct {
     vertex_count: u32,
 };
 
+pub const BoundingBox = struct {
+    min: [3]f32,
+    max: [3]f32,
+};
+
 pub const Mesh = struct {
     num_lods: u32,
     lods: [max_num_lods]MeshLod,
+    bounding_box: BoundingBox,
 };
 
 pub const IndexType = u32;

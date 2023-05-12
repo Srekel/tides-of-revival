@@ -151,6 +151,7 @@ fn appendShapeMesh(
         .mesh = .{
             .num_lods = 1,
             .lods = undefined,
+            .bounding_box = undefined,
         },
     };
 
@@ -161,11 +162,20 @@ fn appendShapeMesh(
         .vertex_count = @intCast(u32, z_mesh.positions.len),
     };
 
-    meshes.append(mesh) catch unreachable;
+    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
 
     meshes_indices.appendSlice(z_mesh.indices) catch unreachable;
     var i: u64 = 0;
     while (i < z_mesh.positions.len) : (i += 1) {
+        min[0] = @min(min[0], z_mesh.positions[i][0]);
+        min[1] = @min(min[1], z_mesh.positions[i][1]);
+        min[2] = @min(min[2], z_mesh.positions[i][2]);
+
+        max[0] = @max(max[0], z_mesh.positions[i][0]);
+        max[1] = @max(max[1], z_mesh.positions[i][1]);
+        max[2] = @max(max[2], z_mesh.positions[i][2]);
+
         meshes_vertices.append(.{
             .position = z_mesh.positions[i],
             .normal = z_mesh.normals.?[i],
@@ -174,6 +184,12 @@ fn appendShapeMesh(
             .color = [3]f32{ 1.0, 1.0, 1.0 },
         }) catch unreachable;
     }
+
+    mesh.mesh.bounding_box = .{
+        .min = min,
+        .max = max,
+    };
+    meshes.append(mesh) catch unreachable;
 
     return meshes.items.len - 1;
 }
