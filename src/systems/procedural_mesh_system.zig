@@ -458,6 +458,67 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
     }
 
+    // NOTE(gmodarelli): Testing a frustum culling implementation directly in this system
+    // since it's the one we generate the most draw calls from. I'll move it to the camera
+    // once I know it works
+    // NOTE(gmodarelli): Based on the Spartan Engine's frustum culling implementatio
+    var planes: [6]gfx.Plane = undefined;
+    {
+        const z_view = zm.loadMat(cam.view[0..]);
+        const z_projection = zm.loadMat(cam.projection[0..]);
+        // Calculate the minimum Z distance in the frustum.
+        const z_min = -z_projection[2][3] / z_projection[2][2];
+        const r = cam.near / (cam.near - z_min);
+        var z_projection_updated = zm.loadMat(cam.projection[0..]);
+        z_projection_updated[2][2] = r;
+        z_projection_updated[2][3] = z_min;
+
+        // Create the frustum matrix from the view and updated projection matrix
+        const z_vp = zm.mul(z_view, z_projection_updated);
+
+        // Calculate near plane of frustum
+        planes[0].normal[0] = z_vp[3][0] + z_vp[2][0];
+        planes[0].normal[1] = z_vp[3][1] + z_vp[2][1];
+        planes[0].normal[2] = z_vp[3][2] + z_vp[2][2];
+        planes[0].d = z_vp[3][3] + z_vp[2][3];
+        planes[0].normalize();
+
+        // Calculate far plane of frustum
+        planes[1].normal[0] = z_vp[3][0] - z_vp[2][0];
+        planes[1].normal[1] = z_vp[3][1] - z_vp[2][1];
+        planes[1].normal[2] = z_vp[3][2] - z_vp[2][2];
+        planes[1].d = z_vp[3][3] - z_vp[2][3];
+        planes[1].normalize();
+
+        // Calculate left plane of frustum
+        planes[2].normal[0] = z_vp[3][0] + z_vp[0][0];
+        planes[2].normal[1] = z_vp[3][1] + z_vp[0][1];
+        planes[2].normal[2] = z_vp[3][2] + z_vp[0][2];
+        planes[2].d = z_vp[3][3] + z_vp[0][3];
+        planes[2].normalize();
+
+        // Calculate right plane of frustum
+        planes[3].normal[0] = z_vp[3][0] - z_vp[0][0];
+        planes[3].normal[1] = z_vp[3][1] - z_vp[0][1];
+        planes[3].normal[2] = z_vp[3][2] - z_vp[0][2];
+        planes[3].d = z_vp[3][3] - z_vp[0][3];
+        planes[3].normalize();
+
+        // Calculate top plane of frustum
+        planes[4].normal[0] = z_vp[3][0] - z_vp[1][0];
+        planes[4].normal[1] = z_vp[3][1] - z_vp[1][1];
+        planes[4].normal[2] = z_vp[3][2] - z_vp[1][2];
+        planes[4].d = z_vp[3][3] - z_vp[1][3];
+        planes[4].normalize();
+
+        // Calculate bottom plane of frustum
+        planes[5].normal[0] = z_vp[3][0] + z_vp[1][0];
+        planes[5].normal[1] = z_vp[3][1] + z_vp[1][1];
+        planes[5].normal[2] = z_vp[3][2] + z_vp[1][2];
+        planes[5].d = z_vp[3][3] + z_vp[1][3];
+        planes[5].normalize();
+    }
+
     var entity_iter_mesh = state.query_mesh.iterator(struct {
         transform: *const fd.Transform,
         mesh: *const fd.ShapeMeshInstance,
@@ -480,6 +541,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     while (entity_iter_mesh.next()) |comps| {
         var mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+
+        // Frustum culling
+        // const z_center = zm.loadArr3(mesh.bounding_box.min)
+
         lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
         if (last_mesh_index == 0xffffffff) {

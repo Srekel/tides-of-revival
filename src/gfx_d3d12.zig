@@ -37,6 +37,21 @@ pub const TextureHandle = texture_module.TextureHandle;
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
 
+pub const Plane = struct {
+    normal: [3]f32,
+    d: f32,
+
+    pub fn normalize(self: *Plane) void {
+        var z_normal = zm.normalize3(zm.loadArr3(self.normal));
+        const nominator = std.math.sqrt(z_normal[0] * z_normal[0] + z_normal[1] * z_normal[1] + z_normal[2] * z_normal[2]);
+        const denominator = std.math.sqrt(self.normal[0] * self.normal[0] + self.normal[1] * self.normal[1] + self.normal[2] * self.normal[2]);
+        const fentity = nominator / denominator;
+
+        zm.storeArr3(&self.normal, z_normal);
+        self.d = self.d * fentity;
+    }
+};
+
 pub const Vertex = struct {
     position: [3]f32,
     normal: [3]f32,
