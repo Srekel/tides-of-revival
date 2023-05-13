@@ -75,7 +75,7 @@ InstancedVertexOut vsInstanced(uint vertex_id : SV_VertexID, uint instanceID : S
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
-    const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
+    const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.view_projection);
     output.position_vs = mul(float4(vertex.position, 1.0), object_to_clip);
     output.position = mul(float4(vertex.position, 1.0), instance.object_to_world).xyz;
     output.uv = vertex.uv;

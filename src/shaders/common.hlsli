@@ -21,7 +21,7 @@ static const float EPSILON = 1e-6f;
 #define per_frame_space    space3
 
 struct FrameConst {
-    float4x4 world_to_clip;
+    float4x4 view_projection;
     float4x4 view_projection_inverted;
     float3 camera_position;
     float time;
