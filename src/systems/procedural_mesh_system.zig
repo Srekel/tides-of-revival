@@ -465,7 +465,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const cam = camera_comps.?.cam;
-    const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
+    const view_projection = zm.loadMat(cam.view_projection[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
     const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
@@ -495,7 +495,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
         const world_time = environment_info.world_time;
         const mem = state.gfx.gctx.allocateUploadMemory(FrameUniforms, 1);
-        mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
+        mem.cpu_slice[0].world_to_clip = zm.transpose(view_projection);
         mem.cpu_slice[0].camera_position = camera_position;
         mem.cpu_slice[0].time = world_time;
         mem.cpu_slice[0].light_count = 0;

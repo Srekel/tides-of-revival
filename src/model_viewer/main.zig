@@ -336,13 +336,13 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     var z_forward = zm.loadArr3(model_viewer_state.camera.forward);
     var z_pos = zm.loadArr3(camera_position);
 
-    var z_world_to_view = zm.lookToLh(
+    var z_view = zm.lookToLh(
         z_pos,
         z_forward,
         zm.f32x4(0.0, 1.0, 0.0, 0.0),
     );
 
-    const z_view_to_clip =
+    const z_projection =
         zm.perspectiveFovLh(
         0.25 * math.pi,
         @intToFloat(f32, framebuffer_width) / @intToFloat(f32, framebuffer_height),
@@ -350,8 +350,8 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         100.0,
     );
 
-    const z_world_to_clip = zm.mul(z_world_to_view, z_view_to_clip);
-    const view_projection_inverted = zm.inverse(z_world_to_clip);
+    const z_view_projection = zm.mul(z_view, z_projection);
+    const z_view_projection_inverted = zm.inverse(z_view_projection);
     const ibl_textures = gfx_state.lookupIBLTextures();
 
     // Start rendering the frame
@@ -384,8 +384,8 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         // Upload per-frame constant data.
         {
             const mem = gfx_state.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
-            mem.cpu_slice[0].world_to_clip = zm.transpose(z_world_to_clip);
-            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+            mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
             mem.cpu_slice[0].camera_position = camera_position;
             mem.cpu_slice[0].time = 0;
             mem.cpu_slice[0].light_count = 0;
@@ -475,11 +475,11 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
-        z_world_to_view[3] = zm.f32x4(0.0, 0.0, 0.0, 1.0);
+        z_view[3] = zm.f32x4(0.0, 0.0, 0.0, 1.0);
 
         {
             const mem = gfx_state.gctx.allocateUploadMemory(EnvUniforms, 1);
-            mem.cpu_slice[0].object_to_clip = zm.transpose(zm.mul(z_world_to_view, z_view_to_clip));
+            mem.cpu_slice[0].object_to_clip = zm.transpose(zm.mul(z_view, z_projection));
 
             gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
         }
@@ -509,18 +509,21 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         );
     }
 
-    var world_to_view: [16]f32 = undefined;
-    zm.storeMat(world_to_view[0..], z_world_to_view);
+    var view: [16]f32 = undefined;
+    zm.storeMat(view[0..], z_view);
 
-    var world_to_clip: [16]f32 = undefined;
-    zm.storeMat(world_to_clip[0..], z_world_to_clip);
+    var projection: [16]f32 = undefined;
+    zm.storeMat(projection[0..], z_projection);
+
+    var view_projection: [16]f32 = undefined;
+    zm.storeMat(view_projection[0..], z_view_projection);
 
     const camera = fd.Camera{
         .near = 0.01,
         .far = 100.0,
-        .world_to_view = world_to_view,
-        .view_to_clip = undefined,
-        .world_to_clip = world_to_clip,
+        .view = view,
+        .projection = projection,
+        .view_projection = view_projection,
         .window = undefined,
         .active = true,
         .class = 0,

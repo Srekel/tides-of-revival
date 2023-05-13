@@ -246,9 +246,9 @@ pub const CICamera = struct {
 pub const Camera = struct {
     near: f32,
     far: f32,
-    world_to_view: [16]f32 = undefined,
-    view_to_clip: [16]f32 = undefined,
-    world_to_clip: [16]f32 = undefined,
+    view: [16]f32 = undefined,
+    projection: [16]f32 = undefined,
+    view_projection: [16]f32 = undefined,
     window: *zglfw.Window,
     active: bool = false,
     class: u32 = 0,

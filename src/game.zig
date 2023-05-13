@@ -588,9 +588,9 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
         const camera = fd.Camera{
             .near = 0.01,
             .far = 100.0,
-            .world_to_view = undefined,
-            .view_to_clip = undefined,
-            .world_to_clip = undefined,
+            .view = undefined,
+            .projection = undefined,
+            .view_projection = undefined,
             .window = undefined,
             .active = true,
             .class = 0,

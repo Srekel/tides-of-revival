@@ -45,7 +45,7 @@ const TerrainLayerTextureIndices = extern struct {
 };
 
 const FrameUniforms = extern struct {
-    world_to_clip: zm.Mat,
+    view_projection: zm.Mat,
     camera_position: [3]f32,
     time: f32,
     noise_offset_y: f32,
@@ -1123,7 +1123,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     const cam = camera_comps.?.cam;
     const camera_position = camera_comps.?.transform.getPos00();
-    const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
+    const z_view_projection = zm.loadMat(cam.view_projection[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain Quad Tree");
 
     const pipeline_info = state.gfx.getPipeline(IdLocal.init("terrain_quad_tree"));
@@ -1153,7 +1153,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
         const world_time = environment_info.world_time;
         const mem = state.gfx.gctx.allocateUploadMemory(FrameUniforms, 1);
-        mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
+        mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
         mem.cpu_slice[0].camera_position = camera_position;
         mem.cpu_slice[0].time = world_time;
         mem.cpu_slice[0].noise_offset_y = config.noise_offset_y;

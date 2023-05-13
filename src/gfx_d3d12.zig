@@ -53,7 +53,7 @@ pub const RenderTargetsUniforms = struct {
 };
 
 pub const FrameUniforms = struct {
-    world_to_clip: zm.Mat,
+    view_projection: zm.Mat,
     view_projection_inverted: zm.Mat,
     camera_position: [3]f32,
     time: f32,
@@ -851,8 +851,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
 
     const ibl_textures = state.lookupIBLTextures();
-    const world_to_clip = zm.loadMat(camera.world_to_clip[0..]);
-    const view_projection_inverted = zm.inverse(world_to_clip);
+    const view_projection = zm.loadMat(camera.view_projection[0..]);
+    const view_projection_inverted = zm.inverse(view_projection);
 
     // Deferred Lighting
     zpix.beginEvent(gctx.cmdlist, "Deferred Lighting");
@@ -879,7 +879,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         // Upload per-frame constant data.
         {
             const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
-            mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
+            mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
             mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
             mem.cpu_slice[0].camera_position = camera_position;
             mem.cpu_slice[0].time = 0;
