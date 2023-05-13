@@ -82,9 +82,9 @@ fn updateInteractors(system: *SystemState) void {
         const item_ent = flecs.Entity.init(system.flecs_world.world, interactor_comp.wielded_item_ent_id);
         var weapon_comp = item_ent.getMut(fd.ProjectileWeapon).?;
 
-        var proj_ent = flecs.Entity.init(system.flecs_world.world, weapon_comp.chambered_projectile);
-        if (!proj_ent.isAlive()) {
-            proj_ent = system.flecs_world.newEntity();
+        if (weapon_comp.chambered_projectile == 0) {
+            // Load new projectile
+            var proj_ent = system.flecs_world.newEntity();
             proj_ent.setName("arrow");
             proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
             proj_ent.set(fd.EulerRotation{});
@@ -100,6 +100,7 @@ fn updateInteractors(system: *SystemState) void {
             weapon_comp.chambered_projectile = proj_ent.id;
         }
 
+        var proj_ent = flecs.Entity.init(system.flecs_world.world, weapon_comp.chambered_projectile);
         var item_rotation = item_ent.getMut(fd.EulerRotation).?;
         const item_transform = item_ent.get(fd.Transform).?;
         const target_roll: f32 = if (wielded_use_primary_held) 1 else 0;
