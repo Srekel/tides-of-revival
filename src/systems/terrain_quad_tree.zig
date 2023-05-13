@@ -1138,16 +1138,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
-    // Upload per-scene constant data.
-    {
-        const ibl_textures = state.gfx.lookupIBLTextures();
-        const mem = state.gfx.gctx.allocateUploadMemory(gfx.SceneUniforms, 1);
-        mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-        mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
-        mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
-    }
-
     // Upload per-frame constant data.
     {
         const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;

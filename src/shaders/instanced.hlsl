@@ -5,7 +5,6 @@
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
     "CBV(b1), " \
-    "CBV(b2), " \
     "StaticSampler(s0, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP), " \
     "StaticSampler(s1, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP), " \
     "StaticSampler(s2, filter = FILTER_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP), " \
@@ -51,7 +50,6 @@ struct InstanceMaterial {
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
-ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 
 struct InstancedVertexOut {
     float4 position_vs : SV_Position;

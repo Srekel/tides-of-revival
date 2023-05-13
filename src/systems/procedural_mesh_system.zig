@@ -21,23 +21,6 @@ const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
 
-const FrameUniforms = struct {
-    world_to_clip: zm.Mat,
-    camera_position: [3]f32,
-    time: f32,
-    padding1: u32,
-    padding2: u32,
-    padding3: u32,
-    light_count: u32,
-    light_positions: [32][4]f32,
-    light_radiances: [32][4]f32,
-};
-
-const SceneUniforms = extern struct {
-    irradiance_texture_index: u32,
-    brdf_integration_texture_index: u32,
-};
-
 const DrawUniforms = struct {
     start_instance_location: u32,
     vertex_offset: i32,
@@ -465,7 +448,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     }
 
     const cam = camera_comps.?.cam;
-    const view_projection = zm.loadMat(cam.view_projection[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
     const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
@@ -480,22 +462,13 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
-    // Upload per-scene constant data.
-    {
-        const ibl_textures = state.gfx.lookupIBLTextures();
-        const mem = state.gfx.gctx.allocateUploadMemory(SceneUniforms, 1);
-        mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-        mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
-    }
-
     // Upload per-frame constant data.
     const camera_position = camera_comps.?.transform.getPos00();
     {
         const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
         const world_time = environment_info.world_time;
-        const mem = state.gfx.gctx.allocateUploadMemory(FrameUniforms, 1);
-        mem.cpu_slice[0].world_to_clip = zm.transpose(view_projection);
+        const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+        mem.cpu_slice[0].view_projection = zm.transpose(zm.loadMat(cam.view_projection[0..]));
         mem.cpu_slice[0].camera_position = camera_position;
         mem.cpu_slice[0].time = world_time;
         mem.cpu_slice[0].light_count = 0;
