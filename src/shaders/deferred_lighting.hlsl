@@ -1,5 +1,4 @@
 #include "common.hlsli"
-#include "gbuffer.hlsli"
 
 #define root_signature \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \

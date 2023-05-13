@@ -49,15 +49,6 @@ const max_instances = 1000000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
 
-const DrawCall = struct {
-    mesh_index: u32,
-    index_count: u32,
-    instance_count: u32,
-    index_offset: u32,
-    vertex_offset: i32,
-    start_instance_location: u32,
-};
-
 const ProcMesh = struct {
     // entity: flecs.EntityId,
     id: IdLocal,
@@ -104,12 +95,11 @@ const SystemState = struct {
     instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
     instance_transforms: std.ArrayList(InstanceTransform),
     instance_materials: std.ArrayList(InstanceMaterial),
-    draw_calls: std.ArrayList(DrawCall),
+    draw_calls: std.ArrayList(gfx.DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(ProcMesh),
     query_camera: flecs.Query,
-    query_lights: flecs.Query,
     query_mesh: flecs.Query,
 
     camera: struct {
@@ -354,7 +344,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(DrawCall).init(allocator);
+    var draw_calls = std.ArrayList(gfx.DrawCall).init(allocator);
     var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
     var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
@@ -370,16 +360,11 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
-    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder_lights
-        .with(fd.Light)
-        .with(fd.Transform);
     var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.ShapeMeshInstance);
     var query_camera = query_builder_camera.buildQuery();
-    var query_lights = query_builder_lights.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
 
     state.* = .{
@@ -396,7 +381,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .instance_materials = instance_materials,
         .meshes = meshes,
         .query_camera = query_camera,
-        .query_lights = query_lights,
         .query_mesh = query_mesh,
     };
 
@@ -408,7 +392,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
-    state.query_lights.deinit();
     state.query_mesh.deinit();
     state.meshes.deinit();
     state.instance_transforms.deinit();
@@ -447,7 +430,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         return;
     }
 
-    const cam = camera_comps.?.cam;
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
     const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
@@ -463,32 +445,15 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     });
 
     // Upload per-frame constant data.
+    const cam = camera_comps.?.cam;
     const camera_position = camera_comps.?.transform.getPos00();
+    const z_view_projection = zm.loadMat(cam.view_projection[0..]);
+    const z_view_projection_inverted = zm.inverse(z_view_projection);
     {
-        const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
-        const world_time = environment_info.world_time;
         const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
-        mem.cpu_slice[0].view_projection = zm.transpose(zm.loadMat(cam.view_projection[0..]));
+        mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
+        mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
         mem.cpu_slice[0].camera_position = camera_position;
-        mem.cpu_slice[0].time = world_time;
-        mem.cpu_slice[0].light_count = 0;
-
-        var entity_iter_lights = state.query_lights.iterator(struct {
-            light: *fd.Light,
-            transform: *fd.Transform,
-        });
-
-        var light_i: u32 = 0;
-        while (entity_iter_lights.next()) |comps| {
-            const light_pos = comps.transform.getPos00();
-            std.mem.copy(f32, mem.cpu_slice[0].light_positions[light_i][0..], light_pos[0..]);
-            std.mem.copy(f32, mem.cpu_slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
-            mem.cpu_slice[0].light_radiances[light_i][3] = comps.light.range;
-            // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });
-
-            light_i += 1;
-        }
-        mem.cpu_slice[0].light_count = light_i;
 
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
     }

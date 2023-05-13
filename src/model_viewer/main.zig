@@ -387,8 +387,6 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
             mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
             mem.cpu_slice[0].camera_position = camera_position;
-            mem.cpu_slice[0].time = 0;
-            mem.cpu_slice[0].light_count = 0;
 
             gfx_state.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
         }

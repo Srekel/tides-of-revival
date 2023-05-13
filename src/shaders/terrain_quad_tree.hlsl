@@ -1,5 +1,4 @@
 #include "common.hlsli"
-#include "gbuffer.hlsli"
 
 // TODO: Split the static sampler declarations and move them to common.hlsli
 #define ROOT_SIGNATURE \
@@ -76,10 +75,9 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
 
     Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
     float2 uv = float2(vertex.uv.x, 1.0 - vertex.uv.y);
-    float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r;// * 2.0 - 1.0;
+    float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r;
 
     float3 displaced_position = vertex.position;
-    // displaced_position.y = cbv_frame_const.noise_scale_y * (height + cbv_frame_const.noise_offset_y);
     displaced_position.y = height;
 
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.view_projection);
@@ -98,7 +96,7 @@ static const float g_wireframe_thickness = 0.25;
 static const float2 texel = 1.0f / float2(65.0f, 65.0f);
 
 [RootSignature(ROOT_SIGNATURE)]
-GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics*/) {
+GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics */) {
     ByteAddressBuffer instance_data_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_data_buffer_index];
     uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
     InstanceData instance = instance_data_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
@@ -150,9 +148,22 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     float occlusion = arm.r;
     float emission = 0.0;
 
+
     GBufferTargets gbuffer;
     gbuffer.albedo = float4(albedo.rgb, 1.0);
     gbuffer.normal = float4(n.xyz, 0.0);
     gbuffer.material = float4(roughness, metallic, emission, occlusion);
+
+    // wireframe
+    /*
+    float3 barys = barycentrics;
+    const float3 deltas = fwidth(barys);
+    const float3 smoothing = deltas * 1.0;
+    const float3 thickness = deltas * 0.25;
+    barys = smoothstep(thickness, thickness + smoothing, barys);
+    float min_bary = min(barys.x, min(barys.y, barys.z));
+    gbuffer.albedo = float4(min_bary * albedo.rgb, 1.0);
+    */
+
     return gbuffer;
 }

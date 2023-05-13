@@ -47,8 +47,6 @@ pub const RenderTargetsUniforms = struct {
     gbuffer_1_index: u32,
     gbuffer_2_index: u32,
     depth_texture_index: u32,
-    light_diffuse_texture_index: u32,
-    light_specular_texture_index: u32,
     hdr_texture_index: u32,
 };
 
@@ -56,19 +54,21 @@ pub const FrameUniforms = struct {
     view_projection: zm.Mat,
     view_projection_inverted: zm.Mat,
     camera_position: [3]f32,
-    time: f32,
-    padding1: u32,
-    padding2: u32,
-    padding3: u32,
-    light_count: u32,
-    light_positions: [32][4]f32,
-    light_radiances: [32][4]f32,
 };
 
 pub const SceneUniforms = extern struct {
     irradiance_texture_index: u32,
     specular_texture_index: u32,
     brdf_integration_texture_index: u32,
+};
+
+pub const DrawCall = struct {
+    mesh_index: u32,
+    index_count: u32,
+    instance_count: u32,
+    index_offset: u32,
+    vertex_offset: i32,
+    start_instance_location: u32,
 };
 
 pub const RenderTarget = struct {
@@ -882,8 +882,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
             mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
             mem.cpu_slice[0].camera_position = camera_position;
-            mem.cpu_slice[0].time = 0;
-            mem.cpu_slice[0].light_count = 0;
 
             gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
         }
