@@ -222,7 +222,7 @@ fn updateBodies(state: *SystemState) void {
     var entity_iter = state.comp_query_body.iterator(struct {
         PhysicsBody: *fd.PhysicsBody,
         pos: *fd.Position,
-        rot: *fd.Rotation,
+        rot: *fd.EulerRotation,
         // transform: *fd.Transform,
     });
 
