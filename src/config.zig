@@ -1,3 +1,4 @@
+const zphy = @import("zphysics");
 const IdLocal = @import("variant.zig").IdLocal;
 
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗
@@ -68,3 +69,22 @@ pub const input_exit = IdLocal.init("exit");
 pub const allocator = IdLocal.init("allocator");
 pub const flecs_world = IdLocal.init("flecs_world");
 pub const input_frame_data = IdLocal.init("input_frame_data");
+
+// ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
+// ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝
+// ██████╔╝███████║ ╚████╔╝ ███████╗██║██║     ███████╗
+// ██╔═══╝ ██╔══██║  ╚██╔╝  ╚════██║██║██║     ╚════██║
+// ██║     ██║  ██║   ██║   ███████║██║╚██████╗███████║
+// ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝ ╚═════╝╚══════╝
+
+pub const object_layers = struct {
+    pub const non_moving: zphy.ObjectLayer = 0;
+    pub const moving: zphy.ObjectLayer = 1;
+    pub const len: u32 = 2;
+};
+
+pub const broad_phase_layers = struct {
+    pub const non_moving: zphy.BroadPhaseLayer = 0;
+    pub const moving: zphy.BroadPhaseLayer = 1;
+    pub const len: u32 = 2;
+};

@@ -2,7 +2,7 @@ const std = @import("std");
 const window = @import("window.zig");
 const zglfw = @import("zglfw");
 const zphy = @import("zphysics");
-const zmath = @import("zmath");
+const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 
@@ -147,9 +147,26 @@ pub const Transform = struct {
     pub fn getPos00(self: Transform) [3]f32 {
         return self.matrix[9..].*;
     }
+
     pub fn setPos(self: *Transform, pos: [3]f32) void {
         self.matrix[9..].* = pos;
     }
+
+    pub fn getRotPitchRollYaw(self: Transform) [3]f32 {
+        const mat = zm.loadMat43(&self.matrix);
+        const quat = zm.matToQuat(mat);
+        const zyx = zm.quatToRollPitchYaw(quat);
+        return .{ zyx[0], zyx[1], zyx[2] };
+    }
+
+    pub fn getRotQuaternion(self: Transform) [3]f32 {
+        const mat = zm.loadMat43(&self.matrix);
+        const quat = zm.matToQuat(mat);
+        var out: f32[4] = undefined;
+        zm.storeArr4(&out, quat);
+        return out;
+    }
+
     pub fn setScale(self: *Transform, scale: [3]f32) void {
         self.matrix[0] = scale[0];
         self.matrix[4] = scale[1];
@@ -272,7 +289,7 @@ pub const Camera = struct {
 //     sphere: struct { radius: f32 } = undefined,
 // };
 pub const PhysicsBody = struct {
-    //     body: zbt.Body,
+    body_id: zphy.BodyId,
 };
 
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗

@@ -14,17 +14,8 @@ const patch_side_vertex_count = config.patch_resolution;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
 const indices_per_patch: u32 = (config.patch_resolution - 1) * (config.patch_resolution - 1) * 6;
 
-const object_layers = struct {
-    const non_moving: zphy.ObjectLayer = 0;
-    const moving: zphy.ObjectLayer = 1;
-    const len: u32 = 2;
-};
-
-const broad_phase_layers = struct {
-    const non_moving: zphy.BroadPhaseLayer = 0;
-    const moving: zphy.BroadPhaseLayer = 1;
-    const len: u32 = 2;
-};
+const object_layers = config.object_layers;
+const broad_phase_layers = config.broad_phase_layers;
 
 const BroadPhaseLayerInterface = extern struct {
     usingnamespace zphy.BroadPhaseLayerInterface.Methods(@This());
@@ -153,7 +144,9 @@ pub fn create(
 ) !*SystemState {
     var query_builder_body = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_body.with(fd.PhysicsBody)
-        .with(fd.Transform);
+        .with(fd.Position)
+        .with(fd.EulerRotation);
+    // .with(fd.Transform);
     const comp_query_body = query_builder_body.buildQuery();
 
     var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*);
@@ -228,15 +221,20 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 fn updateBodies(state: *SystemState) void {
     var entity_iter = state.comp_query_body.iterator(struct {
         PhysicsBody: *fd.PhysicsBody,
-        transform: *fd.Transform,
+        pos: *fd.Position,
+        rot: *fd.Rotation,
+        // transform: *fd.Transform,
     });
-    _ = entity_iter;
 
-    // while (entity_iter.next()) |comps| {
-    //     var body_comp = comps.PhysicsBody;
-    //     var body = body_comp.body;
-    //     body.getGraphicsWorldTransform(&comps.transform.matrix);
-    // }
+    const body_interface = state.physics_world.getBodyInterfaceMut();
+    while (entity_iter.next()) |comps| {
+        var body_comp = comps.PhysicsBody;
+        var body_id = body_comp.body_id;
+        const body_pos = body_interface.getPosition(body_id);
+        const body_rot = body_interface.getRotation(body_id);
+        _ = body_rot;
+        comps.pos.elems().* = body_pos;
+    }
 }
 
 fn updateLoaders(state: *SystemState) void {
