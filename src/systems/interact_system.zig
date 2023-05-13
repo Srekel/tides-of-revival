@@ -2,6 +2,8 @@ const std = @import("std");
 const math = std.math;
 const flecs = @import("flecs");
 const zm = @import("zmath");
+const zphy = @import("zphysics");
+
 const fd = @import("../flecs_data.zig");
 const fr = @import("../flecs_relation.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
@@ -14,6 +16,7 @@ const input = @import("../input.zig");
 const SystemState = struct {
     flecs_sys: flecs.EntityId,
     allocator: std.mem.Allocator,
+    physics_world: *zphy.PhysicsSystem,
     flecs_world: *flecs.World,
     frame_data: *input.FrameData,
 
@@ -23,6 +26,7 @@ const SystemState = struct {
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
     const flecs_world = ctx.get(config.flecs_world.hash, flecs.World);
+    const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
 
     var query_builder_interactor = flecs.QueryBuilder.init(flecs_world.*);
@@ -37,6 +41,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .flecs_sys = flecs_sys,
         .allocator = allocator,
         .flecs_world = flecs_world,
+        .physics_world = physics_world,
         .frame_data = frame_data,
         .comp_query_interactor = comp_query_interactor,
     };
@@ -75,28 +80,74 @@ fn updateInteractors(system: *SystemState) void {
         var interactor_comp = comps.Interactor;
 
         const item_ent = flecs.Entity.init(system.flecs_world.world, interactor_comp.wielded_item_ent_id);
-        // var weapon_comp = item_ent.getMut(fd.ProjectileWeapon).?;
+        var weapon_comp = item_ent.getMut(fd.ProjectileWeapon).?;
 
-        // const projectile_ent = flecs.Entity.init(system.flecs_world.world, interactor_comp.wielded_item_ent_id);
+        var proj_ent = flecs.Entity.init(system.flecs_world.world, weapon_comp.chambered_projectile);
+        if (!proj_ent.isAlive()) {
+            proj_ent = system.flecs_world.newEntity();
+            proj_ent.setName("arrow");
+            proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
+            proj_ent.set(fd.EulerRotation{});
+            proj_ent.set(fd.Scale.createScalar(1));
+            proj_ent.set(fd.Transform{});
+            proj_ent.set(fd.Forward{});
+            proj_ent.set(fd.Dynamic{});
+            proj_ent.set(fd.CIShapeMeshInstance{
+                .id = IdLocal.id64("bow"),
+                .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
+            });
+            proj_ent.childOf(item_ent);
+            weapon_comp.chambered_projectile = proj_ent.id;
+        }
 
         var item_rotation = item_ent.getMut(fd.EulerRotation).?;
+        const item_transform = item_ent.get(fd.Transform).?;
         const target_roll: f32 = if (wielded_use_primary_held) 1 else 0;
         item_rotation.pitch = zm.lerpV(item_rotation.roll, target_roll, 0.1);
         if (wielded_use_primary_released) {
-            // const proj_pos = fd.Position.init(proj.pos[0], proj.pos[1], proj.pos[2]);
-            // const proj_scale: f32 = 1.0 + rand.float(f32) * 0.2;
-            // const proj_rot = fd.EulerRotation.init(0, proj.rot + std.math.pi * 0.5, 0);
+            // Shoot arrow
 
-            // var proj_transform: fd.Transform = undefined;
-            // const z_proj_scale_matrix = zm.scaling(proj_scale, proj_scale, proj_scale);
-            // const z_proj_rot_matrix = zm.matFromRollPitchYaw(proj_rot.pitch, proj_rot.yaw, proj_rot.roll);
-            // const z_proj_translate_matrix = zm.translation(proj_pos.x, proj_pos.y, proj_pos.z);
-            // const z_proj_sr_matrix = zm.mul(z_proj_scale_matrix, z_proj_rot_matrix);
-            // const z_proj_srt_matrix = zm.mul(z_proj_sr_matrix, z_proj_translate_matrix);
-            // zm.storeMat43(proj_transform.matrix[0..], z_proj_srt_matrix);
+            weapon_comp.chambered_projectile = 0;
+            proj_ent.removePair(flecs.c.Constants.EcsChildOf, item_ent);
 
-            // var proj_ent = system.flecs_world.newEntity();
-            // proj_ent.set(proj_transform);
+            const body_interface = system.physics_world.getBodyInterfaceMut();
+
+            const proj_transform = proj_ent.get(fd.Transform).?;
+            const proj_pos_world = proj_transform.getPos00();
+            const proj_rot_world = proj_transform.getRotPitchRollYaw();
+
+            const proj_shape_settings = zphy.BoxShapeSettings.create(.{ 0.01, 0.01, 1.0 }) catch unreachable;
+            defer proj_shape_settings.release();
+
+            const proj_shape = proj_shape_settings.createShape() catch unreachable;
+            defer proj_shape.release();
+
+            const proj_body_id = body_interface.createAndAddBody(.{
+                .position = .{ proj_pos_world[0], proj_pos_world[1], proj_pos_world[2], 0 },
+                .rotation = .{ proj_rot_world[0], proj_rot_world[1], proj_rot_world[2], 0 },
+                .shape = proj_shape,
+                .motion_type = .dynamic,
+                .object_layer = config.object_layers.moving,
+            }, .activate) catch unreachable;
+
+            //  Assign to flecs component
+            proj_ent.set(fd.PhysicsBody{ .body_id = proj_body_id });
+
+            // Send it flying
+            const world_transform_z = zm.loadMat43(&item_transform.matrix);
+            const forward_z = zm.util.getAxisZ(world_transform_z);
+            const velocity_z = forward_z * zm.f32x4s(10);
+            var velocity: [3]f32 = undefined;
+            zm.storeArr3(&velocity, velocity_z);
+            body_interface.setLinearVelocity(proj_body_id, velocity);
+        } else if (wielded_use_primary_held) {
+            // Pull string
+            var proj_pos = proj_ent.getMut(fd.Position).?;
+            proj_pos.z = zm.lerpV(proj_pos.z, -0.3, 0.01);
+        } else {
+            // Relax string
+            var proj_pos = proj_ent.getMut(fd.Position).?;
+            proj_pos.z = zm.lerpV(proj_pos.z, 0, 0.1);
         }
     }
 }

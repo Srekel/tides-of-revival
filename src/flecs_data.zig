@@ -448,6 +448,6 @@ pub const EnvironmentInfo = struct {
 // ╚███╔███╔╝███████╗██║  ██║██║     ╚██████╔╝██║ ╚████║
 //  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═══╝
 
-const ProjectileWeapon = struct {
-    chambered_projectile: flecs.EntityId,
+pub const ProjectileWeapon = struct {
+    chambered_projectile: flecs.EntityId = 0,
 };

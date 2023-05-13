@@ -133,6 +133,16 @@ pub const Variant = struct {
         };
     }
 
+    pub fn createPtrOpaque(ptr: anytype, tag: Tag) Variant {
+        assert(tag != 0);
+        return Variant{
+            .value = .{ .ptr_single = ptr },
+            .tag = tag,
+            .array_count = 1,
+            .elem_size = 0,
+        };
+    }
+
     pub fn createPtrConst(ptr: anytype, tag: Tag) Variant {
         assert(tag != 0);
         return Variant{

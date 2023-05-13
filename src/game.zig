@@ -286,6 +286,7 @@ pub fn run() void {
 
     var system_context = util.Context.init(std.heap.page_allocator);
     system_context.putConst(config.allocator, &std.heap.page_allocator);
+    system_context.putOpaque(config.physics_world, physics_sys.physics_world);
     system_context.put(config.flecs_world, &flecs_world);
     system_context.put(config.input_frame_data, &input_frame_data);
 
@@ -458,6 +459,7 @@ pub fn run() void {
     bow_ent.set(fd.Transform{});
     bow_ent.set(fd.Forward{});
     bow_ent.set(fd.Dynamic{});
+    bow_ent.set(fd.ProjectileWeapon{});
     bow_ent.set(fd.CIShapeMeshInstance{
         .id = IdLocal.id64("bow"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },

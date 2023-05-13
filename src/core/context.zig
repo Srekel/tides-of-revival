@@ -19,6 +19,11 @@ pub const Context = struct {
         self.map.put(id.hash, variant) catch unreachable;
     }
 
+    pub fn putOpaque(self: *Context, id: IdLocal, ptr: anytype) void {
+        var variant = Variant.createPtrOpaque(ptr, 1);
+        self.map.put(id.hash, variant) catch unreachable;
+    }
+
     pub fn putConst(self: *Context, id: IdLocal, ptr: anytype) void {
         var variant = Variant.createPtrConst(ptr, 1);
         self.map.put(id.hash, variant) catch unreachable;
