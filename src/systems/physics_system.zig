@@ -89,6 +89,7 @@ const ObjectLayerPairFilter = extern struct {
 const ContactListener = extern struct {
     usingnamespace zphy.ContactListener.Methods(@This());
     __v: *const zphy.ContactListener.VTable = &vtable,
+    system: *SystemState,
 
     const vtable = zphy.ContactListener.VTable{ .onContactValidate = _onContactValidate };
 
@@ -105,6 +106,37 @@ const ContactListener = extern struct {
         _ = base_offset;
         _ = collision_result;
         return .accept_all_contacts;
+    }
+
+    fn _onContactAdded(
+        self: *ContactListener,
+        body1: *const zphy.Body,
+        body2: *const zphy.Body,
+        manifold: *const zphy.ContactManifold,
+        settings: *const zphy.ContactSettings,
+    ) callconv(.C) void {
+        _ = settings;
+        _ = manifold;
+
+        const flecs_world = self.system.flecs_world;
+        // const ent1 = flecs.Entity.init(flecs_world.world, body1.user_data);
+        // const ent2 = flecs.Entity.init(flecs_world.world, body2.user_data);
+
+        const context = config.events.OnCollisionContext{
+            .body1 = body1.id,
+            .body2 = body2.id,
+            .ent1 = body1.user_data,
+            .ent2 = body2.user_data,
+        };
+        const id_list = [_]flecs.ecs_id{config.events.onCollisionId(flecs_world.world)};
+        const ids = flecs.c.ecs_type_t{ id_list.ptr, 1 };
+        const desc: flecs.event_desc_t = .{
+            .event = config.event.OnCollision,
+            .ids = &ids,
+            .param = context,
+        };
+
+        flecs.ecs_emit(flecs_world.world, desc);
     }
 };
 
@@ -163,9 +195,6 @@ pub fn create(
     const object_layer_pair_filter = allocator.create(ObjectLayerPairFilter) catch unreachable;
     object_layer_pair_filter.* = .{};
 
-    const contact_listener = allocator.create(ContactListener) catch unreachable;
-    contact_listener.* = .{};
-
     zphy.init(allocator, .{}) catch unreachable;
     const physics_world = zphy.PhysicsSystem.create(
         @ptrCast(*const zphy.BroadPhaseLayerInterface, broad_phase_layer_interface),
@@ -196,6 +225,9 @@ pub fn create(
         .indices = undefined,
     };
 
+    const contact_listener = allocator.create(ContactListener) catch unreachable;
+    contact_listener.* = .{ .system = state };
+    physics_world.setContactListener(contact_listener);
     // flecs_world.observer(ObserverCallback, .on_set, state);
 
     return state;
@@ -220,7 +252,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
 fn updateBodies(state: *SystemState) void {
     var entity_iter = state.comp_query_body.iterator(struct {
-        PhysicsBody: *fd.PhysicsBody,
+        body: *fd.PhysicsBody,
         pos: *fd.Position,
         rot: *fd.EulerRotation,
         // transform: *fd.Transform,
@@ -228,7 +260,7 @@ fn updateBodies(state: *SystemState) void {
 
     const body_interface = state.physics_world.getBodyInterfaceMut();
     while (entity_iter.next()) |comps| {
-        var body_comp = comps.PhysicsBody;
+        var body_comp = comps.body;
         var body_id = body_comp.body_id;
         const body_pos = body_interface.getPosition(body_id);
         const body_rot = body_interface.getRotation(body_id);

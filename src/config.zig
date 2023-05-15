@@ -1,6 +1,8 @@
 const zphy = @import("zphysics");
 const IdLocal = @import("variant.zig").IdLocal;
 
+pub const events = @import("events.zig");
+
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗
 // ╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔══██╗██║████╗  ██║
 //    ██║   █████╗  ██████╔╝██████╔╝███████║██║██╔██╗ ██║

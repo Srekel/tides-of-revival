@@ -46,7 +46,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .comp_query_interactor = comp_query_interactor,
     };
 
-    // flecs_world.observer(ObserverCallback, .on_set, system);
+    // flecs_world.observer(OnCollideObserverCallback, config.events.OnCollision, system);
 
     // initStateData(system);
     return system;
@@ -92,6 +92,7 @@ fn updateInteractors(system: *SystemState) void {
             proj_ent.set(fd.Transform{});
             proj_ent.set(fd.Forward{});
             proj_ent.set(fd.Dynamic{});
+            proj_ent.set(fd.Projectile{});
             proj_ent.set(fd.CIShapeMeshInstance{
                 .id = IdLocal.id64("bow"),
                 .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
@@ -117,7 +118,7 @@ fn updateInteractors(system: *SystemState) void {
             const proj_pos_world = proj_transform.getPos00();
             const proj_rot_world = proj_transform.getRotPitchRollYaw();
 
-            const proj_shape_settings = zphy.BoxShapeSettings.create(.{ 0.01, 0.01, 1.0 }) catch unreachable;
+            const proj_shape_settings = zphy.BoxShapeSettings.create(.{ 0.15, 0.15, 1.0 }) catch unreachable;
             defer proj_shape_settings.release();
 
             const proj_shape = proj_shape_settings.createShape() catch unreachable;
@@ -129,6 +130,8 @@ fn updateInteractors(system: *SystemState) void {
                 .shape = proj_shape,
                 .motion_type = .dynamic,
                 .object_layer = config.object_layers.moving,
+                .motion_quality = .linear_cast,
+                .user_data = proj_ent.id,
             }, .activate) catch unreachable;
 
             //  Assign to flecs component
@@ -151,4 +154,63 @@ fn updateInteractors(system: *SystemState) void {
             proj_pos.z = zm.lerpV(proj_pos.z, 0, 0.1);
         }
     }
+}
+
+//  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
+// ██╔════╝██╔══██╗██║     ██║     ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝
+// ██║     ███████║██║     ██║     ██████╔╝███████║██║     █████╔╝ ███████╗
+// ██║     ██╔══██║██║     ██║     ██╔══██╗██╔══██║██║     ██╔═██╗ ╚════██║
+// ╚██████╗██║  ██║███████╗███████╗██████╔╝██║  ██║╚██████╗██║  ██╗███████║
+//  ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
+
+const OnCollideObserverCallback = struct {
+    body: *const fd.PhysicsBody,
+
+    pub const name = "PhysicsBody";
+    pub const run = onCollidePhysicsBody;
+};
+
+fn onCollidePhysicsBody(it: *flecs.Iterator(OnCollideObserverCallback)) void {
+    var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
+    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+    _ = system;
+    const collision_ctx = @ptrCast(*config.events.OnCollisionContext, @alignCast(@alignOf(config.events.OnCollisionContext), it.iter.param.?));
+    _ = collision_ctx;
+
+    // const flecs_world = system.flecs_world;
+    // const ent1 = flecs.Entity.init(flecs_world.world, collision_ctx.body1.user_data);
+    // const ent2 = flecs.Entity.init(flecs_world.world, collision_ctx.body2.user_data);
+    // _ = ent2;
+
+    // if (ent1.get(fd.Projectile)) |proj_comp| {
+    //     _ = proj_comp;
+    // }
+
+    // while (it.next()) |_| {
+    //     const body_comp_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.PhysicsBody), @intCast(i32, it.index)).?;
+    //     var body_comp = @ptrCast(*fd.PhysicsBody, @alignCast(@alignOf(fd.PhysicsBody), body_comp_ptr));
+
+    //     var transform = it.entity().getMut(fd.Transform).?;
+    //     const shape = switch (ci.shape_type) {
+    //         .box => zbt.initBoxShape(&.{ ci.box.size, ci.box.size, ci.box.size }).asShape(),
+    //         .sphere => zbt.initSphereShape(ci.sphere.radius).asShape(),
+    //     };
+    //     const body = zbt.initBody(
+    //         ci.mass,
+    //         &transform.matrix,
+    //         shape,
+    //     );
+
+    //     body.setDamping(0.1, 0.1);
+    //     body.setRestitution(0.5);
+    //     body.setFriction(0.2);
+
+    //     state.physics_world.addBody(body);
+
+    //     const ent = it.entity();
+    //     ent.remove(fd.PhysicsBody);
+    //     ent.set(fd.PhysicsBody{
+    //         .body = body,
+    //     });
+    // }
 }

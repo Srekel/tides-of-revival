@@ -451,3 +451,7 @@ pub const EnvironmentInfo = struct {
 pub const ProjectileWeapon = struct {
     chambered_projectile: flecs.EntityId = 0,
 };
+
+pub const Projectile = struct {
+    // chambered_projectile: flecs.EntityId = 0,
+};
