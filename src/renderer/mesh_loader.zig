@@ -308,7 +308,7 @@ fn storeMeshLod(
 
     // Calculate bounding box
     var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
-    var max = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
 
     for (optimized_vertices.items) |vertex| {
         min[0] = @min(min[0], vertex.position[0]);

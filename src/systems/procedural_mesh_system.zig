@@ -136,7 +136,7 @@ fn appendShapeMesh(
     };
 
     var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
-    var max = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
 
     meshes_indices.appendSlice(z_mesh.indices) catch unreachable;
     var i: u64 = 0;
