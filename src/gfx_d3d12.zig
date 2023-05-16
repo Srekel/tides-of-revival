@@ -42,13 +42,15 @@ pub const Plane = struct {
     d: f32,
 
     pub fn normalize(self: *Plane) void {
-        var z_normal = zm.normalize3(zm.loadArr3(self.normal));
-        const nominator = std.math.sqrt(z_normal[0] * z_normal[0] + z_normal[1] * z_normal[1] + z_normal[2] * z_normal[2]);
-        const denominator = std.math.sqrt(self.normal[0] * self.normal[0] + self.normal[1] * self.normal[1] + self.normal[2] * self.normal[2]);
-        const fentity = nominator / denominator;
+        const length = std.math.sqrt(self.normal[0] * self.normal[0] + self.normal[1] * self.normal[1] + self.normal[2] * self.normal[2]);
+        self.normal[0] = self.normal[0] / length;
+        self.normal[1] = self.normal[1] / length;
+        self.normal[2] = self.normal[2] / length;
+        self.d = self.d / length;
+    }
 
-        zm.storeArr3(&self.normal, z_normal);
-        self.d = self.d * fentity;
+    pub fn distanceToPoint(self: *const Plane, p: [3]f32) f32 {
+        return self.normal[0] * p[0] + self.normal[1] * p[1] + self.normal[2] * p[2] + self.d;
     }
 };
 

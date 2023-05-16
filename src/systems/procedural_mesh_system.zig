@@ -461,62 +461,52 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // NOTE(gmodarelli): Testing a frustum culling implementation directly in this system
     // since it's the one we generate the most draw calls from. I'll move it to the camera
     // once I know it works
-    // NOTE(gmodarelli): Based on the Spartan Engine's frustum culling implementatio
-    var planes: [6]gfx.Plane = undefined;
+    var planes: [4]gfx.Plane = undefined;
     {
-        const z_view = zm.loadMat(cam.view[0..]);
-        const z_projection = zm.loadMat(cam.projection[0..]);
-        // Calculate the minimum Z distance in the frustum.
-        const z_min = -z_projection[2][3] / z_projection[2][2];
-        const r = cam.near / (cam.near - z_min);
-        var z_projection_updated = zm.loadMat(cam.projection[0..]);
-        z_projection_updated[2][2] = r;
-        z_projection_updated[2][3] = z_min;
+        const z_vp = zm.loadMat(cam.view_projection[0..]);
 
-        // Create the frustum matrix from the view and updated projection matrix
-        const z_vp = zm.mul(z_view, z_projection_updated);
-
-        // Calculate near plane of frustum
-        planes[0].normal[0] = z_vp[3][0] + z_vp[2][0];
-        planes[0].normal[1] = z_vp[3][1] + z_vp[2][1];
-        planes[0].normal[2] = z_vp[3][2] + z_vp[2][2];
-        planes[0].d = z_vp[3][3] + z_vp[2][3];
+        // Left plane
+        planes[0].normal[0] = z_vp[0][3] + z_vp[0][0];
+        planes[0].normal[1] = z_vp[1][3] + z_vp[1][0];
+        planes[0].normal[2] = z_vp[2][3] + z_vp[2][0];
+        planes[0].d = z_vp[3][3] + z_vp[3][0];
         planes[0].normalize();
 
-        // Calculate far plane of frustum
-        planes[1].normal[0] = z_vp[3][0] - z_vp[2][0];
-        planes[1].normal[1] = z_vp[3][1] - z_vp[2][1];
-        planes[1].normal[2] = z_vp[3][2] - z_vp[2][2];
-        planes[1].d = z_vp[3][3] - z_vp[2][3];
+        // Right plane
+        planes[1].normal[0] = z_vp[0][3] - z_vp[0][0];
+        planes[1].normal[1] = z_vp[1][3] - z_vp[1][0];
+        planes[1].normal[2] = z_vp[2][3] - z_vp[2][0];
+        planes[1].d = z_vp[3][3] - z_vp[3][0];
         planes[1].normalize();
 
-        // Calculate left plane of frustum
-        planes[2].normal[0] = z_vp[3][0] + z_vp[0][0];
-        planes[2].normal[1] = z_vp[3][1] + z_vp[0][1];
-        planes[2].normal[2] = z_vp[3][2] + z_vp[0][2];
-        planes[2].d = z_vp[3][3] + z_vp[0][3];
+        // Top plane
+        planes[2].normal[0] = z_vp[0][3] - z_vp[0][1];
+        planes[2].normal[1] = z_vp[1][3] - z_vp[1][1];
+        planes[2].normal[2] = z_vp[2][3] - z_vp[2][1];
+        planes[2].d = z_vp[3][3] - z_vp[3][1];
         planes[2].normalize();
 
-        // Calculate right plane of frustum
-        planes[3].normal[0] = z_vp[3][0] - z_vp[0][0];
-        planes[3].normal[1] = z_vp[3][1] - z_vp[0][1];
-        planes[3].normal[2] = z_vp[3][2] - z_vp[0][2];
-        planes[3].d = z_vp[3][3] - z_vp[0][3];
+        // Bottom plane
+        planes[3].normal[0] = z_vp[0][3] + z_vp[0][1];
+        planes[3].normal[1] = z_vp[1][3] + z_vp[1][1];
+        planes[3].normal[2] = z_vp[2][3] + z_vp[2][1];
+        planes[3].d = z_vp[3][3] + z_vp[3][1];
         planes[3].normalize();
 
-        // Calculate top plane of frustum
-        planes[4].normal[0] = z_vp[3][0] - z_vp[1][0];
-        planes[4].normal[1] = z_vp[3][1] - z_vp[1][1];
-        planes[4].normal[2] = z_vp[3][2] - z_vp[1][2];
-        planes[4].d = z_vp[3][3] - z_vp[1][3];
-        planes[4].normalize();
+        // TODO(gmodarelli): Figure out what these become when Z is reversed
+        // // Near plane
+        // planes[4].normal[0] = z_vp[0][2];
+        // planes[4].normal[1] = z_vp[1][2];
+        // planes[4].normal[2] = z_vp[2][2];
+        // planes[4].d = z_vp[3][2];
+        // planes[4].normalize();
 
-        // Calculate bottom plane of frustum
-        planes[5].normal[0] = z_vp[3][0] + z_vp[1][0];
-        planes[5].normal[1] = z_vp[3][1] + z_vp[1][1];
-        planes[5].normal[2] = z_vp[3][2] + z_vp[1][2];
-        planes[5].d = z_vp[3][3] + z_vp[1][3];
-        planes[5].normalize();
+        // // Far plane
+        // planes[5].normal[0] = z_vp[0][3] - z_vp[0][2];
+        // planes[5].normal[1] = z_vp[1][3] - z_vp[1][2];
+        // planes[5].normal[2] = z_vp[2][3] - z_vp[2][2];
+        // planes[5].d = z_vp[3][3] - z_vp[3][2];
+        // planes[5].normalize();
     }
 
     var entity_iter_mesh = state.query_mesh.iterator(struct {
@@ -542,8 +532,35 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     while (entity_iter_mesh.next()) |comps| {
         var mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
 
+        const z_world = zm.loadMat43(comps.transform.matrix[0..]);
+
+        var is_visible = true;
+
         // Frustum culling
-        // const z_center = zm.loadArr3(mesh.bounding_box.min)
+        {
+            var z_bb_min = zm.loadArr3(mesh.bounding_box.min);
+            z_bb_min[3] = 1.0;
+            var z_bb_max = zm.loadArr3(mesh.bounding_box.max);
+            z_bb_max[3] = 1.0;
+            const z_bb_min_ws = zm.mul(z_bb_min, z_world);
+            const z_bb_max_ws = zm.mul(z_bb_min, z_world);
+            const z_center = (z_bb_max_ws + z_bb_min_ws) * zm.f32x4(0.5, 0.5, 0.5, 0.5);
+            var center = [3]f32{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&center, z_center);
+            const z_extents = (z_bb_max_ws - z_bb_min_ws) * zm.f32x4(0.5, 0.5, 0.5, 0.5);
+            const radius = @max(z_extents[0], @max(z_extents[1], z_extents[2]));
+
+            for (planes) |plane| {
+                if (plane.distanceToPoint(center) + radius < 0.0) {
+                    is_visible = false;
+                    break;
+                }
+            }
+        }
+
+        if (!is_visible) {
+            continue;
+        }
 
         lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
@@ -611,9 +628,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
         }
 
-        const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
         const invalid_texture_index = std.math.maxInt(u32);
-        state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
+        state.instance_transforms.append(.{ .object_to_world = zm.transpose(z_world) }) catch unreachable;
         state.instance_materials.append(.{
             .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
             .roughness = 1.0,
@@ -638,30 +654,32 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }) catch unreachable;
     }
 
-    const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
-    state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
+    if (state.draw_calls.items.len > 0) {
+        const frame_index = state.gfx.gctx.frame_index;
+        state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
+        state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
 
-    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
-    const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
-    const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
+        const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+        const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
+        const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
 
-    for (state.draw_calls.items) |draw_call| {
-        const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
-        mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-        mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
-        mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-        mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
-        mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+        for (state.draw_calls.items) |draw_call| {
+            const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
+            mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+            mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
+            mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+            mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+            mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+            state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-        state.gfx.gctx.cmdlist.DrawIndexedInstanced(
-            draw_call.index_count,
-            draw_call.instance_count,
-            draw_call.index_offset,
-            draw_call.vertex_offset,
-            draw_call.start_instance_location,
-        );
+            state.gfx.gctx.cmdlist.DrawIndexedInstanced(
+                draw_call.index_count,
+                draw_call.instance_count,
+                draw_call.index_offset,
+                draw_call.vertex_offset,
+                draw_call.start_instance_location,
+            );
+        }
     }
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
