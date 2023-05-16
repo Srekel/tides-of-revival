@@ -89,6 +89,7 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_look_yaw, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_look_pitch, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_switch, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_camera_freeze_rendering, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_exit, input.TargetValue{ .number = 0 });
         break :blk itm;
     };
@@ -115,6 +116,7 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .mouse_button = .left } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .mouse_button = .right } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
 
         //
@@ -333,6 +335,7 @@ pub fn run() void {
         std.heap.page_allocator,
         &gfx_state,
         &flecs_world,
+        &input_frame_data,
     );
     defer procmesh_system.destroy(procmesh_sys);
 

@@ -15,6 +15,8 @@ const d3d12 = zwin32.d3d12;
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
+const input = @import("../input.zig");
+const config = @import("../config.zig");
 
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
@@ -102,11 +104,15 @@ const SystemState = struct {
     query_camera: flecs.Query,
     query_mesh: flecs.Query,
 
+    freeze_rendering: bool,
+    frame_data: *input.FrameData,
+
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
         forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
         pitch: f32 = 0.15 * math.pi,
         yaw: f32 = 0.0,
+        frustum_planes: [4]gfx.Plane = undefined,
     } = .{},
 };
 
@@ -270,7 +276,7 @@ fn initScene(
     _ = appendObjMesh(allocator, IdLocal.init("small_house"), "content/meshes/small_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -382,6 +388,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .meshes = meshes,
         .query_camera = query_camera,
         .query_mesh = query_mesh,
+        .freeze_rendering = false,
+        .frame_data = frame_data,
     };
 
     // flecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
@@ -461,37 +469,40 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // NOTE(gmodarelli): Testing a frustum culling implementation directly in this system
     // since it's the one we generate the most draw calls from. I'll move it to the camera
     // once I know it works
-    var planes: [4]gfx.Plane = undefined;
-    {
+    if (state.frame_data.just_pressed(config.input_camera_freeze_rendering)) {
+        state.freeze_rendering = !state.freeze_rendering;
+    }
+
+    if (!state.freeze_rendering) {
         const z_vp = zm.loadMat(cam.view_projection[0..]);
 
         // Left plane
-        planes[0].normal[0] = z_vp[0][3] + z_vp[0][0];
-        planes[0].normal[1] = z_vp[1][3] + z_vp[1][0];
-        planes[0].normal[2] = z_vp[2][3] + z_vp[2][0];
-        planes[0].d = z_vp[3][3] + z_vp[3][0];
-        planes[0].normalize();
+        state.camera.frustum_planes[0].normal[0] = z_vp[0][3] + z_vp[0][0];
+        state.camera.frustum_planes[0].normal[1] = z_vp[1][3] + z_vp[1][0];
+        state.camera.frustum_planes[0].normal[2] = z_vp[2][3] + z_vp[2][0];
+        state.camera.frustum_planes[0].d = z_vp[3][3] + z_vp[3][0];
+        state.camera.frustum_planes[0].normalize();
 
         // Right plane
-        planes[1].normal[0] = z_vp[0][3] - z_vp[0][0];
-        planes[1].normal[1] = z_vp[1][3] - z_vp[1][0];
-        planes[1].normal[2] = z_vp[2][3] - z_vp[2][0];
-        planes[1].d = z_vp[3][3] - z_vp[3][0];
-        planes[1].normalize();
+        state.camera.frustum_planes[1].normal[0] = z_vp[0][3] - z_vp[0][0];
+        state.camera.frustum_planes[1].normal[1] = z_vp[1][3] - z_vp[1][0];
+        state.camera.frustum_planes[1].normal[2] = z_vp[2][3] - z_vp[2][0];
+        state.camera.frustum_planes[1].d = z_vp[3][3] - z_vp[3][0];
+        state.camera.frustum_planes[1].normalize();
 
         // Top plane
-        planes[2].normal[0] = z_vp[0][3] - z_vp[0][1];
-        planes[2].normal[1] = z_vp[1][3] - z_vp[1][1];
-        planes[2].normal[2] = z_vp[2][3] - z_vp[2][1];
-        planes[2].d = z_vp[3][3] - z_vp[3][1];
-        planes[2].normalize();
+        state.camera.frustum_planes[2].normal[0] = z_vp[0][3] - z_vp[0][1];
+        state.camera.frustum_planes[2].normal[1] = z_vp[1][3] - z_vp[1][1];
+        state.camera.frustum_planes[2].normal[2] = z_vp[2][3] - z_vp[2][1];
+        state.camera.frustum_planes[2].d = z_vp[3][3] - z_vp[3][1];
+        state.camera.frustum_planes[2].normalize();
 
         // Bottom plane
-        planes[3].normal[0] = z_vp[0][3] + z_vp[0][1];
-        planes[3].normal[1] = z_vp[1][3] + z_vp[1][1];
-        planes[3].normal[2] = z_vp[2][3] + z_vp[2][1];
-        planes[3].d = z_vp[3][3] + z_vp[3][1];
-        planes[3].normalize();
+        state.camera.frustum_planes[3].normal[0] = z_vp[0][3] + z_vp[0][1];
+        state.camera.frustum_planes[3].normal[1] = z_vp[1][3] + z_vp[1][1];
+        state.camera.frustum_planes[3].normal[2] = z_vp[2][3] + z_vp[2][1];
+        state.camera.frustum_planes[3].d = z_vp[3][3] + z_vp[3][1];
+        state.camera.frustum_planes[3].normalize();
 
         // TODO(gmodarelli): Figure out what these become when Z is reversed
         // // Near plane
@@ -550,7 +561,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const z_extents = (z_bb_max_ws - z_bb_min_ws) * zm.f32x4(0.5, 0.5, 0.5, 0.5);
             const radius = @max(z_extents[0], @max(z_extents[1], z_extents[2]));
 
-            for (planes) |plane| {
+            for (state.camera.frustum_planes) |plane| {
                 if (plane.distanceToPoint(center) + radius < 0.0) {
                     is_visible = false;
                     break;
