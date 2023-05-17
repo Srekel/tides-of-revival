@@ -47,28 +47,28 @@ pub const RenderTargetsUniforms = struct {
     gbuffer_1_index: u32,
     gbuffer_2_index: u32,
     depth_texture_index: u32,
-    light_diffuse_texture_index: u32,
-    light_specular_texture_index: u32,
     hdr_texture_index: u32,
 };
 
 pub const FrameUniforms = struct {
-    world_to_clip: zm.Mat,
+    view_projection: zm.Mat,
     view_projection_inverted: zm.Mat,
     camera_position: [3]f32,
-    time: f32,
-    padding1: u32,
-    padding2: u32,
-    padding3: u32,
-    light_count: u32,
-    light_positions: [32][4]f32,
-    light_radiances: [32][4]f32,
 };
 
 pub const SceneUniforms = extern struct {
     irradiance_texture_index: u32,
     specular_texture_index: u32,
     brdf_integration_texture_index: u32,
+};
+
+pub const DrawCall = struct {
+    mesh_index: u32,
+    index_count: u32,
+    instance_count: u32,
+    index_offset: u32,
+    vertex_offset: i32,
+    start_instance_location: u32,
 };
 
 pub const RenderTarget = struct {
@@ -555,7 +555,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     // TODO(gmodarelli): Switch to reverse depth
     const depth_rt = blk: {
-        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 1.0, 0, gctx.viewport_width, gctx.viewport_height, true, false, L("Depth"));
+        const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 0.0, 0, gctx.viewport_width, gctx.viewport_height, true, false, L("Depth"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
@@ -619,6 +619,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
+        pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
@@ -646,6 +647,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
+        pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
@@ -849,8 +851,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
 
     const ibl_textures = state.lookupIBLTextures();
-    const world_to_clip = zm.loadMat(camera.world_to_clip[0..]);
-    const view_projection_inverted = zm.inverse(world_to_clip);
+    const view_projection = zm.loadMat(camera.view_projection[0..]);
+    const view_projection_inverted = zm.inverse(view_projection);
 
     // Deferred Lighting
     zpix.beginEvent(gctx.cmdlist, "Deferred Lighting");
@@ -877,11 +879,9 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         // Upload per-frame constant data.
         {
             const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
-            mem.cpu_slice[0].world_to_clip = zm.transpose(world_to_clip);
+            mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
             mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
             mem.cpu_slice[0].camera_position = camera_position;
-            mem.cpu_slice[0].time = 0;
-            mem.cpu_slice[0].light_count = 0;
 
             gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
         }
@@ -1088,7 +1088,7 @@ pub fn bindGBuffer(state: *D3D12State) void {
         null,
     );
 
-    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 1.0, 0, 0, null);
+    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 0.0, 0, 0, null);
 }
 
 pub fn bindBackBuffer(state: *D3D12State) void {

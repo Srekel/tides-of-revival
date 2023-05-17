@@ -89,6 +89,7 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_look_yaw, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_look_pitch, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_switch, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_camera_freeze_rendering, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_exit, input.TargetValue{ .number = 0 });
         break :blk itm;
     };
@@ -115,6 +116,7 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .mouse_button = .left } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .mouse_button = .right } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
 
         //
@@ -334,6 +336,7 @@ pub fn run() void {
         std.heap.page_allocator,
         &gfx_state,
         &flecs_world,
+        &input_frame_data,
     );
     defer procmesh_system.destroy(procmesh_sys);
 
@@ -606,9 +609,9 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
         const camera = fd.Camera{
             .near = 0.01,
             .far = 100.0,
-            .world_to_view = undefined,
-            .view_to_clip = undefined,
-            .world_to_clip = undefined,
+            .view = undefined,
+            .projection = undefined,
+            .view_projection = undefined,
             .window = undefined,
             .active = true,
             .class = 0,

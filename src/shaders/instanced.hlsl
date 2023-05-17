@@ -1,11 +1,9 @@
 #include "common.hlsli"
-#include "gbuffer.hlsli"
 
 #define ROOT_SIGNATURE \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
     "CBV(b1), " \
-    "CBV(b2), " \
     "StaticSampler(s0, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP), " \
     "StaticSampler(s1, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP), " \
     "StaticSampler(s2, filter = FILTER_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_ALL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP), " \
@@ -51,7 +49,6 @@ struct InstanceMaterial {
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
 ConstantBuffer<FrameConst> cbv_frame_const : register(b1);
-ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 
 struct InstancedVertexOut {
     float4 position_vs : SV_Position;
@@ -75,7 +72,7 @@ InstancedVertexOut vsInstanced(uint vertex_id : SV_VertexID, uint instanceID : S
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
-    const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.world_to_clip);
+    const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.view_projection);
     output.position_vs = mul(float4(vertex.position, 1.0), object_to_clip);
     output.position = mul(float4(vertex.position, 1.0), instance.object_to_world).xyz;
     output.uv = vertex.uv;

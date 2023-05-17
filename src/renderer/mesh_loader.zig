@@ -43,6 +43,7 @@ pub fn loadObjMeshFromFile(
     var mesh = Mesh{
         .num_lods = 0,
         .lods = undefined,
+        .bounding_box = undefined,
     };
 
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
@@ -304,6 +305,24 @@ fn storeMeshLod(
             flipped_indices.appendAssumeCapacity(remapped_indices.items[i + 1]);
         }
     }
+
+    // Calculate bounding box
+    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+
+    for (optimized_vertices.items) |vertex| {
+        min[0] = @min(min[0], vertex.position[0]);
+        min[1] = @min(min[1], vertex.position[1]);
+        min[2] = @min(min[2], vertex.position[2]);
+
+        max[0] = @max(max[0], vertex.position[0]);
+        max[1] = @max(max[1], vertex.position[1]);
+        max[2] = @max(max[2], vertex.position[2]);
+    }
+    mesh.bounding_box = .{
+        .min = min,
+        .max = max,
+    };
 
     meshes_indices.appendSlice(flipped_indices.items) catch unreachable;
     meshes_vertices.appendSlice(optimized_vertices.items) catch unreachable;

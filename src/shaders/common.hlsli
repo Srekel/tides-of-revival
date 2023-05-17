@@ -21,16 +21,9 @@ static const float EPSILON = 1e-6f;
 #define per_frame_space    space3
 
 struct FrameConst {
-    float4x4 world_to_clip;
+    float4x4 view_projection;
     float4x4 view_projection_inverted;
     float3 camera_position;
-    float time;
-    uint padding1;
-    uint padding2;
-    uint padding3;
-    uint light_count;
-    float4 light_positions[MAX_LIGHTS];
-    float4 light_radiances[MAX_LIGHTS];
 };
 
 struct SceneConst {
@@ -42,6 +35,20 @@ struct SceneConst {
 struct FullscreenTriangleOutput {
     float4 position : SV_Position;
     float2 uv : TEXCOORD0;
+};
+
+struct RenderTargetsConst {
+    uint gbuffer_0_index;
+    uint gbuffer_1_index;
+    uint gbuffer_2_index;
+    uint depth_texture_index;
+    uint hdr_texture_index;
+};
+
+struct GBufferTargets {
+    float4 albedo : SV_Target0;         // R8B8G8A8_UNORM
+    float4 normal : SV_Target1;         // R10G10B10A2_UNORM
+    float4 material : SV_Target2;       // R8G8B8A8_UNORM
 };
 
 bool has_valid_texture(uint texture_index) { return texture_index != INVALID_TEXTURE_INDEX; }

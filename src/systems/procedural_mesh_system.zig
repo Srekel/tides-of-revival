@@ -15,28 +15,13 @@ const d3d12 = zwin32.d3d12;
 
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
+const input = @import("../input.zig");
+const config = @import("../config.zig");
 
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
-
-const FrameUniforms = struct {
-    world_to_clip: zm.Mat,
-    camera_position: [3]f32,
-    time: f32,
-    padding1: u32,
-    padding2: u32,
-    padding3: u32,
-    light_count: u32,
-    light_positions: [32][4]f32,
-    light_radiances: [32][4]f32,
-};
-
-const SceneUniforms = extern struct {
-    irradiance_texture_index: u32,
-    brdf_integration_texture_index: u32,
-};
 
 const DrawUniforms = struct {
     start_instance_location: u32,
@@ -65,15 +50,6 @@ const InstanceMaterial = struct {
 const max_instances = 1000000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
-
-const DrawCall = struct {
-    mesh_index: u32,
-    index_count: u32,
-    instance_count: u32,
-    index_offset: u32,
-    vertex_offset: i32,
-    start_instance_location: u32,
-};
 
 const ProcMesh = struct {
     // entity: flecs.EntityId,
@@ -121,13 +97,15 @@ const SystemState = struct {
     instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
     instance_transforms: std.ArrayList(InstanceTransform),
     instance_materials: std.ArrayList(InstanceMaterial),
-    draw_calls: std.ArrayList(DrawCall),
+    draw_calls: std.ArrayList(gfx.DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(ProcMesh),
     query_camera: flecs.Query,
-    query_lights: flecs.Query,
     query_mesh: flecs.Query,
+
+    freeze_rendering: bool,
+    frame_data: *input.FrameData,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -151,6 +129,7 @@ fn appendShapeMesh(
         .mesh = .{
             .num_lods = 1,
             .lods = undefined,
+            .bounding_box = undefined,
         },
     };
 
@@ -161,11 +140,20 @@ fn appendShapeMesh(
         .vertex_count = @intCast(u32, z_mesh.positions.len),
     };
 
-    meshes.append(mesh) catch unreachable;
+    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
 
     meshes_indices.appendSlice(z_mesh.indices) catch unreachable;
     var i: u64 = 0;
     while (i < z_mesh.positions.len) : (i += 1) {
+        min[0] = @min(min[0], z_mesh.positions[i][0]);
+        min[1] = @min(min[1], z_mesh.positions[i][1]);
+        min[2] = @min(min[2], z_mesh.positions[i][2]);
+
+        max[0] = @max(max[0], z_mesh.positions[i][0]);
+        max[1] = @max(max[1], z_mesh.positions[i][1]);
+        max[2] = @max(max[2], z_mesh.positions[i][2]);
+
         meshes_vertices.append(.{
             .position = z_mesh.positions[i],
             .normal = z_mesh.normals.?[i],
@@ -174,6 +162,12 @@ fn appendShapeMesh(
             .color = [3]f32{ 1.0, 1.0, 1.0 },
         }) catch unreachable;
     }
+
+    mesh.mesh.bounding_box = .{
+        .min = min,
+        .max = max,
+    };
+    meshes.append(mesh) catch unreachable;
 
     return meshes.items.len - 1;
 }
@@ -281,7 +275,7 @@ fn initScene(
     _ = appendObjMesh(allocator, IdLocal.init("small_house"), "content/meshes/small_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -355,7 +349,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(DrawCall).init(allocator);
+    var draw_calls = std.ArrayList(gfx.DrawCall).init(allocator);
     var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
     var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
@@ -371,16 +365,11 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
-    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder_lights
-        .with(fd.Light)
-        .with(fd.Transform);
     var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.ShapeMeshInstance);
     var query_camera = query_builder_camera.buildQuery();
-    var query_lights = query_builder_lights.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
 
     state.* = .{
@@ -397,8 +386,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .instance_materials = instance_materials,
         .meshes = meshes,
         .query_camera = query_camera,
-        .query_lights = query_lights,
         .query_mesh = query_mesh,
+        .freeze_rendering = false,
+        .frame_data = frame_data,
     };
 
     // flecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
@@ -409,7 +399,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
-    state.query_lights.deinit();
     state.query_mesh.deinit();
     state.meshes.deinit();
     state.instance_transforms.deinit();
@@ -448,8 +437,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         return;
     }
 
-    const cam = camera_comps.?.cam;
-    const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
     const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
@@ -464,44 +451,25 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
-    // Upload per-scene constant data.
-    {
-        const ibl_textures = state.gfx.lookupIBLTextures();
-        const mem = state.gfx.gctx.allocateUploadMemory(SceneUniforms, 1);
-        mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-        mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
-    }
-
     // Upload per-frame constant data.
+    const cam = camera_comps.?.cam;
     const camera_position = camera_comps.?.transform.getPos00();
+    const z_view_projection = zm.loadMat(cam.view_projection[0..]);
+    const z_view_projection_inverted = zm.inverse(z_view_projection);
     {
-        const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
-        const world_time = environment_info.world_time;
-        const mem = state.gfx.gctx.allocateUploadMemory(FrameUniforms, 1);
-        mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
+        const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+        mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
+        mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
         mem.cpu_slice[0].camera_position = camera_position;
-        mem.cpu_slice[0].time = world_time;
-        mem.cpu_slice[0].light_count = 0;
-
-        var entity_iter_lights = state.query_lights.iterator(struct {
-            light: *fd.Light,
-            transform: *fd.Transform,
-        });
-
-        var light_i: u32 = 0;
-        while (entity_iter_lights.next()) |comps| {
-            const light_pos = comps.transform.getPos00();
-            std.mem.copy(f32, mem.cpu_slice[0].light_positions[light_i][0..], light_pos[0..]);
-            std.mem.copy(f32, mem.cpu_slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
-            mem.cpu_slice[0].light_radiances[light_i][3] = comps.light.range;
-            // std.debug.print("light: {any}{any}\n", .{ light_i, mem.slice[0].light_positions[light_i] });
-
-            light_i += 1;
-        }
-        mem.cpu_slice[0].light_count = light_i;
 
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+    }
+
+    // NOTE(gmodarelli): Testing a frustum culling implementation directly in this system
+    // since it's the one we generate the most draw calls from. I'll move it to the camera
+    // once I know it works
+    if (state.frame_data.just_pressed(config.input_camera_freeze_rendering)) {
+        state.freeze_rendering = !state.freeze_rendering;
     }
 
     var entity_iter_mesh = state.query_mesh.iterator(struct {
@@ -526,6 +494,14 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     while (entity_iter_mesh.next()) |comps| {
         var mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
+
+        const z_world = zm.loadMat43(comps.transform.matrix[0..]);
+
+        const bb_ws = mesh.calculateBoundingBoxCoordinates(z_world);
+        if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
+            continue;
+        }
+
         lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
         if (last_mesh_index == 0xffffffff) {
@@ -592,9 +568,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
         }
 
-        const object_to_world = zm.loadMat43(comps.transform.matrix[0..]);
         const invalid_texture_index = std.math.maxInt(u32);
-        state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
+        state.instance_transforms.append(.{ .object_to_world = zm.transpose(z_world) }) catch unreachable;
         state.instance_materials.append(.{
             .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
             .roughness = 1.0,
@@ -619,30 +594,32 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }) catch unreachable;
     }
 
-    const frame_index = state.gfx.gctx.frame_index;
-    state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
-    state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
+    if (state.draw_calls.items.len > 0) {
+        const frame_index = state.gfx.gctx.frame_index;
+        state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
+        state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
 
-    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
-    const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
-    const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
+        const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
+        const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
+        const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
 
-    for (state.draw_calls.items) |draw_call| {
-        const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
-        mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-        mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
-        mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-        mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
-        mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+        for (state.draw_calls.items) |draw_call| {
+            const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
+            mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+            mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
+            mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+            mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+            mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+            state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-        state.gfx.gctx.cmdlist.DrawIndexedInstanced(
-            draw_call.index_count,
-            draw_call.instance_count,
-            draw_call.index_offset,
-            draw_call.vertex_offset,
-            draw_call.start_instance_location,
-        );
+            state.gfx.gctx.cmdlist.DrawIndexedInstanced(
+                draw_call.index_count,
+                draw_call.instance_count,
+                draw_call.index_offset,
+                draw_call.vertex_offset,
+                draw_call.start_instance_location,
+            );
+        }
     }
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);

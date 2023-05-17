@@ -44,18 +44,6 @@ const TerrainLayerTextureIndices = extern struct {
     padding: u32,
 };
 
-const FrameUniforms = extern struct {
-    world_to_clip: zm.Mat,
-    camera_position: [3]f32,
-    time: f32,
-    noise_offset_y: f32,
-    noise_scale_y: f32,
-    padding3: u32,
-    light_count: u32,
-    light_positions: [32][4]f32,
-    light_radiances: [32][4]f32,
-};
-
 const DrawUniforms = struct {
     start_instance_location: u32,
     vertex_offset: i32,
@@ -74,15 +62,6 @@ const InstanceData = struct {
 
 const max_instances = 100;
 const max_instances_per_draw_call = 20;
-
-const DrawCall = struct {
-    mesh_index: u32,
-    index_count: u32,
-    instance_count: u32,
-    index_offset: u32,
-    vertex_offset: i32,
-    start_instance_location: u32,
-};
 
 const invalid_index = std.math.maxInt(u32);
 const QuadTreeNode = struct {
@@ -179,14 +158,13 @@ const SystemState = struct {
     gfx: *gfx.D3D12State,
 
     query_camera: flecs.Query,
-    query_lights: flecs.Query,
 
     vertex_buffer: gfx.BufferHandle,
     index_buffer: gfx.BufferHandle,
     terrain_layers_buffer: gfx.BufferHandle,
     instance_data_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
     instance_data: std.ArrayList(InstanceData),
-    draw_calls: std.ArrayList(DrawCall),
+    draw_calls: std.ArrayList(gfx.DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
     // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
@@ -873,12 +851,6 @@ pub fn create(
         .withReadonly(fd.Transform);
     var query_camera = query_builder_camera.buildQuery();
 
-    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
-    _ = query_builder_lights
-        .with(fd.Light)
-        .with(fd.Transform);
-    var query_lights = query_builder_lights.buildQuery();
-
     // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
     // but for now it's here to speed test it out and speed things along
     // NOTE(gmodarelli): We're currently loading up to 10880 1-channel R8_UNORM textures, so we need roughly
@@ -1014,7 +986,7 @@ pub fn create(
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(DrawCall).init(allocator);
+    var draw_calls = std.ArrayList(gfx.DrawCall).init(allocator);
     var instance_data = std.ArrayList(InstanceData).init(allocator);
 
     gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
@@ -1058,7 +1030,6 @@ pub fn create(
         .quads_to_render = quads_to_render,
         .quads_to_load = quads_to_load,
         .query_camera = query_camera,
-        .query_lights = query_lights,
         .heightmap_patch_type_id = heightmap_patch_type_id,
         .splatmap_patch_type_id = splatmap_patch_type_id,
     };
@@ -1068,7 +1039,6 @@ pub fn create(
 
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
-    state.query_lights.deinit();
 
     // NOTE(gmodarelli): We need to call this to avoid releasing textures while they are still in use.
     // This was also triggering a Device Removal error.
@@ -1121,9 +1091,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         return;
     }
 
-    const cam = camera_comps.?.cam;
-    const camera_position = camera_comps.?.transform.getPos00();
-    const cam_world_to_clip = zm.loadMat(cam.world_to_clip[0..]);
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain Quad Tree");
 
     const pipeline_info = state.gfx.getPipeline(IdLocal.init("terrain_quad_tree"));
@@ -1138,43 +1105,16 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
-    // Upload per-scene constant data.
-    {
-        const ibl_textures = state.gfx.lookupIBLTextures();
-        const mem = state.gfx.gctx.allocateUploadMemory(gfx.SceneUniforms, 1);
-        mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-        mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
-        mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
-    }
-
     // Upload per-frame constant data.
+    const cam = camera_comps.?.cam;
+    const camera_position = camera_comps.?.transform.getPos00();
+    const z_view_projection = zm.loadMat(cam.view_projection[0..]);
+    const z_view_projection_inverted = zm.inverse(z_view_projection);
     {
-        const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
-        const world_time = environment_info.world_time;
-        const mem = state.gfx.gctx.allocateUploadMemory(FrameUniforms, 1);
-        mem.cpu_slice[0].world_to_clip = zm.transpose(cam_world_to_clip);
+        const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+        mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
+        mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
         mem.cpu_slice[0].camera_position = camera_position;
-        mem.cpu_slice[0].time = world_time;
-        mem.cpu_slice[0].noise_offset_y = config.noise_offset_y;
-        mem.cpu_slice[0].noise_scale_y = config.noise_scale_y;
-        mem.cpu_slice[0].light_count = 0;
-
-        var entity_iter_lights = state.query_lights.iterator(struct {
-            light: *fd.Light,
-            transform: *fd.Transform,
-        });
-
-        var light_i: u32 = 0;
-        while (entity_iter_lights.next()) |comps| {
-            const light_pos = comps.transform.getPos00();
-            std.mem.copy(f32, mem.cpu_slice[0].light_positions[light_i][0..], light_pos[0..]);
-            std.mem.copy(f32, mem.cpu_slice[0].light_radiances[light_i][0..3], comps.light.radiance.elemsConst().*[0..]);
-            mem.cpu_slice[0].light_radiances[light_i][3] = comps.light.range;
-
-            light_i += 1;
-        }
-        mem.cpu_slice[0].light_count = light_i;
 
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
     }

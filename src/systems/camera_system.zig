@@ -76,6 +76,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     updateCameraSwitch(state);
     updateTransformHierarchy(state);
     updateCameraMatrices(state);
+    updateCameraFrustum(state);
 }
 
 fn updateTransformHierarchy(state: *SystemState) void {
@@ -134,24 +135,40 @@ fn updateCameraMatrices(state: *SystemState) void {
         var z_forward = zm.util.getAxisZ(z_transform);
         var z_pos = zm.util.getTranslationVec(z_transform);
 
-        const z_world_to_view = zm.lookToLh(
+        const z_view = zm.lookToLh(
             z_pos,
             z_forward,
             zm.f32x4(0.0, 1.0, 0.0, 0.0),
         );
 
-        const z_view_to_clip =
+        const z_projection =
             zm.perspectiveFovLh(
             0.25 * math.pi,
             @intToFloat(f32, framebuffer_width) / @intToFloat(f32, framebuffer_height),
-            comps.camera.near,
             comps.camera.far,
+            comps.camera.near,
         );
 
-        zm.storeMat(cam.world_to_view[0..], z_world_to_view);
-        zm.storeMat(cam.view_to_clip[0..], z_view_to_clip);
-        zm.storeMat(cam.world_to_clip[0..], zm.mul(z_world_to_view, z_view_to_clip));
-        // std.debug.print("cam.class {}, cam.world_to_clip {any}\n", .{ cam.class, cam.world_to_clip });
+        zm.storeMat(cam.view[0..], z_view);
+        zm.storeMat(cam.projection[0..], z_projection);
+        zm.storeMat(cam.view_projection[0..], zm.mul(z_view, z_projection));
+    }
+}
+
+fn updateCameraFrustum(state: *SystemState) void {
+    var entity_iter = state.query_camera.iterator(struct {
+        camera: *fd.Camera,
+        transform: *fd.Transform,
+    });
+
+    while (entity_iter.next()) |comps| {
+        var cam = comps.camera;
+        if (!cam.active) {
+            continue;
+        }
+
+        // TODO(gmodarelli): Check if renderer is frozen
+        cam.calculateFrusumPlanes();
     }
 }
 
