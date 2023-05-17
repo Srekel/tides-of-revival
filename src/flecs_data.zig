@@ -272,7 +272,7 @@ pub const Camera = struct {
     class: u32 = 0,
 
     pub fn calculateFrusumPlanes(camera: *Camera) void {
-        const z_vp = zmath.loadMat(camera.view_projection[0..]);
+        const z_vp = zm.loadMat(camera.view_projection[0..]);
 
         // Left plane
         camera.frustum_planes[0][0] = z_vp[0][3] + z_vp[0][0];
