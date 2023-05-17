@@ -497,26 +497,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
         const z_world = zm.loadMat43(comps.transform.matrix[0..]);
 
-        var is_visible = true;
-
-        // Frustum culling
-        {
-            var z_bb_min = zm.loadArr3(mesh.bounding_box.min);
-            z_bb_min[3] = 1.0;
-            var z_bb_max = zm.loadArr3(mesh.bounding_box.max);
-            z_bb_max[3] = 1.0;
-            const z_bb_min_ws = zm.mul(z_bb_min, z_world);
-            const z_bb_max_ws = zm.mul(z_bb_min, z_world);
-            const z_center = (z_bb_max_ws + z_bb_min_ws) * zm.f32x4(0.5, 0.5, 0.5, 0.5);
-            var center = [3]f32{ 0.0, 0.0, 0.0 };
-            zm.storeArr3(&center, z_center);
-            const z_extents = (z_bb_max_ws - z_bb_min_ws) * zm.f32x4(0.5, 0.5, 0.5, 0.5);
-            const radius = @max(z_extents[0], @max(z_extents[1], z_extents[2]));
-
-            is_visible = cam.isVisible(center, radius);
-        }
-
-        if (!is_visible) {
+        const bb_ws = mesh.calculateBoundingBoxCoordinates(z_world);
+        if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
             continue;
         }
 
