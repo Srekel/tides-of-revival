@@ -59,7 +59,7 @@ def main():
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "4884f66cf3c64e6a78d761cf376c57e775b80277",
+        "a3d33b1e47e42529a65535f7d72afe7b1b14713e",
     )
     sync_lib(
         "zig-args",
@@ -69,7 +69,7 @@ def main():
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "8e4303218371ffdbd43c349ec15d3edb954e4d3a",
+        "f8ebe3e6ce95fef9d089779ecbd127fb73a71754",
     )
     sync_lib(
         "zig-flecs",
@@ -79,7 +79,7 @@ def main():
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
-        "d60a391d062eb0a0e4aa9072ae752bb9ac31e917",
+        "b64004bfacd59489bcc4420afdf59fabc3eb7c04",
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
