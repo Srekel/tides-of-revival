@@ -9,7 +9,7 @@ pub fn onCollisionId(world: *flecs.c.EcsWorld) flecs.EntityId {
 }
 pub const OnCollisionContext = struct {
     body1: u64,
-    boyd2: u64,
+    body2: u64,
     ent1: flecs.EntityId,
     ent2: flecs.EntityId,
 };

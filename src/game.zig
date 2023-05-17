@@ -465,6 +465,22 @@ pub fn run() void {
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
     });
 
+    var proj_ent = flecs_world.newEntity();
+    // proj_ent.setName("arrow2");
+    // proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
+    // proj_ent.set(fd.EulerRotation{});
+    // proj_ent.set(fd.Scale.createScalar(1));
+    // proj_ent.set(fd.Transform{});
+    // proj_ent.set(fd.Forward{});
+    // proj_ent.set(fd.Dynamic{});
+    proj_ent.set(fd.Projectile{});
+    // proj_ent.set(fd.CIShapeMeshInstance{
+    //     .id = IdLocal.id64("bow"),
+    //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
+    // });
+    // proj_ent.childOf(bow_ent);
+    // weapon_comp.chambered_projectile = proj_ent.id;
+
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
     // ██████╔╝██║     ███████║ ╚████╔╝ █████╗  ██████╔╝

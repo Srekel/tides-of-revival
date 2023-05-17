@@ -450,8 +450,10 @@ pub const EnvironmentInfo = struct {
 
 pub const ProjectileWeapon = struct {
     chambered_projectile: flecs.EntityId = 0,
+    charge: f32 = 0,
 };
 
 pub const Projectile = struct {
+    dummy: u8 = 0,
     // chambered_projectile: flecs.EntityId = 0,
 };

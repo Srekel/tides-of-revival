@@ -91,16 +91,19 @@ const ContactListener = extern struct {
     __v: *const zphy.ContactListener.VTable = &vtable,
     system: *SystemState,
 
-    const vtable = zphy.ContactListener.VTable{ .onContactValidate = _onContactValidate };
+    const vtable = zphy.ContactListener.VTable{
+        .onContactValidate = _onContactValidate,
+        .onContactAdded = _onContactAdded,
+    };
 
     fn _onContactValidate(
-        self: *zphy.ContactListener,
+        iself: *zphy.ContactListener,
         body1: *const zphy.Body,
         body2: *const zphy.Body,
         base_offset: *const [3]zphy.Real,
         collision_result: *const zphy.CollideShapeResult,
     ) callconv(.C) zphy.ValidateResult {
-        _ = self;
+        _ = iself;
         _ = body1;
         _ = body2;
         _ = base_offset;
@@ -109,15 +112,15 @@ const ContactListener = extern struct {
     }
 
     fn _onContactAdded(
-        self: *ContactListener,
+        iself: *zphy.ContactListener,
         body1: *const zphy.Body,
         body2: *const zphy.Body,
         manifold: *const zphy.ContactManifold,
-        settings: *const zphy.ContactSettings,
+        settings: *zphy.ContactSettings,
     ) callconv(.C) void {
         _ = settings;
         _ = manifold;
-
+        const self = @ptrCast(*const ContactListener, iself);
         const flecs_world = self.system.flecs_world;
         // const ent1 = flecs.Entity.init(flecs_world.world, body1.user_data);
         // const ent2 = flecs.Entity.init(flecs_world.world, body2.user_data);
@@ -128,15 +131,17 @@ const ContactListener = extern struct {
             .ent1 = body1.user_data,
             .ent2 = body2.user_data,
         };
-        const id_list = [_]flecs.ecs_id{config.events.onCollisionId(flecs_world.world)};
-        const ids = flecs.c.ecs_type_t{ id_list.ptr, 1 };
-        const desc: flecs.event_desc_t = .{
-            .event = config.event.OnCollision,
-            .ids = &ids,
-            .param = context,
-        };
+        _ = context;
+        const id_list = [_]flecs.c.EcsId{config.events.onCollisionId(flecs_world.world)};
+        _ = id_list;
+        // const ids = flecs.c.EcsId{ id_list.ptr, 1 };
+        // const desc: flecs.event_desc_t = .{
+        //     .event = config.event.OnCollision,
+        //     .ids = &ids,
+        //     .param = context,
+        // };
 
-        flecs.ecs_emit(flecs_world.world, desc);
+        // flecs.ecs_emit(flecs_world.world, desc);
     }
 };
 
@@ -244,7 +249,8 @@ pub fn destroy(state: *SystemState) void {
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
-    _ = state.physics_world.update(iter.iter.delta_time, .{});
+    // state.physics_world.optimizeBroadPhase();
+    _ = state.physics_world.update(iter.iter.delta_time, .{}) catch unreachable;
     updateBodies(state);
     updateLoaders(state);
     updatePatches(state);

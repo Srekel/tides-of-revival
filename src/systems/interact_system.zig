@@ -59,11 +59,11 @@ pub fn destroy(system: *SystemState) void {
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
-    updateInteractors(system);
-    // updatePatches(system);
+    updateInteractors(system, iter.iter.delta_time);
 }
 
-fn updateInteractors(system: *SystemState) void {
+fn updateInteractors(system: *SystemState, dt: f32) void {
+    _ = dt;
     var entity_iter = system.comp_query_interactor.iterator(struct {
         Interactor: *fd.Interactor,
         transform: *fd.Transform,
@@ -75,7 +75,7 @@ fn updateInteractors(system: *SystemState) void {
     _ = arena;
 
     const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
-    const wielded_use_primary_released = system.frame_data.held(config.input_wielded_use_primary);
+    const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.Interactor;
 
@@ -85,30 +85,35 @@ fn updateInteractors(system: *SystemState) void {
         if (weapon_comp.chambered_projectile == 0) {
             // Load new projectile
             var proj_ent = system.flecs_world.newEntity();
-            proj_ent.setName("arrow");
-            proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
+            // proj_ent.setName("arrow");
+            proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
             proj_ent.set(fd.EulerRotation{});
             proj_ent.set(fd.Scale.createScalar(1));
-            proj_ent.set(fd.Transform{});
+            proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
             proj_ent.set(fd.Forward{});
             proj_ent.set(fd.Dynamic{});
             proj_ent.set(fd.Projectile{});
             proj_ent.set(fd.CIShapeMeshInstance{
-                .id = IdLocal.id64("bow"),
+                .id = IdLocal.id64("arrow"),
                 .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
             });
             proj_ent.childOf(item_ent);
             weapon_comp.chambered_projectile = proj_ent.id;
+            return;
         }
 
         var proj_ent = flecs.Entity.init(system.flecs_world.world, weapon_comp.chambered_projectile);
         var item_rotation = item_ent.getMut(fd.EulerRotation).?;
         const item_transform = item_ent.get(fd.Transform).?;
-        const target_roll: f32 = if (wielded_use_primary_held) 1 else 0;
-        item_rotation.pitch = zm.lerpV(item_rotation.roll, target_roll, 0.1);
+        const target_roll: f32 = if (wielded_use_primary_held) -1 else 0;
+        item_rotation.roll = zm.lerpV(item_rotation.roll, target_roll, 0.1);
         if (wielded_use_primary_released) {
             // Shoot arrow
+            // std.debug.print("RELEASE\n", .{});
+            const charge = weapon_comp.charge;
+            weapon_comp.charge = 0;
 
+            // state.physics_world.optimizeBroadPhase();
             weapon_comp.chambered_projectile = 0;
             proj_ent.removePair(flecs.c.Constants.EcsChildOf, item_ent);
 
@@ -117,6 +122,7 @@ fn updateInteractors(system: *SystemState) void {
             const proj_transform = proj_ent.get(fd.Transform).?;
             const proj_pos_world = proj_transform.getPos00();
             const proj_rot_world = proj_transform.getRotPitchRollYaw();
+            _ = proj_rot_world;
 
             const proj_shape_settings = zphy.BoxShapeSettings.create(.{ 0.15, 0.15, 1.0 }) catch unreachable;
             defer proj_shape_settings.release();
@@ -126,7 +132,7 @@ fn updateInteractors(system: *SystemState) void {
 
             const proj_body_id = body_interface.createAndAddBody(.{
                 .position = .{ proj_pos_world[0], proj_pos_world[1], proj_pos_world[2], 0 },
-                .rotation = .{ proj_rot_world[0], proj_rot_world[1], proj_rot_world[2], 0 },
+                .rotation = .{ 0, 0, 0, 1 },
                 .shape = proj_shape,
                 .motion_type = .dynamic,
                 .object_layer = config.object_layers.moving,
@@ -140,18 +146,20 @@ fn updateInteractors(system: *SystemState) void {
             // Send it flying
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
-            const velocity_z = forward_z * zm.f32x4s(10);
+            const velocity_z = forward_z * zm.f32x4s(10 + charge * 20);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
         } else if (wielded_use_primary_held) {
             // Pull string
             var proj_pos = proj_ent.getMut(fd.Position).?;
-            proj_pos.z = zm.lerpV(proj_pos.z, -0.3, 0.01);
+
+            proj_pos.z = zm.lerpV(proj_pos.z, -0.8, 0.01);
+            weapon_comp.charge = zm.mapLinearV(proj_pos.z, -0.4, -0.8, 0, 1);
         } else {
             // Relax string
             var proj_pos = proj_ent.getMut(fd.Position).?;
-            proj_pos.z = zm.lerpV(proj_pos.z, 0, 0.1);
+            proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
     }
 }
