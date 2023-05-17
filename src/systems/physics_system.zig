@@ -270,8 +270,13 @@ fn updateBodies(state: *SystemState) void {
         var body_id = body_comp.body_id;
         const body_pos = body_interface.getPosition(body_id);
         const body_rot = body_interface.getRotation(body_id);
-        _ = body_rot;
+        const body_rot_z = zm.loadArr4(body_rot);
+        // const body_rot_rpy = zm.quatToRollPitchYaw([_]f32{ body_rot_z[3], body_rot_z[1], body_rot_z[0], body_rot_z[2] });
+        const body_rot_rpy = zm.quatToRollPitchYaw([_]f32{ body_rot_z[3], body_rot_z[0], body_rot_z[1], body_rot_z[2] });
+        _ = body_rot_rpy;
+
         comps.pos.elems().* = body_pos;
+        // comps.rot.elems().* = body_rot_rpy;
     }
 }
 

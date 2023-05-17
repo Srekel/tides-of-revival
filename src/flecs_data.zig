@@ -77,17 +77,17 @@ pub const Rotation = struct {
 };
 
 pub const EulerRotation = struct {
+    roll: f32 = 0,
     pitch: f32 = 0,
     yaw: f32 = 0,
-    roll: f32 = 0,
     pub fn init(pitch: f32, yaw: f32, roll: f32) EulerRotation {
         return .{ .pitch = pitch, .yaw = yaw, .roll = roll };
     }
-    pub fn elems(self: *EulerRotation) *[4]f32 {
-        return @ptrCast(*[3]f32, &self.x);
+    pub fn elems(self: *EulerRotation) *[3]f32 {
+        return @ptrCast(*[3]f32, &self.roll);
     }
-    pub fn elemsConst(self: *const EulerRotation) *const [4]f32 {
-        return @ptrCast(*const [3]f32, &self.x);
+    pub fn elemsConst(self: *const EulerRotation) *const [3]f32 {
+        return @ptrCast(*const [3]f32, &self.roll);
     }
 };
 
