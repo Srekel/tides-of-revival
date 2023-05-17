@@ -76,6 +76,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     updateCameraSwitch(state);
     updateTransformHierarchy(state);
     updateCameraMatrices(state);
+    updateCameraFrustum(state);
 }
 
 fn updateTransformHierarchy(state: *SystemState) void {
@@ -151,6 +152,23 @@ fn updateCameraMatrices(state: *SystemState) void {
         zm.storeMat(cam.view[0..], z_view);
         zm.storeMat(cam.projection[0..], z_projection);
         zm.storeMat(cam.view_projection[0..], zm.mul(z_view, z_projection));
+    }
+}
+
+fn updateCameraFrustum(state: *SystemState) void {
+    var entity_iter = state.query_camera.iterator(struct {
+        camera: *fd.Camera,
+        transform: *fd.Transform,
+    });
+
+    while (entity_iter.next()) |comps| {
+        var cam = comps.camera;
+        if (!cam.active) {
+            continue;
+        }
+
+        // TODO(gmodarelli): Check if renderer is frozen
+        cam.calculateFrusumPlanes();
     }
 }
 

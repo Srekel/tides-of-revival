@@ -37,23 +37,6 @@ pub const TextureHandle = texture_module.TextureHandle;
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
 
-pub const Plane = struct {
-    normal: [3]f32,
-    d: f32,
-
-    pub fn normalize(self: *Plane) void {
-        const length = std.math.sqrt(self.normal[0] * self.normal[0] + self.normal[1] * self.normal[1] + self.normal[2] * self.normal[2]);
-        self.normal[0] = self.normal[0] / length;
-        self.normal[1] = self.normal[1] / length;
-        self.normal[2] = self.normal[2] / length;
-        self.d = self.d / length;
-    }
-
-    pub fn distanceToPoint(self: *const Plane, p: [3]f32) f32 {
-        return self.normal[0] * p[0] + self.normal[1] * p[1] + self.normal[2] * p[2] + self.d;
-    }
-};
-
 pub const Vertex = struct {
     position: [3]f32,
     normal: [3]f32,

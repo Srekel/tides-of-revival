@@ -249,9 +249,73 @@ pub const Camera = struct {
     view: [16]f32 = undefined,
     projection: [16]f32 = undefined,
     view_projection: [16]f32 = undefined,
+    frustum_planes: [4][4]f32 = undefined,
     window: *zglfw.Window,
     active: bool = false,
     class: u32 = 0,
+
+    pub fn calculateFrusumPlanes(camera: *Camera) void {
+        const z_vp = zmath.loadMat(camera.view_projection[0..]);
+
+        // Left plane
+        camera.frustum_planes[0][0] = z_vp[0][3] + z_vp[0][0];
+        camera.frustum_planes[0][1] = z_vp[1][3] + z_vp[1][0];
+        camera.frustum_planes[0][2] = z_vp[2][3] + z_vp[2][0];
+        camera.frustum_planes[0][3] = z_vp[3][3] + z_vp[3][0];
+
+        // Right plane
+        camera.frustum_planes[1][0] = z_vp[0][3] - z_vp[0][0];
+        camera.frustum_planes[1][1] = z_vp[1][3] - z_vp[1][0];
+        camera.frustum_planes[1][2] = z_vp[2][3] - z_vp[2][0];
+        camera.frustum_planes[1][3] = z_vp[3][3] - z_vp[3][0];
+
+        // Top plane
+        camera.frustum_planes[2][0] = z_vp[0][3] - z_vp[0][1];
+        camera.frustum_planes[2][1] = z_vp[1][3] - z_vp[1][1];
+        camera.frustum_planes[2][2] = z_vp[2][3] - z_vp[2][1];
+        camera.frustum_planes[2][3] = z_vp[3][3] - z_vp[3][1];
+
+        // Bottom plane
+        camera.frustum_planes[3][0] = z_vp[0][3] + z_vp[0][1];
+        camera.frustum_planes[3][1] = z_vp[1][3] + z_vp[1][1];
+        camera.frustum_planes[3][2] = z_vp[2][3] + z_vp[2][1];
+        camera.frustum_planes[3][3] = z_vp[3][3] + z_vp[3][1];
+
+        // TODO(gmodarelli): Figure out what these become when Z is reversed
+        // // Near plane
+        // camera.frustum_planes[4][0] = z_vp[0][2];
+        // camera.frustum_planes[4][1] = z_vp[1][2];
+        // camera.frustum_planes[4][2] = z_vp[2][2];
+        // camera.frustum_planes[4][3] = z_vp[3][2];
+
+        // // Far plane
+        // camera.frustum_planes[5][0] = z_vp[0][3] - z_vp[0][2];
+        // camera.frustum_planes[5][1] = z_vp[1][3] - z_vp[1][2];
+        // camera.frustum_planes[5][2] = z_vp[2][3] - z_vp[2][2];
+        // camera.frustum_planes[5][3] = z_vp[3][3] - z_vp[3][2];
+
+        for (&camera.frustum_planes) |*plane| {
+            const length = std.math.sqrt(plane[0] * plane[0] + plane[1] * plane[1] + plane[2] * plane[2]);
+            plane[0] = plane[0] / length;
+            plane[1] = plane[1] / length;
+            plane[2] = plane[2] / length;
+            plane[3] = plane[3] / length;
+        }
+    }
+
+    pub fn isVisible(camera: *const Camera, center: [3]f32, radius: f32) bool {
+        for (camera.frustum_planes) |plane| {
+            if (distanceToPoint(plane, center) + radius < 0.0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn distanceToPoint(plane: [4]f32, point: [3]f32) f32 {
+        return plane[0] * point[0] + plane[1] * point[1] + plane[2] * point[2] + plane[3];
+    }
 };
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗

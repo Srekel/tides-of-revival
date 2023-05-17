@@ -112,7 +112,6 @@ const SystemState = struct {
         forward: [3]f32 = .{ 0.0, 0.0, 1.0 },
         pitch: f32 = 0.15 * math.pi,
         yaw: f32 = 0.0,
-        frustum_planes: [4]gfx.Plane = undefined,
     } = .{},
 };
 
@@ -473,53 +472,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         state.freeze_rendering = !state.freeze_rendering;
     }
 
-    if (!state.freeze_rendering) {
-        const z_vp = zm.loadMat(cam.view_projection[0..]);
-
-        // Left plane
-        state.camera.frustum_planes[0].normal[0] = z_vp[0][3] + z_vp[0][0];
-        state.camera.frustum_planes[0].normal[1] = z_vp[1][3] + z_vp[1][0];
-        state.camera.frustum_planes[0].normal[2] = z_vp[2][3] + z_vp[2][0];
-        state.camera.frustum_planes[0].d = z_vp[3][3] + z_vp[3][0];
-        state.camera.frustum_planes[0].normalize();
-
-        // Right plane
-        state.camera.frustum_planes[1].normal[0] = z_vp[0][3] - z_vp[0][0];
-        state.camera.frustum_planes[1].normal[1] = z_vp[1][3] - z_vp[1][0];
-        state.camera.frustum_planes[1].normal[2] = z_vp[2][3] - z_vp[2][0];
-        state.camera.frustum_planes[1].d = z_vp[3][3] - z_vp[3][0];
-        state.camera.frustum_planes[1].normalize();
-
-        // Top plane
-        state.camera.frustum_planes[2].normal[0] = z_vp[0][3] - z_vp[0][1];
-        state.camera.frustum_planes[2].normal[1] = z_vp[1][3] - z_vp[1][1];
-        state.camera.frustum_planes[2].normal[2] = z_vp[2][3] - z_vp[2][1];
-        state.camera.frustum_planes[2].d = z_vp[3][3] - z_vp[3][1];
-        state.camera.frustum_planes[2].normalize();
-
-        // Bottom plane
-        state.camera.frustum_planes[3].normal[0] = z_vp[0][3] + z_vp[0][1];
-        state.camera.frustum_planes[3].normal[1] = z_vp[1][3] + z_vp[1][1];
-        state.camera.frustum_planes[3].normal[2] = z_vp[2][3] + z_vp[2][1];
-        state.camera.frustum_planes[3].d = z_vp[3][3] + z_vp[3][1];
-        state.camera.frustum_planes[3].normalize();
-
-        // TODO(gmodarelli): Figure out what these become when Z is reversed
-        // // Near plane
-        // planes[4].normal[0] = z_vp[0][2];
-        // planes[4].normal[1] = z_vp[1][2];
-        // planes[4].normal[2] = z_vp[2][2];
-        // planes[4].d = z_vp[3][2];
-        // planes[4].normalize();
-
-        // // Far plane
-        // planes[5].normal[0] = z_vp[0][3] - z_vp[0][2];
-        // planes[5].normal[1] = z_vp[1][3] - z_vp[1][2];
-        // planes[5].normal[2] = z_vp[2][3] - z_vp[2][2];
-        // planes[5].d = z_vp[3][3] - z_vp[3][2];
-        // planes[5].normalize();
-    }
-
     var entity_iter_mesh = state.query_mesh.iterator(struct {
         transform: *const fd.Transform,
         mesh: *const fd.ShapeMeshInstance,
@@ -561,12 +513,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const z_extents = (z_bb_max_ws - z_bb_min_ws) * zm.f32x4(0.5, 0.5, 0.5, 0.5);
             const radius = @max(z_extents[0], @max(z_extents[1], z_extents[2]));
 
-            for (state.camera.frustum_planes) |plane| {
-                if (plane.distanceToPoint(center) + radius < 0.0) {
-                    is_visible = false;
-                    break;
-                }
-            }
+            is_visible = cam.isVisible(center, radius);
         }
 
         if (!is_visible) {
