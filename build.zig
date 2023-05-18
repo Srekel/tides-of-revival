@@ -184,9 +184,13 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "psTonemapping", "tonemapping.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
-    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "");
+    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "PSO__INSTANCED");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psInstanced", "instanced.ps.cso", "ps", "");
+    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psInstanced", "instanced.ps.cso", "ps", "PSO__INSTANCED");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "frustum_debug.vs.cso", "vs", "PSO__FRUSTUM_DEBUG");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psFrustumDebug", "frustum_debug.ps.cso", "ps", "PSO__FRUSTUM_DEBUG");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "vsTerrainQuadTree", "terrain_quad_tree.vs.cso", "vs", "");

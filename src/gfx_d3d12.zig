@@ -634,6 +634,35 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
+    const frustum_debug_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = gbuffer_0.format;
+        pso_desc.RTVFormats[1] = gbuffer_1.format;
+        pso_desc.RTVFormats[2] = gbuffer_2.format;
+        pso_desc.NumRenderTargets = 3;
+        pso_desc.DSVFormat = depth_rt.format;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+        pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
+        pso_desc.RasterizerState.FillMode = .WIREFRAME;
+
+        const pso_handle = gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/frustum_debug.vs.cso",
+            "shaders/frustum_debug.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
+    };
+
     const terrain_quad_tree_pipeline = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
@@ -711,6 +740,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("frustum_debug"), PipelineInfo{ .pipeline_handle = frustum_debug_pipeline }) catch unreachable;
 
     var gpu_profiler = Profiler.init(allocator, &gctx) catch unreachable;
 

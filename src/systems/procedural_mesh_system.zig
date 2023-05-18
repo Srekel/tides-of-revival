@@ -33,6 +33,7 @@ const DrawUniforms = struct {
 
 const InstanceTransform = struct {
     object_to_world: zm.Mat,
+    bounding_sphere_matrix: zm.Mat,
 };
 
 const InstanceMaterial = struct {
@@ -105,6 +106,7 @@ const SystemState = struct {
     query_mesh: flecs.Query,
 
     freeze_rendering: bool,
+    draw_bounding_spheres: bool,
     frame_data: *input.FrameData,
 
     camera: struct {
@@ -273,6 +275,9 @@ fn initScene(
     _ = appendObjMesh(allocator, IdLocal.init("pine"), "content/meshes/pine.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("small_house_fireplace"), "content/meshes/small_house_fireplace.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("small_house"), "content/meshes/small_house.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("spider_body"), "content/meshes/spider_body.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("spider_leg"), "content/meshes/spider_leg.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
+    _ = appendObjMesh(allocator, IdLocal.init("unit_sphere_lp"), "content/meshes/unit_sphere_lp.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 }
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
@@ -388,6 +393,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .query_camera = query_camera,
         .query_mesh = query_mesh,
         .freeze_rendering = false,
+        .draw_bounding_spheres = false,
         .frame_data = frame_data,
     };
 
@@ -437,33 +443,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         return;
     }
 
-    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
-
-    const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
-    state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-    state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
-    const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
-    state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
-        .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-        .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
-        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
-    });
-
-    // Upload per-frame constant data.
     const cam = camera_comps.?.cam;
     const camera_position = camera_comps.?.transform.getPos00();
-    const z_view_projection = zm.loadMat(cam.view_projection[0..]);
-    const z_view_projection_inverted = zm.inverse(z_view_projection);
-    {
-        const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
-        mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
-        mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
-        mem.cpu_slice[0].camera_position = camera_position;
-
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-    }
 
     // NOTE(gmodarelli): Testing a frustum culling implementation directly in this system
     // since it's the one we generate the most draw calls from. I'll move it to the camera
@@ -501,6 +482,9 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
             continue;
         }
+
+        // Build bounding sphere matrix for debugging purpouses
+        const z_bb_matrix = zm.mul(zm.scaling(bb_ws.radius, bb_ws.radius, bb_ws.radius), zm.translation(bb_ws.center[0], bb_ws.center[1], bb_ws.center[2]));
 
         lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
@@ -569,7 +553,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }
 
         const invalid_texture_index = std.math.maxInt(u32);
-        state.instance_transforms.append(.{ .object_to_world = zm.transpose(z_world) }) catch unreachable;
+        state.instance_transforms.append(.{
+            .object_to_world = zm.transpose(z_world),
+            .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
+        }) catch unreachable;
         state.instance_materials.append(.{
             .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
             .roughness = 1.0,
@@ -594,7 +581,33 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         }) catch unreachable;
     }
 
+    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
+
     if (state.draw_calls.items.len > 0) {
+        const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
+        state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+        const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
+        const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
+        state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
+            .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+            .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+            .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+        });
+
+        // Upload per-frame constant data.
+        const z_view_projection = zm.loadMat(cam.view_projection[0..]);
+        const z_view_projection_inverted = zm.inverse(z_view_projection);
+        {
+            const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+            mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
+            mem.cpu_slice[0].camera_position = camera_position;
+
+            state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+        }
+
         const frame_index = state.gfx.gctx.frame_index;
         state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
         state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
@@ -619,6 +632,39 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 draw_call.vertex_offset,
                 draw_call.start_instance_location,
             );
+        }
+
+        if (state.draw_bounding_spheres) {
+            const debug_pipeline_info = state.gfx.getPipeline(IdLocal.init("frustum_debug"));
+            state.gfx.gctx.setCurrentPipeline(debug_pipeline_info.?.pipeline_handle);
+
+            const sphere_id = IdLocal.init("unit_sphere_lp");
+            const sphere_mesh = mesh_blk: {
+                for (state.meshes.items) |mesh| {
+                    if (mesh.id.eqlHash(sphere_id.hash)) {
+                        break :mesh_blk mesh.mesh;
+                    }
+                }
+                unreachable;
+            };
+
+            for (state.draw_calls.items) |draw_call| {
+                const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
+                mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+                mem.cpu_slice[0].vertex_offset = @intCast(i32, sphere_mesh.lods[0].vertex_offset);
+                mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+                mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+                mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+                state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+                state.gfx.gctx.cmdlist.DrawIndexedInstanced(
+                    sphere_mesh.lods[0].index_count,
+                    draw_call.instance_count,
+                    sphere_mesh.lods[0].index_offset,
+                    @intCast(i32, sphere_mesh.lods[0].vertex_offset),
+                    draw_call.start_instance_location,
+                );
+            }
         }
     }
 
