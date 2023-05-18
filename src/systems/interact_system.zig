@@ -12,6 +12,7 @@ const tides_math = @import("../core/math.zig");
 const util = @import("../util.zig");
 const config = @import("../config.zig");
 const input = @import("../input.zig");
+const EventManager = @import("../core/event_manager.zig").EventManager;
 
 const SystemState = struct {
     flecs_sys: flecs.EntityId,
@@ -28,6 +29,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const flecs_world = ctx.get(config.flecs_world.hash, flecs.World);
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
+    const event_manager = ctx.get(config.event_manager.hash, EventManager);
 
     var query_builder_interactor = flecs.QueryBuilder.init(flecs_world.*);
     _ = query_builder_interactor
@@ -46,7 +48,9 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .comp_query_interactor = comp_query_interactor,
     };
 
-    // flecs_world.observer(OnCollideObserverCallback, config.events.OnCollision, system);
+    // flecs_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
+    // flecs_world.observer(OnCollideObserverCallback, config.events.onCollisionEvent(flecs_world.world), system);
+    event_manager.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, system);
 
     // initStateData(system);
     return system;
@@ -171,54 +175,19 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 // ╚██████╗██║  ██║███████╗███████╗██████╔╝██║  ██║╚██████╗██║  ██╗███████║
 //  ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
 
-const OnCollideObserverCallback = struct {
-    body: *const fd.PhysicsBody,
-
-    pub const name = "PhysicsBody";
-    pub const run = onCollidePhysicsBody;
-};
-
-fn onCollidePhysicsBody(it: *flecs.Iterator(OnCollideObserverCallback)) void {
-    var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
-    _ = system;
-    const collision_ctx = @ptrCast(*config.events.OnCollisionContext, @alignCast(@alignOf(config.events.OnCollisionContext), it.iter.param.?));
-    _ = collision_ctx;
-
-    // const flecs_world = system.flecs_world;
-    // const ent1 = flecs.Entity.init(flecs_world.world, collision_ctx.body1.user_data);
-    // const ent2 = flecs.Entity.init(flecs_world.world, collision_ctx.body2.user_data);
-    // _ = ent2;
-
-    // if (ent1.get(fd.Projectile)) |proj_comp| {
-    //     _ = proj_comp;
-    // }
-
-    // while (it.next()) |_| {
-    //     const body_comp_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.PhysicsBody), @intCast(i32, it.index)).?;
-    //     var body_comp = @ptrCast(*fd.PhysicsBody, @alignCast(@alignOf(fd.PhysicsBody), body_comp_ptr));
-
-    //     var transform = it.entity().getMut(fd.Transform).?;
-    //     const shape = switch (ci.shape_type) {
-    //         .box => zbt.initBoxShape(&.{ ci.box.size, ci.box.size, ci.box.size }).asShape(),
-    //         .sphere => zbt.initSphereShape(ci.sphere.radius).asShape(),
-    //     };
-    //     const body = zbt.initBody(
-    //         ci.mass,
-    //         &transform.matrix,
-    //         shape,
-    //     );
-
-    //     body.setDamping(0.1, 0.1);
-    //     body.setRestitution(0.5);
-    //     body.setFriction(0.2);
-
-    //     state.physics_world.addBody(body);
-
-    //     const ent = it.entity();
-    //     ent.remove(fd.PhysicsBody);
-    //     ent.set(fd.PhysicsBody{
-    //         .body = body,
-    //     });
-    // }
+fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *anyopaque) void {
+    _ = event_id;
+    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
+    const frame_collisions_data = @ptrCast(*config.events.FrameCollisionsData, @alignCast(@alignOf(config.events.FrameCollisionsData), event_data));
+    for (frame_collisions_data.contacts) |contact| {
+        const ent1 = flecs.Entity.init(system.flecs_world.world, contact.ent1);
+        _ = ent1;
+        const ent2 = flecs.Entity.init(system.flecs_world.world, contact.ent2);
+        // if (ent1.has(fd.Projectile)) {
+        // ent1.remove(fd.PhysicsBody);
+        // }
+        // if (ent2.has(fd.Projectile)) {
+        ent2.remove(fd.PhysicsBody);
+        // }
+    }
 }

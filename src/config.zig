@@ -70,9 +70,11 @@ pub const input_exit = IdLocal.init("exit");
 //  ╚═════╝   ╚═╝   ╚═╝  ╚═╝
 
 pub const allocator = IdLocal.init("allocator");
+pub const event_manager = IdLocal.init("event_manager");
 pub const flecs_world = IdLocal.init("flecs_world");
-pub const physics_world = IdLocal.init("physics_world");
 pub const input_frame_data = IdLocal.init("input_frame_data");
+pub const physics_world = IdLocal.init("physics_world");
+pub const world_patch_mgr = IdLocal.init("world_patch_mgr");
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
 // ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝

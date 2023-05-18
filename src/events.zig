@@ -2,14 +2,24 @@ const zphy = @import("zphysics");
 const flecs = @import("flecs");
 const IdLocal = @import("variant.zig").IdLocal;
 
-// OnCollision
-pub const OnCollision = struct {};
-pub fn onCollisionId(world: *flecs.c.EcsWorld) flecs.EntityId {
-    return flecs.meta.componentId(world, OnCollision);
-}
-pub const OnCollisionContext = struct {
-    body1: u64,
-    body2: u64,
+// FrameCollisions
+pub const frame_collisions_id = IdLocal.init("frame_collisions");
+pub const CollisionContact = struct {
+    body_id1: u64,
+    body_id2: u64,
     ent1: flecs.EntityId,
     ent2: flecs.EntityId,
+    manifold: zphy.ContactManifold,
+    settings: zphy.ContactSettings,
 };
+pub const FrameCollisionsData = struct {
+    contacts: []CollisionContact,
+};
+
+// pub const OnCollision = struct {};
+// pub fn onCollisionEvent(world: *flecs.c.EcsWorld) flecs.Event {
+//     return @intToEnum(flecs.Event, flecs.meta.componentId(world, OnCollision));
+// }
+// pub fn onCollisionId(world: *flecs.c.EcsWorld) flecs.EcsId {
+//     return flecs.meta.componentId(world, OnCollision);
+// }

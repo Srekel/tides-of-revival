@@ -16,6 +16,7 @@ const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const gfx = @import("gfx_d3d12.zig");
 const window = @import("window.zig");
+const EventManager = @import("core/event_manager.zig").EventManager;
 
 const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
@@ -63,6 +64,9 @@ pub fn run() void {
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state, std.heap.page_allocator);
+
+    var event_manager = EventManager.create(std.heap.page_allocator);
+    defer event_manager.destroy();
 
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(std.heap.page_allocator);
@@ -268,11 +272,15 @@ pub fn run() void {
     defer world_patch_mgr.destroy();
     patch_types.registerPatchTypes(world_patch_mgr);
 
+    var system_context = util.Context.init(std.heap.page_allocator);
+    system_context.putConst(config.allocator, &std.heap.page_allocator);
+    system_context.put(config.flecs_world, &flecs_world);
+    system_context.put(config.event_manager, &event_manager);
+    system_context.put(config.world_patch_mgr, world_patch_mgr);
+
     var physics_sys = try physics_system.create(
-        IdLocal.init("physics_system_{}"),
-        std.heap.page_allocator,
-        &flecs_world,
-        world_patch_mgr,
+        IdLocal.init("physics_system"),
+        system_context,
     );
     defer physics_system.destroy(physics_sys);
 
@@ -286,11 +294,8 @@ pub fn run() void {
     );
     defer state_machine_system.destroy(state_machine_sys);
 
-    var system_context = util.Context.init(std.heap.page_allocator);
-    system_context.putConst(config.allocator, &std.heap.page_allocator);
-    system_context.putOpaque(config.physics_world, physics_sys.physics_world);
-    system_context.put(config.flecs_world, &flecs_world);
     system_context.put(config.input_frame_data, &input_frame_data);
+    system_context.putOpaque(config.physics_world, physics_sys.physics_world);
 
     var interact_sys = try interact_system.create(
         IdLocal.init("interact_sys"),
