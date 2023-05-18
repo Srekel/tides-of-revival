@@ -31,7 +31,7 @@ pub const Mesh = struct {
         var z_bb_max = zm.loadArr3(mesh.bounding_box.max);
         z_bb_max[3] = 1.0;
         const z_bb_min_ws = zm.mul(z_bb_min, z_world);
-        const z_bb_max_ws = zm.mul(z_bb_min, z_world);
+        const z_bb_max_ws = zm.mul(z_bb_max, z_world);
         const z_center = (z_bb_max_ws + z_bb_min_ws) * zm.f32x4(0.5, 0.5, 0.5, 0.5);
         var center = [3]f32{ 0.0, 0.0, 0.0 };
         zm.storeArr3(&center, z_center);
