@@ -5,8 +5,8 @@ const IdLocal = @import("variant.zig").IdLocal;
 // FrameCollisions
 pub const frame_collisions_id = IdLocal.init("frame_collisions");
 pub const CollisionContact = struct {
-    body_id1: u64,
-    body_id2: u64,
+    body_id1: u32,
+    body_id2: u32,
     ent1: flecs.EntityId,
     ent2: flecs.EntityId,
     manifold: zphy.ContactManifold,

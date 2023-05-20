@@ -178,16 +178,22 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *anyopaque) void {
     _ = event_id;
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
+    const body_interface = system.physics_world.getBodyInterfaceMut();
     const frame_collisions_data = @ptrCast(*config.events.FrameCollisionsData, @alignCast(@alignOf(config.events.FrameCollisionsData), event_data));
     for (frame_collisions_data.contacts) |contact| {
+        if (!body_interface.isAdded(contact.body_id2)) {
+            continue;
+        }
+
         const ent1 = flecs.Entity.init(system.flecs_world.world, contact.ent1);
         _ = ent1;
         const ent2 = flecs.Entity.init(system.flecs_world.world, contact.ent2);
         // if (ent1.has(fd.Projectile)) {
         // ent1.remove(fd.PhysicsBody);
         // }
-        // if (ent2.has(fd.Projectile)) {
-        ent2.remove(fd.PhysicsBody);
-        // }
+        if (ent2.has(fd.Projectile)) {
+            body_interface.removeAndDestroyBody(contact.body_id2);
+            ent2.remove(fd.PhysicsBody);
+        }
     }
 }
