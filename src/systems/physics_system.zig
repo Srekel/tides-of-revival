@@ -337,15 +337,18 @@ fn updateBodies(system: *SystemState) void {
             continue;
         }
 
+        // Pos
         const body_pos = body_interface.getPosition(body_id);
+        comps.pos.elems().* = body_pos;
+
+        // Rot
         const body_rot = body_interface.getRotation(body_id);
         const body_rot_z = zm.loadArr4(body_rot);
-        // const body_rot_rpy = zm.quatToRollPitchYaw([_]f32{ body_rot_z[3], body_rot_z[1], body_rot_z[0], body_rot_z[2] });
-        const body_rot_rpy = zm.quatToRollPitchYaw([_]f32{ body_rot_z[3], body_rot_z[0], body_rot_z[1], body_rot_z[2] });
-        _ = body_rot_rpy;
+        const body_rot_rpy = zm.quatToRollPitchYaw([_]f32{ body_rot_z[0], body_rot_z[1], body_rot_z[2], body_rot_z[3] });
 
-        comps.pos.elems().* = body_pos;
-        // comps.rot.elems().* = body_rot_rpy;
+        comps.rot.roll = body_rot_rpy[2];
+        comps.rot.pitch = body_rot_rpy[0];
+        comps.rot.yaw = body_rot_rpy[1];
     }
 }
 
