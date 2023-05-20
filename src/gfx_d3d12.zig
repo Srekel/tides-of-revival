@@ -18,6 +18,8 @@ const IdLocal = @import("variant.zig").IdLocal;
 const IdLocalContext = @import("variant.zig").IdLocalContext;
 const buffer_module = @import("renderer/d3d12/buffer.zig");
 const texture_module = @import("renderer/d3d12/texture.zig");
+const renderer_types = @import("renderer/renderer_types.zig");
+const mesh_loader = @import("renderer/mesh_loader.zig");
 const zm = @import("zmath");
 const fd = @import("flecs_data.zig");
 
@@ -28,6 +30,9 @@ const Buffer = buffer_module.Buffer;
 const BufferPool = buffer_module.BufferPool;
 pub const BufferDesc = buffer_module.BufferDesc;
 pub const BufferHandle = buffer_module.BufferHandle;
+const IndexType = renderer_types.IndexType;
+const Vertex = renderer_types.Vertex;
+const Mesh = renderer_types.Mesh;
 
 pub const Texture = texture_module.Texture;
 const TexturePool = texture_module.TexturePool;
@@ -36,11 +41,6 @@ pub const TextureHandle = texture_module.TextureHandle;
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
-
-pub const Vertex = struct {
-    position: [3]f32,
-    normal: [3]f32,
-};
 
 pub const RenderTargetsUniforms = struct {
     gbuffer_0_index: u32,
@@ -219,6 +219,10 @@ pub const D3D12State = struct {
     buffer_pool: BufferPool,
     texture_pool: TexturePool,
     pipelines: PipelineHashMap,
+
+    vertex_buffer: BufferHandle,
+    index_buffer: BufferHandle,
+    skybox_mesh: Mesh,
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
         return self.pipelines.get(pipeline_id);
@@ -553,7 +557,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    // TODO(gmodarelli): Switch to reverse depth
     const depth_rt = blk: {
         const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 0.0, 0, gctx.viewport_width, gctx.viewport_height, true, false, L("Depth"));
         break :blk createRenderTarget(&gctx, &desc);
@@ -718,8 +721,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.RasterizerState.CullMode = .FRONT;
-        pso_desc.DepthStencilState.DepthFunc = .LESS_EQUAL;
-        pso_desc.DepthStencilState.DepthWriteMask = .ZERO;
+        pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
+        pso_desc.DepthStencilState.DepthWriteMask = .ALL;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
@@ -794,7 +797,49 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
+        .vertex_buffer = undefined,
+        .index_buffer = undefined,
+        .skybox_mesh = undefined,
     };
+
+    {
+        var meshes_indices = std.ArrayList(IndexType).init(arena);
+        var meshes_vertices = std.ArrayList(Vertex).init(arena);
+
+        const mesh = mesh_loader.loadObjMeshFromFile(allocator, "content/meshes/cube.obj", &meshes_indices, &meshes_vertices) catch unreachable;
+
+        const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
+        const total_num_indices = @intCast(u32, meshes_indices.items.len);
+
+        // Create a vertex buffer.
+        var vertex_buffer = d3d12_state.createBuffer(.{
+            .size = total_num_vertices * @sizeOf(Vertex),
+            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .name = L("GFX Vertex Buffer"),
+            .persistent = true,
+            .has_cbv = false,
+            .has_srv = true,
+            .has_uav = false,
+        }) catch unreachable;
+
+        // Create an index buffer.
+        var index_buffer = d3d12_state.createBuffer(.{
+            .size = total_num_indices * @sizeOf(IndexType),
+            .state = .{ .INDEX_BUFFER = true },
+            .name = L("GFX Index Buffer"),
+            .persistent = false,
+            .has_cbv = false,
+            .has_srv = false,
+            .has_uav = false,
+        }) catch unreachable;
+
+        d3d12_state.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
+        d3d12_state.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
+
+        d3d12_state.vertex_buffer = vertex_buffer;
+        d3d12_state.index_buffer = index_buffer;
+        d3d12_state.skybox_mesh = mesh;
+    }
 
     // Irradiance
     {
@@ -877,6 +922,51 @@ pub fn beginFrame(state: *D3D12State) void {
 
 pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [3]f32) void {
     var gctx = &state.gctx;
+
+    zpix.beginEvent(gctx.cmdlist, "Skybox");
+    {
+        const pipeline_info = state.getPipeline(IdLocal.init("skybox"));
+        gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+        const index_buffer = state.lookupBuffer(state.index_buffer);
+        const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
+        gctx.cmdlist.IASetIndexBuffer(&.{
+            .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+            .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+            .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+        });
+
+        var z_view = zm.loadMat(camera.view[0..]);
+        z_view[3] = zm.f32x4(0.0, 0.0, 0.0, 1.0);
+        const z_projection = zm.loadMat(camera.projection[0..]);
+
+        {
+            const mem = gctx.allocateUploadMemory(zm.Mat, 16);
+            mem.cpu_slice[0] = zm.transpose(zm.mul(z_view, z_projection));
+
+            gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+        }
+
+        const vertex_buffer = state.lookupBuffer(state.vertex_buffer);
+
+        const lod_index: u32 = 0;
+        const mesh = state.skybox_mesh;
+
+        {
+            const mem = gctx.allocateUploadMemory(u32, 1);
+            mem.cpu_slice[0] = vertex_buffer.?.persistent_descriptor.index;
+            gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+        }
+
+        gctx.cmdlist.DrawIndexedInstanced(
+            mesh.lods[lod_index].index_count,
+            1,
+            mesh.lods[lod_index].index_offset,
+            @intCast(i32, mesh.lods[lod_index].vertex_offset),
+            0,
+        );
+    }
 
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
 

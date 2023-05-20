@@ -18,11 +18,7 @@ struct Vertex {
 };
 
 struct DrawConst {
-    uint start_instance_location;
-    int vertex_offset;
     uint vertex_buffer_index;
-    uint instance_transform_buffer_index;
-    uint instance_material_buffer_index;
 };
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
@@ -36,9 +32,10 @@ void vsSkybox(
     out float3 out_uvw : _Uvw
 ) {
     ByteAddressBuffer vertex_buffer = ResourceDescriptorHeap[cbv_draw_const.vertex_buffer_index];
-    Vertex vertex = vertex_buffer.Load<Vertex>((vertex_id + cbv_draw_const.vertex_offset) * sizeof(Vertex));
+    Vertex vertex = vertex_buffer.Load<Vertex>(vertex_id * sizeof(Vertex));
 
     out_position_clip = mul(float4(vertex.position, 1.0), cbv_const.object_to_clip).xyww;
+    out_position_clip.z = 0;
     out_uvw = vertex.position;
 }
 
