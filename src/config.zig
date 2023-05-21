@@ -94,3 +94,14 @@ pub const broad_phase_layers = struct {
     pub const moving: zphy.BroadPhaseLayer = 1;
     pub const len: u32 = 2;
 };
+
+//  ██████╗ ██████╗  █████╗ ██████╗ ██╗  ██╗██╗ ██████╗███████╗
+// ██╔════╝ ██╔══██╗██╔══██╗██╔══██╗██║  ██║██║██╔════╝██╔════╝
+// ██║  ███╗██████╔╝███████║██████╔╝███████║██║██║     ███████╗
+// ██║   ██║██╔══██╗██╔══██║██╔═══╝ ██╔══██║██║██║     ╚════██║
+// ╚██████╔╝██║  ██║██║  ██║██║     ██║  ██║██║╚██████╗███████║
+//  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝ ╚═════╝╚══════╝
+
+pub const radiance_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_radiance.dds";
+pub const irradiance_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_irradiance.dds";
+pub const specular_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_specular.dds";

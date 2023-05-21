@@ -22,6 +22,7 @@ const renderer_types = @import("renderer/renderer_types.zig");
 const mesh_loader = @import("renderer/mesh_loader.zig");
 const zm = @import("zmath");
 const fd = @import("flecs_data.zig");
+const config = @import("config.zig");
 
 pub const Profiler = profiler_module.Profiler;
 pub const ProfileData = profiler_module.ProfileData;
@@ -851,8 +852,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Radiance"),
         };
-        const path = "content/textures/env/kiara_1_dawn_2k_cube_radiance.dds";
-        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(config.radiance_texture_path, texture_desc, arena) catch unreachable;
         d3d12_state.radiance_texture = texture_handle;
     }
 
@@ -862,8 +862,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Irradiance"),
         };
-        const path = "content/textures/env/kiara_1_dawn_2k_cube_irradiance.dds";
-        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(config.irradiance_texture_path, texture_desc, arena) catch unreachable;
         d3d12_state.irradiance_texture = texture_handle;
     }
 
@@ -873,8 +872,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .state = d3d12.RESOURCE_STATES.COMMON,
             .name = L("Specular"),
         };
-        const path = "content/textures/env/kiara_1_dawn_2k_cube_specular.dds";
-        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(path, texture_desc, arena) catch unreachable;
+        const texture_handle = d3d12_state.scheduleLoadTextureCubemap(config.specular_texture_path, texture_desc, arena) catch unreachable;
         d3d12_state.specular_texture = texture_handle;
     }
 
