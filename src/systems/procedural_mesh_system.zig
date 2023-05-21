@@ -53,42 +53,14 @@ const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
 
 const ProcMesh = struct {
-    // entity: flecs.EntityId,
     id: IdLocal,
     mesh: Mesh,
 };
-
-// const SystemInit = struct {
-//     arena_state: std.heap.ArenaAllocator,
-//     arena_allocator: std.mem.Allocator,
-
-//     meshes: std.ArrayList(Mesh),
-//     meshes_indices: std.ArrayList(IndexType),
-//     meshes_positions: std.ArrayList([3]f32),
-//     meshes_normals: std.ArrayList([3]f32),
-
-//     pub fn init(self: *SystemInit, system_allocator: std.mem.Allocator) void {
-//         self.arena_state = std.heap.ArenaAllocator.init(system_allocator);
-//         const arena = arena_state.allocator();
-
-//         self.meshes = std.ArrayList(Mesh).init(system_allocator);
-//         self.meshes_indices = std.ArrayList(IndexType).init(arena);
-//         self.meshes_positions = std.ArrayList([3]f32).init(arena);
-//         self.meshes_normals = std.ArrayList([3]f32).init(arena);
-//     }
-
-//     pub fn deinit(self: *SystemInit) void {
-//         self.arena_state.deinit();
-//     }
-
-//     pub fn setupSystem(state: *SystemState) void {}
-// };
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
     sys: flecs.EntityId,
-    // init: SystemInit,
 
     gfx: *gfx.D3D12State,
 
@@ -241,30 +213,6 @@ fn initScene(
         mesh.computeNormals();
 
         _ = appendShapeMesh(IdLocal.init("cylinder"), mesh, meshes, meshes_indices, meshes_vertices);
-    }
-
-    {
-        var mesh = zmesh.Shape.initCylinder(4, 4);
-        defer mesh.deinit();
-        mesh.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
-        mesh.scale(0.5, 1.0, 0.5);
-        mesh.translate(0.0, 1.0, 0.0);
-        mesh.unweld();
-        mesh.computeNormals();
-
-        _ = appendShapeMesh(IdLocal.init("tree_trunk"), mesh, meshes, meshes_indices, meshes_vertices);
-    }
-
-    {
-        var mesh = zmesh.Shape.initCone(4, 4);
-        defer mesh.deinit();
-        mesh.rotate(-math.pi * 0.5, 1.0, 0.0, 0.0);
-        // mesh.scale(0.5, 1.0, 0.5);
-        // mesh.translate(0.0, 1.0, 0.0);
-        mesh.unweld();
-        mesh.computeNormals();
-
-        _ = appendShapeMesh(IdLocal.init("tree_crown"), mesh, meshes, meshes_indices, meshes_vertices);
     }
 
     _ = appendObjMesh(allocator, IdLocal.init("arrow"), "content/meshes/arrow.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
