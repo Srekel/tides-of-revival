@@ -32,6 +32,7 @@ const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const patch_prop_system = @import("systems/patch_prop_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
+const timeline_system = @import("systems/timeline_system.zig");
 // const terrain_system = @import("systems/terrain_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
@@ -303,6 +304,12 @@ pub fn run() void {
     );
     defer interact_system.destroy(interact_sys);
 
+    var timeline_sys = try timeline_system.create(
+        IdLocal.init("timeline_sys"),
+        system_context,
+    );
+    defer timeline_system.destroy(timeline_sys);
+
     var city_sys = try city_system.create(
         IdLocal.init("city_system"),
         std.heap.page_allocator,
@@ -375,6 +382,27 @@ pub fn run() void {
 
     // Make sure systems are initialized and any initial system entities are created.
     update(&flecs_world, &gfx_state);
+
+    // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
+    // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
+    //    ██║   ██║██╔████╔██║█████╗  ██║     ██║██╔██╗ ██║█████╗  ███████╗
+    //    ██║   ██║██║╚██╔╝██║██╔══╝  ██║     ██║██║╚██╗██║██╔══╝  ╚════██║
+    //    ██║   ██║██║ ╚═╝ ██║███████╗███████╗██║██║ ╚████║███████╗███████║
+    //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+    // .events = std.ArrayList(timeline_system.TimelineEvent).init(std.heap.page_allocator).app
+
+    const tl_spider_spawn = config.events.TimelineTemplateData{
+        .events = &[_]timeline_system.TimelineEvent{
+            .{
+                .trigger_time = 1,
+                .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
+                .func = null,
+                .data = null,
+            },
+        },
+        .loop_behavior = .loop_no_time_loss,
+    };
+    event_manager.triggerEvent(config.events.register_timeline_template_id, &tl_spider_spawn);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -488,6 +516,19 @@ pub fn run() void {
     // });
     // proj_ent.childOf(bow_ent);
     // weapon_comp.chambered_projectile = proj_ent.id;
+
+    var spider_ent = flecs_world.newEntity();
+    // proj_ent.setName("arrow2");
+    spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
+    spider_ent.set(fd.EulerRotation{});
+    spider_ent.set(fd.Scale.createScalar(10));
+    spider_ent.set(fd.Transform{});
+    spider_ent.set(fd.Forward{});
+    spider_ent.set(fd.Dynamic{});
+    spider_ent.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.id64("spider_body"),
+        .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
+    });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
