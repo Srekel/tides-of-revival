@@ -187,8 +187,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         // ent1.remove(fd.PhysicsBody);
         // }
         if (ent2.has(fd.Projectile)) {
-            body_interface.removeAndDestroyBody(contact.body_id2);
-            ent2.remove(fd.PhysicsBody);
+            // body_interface.removeAndDestroyBody(contact.body_id2);
+            // ent2.remove(fd.PhysicsBody);
         }
     }
 }
