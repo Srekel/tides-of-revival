@@ -260,7 +260,7 @@ fn updateCollisions(system: *SystemState) void {
         return;
     }
 
-    var frame_collisions_data = config.events.FrameCollisionsData{
+    const frame_collisions_data = config.events.FrameCollisionsData{
         .contacts = system.frame_contacts.items,
     };
     system.event_manager.triggerEvent(config.events.frame_collisions_id, &frame_collisions_data);

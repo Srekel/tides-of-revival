@@ -1,7 +1,7 @@
 const std = @import("std");
 const IdLocal = @import("../variant.zig").IdLocal;
 
-pub const EventCallback = *const fn (ctx: *anyopaque, event_id: u64, event_data: *anyopaque) void;
+pub const EventCallback = *const fn (ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void;
 
 pub const EventListener = struct {
     // event_id: IdLocal,
@@ -35,7 +35,7 @@ pub const EventManager = struct {
         listeners.appendAssumeCapacity(.{ .ctx = ctx, .func = callback });
     }
 
-    pub fn triggerEvent(self: EventManager, event_id: IdLocal, event_data: *anyopaque) void {
+    pub fn triggerEvent(self: EventManager, event_id: IdLocal, event_data: *const anyopaque) void {
         if (self.event_map.get(event_id.hash)) |listeners| {
             // const listeners = &;
             for (listeners.items) |listener| {

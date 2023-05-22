@@ -69,19 +69,14 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 fn updateInteractors(system: *SystemState, dt: f32) void {
     _ = dt;
     var entity_iter = system.comp_query_interactor.iterator(struct {
-        Interactor: *fd.Interactor,
+        interactor: *fd.Interactor,
         transform: *fd.Transform,
     });
-
-    var arena_state = std.heap.ArenaAllocator.init(system.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-    _ = arena;
 
     const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
     const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
     while (entity_iter.next()) |comps| {
-        var interactor_comp = comps.Interactor;
+        var interactor_comp = comps.interactor;
 
         const item_ent = flecs.Entity.init(system.flecs_world.world, interactor_comp.wielded_item_ent_id);
         var weapon_comp = item_ent.getMut(fd.ProjectileWeapon).?;
@@ -175,11 +170,11 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 // ╚██████╗██║  ██║███████╗███████╗██████╔╝██║  ██║╚██████╗██║  ██╗███████║
 //  ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
 
-fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *anyopaque) void {
+fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
     const body_interface = system.physics_world.getBodyInterfaceMut();
-    const frame_collisions_data = @ptrCast(*config.events.FrameCollisionsData, @alignCast(@alignOf(config.events.FrameCollisionsData), event_data));
+    const frame_collisions_data = util.castOpaqueConst(config.events.FrameCollisionsData, event_data);
     for (frame_collisions_data.contacts) |contact| {
         if (!body_interface.isAdded(contact.body_id2)) {
             continue;
