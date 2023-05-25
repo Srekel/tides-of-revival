@@ -60,7 +60,7 @@ const InstanceData = struct {
     padding2: u32,
 };
 
-const max_instances = 100;
+const max_instances = 1000;
 const max_instances_per_draw_call = 20;
 
 const invalid_index = std.math.maxInt(u32);
@@ -1177,6 +1177,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     const frame_index = state.gfx.gctx.frame_index;
     if (state.instance_data.items.len > 0) {
+        assert(state.instance_data.items.len < max_instances);
         state.gfx.uploadDataToBuffer(InstanceData, state.instance_data_buffers[frame_index], 0, state.instance_data.items);
     }
 
@@ -1226,7 +1227,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             lookups_old.clearRetainingCapacity();
             lookups_new.clearRetainingCapacity();
 
-            const area_width = 1 * config.patch_size * @intToFloat(f32, std.math.pow(usize, 2, lod));
+            const area_width = 4 * config.patch_size * @intToFloat(f32, std.math.pow(usize, 2, lod));
 
             const area_old = world_patch_manager.RequestRectangle{
                 .x = state.cam_pos_old[0] - area_width,
