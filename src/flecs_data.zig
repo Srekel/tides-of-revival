@@ -159,10 +159,10 @@ pub const Transform = struct {
         return .{ zyx[0], zyx[1], zyx[2] };
     }
 
-    pub fn getRotQuaternion(self: Transform) [3]f32 {
+    pub fn getRotQuaternion(self: Transform) [4]f32 {
         const mat = zm.loadMat43(&self.matrix);
         const quat = zm.matToQuat(mat);
-        var out: f32[4] = undefined;
+        var out: [4]f32 = undefined;
         zm.storeArr4(&out, quat);
         return out;
     }
