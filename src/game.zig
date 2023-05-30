@@ -36,6 +36,42 @@ const timeline_system = @import("systems/timeline_system.zig");
 // const terrain_system = @import("systems/terrain_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
+const SpawnContext = struct {
+    flecs_world: *flecs.World,
+    // player_pos: [3]f32,
+};
+
+fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
+    _ = entity;
+    const ctx = util.castOpaque(SpawnContext, data);
+    const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
+    const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
+    const player_pos = player_ent.get(fd.Position).?;
+
+    var ent = ctx.flecs_world.newEntity();
+    var spawn_pos = [3]f32{
+        player_pos.x + 10,
+        player_pos.y + 1,
+        player_pos.z + 10,
+    };
+    ent.set(fd.Position{
+        .x = spawn_pos[0],
+        .y = spawn_pos[1],
+        .z = spawn_pos[2],
+    });
+    ent.set(fd.EulerRotation{});
+    ent.set(fd.Scale.createScalar(1));
+    ent.set(fd.Transform{});
+    ent.set(fd.Forward{});
+    ent.set(fd.Dynamic{});
+    ent.set(fd.Health{ .value = 100 });
+    ent.set(fd.CIShapeMeshInstance{
+        .id = IdLocal.id64("spider_body"),
+        .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
+    });
+    ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+}
+
 pub fn run() void {
     const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
     defer tracy_zone.End();
@@ -389,20 +425,43 @@ pub fn run() void {
     //    ██║   ██║██║╚██╔╝██║██╔══╝  ██║     ██║██║╚██╗██║██╔══╝  ╚════██║
     //    ██║   ██║██║ ╚═╝ ██║███████╗███████╗██║██║ ╚████║███████╗███████║
     //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
-    // .events = std.ArrayList(timeline_system.TimelineEvent).init(std.heap.page_allocator).app
+
+    var tl_spider_spawn_ctx = SpawnContext{
+        .flecs_world = &flecs_world,
+        // .player_ent =
+    };
 
     const tl_spider_spawn = config.events.TimelineTemplateData{
+        .id = IdLocal.init("spiderSpawn"),
         .events = &[_]timeline_system.TimelineEvent{
             .{
-                .trigger_time = 1,
+                .trigger_time = 5,
                 .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
-                .func = null,
-                .data = null,
+                .func = spawnSpider,
+                .data = &tl_spider_spawn_ctx,
             },
         },
+        // .curves = &[_]timeline_system.TimelineCurve{
+        //     .{
+        //         .curve_type = .quality{
+        //             .component_name = "Health",
+        //         },
+        //         .curve_type = .run_a_function{
+        //             .func = null,
+        //             .data = null,
+        //         },
+        //     },
+        // },
         .loop_behavior = .loop_no_time_loss,
     };
-    event_manager.triggerEvent(config.events.register_timeline_template_id, &tl_spider_spawn);
+
+    const tli_spider_spawn = config.events.TimelineInstanceData{
+        .ent = 0,
+        .timeline = IdLocal.init("spiderSpawn"),
+    };
+
+    event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_spider_spawn);
+    event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_spider_spawn);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -521,7 +580,7 @@ pub fn run() void {
     // proj_ent.setName("arrow2");
     spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
     spider_ent.set(fd.EulerRotation{});
-    spider_ent.set(fd.Scale.createScalar(10));
+    spider_ent.set(fd.Scale.createScalar(1));
     spider_ent.set(fd.Transform{});
     spider_ent.set(fd.Forward{});
     spider_ent.set(fd.Dynamic{});

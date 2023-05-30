@@ -14,32 +14,37 @@ const config = @import("../config.zig");
 const input = @import("../input.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 
-pub const Instance = struct {
-    time_start: f32,
-    time_end: f32 = 0,
-    entity: flecs.EntityId = 0,
-    upcoming_event_index: u32 = 0,
-};
-
 pub const EventFunc = fn (entity: flecs.EntityId, data: *anyopaque) void;
 
 pub const TimelineEvent = struct {
     trigger_time: f32,
     trigger_id: IdLocal,
-    func: ?*const EventFunc,
-    data: ?*anyopaque,
+    func: *const EventFunc,
+    data: *anyopaque,
 };
 
 pub const LoopBehavior = enum {
     remove,
+    // remove_entity,
     loop_from_zero,
     loop_no_time_loss,
+    // ping_pong,
 };
 
 pub const Timeline = struct {
+    id: IdLocal,
     events: std.ArrayList(TimelineEvent), // sorted by time
+    // curves: ...
     loop_behavior: LoopBehavior,
     instances: std.ArrayList(Instance),
+    duration: f32 = 0,
+};
+
+pub const Instance = struct {
+    time_start: f32,
+    time_end: f32 = 0,
+    entity: flecs.EntityId = 0,
+    upcoming_event_index: u32 = 0,
 };
 
 const SystemState = struct {
@@ -70,7 +75,8 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .timelines = std.ArrayList(Timeline).initCapacity(allocator, 16) catch unreachable,
     };
 
-    event_manager.registerListener(config.events.register_timeline_template_id, onRegisterTimeline, system);
+    event_manager.registerListener(config.events.onRegisterTimeline_id, onRegisterTimeline, system);
+    event_manager.registerListener(config.events.onAddTimelineInstance_id, onAddTimelineInstance, system);
 
     return system;
 }
@@ -97,7 +103,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
             while (instance.upcoming_event_index < events.items.len) {
                 const event = events.items[instance.upcoming_event_index];
                 if (event.trigger_time <= time_curr) {
-                    // event.func(instance.entity, event.data);
+                    event.func(instance.entity, event.data);
                     instance.upcoming_event_index += 1;
                 } else {
                     break;
@@ -114,7 +120,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                         instance.upcoming_event_index = 0;
                     },
                     .loop_no_time_loss => {
-                        instance.time_start += time_now - instance.time_end;
+                        instance.time_start += timeline.duration;
                         instance.upcoming_event_index = 0;
                     },
                 }
@@ -128,19 +134,31 @@ fn onRegisterTimeline(ctx: *anyopaque, event_id: u64, event_data: *const anyopaq
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
     const timeline_template_data = util.castOpaqueConst(config.events.TimelineTemplateData, event_data);
     var timeline = Timeline{
+        .id = timeline_template_data.id,
         .instances = std.ArrayList(Instance).init(system.allocator),
         .events = std.ArrayList(TimelineEvent).init(system.allocator),
         .loop_behavior = timeline_template_data.loop_behavior,
     };
     timeline.events.appendSlice(timeline_template_data.events) catch unreachable;
+    timeline.duration = timeline.events.getLast().trigger_time;
     system.timelines.append(timeline) catch unreachable;
 }
 
 fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
-    const timeline_instance_data = @ptrCast(*config.events.TimelineInstanceData, @alignCast(@alignOf(config.events.TimelineInstanceData), event_data));
-    _ = timeline_instance_data;
-    const timeline = @ptrCast(*Timeline, @alignCast(@alignOf(Timeline), event_data));
-    system.timelines.append(timeline.*);
+    const timeline_instance_data = util.castOpaqueConst(config.events.TimelineInstanceData, event_data);
+    for (system.timelines.items) |*timeline| {
+        if (timeline.id.eql(timeline_instance_data.timeline)) {
+            const environment_info = system.flecs_world.getSingleton(fd.EnvironmentInfo).?;
+            const time_now = environment_info.world_time;
+            timeline.instances.append(.{
+                .time_start = time_now,
+                .time_end = time_now + timeline.duration,
+                // .ent = 0,
+            }) catch unreachable;
+        }
+    }
+    // const timeline = @ptrCast(*Timeline, @alignCast(@alignOf(Timeline), event_data));
+    // system.timelines.append(timeline.*);
 }
