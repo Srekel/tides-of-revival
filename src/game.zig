@@ -3,6 +3,7 @@ const args = @import("args");
 const flecs = @import("flecs");
 const zaudio = @import("zaudio");
 const zmesh = @import("zmesh");
+const zphy = @import("zphysics");
 const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
 
@@ -38,6 +39,7 @@ const timeline_system = @import("systems/timeline_system.zig");
 
 const SpawnContext = struct {
     flecs_world: *flecs.World,
+    physics_world: *zphy.PhysicsSystem,
     // player_pos: [3]f32,
 };
 
@@ -51,7 +53,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
     var ent = ctx.flecs_world.newEntity();
     var spawn_pos = [3]f32{
         player_pos.x + 10,
-        player_pos.y + 1,
+        player_pos.y + 2,
         player_pos.z + 10,
     };
     ent.set(fd.Position{
@@ -69,7 +71,29 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
         .id = IdLocal.id64("spider_body"),
         .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
     });
-    ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+
+    // ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+
+    const body_interface = ctx.physics_world.getBodyInterfaceMut();
+
+    const shape_settings = zphy.BoxShapeSettings.create(.{ 0.5, 0.5, 0.5 }) catch unreachable;
+    defer shape_settings.release();
+
+    const shape = shape_settings.createShape() catch unreachable;
+    defer shape.release();
+
+    const body_id = body_interface.createAndAddBody(.{
+        .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
+        .rotation = .{ 0, 0, 0, 1 },
+        .shape = shape,
+        .motion_type = .dynamic,
+        .object_layer = config.object_layers.moving,
+        .motion_quality = .discrete,
+        .user_data = ent.id,
+    }, .activate) catch unreachable;
+
+    //  Assign to flecs component
+    ent.set(fd.PhysicsBody{ .body_id = body_id });
 }
 
 pub fn run() void {
@@ -428,6 +452,7 @@ pub fn run() void {
 
     var tl_spider_spawn_ctx = SpawnContext{
         .flecs_world = &flecs_world,
+        .physics_world = physics_sys.physics_world,
         // .player_ent =
     };
 

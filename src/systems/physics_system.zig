@@ -556,6 +556,7 @@ fn updatePatches(system: *SystemState) void {
                 .shape = shape,
                 .motion_type = .static,
                 .object_layer = object_layers.non_moving,
+                .user_data = 0,
             }, .activate) catch unreachable;
 
             system.physics_world.optimizeBroadPhase();

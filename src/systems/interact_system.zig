@@ -180,14 +180,26 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         }
 
         const ent1 = flecs.Entity.init(system.flecs_world.world, contact.ent1);
-        _ = ent1;
         const ent2 = flecs.Entity.init(system.flecs_world.world, contact.ent2);
-        // if (ent1.has(fd.Projectile)) {
-        // ent1.remove(fd.PhysicsBody);
-        // }
-        if (ent2.has(fd.Projectile)) {
-            // body_interface.removeAndDestroyBody(contact.body_id2);
-            // ent2.remove(fd.PhysicsBody);
+
+        if (contact.ent1 != 0 and ent1.has(fd.Projectile)) {
+            body_interface.removeAndDestroyBody(contact.body_id1);
+            ent1.remove(fd.PhysicsBody);
+
+            if (contact.ent2 != 0 and ent2.has(fd.Health)) {
+                // body_interface.removeAndDestroyBody(contact.body_id2);
+                // ent2.remove(fd.PhysicsBody);
+            }
+        }
+
+        if (contact.ent2 != 0 and ent2.has(fd.Projectile)) {
+            body_interface.removeAndDestroyBody(contact.body_id2);
+            ent2.remove(fd.PhysicsBody);
+
+            if (contact.ent1 != 0 and ent1.has(fd.Health)) {
+                // body_interface.removeAndDestroyBody(contact.body_id1);
+                // ent1.remove(fd.PhysicsBody);
+            }
         }
     }
 }
