@@ -69,13 +69,13 @@ pub const TargetValue = union(InputType) {
     fn isActive(self: TargetValue) bool {
         return switch (self) {
             .number => |value| value != 0,
-            .vector2 => |value| value[0] != 0, // TODO
+            .vector2 => |value| value[0] != 0 or value[1] != 0, // TODO
         };
     }
     fn supersedes(self: TargetValue, other: TargetValue) bool {
         return switch (self) {
             .number => |value| @fabs(value) > @fabs(other.number),
-            .vector2 => |value| value[0] != 0, // TODO
+            .vector2 => |value| @fabs(value[0]) > @fabs(other.vector2[0]) or @fabs(value[1]) > @fabs(other.vector2[1]), // TODO
         };
     }
 };
