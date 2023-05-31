@@ -8,6 +8,8 @@ const util = @import("../util.zig");
 const config = @import("../config.zig");
 const debug_server = @import("../network/debug_server.zig");
 
+const DEBUG_LOGGING = false;
+
 const LoD = u4;
 const lod_0_patch_size = config.patch_size;
 const max_world_size = 4 * 1024; // 512 * 1024; // 500 km
@@ -118,7 +120,7 @@ pub const Patch = struct {
     pub fn addOrUpdateRequester(self: *Patch, requester_id: RequesterId, prio: Priority) void {
         if (requester_id == dependency_requester_id) {
             self.request_count_dependents += 1;
-            std.log.debug("WPM: Requesting dependency #{} on {}, Pr{}", .{ self.request_count_dependents, self.lookup, @enumToInt(prio) });
+            if (DEBUG_LOGGING) std.log.debug("WPM: Requesting dependency #{} on {}, Pr{}", .{ self.request_count_dependents, self.lookup, @enumToInt(prio) });
         } else {
             var i_req: u32 = 0;
             while (i_req < self.request_count) : (i_req += 1) {
@@ -146,7 +148,7 @@ pub const Patch = struct {
     pub fn removeRequester(self: *Patch, requester_id: RequesterId) void {
         if (requester_id == dependency_requester_id) {
             self.request_count_dependents -= 1;
-            std.log.debug("WPM: Removing dependency #{} on {}", .{ self.request_count_dependents, self.lookup });
+            if (DEBUG_LOGGING) std.log.debug("WPM: Removing dependency #{} on {}", .{ self.request_count_dependents, self.lookup });
             return;
         }
 
@@ -444,7 +446,7 @@ pub const WorldPatchManager = struct {
             };
             patch.addOrUpdateRequester(requester_id, prio);
 
-            std.log.debug("WPM: Pushing {}, Pr{} to queue", .{ patch.lookup, @enumToInt(patch.highest_prio) });
+            if (DEBUG_LOGGING) std.log.debug("WPM: Pushing {}, Pr{} to queue", .{ patch.lookup, @enumToInt(patch.highest_prio) });
 
             // NOTE(Anders): Since the bucket queue is LIFO, it's important that we add this patch first
             // before any potential dependencies, so that they are loaded first.
@@ -507,7 +509,7 @@ pub const WorldPatchManager = struct {
                 .asset_manager = self.asset_manager,
                 .world_patch_mgr = self,
             };
-            std.log.debug("WPM: Loading {}, Pr{}", .{ patch.lookup, @enumToInt(patch.highest_prio) });
+            if (DEBUG_LOGGING) std.log.debug("WPM: Loading {}, Pr{}", .{ patch.lookup, @enumToInt(patch.highest_prio) });
             patch_type.loadFn(patch, ctx);
             if (patch.data != null) {
                 patch.status = .loaded;
@@ -529,7 +531,7 @@ pub const WorldPatchManager = struct {
                     const dependency_patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(dependency_patch_handle, .patch);
                     dependency_patch.removeRequester(dependency_requester_id);
                     if (!dependency_patch.hasRequests()) {
-                        std.log.debug("WPM: Unloading {} dependent={}", .{ dependency_patch.lookup, patch.lookup });
+                        if (DEBUG_LOGGING) std.log.debug("WPM: Unloading {} dependent={}", .{ dependency_patch.lookup, patch.lookup });
                         self.unloadPatch(dependency_patch_handle, dependency_patch);
                     }
                 }
@@ -538,7 +540,7 @@ pub const WorldPatchManager = struct {
     }
 
     fn unloadPatch(self: *WorldPatchManager, patch_handle: PatchHandle, patch: *Patch) void {
-        std.log.debug("WPM: Unloading {}", .{patch.lookup});
+        if (DEBUG_LOGGING) std.log.debug("WPM: Unloading {}", .{patch.lookup});
         if (patch.data != null) {
             self.allocator.free(patch.data.?);
             patch.data = null;
