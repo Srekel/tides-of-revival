@@ -13,6 +13,22 @@ const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
 
+pub const NonMovingBroadPhaseLayerFilter = extern struct {
+    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
+    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
+
+    const vtable = zphy.BroadPhaseLayerFilter.VTable{
+        .shouldCollide = shouldCollide,
+    };
+    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
+        _ = self;
+        if (layer == config.broad_phase_layers.moving) {
+            return false;
+        }
+        return true;
+    }
+};
+
 fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, player_pos: *const fd.Position) void {
     _ = fwd;
     _ = rot;
@@ -25,7 +41,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
     zm.store(pos.elems()[0..], self_pos_z, 3);
 }
 
-fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) void {
+fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, body: *fd.PhysicsBody) void {
     const query = physics_world.getNarrowPhaseQuery();
 
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
@@ -33,10 +49,20 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
     var result = query.castRay(.{
         .origin = ray_origin,
         .direction = ray_dir,
-    }, .{});
+    }, .{
+        .broad_phase_layer_filter = @ptrCast(*const zphy.BroadPhaseLayerFilter, &NonMovingBroadPhaseLayerFilter{}),
+    });
 
     if (result.has_hit) {
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+        const body_interface = physics_world.getBodyInterfaceMut();
+        body_interface.setPositionRotationAndVelocity(
+            body.body_id,
+            pos.elems().*,
+            [4]f32{ 0, 0, 0, 1 },
+            [3]f32{ 0, 0, 0 },
+            [3]f32{ 0, 0, 0 },
+        );
     }
 }
 
@@ -70,6 +96,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         rot: *fd.EulerRotation,
         fwd: *fd.Forward,
         health: *fd.Health,
+        body: *fd.PhysicsBody,
         fsm: *fd.FSM,
     });
 
@@ -85,7 +112,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         const pos_before = comps.pos.*;
         _ = pos_before;
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, player_pos);
-        updateSnapToTerrain(ctx.physics_world, comps.pos);
+        updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body);
     }
 }
 
@@ -96,8 +123,9 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.EulerRotation)
         .with(fd.Forward)
         .with(fd.Health)
+        .with(fd.PhysicsBody)
         .with(fd.FSM)
-        .without(fd.Camera);
+        .without(fd.Input);
 
     var query = query_builder.buildQuery();
     var self = ctx.allocator.create(StateSpider) catch unreachable;

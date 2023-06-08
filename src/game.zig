@@ -72,7 +72,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
         .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
     });
 
-    // ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+    ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
 
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
@@ -86,7 +86,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
         .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
         .rotation = .{ 0, 0, 0, 1 },
         .shape = shape,
-        .motion_type = .dynamic,
+        .motion_type = .kinematic,
         .object_layer = config.object_layers.moving,
         .motion_quality = .discrete,
         .user_data = ent.id,
