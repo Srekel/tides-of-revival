@@ -7,6 +7,71 @@ const IndexType = @import("renderer_types.zig").IndexType;
 const Vertex = @import("renderer_types.zig").Vertex;
 const Mesh = @import("renderer_types.zig").Mesh;
 
+pub fn loadMeshFromFile(
+    allocator: std.mem.Allocator,
+    path: [:0]const u8,
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_vertices: *std.ArrayList(Vertex),
+) !Mesh {
+    const data = try zmesh.io.parseAndLoadFile(path);
+    defer zmesh.io.freeData(data);
+
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    var indices = std.ArrayList(IndexType).init(arena);
+
+    var positions = std.ArrayList([3]f32).init(arena);
+    var normals = std.ArrayList([3]f32).init(arena);
+    var tangents = std.ArrayList([4]f32).init(arena);
+    var uvs = std.ArrayList([2]f32).init(arena);
+
+    try zmesh.io.appendMeshPrimitive(data, 0, 0, &indices, &positions, &normals, &uvs, &tangents);
+
+    // Calculate bounding box
+    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+
+    for (positions.items) |position| {
+        min[0] = @min(min[0], position[0]);
+        min[1] = @min(min[1], position[1]);
+        min[2] = @min(min[2], position[2]);
+
+        max[0] = @max(max[0], position[0]);
+        max[1] = @max(max[1], position[1]);
+        max[2] = @max(max[2], position[2]);
+    }
+
+    var mesh = Mesh{
+        .num_lods = 1,
+        .lods = undefined,
+        .bounding_box = .{
+            .min = min,
+            .max = max,
+        },
+    };
+
+    mesh.lods[0] = .{
+        .index_offset = @intCast(u32, meshes_indices.items.len),
+        .index_count = @intCast(u32, indices.items.len),
+        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
+        .vertex_count = @intCast(u32, positions.items.len),
+    };
+
+    for (indices.items) |index| {
+        try meshes_vertices.append(.{
+            .position = positions.items[index],
+            .normal = normals.items[index],
+            .uv = uvs.items[index],
+            .tangent = tangents.items[index],
+            .color = [3]f32{ 1.0, 1.0, 1.0 },
+        });
+    }
+
+    return mesh;
+}
+
 pub fn loadObjMeshFromFile(
     allocator: std.mem.Allocator,
     path: []const u8,
@@ -319,6 +384,7 @@ fn storeMeshLod(
         max[1] = @max(max[1], vertex.position[1]);
         max[2] = @max(max[2], vertex.position[2]);
     }
+
     mesh.bounding_box = .{
         .min = min,
         .max = max,
