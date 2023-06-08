@@ -29,6 +29,29 @@ pub fn loadMeshFromFile(
 
     try zmesh.io.appendMeshPrimitive(data, 0, 0, &indices, &positions, &normals, &uvs, &tangents);
 
+    // Post processing
+    // ===============
+    // 1. Convert to Left Hand coordinate to conform to DirectX
+    var i: u32 = 0;
+    while (i < positions.items.len) : (i += 1) {
+        positions.items[i][2] *= -1.0;
+    }
+    i = 0;
+    while (i < normals.items.len) : (i += 1) {
+        normals.items[i][2] *= -1.0;
+    }
+    i = 0;
+    while (i < tangents.items.len) : (i += 1) {
+        tangents.items[i][2] *= -1.0;
+    }
+    // 2. Convert mesh to clock-wise winding
+    i = 0;
+    while (i < indices.items.len) : (i += 3) {
+        std.mem.swap(u32, &indices.items[i + 1], &indices.items[i + 2]);
+    }
+
+    // TODO: glTF 2.0 files can specify a min/max pair for their attributes, so we could check there first
+    // instead of calculating the bounding box
     // Calculate bounding box
     var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
     var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
@@ -59,8 +82,9 @@ pub fn loadMeshFromFile(
         .vertex_count = @intCast(u32, positions.items.len),
     };
 
-    for (indices.items) |index| {
-        try meshes_vertices.append(.{
+    try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
+    for (positions.items, 0..) |_, index| {
+        meshes_vertices.appendAssumeCapacity(.{
             .position = positions.items[index],
             .normal = normals.items[index],
             .uv = uvs.items[index],
@@ -68,6 +92,8 @@ pub fn loadMeshFromFile(
             .color = [3]f32{ 1.0, 1.0, 1.0 },
         });
     }
+
+    meshes_indices.appendSlice(indices.items) catch unreachable;
 
     return mesh;
 }
