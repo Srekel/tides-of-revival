@@ -174,6 +174,12 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
     const body_interface = system.physics_world.getBodyInterfaceMut();
     const frame_collisions_data = util.castOpaqueConst(config.events.FrameCollisionsData, event_data);
+
+    var arena_state = std.heap.ArenaAllocator.init(system.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    var removed_entities = std.ArrayList(flecs.EntityId).initCapacity(arena, 32) catch unreachable;
+
     for (frame_collisions_data.contacts) |contact| {
         if (!body_interface.isAdded(contact.body_id2)) {
             continue;
@@ -181,24 +187,51 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
         const ent1 = flecs.Entity.init(system.flecs_world.world, contact.ent1);
         const ent2 = flecs.Entity.init(system.flecs_world.world, contact.ent2);
+        if (std.mem.indexOfScalar(flecs.EntityId, removed_entities.items, contact.ent1) != null) {
+            // std.debug.print("fail1 {any}\n", .{contact.ent1});
+            continue;
+        }
+        if (std.mem.indexOfScalar(flecs.EntityId, removed_entities.items, contact.ent2) != null) {
+            // std.debug.print("fail2 {any}\n", .{contact.ent2});
+            continue;
+        }
 
         if (contact.ent1 != 0 and ent1.has(fd.Projectile)) {
+            // std.debug.print("proj1 {any}\n", .{contact.ent1});
             body_interface.removeAndDestroyBody(contact.body_id1);
             ent1.remove(fd.PhysicsBody);
+            removed_entities.append(ent1.id) catch unreachable;
 
             if (contact.ent2 != 0 and ent2.has(fd.Health)) {
-                // body_interface.removeAndDestroyBody(contact.body_id2);
-                // ent2.remove(fd.PhysicsBody);
+                var health2 = ent2.getMut(fd.Health).?;
+                if (health2.value > 0) {
+                    health2.value -= 50;
+                    if (health2.value <= 0) {
+                        body_interface.setMotionType(contact.body_id2, .dynamic, .dont_activate);
+                        ent2.remove(fd.FSM);
+                        removed_entities.append(ent2.id) catch unreachable;
+                    }
+                    // std.debug.print("lol2 {any}\n", .{ent2.id});
+                }
             }
         }
 
         if (contact.ent2 != 0 and ent2.has(fd.Projectile)) {
             body_interface.removeAndDestroyBody(contact.body_id2);
             ent2.remove(fd.PhysicsBody);
+            removed_entities.append(ent2.id) catch unreachable;
 
             if (contact.ent1 != 0 and ent1.has(fd.Health)) {
-                // body_interface.removeAndDestroyBody(contact.body_id1);
-                // ent1.remove(fd.PhysicsBody);
+                var health1 = ent1.getMut(fd.Health).?;
+                if (health1.value > 0) {
+                    health1.value -= 50;
+                    if (health1.value <= 0) {
+                        body_interface.setMotionType(contact.body_id1, .dynamic, .dont_activate);
+                        ent1.remove(fd.FSM);
+                        removed_entities.append(ent1.id);
+                    }
+                    // std.debug.print("lol1 {any}\n", .{health1.value});
+                }
             }
         }
     }
