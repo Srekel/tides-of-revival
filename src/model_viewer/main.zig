@@ -187,8 +187,8 @@ pub fn run() !void {
     var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
     defer instance_materials.deinit();
 
-    gfx_state.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
-    gfx_state.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
+    _ = gfx_state.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
+    _ = gfx_state.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
 
     gfx_state.gctx.beginFrame();
 
@@ -432,8 +432,8 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         }
 
         const frame_index = gfx_state.gctx.frame_index;
-        gfx_state.uploadDataToBuffer(InstanceTransform, model_viewer_state.instance_transform_buffers[frame_index], 0, model_viewer_state.instance_transforms.items);
-        gfx_state.uploadDataToBuffer(InstanceMaterial, model_viewer_state.instance_material_buffers[frame_index], 0, model_viewer_state.instance_materials.items);
+        _ = gfx_state.uploadDataToBuffer(InstanceTransform, model_viewer_state.instance_transform_buffers[frame_index], 0, model_viewer_state.instance_transforms.items);
+        _ = gfx_state.uploadDataToBuffer(InstanceMaterial, model_viewer_state.instance_material_buffers[frame_index], 0, model_viewer_state.instance_materials.items);
 
         const vertex_buffer = gfx_state.lookupBuffer(model_viewer_state.vertex_buffer);
         const instance_transform_buffer = gfx_state.lookupBuffer(model_viewer_state.instance_transform_buffers[frame_index]);

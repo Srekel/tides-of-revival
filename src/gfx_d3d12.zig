@@ -230,6 +230,11 @@ pub const D3D12State = struct {
 
     vertex_buffer: BufferHandle,
     index_buffer: BufferHandle,
+    vertex_buffer_offset: u64,
+    index_buffer_offset: u64,
+    vertex_offset: u32,
+    index_offset: u32,
+
     mesh_pool: MeshPool,
     skybox_mesh: MeshHandle,
 
@@ -290,26 +295,33 @@ pub const D3D12State = struct {
         return self.buffer_pool.lookupBuffer(handle);
     }
 
-    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
+    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) u64 {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        self.uploadDataToBuffer(T, buffer_handle, buffer_offset, data);
+        const offset = self.uploadDataToBuffer(T, buffer_handle, buffer_offset, data);
 
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
+
+        return offset;
     }
 
-    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
+    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) u64 {
         const buffer = self.buffer_pool.lookupBuffer(buffer_handle);
         if (buffer == null)
-            return;
+            return 0;
 
         self.gctx.addTransitionBarrier(buffer.?.resource, .{ .COPY_DEST = true });
         self.gctx.flushResourceBarriers();
 
         const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @intCast(u32, data.len));
         std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
+
+        // NOTE(gmodarelli): Let's have zd3d12 return the aligned size instead
+        const alloc_alignment: u64 = 512;
+        const size = data.len * @sizeOf(T);
+        const aligned_size = (size + (alloc_alignment - 1)) & ~(alloc_alignment - 1);
 
         self.gctx.cmdlist.CopyBufferRegion(
             self.gctx.lookupResource(buffer.?.resource).?,
@@ -321,6 +333,8 @@ pub const D3D12State = struct {
 
         self.gctx.addTransitionBarrier(buffer.?.resource, buffer.?.state);
         self.gctx.flushResourceBarriers();
+
+        return aligned_size;
     }
 
     pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
@@ -411,6 +425,40 @@ pub const D3D12State = struct {
 
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
         return self.texture_pool.lookupTexture(handle);
+    }
+
+    pub fn uploadMeshData(self: *D3D12State, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
+        var new_mesh = Mesh{
+            .num_lods = mesh.num_lods,
+            .lods = undefined,
+            .bounding_box = .{
+                .min = [3]f32{ mesh.bounding_box.min[0], mesh.bounding_box.min[1], mesh.bounding_box.min[2] },
+                .max = [3]f32{ mesh.bounding_box.max[0], mesh.bounding_box.max[1], mesh.bounding_box.max[2] },
+            },
+        };
+
+        // 1. Update mesh's lods vertex and index offsets
+        {
+            var i: u32 = 0;
+            while (i < mesh.num_lods) : (i += 1) {
+                new_mesh.lods[i].vertex_offset = self.vertex_offset;
+                new_mesh.lods[i].index_offset = self.index_offset;
+                new_mesh.lods[i].vertex_count = mesh.lods[i].vertex_count;
+                new_mesh.lods[i].index_count = mesh.lods[i].index_count;
+
+                self.vertex_offset += mesh.lods[i].vertex_count;
+                self.index_offset += mesh.lods[i].index_count;
+            }
+        }
+
+        // 2. Upload vertex data to the vertex buffer
+        self.vertex_buffer_offset = self.scheduleUploadDataToBuffer(Vertex, self.vertex_buffer, self.vertex_buffer_offset, vertices);
+
+        // 3. Upload index data to the index buffer
+        self.index_buffer_offset = self.scheduleUploadDataToBuffer(IndexType, self.index_buffer, self.index_buffer_offset, indices);
+
+        // 4. Store the mesh into the mesh pool
+        return try self.mesh_pool.add(.{ .obj = new_mesh });
     }
 
     pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture } {
@@ -812,22 +860,17 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .mesh_pool = mesh_pool,
         .vertex_buffer = undefined,
         .index_buffer = undefined,
+        .vertex_buffer_offset = 0,
+        .index_buffer_offset = 0,
+        .vertex_offset = 0,
+        .index_offset = 0,
         .skybox_mesh = undefined,
     };
 
     {
-        var meshes_indices = std.ArrayList(IndexType).init(arena);
-        var meshes_vertices = std.ArrayList(Vertex).init(arena);
-
-        const mesh = mesh_loader.loadObjMeshFromFile(allocator, "content/meshes/cube.obj", &meshes_indices, &meshes_vertices) catch unreachable;
-        const skybox_mesh_handle = d3d12_state.mesh_pool.add(.{ .obj = mesh }) catch unreachable;
-
-        const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
-        const total_num_indices = @intCast(u32, meshes_indices.items.len);
-
         // Create a vertex buffer.
         var vertex_buffer = d3d12_state.createBuffer(.{
-            .size = total_num_vertices * @sizeOf(Vertex),
+            .size = 1024 * 1024 * 1024, //  1GB,
             .state = d3d12.RESOURCE_STATES.GENERIC_READ,
             .name = L("GFX Vertex Buffer"),
             .persistent = true,
@@ -838,7 +881,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
         // Create an index buffer.
         var index_buffer = d3d12_state.createBuffer(.{
-            .size = total_num_indices * @sizeOf(IndexType),
+            .size = 1024 * 1024 * 1024, //  1GB,
             .state = .{ .INDEX_BUFFER = true },
             .name = L("GFX Index Buffer"),
             .persistent = false,
@@ -847,12 +890,19 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .has_uav = false,
         }) catch unreachable;
 
-        d3d12_state.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
-        d3d12_state.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
-
         d3d12_state.vertex_buffer = vertex_buffer;
         d3d12_state.index_buffer = index_buffer;
-        d3d12_state.skybox_mesh = skybox_mesh_handle;
+    }
+
+    // Upload skybox mesh
+    {
+        var meshes_indices = std.ArrayList(IndexType).init(arena);
+        var meshes_vertices = std.ArrayList(Vertex).init(arena);
+        defer meshes_indices.deinit();
+        defer meshes_vertices.deinit();
+        const mesh = mesh_loader.loadObjMeshFromFile(allocator, "content/meshes/cube.obj", &meshes_indices, &meshes_vertices) catch unreachable;
+
+        d3d12_state.skybox_mesh = d3d12_state.uploadMeshData(mesh, meshes_vertices.items, meshes_indices.items) catch unreachable;
     }
 
     // Radiance

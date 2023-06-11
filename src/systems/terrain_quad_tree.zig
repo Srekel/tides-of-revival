@@ -989,8 +989,8 @@ pub fn create(
     var draw_calls = std.ArrayList(gfx.DrawCall).init(allocator);
     var instance_data = std.ArrayList(InstanceData).init(allocator);
 
-    gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
-    gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
+    _ = gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
+    _ = gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
 
     var terrain_layer_texture_indices = std.ArrayList(TerrainLayerTextureIndices).initCapacity(arena, terrain_layers.items.len) catch unreachable;
     var terrain_layer_index: u32 = 0;
@@ -1006,7 +1006,7 @@ pub fn create(
             .padding = 42,
         });
     }
-    gfxstate.scheduleUploadDataToBuffer(TerrainLayerTextureIndices, terrain_layers_buffer, 0, terrain_layer_texture_indices.items);
+    _ = gfxstate.scheduleUploadDataToBuffer(TerrainLayerTextureIndices, terrain_layers_buffer, 0, terrain_layer_texture_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
@@ -1178,7 +1178,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     const frame_index = state.gfx.gctx.frame_index;
     if (state.instance_data.items.len > 0) {
         assert(state.instance_data.items.len < max_instances);
-        state.gfx.uploadDataToBuffer(InstanceData, state.instance_data_buffers[frame_index], 0, state.instance_data.items);
+        _ = state.gfx.uploadDataToBuffer(InstanceData, state.instance_data_buffers[frame_index], 0, state.instance_data.items);
     }
 
     const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);

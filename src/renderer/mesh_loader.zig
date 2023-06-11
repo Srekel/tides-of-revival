@@ -44,7 +44,12 @@ pub fn loadMeshFromFile(
     while (i < tangents.items.len) : (i += 1) {
         tangents.items[i][2] *= -1.0;
     }
-    // 2. Convert mesh to clock-wise winding
+    // 2. Flip the UV's V component
+    i = 0;
+    while (i < uvs.items.len) : (i += 1) {
+        uvs.items[i][1] *= -1.0;
+    }
+    // 3. Convert mesh to clock-wise winding
     i = 0;
     while (i < indices.items.len) : (i += 3) {
         std.mem.swap(u32, &indices.items[i + 1], &indices.items[i + 2]);
