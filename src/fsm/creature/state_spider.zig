@@ -46,20 +46,49 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
 
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
-    var result = query.castRay(.{
+    const ray = zphy.RRayCast{
         .origin = ray_origin,
         .direction = ray_dir,
-    }, .{
-        .broad_phase_layer_filter = @ptrCast(*const zphy.BroadPhaseLayerFilter, &NonMovingBroadPhaseLayerFilter{}),
-    });
+    };
+    var result = query.castRay(
+        ray,
+        .{
+            .broad_phase_layer_filter = @ptrCast(*const zphy.BroadPhaseLayerFilter, &NonMovingBroadPhaseLayerFilter{}),
+        },
+    );
 
     if (result.has_hit) {
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+
+        const bodies = physics_world.getBodiesUnsafe();
+        const body_self = zphy.tryGetBody(bodies, body.body_id).?;
+        const body_hit = zphy.tryGetBody(bodies, result.hit.body_id).?;
         const body_interface = physics_world.getBodyInterfaceMut();
+        const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
+        const hit_normal_z = zm.loadArr3(hit_normal);
+        const rot_wanted_z = blk: {
+            const up_z  = zm.f32x4(0, 1,0,0);
+            if (hit_normal[1] < 0.99) { // TODO: Find a good value, this was just arbitrarily picked :)
+                const rot_axis_z = zm.cross3(up_z, hit_normal_z);
+                const dot = zm.dot3(up_z, hit_normal_z)[0];
+                const rot_angle = std.math.acos(dot);
+                break :blk zm.quatFromAxisAngle(rot_axis_z, rot_angle);
+            }
+            else {
+                 break :blk zm.quatFromAxisAngle(up_z, 0);
+            }
+        };
+        const rot_curr_z = zm.loadArr4(body_self.getRotation());
+        const rot_new_z = zm.slerp(rot_curr_z, rot_wanted_z, 0.01); // TODO SmoothDamp
+        const rot_new_normalized_z = zm.normalize4(rot_new_z);
+        var rot : [4]f32 = undefined;
+        zm.storeArr4(&rot, rot_new_normalized_z);
+
+        // NOTE: Should this use MoveKinematic?
         body_interface.setPositionRotationAndVelocity(
             body.body_id,
             pos.elems().*,
-            [4]f32{ 0, 0, 0, 1 },
+            rot,
             [3]f32{ 0, 0, 0 },
             [3]f32{ 0, 0, 0 },
         );
