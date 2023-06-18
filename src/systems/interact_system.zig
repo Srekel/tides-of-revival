@@ -228,7 +228,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     if (health1.value <= 0) {
                         body_interface.setMotionType(contact.body_id1, .dynamic, .dont_activate);
                         ent1.remove(fd.FSM);
-                        removed_entities.append(ent1.id);
+                        removed_entities.append(ent1.id) catch unreachable;
                     }
                     // std.debug.print("lol1 {any}\n", .{health1.value});
                 }
