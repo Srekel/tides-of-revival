@@ -61,8 +61,14 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
 
         const up_z  = zm.f32x4(0, 1,0,0);
+
+        const body_lock_interface = physics_world.getBodyLockInterfaceNoLock();
+        var read_lock_self: zphy.BodyLockRead = .{};
+        read_lock_self.lock(body_lock_interface, body.body_id);
+        defer read_lock_self.unlock();
+        const body_self = read_lock_self.body.?;
+
         const bodies = physics_world.getBodiesUnsafe();
-        const body_self = zphy.tryGetBody(bodies, body.body_id).?;
         const body_hit = zphy.tryGetBody(bodies, result.hit.body_id).?;
         const rot_slope_z = blk: {
             const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
