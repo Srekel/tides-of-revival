@@ -144,7 +144,8 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             // Send it flying
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
-            const velocity_z = forward_z * zm.f32x4s(10 + charge * 20);
+            const up_z = zm.f32x4(0,1,0,0);
+            const velocity_z = forward_z * zm.f32x4s(15 + charge * 30) + up_z * zm.f32x4s(charge);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
@@ -197,7 +198,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         }
 
         if (contact.ent1 != 0 and ent1.has(fd.Projectile)) {
-            // std.debug.print("proj1 {any}\n", .{contact.ent1});
+            // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
             body_interface.removeAndDestroyBody(contact.body_id1);
             ent1.remove(fd.PhysicsBody);
             removed_entities.append(ent1.id) catch unreachable;
@@ -217,6 +218,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         }
 
         if (contact.ent2 != 0 and ent2.has(fd.Projectile)) {
+            // std.debug.print("proj2 {any} body:{any}\n", .{contact.ent2, contact.body_id2});
             body_interface.removeAndDestroyBody(contact.body_id2);
             ent2.remove(fd.PhysicsBody);
             removed_entities.append(ent2.id) catch unreachable;
