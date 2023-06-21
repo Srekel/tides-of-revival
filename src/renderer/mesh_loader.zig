@@ -71,7 +71,10 @@ pub fn loadMeshFromFile(
         max[2] = @max(max[2], position[2]);
     }
 
+    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
     var mesh = Mesh{
+        .vertex_buffer = undefined,
+        .index_buffer = undefined,
         .num_lods = 1,
         .lods = undefined,
         .bounding_box = .{
@@ -136,7 +139,10 @@ pub fn loadObjMeshFromFile(
     var previous_obj_uvs_count: u32 = 0;
     var previous_obj_normals_count: u32 = 0;
 
+    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
     var mesh = Mesh{
+        .vertex_buffer = undefined,
+        .index_buffer = undefined,
         .num_lods = 0,
         .lods = undefined,
         .bounding_box = undefined,

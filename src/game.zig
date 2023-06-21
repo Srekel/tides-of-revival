@@ -67,7 +67,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
     ent.set(fd.Forward{});
     ent.set(fd.Dynamic{});
     ent.set(fd.Health{ .value = 100 });
-    ent.set(fd.CIShapeMeshInstance{
+    ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("spider_body"),
         .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
     });
@@ -525,7 +525,7 @@ pub fn run() void {
 
     // const entity3 = flecs_world.newEntity();
     // entity3.set(fd.Transform.initWithScale(0, 0, 0, 100));
-    // entity3.set(fd.CIShapeMeshInstance{
+    // entity3.set(fd.CIStaticMesh{
     //     .id = IdLocal.id64("sphere"),
     //     .basecolor_roughness = .{ .r = 1.0, .g = 0.0, .b = 0.0, .roughness = 0.8 },
     // });
@@ -537,7 +537,7 @@ pub fn run() void {
 
     // const entity4 = flecs_world.newEntity();
     // entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
-    // entity4.set(fd.CIShapeMeshInstance{
+    // entity4.set(fd.CIStaticMesh{
     //     .id = IdLocal.id64("sphere"),
     //     .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     // });
@@ -580,7 +580,7 @@ pub fn run() void {
     bow_ent.set(fd.Forward{});
     bow_ent.set(fd.Dynamic{});
     bow_ent.set(fd.ProjectileWeapon{});
-    bow_ent.set(fd.CIShapeMeshInstance{
+    bow_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("bow"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
     });
@@ -594,7 +594,7 @@ pub fn run() void {
     // proj_ent.set(fd.Forward{});
     // proj_ent.set(fd.Dynamic{});
     proj_ent.set(fd.Projectile{});
-    // proj_ent.set(fd.CIShapeMeshInstance{
+    // proj_ent.set(fd.CIStaticMesh{
     //     .id = IdLocal.id64("bow"),
     //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
     // });
@@ -609,7 +609,7 @@ pub fn run() void {
     spider_ent.set(fd.Transform{});
     spider_ent.set(fd.Forward{});
     spider_ent.set(fd.Dynamic{});
-    spider_ent.set(fd.CIShapeMeshInstance{
+    spider_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("spider_body"),
         .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
     });
@@ -634,7 +634,7 @@ pub fn run() void {
     player_ent.set(fd.Velocity{});
     player_ent.set(fd.Dynamic{});
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
-    player_ent.set(fd.CIShapeMeshInstance{
+    player_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("cylinder"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
     });
@@ -668,7 +668,7 @@ pub fn run() void {
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    player_camera_ent.set(fd.CIShapeMeshInstance{
+    player_camera_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("sphere"),
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
     });

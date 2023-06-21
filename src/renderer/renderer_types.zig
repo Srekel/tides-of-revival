@@ -1,5 +1,6 @@
 const std = @import("std");
 const zm = @import("zmath");
+const BufferHandle = @import("d3d12/buffer.zig").BufferHandle;
 
 pub const max_num_lods: u32 = 8;
 
@@ -21,6 +22,8 @@ pub const BoundingBoxCoordinates = struct {
 };
 
 pub const Mesh = struct {
+    vertex_buffer: BufferHandle,
+    index_buffer: BufferHandle,
     num_lods: u32,
     lods: [max_num_lods]MeshLod,
     bounding_box: BoundingBox,

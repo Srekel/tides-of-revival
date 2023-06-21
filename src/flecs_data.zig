@@ -5,6 +5,7 @@ const zphy = @import("zphysics");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const flecs = @import("flecs");
+const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
 
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
@@ -234,23 +235,24 @@ pub const Velocity = struct {
 // ██║ ╚═╝ ██║███████╗███████║██║  ██║
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
-pub const CIShapeMeshDefinition = struct {
-    id: IdLocal,
-    shape: zmesh.Shape,
-};
-pub const ShapeMeshDefinition = struct {
-    id: IdLocal,
-    mesh_index: u64,
-};
-
-pub const CIShapeMeshInstance = struct {
+// TODO(gmodarelli): Add material slot
+pub const CIStaticMesh = struct {
     id: u64,
     basecolor_roughness: ColorRGBRoughness,
 };
-pub const ShapeMeshInstance = struct {
-    mesh_index: u64,
+
+pub const StaticMesh = struct {
+    mesh_handle: MeshHandle,
     basecolor_roughness: ColorRGBRoughness,
 };
+
+//  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
+// ██╔════╝██╔══██╗████╗ ████║██╔════╝██╔══██╗██╔══██╗
+// ██║     ███████║██╔████╔██║█████╗  ██████╔╝███████║
+// ██║     ██╔══██║██║╚██╔╝██║██╔══╝  ██╔══██╗██╔══██║
+// ╚██████╗██║  ██║██║ ╚═╝ ██║███████╗██║  ██║██║  ██║
+//  ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
+//
 
 pub const CICamera = struct {
     near: f32,

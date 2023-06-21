@@ -43,7 +43,7 @@ pub const TextureHandle = texture_module.TextureHandle;
 
 // Mesh Pool
 const MeshPool = Pool(16, 16, Mesh, struct { obj: Mesh });
-const MeshHandle = MeshPool.Handle;
+pub const MeshHandle = MeshPool.Handle;
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
@@ -70,11 +70,9 @@ pub const SceneUniforms = extern struct {
 };
 
 pub const DrawCall = struct {
-    mesh_index: u32,
-    index_count: u32,
+    mesh_handle: MeshHandle,
+    lod_index: u32,
     instance_count: u32,
-    index_offset: u32,
-    vertex_offset: i32,
     start_instance_location: u32,
 };
 
@@ -227,13 +225,6 @@ pub const D3D12State = struct {
     buffer_pool: BufferPool,
     texture_pool: TexturePool,
     pipelines: PipelineHashMap,
-
-    vertex_buffer: BufferHandle,
-    index_buffer: BufferHandle,
-    vertex_buffer_offset: u64,
-    index_buffer_offset: u64,
-    vertex_offset: u32,
-    index_offset: u32,
 
     mesh_pool: MeshPool,
     skybox_mesh: MeshHandle,
@@ -428,7 +419,33 @@ pub const D3D12State = struct {
     }
 
     pub fn uploadMeshData(self: *D3D12State, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
+        // NOTE(gmodarelli): For now we create a vertex and an index buffer for every mesh, but in the future these
+        // buffer will be backed by one big memory allocation/heap
+        // Create a index buffer.
+        var vertex_buffer = self.createBuffer(.{
+            .size = vertices.len * @sizeOf(Vertex),
+            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .name = L("Vertex Buffer"),
+            .persistent = true,
+            .has_cbv = false,
+            .has_srv = true,
+            .has_uav = false,
+        }) catch unreachable;
+
+        // Create an index buffer.
+        var index_buffer = self.createBuffer(.{
+            .size = indices.len * @sizeOf(IndexType),
+            .state = .{ .INDEX_BUFFER = true },
+            .name = L("Index Buffer"),
+            .persistent = false,
+            .has_cbv = false,
+            .has_srv = false,
+            .has_uav = false,
+        }) catch unreachable;
+
         var new_mesh = Mesh{
+            .vertex_buffer = vertex_buffer,
+            .index_buffer = index_buffer,
             .num_lods = mesh.num_lods,
             .lods = undefined,
             .bounding_box = .{
@@ -441,24 +458,30 @@ pub const D3D12State = struct {
         {
             var i: u32 = 0;
             while (i < mesh.num_lods) : (i += 1) {
-                new_mesh.lods[i].vertex_offset = self.vertex_offset;
-                new_mesh.lods[i].index_offset = self.index_offset;
+                new_mesh.lods[i].vertex_offset = mesh.lods[i].vertex_offset;
+                new_mesh.lods[i].index_offset = mesh.lods[i].index_offset;
                 new_mesh.lods[i].vertex_count = mesh.lods[i].vertex_count;
                 new_mesh.lods[i].index_count = mesh.lods[i].index_count;
-
-                self.vertex_offset += mesh.lods[i].vertex_count;
-                self.index_offset += mesh.lods[i].index_count;
             }
         }
 
         // 2. Upload vertex data to the vertex buffer
-        self.vertex_buffer_offset = self.scheduleUploadDataToBuffer(Vertex, self.vertex_buffer, self.vertex_buffer_offset, vertices);
+        _ = self.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, vertices);
 
         // 3. Upload index data to the index buffer
-        self.index_buffer_offset = self.scheduleUploadDataToBuffer(IndexType, self.index_buffer, self.index_buffer_offset, indices);
+        _ = self.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, indices);
 
         // 4. Store the mesh into the mesh pool
         return try self.mesh_pool.add(.{ .obj = new_mesh });
+    }
+
+    pub fn lookupMesh(self: *D3D12State, handle: MeshHandle) ?Mesh {
+        var mesh: ?Mesh = self.mesh_pool.getColumn(handle, .obj) catch blk: {
+            std.log.debug("Failed to lookup mesh with handle: {any}", .{handle});
+            break :blk null;
+        };
+
+        return mesh;
     }
 
     pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture } {
@@ -858,41 +881,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
         .mesh_pool = mesh_pool,
-        .vertex_buffer = undefined,
-        .index_buffer = undefined,
-        .vertex_buffer_offset = 0,
-        .index_buffer_offset = 0,
-        .vertex_offset = 0,
-        .index_offset = 0,
         .skybox_mesh = undefined,
     };
-
-    {
-        // Create a vertex buffer.
-        var vertex_buffer = d3d12_state.createBuffer(.{
-            .size = 1024 * 1024 * 1024, //  1GB,
-            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-            .name = L("GFX Vertex Buffer"),
-            .persistent = true,
-            .has_cbv = false,
-            .has_srv = true,
-            .has_uav = false,
-        }) catch unreachable;
-
-        // Create an index buffer.
-        var index_buffer = d3d12_state.createBuffer(.{
-            .size = 1024 * 1024 * 1024, //  1GB,
-            .state = .{ .INDEX_BUFFER = true },
-            .name = L("GFX Index Buffer"),
-            .persistent = false,
-            .has_cbv = false,
-            .has_srv = false,
-            .has_uav = false,
-        }) catch unreachable;
-
-        d3d12_state.vertex_buffer = vertex_buffer;
-        d3d12_state.index_buffer = index_buffer;
-    }
 
     // Upload skybox mesh
     {
@@ -996,10 +986,12 @@ pub fn beginFrame(state: *D3D12State) void {
 pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [3]f32) void {
     var gctx = &state.gctx;
 
-    var skybox_mesh: ?Mesh = state.mesh_pool.getColumn(state.skybox_mesh, .obj) catch blk: {
-        std.log.debug("Failed to find skybox mesh. Handle: {any}", .{state.skybox_mesh});
-        break :blk null;
-    };
+    // var skybox_mesh: ?Mesh = state.mesh_pool.getColumn(state.skybox_mesh, .obj) catch blk: {
+    //     std.log.debug("Failed to find skybox mesh. Handle: {any}", .{state.skybox_mesh});
+    //     break :blk null;
+    // };
+
+    var skybox_mesh = state.lookupMesh(state.skybox_mesh);
 
     if (skybox_mesh) |mesh| {
         zpix.beginEvent(gctx.cmdlist, "Skybox");
@@ -1008,7 +1000,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
             gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-            const index_buffer = state.lookupBuffer(state.index_buffer);
+            const index_buffer = state.lookupBuffer(mesh.index_buffer);
             const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
             gctx.cmdlist.IASetIndexBuffer(&.{
                 .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
@@ -1027,7 +1019,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
             }
 
-            const vertex_buffer = state.lookupBuffer(state.vertex_buffer);
+            const vertex_buffer = state.lookupBuffer(mesh.vertex_buffer);
 
             const lod_index: u32 = 0;
 

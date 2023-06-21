@@ -92,7 +92,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.Forward{});
             proj_ent.set(fd.Dynamic{});
             proj_ent.set(fd.Projectile{});
-            proj_ent.set(fd.CIShapeMeshInstance{
+            proj_ent.set(fd.CIStaticMesh{
                 .id = IdLocal.id64("arrow"),
                 .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
             });

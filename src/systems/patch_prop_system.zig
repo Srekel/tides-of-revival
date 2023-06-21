@@ -236,7 +236,7 @@ fn updatePatches(system: *SystemState) void {
                     // // var light_viz_ent = system.flecs_world.newEntity();
                     // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
                     // // light_viz_ent.set(fd.Scale.createScalar(1));
-                    // // light_viz_ent.set(fd.CIShapeMeshInstance{
+                    // // light_viz_ent.set(fd.CIStaticMesh{
                     // //     .id = IdLocal.id64("sphere"),
                     // //     .basecolor_roughness = city_params.center_color,
                     // // });
@@ -251,7 +251,7 @@ fn updatePatches(system: *SystemState) void {
                     //     // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
                     // }
                 } else {
-                    prop_ent.set(fd.CIShapeMeshInstance{
+                    prop_ent.set(fd.CIStaticMesh{
                         .id = blk: {
                             if (prop.id.hash == tree_id.hash) {
                                 break :blk IdLocal.id64("pine");

@@ -50,7 +50,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
         post_ent.set(fd.EulerRotation{});
         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
         post_ent.set(post_transform);
-        post_ent.set(fd.CIShapeMeshInstance{
+        post_ent.set(fd.CIStaticMesh{
             .id = IdLocal.id64("cylinder"),
             .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 0.0, .roughness = 0.8 },
         });
