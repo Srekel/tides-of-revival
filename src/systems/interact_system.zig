@@ -144,7 +144,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             // Send it flying
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
-            const up_z = zm.f32x4(0,1,0,0);
+            const up_z = zm.f32x4(0, 1, 0, 0);
             const velocity_z = forward_z * zm.f32x4s(15 + charge * 30) + up_z * zm.f32x4s(charge);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
@@ -161,6 +161,45 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
     }
+
+    // // Arrows
+    // var builder_proj = flecs.QueryBuilder.init(system.flecs_world.*);
+    // _ = builder_proj
+    //     .with(fd.PhysicsBody)
+    //     .with(fd.Projectile);
+
+    // var filter = builder_proj.buildFilter();
+    // defer filter.deinit();
+
+    // const body_interface = system.physics_world.getBodyInterfaceMut();
+    // var entity_iter_proj = filter.iterator(struct {
+    //     body: *fd.PhysicsBody,
+    //     proj: *fd.Projectile,
+    // });
+    // while (entity_iter_proj.next()) |comps| {
+
+    //     // if (comps.input.index == state.active_index) {
+    //     //     active = true;
+    //     // }
+
+    //     // comps.input.active = active;
+    //     // if (comps.cam) |cam| {
+    //     //     cam.active = active;
+    //     // }
+
+    //     const velocity = body_interface.getLinearVelocity(comps.body.body_id);
+    //     const velocity_z = zm.loadArr3(velocity);
+    //     const direction_z = zm.normalize3(velocity_z);
+    //     const rotation_from_vel_z = zm.quatFromAxisAngle(direction_z, 0);
+    //     _ = rotation_from_vel_z;
+    //     const rotation_base_z = zm.quatFromAxisAngle(zm.f32x4(0, 0, 1, 0), 0);
+    //     _ = rotation_base_z;
+    //     // zm.
+
+    //     // body_interface.setRotation(comps.body.body_id, in_rotation: [4]Real, in_activation_type: Activation)
+    //     var active = false;
+    //     _ = active;
+    // }
 }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗

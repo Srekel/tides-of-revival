@@ -60,7 +60,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
     if (result.has_hit) {
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
 
-        const up_z  = zm.f32x4(0, 1,0,0);
+        const up_z = zm.f32x4(0, 1, 0, 0);
 
         const body_lock_interface = physics_world.getBodyLockInterfaceNoLock();
         var read_lock_self: zphy.BodyLockRead = .{};
@@ -78,9 +78,8 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
                 const dot = zm.dot3(up_z, hit_normal_z)[0];
                 const rot_angle = std.math.acos(dot);
                 break :blk zm.quatFromAxisAngle(rot_axis_z, rot_angle);
-            }
-            else {
-                 break :blk zm.quatFromAxisAngle(up_z, 0);
+            } else {
+                break :blk zm.quatFromAxisAngle(up_z, 0);
             }
         };
 
@@ -91,11 +90,11 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
         const angle_to_player = std.math.atan2(f32, -dir_to_player[2], dir_to_player[0]);
         const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player + std.math.pi * 0.5);
 
-        const rot_wanted_z = zm.qmul(rot_towards_player_z,rot_slope_z);
+        const rot_wanted_z = zm.qmul(rot_towards_player_z, rot_slope_z);
         const rot_curr_z = zm.loadArr4(body_self.getRotation());
         const rot_new_z = zm.slerp(rot_curr_z, rot_wanted_z, 0.01); // TODO SmoothDamp
         const rot_new_normalized_z = zm.normalize4(rot_new_z);
-        var rot : [4]f32 = undefined;
+        var rot: [4]f32 = undefined;
         zm.storeArr4(&rot, rot_new_normalized_z);
 
         // NOTE: Should this use MoveKinematic?
