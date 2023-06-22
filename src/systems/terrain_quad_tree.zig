@@ -149,6 +149,14 @@ const QuadTreeNode = struct {
     }
 };
 
+const DrawCall = struct {
+    index_count: u32,
+    instance_count: u32,
+    index_offset: u32,
+    vertex_offset: i32,
+    start_instance_location: u32,
+};
+
 const SystemState = struct {
     allocator: std.mem.Allocator,
     flecs_world: *flecs.World,
@@ -164,7 +172,7 @@ const SystemState = struct {
     terrain_layers_buffer: gfx.BufferHandle,
     instance_data_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
     instance_data: std.ArrayList(InstanceData),
-    draw_calls: std.ArrayList(gfx.DrawCall),
+    draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
     // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
@@ -293,6 +301,7 @@ fn createTextureFromPixelBuffer(
     heap: *d3d12.IHeap,
     heap_offset: *u64,
     in_frame: bool,
+    debug_name: ?[]const u8,
 ) !gfx.Texture {
     if (!in_frame) {
         // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
@@ -324,14 +333,13 @@ fn createTextureFromPixelBuffer(
             1,
         ) catch unreachable;
 
-        // TODO(gmodarelli): Set a debug name
-        // {
-        //     var path_u16: [300]u16 = undefined;
-        //     assert(path.len < path_u16.len - 1);
-        //     const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
-        //     path_u16[path_len] = 0;
-        //     _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
-        // }
+        if (debug_name) |debug_name_u8| {
+            var debug_name_u16: [300]u16 = undefined;
+            assert(debug_name_u8.len < debug_name_u16.len - 1);
+            const debug_name_len = std.unicode.utf8ToUtf16Le(debug_name_u16[0..], debug_name_u8) catch unreachable;
+            debug_name_u16[debug_name_len] = 0;
+            _ = resource.SetName(@ptrCast(w32.LPCWSTR, &debug_name_u16));
+        }
 
         // Upload all subresources
         uploadSubResources(gfxstate, resource, &subresources, d3d12.RESOURCE_STATES.GENERIC_READ);
@@ -673,7 +681,15 @@ fn loadNodeHeightmap(
             .format = .R32_FLOAT,
             .data = data,
         };
-        const heightmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
+
+        var namebuf: [256]u8 = undefined;
+        const debug_name = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "lod{d}/heightmap_x{d}_y{d}",
+            .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
+        ) catch unreachable;
+
+        const heightmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame, debug_name) catch unreachable;
         node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
     }
 }
@@ -704,7 +720,15 @@ fn loadNodeSplatmap(
             .format = .R8_UNORM,
             .data = data,
         };
-        const splatmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame) catch unreachable;
+
+        var namebuf: [256]u8 = undefined;
+        const debug_name = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "lod{d}/splatmap_x{d}_y{d}",
+            .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
+        ) catch unreachable;
+
+        const splatmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame, debug_name) catch unreachable;
         node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);
     }
 }
@@ -986,7 +1010,7 @@ pub fn create(
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(gfx.DrawCall).init(allocator);
+    var draw_calls = std.ArrayList(DrawCall).init(allocator);
     var instance_data = std.ArrayList(InstanceData).init(allocator);
 
     _ = gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
@@ -1163,7 +1187,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
 
             state.draw_calls.append(.{
-                .mesh_index = 0,
                 .index_count = mesh.lods[0].index_count,
                 .instance_count = 1,
                 .index_offset = mesh.lods[0].index_offset,
