@@ -873,15 +873,15 @@ pub fn create(
 
     // Create initial sectors
     {
-        var patch_half_size = @intToFloat(f32, config.largest_patch_width) / 2.0;
+        var patch_half_size = @floatFromInt(f32, config.largest_patch_width) / 2.0;
         var patch_y: u32 = 0;
         while (patch_y < 8) : (patch_y += 1) {
             var patch_x: u32 = 0;
             while (patch_x < 8) : (patch_x += 1) {
                 terrain_quad_tree_nodes.appendAssumeCapacity(.{
                     .center = [2]f32{
-                        @intToFloat(f32, patch_x * config.largest_patch_width) + patch_half_size,
-                        @intToFloat(f32, patch_y * config.largest_patch_width) + patch_half_size,
+                        @floatFromInt(f32, patch_x * config.largest_patch_width) + patch_half_size,
+                        @floatFromInt(f32, patch_y * config.largest_patch_width) + patch_half_size,
                     },
                     .size = [2]f32{ patch_half_size, patch_half_size },
                     .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
@@ -1227,7 +1227,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             lookups_old.clearRetainingCapacity();
             lookups_new.clearRetainingCapacity();
 
-            const area_width = 4 * config.patch_size * @intToFloat(f32, std.math.pow(usize, 2, lod));
+            const area_width = 4 * config.patch_size * @floatFromInt(f32, std.math.pow(usize, 2, lod));
 
             const area_old = world_patch_manager.RequestRectangle{
                 .x = state.cam_pos_old[0] - area_width,

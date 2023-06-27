@@ -37,7 +37,7 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
         }
 
         pub fn pushElems(self: *Self, elems: []const QueueElement, prio: BucketEnum) void {
-            const prio_index = @enumToInt(prio);
+            const prio_index = @intFromEnum(prio);
             self.buckets[prio_index].appendSliceAssumeCapacity(elems);
             if (prio_index < self.current_highest_prio) {
                 self.current_highest_prio = prio_index;
@@ -45,7 +45,7 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
         }
 
         pub fn pushElemsToBottomOfBucket(self: *Self, elems: []const QueueElement, prio: BucketEnum) void {
-            const prio_index = @enumToInt(prio);
+            const prio_index = @intFromEnum(prio);
             self.buckets[prio_index].insertSlice(0, elems) catch unreachable;
             if (prio_index < self.current_highest_prio) {
                 self.current_highest_prio = prio_index;
@@ -103,8 +103,8 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
         }
 
         pub fn updateElems(self: *Self, elems: []const QueueElement, prio_old: BucketEnum, prio_new: BucketEnum) void {
-            const prio_index_old = @enumToInt(prio_old);
-            const prio_index_new = @enumToInt(prio_new);
+            const prio_index_old = @intFromEnum(prio_old);
+            const prio_index_new = @intFromEnum(prio_new);
             var bucket_old = &self.buckets[prio_index_old];
             var bucket_new = &self.buckets[prio_index_new];
             for (elems) |elem| {

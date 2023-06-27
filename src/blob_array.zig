@@ -12,7 +12,7 @@ pub fn BlobArray(comptime alignment: u29) type {
         blob_count: u64 = 0,
 
         pub fn create(allocator: std.mem.Allocator, blob_size: u64) Self {
-            const blob_size_aligned = std.mem.alignForward(blob_size, alignment);
+            const blob_size_aligned = std.mem.alignForward(usize, blob_size, alignment);
 
             // HACK: Should handle resizing while maintaining alignment.
             // TODO: Remove ...assumeCapacity
@@ -30,7 +30,7 @@ pub fn BlobArray(comptime alignment: u29) type {
             const size_new = size_curr + self.blob_size;
             self.list.resize(size_new) catch unreachable;
             // std.debug.print("addBlob1 {} {} {}\n", .{ size_curr, size_new, self.blob_start });
-            // var ptr_as_int = @ptrToInt(&self.list.items[size_curr]);
+            // var ptr_as_int = @intFromPtr(&self.list.items[size_curr]);
             // var ptr_alignment = ptr_as_int % alignment;
             // std.debug.print("addBlob2 {} {} {}\n", .{ ptr_as_int, ptr_alignment, self.list.items.len });
             // var aligned_ptr = @alignCast(alignment, &self.list.items[size_curr]);

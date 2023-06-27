@@ -345,7 +345,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     const z_projection =
         zm.perspectiveFovLh(
         0.25 * math.pi,
-        @intToFloat(f32, framebuffer_width) / @intToFloat(f32, framebuffer_height),
+        @floatFromInt(f32, framebuffer_width) / @floatFromInt(f32, framebuffer_height),
         0.01,
         100.0,
     );

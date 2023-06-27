@@ -59,17 +59,17 @@ def main():
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "a3d33b1e47e42529a65535f7d72afe7b1b14713e",
+        "a7381e426cfad219325a5fb55bac8b54fc20337b",
     )
     sync_lib(
         "zig-args",
         "https://github.com/MasterQ32/zig-args.git",
-        "cce1b8987723c155d1fa61c4e6cac717074a2e74",
+        "53f9b53d7bebe9baad52ed4d505b480540344946",
     )
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "f8ebe3e6ce95fef9d089779ecbd127fb73a71754",
+        "35500581700ab6ef5ed38419594d6be8b5472ae0",
     )
     sync_lib(
         "zig-flecs",
@@ -79,11 +79,11 @@ def main():
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
-        "b64004bfacd59489bcc4420afdf59fabc3eb7c04",
+        "f9553b0656d2c80e18c19966c75690e3f59c633e",
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
-    sync_zig_exe("0.11.0-dev.3031+f40539e5d")
+    sync_zig_exe("0.11.0-dev.3737+9eb008717")
 
     os.chdir("..")
     print("Done syncing external!")

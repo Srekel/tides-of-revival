@@ -177,7 +177,7 @@ pub const Variant = struct {
     // pub fn createSliceConst(slice: anytype, tag: Tag) Variant {
     //     assert(tag != 0);
     //     return Variant{
-    //         .value = .{ .ptr_array = @ptrToInt(slice.ptr) },
+    //         .value = .{ .ptr_array = @intFromPtr(slice.ptr) },
     //         .tag = tag,
     //         .count = slice.len,
     //         .elem_size = @intCast(u16, @sizeOf(slice.ptr.*)),
@@ -206,7 +206,7 @@ pub const Variant = struct {
 
     pub fn setSlice(self: *Variant, slice: anytype, tag: Tag) void {
         assert(tag != 0);
-        self.value = .{ .ptr = @ptrToInt(slice.ptr) };
+        self.value = .{ .ptr = @intFromPtr(slice.ptr) };
         self.tag = tag;
         self.array_count = slice.len;
         self.elem_size = @intCast(u16, @sizeOf(slice.ptr.*));

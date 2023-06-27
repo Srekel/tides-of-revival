@@ -144,7 +144,7 @@ fn updateCameraMatrices(state: *SystemState) void {
         const z_projection =
             zm.perspectiveFovLh(
             0.25 * math.pi,
-            @intToFloat(f32, framebuffer_width) / @intToFloat(f32, framebuffer_height),
+            @floatFromInt(f32, framebuffer_width) / @floatFromInt(f32, framebuffer_height),
             comps.camera.far,
             comps.camera.near,
         );

@@ -131,9 +131,9 @@ fn initPatches(
             while (x < patch_side_vertex_count) : (x += 1) {
                 var i = x + z * patch_side_vertex_count;
                 var vertex = &patch_vertices[i];
-                vertex.position[0] = @intToFloat(f32, x);
+                vertex.position[0] = @floatFromInt(f32, x);
                 vertex.position[1] = 0;
-                vertex.position[2] = @intToFloat(f32, z);
+                vertex.position[2] = @floatFromInt(f32, z);
                 vertex.normal[0] = 0;
                 vertex.normal[1] = 1;
                 vertex.normal[2] = 0;
@@ -307,10 +307,10 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
     while (z < config.patch_width) : (z += 1) {
         var x: f32 = 0;
         while (x < config.patch_width) : (x += 1) {
-            const world_x = @intToFloat(f32, patch.pos[0]) + x;
-            const world_z = @intToFloat(f32, patch.pos[1]) + z;
+            const world_x = @floatFromInt(f32, patch.pos[0]) + x;
+            const world_z = @floatFromInt(f32, patch.pos[1]) + z;
             const height = util.heightAtXZ(world_x, world_z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
-            const index = @floatToInt(u32, x) + @floatToInt(u32, z) * config.patch_width;
+            const index = @intFromFloat(u32, x) + @intFromFloat(u32, z) * config.patch_width;
             patch.heights[index] = height;
         }
     }
@@ -349,9 +349,9 @@ fn jobGenerateHeights(ctx: ThreadContextGenerateHeights) !void {
 //             //         unreachable;
 //             //     },
 //             // };
-//             const height = std.math.min(x, z);
-//             // const world_x = @intToFloat(f32, patch.pos[0]) + x;
-//             // const world_z = @intToFloat(f32, patch.pos[1]) + z;
+//             const height = @min(x, z);
+//             // const world_x = @floatFromInt(f32, patch.pos[0]) + x;
+//             // const world_z = @floatFromInt(f32, patch.pos[1]) + z;
 //             // const height = config.noise_scale_y * (config.noise_offset_y + state.noise.noise2(world_x * config.noise_scale_xz, world_z * config.noise_scale_xz));
 //             const index = @floatToInt(u32, x) + @floatToInt(u32, z) * config.patch_width;
 //             patch.heights[index] = height;
@@ -399,14 +399,14 @@ fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
     while (z < config.patch_width) : (z += 1) {
         var x: i32 = 0;
         while (x < config.patch_width) : (x += 1) {
-            // const world_x = @intToFloat(f32, patch.pos[0] + x);
-            // const world_z = @intToFloat(f32, patch.pos[1] + z);
+            // const world_x = @floatFromInt(f32, patch.pos[0] + x);
+            // const world_z = @floatFromInt(f32, patch.pos[1] + z);
             const index = @intCast(u32, x + z * config.patch_width);
             const height = heights[index];
 
-            patch.vertices[index].position[0] = @intToFloat(f32, x);
+            patch.vertices[index].position[0] = @floatFromInt(f32, x);
             patch.vertices[index].position[1] = height;
-            patch.vertices[index].position[2] = @intToFloat(f32, z);
+            patch.vertices[index].position[2] = @floatFromInt(f32, z);
             patch.vertices[index].normal[0] = 0;
             patch.vertices[index].normal[1] = 1;
             patch.vertices[index].normal[2] = 0;
@@ -473,8 +473,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             }
         }
 
-        const comp_pos_i_x = @floatToInt(i32, comps.position.x);
-        const comp_pos_i_z = @floatToInt(i32, comps.position.z);
+        const comp_pos_i_x = @intFromFloat(i32, comps.position.x);
+        const comp_pos_i_z = @intFromFloat(i32, comps.position.z);
         var range: i32 = 0;
         comp_loop: while (range < comps.loader.range) : (range += 1) {
             var x: i32 = -range;
@@ -614,10 +614,10 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             },
             .writing_physics => blk: {
                 const transform = [_]f32{
-                    1.0,                            0.0, 0.0,
-                    0.0,                            1.0, 0.0,
-                    0.0,                            0.0, 1.0,
-                    @intToFloat(f32, patch.pos[0]), 0,   @intToFloat(f32, patch.pos[1]),
+                    1.0,                              0.0, 0.0,
+                    0.0,                              1.0, 0.0,
+                    0.0,                              0.0, 1.0,
+                    @floatFromInt(f32, patch.pos[0]), 0,   @floatFromInt(f32, patch.pos[1]),
                 };
 
                 const body = zbt.initBody(
@@ -648,8 +648,8 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 while (z < config.patch_width) : (z += 8) {
                     var x: f32 = 0;
                     while (x < config.patch_width) : (x += 8) {
-                        const world_x = @intToFloat(f32, patch.pos[0]) + x + rand.float(f32) * 10;
-                        const world_z = @intToFloat(f32, patch.pos[1]) + z + rand.float(f32) * 10;
+                        const world_x = @floatFromInt(f32, patch.pos[0]) + x + rand.float(f32) * 10;
+                        const world_z = @floatFromInt(f32, patch.pos[1]) + z + rand.float(f32) * 10;
                         const height = util.heightAtXZ(world_x, world_z, config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
                         if (height > 10 and height < 400) {
                             const noise = state.noise.noise2((world_x + 1000) * 4, (world_z + 1000) * 4);
@@ -679,7 +679,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             .loaded => blk: {
                 const patch_ent = state.flecs_world.newEntity();
                 // patch_ent.set(fd.WorldPatch{ .lookup = 12 });
-                patch_ent.set(fd.Position{ .x = @intToFloat(f32, patch.pos[0]), .y = 0, .z = @intToFloat(f32, patch.pos[1]) });
+                patch_ent.set(fd.Position{ .x = @floatFromInt(f32, patch.pos[0]), .y = 0, .z = @floatFromInt(f32, patch.pos[1]) });
                 patch.entity = patch_ent.id;
 
                 break :blk .loaded;

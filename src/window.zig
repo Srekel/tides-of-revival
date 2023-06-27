@@ -33,7 +33,7 @@ pub fn deinit() void {
 pub fn createWindow(title: [:0]const u8) !*zglfw.Window {
     // const shareWindow = if (windows.items.len > 0) windows.items[0] else null;
     // const shareWindow = if (windows.items.len > 10000) windows.items[0] else null;
-    const window = try zglfw.Window.create(1280, 720, title, null);
+    const window = try zglfw.Window.create(1600, 1000, title, null);
 
     try windows.append(.{
         .window = window,
@@ -69,8 +69,8 @@ pub fn update(gfx_state: *gfx.D3D12State) !enum { no_windows, has_windows } {
 
             var frame_buffer_size = window.window.getFramebufferSize();
             if (!std.meta.eql(window.frame_buffer_size, frame_buffer_size)) {
-                frame_buffer_size[0] = std.math.max(1, frame_buffer_size[0]);
-                frame_buffer_size[1] = std.math.max(1, frame_buffer_size[1]);
+                frame_buffer_size[0] = @max(1, frame_buffer_size[0]);
+                frame_buffer_size[1] = @max(1, frame_buffer_size[1]);
                 window.frame_buffer_size = frame_buffer_size;
                 std.log.info(
                     "Window resized to {d}x{d}",

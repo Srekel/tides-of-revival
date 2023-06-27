@@ -472,9 +472,9 @@ fn updatePatches(system: *SystemState) void {
             //         const index = @intCast(u32, x + z * config.patch_resolution);
             //         const height = data[index];
 
-            //         vertices[index][0] = @intToFloat(f32, x);
+            //         vertices[index][0] = @floatFromInt(f32, x);
             //         vertices[index][1] = height;
-            //         vertices[index][2] = @intToFloat(f32, z);
+            //         vertices[index][2] = @floatFromInt(f32, z);
             //     }
             // }
 
@@ -537,7 +537,7 @@ fn updatePatches(system: *SystemState) void {
                     const height = data[index];
                     var sample = &samples[x + z * width];
                     sample.* = height;
-                    // sample.* = data[0] + @intToFloat(f32, x + z) * 0.1;
+                    // sample.* = data[0] + @floatFromInt(f32, x + z) * 0.1;
                 }
             }
             // while (z < height - 1) : (z += 1) {
@@ -551,7 +551,7 @@ fn updatePatches(system: *SystemState) void {
 
             const body_interface = system.physics_world.getBodyInterfaceMut();
             const body_id = body_interface.createAndAddBody(.{
-                .position = .{ @intToFloat(f32, world_pos.world_x), 0, @intToFloat(f32, world_pos.world_z), 1.0 },
+                .position = .{ @floatFromInt(f32, world_pos.world_x), 0, @floatFromInt(f32, world_pos.world_z), 1.0 },
                 .rotation = .{ 0.0, 0.0, 0.0, 1.0 },
                 .shape = shape,
                 .motion_type = .static,
@@ -565,9 +565,9 @@ fn updatePatches(system: *SystemState) void {
             // for (0..width) |z| {
             //     for (0..width) |x| {
             //         const ray_origin = [_]f32{
-            //             @intToFloat(f32, world_pos.world_x + x),
+            //             @floatFromInt(f32, world_pos.world_x + x),
             //             1000,
-            //             @intToFloat(f32, world_pos.world_z + z),
+            //             @floatFromInt(f32, world_pos.world_z + z),
             //             0,
             //         };
             //         const ray_dir = [_]f32{ 0, -1000, 0, 0 };
@@ -584,9 +584,9 @@ fn updatePatches(system: *SystemState) void {
             //             );
             //             _ = post_pos;
             //             const post_pos2 = fd.Position.init(
-            //                 @intToFloat(f32, world_pos.world_x + x),
+            //                 @floatFromInt(f32, world_pos.world_x + x),
             //                 data[x + z * config.patch_resolution],
-            //                 @intToFloat(f32, world_pos.world_z + z),
+            //                 @floatFromInt(f32, world_pos.world_z + z),
             //             );
             //             var post_transform = fd.Transform.initFromPosition(post_pos2);
             //             post_transform.setScale([_]f32{ 0.2, 0.2, 0.2 });
@@ -621,7 +621,7 @@ fn updatePatches(system: *SystemState) void {
             //     1.0,                                 0.0, 0.0,
             //     0.0,                                 1.0, 0.0,
             //     0.0,                                 0.0, 1.0,
-            //     @intToFloat(f32, world_pos.world_x), 0,   @intToFloat(f32, world_pos.world_z),
+            //     @floatFromInt(f32, world_pos.world_x), 0,   @floatFromInt(f32, world_pos.world_z),
             // };
 
             // const body = zbt.initBody(

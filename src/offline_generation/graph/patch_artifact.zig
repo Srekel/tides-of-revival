@@ -15,7 +15,7 @@ const HeightmapOutputData = graph_heightmap.HeightmapOutputData;
 
 const config_patch_width = 512;
 
-pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = output;
     _ = params;
 
@@ -137,8 +137,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                             const world_x = @intCast(i64, hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
                                             const world_y = @intCast(i64, hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride);
                                             const value = patches.getValueDynamic(world_x, world_y, u16);
-                                            min_value = std.math.min(min_value, value);
-                                            max_value = std.math.max(max_value, value);
+                                            min_value = @min(min_value, value);
+                                            max_value = @max(max_value, value);
                                         }
                                     }
 
@@ -148,8 +148,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                             };
                         };
 
-                        const range_diff = @intToFloat(f64, range.max - range.min);
-                        // const full_range_diff = @intToFloat(f64, std.math.maxInt(u16));
+                        const range_diff = @floatFromInt(f64, range.max - range.min);
+                        // const full_range_diff = @floatFromInt(f64, std.math.maxInt(u16));
 
                         var pixel_y: u32 = 0;
                         while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
@@ -173,7 +173,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                             continue;
                                         }
 
-                                        const value_mapped = @floatToInt(u8, (@intToFloat(f64, (value - range.min)) / range_diff) * 255);
+                                        const value_mapped = @intFromFloat(u8, (@floatFromInt(f64, (value - range.min)) / range_diff) * 255);
                                         image.data[img_i] = @intCast(u8, value_mapped);
                                         // image.data[img_i] = @intCast(u8, value >> 8);
                                         // image.data[img_i + 1] = @intCast(u8, value & 0xFF);

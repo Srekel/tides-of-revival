@@ -29,7 +29,7 @@ fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
     return ret;
 }
 
-fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = output;
 
     const world_width_input = node.getInputByString("World Width");

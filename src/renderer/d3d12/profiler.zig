@@ -160,8 +160,8 @@ pub const Profiler = struct {
         const end_time = frame_query_data[end_time_index];
 
         if (end_time > start_time) {
-            const delta: f64 = @intToFloat(f64, end_time - start_time);
-            const frequency: f64 = @intToFloat(f64, gpu_frequency);
+            const delta: f64 = @floatFromInt(f64, end_time - start_time);
+            const frequency: f64 = @floatFromInt(f64, gpu_frequency);
             time = (delta / frequency) * 1000.0;
         }
 
@@ -177,13 +177,13 @@ pub const Profiler = struct {
                 continue;
             }
 
-            max_time = std.math.max(profile.time_samples[i], max_time);
+            max_time = @max(profile.time_samples[i], max_time);
             avg_time += profile.time_samples[i];
             avg_time_samples += 1;
         }
 
         if (avg_time_samples > 0) {
-            avg_time /= @intToFloat(f64, avg_time_samples);
+            avg_time /= @floatFromInt(f64, avg_time_samples);
         }
 
         profile.avg_time = avg_time;

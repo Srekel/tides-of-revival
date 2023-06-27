@@ -300,7 +300,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                             if (zglfw.Joystick.get(@intCast(zglfw.Joystick.Id, joystick_id))) |joystick| {
                                 if (joystick.asGamepad()) |gamepad| {
                                     const gamepad_state = gamepad.getState();
-                                    const value = gamepad_state.axes[@enumToInt(axis)];
+                                    const value = gamepad_state.axes[@intFromEnum(axis)];
                                     break :blk TargetValue{ .number = value };
                                 }
                             }
@@ -314,7 +314,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                             if (zglfw.Joystick.get(@intCast(zglfw.Joystick.Id, joystick_id))) |joystick| {
                                 if (joystick.asGamepad()) |gamepad| {
                                     const gamepad_state = gamepad.getState();
-                                    const action = gamepad_state.buttons[@enumToInt(button)];
+                                    const action = gamepad_state.buttons[@intFromEnum(button)];
                                     const value: f32 = if (action == .release) 0 else 1;
                                     break :blk TargetValue{ .number = value };
                                 }

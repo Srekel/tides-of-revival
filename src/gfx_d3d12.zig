@@ -169,13 +169,13 @@ pub const FrameStats = struct {
 
     pub fn update(self: *FrameStats) void {
         const now_ns = self.timer.read();
-        self.time = @intToFloat(f64, now_ns) / std.time.ns_per_s;
-        self.delta_time = @intToFloat(f32, now_ns - self.previous_time_ns) / std.time.ns_per_s;
+        self.time = @floatFromInt(f64, now_ns) / std.time.ns_per_s;
+        self.delta_time = @floatFromInt(f32, now_ns - self.previous_time_ns) / std.time.ns_per_s;
         self.previous_time_ns = now_ns;
 
         if ((now_ns - self.fps_refresh_time_ns) >= std.time.ns_per_s) {
-            const t = @intToFloat(f64, now_ns - self.fps_refresh_time_ns) / std.time.ns_per_s;
-            const fps = @intToFloat(f64, self.frame_counter) / t;
+            const t = @floatFromInt(f64, now_ns - self.fps_refresh_time_ns) / std.time.ns_per_s;
+            const fps = @floatFromInt(f64, self.frame_counter) / t;
             const ms = (1.0 / fps) * 1000.0;
 
             self.fps = @floatCast(f32, fps);
@@ -1111,8 +1111,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     &d2d1.RECT_F{
                         .left = 0.0,
                         .top = 0.0,
-                        .right = @intToFloat(f32, gctx.viewport_width),
-                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                        .right = @floatFromInt(f32, gctx.viewport_width),
+                        .bottom = @floatFromInt(f32, gctx.viewport_height),
                     },
                     @ptrCast(*d2d1.IBrush, state.stats_brush),
                 );
@@ -1137,9 +1137,9 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     state.stats_text_format,
                     &d2d1.RECT_F{
                         .left = 0.0,
-                        .top = @intToFloat(f32, i) * line_height + vertical_offset,
-                        .right = @intToFloat(f32, gctx.viewport_width),
-                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                        .top = @floatFromInt(f32, i) * line_height + vertical_offset,
+                        .right = @floatFromInt(f32, gctx.viewport_width),
+                        .bottom = @floatFromInt(f32, gctx.viewport_height),
                     },
                     @ptrCast(*d2d1.IBrush, state.stats_brush),
                 );
@@ -1163,9 +1163,9 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     state.stats_text_format,
                     &d2d1.RECT_F{
                         .left = 0.0,
-                        .top = @intToFloat(f32, i) * line_height + vertical_offset,
-                        .right = @intToFloat(f32, gctx.viewport_width),
-                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                        .top = @floatFromInt(f32, i) * line_height + vertical_offset,
+                        .right = @floatFromInt(f32, gctx.viewport_width),
+                        .bottom = @floatFromInt(f32, gctx.viewport_height),
                     },
                     @ptrCast(*d2d1.IBrush, state.stats_brush),
                 );

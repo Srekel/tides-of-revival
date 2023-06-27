@@ -14,8 +14,8 @@ const zphy = @import("zphysics");
 fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void {
     const pitch = input_state.get(config.input_look_pitch);
     rot.pitch += 0.0025 * pitch.number;
-    rot.pitch = math.min(rot.pitch, 0.48 * math.pi);
-    rot.pitch = math.max(rot.pitch, -0.48 * math.pi);
+    rot.pitch = @min(rot.pitch, 0.48 * math.pi);
+    rot.pitch = @max(rot.pitch, -0.48 * math.pi);
 }
 
 fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, flecs_world: *flecs.World, input_state: *const input.FrameData) void {

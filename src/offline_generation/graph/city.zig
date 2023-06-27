@@ -33,7 +33,7 @@ pub const CityOutputData = struct {
 // ╚██████╗██║   ██║      ██║
 //  ╚═════╝╚═╝   ╚═╝      ╚═╝
 
-pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = params;
 
     const world_width_input = node.getInputByString("World Width");
@@ -54,12 +54,12 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     while (world_z < world_width - CITY_MARGIN_EDGE) : (world_z += CITY_SKIP) {
         var world_x: i64 = CITY_MARGIN_EDGE;
         x_loop: while (world_x < world_width - CITY_MARGIN_EDGE) : (world_x += CITY_SKIP) {
-            const world_x_f = @intToFloat(f32, world_x);
-            const world_z_f = @intToFloat(f32, world_z);
+            const world_x_f = @floatFromInt(f32, world_x);
+            const world_z_f = @floatFromInt(f32, world_z);
             for (cities.items) |city| {
                 const city_diff_x = @fabs(city.pos[0] - world_x_f);
                 const city_diff_z = @fabs(city.pos[2] - world_z_f);
-                if (city_diff_x + city_diff_z - @intToFloat(f32, (city.border_pos.items.len - CITY_MIN_BORDERS) * 1) < CITY_MARGIN_CITY) {
+                if (city_diff_x + city_diff_z - @floatFromInt(f32, (city.border_pos.items.len - CITY_MIN_BORDERS) * 1) < CITY_MARGIN_CITY) {
                     continue :x_loop;
                 }
             }
@@ -149,11 +149,11 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     }
 
                     const height_side = patches.getHeightWorld(
-                        @floatToInt(i32, pos[0]),
-                        @floatToInt(i32, pos[2]),
+                        @intFromFloat(i32, pos[0]),
+                        @intFromFloat(i32, pos[2]),
                     );
                     const height_diff = @fabs(height_side - height_curr);
-                    // const height_diff = @intToFloat(f32, height_diff_i);
+                    // const height_diff = @floatFromInt(f32, height_diff_i);
                     // if (height_diff > CITY_HEIGHT_TEST_SKIP / 2) {
                     // const pos_curr_diff_x = std.math.absInt(pos_curr[0] - pos[0]) catch unreachable;
                     // const pos_curr_diff_z = std.math.absInt(pos_curr[2] - pos[2]) catch unreachable;
@@ -268,8 +268,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     //                     // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[2] + 0) * image_width, stride));
     //                     // const height = patches.getHeight(pos[0],pos[2]);
     //                     const height = pixels[pixels_index].r;
-    //                     const add = std.math.min(100, 255 - height);
-    //                     const sub = std.math.min(add, std.math.min(20, pixels[pixels_index].b));
+    //                     const add = @min(100, 255 - height);
+    //                     const sub = @min(add, @min(20, pixels[pixels_index].b));
     //                     pixels[pixels_index].r += if (is_border) add else add / 2;
     //                     // pixels[pixels_index].R = pixels[pixels_index].R / 2;
     //                     pixels[pixels_index].g -= sub;
@@ -371,7 +371,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         }
 
         std.debug.print("..cities\n", .{});
-        const stride_f = @intToFloat(f32, stride);
+        const stride_f = @floatFromInt(f32, stride);
         for (cities.items) |city| {
             std.debug.print("....city pos:{any} size:{}\n", .{ city.pos, city.border_pos.items.len });
             for (city.border_pos.items, 0..) |pos, i| {
@@ -380,14 +380,14 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 while (city_z < CITY_HEIGHT_TEST_SKIP) : (city_z += stride_f) {
                     var city_x: f32 = 0;
                     while (city_x < CITY_HEIGHT_TEST_SKIP) : (city_x += stride_f) {
-                        pixels_index = @floatToInt(u64, //
+                        pixels_index = @intFromFloat(u64, //
                             @divFloor(pos[0] + city_x, stride_f) + //
                             @divFloor((pos[2] + city_z) * image_width, stride_f));
                         // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[2] + 0) * image_width, stride));
                         // const height = patches.getHeight(pos[0],pos[2]);
                         const height = pixels[pixels_index].r;
-                        const add = std.math.min(100, 255 - height);
-                        const sub = std.math.min(add, std.math.min(20, pixels[pixels_index].b));
+                        const add = @min(100, 255 - height);
+                        const sub = @min(add, @min(20, pixels[pixels_index].b));
                         pixels[pixels_index].r += if (is_border) add else add / 2;
                         // pixels[pixels_index].R = pixels[pixels_index].R / 2;
                         pixels[pixels_index].g -= sub;

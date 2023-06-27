@@ -15,7 +15,7 @@ const graph_util = @import("graph/util.zig");
 
 const config_patch_width = 512;
 
-fn funcTemplateNumber(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+fn funcTemplateNumber(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = output;
 
     const paramValue = if (params.len == 1) params[0].value.getUInt64() else 0;
@@ -33,7 +33,7 @@ fn funcTemplateNumber(node: *g.Node, output: *g.NodeOutput, context: *g.GraphCon
     return res;
 }
 
-fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = output;
     _ = params;
     var valueA: v.Variant = undefined;

@@ -636,11 +636,11 @@ fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32,
     if (t <= 0.05) {
         return 0;
     } else if (t <= 0.1) {
-        return std.math.min(num_lods - 1, 1);
+        return @min(num_lods - 1, 1);
     } else if (t <= 0.2) {
-        return std.math.min(num_lods - 1, 2);
+        return @min(num_lods - 1, 2);
     } else {
-        return std.math.min(num_lods - 1, 3);
+        return @min(num_lods - 1, 3);
     }
 }
 
