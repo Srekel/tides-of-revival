@@ -105,7 +105,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                     }
 
                     // const patches = res.success.getPtr(graph_heightmap.HeightmapOutputData, 1);
-                    const patches = res.success.getPtr(graph_util.PatchOutputData(u0), 1);
+                    const patches = res.success.getPtr(graph_util.PatchOutputData(u8), 1);
                     break :patch_blk patches;
                 };
 

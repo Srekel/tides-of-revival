@@ -1,3 +1,4 @@
+const std = @import("std");
 const g = @import("graph.zig");
 const v = @import("../../variant.zig");
 // const g =
@@ -55,10 +56,11 @@ pub fn PatchOutputData(comptime PatchElement: anytype) type {
             const patch_index_x = patch_x - patch_begin_x;
             const patch_index_y = patch_y - patch_begin_y;
             const patch = self.patches[patch_index_x + patch_index_y * self.count_x];
-            const actual_patch: []ActualPatchElement = @ptrCast(patch);
-            const inside_patch_x = @as(u64, world_x) % self.patch_width;
-            const inside_patch_y = @as(u64, world_y) % self.patch_width;
-            return actual_patch[inside_patch_x + inside_patch_y * self.patch_width];
+            const actual_patch_width = self.patch_width * @sizeOf(PatchElement) / @sizeOf(ActualPatchElement);
+            const actual_patch = std.mem.bytesAsSlice(ActualPatchElement, patch);
+            const inside_patch_x = @as(u64, @intCast(world_x)) % actual_patch_width;
+            const inside_patch_y = @as(u64, @intCast(world_y)) % actual_patch_width;
+            return actual_patch[inside_patch_x + inside_patch_y * actual_patch_width];
         }
     };
     return res;
