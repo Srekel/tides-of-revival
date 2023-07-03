@@ -54,12 +54,12 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     while (world_z < world_width - CITY_MARGIN_EDGE) : (world_z += CITY_SKIP) {
         var world_x: i64 = CITY_MARGIN_EDGE;
         x_loop: while (world_x < world_width - CITY_MARGIN_EDGE) : (world_x += CITY_SKIP) {
-            const world_x_f = @floatFromInt(f32, world_x);
-            const world_z_f = @floatFromInt(f32, world_z);
+            const world_x_f = @as(f32, @floatFromInt(world_x));
+            const world_z_f = @as(f32, @floatFromInt(world_z));
             for (cities.items) |city| {
                 const city_diff_x = @fabs(city.pos[0] - world_x_f);
                 const city_diff_z = @fabs(city.pos[2] - world_z_f);
-                if (city_diff_x + city_diff_z - @floatFromInt(f32, (city.border_pos.items.len - CITY_MIN_BORDERS) * 1) < CITY_MARGIN_CITY) {
+                if (city_diff_x + city_diff_z - @as(f32, @floatFromInt((city.border_pos.items.len - CITY_MIN_BORDERS) * 1)) < CITY_MARGIN_CITY) {
                     continue :x_loop;
                 }
             }
@@ -149,8 +149,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     }
 
                     const height_side = patches.getHeightWorld(
-                        @intFromFloat(i32, pos[0]),
-                        @intFromFloat(i32, pos[2]),
+                        @as(i32, @intFromFloat(pos[0])),
+                        @as(i32, @intFromFloat(pos[2])),
                     );
                     const height_diff = @fabs(height_side - height_curr);
                     // const height_diff = @floatFromInt(f32, height_diff_i);
@@ -287,13 +287,13 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
         const patch_width = config_patch_width;
         const image_width = 2048;
-        const stride = @intCast(i64, @divExact(world_width, image_width));
+        const stride = @as(i64, @intCast(@divExact(world_width, image_width)));
         const hmimg = img.Image.create(context.frame_allocator, image_width, image_width, img.PixelFormat.rgba32) catch unreachable;
         const pixels = hmimg.pixels.rgba32;
         var pixels_index: u64 = 0;
 
         world_z = 0;
-        const patch_width_i = @intCast(i64, patch_width);
+        const patch_width_i = @as(i64, @intCast(patch_width));
         while (world_z < world_width - patch_width + 1) : (world_z += patch_width_i) {
             std.debug.print("..{}\n", .{world_z});
             var world_x: i64 = 0;
@@ -336,8 +336,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 while (world_patch_z < patch_width) : (world_patch_z += stride) {
                     var world_patch_x: i64 = 0;
                     while (world_patch_x < patch_width) : (world_patch_x += stride) {
-                        pixels_index = @intCast(u64, @divFloor(world_x + world_patch_x, stride) + @divFloor((world_z + world_patch_z) * image_width, stride));
-                        const height = @intCast(u8, patches.getHeight(world_x + world_patch_x, world_z + world_patch_z) / 255);
+                        pixels_index = @as(u64, @intCast(@divFloor(world_x + world_patch_x, stride) + @divFloor((world_z + world_patch_z) * image_width, stride)));
+                        const height = @as(u8, @intCast(patches.getHeight(world_x + world_patch_x, world_z + world_patch_z) / 255));
                         pixels[pixels_index].r = height;
                         pixels[pixels_index].g = height;
                         pixels[pixels_index].b = height;
@@ -356,11 +356,11 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                             pixels[pixels_index].b = 20 + height / 2;
                         }
 
-                        if (@intCast(u64, (world_x + world_patch_x)) % (patch_width * 4) < 32 or @intCast(u64, (world_z + world_patch_z)) % (patch_width * 4) < 32) {
+                        if (@as(u64, @intCast((world_x + world_patch_x))) % (patch_width * 4) < 32 or @as(u64, @intCast((world_z + world_patch_z))) % (patch_width * 4) < 32) {
                             pixels[pixels_index].r -= 5;
                             pixels[pixels_index].g -= 5;
                             pixels[pixels_index].b -= 5;
-                        } else if (@intCast(u64, (world_x + world_patch_x)) % patch_width < 4 or @intCast(u64, (world_z + world_patch_z)) % patch_width < 4) {
+                        } else if (@as(u64, @intCast((world_x + world_patch_x))) % patch_width < 4 or @as(u64, @intCast((world_z + world_patch_z))) % patch_width < 4) {
                             pixels[pixels_index].r -= 5;
                             pixels[pixels_index].g -= 5;
                             pixels[pixels_index].b -= 5;
@@ -371,7 +371,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         }
 
         std.debug.print("..cities\n", .{});
-        const stride_f = @floatFromInt(f32, stride);
+        const stride_f = @as(f32, @floatFromInt(stride));
         for (cities.items) |city| {
             std.debug.print("....city pos:{any} size:{}\n", .{ city.pos, city.border_pos.items.len });
             for (city.border_pos.items, 0..) |pos, i| {
@@ -380,9 +380,9 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 while (city_z < CITY_HEIGHT_TEST_SKIP) : (city_z += stride_f) {
                     var city_x: f32 = 0;
                     while (city_x < CITY_HEIGHT_TEST_SKIP) : (city_x += stride_f) {
-                        pixels_index = @intFromFloat(u64, //
-                            @divFloor(pos[0] + city_x, stride_f) + //
-                            @divFloor((pos[2] + city_z) * image_width, stride_f));
+                        pixels_index = @as(u64, //
+                        @intFromFloat(@divFloor(pos[0] + city_x, stride_f) + //
+                            @divFloor((pos[2] + city_z) * image_width, stride_f)));
                         // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[2] + 0) * image_width, stride));
                         // const height = patches.getHeight(pos[0],pos[2]);
                         const height = pixels[pixels_index].r;
@@ -465,9 +465,9 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             props.append(.{
                 .id = city_id,
                 .pos = .{
-                    @floatCast(f32, city.pos[0]),
-                    @floatCast(f32, city.pos[1]),
-                    @floatCast(f32, city.pos[2]),
+                    @as(f32, @floatCast(city.pos[0])),
+                    @as(f32, @floatCast(city.pos[1])),
+                    @as(f32, @floatCast(city.pos[2])),
                 },
                 .rot = 0,
             }) catch unreachable;
@@ -475,9 +475,9 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             props.append(.{
                 .id = house_id,
                 .pos = .{
-                    @floatCast(f32, city.pos[0]),
-                    @floatCast(f32, city.pos[1]),
-                    @floatCast(f32, city.pos[2]),
+                    @as(f32, @floatCast(city.pos[0])),
+                    @as(f32, @floatCast(city.pos[1])),
+                    @as(f32, @floatCast(city.pos[2])),
                 },
                 .rot = 0,
             }) catch unreachable;

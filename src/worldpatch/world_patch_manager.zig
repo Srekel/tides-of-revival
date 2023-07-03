@@ -215,7 +215,7 @@ pub const PatchTypeContext = struct {
 
 fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyopaque) []const u8 {
     _ = data;
-    var world_patch_mgr = @ptrCast(*WorldPatchManager, @alignCast(@alignOf(*WorldPatchManager), ctx));
+    var world_patch_mgr = @as(*WorldPatchManager, @ptrCast(@alignCast(ctx)));
 
     const buckets = .{
         .bucket0 = world_patch_mgr.bucket_queue.buckets[0].items.len,
@@ -302,7 +302,7 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn registerRequester(self: *WorldPatchManager, id: IdLocal) RequesterId {
-        const requester_id = @intCast(u8, self.requesters.items.len);
+        const requester_id = @as(u8, @intCast(self.requesters.items.len));
         self.requesters.appendAssumeCapacity(id);
         return requester_id;
     }
@@ -310,14 +310,14 @@ pub const WorldPatchManager = struct {
     pub fn getRequester(self: *WorldPatchManager, id: IdLocal) RequesterId {
         for (self.requesters.items, 0..) |requester_id, i| {
             if (requester_id.eql(id)) {
-                return @intCast(RequesterId, i);
+                return @as(RequesterId, @intCast(i));
             }
         }
         unreachable;
     }
 
     pub fn registerPatchType(self: *WorldPatchManager, patch_type: PatchType) PatchTypeId {
-        const patch_type_id = @intCast(u8, self.patch_types.items.len);
+        const patch_type_id = @as(u8, @intCast(self.patch_types.items.len));
         self.patch_types.appendAssumeCapacity(patch_type);
         return patch_type_id;
     }
@@ -325,18 +325,18 @@ pub const WorldPatchManager = struct {
     pub fn getPatchTypeId(self: *WorldPatchManager, id: IdLocal) PatchTypeId {
         for (self.patch_types.items, 0..) |patch_type, i| {
             if (patch_type.id.eql(id)) {
-                return @intCast(PatchTypeId, i);
+                return @as(PatchTypeId, @intCast(i));
             }
         }
         unreachable;
     }
 
     pub fn getLookup(world_x: f32, world_z: f32, lod: LoD, patch_type_id: PatchTypeId) PatchLookup {
-        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @floatFromInt(f32, lod));
+        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @as(f32, @floatFromInt(lod)));
         const world_x_begin = world_stride * @divFloor(world_x, world_stride);
         const world_z_begin = world_stride * @divFloor(world_z, world_stride);
-        const patch_x_begin = @intFromFloat(u16, @divExact(world_x_begin, world_stride));
-        const patch_z_begin = @intFromFloat(u16, @divExact(world_z_begin, world_stride));
+        const patch_x_begin = @as(u16, @intFromFloat(@divExact(world_x_begin, world_stride)));
+        const patch_z_begin = @as(u16, @intFromFloat(@divExact(world_z_begin, world_stride)));
         return PatchLookup{
             .patch_x = patch_x_begin,
             .patch_z = patch_z_begin,
@@ -350,15 +350,15 @@ pub const WorldPatchManager = struct {
         // NOTE(Anders) HACK!
         const patch_lod_end = 8 * std.math.pow(u16, 2, 3 - lod);
 
-        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @floatFromInt(f32, lod));
-        const patch_x_begin_i = @intFromFloat(i32, @divFloor(area.x, world_stride));
-        const patch_z_begin_i = @intFromFloat(i32, @divFloor(area.z, world_stride));
-        const patch_x_end_i = @intFromFloat(i32, @ceil((area.x + area.width) / world_stride));
-        const patch_z_end_i = @intFromFloat(i32, @ceil((area.z + area.height) / world_stride));
-        const patch_x_begin = @intCast(u16, std.math.clamp(patch_x_begin_i, 0, patch_lod_end));
-        const patch_z_begin = @intCast(u16, std.math.clamp(patch_z_begin_i, 0, patch_lod_end));
-        const patch_x_end = @intCast(u16, std.math.clamp(patch_x_end_i, 0, patch_lod_end));
-        const patch_z_end = @intCast(u16, std.math.clamp(patch_z_end_i, 0, patch_lod_end));
+        const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @as(f32, @floatFromInt(lod)));
+        const patch_x_begin_i = @as(i32, @intFromFloat(@divFloor(area.x, world_stride)));
+        const patch_z_begin_i = @as(i32, @intFromFloat(@divFloor(area.z, world_stride)));
+        const patch_x_end_i = @as(i32, @intFromFloat(@ceil((area.x + area.width) / world_stride)));
+        const patch_z_end_i = @as(i32, @intFromFloat(@ceil((area.z + area.height) / world_stride)));
+        const patch_x_begin = @as(u16, @intCast(std.math.clamp(patch_x_begin_i, 0, patch_lod_end)));
+        const patch_z_begin = @as(u16, @intCast(std.math.clamp(patch_z_begin_i, 0, patch_lod_end)));
+        const patch_x_end = @as(u16, @intCast(std.math.clamp(patch_x_end_i, 0, patch_lod_end)));
+        const patch_z_end = @as(u16, @intCast(std.math.clamp(patch_z_end_i, 0, patch_lod_end)));
 
         var patch_z = patch_z_begin;
         while (patch_z < patch_z_end) : (patch_z += 1) {
@@ -485,7 +485,13 @@ pub const WorldPatchManager = struct {
         if (patch_handle_opt) |patch_handle| {
             const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
             if (patch.data) |data| {
-                return .{ .status = patch.status, .data_opt = std.mem.bytesAsSlice(T, @alignCast(@alignOf(T), data)) };
+                const data_aligned: []align(@alignOf(T)) u8 = @alignCast(data);
+                const slice = std.mem.bytesAsSlice(T, data_aligned);
+                // const data_aligned : align(@alignOf(T)) []u8 = @alignCast(data);
+                return .{
+                    .status = patch.status,
+                    .data_opt = slice,
+                };
             }
             return .{ .status = patch.status, .data_opt = null };
         }

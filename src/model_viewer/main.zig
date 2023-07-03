@@ -116,8 +116,8 @@ pub fn run() !void {
     _ = appendObjMesh(allocator, IdLocal.init("cube"), "content/meshes/cube.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
     _ = appendObjMesh(allocator, IdLocal.init("damaged_helmet"), "content/meshes/damaged_helmet.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
 
-    const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
-    const total_num_indices = @intCast(u32, meshes_indices.items.len);
+    const total_num_vertices: u32 = @intCast(meshes_vertices.items.len);
+    const total_num_indices: u32 = @intCast(meshes_indices.items.len);
 
     // Create a vertex buffer.
     var vertex_buffer = gfx_state.createBuffer(.{
@@ -345,7 +345,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     const z_projection =
         zm.perspectiveFovLh(
         0.25 * math.pi,
-        @floatFromInt(f32, framebuffer_width) / @floatFromInt(f32, framebuffer_height),
+        @as(f32, @floatFromInt(framebuffer_width)) / @as(f32, @floatFromInt(framebuffer_height)),
         0.01,
         100.0,
     );
@@ -368,7 +368,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         const index_buffer_resource = gfx_state.gctx.lookupResource(index_buffer.?.resource);
         gfx_state.gctx.cmdlist.IASetIndexBuffer(&.{
             .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-            .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+            .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
             .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
@@ -407,7 +407,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
                 .index_count = mesh.lods[lod_index].index_count,
                 .instance_count = 1,
                 .index_offset = mesh.lods[lod_index].index_offset,
-                .vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset),
+                .vertex_offset = @as(i32, @intCast(mesh.lods[lod_index].vertex_offset)),
                 .start_instance_location = 0,
             }) catch unreachable;
 
@@ -416,7 +416,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             const normal = gfx_state.lookupTexture(model_viewer_state.normal);
             const arm = gfx_state.lookupTexture(model_viewer_state.arm);
 
-            const object_to_world = zm.rotationY(@floatCast(f32, 0.25 * stats.time));
+            const object_to_world = zm.rotationY(@as(f32, @floatCast(0.25 * stats.time)));
             model_viewer_state.instance_transforms.append(.{ .object_to_world = zm.transpose(object_to_world) }) catch unreachable;
             model_viewer_state.instance_materials.append(.{
                 .albedo_color = model_viewer_state.albedo_color,
@@ -469,7 +469,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         const index_buffer_resource = gfx_state.gctx.lookupResource(index_buffer.?.resource);
         gfx_state.gctx.cmdlist.IASetIndexBuffer(&.{
             .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-            .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+            .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
             .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
@@ -491,7 +491,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
         {
             const mem = gfx_state.gctx.allocateUploadMemory(DrawUniforms, 1);
             mem.cpu_slice[0].start_instance_location = 0;
-            mem.cpu_slice[0].vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
+            mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh.lods[lod_index].vertex_offset));
             mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
             mem.cpu_slice[0].instance_transform_buffer_index = 0;
             mem.cpu_slice[0].instance_material_buffer_index = 0;
@@ -502,7 +502,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
             mesh.lods[lod_index].index_count,
             1,
             mesh.lods[lod_index].index_offset,
-            @intCast(i32, mesh.lods[lod_index].vertex_offset),
+            @as(i32, @intCast(mesh.lods[lod_index].vertex_offset)),
             0,
         );
     }

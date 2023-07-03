@@ -715,7 +715,7 @@ pub fn run() void {
 
 fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
-    const dt = @floatCast(f32, stats.delta_time);
+    const dt: f32 = @floatCast(stats.delta_time);
 
     const flecs_stats = flecs.c.ecs_get_world_info(flecs_world.world);
     {

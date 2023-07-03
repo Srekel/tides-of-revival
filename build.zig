@@ -92,7 +92,7 @@ pub fn build(b: *std.Build) void {
 
     const dxc_step = buildShaders(b);
     const install_shaders_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ "/src/shaders/compiled",
+        .source_dir = .{ .path = thisDir() ++ "/src/shaders/compiled" },
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/shaders",
     });
@@ -100,7 +100,7 @@ pub fn build(b: *std.Build) void {
     exe.step.dependOn(&install_shaders_step.step);
 
     const install_meshes_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ "/content/meshes",
+        .source_dir = .{ .path = thisDir() ++ "/content/meshes" },
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/meshes",
     });
@@ -116,7 +116,7 @@ pub fn build(b: *std.Build) void {
     // exe.step.dependOn(&install_patches_step.step);
 
     const install_textures_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ "/content/textures",
+        .source_dir = .{ .path = thisDir() ++ "/content/textures" },
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/textures",
     });
@@ -124,7 +124,7 @@ pub fn build(b: *std.Build) void {
     exe.step.dependOn(&install_textures_step.step);
 
     const install_systems_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ "/content/systems",
+        .source_dir = .{ .path = thisDir() ++ "/content/systems" },
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/systems",
     });

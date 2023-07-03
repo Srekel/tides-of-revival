@@ -108,10 +108,10 @@ fn appendShapeMesh(
     };
 
     mesh.mesh.lods[0] = .{
-        .index_offset = @intCast(u32, meshes_indices.items.len),
-        .index_count = @intCast(u32, z_mesh.indices.len),
-        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
-        .vertex_count = @intCast(u32, z_mesh.positions.len),
+        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
+        .index_count = @as(u32, @intCast(z_mesh.indices.len)),
+        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
+        .vertex_count = @as(u32, @intCast(z_mesh.positions.len)),
     };
 
     var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
@@ -238,8 +238,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var meshes_vertices = std.ArrayList(Vertex).init(arena);
     initScene(allocator, &meshes, &meshes_indices, &meshes_vertices);
 
-    const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
-    const total_num_indices = @intCast(u32, meshes_indices.items.len);
+    const total_num_vertices = @as(u32, @intCast(meshes_vertices.items.len));
+    const total_num_indices = @as(u32, @intCast(meshes_indices.items.len));
 
     // Create a vertex buffer.
     var vertex_buffer = gfxstate.createBuffer(.{
@@ -369,7 +369,7 @@ pub fn destroy(state: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
@@ -437,11 +437,11 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
         if (last_mesh_index == 0xffffffff) {
-            last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
+            last_mesh_index = @as(u32, @intCast(comps.mesh.mesh_index));
             last_lod_index = lod_index;
             last_mesh_index_count = mesh.lods[lod_index].index_count;
             last_mesh_index_offset = mesh.lods[lod_index].index_offset;
-            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
+            last_mesh_vertex_offset = @as(i32, @intCast(mesh.lods[lod_index].vertex_offset));
         }
 
         if (last_mesh_index == comps.mesh.mesh_index and lod_index == last_lod_index) {
@@ -476,7 +476,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
             last_mesh_index_count = mesh.lods[lod_index].index_count;
             last_mesh_index_offset = mesh.lods[lod_index].index_offset;
-            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
+            last_mesh_vertex_offset = @as(i32, @intCast(mesh.lods[lod_index].vertex_offset));
         } else if (last_mesh_index != comps.mesh.mesh_index) {
             state.draw_calls.append(.{
                 .mesh_index = last_mesh_index,
@@ -490,14 +490,14 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             start_instance_location += instance_count;
             instance_count = 1;
 
-            last_mesh_index = @intCast(u32, comps.mesh.mesh_index);
+            last_mesh_index = @as(u32, @intCast(comps.mesh.mesh_index));
             mesh = &state.meshes.items[comps.mesh.mesh_index].mesh;
             lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
             last_lod_index = lod_index;
             last_mesh_index_count = mesh.lods[lod_index].index_count;
             last_mesh_index_offset = mesh.lods[lod_index].index_offset;
-            last_mesh_vertex_offset = @intCast(i32, mesh.lods[lod_index].vertex_offset);
+            last_mesh_vertex_offset = @as(i32, @intCast(mesh.lods[lod_index].vertex_offset));
         }
 
         const invalid_texture_index = std.math.maxInt(u32);
@@ -540,7 +540,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
         state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
             .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-            .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+            .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
             .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
@@ -599,7 +599,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             for (state.draw_calls.items) |draw_call| {
                 const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
                 mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-                mem.cpu_slice[0].vertex_offset = @intCast(i32, sphere_mesh.lods[0].vertex_offset);
+                mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(sphere_mesh.lods[0].vertex_offset));
                 mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
                 mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
                 mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
@@ -609,7 +609,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     sphere_mesh.lods[0].index_count,
                     draw_call.instance_count,
                     sphere_mesh.lods[0].index_offset,
-                    @intCast(i32, sphere_mesh.lods[0].vertex_offset),
+                    @as(i32, @intCast(sphere_mesh.lods[0].vertex_offset)),
                     draw_call.start_instance_location,
                 );
             }
@@ -660,7 +660,7 @@ const ShapeMeshInstanceObserverCallback = struct {
 
 // fn onSetCIShapeMeshDefinition(it: *flecs.Iterator(ShapeMeshDefinitionObserverCallback)) void {
 //     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-//     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+//     var state : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
 //     while (it.next()) |_| {
 //         const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshDefinition), @intCast(i32, it.index)).?;
@@ -686,12 +686,12 @@ const ShapeMeshInstanceObserverCallback = struct {
 // }
 
 fn onSetCIShapeMeshInstance(it: *flecs.Iterator(ShapeMeshInstanceObserverCallback)) void {
-    var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+    var observer = @as(*flecs.c.ecs_observer_t, @ptrCast(@alignCast(it.iter.ctx)));
+    var state: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @intCast(i32, it.index)).?;
-        var ci = @ptrCast(*fd.CIShapeMeshInstance, @alignCast(@alignOf(fd.CIShapeMeshInstance), ci_ptr));
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @as(i32, @intCast(it.index))).?;
+        var ci = @as(*fd.CIShapeMeshInstance, @ptrCast(@alignCast(ci_ptr)));
 
         const mesh_index = mesh_blk: {
             for (state.meshes.items, 0..) |mesh, i| {

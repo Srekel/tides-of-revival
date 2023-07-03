@@ -45,7 +45,7 @@ const BroadPhaseLayerInterface = extern struct {
         iself: *const zphy.BroadPhaseLayerInterface,
         layer: zphy.ObjectLayer,
     ) callconv(.C) zphy.BroadPhaseLayer {
-        const self = @ptrCast(*const BroadPhaseLayerInterface, iself);
+        const self = @as(*const BroadPhaseLayerInterface, @ptrCast(iself));
         return self.object_to_broad_phase[layer];
     }
 };
@@ -120,7 +120,7 @@ const ContactListener = extern struct {
         manifold: *const zphy.ContactManifold,
         settings: *zphy.ContactSettings,
     ) callconv(.C) void {
-        const self = @ptrCast(*const ContactListener, iself);
+        const self = @as(*const ContactListener, @ptrCast(iself));
         self.system.frame_contacts.append(.{
             .body_id1 = body1.id,
             .body_id2 = body2.id,
@@ -192,9 +192,9 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
 
     zphy.init(allocator, .{}) catch unreachable;
     const physics_world = zphy.PhysicsSystem.create(
-        @ptrCast(*const zphy.BroadPhaseLayerInterface, broad_phase_layer_interface),
-        @ptrCast(*const zphy.ObjectVsBroadPhaseLayerFilter, object_vs_broad_phase_layer_filter),
-        @ptrCast(*const zphy.ObjectLayerPairFilter, object_layer_pair_filter),
+        @as(*const zphy.BroadPhaseLayerInterface, @ptrCast(broad_phase_layer_interface)),
+        @as(*const zphy.ObjectVsBroadPhaseLayerFilter, @ptrCast(object_vs_broad_phase_layer_filter)),
+        @as(*const zphy.ObjectLayerPairFilter, @ptrCast(object_layer_pair_filter)),
         .{
             .max_bodies = 1024,
             .num_body_mutexes = 0,
@@ -246,7 +246,7 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // system.physics_world.optimizeBroadPhase();
     _ = system.physics_world.update(iter.iter.delta_time, .{}) catch unreachable;
     updateCollisions(system);
@@ -530,10 +530,10 @@ fn updatePatches(system: *SystemState) void {
             const height_field_size = config.patch_size;
             var samples: [height_field_size * height_field_size]f32 = undefined;
 
-            const width = @intCast(u32, config.patch_size);
+            const width = @as(u32, @intCast(config.patch_size));
             for (0..width) |z| {
                 for (0..width) |x| {
-                    const index = @intCast(u32, x + z * config.patch_resolution);
+                    const index = @as(u32, @intCast(x + z * config.patch_resolution));
                     const height = data[index];
                     var sample = &samples[x + z * width];
                     sample.* = height;
@@ -551,7 +551,7 @@ fn updatePatches(system: *SystemState) void {
 
             const body_interface = system.physics_world.getBodyInterfaceMut();
             const body_id = body_interface.createAndAddBody(.{
-                .position = .{ @floatFromInt(f32, world_pos.world_x), 0, @floatFromInt(f32, world_pos.world_z), 1.0 },
+                .position = .{ @as(f32, @floatFromInt(world_pos.world_x)), 0, @as(f32, @floatFromInt(world_pos.world_z)), 1.0 },
                 .rotation = .{ 0.0, 0.0, 0.0, 1.0 },
                 .shape = shape,
                 .motion_type = .static,
@@ -654,7 +654,7 @@ fn updatePatches(system: *SystemState) void {
 
 // fn onSetCIPhysicsBody(it: *flecs.Iterator(ObserverCallback)) void {
 //     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-//     var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+//     var system : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 //     _ = system;
 //     // while (it.next()) |_| {
 //     //     const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;

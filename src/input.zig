@@ -289,15 +289,15 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                     .mouse_cursor => blk: {
                         const cursor_pos = window.getCursorPos();
                         const cursor_value = TargetValue{ .vector2 = .{
-                            @floatCast(f32, cursor_pos[0]),
-                            @floatCast(f32, cursor_pos[1]),
+                            @as(f32, @floatCast(cursor_pos[0])),
+                            @as(f32, @floatCast(cursor_pos[1])),
                         } };
                         break :blk cursor_value;
                     },
                     .gamepad_axis => |axis| blk: {
                         var joystick_id: u32 = 0;
                         while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
-                            if (zglfw.Joystick.get(@intCast(zglfw.Joystick.Id, joystick_id))) |joystick| {
+                            if (zglfw.Joystick.get(@as(zglfw.Joystick.Id, @intCast(joystick_id)))) |joystick| {
                                 if (joystick.asGamepad()) |gamepad| {
                                     const gamepad_state = gamepad.getState();
                                     const value = gamepad_state.axes[@intFromEnum(axis)];
@@ -311,7 +311,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
                     .gamepad_button => |button| blk: {
                         var joystick_id: u32 = 0;
                         while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
-                            if (zglfw.Joystick.get(@intCast(zglfw.Joystick.Id, joystick_id))) |joystick| {
+                            if (zglfw.Joystick.get(@as(zglfw.Joystick.Id, @intCast(joystick_id)))) |joystick| {
                                 if (joystick.asGamepad()) |gamepad| {
                                     const gamepad_state = gamepad.getState();
                                     const action = gamepad_state.buttons[@intFromEnum(button)];

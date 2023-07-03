@@ -64,11 +64,11 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
         // const image_bytes_per_component = @intCast(u32, patch_element_byte_size);
         var image = zstbi.Image{
             .data = context.frame_allocator.alloc(u8, artifact_patch_width * artifact_patch_width * 2 * 1) catch unreachable,
-            .width = @intCast(u32, artifact_patch_width),
-            .height = @intCast(u32, artifact_patch_width),
+            .width = @as(u32, @intCast(artifact_patch_width)),
+            .height = @as(u32, @intCast(artifact_patch_width)),
             .num_components = 1,
             .bytes_per_component = image_bytes_per_component,
-            .bytes_per_row = image_bytes_per_component * @intCast(u32, artifact_patch_width),
+            .bytes_per_row = image_bytes_per_component * @as(u32, @intCast(artifact_patch_width)),
             .is_hdr = false,
         };
         // defer image.deinit();
@@ -134,8 +134,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                     while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
                                         var pixel_x: u32 = 0;
                                         while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
-                                            const world_x = @intCast(i64, hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
-                                            const world_y = @intCast(i64, hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride);
+                                            const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
+                                            const world_y = @as(i64, @intCast(hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride));
                                             const value = patches.getValueDynamic(world_x, world_y, u16);
                                             min_value = @min(min_value, value);
                                             max_value = @max(max_value, value);
@@ -148,15 +148,15 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                             };
                         };
 
-                        const range_diff = @floatFromInt(f64, range.max - range.min);
+                        const range_diff = @as(f64, @floatFromInt(range.max - range.min));
                         // const full_range_diff = @floatFromInt(f64, std.math.maxInt(u16));
 
                         var pixel_y: u32 = 0;
                         while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
                             var pixel_x: u32 = 0;
                             while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
-                                const world_x = @intCast(i64, hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
-                                const world_y = @intCast(i64, hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride);
+                                const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
+                                const world_y = @as(i64, @intCast(hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride));
                                 const img_i = pixel_x + pixel_y * artifact_patch_width;
                                 _ = switch (patch_element_byte_size) {
                                     1 => {
@@ -168,13 +168,13 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
                                         // TODO: Do range mapping optionally based on parameter
                                         if (range_diff == 0) {
-                                            image.data[img_i] = @intCast(u8, 0);
+                                            image.data[img_i] = @as(u8, @intCast(0));
                                             // image.data[img_i + 1] = @intCast(u8, 0);
                                             continue;
                                         }
 
-                                        const value_mapped = @intFromFloat(u8, (@floatFromInt(f64, (value - range.min)) / range_diff) * 255);
-                                        image.data[img_i] = @intCast(u8, value_mapped);
+                                        const value_mapped = @as(u8, @intFromFloat((@as(f64, @floatFromInt((value - range.min))) / range_diff) * 255));
+                                        image.data[img_i] = @as(u8, @intCast(value_mapped));
                                         // image.data[img_i] = @intCast(u8, value >> 8);
                                         // image.data[img_i + 1] = @intCast(u8, value & 0xFF);
                                     },

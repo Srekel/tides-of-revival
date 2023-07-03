@@ -134,11 +134,11 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                 defer remap_file.close();
 
                 blk_tree: for (props_forest) |prop_tree| {
-                    const patch_x_world_f = @floatFromInt(f32, patch_x_world);
-                    const patch_z_world_f = @floatFromInt(f32, patch_z_world);
-                    const patch_x_world_end_f = patch_x_world_f + @floatFromInt(f32, PROPS_PATCH_SIZE);
+                    const patch_x_world_f: f32 = @floatFromInt(patch_x_world);
+                    const patch_z_world_f: f32 = @floatFromInt(patch_z_world);
+                    const patch_x_world_end_f = patch_x_world_f + @as(f32, @floatFromInt(PROPS_PATCH_SIZE));
                     _ = patch_x_world_end_f;
-                    const patch_z_world_end_f = patch_z_world_f + @floatFromInt(f32, PROPS_PATCH_SIZE);
+                    const patch_z_world_end_f = patch_z_world_f + @as(f32, @floatFromInt(PROPS_PATCH_SIZE));
                     _ = patch_z_world_end_f;
                     for (props_city) |prop_city| {
                         if (tides_math.dist3_xz(prop_city.pos, prop_tree.pos) < 30) {
@@ -157,10 +157,10 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     _ = bytes_written;
                 }
 
-                const patch_x_world_f = @floatFromInt(f32, patch_x_world);
-                const patch_z_world_f = @floatFromInt(f32, patch_z_world);
-                const patch_x_world_end_f = patch_x_world_f + @floatFromInt(f32, PROPS_PATCH_SIZE);
-                const patch_z_world_end_f = patch_z_world_f + @floatFromInt(f32, PROPS_PATCH_SIZE);
+                const patch_x_world_f = @as(f32, @floatFromInt(patch_x_world));
+                const patch_z_world_f = @as(f32, @floatFromInt(patch_z_world));
+                const patch_x_world_end_f = patch_x_world_f + @as(f32, @floatFromInt(PROPS_PATCH_SIZE));
+                const patch_z_world_end_f = patch_z_world_f + @as(f32, @floatFromInt(PROPS_PATCH_SIZE));
                 for (props_city) |prop| {
                     if (prop.pos[0] < patch_x_world_f or prop.pos[0] >= patch_x_world_end_f) {
                         continue;

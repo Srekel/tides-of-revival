@@ -157,7 +157,7 @@ fn initStateData(system: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     const dt4 = zm.f32x4s(iter.iter.delta_time);
 
     // var entity_iter = system.query.iterator(struct {
@@ -201,11 +201,11 @@ const ObserverCallback = struct {
 };
 
 fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
-    var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+    var observer = @as(*flecs.c.ecs_observer_t, @ptrCast(@alignCast(it.iter.ctx)));
+    var system: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIFSM), @intCast(i32, it.index)).?;
-        var ci = @ptrCast(*fd.CIFSM, @alignCast(@alignOf(fd.CIFSM), ci_ptr));
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIFSM), @as(i32, @intCast(it.index))).?;
+        var ci = @as(*fd.CIFSM, @ptrCast(@alignCast(ci_ptr)));
 
         const smi_i = blk_smi_i: {
             const state_machine = blk_sm: {
@@ -236,7 +236,7 @@ fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
 
         ent.remove(fd.CIFSM);
         ent.set(fd.FSM{
-            .state_machine_lookup = @intCast(u16, smi_i.index),
+            .state_machine_lookup = @as(u16, @intCast(smi_i.index)),
             .blob_lookup = blob_lookup,
         });
         ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });

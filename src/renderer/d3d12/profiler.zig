@@ -38,7 +38,7 @@ pub const Profiler = struct {
             };
 
             var query_heap: *d3d12.IQueryHeap = undefined;
-            hrPanicOnFail(gctx.device.CreateQueryHeap(&query_heap_desc, &d3d12.IID_IQueryHeap, @ptrCast(*?*anyopaque, &query_heap)));
+            hrPanicOnFail(gctx.device.CreateQueryHeap(&query_heap_desc, &d3d12.IID_IQueryHeap, @as(*?*anyopaque, @ptrCast(&query_heap))));
             break :blk query_heap;
         };
 
@@ -54,7 +54,7 @@ pub const Profiler = struct {
                 .{ .COPY_DEST = true },
                 null,
                 &d3d12.IID_IResource,
-                @ptrCast(*?*anyopaque, &readback_buffer),
+                @as(*?*anyopaque, @ptrCast(&readback_buffer)),
             ));
             break :blk readback_buffer;
         };
@@ -99,7 +99,7 @@ pub const Profiler = struct {
         profile_data.active = true;
 
         // Insert the start timestamp
-        const start_query_index: u32 = @intCast(u32, profile_index * 2);
+        const start_query_index: u32 = @as(u32, @intCast(profile_index * 2));
         cmdlist.EndQuery(self.query_heap, .TIMESTAMP, start_query_index);
 
         profile_data.query_started = true;
@@ -116,7 +116,7 @@ pub const Profiler = struct {
         assert(profile_data.query_finished == false);
 
         // Insert the end timestamp
-        const start_query_index: u32 = @intCast(u32, index * 2);
+        const start_query_index: u32 = @as(u32, @intCast(index * 2));
         const end_query_index = start_query_index + 1;
         cmdlist.EndQuery(self.query_heap, .TIMESTAMP, end_query_index);
 
@@ -136,9 +136,9 @@ pub const Profiler = struct {
         hrPanicOnFail(self.readback_buffer.Map(
             0,
             null,
-            @ptrCast(*?*anyopaque, &readback_buffer_mapping),
+            @as(*?*anyopaque, @ptrCast(&readback_buffer_mapping)),
         ));
-        var frame_query_data = @ptrCast([*]u64, @alignCast(@alignOf(u64), readback_buffer_mapping));
+        var frame_query_data = @as([*]u64, @ptrCast(@alignCast(readback_buffer_mapping)));
 
         var i: u64 = 0;
         while (i < self.num_profiles) : (i += 1) {
@@ -160,8 +160,8 @@ pub const Profiler = struct {
         const end_time = frame_query_data[end_time_index];
 
         if (end_time > start_time) {
-            const delta: f64 = @floatFromInt(f64, end_time - start_time);
-            const frequency: f64 = @floatFromInt(f64, gpu_frequency);
+            const delta: f64 = @as(f64, @floatFromInt(end_time - start_time));
+            const frequency: f64 = @as(f64, @floatFromInt(gpu_frequency));
             time = (delta / frequency) * 1000.0;
         }
 
@@ -183,7 +183,7 @@ pub const Profiler = struct {
         }
 
         if (avg_time_samples > 0) {
-            avg_time /= @floatFromInt(f64, avg_time_samples);
+            avg_time /= @as(f64, @floatFromInt(avg_time_samples));
         }
 
         profile.avg_time = avg_time;

@@ -53,7 +53,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
     var result = query.castRay(
         ray,
         .{
-            .broad_phase_layer_filter = @ptrCast(*const zphy.BroadPhaseLayerFilter, &NonMovingBroadPhaseLayerFilter{}),
+            .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
         },
     );
 

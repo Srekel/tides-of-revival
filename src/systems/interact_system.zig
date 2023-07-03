@@ -62,7 +62,7 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateInteractors(system, iter.iter.delta_time);
 }
 
@@ -211,7 +211,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
 fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
+    var system: *SystemState = @ptrCast(@alignCast(ctx));
     const body_interface = system.physics_world.getBodyInterfaceMut();
     const frame_collisions_data = util.castOpaqueConst(config.events.FrameCollisionsData, event_data);
 

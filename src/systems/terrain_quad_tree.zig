@@ -210,7 +210,7 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     const bmp_decoder = blk: {
         var maybe_bmp_decoder: ?*wic.IBitmapDecoder = undefined;
         hrPanicOnFail(gctx.wic_factory.CreateDecoderFromFilename(
-            @ptrCast(w32.LPCWSTR, &path_u16),
+            @as(w32.LPCWSTR, @ptrCast(&path_u16)),
             null,
             w32.GENERIC_READ,
             .MetadataCacheOnDemand,
@@ -267,7 +267,7 @@ fn loadTexture(gctx: *zd3d12.GraphicsContext, path: []const u8) !struct {
     };
 
     hrPanicOnFail(image_conv.Initialize(
-        @ptrCast(*wic.IBitmapSource, bmp_frame),
+        @as(*wic.IBitmapSource, @ptrCast(bmp_frame)),
         wic_format,
         .None,
         null,
@@ -301,13 +301,13 @@ fn createTextureFromPixelBuffer(
     }
 
     const bpp = texture_desc.format.pixelSizeInBits();
-    const row_bytes = @divFloor(@intCast(u64, texture_desc.width) * bpp + 7, 8); // round up to nearest byte
+    const row_bytes = @divFloor(@as(u64, @intCast(texture_desc.width)) * bpp + 7, 8); // round up to nearest byte
     const num_bytes = row_bytes * texture_desc.height;
 
     const subresource = d3d12.SUBRESOURCE_DATA{
-        .pData = @ptrCast([*]u8, texture_desc.data[0..]),
-        .RowPitch = @intCast(c_uint, row_bytes),
-        .SlicePitch = @intCast(c_uint, num_bytes),
+        .pData = @as([*]u8, @ptrCast(texture_desc.data[0..])),
+        .RowPitch = @as(c_uint, @intCast(row_bytes)),
+        .SlicePitch = @as(c_uint, @intCast(num_bytes)),
     };
     var subresources = [1]d3d12.SUBRESOURCE_DATA{subresource};
 
@@ -400,7 +400,7 @@ fn createDDSTextureFromFile(
             assert(path.len < path_u16.len - 1);
             const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
             path_u16[path_len] = 0;
-            _ = resource.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+            _ = resource.SetName(@as(w32.LPCWSTR, @ptrCast(&path_u16)));
         }
 
         // Upload all subresources
@@ -475,7 +475,7 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         .{ .COPY_DEST = true },
         null,
         &d3d12.IID_IResource,
-        @ptrCast(*?*anyopaque, &resource),
+        @as(*?*anyopaque, @ptrCast(&resource)),
     ));
 
     heap_offset.* += size_in_bytes;
@@ -491,7 +491,7 @@ fn uploadDataToTexture(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, da
     var required_size: u64 = undefined;
     gfxstate.gctx.device.GetCopyableFootprints(&desc, 0, 1, 0, &layout, null, null, &required_size);
 
-    const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+    const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @as(u32, @intCast(required_size)));
     layout[0].Offset = upload.buffer_offset;
 
     hrPanicOnFail(data.CopyPixels(
@@ -533,7 +533,7 @@ fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, sub
     const resource_desc = resource.GetDesc();
 
     for (0..subresources.len) |index| {
-        const subresource_index = @intCast(u32, index);
+        const subresource_index = @as(u32, @intCast(index));
 
         var layout: [1]d3d12.PLACED_SUBRESOURCE_FOOTPRINT = undefined;
         var num_rows: [1]u32 = undefined;
@@ -551,7 +551,7 @@ fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, sub
             &required_size,
         );
 
-        const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @intCast(u32, required_size));
+        const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @as(u32, @intCast(required_size)));
         layout[0].Offset = upload.buffer_offset;
 
         var subresource = &subresources[subresource_index];
@@ -659,9 +659,9 @@ fn loadNodeHeightmap(
     assert(node.heightmap_handle == null);
 
     const lookup = world_patch_manager.PatchLookup{
-        .patch_x = @intCast(u16, node.patch_index[0]),
-        .patch_z = @intCast(u16, node.patch_index[1]),
-        .lod = @intCast(u4, node.mesh_lod),
+        .patch_x = @as(u16, @intCast(node.patch_index[0])),
+        .patch_z = @as(u16, @intCast(node.patch_index[1])),
+        .lod = @as(u4, @intCast(node.mesh_lod)),
         .patch_type_id = heightmap_patch_type_id,
     };
 
@@ -690,9 +690,9 @@ fn loadNodeSplatmap(
     assert(node.splatmap_handle == null);
 
     const lookup = world_patch_manager.PatchLookup{
-        .patch_x = @intCast(u16, node.patch_index[0]),
-        .patch_z = @intCast(u16, node.patch_index[1]),
-        .lod = @intCast(u4, node.mesh_lod),
+        .patch_x = @as(u16, @intCast(node.patch_index[0])),
+        .patch_z = @as(u16, @intCast(node.patch_index[1])),
+        .lod = @as(u4, @intCast(node.mesh_lod)),
         .patch_type_id = splatmap_patch_type_id,
     };
 
@@ -829,7 +829,7 @@ fn divideQuadTreeNode(
             .splatmap_handle = null,
         };
 
-        node.child_indices[child_index] = @intCast(u32, nodes.items.len);
+        node.child_indices[child_index] = @as(u32, @intCast(nodes.items.len));
         nodes.appendAssumeCapacity(child_node);
 
         assert(node.child_indices[child_index] < nodes.items.len);
@@ -862,7 +862,7 @@ pub fn create(
         .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
     };
     var textures_heap: *d3d12.IHeap = undefined;
-    hrPanicOnFail(gfxstate.gctx.device.CreateHeap(&heap_desc, &d3d12.IID_IHeap, @ptrCast(*?*anyopaque, &textures_heap)));
+    hrPanicOnFail(gfxstate.gctx.device.CreateHeap(&heap_desc, &d3d12.IID_IHeap, @as(*?*anyopaque, @ptrCast(&textures_heap))));
     var textures_heap_offset: u64 = 0;
 
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
@@ -873,15 +873,15 @@ pub fn create(
 
     // Create initial sectors
     {
-        var patch_half_size = @floatFromInt(f32, config.largest_patch_width) / 2.0;
+        var patch_half_size = @as(f32, @floatFromInt(config.largest_patch_width)) / 2.0;
         var patch_y: u32 = 0;
         while (patch_y < 8) : (patch_y += 1) {
             var patch_x: u32 = 0;
             while (patch_x < 8) : (patch_x += 1) {
                 terrain_quad_tree_nodes.appendAssumeCapacity(.{
                     .center = [2]f32{
-                        @floatFromInt(f32, patch_x * config.largest_patch_width) + patch_half_size,
-                        @floatFromInt(f32, patch_y * config.largest_patch_width) + patch_half_size,
+                        @as(f32, @floatFromInt(patch_x * config.largest_patch_width)) + patch_half_size,
+                        @as(f32, @floatFromInt(patch_y * config.largest_patch_width)) + patch_half_size,
                     },
                     .size = [2]f32{ patch_half_size, patch_half_size },
                     .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
@@ -915,8 +915,8 @@ pub fn create(
     loadMesh(allocator, "content/meshes/LOD2.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
     loadMesh(allocator, "content/meshes/LOD3.obj", &meshes, &meshes_indices, &meshes_vertices) catch unreachable;
 
-    const total_num_vertices = @intCast(u32, meshes_vertices.items.len);
-    const total_num_indices = @intCast(u32, meshes_indices.items.len);
+    const total_num_vertices = @as(u32, @intCast(meshes_vertices.items.len));
+    const total_num_indices = @as(u32, @intCast(meshes_indices.items.len));
 
     // Create a vertex buffer.
     var vertex_buffer = gfxstate.createBuffer(.{
@@ -1066,7 +1066,7 @@ pub fn destroy(state: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     var arena_state = std.heap.ArenaAllocator.init(state.allocator);
     defer arena_state.deinit();
@@ -1101,7 +1101,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
     state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-        .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+        .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
     });
 
@@ -1167,7 +1167,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .index_count = mesh.lods[0].index_count,
                 .instance_count = 1,
                 .index_offset = mesh.lods[0].index_offset,
-                .vertex_offset = @intCast(i32, mesh.lods[0].vertex_offset),
+                .vertex_offset = @as(i32, @intCast(mesh.lods[0].vertex_offset)),
                 .start_instance_location = start_instance_location,
             }) catch unreachable;
 
@@ -1227,7 +1227,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
             lookups_old.clearRetainingCapacity();
             lookups_new.clearRetainingCapacity();
 
-            const area_width = 4 * config.patch_size * @floatFromInt(f32, std.math.pow(usize, 2, lod));
+            const area_width = 4 * config.patch_size * @as(f32, @floatFromInt(std.math.pow(usize, 2, lod)));
 
             const area_old = world_patch_manager.RequestRectangle{
                 .x = state.cam_pos_old[0] - area_width,
@@ -1243,7 +1243,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 .height = area_width * 2,
             };
 
-            const lod_u4 = @intCast(u4, lod);
+            const lod_u4 = @as(u4, @intCast(lod));
             world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_old, lod_u4, &lookups_old);
             world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_old, lod_u4, &lookups_old);
             world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_new, lod_u4, &lookups_new);

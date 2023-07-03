@@ -17,7 +17,7 @@ pub const IdLocal = struct {
     pub fn initFormat(comptime fmt: []const u8, args: anytype) IdLocal {
         var res: IdLocal = undefined;
         const nameslice = std.fmt.bufPrint(res.str[0..res.str.len], fmt, args) catch unreachable;
-        res.strlen = @intCast(u8, nameslice.len);
+        res.strlen = @as(u8, @intCast(nameslice.len));
         res.str[res.strlen] = 0;
         res.hash = std.hash.Wyhash.hash(0, res.str[0..res.strlen]);
         return res;
@@ -32,7 +32,7 @@ pub const IdLocal = struct {
             self.*.clear();
             return;
         }
-        self.strlen = @intCast(u8, str.len);
+        self.strlen = @as(u8, @intCast(str.len));
         self.hash = std.hash.Wyhash.hash(0, str[0..self.strlen]);
         std.mem.copy(u8, self.str[0..self.str.len], str);
         self.str[self.strlen] = 0;
@@ -43,7 +43,7 @@ pub const IdLocal = struct {
     }
 
     pub fn toCString(self: IdLocal) [*c]const u8 {
-        return @ptrCast([*c]const u8, self.str[0..self.strlen]);
+        return @as([*c]const u8, @ptrCast(self.str[0..self.strlen]));
     }
 
     pub fn debugPrint(self: IdLocal) void {
@@ -129,7 +129,7 @@ pub const Variant = struct {
             .value = .{ .ptr_single = ptr },
             .tag = tag,
             .array_count = 1,
-            .elem_size = @intCast(u16, @sizeOf(@TypeOf(ptr.*))),
+            .elem_size = @as(u16, @intCast(@sizeOf(@TypeOf(ptr.*)))),
         };
     }
 
@@ -149,7 +149,7 @@ pub const Variant = struct {
             .value = .{ .ptr_single_const = ptr },
             .tag = tag,
             .array_count = 1,
-            .elem_size = @intCast(u16, @sizeOf(@TypeOf(ptr.*))),
+            .elem_size = @as(u16, @intCast(@sizeOf(@TypeOf(ptr.*)))),
         };
     }
 
@@ -158,8 +158,8 @@ pub const Variant = struct {
         return Variant{
             .value = .{ .ptr_array = slice.ptr },
             .tag = tag,
-            .array_count = @intCast(u16, slice.len),
-            .elem_size = @intCast(u16, @sizeOf(@TypeOf(slice[0]))),
+            .array_count = @as(u16, @intCast(slice.len)),
+            .elem_size = @as(u16, @intCast(@sizeOf(@TypeOf(slice[0])))),
         };
     }
 
@@ -169,8 +169,8 @@ pub const Variant = struct {
             // .value = .{ .ptr_array_const = string.ptr },
             .value = .{ .ptr_array_const = string.ptr },
             .tag = tag,
-            .array_count = @intCast(u16, string.len),
-            .elem_size = @intCast(u16, @sizeOf(u8)),
+            .array_count = @as(u16, @intCast(string.len)),
+            .elem_size = @as(u16, @intCast(@sizeOf(u8))),
         };
     }
 
@@ -186,13 +186,13 @@ pub const Variant = struct {
 
     pub fn createInt64(int: anytype) Variant {
         return Variant{
-            .value = .{ .int64 = @intCast(i64, int) },
+            .value = .{ .int64 = @as(i64, @intCast(int)) },
             .tag = 0, // TODO
         };
     }
     pub fn createUInt64(int: anytype) Variant {
         return Variant{
-            .value = .{ .uint64 = @intCast(u64, int) },
+            .value = .{ .uint64 = @as(u64, @intCast(int)) },
             .tag = 0, // TODO
         };
     }
@@ -201,7 +201,7 @@ pub const Variant = struct {
         assert(tag != 0);
         self.value = .{ .ptr_single = ptr };
         self.tag = tag;
-        self.elem_size = @intCast(u16, @sizeOf(ptr.*));
+        self.elem_size = @as(u16, @intCast(@sizeOf(ptr.*)));
     }
 
     pub fn setSlice(self: *Variant, slice: anytype, tag: Tag) void {
@@ -209,42 +209,42 @@ pub const Variant = struct {
         self.value = .{ .ptr = @intFromPtr(slice.ptr) };
         self.tag = tag;
         self.array_count = slice.len;
-        self.elem_size = @intCast(u16, @sizeOf(slice.ptr.*));
+        self.elem_size = @as(u16, @intCast(@sizeOf(slice.ptr.*)));
     }
 
     pub fn setInt64(self: *Variant, int: anytype) void {
-        self = .{ .value = .{ .int64 = @intCast(i64, int) } };
+        self = .{ .value = .{ .int64 = @as(i64, @intCast(int)) } };
     }
 
     pub fn setUInt64(self: *Variant, int: anytype) void {
-        self = .{ .value = .{ .uint64 = @intCast(u64, int) } };
+        self = .{ .value = .{ .uint64 = @as(u64, @intCast(int)) } };
     }
 
     pub fn getPtr(self: Variant, comptime T: type, tag: Tag) *T {
         assert(tag == self.tag);
-        return @ptrCast(*T, @alignCast(@alignOf(T), self.value.ptr_single));
+        return @as(*T, @ptrCast(@alignCast(self.value.ptr_single)));
     }
 
     pub fn getPtrConst(self: Variant, comptime T: type, tag: Tag) *const T {
         assert(tag == self.tag);
-        return @ptrCast(*const T, @alignCast(@alignOf(T), self.value.ptr_single_const));
+        return @as(*const T, @ptrCast(@alignCast(self.value.ptr_single_const)));
     }
 
     pub fn getSlice(self: Variant, comptime T: type, tag: Tag) []T {
         assert(tag == self.tag);
-        var ptr = @ptrCast([*]T, @alignCast(@alignOf(T), self.value.ptr_array));
+        var ptr = @as([*]T, @ptrCast(@alignCast(self.value.ptr_array)));
         return ptr[0..self.array_count];
     }
 
     pub fn getSliceConst(self: Variant, comptime T: type, tag: Tag) []T {
         assert(tag == self.tag);
-        var ptr = @ptrCast([*]T, self.value.ptr_array_const);
+        var ptr = @as([*]T, @ptrCast(self.value.ptr_array_const));
         return ptr[0..self.array_count];
     }
 
     pub fn getStringConst(self: Variant, tag: Tag) []const u8 {
         assert(tag == self.tag);
-        var ptr = @ptrCast([*]const u8, self.value.ptr_array_const);
+        var ptr = @as([*]const u8, @ptrCast(self.value.ptr_array_const));
         return ptr[0..self.array_count];
     }
 

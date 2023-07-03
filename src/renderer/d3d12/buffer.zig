@@ -106,7 +106,7 @@ pub const BufferPool = struct {
             },
         };
         const handle = BufferHandle{
-            .index = @intCast(u16, slot_idx),
+            .index = @as(u16, @intCast(slot_idx)),
             .generation = blk: {
                 pool.generations[slot_idx] += 1;
                 break :blk pool.generations[slot_idx];
