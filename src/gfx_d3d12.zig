@@ -263,7 +263,7 @@ pub const D3D12State = struct {
                     .u = .{
                         .Buffer = .{
                             .FirstElement = 0,
-                            .NumElements = @intCast(u32, @divExact(bufferDesc.size, 4)),
+                            .NumElements = @as(u32, @intCast(@divExact(bufferDesc.size, 4))),
                             .StructureByteStride = 0,
                             .Flags = .{ .RAW = true },
                         },
@@ -306,7 +306,7 @@ pub const D3D12State = struct {
         self.gctx.addTransitionBarrier(buffer.?.resource, .{ .COPY_DEST = true });
         self.gctx.flushResourceBarriers();
 
-        const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @intCast(u32, data.len));
+        const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @as(u32, @intCast(data.len)));
         std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
 
         // NOTE(gmodarelli): Let's have zd3d12 return the aligned size instead
@@ -1004,7 +1004,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
             gctx.cmdlist.IASetIndexBuffer(&.{
                 .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-                .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+                .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
                 .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
             });
 
@@ -1033,7 +1033,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 mesh.lods[lod_index].index_count,
                 1,
                 mesh.lods[lod_index].index_offset,
-                @intCast(i32, mesh.lods[lod_index].vertex_offset),
+                @as(i32, @intCast(mesh.lods[lod_index].vertex_offset)),
                 0,
             );
         }
@@ -1335,7 +1335,7 @@ fn drawText(
     utf16[len] = 0;
     devctx.DrawText(
         &utf16,
-        @intCast(u32, len),
+        @as(u32, @intCast(len)),
         format,
         layout_rect,
         brush,

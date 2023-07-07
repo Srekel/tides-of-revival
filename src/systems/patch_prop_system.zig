@@ -69,7 +69,7 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateLoaders(system);
     updatePatches(system);
 }

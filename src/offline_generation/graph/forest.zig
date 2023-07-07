@@ -17,7 +17,7 @@ const Pos = [2]i64;
 
 const config_patch_width = 512;
 
-pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = output;
     // _ = params;
 
@@ -77,7 +77,7 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
     const tree_id = IdLocal.init("tree");
 
     const noise = znoise.FnlGenerator{
-        .seed = @intCast(i32, 123),
+        .seed = @as(i32, @intCast(123)),
         .fractal_type = .fbm,
         .frequency = 0.001,
         .octaves = 8,
@@ -85,9 +85,9 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
 
     const PROPS_LOD = 1;
     const PROPS_PATCH_SIZE = config.patch_size * std.math.pow(u64, 2, PROPS_LOD);
-    const PROPS_PATCH_SIZE_F = @intToFloat(f32, config.patch_size * std.math.pow(u64, 2, PROPS_LOD));
+    const PROPS_PATCH_SIZE_F = @as(f32, @floatFromInt(config.patch_size * std.math.pow(u64, 2, PROPS_LOD)));
     const TREE_STEP = 16;
-    const TREE_STEP_F = @intToFloat(f32, TREE_STEP);
+    const TREE_STEP_F = @as(f32, @floatFromInt(TREE_STEP));
     const SAMPLES = @divFloor(PROPS_PATCH_SIZE, TREE_STEP);
     const PATCH_BEGIN_X = span_world_x / PROPS_PATCH_SIZE;
     const PATCH_BEGIN_Z = span_world_z / PROPS_PATCH_SIZE;
@@ -95,20 +95,20 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
     const PATCH_END_Z = (span_world_z + span_width) / PROPS_PATCH_SIZE;
     for (PATCH_BEGIN_Z..PATCH_END_Z) |patch_z| {
         for (PATCH_BEGIN_X..PATCH_END_X) |patch_x| {
-            const patch_x_f = @intToFloat(f32, patch_x);
-            const patch_z_f = @intToFloat(f32, patch_z);
+            const patch_x_f = @as(f32, @floatFromInt(patch_x));
+            const patch_z_f = @as(f32, @floatFromInt(patch_z));
 
             for (0..SAMPLES) |local_z| {
                 for (0..SAMPLES) |local_x| {
-                    const local_x_f = @intToFloat(f32, local_x);
-                    const local_z_f = @intToFloat(f32, local_z);
+                    const local_x_f = @as(f32, @floatFromInt(local_x));
+                    const local_z_f = @as(f32, @floatFromInt(local_z));
                     const world_x = patch_x_f * PROPS_PATCH_SIZE_F + local_x_f * TREE_STEP_F + rand.float(f32) * TREE_STEP_F * 0.995;
                     const world_z = patch_z_f * PROPS_PATCH_SIZE_F + local_z_f * TREE_STEP_F + rand.float(f32) * TREE_STEP_F * 0.995;
 
                     // TODO: Pass in non-integer coords
                     const world_y = patches.getHeightWorld(
-                        @floatToInt(u32, @floor(world_x)),
-                        @floatToInt(u32, @floor(world_z)),
+                        @as(u32, @intFromFloat(@floor(world_x))),
+                        @as(u32, @intFromFloat(@floor(world_z))),
                     );
 
                     if (world_y < 10 or world_y > 230) {

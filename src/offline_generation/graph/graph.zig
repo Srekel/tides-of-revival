@@ -274,4 +274,4 @@ pub const NodeFuncParam = struct {
     value: v.Variant = .{},
 };
 
-pub const NodeFunc = fn (node: *Node, output: *NodeOutput, context: *GraphContext, params: []NodeFuncParam) NodeFuncResult;
+pub const NodeFunc = fn (node: *Node, output: *NodeOutput, context: *GraphContext, params: []const NodeFuncParam) NodeFuncResult;

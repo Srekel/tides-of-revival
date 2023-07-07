@@ -17,8 +17,8 @@ fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void 
     // if (cam.window.getMouseButton(.right) == .press) {
     rot.pitch += 0.0025 * movement_pitch.number;
     rot.yaw += 0.0025 * movement_yaw.number;
-    rot.pitch = math.min(rot.pitch, 0.48 * math.pi);
-    rot.pitch = math.max(rot.pitch, -0.48 * math.pi);
+    rot.pitch = @min(rot.pitch, 0.48 * math.pi);
+    rot.pitch = @max(rot.pitch, -0.48 * math.pi);
     rot.yaw = zm.modAngle(rot.yaw);
     // }
 }

@@ -12,7 +12,7 @@ pub fn BlobArray(comptime alignment: u29) type {
         blob_count: u64 = 0,
 
         pub fn create(allocator: std.mem.Allocator, blob_size: u64) Self {
-            const blob_size_aligned = std.mem.alignForward(blob_size, alignment);
+            const blob_size_aligned = std.mem.alignForward(usize, blob_size, alignment);
 
             // HACK: Should handle resizing while maintaining alignment.
             // TODO: Remove ...assumeCapacity
@@ -30,7 +30,7 @@ pub fn BlobArray(comptime alignment: u29) type {
             const size_new = size_curr + self.blob_size;
             self.list.resize(size_new) catch unreachable;
             // std.debug.print("addBlob1 {} {} {}\n", .{ size_curr, size_new, self.blob_start });
-            // var ptr_as_int = @ptrToInt(&self.list.items[size_curr]);
+            // var ptr_as_int = @intFromPtr(&self.list.items[size_curr]);
             // var ptr_alignment = ptr_as_int % alignment;
             // std.debug.print("addBlob2 {} {} {}\n", .{ ptr_as_int, ptr_alignment, self.list.items.len });
             // var aligned_ptr = @alignCast(alignment, &self.list.items[size_curr]);
@@ -61,8 +61,8 @@ pub fn BlobArray(comptime alignment: u29) type {
             const size_curr = self.list.items.len;
             const size_new = size_curr + self.blob_size;
             self.list.resize(size_new) catch unreachable;
-            var aligned_ptr_dst = @alignCast(alignment, &self.list.items[size_curr]);
-            Util.memcpy(aligned_ptr_dst, &value, value_size);
+            var ptr_dst = &self.list.items[size_curr];
+            Util.memcpy(ptr_dst, &value, value_size);
             return self.blob_count - 1;
         }
 
@@ -76,8 +76,8 @@ pub fn BlobArray(comptime alignment: u29) type {
             const value_size = @sizeOf(T);
             std.debug.assert(value_size <= self.blob_size);
             const blob_byte_index = index * self.blob_size;
-            var aligned_ptr = @alignCast(@alignOf(T), &self.list.items[blob_byte_index]);
-            const value_ptr = @ptrCast(*T, aligned_ptr);
+            var ptr = &self.list.items[blob_byte_index];
+            const value_ptr = @as(*T, @ptrCast(@alignCast(ptr)));
             return value_ptr;
         }
     };
@@ -95,9 +95,9 @@ test "blob_array" {
     var blob1 = ba.addBlob();
     var blob2 = ba.addBlob();
     _ = blob0;
-    var vec1: *Vec3 = @ptrCast(*Vec3, blob1);
+    var vec1: *Vec3 = @as(*Vec3, @ptrCast(blob1));
     vec1.x = 1;
-    var vec2: *Vec3 = @ptrCast(*Vec3, blob2);
+    var vec2: *Vec3 = @as(*Vec3, @ptrCast(blob2));
     vec2.x = 2;
     // var blob2b = ba.getBlob(2);
     var vec2b = ba.getBlobAsInstance(2, Vec3);

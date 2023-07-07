@@ -166,9 +166,9 @@ pub fn loadObjMeshFromFile(
                 indices.clearRetainingCapacity();
                 vertices.clearRetainingCapacity();
 
-                previous_obj_positions_count += @intCast(u32, positions.items.len);
-                previous_obj_uvs_count += @intCast(u32, uvs.items.len);
-                previous_obj_normals_count += @intCast(u32, normals.items.len);
+                previous_obj_positions_count += @as(u32, @intCast(positions.items.len));
+                previous_obj_uvs_count += @as(u32, @intCast(uvs.items.len));
+                previous_obj_normals_count += @as(u32, @intCast(normals.items.len));
 
                 positions.clearRetainingCapacity();
                 colors.clearRetainingCapacity();
@@ -183,9 +183,9 @@ pub fn loadObjMeshFromFile(
                 indices.clearRetainingCapacity();
                 vertices.clearRetainingCapacity();
 
-                previous_obj_positions_count += @intCast(u32, positions.items.len);
-                previous_obj_uvs_count += @intCast(u32, uvs.items.len);
-                previous_obj_normals_count += @intCast(u32, normals.items.len);
+                previous_obj_positions_count += @as(u32, @intCast(positions.items.len));
+                previous_obj_uvs_count += @as(u32, @intCast(uvs.items.len));
+                previous_obj_normals_count += @as(u32, @intCast(normals.items.len));
 
                 positions.clearRetainingCapacity();
                 colors.clearRetainingCapacity();
@@ -235,7 +235,7 @@ pub fn loadObjMeshFromFile(
                 normal_index -= previous_obj_normals_count;
                 normal_index -= 1;
 
-                const unique_vertex_index = @intCast(u32, vertices.items.len);
+                const unique_vertex_index = @as(u32, @intCast(vertices.items.len));
                 try indices.append(unique_vertex_index);
                 try vertices.append(.{
                     .position = positions.items[position_index],
@@ -388,10 +388,10 @@ fn storeMeshLod(
     );
 
     mesh.lods[mesh.num_lods] = .{
-        .index_offset = @intCast(u32, meshes_indices.items.len),
-        .index_count = @intCast(u32, remapped_indices.items.len),
-        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
-        .vertex_count = @intCast(u32, optimized_vertices.items.len),
+        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
+        .index_count = @as(u32, @intCast(remapped_indices.items.len)),
+        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
+        .vertex_count = @as(u32, @intCast(optimized_vertices.items.len)),
     };
 
     mesh.num_lods += 1;

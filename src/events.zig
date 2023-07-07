@@ -19,7 +19,7 @@ pub const FrameCollisionsData = struct {
 
 // pub const OnCollision = struct {};
 // pub fn onCollisionEvent(world: *flecs.c.EcsWorld) flecs.Event {
-//     return @intToEnum(flecs.Event, flecs.meta.componentId(world, OnCollision));
+//     return @enumFromInt(flecs.Event, flecs.meta.componentId(world, OnCollision));
 // }
 // pub fn onCollisionId(world: *flecs.c.EcsWorld) flecs.EcsId {
 //     return flecs.meta.componentId(world, OnCollision);
@@ -30,7 +30,7 @@ pub const FrameCollisionsData = struct {
 pub const onRegisterTimeline_id = IdLocal.init("register_timeline");
 pub const TimelineTemplateData = struct {
     id: IdLocal,
-    events: []timeline_system.TimelineEvent,
+    events: []const timeline_system.TimelineEvent,
     loop_behavior: timeline_system.LoopBehavior,
 };
 

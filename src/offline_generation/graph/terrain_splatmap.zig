@@ -25,11 +25,12 @@ const SplatmapOutputData = graph_util.PatchOutputData(SplatmapMaterial);
 fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
     const ptr_typeinfo = @typeInfo(ptr_type);
     const obj_type = ptr_typeinfo.Pointer.child;
-    var ret = @ptrCast(ptr_type, @alignCast(@alignOf(obj_type), ptr));
+    _ = obj_type;
+    var ret: ptr_type = @ptrCast(@alignCast(ptr));
     return ret;
 }
 
-fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = output;
 
     const world_width_input = node.getInputByString("World Width");
@@ -58,7 +59,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         var data = node.allocator.?.create(SplatmapNodeData) catch unreachable;
         data.cache.init(node.allocator.?, PATCH_CACHE_SIZE);
         data.noise = .{
-            .seed = @intCast(i32, seed),
+            .seed = @intCast(seed),
             .fractal_type = .fbm,
             .frequency = 0.001,
             .octaves = 10,
@@ -123,10 +124,10 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 break :patch_blk heightmap_data;
             };
 
-            const patch_cache_key = @intCast(u64, patch_x + 10000 * patch_y);
+            const patch_cache_key = @as(u64, @intCast(patch_x + 10000 * patch_y));
             const patch_pos_x = patch_x - patch_x_begin;
             const patch_pos_y = patch_y - patch_y_begin;
-            output_data.patch_positions[patch_pos_x + patch_pos_y * output_data.count_x] = .{ @intCast(i64, patch_x), @intCast(i64, patch_y) };
+            output_data.patch_positions[patch_pos_x + patch_pos_y * output_data.count_x] = .{ @as(i64, @intCast(patch_x)), @as(i64, @intCast(patch_y)) };
 
             var splatmap: []SplatmapMaterial = undefined;
             var evictable_lru_key: ?lru.LRUKey = null;
@@ -136,15 +137,15 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 var arrptr = alignedCast([*]SplatmapMaterial, splatmapOpt.?.*);
                 // var arrptr = @ptrCast([*]SplatmapMaterial, splatmapOpt.?.*);
                 // std.debug.print("Found patch {}, {}\n", .{ patch_x, patch_y });
-                splatmap = arrptr[0..@intCast(u64, patch_size)];
+                splatmap = arrptr[0..@as(u64, @intCast(patch_size))];
             } else {
                 if (evictable_lru_key != null) {
                     // std.debug.print("Evicting {} for patch {}, {}\n", .{ evictable_lru_key.?, patch_x, patch_y });
                     var arrptr = alignedCast([*]SplatmapMaterial, evictable_lru_value);
-                    splatmap = arrptr[0..@intCast(u64, patch_size)];
+                    splatmap = arrptr[0..@as(u64, @intCast(patch_size))];
                 } else {
                     std.debug.print("[SPLATMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_y });
-                    splatmap = node.allocator.?.alloc(SplatmapMaterial, @intCast(u64, patch_size)) catch unreachable;
+                    splatmap = node.allocator.?.alloc(SplatmapMaterial, @as(u64, @intCast(patch_size))) catch unreachable;
                 }
 
                 // Calc splatmap
@@ -156,7 +157,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         var world_sample_y = patch_y * patch_width + y;
                         var height_sample = heightmap_patches.getHeight(world_sample_x, world_sample_y);
                         // std.debug.assert(height_sample * 127 < 255);
-                        const chunked_height_sample = @intCast(SplatmapMaterial, height_sample / 16000);
+                        const chunked_height_sample = @as(SplatmapMaterial, @intCast(height_sample / 16000));
                         splatmap[x + y * patch_width] = 0 + 1 * chunked_height_sample;
                         // if (height_sample < 1000) {
                         //     splatmap[x + y * patch_width] = 50;
@@ -182,7 +183,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     const hmimg = img.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8) catch unreachable;
                     // _ = hm;
                     for (splatmap, 0..) |pixel, i| {
-                        hmimg.pixels.grayscale8[i].value = @intCast(u8, pixel);
+                        hmimg.pixels.grayscale8[i].value = @as(u8, @intCast(pixel));
                     }
 
                     std.fs.cwd().makeDir("content/splatmap") catch {};

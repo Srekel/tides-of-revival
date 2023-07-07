@@ -72,7 +72,7 @@ pub fn destroy(state: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateCameraSwitch(state);
     updateTransformHierarchy(state);
     updateCameraMatrices(state);
@@ -144,7 +144,7 @@ fn updateCameraMatrices(state: *SystemState) void {
         const z_projection =
             zm.perspectiveFovLh(
             0.25 * math.pi,
-            @intToFloat(f32, framebuffer_width) / @intToFloat(f32, framebuffer_height),
+            @as(f32, @floatFromInt(framebuffer_width)) / @as(f32, @floatFromInt(framebuffer_height)),
             comps.camera.far,
             comps.camera.near,
         );
@@ -213,10 +213,10 @@ const ObserverCallback = struct {
 
 fn onSetCICamera(it: *flecs.Iterator(ObserverCallback)) void {
     // var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-    // var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+    // var state : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CICamera), @intCast(i32, it.index)).?;
-        var ci = @ptrCast(*fd.CICamera, @alignCast(@alignOf(fd.CICamera), ci_ptr));
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CICamera), @as(i32, @intCast(it.index))).?;
+        var ci = @as(*fd.CICamera, @ptrCast(@alignCast(ci_ptr)));
         const ent = it.entity();
         ent.remove(fd.CICamera);
         ent.set(fd.Camera{

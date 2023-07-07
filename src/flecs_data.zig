@@ -27,10 +27,10 @@ pub const ColorRGB = struct {
         return .{ .r = r, .g = g, .b = b };
     }
     pub fn elems(self: *ColorRGB) *[3]f32 {
-        return @ptrCast(*[3]f32, &self.r);
+        return @as(*[3]f32, @ptrCast(&self.r));
     }
     pub fn elemsConst(self: *const ColorRGB) *const [3]f32 {
-        return @ptrCast(*const [3]f32, &self.r);
+        return @as(*const [3]f32, @ptrCast(&self.r));
     }
 };
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
@@ -46,10 +46,10 @@ pub const Position = struct {
         return .{ .x = x, .y = y, .z = z };
     }
     pub fn elems(self: *Position) *[3]f32 {
-        return @ptrCast(*[3]f32, &self.x);
+        return @as(*[3]f32, @ptrCast(&self.x));
     }
     pub fn elemsConst(self: *const Position) *const [3]f32 {
-        return @ptrCast(*const [3]f32, &self.x);
+        return @as(*const [3]f32, @ptrCast(&self.x));
     }
 };
 
@@ -58,10 +58,10 @@ pub const Forward = struct {
     y: f32 = 0,
     z: f32 = 1,
     pub fn elems(self: *Forward) *[3]f32 {
-        return @ptrCast(*[3]f32, &self.x);
+        return @as(*[3]f32, @ptrCast(&self.x));
     }
     pub fn elemsConst(self: *const Forward) *const [3]f32 {
-        return @ptrCast(*const [3]f32, &self.x);
+        return @as(*const [3]f32, @ptrCast(&self.x));
     }
 };
 
@@ -71,10 +71,10 @@ pub const Rotation = struct {
     z: f32,
     w: f32,
     pub fn elems(self: *Rotation) *[4]f32 {
-        return @ptrCast(*[4]f32, &self.x);
+        return @as(*[4]f32, @ptrCast(&self.x));
     }
     pub fn elemsConst(self: *const Rotation) *const [4]f32 {
-        return @ptrCast(*const [4]f32, &self.x);
+        return @as(*const [4]f32, @ptrCast(&self.x));
     }
 };
 
@@ -86,10 +86,10 @@ pub const EulerRotation = struct {
         return .{ .pitch = pitch, .yaw = yaw, .roll = roll };
     }
     pub fn elems(self: *EulerRotation) *[3]f32 {
-        return @ptrCast(*[3]f32, &self.roll);
+        return @as(*[3]f32, @ptrCast(&self.roll));
     }
     pub fn elemsConst(self: *const EulerRotation) *const [3]f32 {
-        return @ptrCast(*const [3]f32, &self.roll);
+        return @as(*const [3]f32, @ptrCast(&self.roll));
     }
 };
 
@@ -105,10 +105,10 @@ pub const Scale = struct {
         return .{ .x = scale, .y = scale, .z = scale };
     }
     pub fn elems(self: *Scale) *[3]f32 {
-        return @ptrCast(*[3]f32, &self.x);
+        return @as(*[3]f32, @ptrCast(&self.x));
     }
     pub fn elemsConst(self: *const Scale) *const [3]f32 {
-        return @ptrCast(*const [3]f32, &self.x);
+        return @as(*const [3]f32, @ptrCast(&self.x));
     }
 };
 

@@ -72,7 +72,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
         .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
 
-    // ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+    ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
 
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
@@ -86,7 +86,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
         .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
         .rotation = .{ 0, 0, 0, 1 },
         .shape = shape,
-        .motion_type = .dynamic,
+        .motion_type = .kinematic,
         .object_layer = config.object_layers.moving,
         .motion_quality = .discrete,
         .user_data = ent.id,
@@ -715,7 +715,7 @@ pub fn run() void {
 
 fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
-    const dt = @floatCast(f32, stats.delta_time);
+    const dt: f32 = @floatCast(stats.delta_time);
 
     const flecs_stats = flecs.c.ecs_get_world_info(flecs_world.world);
     {

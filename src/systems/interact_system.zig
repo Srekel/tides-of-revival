@@ -62,7 +62,7 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateInteractors(system, iter.iter.delta_time);
 }
 
@@ -144,7 +144,8 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             // Send it flying
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
-            const velocity_z = forward_z * zm.f32x4s(10 + charge * 20);
+            const up_z = zm.f32x4(0, 1, 0, 0);
+            const velocity_z = forward_z * zm.f32x4s(15 + charge * 30) + up_z * zm.f32x4s(charge);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
@@ -160,6 +161,45 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
     }
+
+    // // Arrows
+    // var builder_proj = flecs.QueryBuilder.init(system.flecs_world.*);
+    // _ = builder_proj
+    //     .with(fd.PhysicsBody)
+    //     .with(fd.Projectile);
+
+    // var filter = builder_proj.buildFilter();
+    // defer filter.deinit();
+
+    // const body_interface = system.physics_world.getBodyInterfaceMut();
+    // var entity_iter_proj = filter.iterator(struct {
+    //     body: *fd.PhysicsBody,
+    //     proj: *fd.Projectile,
+    // });
+    // while (entity_iter_proj.next()) |comps| {
+
+    //     // if (comps.input.index == state.active_index) {
+    //     //     active = true;
+    //     // }
+
+    //     // comps.input.active = active;
+    //     // if (comps.cam) |cam| {
+    //     //     cam.active = active;
+    //     // }
+
+    //     const velocity = body_interface.getLinearVelocity(comps.body.body_id);
+    //     const velocity_z = zm.loadArr3(velocity);
+    //     const direction_z = zm.normalize3(velocity_z);
+    //     const rotation_from_vel_z = zm.quatFromAxisAngle(direction_z, 0);
+    //     _ = rotation_from_vel_z;
+    //     const rotation_base_z = zm.quatFromAxisAngle(zm.f32x4(0, 0, 1, 0), 0);
+    //     _ = rotation_base_z;
+    //     // zm.
+
+    //     // body_interface.setRotation(comps.body.body_id, in_rotation: [4]Real, in_activation_type: Activation)
+    //     var active = false;
+    //     _ = active;
+    // }
 }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
@@ -171,9 +211,15 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
 fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
+    var system: *SystemState = @ptrCast(@alignCast(ctx));
     const body_interface = system.physics_world.getBodyInterfaceMut();
     const frame_collisions_data = util.castOpaqueConst(config.events.FrameCollisionsData, event_data);
+
+    var arena_state = std.heap.ArenaAllocator.init(system.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    var removed_entities = std.ArrayList(flecs.EntityId).initCapacity(arena, 32) catch unreachable;
+
     for (frame_collisions_data.contacts) |contact| {
         if (!body_interface.isAdded(contact.body_id2)) {
             continue;
@@ -181,24 +227,52 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
         const ent1 = flecs.Entity.init(system.flecs_world.world, contact.ent1);
         const ent2 = flecs.Entity.init(system.flecs_world.world, contact.ent2);
+        if (std.mem.indexOfScalar(flecs.EntityId, removed_entities.items, contact.ent1) != null) {
+            // std.debug.print("fail1 {any}\n", .{contact.ent1});
+            continue;
+        }
+        if (std.mem.indexOfScalar(flecs.EntityId, removed_entities.items, contact.ent2) != null) {
+            // std.debug.print("fail2 {any}\n", .{contact.ent2});
+            continue;
+        }
 
         if (contact.ent1 != 0 and ent1.has(fd.Projectile)) {
+            // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
             body_interface.removeAndDestroyBody(contact.body_id1);
             ent1.remove(fd.PhysicsBody);
+            removed_entities.append(ent1.id) catch unreachable;
 
             if (contact.ent2 != 0 and ent2.has(fd.Health)) {
-                // body_interface.removeAndDestroyBody(contact.body_id2);
-                // ent2.remove(fd.PhysicsBody);
+                var health2 = ent2.getMut(fd.Health).?;
+                if (health2.value > 0) {
+                    health2.value -= 50;
+                    if (health2.value <= 0) {
+                        body_interface.setMotionType(contact.body_id2, .dynamic, .dont_activate);
+                        ent2.remove(fd.FSM);
+                        removed_entities.append(ent2.id) catch unreachable;
+                    }
+                    // std.debug.print("lol2 {any}\n", .{ent2.id});
+                }
             }
         }
 
         if (contact.ent2 != 0 and ent2.has(fd.Projectile)) {
+            // std.debug.print("proj2 {any} body:{any}\n", .{contact.ent2, contact.body_id2});
             body_interface.removeAndDestroyBody(contact.body_id2);
             ent2.remove(fd.PhysicsBody);
+            removed_entities.append(ent2.id) catch unreachable;
 
             if (contact.ent1 != 0 and ent1.has(fd.Health)) {
-                // body_interface.removeAndDestroyBody(contact.body_id1);
-                // ent1.remove(fd.PhysicsBody);
+                var health1 = ent1.getMut(fd.Health).?;
+                if (health1.value > 0) {
+                    health1.value -= 50;
+                    if (health1.value <= 0) {
+                        body_interface.setMotionType(contact.body_id1, .dynamic, .dont_activate);
+                        ent1.remove(fd.FSM);
+                        removed_entities.append(ent1.id) catch unreachable;
+                    }
+                    // std.debug.print("lol1 {any}\n", .{health1.value});
+                }
             }
         }
     }

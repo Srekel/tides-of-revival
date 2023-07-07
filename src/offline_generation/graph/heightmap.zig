@@ -16,9 +16,7 @@ pub const HeightmapHeight = u16;
 pub const HEIGHTMAP_PATCH_QUERY_MAX = 128;
 
 fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
-    const ptr_typeinfo = @typeInfo(ptr_type);
-    const obj_type = ptr_typeinfo.Pointer.child;
-    var ret = @ptrCast(ptr_type, @alignCast(@alignOf(obj_type), ptr));
+    var ret = @as(ptr_type, @ptrCast(@alignCast(ptr)));
     return ret;
 }
 
@@ -31,17 +29,17 @@ pub const HeightmapOutputData = struct {
     count_y: u64 = undefined,
 
     pub fn getHeight(self: HeightmapOutputData, world_x: anytype, world_y: anytype) HeightmapHeight {
-        const patch_x = @divTrunc(@intCast(u64, world_x), self.patch_width);
-        const patch_y = @divTrunc(@intCast(u64, world_y), self.patch_width);
+        const patch_x = @divTrunc(@as(u64, @intCast(world_x)), self.patch_width);
+        const patch_y = @divTrunc(@as(u64, @intCast(world_y)), self.patch_width);
         // const patch_begin_x = @divExact(@intCast(u64, self.patch_positions[0][0]), self.patch_width);
         // const patch_begin_y = @divExact(@intCast(u64, self.patch_positions[0][1]), self.patch_width);
-        const patch_begin_x = @intCast(u64, self.patch_positions[0][0]);
-        const patch_begin_y = @intCast(u64, self.patch_positions[0][1]);
+        const patch_begin_x = @as(u64, @intCast(self.patch_positions[0][0]));
+        const patch_begin_y = @as(u64, @intCast(self.patch_positions[0][1]));
         const patch_index_x = patch_x - patch_begin_x;
         const patch_index_y = patch_y - patch_begin_y;
         const patch = self.patches[patch_index_x + patch_index_y * self.count_x];
-        const inside_patch_x = @intCast(u64, world_x) % self.patch_width;
-        const inside_patch_y = @intCast(u64, world_y) % self.patch_width;
+        const inside_patch_x = @as(u64, @intCast(world_x)) % self.patch_width;
+        const inside_patch_y = @as(u64, @intCast(world_y)) % self.patch_width;
         return patch[inside_patch_x + inside_patch_y * self.patch_width];
     }
 
@@ -52,15 +50,15 @@ pub const HeightmapOutputData = struct {
     pub fn getHeightWorld(self: HeightmapOutputData, world_x: anytype, world_y: anytype) f32 {
         if (@typeInfo(@TypeOf(world_x)) == .Float) {
             const height = self.getHeight(
-                @floatToInt(i32, @floor(world_x)),
-                @floatToInt(i32, @floor(world_y)),
+                @as(i32, @intFromFloat(@floor(world_x))),
+                @as(i32, @intFromFloat(@floor(world_y))),
             );
-            const height_0_1 = @intToFloat(f32, height) / @intToFloat(f32, std.math.maxInt(u16));
+            const height_0_1 = @as(f32, @floatFromInt(height)) / @as(f32, @floatFromInt(std.math.maxInt(u16)));
             return config.noise_scale_y * height_0_1;
         }
 
         const height = self.getHeight(world_x, world_y);
-        const height_0_1 = @intToFloat(f32, height) / @intToFloat(f32, std.math.maxInt(u16));
+        const height_0_1 = @as(f32, @floatFromInt(height)) / @as(f32, @floatFromInt(std.math.maxInt(u16)));
         return config.noise_scale_y * height_0_1;
     }
 };
@@ -70,7 +68,7 @@ const HeightmapNodeData = struct {
     noise: znoise.FnlGenerator,
 };
 
-fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []g.NodeFuncParam) g.NodeFuncResult {
+fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContext, params: []const g.NodeFuncParam) g.NodeFuncResult {
     _ = output;
 
     const world_width_input = node.getInputByString("World Width");
@@ -99,7 +97,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
         var data = node.allocator.?.create(HeightmapNodeData) catch unreachable;
         data.cache.init(node.allocator.?, PATCH_CACHE_SIZE);
         data.noise = .{
-            .seed = @intCast(i32, seed),
+            .seed = @as(i32, @intCast(seed)),
             .fractal_type = .fbm,
             .frequency = 0.001,
             .octaves = 10,
@@ -127,10 +125,10 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
     while (patch_y < patch_y_end) : (patch_y += 1) {
         var patch_x = patch_x_begin;
         while (patch_x < patch_x_end) : (patch_x += 1) {
-            const patch_cache_key = @intCast(u64, patch_x + 10000 * patch_y);
+            const patch_cache_key = @as(u64, @intCast(patch_x + 10000 * patch_y));
             const patch_pos_x = patch_x - patch_x_begin;
             const patch_pos_y = patch_y - patch_y_begin;
-            output_data.patch_positions[patch_pos_x + patch_pos_y * output_data.count_x] = .{ @intCast(i64, patch_x), @intCast(i64, patch_y) };
+            output_data.patch_positions[patch_pos_x + patch_pos_y * output_data.count_x] = .{ @as(i64, @intCast(patch_x)), @as(i64, @intCast(patch_y)) };
 
             var heightmap: []HeightmapHeight = undefined;
             var evictable_lru_key: ?lru.LRUKey = null;
@@ -140,15 +138,15 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                 var arrptr = alignedCast([*]HeightmapHeight, heightmapOpt.?.*);
                 // var arrptr = @ptrCast([*]HeightmapHeight, heightmapOpt.?.*);
                 // std.debug.print("Found patch {}, {}\n", .{ patch_x, patch_y });
-                heightmap = arrptr[0..@intCast(u64, patch_size)];
+                heightmap = arrptr[0..@as(u64, @intCast(patch_size))];
             } else {
                 if (evictable_lru_key != null) {
                     // std.debug.print("Evicting {} for patch {}, {}\n", .{ evictable_lru_key.?, patch_x, patch_y });
                     var arrptr = alignedCast([*]HeightmapHeight, evictable_lru_value);
-                    heightmap = arrptr[0..@intCast(u64, patch_size)];
+                    heightmap = arrptr[0..@as(u64, @intCast(patch_size))];
                 } else {
                     std.debug.print("[HEIGHTMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_y });
-                    heightmap = node.allocator.?.alloc(HeightmapHeight, @intCast(u64, patch_size)) catch unreachable;
+                    heightmap = node.allocator.?.alloc(HeightmapHeight, @as(u64, @intCast(patch_size))) catch unreachable;
                 }
 
                 // Calc heightmap
@@ -160,7 +158,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         var y_world = patch_y * patch_width + y;
                         // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
                         // and then we're converting it to a 16-bit unsigned integer
-                        var height_sample: f32 = data.noise.noise2(@intToFloat(f32, x_world) * config.noise_scale_xz, @intToFloat(f32, y_world) * config.noise_scale_xz) * 0.5 + 0.5;
+                        var height_sample: f32 = data.noise.noise2(@as(f32, @floatFromInt(x_world)) * config.noise_scale_xz, @as(f32, @floatFromInt(y_world)) * config.noise_scale_xz) * 0.5 + 0.5;
                         if (height_sample < 0.1) {
                             height_sample = zm.mapLinearV(height_sample, 0.0, 0.05, 0, 0.1);
                         } else if (height_sample < 0.5) {
@@ -172,7 +170,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         } else {
                             height_sample = zm.mapLinearV(height_sample, 0.7, 1, 0.6, 1);
                         }
-                        heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 65535);
+                        heightmap[x + y * patch_width] = @as(HeightmapHeight, @intFromFloat(height_sample * 65535));
                         // heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 127);
                         // std.debug.print("({},{})", .{ x_world, y_world });
                     }
@@ -191,7 +189,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     const hmimg = img.Image.create(context.frame_allocator, patch_width, patch_width, img.PixelFormat.grayscale8) catch unreachable;
                     // _ = hm;
                     for (heightmap, 0..) |pixel, i| {
-                        hmimg.pixels.grayscale8[i].value = @intCast(u8, pixel / 255);
+                        hmimg.pixels.grayscale8[i].value = @as(u8, @intCast(pixel / 255));
                     }
 
                     std.fs.cwd().makeDir("content/heightmap") catch {};

@@ -86,7 +86,7 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateTimelines(system, iter.iter.delta_time);
 }
 
@@ -131,7 +131,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
 
 fn onRegisterTimeline(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
+    var system: *SystemState = @ptrCast(@alignCast(ctx));
     const timeline_template_data = util.castOpaqueConst(config.events.TimelineTemplateData, event_data);
     var timeline = Timeline{
         .id = timeline_template_data.id,
@@ -146,7 +146,7 @@ fn onRegisterTimeline(ctx: *anyopaque, event_id: u64, event_data: *const anyopaq
 
 fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
-    var system = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), ctx));
+    var system: *SystemState = @ptrCast(@alignCast(ctx));
     const timeline_instance_data = util.castOpaqueConst(config.events.TimelineInstanceData, event_data);
     for (system.timelines.items) |*timeline| {
         if (timeline.id.eql(timeline_instance_data.timeline)) {

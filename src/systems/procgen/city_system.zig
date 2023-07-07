@@ -254,7 +254,7 @@ pub fn destroy(state: *SystemState) void {
 }
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     _ = state;
 
     // const environment_info = state.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;

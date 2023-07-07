@@ -138,9 +138,9 @@ fn appendShapeMesh(
 
     mesh.lods[0] = .{
         .index_offset = 0,
-        .index_count = @intCast(u32, z_mesh.indices.len),
+        .index_count = @as(i32, @intCast(z_mesh.indices.len)),
         .vertex_offset = 0,
-        .vertex_count = @intCast(u32, vertices.items.len),
+        .vertex_count = @as(u32, @intCast(vertices.items.len)),
     };
 
     mesh.bounding_box = .{
@@ -543,7 +543,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
                 state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
                     .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-                    .SizeInBytes = @intCast(c_uint, index_buffer_resource.?.GetDesc().Width),
+                    .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
                     .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
                 });
 
@@ -551,7 +551,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 const mesh_lod = mesh.lods[draw_call.lod_index];
                 const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
                 mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-                mem.cpu_slice[0].vertex_offset = @intCast(i32, mesh_lod.vertex_offset);
+                mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
                 mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
                 mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
                 mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
@@ -561,7 +561,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                     mesh_lod.index_count,
                     draw_call.instance_count,
                     mesh_lod.index_offset,
-                    @intCast(i32, mesh_lod.vertex_offset),
+                    @as(i32, @intCast(mesh_lod.vertex_offset)),
                     draw_call.start_instance_location,
                 );
             }
@@ -612,7 +612,7 @@ fn onSetCIStaticMesh(it: *flecs.Iterator(StaticMeshObserverCallback)) void {
     var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
 
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIStaticMesh), @intCast(i32, it.index)).?;
+        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIStaticMesh), @as(i32, @intCast(it.index))).?;
         var ci = @ptrCast(*fd.CIStaticMesh, @alignCast(@alignOf(fd.CIStaticMesh), ci_ptr));
 
         const mesh_handle = mesh_blk: {

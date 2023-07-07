@@ -28,20 +28,20 @@ pub fn sliceOfInstanceConst(comptime T: type, instance: *const T) []const T {
 
 pub fn castBytes(comptime T: type, slice: []u8) *T {
     const ptr = std.mem.bytesAsValue(T, slice[0..@sizeOf(T)]);
-    return @alignCast(@alignOf(T), ptr);
+    return @alignCast(ptr);
 }
 
 pub fn castOpaque(comptime T: type, ptr: *anyopaque) *T {
-    return @ptrCast(*T, @alignCast(@alignOf(T), ptr));
+    return @as(*T, @ptrCast(@alignCast(ptr)));
 }
 
 pub fn castOpaqueConst(comptime T: type, ptr: *const anyopaque) *const T {
-    return @ptrCast(*const T, @alignCast(@alignOf(T), ptr));
+    return @as(*const T, @ptrCast(@alignCast(ptr)));
 }
 
 pub fn memcpy(dst: *anyopaque, src: *const anyopaque, byte_count: u64) void {
-    const src_slice = @ptrCast([*]const u8, src)[0..byte_count];
-    const dst_slice = @ptrCast([*]u8, dst)[0..byte_count];
+    const src_slice = @as([*]const u8, @ptrCast(src))[0..byte_count];
+    const dst_slice = @as([*]u8, @ptrCast(dst))[0..byte_count];
     for (src_slice, 0..) |byte, i| {
         dst_slice[i] = byte;
     }
