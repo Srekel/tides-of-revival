@@ -338,7 +338,7 @@ fn createTextureFromPixelBuffer(
             assert(debug_name_u8.len < debug_name_u16.len - 1);
             const debug_name_len = std.unicode.utf8ToUtf16Le(debug_name_u16[0..], debug_name_u8) catch unreachable;
             debug_name_u16[debug_name_len] = 0;
-            _ = resource.SetName(@ptrCast(w32.LPCWSTR, &debug_name_u16));
+            _ = resource.SetName(@as(w32.LPCWSTR, @ptrCast(&debug_name_u16)));
         }
 
         // Upload all subresources

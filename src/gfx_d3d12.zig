@@ -172,17 +172,17 @@ pub const FrameStats = struct {
 
     pub fn update(self: *FrameStats) void {
         const now_ns = self.timer.read();
-        self.time = @intToFloat(f64, now_ns) / std.time.ns_per_s;
-        self.delta_time = @intToFloat(f32, now_ns - self.previous_time_ns) / std.time.ns_per_s;
+        self.time = @as(f64, @floatFromInt(now_ns)) / std.time.ns_per_s;
+        self.delta_time = @as(f32, @floatFromInt(now_ns - self.previous_time_ns)) / std.time.ns_per_s;
         self.previous_time_ns = now_ns;
 
         if ((now_ns - self.fps_refresh_time_ns) >= std.time.ns_per_s) {
-            const t = @intToFloat(f64, now_ns - self.fps_refresh_time_ns) / std.time.ns_per_s;
-            const fps = @intToFloat(f64, self.frame_counter) / t;
+            const t = @as(f64, @floatFromInt(now_ns - self.fps_refresh_time_ns)) / std.time.ns_per_s;
+            const fps = @as(f64, @floatFromInt(self.frame_counter)) / t;
             const ms = (1.0 / fps) * 1000.0;
 
-            self.fps = @floatCast(f32, fps);
-            self.average_cpu_time = @floatCast(f32, ms);
+            self.fps = @as(f32, @floatCast(fps));
+            self.average_cpu_time = @as(f32, @floatCast(ms));
             self.fps_refresh_time_ns = now_ns;
             self.frame_counter = 0;
         }
@@ -337,7 +337,7 @@ pub const D3D12State = struct {
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
         path_u16[path_len] = 0;
-        _ = self.gctx.lookupResource(resource).?.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+        _ = self.gctx.lookupResource(resource).?.SetName(@as(w32.LPCWSTR, @ptrCast(&path_u16)));
 
         const texture = blk: {
             const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
@@ -372,7 +372,7 @@ pub const D3D12State = struct {
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
         path_u16[path_len] = 0;
-        _ = self.gctx.lookupResource(resource).?.SetName(@ptrCast(w32.LPCWSTR, &path_u16));
+        _ = self.gctx.lookupResource(resource).?.SetName(@as(w32.LPCWSTR, @ptrCast(&path_u16)));
 
         const resource_desc = self.gctx.lookupResource(resource).?.GetDesc();
         const texture = blk: {
@@ -626,7 +626,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var hwnd = zglfw.native.getWin32Window(window) catch unreachable;
 
-    var gctx = zd3d12.GraphicsContext.init(allocator, @ptrCast(w32.HWND, hwnd));
+    var gctx = zd3d12.GraphicsContext.init(allocator, @as(w32.HWND, @ptrCast(hwnd)));
     // Enable vsync.
     gctx.present_flags = .{ .ALLOW_TEARING = false };
     gctx.present_interval = 1;
@@ -1170,10 +1170,10 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     &d2d1.RECT_F{
                         .left = 0.0,
                         .top = 0.0,
-                        .right = @intToFloat(f32, gctx.viewport_width),
-                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                        .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                        .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
                     },
-                    @ptrCast(*d2d1.IBrush, state.stats_brush),
+                    @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
                 );
             }
 
@@ -1196,11 +1196,11 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     state.stats_text_format,
                     &d2d1.RECT_F{
                         .left = 0.0,
-                        .top = @intToFloat(f32, i) * line_height + vertical_offset,
-                        .right = @intToFloat(f32, gctx.viewport_width),
-                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                        .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                        .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                        .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
                     },
-                    @ptrCast(*d2d1.IBrush, state.stats_brush),
+                    @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
                 );
             }
 
@@ -1222,11 +1222,11 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     state.stats_text_format,
                     &d2d1.RECT_F{
                         .left = 0.0,
-                        .top = @intToFloat(f32, i) * line_height + vertical_offset,
-                        .right = @intToFloat(f32, gctx.viewport_width),
-                        .bottom = @intToFloat(f32, gctx.viewport_height),
+                        .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                        .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                        .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
                     },
-                    @ptrCast(*d2d1.IBrush, state.stats_brush),
+                    @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
                 );
             }
         }

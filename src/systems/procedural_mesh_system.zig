@@ -138,7 +138,7 @@ fn appendShapeMesh(
 
     mesh.lods[0] = .{
         .index_offset = 0,
-        .index_count = @as(i32, @intCast(z_mesh.indices.len)),
+        .index_count = @as(u32, @intCast(z_mesh.indices.len)),
         .vertex_offset = 0,
         .vertex_count = @as(u32, @intCast(vertices.items.len)),
     };
@@ -365,7 +365,7 @@ pub fn destroy(state: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), iter.iter.ctx));
+    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     const CameraQueryComps = struct {
         cam: *const fd.Camera,
@@ -588,11 +588,11 @@ fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32,
     if (t <= 0.05) {
         return 0;
     } else if (t <= 0.1) {
-        return std.math.min(num_lods - 1, 1);
+        return @min(num_lods - 1, 1);
     } else if (t <= 0.2) {
-        return std.math.min(num_lods - 1, 2);
+        return @min(num_lods - 1, 2);
     } else {
-        return std.math.min(num_lods - 1, 3);
+        return @min(num_lods - 1, 3);
     }
 }
 
@@ -608,12 +608,12 @@ const StaticMeshObserverCallback = struct {
 };
 
 fn onSetCIStaticMesh(it: *flecs.Iterator(StaticMeshObserverCallback)) void {
-    var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
-    var state = @ptrCast(*SystemState, @alignCast(@alignOf(SystemState), observer.*.ctx));
+    var observer: *flecs.c.ecs_observer_t = @ptrCast(@alignCast(it.iter.ctx));
+    var state: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
     while (it.next()) |_| {
         const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIStaticMesh), @as(i32, @intCast(it.index))).?;
-        var ci = @ptrCast(*fd.CIStaticMesh, @alignCast(@alignOf(fd.CIStaticMesh), ci_ptr));
+        var ci: *fd.CIStaticMesh = @ptrCast(@alignCast(ci_ptr));
 
         const mesh_handle = mesh_blk: {
             for (state.meshes.items) |mesh| {

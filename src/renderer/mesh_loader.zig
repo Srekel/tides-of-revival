@@ -84,10 +84,10 @@ pub fn loadMeshFromFile(
     };
 
     mesh.lods[0] = .{
-        .index_offset = @intCast(u32, meshes_indices.items.len),
-        .index_count = @intCast(u32, indices.items.len),
-        .vertex_offset = @intCast(u32, meshes_vertices.items.len),
-        .vertex_count = @intCast(u32, positions.items.len),
+        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
+        .index_count = @as(u32, @intCast(indices.items.len)),
+        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
+        .vertex_count = @as(u32, @intCast(positions.items.len)),
     };
 
     try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
