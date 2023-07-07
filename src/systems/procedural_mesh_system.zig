@@ -509,8 +509,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
-    std.log.debug("Draw calls count: {d}", .{state.draw_calls.items.len});
-
     if (state.draw_calls.items.len > 0) {
         const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
         state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);

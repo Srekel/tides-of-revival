@@ -6,7 +6,7 @@ const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
-const TextureHandle = @import("renderer/d3d12/texture.zig").TextureHandle;
+const TextureHandle = @import("gfx_d3d12.zig").TextureHandle;
 
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
@@ -250,10 +250,10 @@ pub const PBRMaterial = struct {
             .base_color = base_color,
             .roughness = roughness,
             .metallic = metallic,
-            .albedo = .{ .index = 0, .generation = 0 },
-            .normal = .{ .index = 0, .generation = 0 },
-            .arm = .{ .index = 0, .generation = 0 },
-            .emissive = .{ .index = 0, .generation = 0 },
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
         };
     }
 };

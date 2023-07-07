@@ -649,9 +649,9 @@ fn loadTerrainLayer(
     };
 
     return .{
-        .diffuse = gfxstate.texture_pool.addTexture(diffuse),
-        .normal = gfxstate.texture_pool.addTexture(normal),
-        .arm = gfxstate.texture_pool.addTexture(arm),
+        .diffuse = try gfxstate.texture_pool.add(.{ .obj = diffuse }),
+        .normal = try gfxstate.texture_pool.add(.{ .obj = normal }),
+        .arm = try gfxstate.texture_pool.add(.{ .obj = arm }),
     };
 }
 
@@ -690,7 +690,7 @@ fn loadNodeHeightmap(
         ) catch unreachable;
 
         const heightmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame, debug_name) catch unreachable;
-        node.heightmap_handle = gfxstate.texture_pool.addTexture(heightmap);
+        node.heightmap_handle = try gfxstate.texture_pool.add(.{ .obj = heightmap });
     }
 }
 
@@ -729,7 +729,7 @@ fn loadNodeSplatmap(
         ) catch unreachable;
 
         const splatmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame, debug_name) catch unreachable;
-        node.splatmap_handle = gfxstate.texture_pool.addTexture(splatmap);
+        node.splatmap_handle = try gfxstate.texture_pool.add(.{ .obj = splatmap });
     }
 }
 

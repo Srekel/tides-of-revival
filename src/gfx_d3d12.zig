@@ -18,7 +18,6 @@ const Pool = @import("zpool").Pool;
 const IdLocal = @import("variant.zig").IdLocal;
 const IdLocalContext = @import("variant.zig").IdLocalContext;
 const buffer_module = @import("renderer/d3d12/buffer.zig");
-const texture_module = @import("renderer/d3d12/texture.zig");
 const renderer_types = @import("renderer/renderer_types.zig");
 const mesh_loader = @import("renderer/mesh_loader.zig");
 const zm = @import("zmath");
@@ -35,15 +34,16 @@ pub const BufferHandle = buffer_module.BufferHandle;
 const IndexType = renderer_types.IndexType;
 const Vertex = renderer_types.Vertex;
 const Mesh = renderer_types.Mesh;
-
-pub const Texture = texture_module.Texture;
-const TexturePool = texture_module.TexturePool;
-pub const TextureDesc = texture_module.TextureDesc;
-pub const TextureHandle = texture_module.TextureHandle;
+pub const Texture = renderer_types.Texture;
+pub const TextureDesc = renderer_types.TextureDesc;
 
 // Mesh Pool
 const MeshPool = Pool(16, 16, Mesh, struct { obj: Mesh });
 pub const MeshHandle = MeshPool.Handle;
+
+// Texture Pool
+const TexturePool = Pool(16, 16, Texture, struct { obj: Texture });
+pub const TextureHandle = TexturePool.Handle;
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
@@ -360,7 +360,8 @@ pub const D3D12State = struct {
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
 
-        return self.texture_pool.addTexture(texture);
+        // return self.texture_pool.addTexture(texture);
+        return try self.texture_pool.add(.{ .obj = texture });
     }
 
     pub fn scheduleLoadTextureCubemap(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
@@ -407,15 +408,32 @@ pub const D3D12State = struct {
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
 
-        return self.texture_pool.addTexture(texture);
+        // return self.texture_pool.addTexture(texture);
+        return try self.texture_pool.add(.{ .obj = texture });
     }
 
-    pub fn releaseAllTextures(self: *D3D12State) void {
-        self.texture_pool.releaseAllTextures();
+    pub fn releaseAllTextures(_: *D3D12State) void {
+        // self.texture_pool.releaseAllTextures();
+        // TODO
+        // var texture_index: u32 = 0;
+        // while (texture_index < pool.textures.len) : (texture_index += 1) {
+        //     var texture = &pool.textures[texture_index];
+        //     if (texture.resource != null) {
+        //         _ = texture.resource.?.Release();
+        //         texture.resource = null;
+        //     }
+        // }
     }
 
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
-        return self.texture_pool.lookupTexture(handle);
+        // return self.texture_pool.lookupTexture(handle);
+
+        var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch blk: {
+            std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
+            break :blk null;
+        };
+
+        return texture;
     }
 
     pub fn uploadMeshData(self: *D3D12State, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
@@ -485,11 +503,18 @@ pub const D3D12State = struct {
     }
 
     pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture } {
+        // return .{
+        //     .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
+        //     .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
+        //     .specular = self.texture_pool.lookupTexture(self.specular_texture),
+        //     .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
+        // };
+
         return .{
-            .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
-            .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
-            .specular = self.texture_pool.lookupTexture(self.specular_texture),
-            .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
+            .radiance = self.lookupTexture(self.radiance_texture),
+            .irradiance = self.lookupTexture(self.irradiance_texture),
+            .specular = self.lookupTexture(self.specular_texture),
+            .brdf = self.lookupTexture(self.brdf_integration_texture),
         };
     }
 
@@ -559,7 +584,8 @@ pub const D3D12State = struct {
 
         self.gctx.destroyPipeline(generate_brdf_integration_texture_pso);
 
-        return self.texture_pool.addTexture(texture);
+        // return self.texture_pool.addTexture(texture);
+        return try self.texture_pool.add(.{ .obj = texture });
     }
 };
 
@@ -632,7 +658,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     gctx.present_interval = 1;
 
     var buffer_pool = BufferPool.init(allocator);
-    var texture_pool = TexturePool.init(allocator);
+    // var texture_pool = TexturePool.init(allocator);
+    var texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
     var mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -941,7 +968,8 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     self.gpu_profiler.deinit();
 
     self.buffer_pool.deinit(allocator, &self.gctx);
-    self.texture_pool.deinit(allocator);
+    // self.texture_pool.deinit(allocator);
+    self.texture_pool.deinit();
     self.mesh_pool.deinit();
 
     // Destroy all pipelines
