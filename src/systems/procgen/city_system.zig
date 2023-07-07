@@ -135,7 +135,7 @@ pub fn createEntities(state: *SystemState) void {
         city_ent.set(fd.Scale.createScalar(10));
         city_ent.set(fd.CIStaticMesh{
             .id = IdLocal.id64("sphere"),
-            .basecolor_roughness = .{ .r = 1, .g = 1, .b = 1, .roughness = 0.8 },
+            .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
         });
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
 

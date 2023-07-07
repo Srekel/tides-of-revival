@@ -6,6 +6,7 @@ const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
+const TextureHandle = @import("renderer/d3d12/texture.zig").TextureHandle;
 
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
@@ -235,15 +236,37 @@ pub const Velocity = struct {
 // ██║ ╚═╝ ██║███████╗███████║██║  ██║
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
+pub const PBRMaterial = struct {
+    base_color: ColorRGB,
+    metallic: f32,
+    roughness: f32,
+    albedo: TextureHandle,
+    normal: TextureHandle,
+    arm: TextureHandle,
+    emissive: TextureHandle,
+
+    pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) PBRMaterial {
+        return .{
+            .base_color = base_color,
+            .roughness = roughness,
+            .metallic = metallic,
+            .albedo = .{ .index = 0, .generation = 0 },
+            .normal = .{ .index = 0, .generation = 0 },
+            .arm = .{ .index = 0, .generation = 0 },
+            .emissive = .{ .index = 0, .generation = 0 },
+        };
+    }
+};
+
 // TODO(gmodarelli): Add material slot
 pub const CIStaticMesh = struct {
     id: u64,
-    basecolor_roughness: ColorRGBRoughness,
+    material: PBRMaterial,
 };
 
 pub const StaticMesh = struct {
     mesh_handle: MeshHandle,
-    basecolor_roughness: ColorRGBRoughness,
+    material: PBRMaterial,
 };
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗

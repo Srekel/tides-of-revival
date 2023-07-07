@@ -94,7 +94,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.Projectile{});
             proj_ent.set(fd.CIStaticMesh{
                 .id = IdLocal.id64("arrow"),
-                .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
+                .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
             });
             proj_ent.childOf(item_ent);
             weapon_comp.chambered_projectile = proj_ent.id;

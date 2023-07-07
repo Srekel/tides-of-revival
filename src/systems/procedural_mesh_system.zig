@@ -628,7 +628,7 @@ fn onSetCIStaticMesh(it: *flecs.Iterator(StaticMeshObserverCallback)) void {
         ent.remove(fd.CIStaticMesh);
         ent.set(fd.StaticMesh{
             .mesh_handle = mesh_handle,
-            .basecolor_roughness = ci.basecolor_roughness,
+            .material = ci.material,
         });
     }
 }

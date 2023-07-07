@@ -69,7 +69,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
     ent.set(fd.Health{ .value = 100 });
     ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("spider_body"),
-        .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
+        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
 
     // ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
@@ -582,7 +582,7 @@ pub fn run() void {
     bow_ent.set(fd.ProjectileWeapon{});
     bow_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("bow"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
+        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
 
     var proj_ent = flecs_world.newEntity();
@@ -611,7 +611,7 @@ pub fn run() void {
     spider_ent.set(fd.Dynamic{});
     spider_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("spider_body"),
-        .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
+        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
@@ -636,7 +636,7 @@ pub fn run() void {
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
     player_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("cylinder"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
     player_ent.set(fd.WorldLoader{
         .range = 2,
@@ -670,7 +670,7 @@ pub fn run() void {
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
     player_camera_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("sphere"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
     player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
     bow_ent.childOf(player_camera_ent);

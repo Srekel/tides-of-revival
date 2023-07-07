@@ -52,7 +52,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
         post_ent.set(post_transform);
         post_ent.set(fd.CIStaticMesh{
             .id = IdLocal.id64("cylinder"),
-            .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 0.0, .roughness = 0.8 },
+            .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
         });
 
         // const light_pos = fd.Position.init(0.0, 1.0, 0.0);

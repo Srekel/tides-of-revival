@@ -262,7 +262,7 @@ fn updatePatches(system: *SystemState) void {
                             }
                             unreachable;
                         },
-                        .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
+                        .material = fd.PBRMaterial.initNoTexture(.{ .r = 0.6, .g = 0.6, .b = 0.1 }, 1.0, 0.0),
                     });
                 }
                 patch.entities.append(prop_ent.id) catch unreachable;
