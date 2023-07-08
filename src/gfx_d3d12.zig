@@ -332,10 +332,13 @@ pub const D3D12State = struct {
     }
 
     pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
-        // TODO: Schedule the upload instead of uploading immediately
-        self.gctx.beginFrame();
+        var should_end_frame = false;
+        if (!self.gctx.is_cmdlist_opened) {
+            self.gctx.beginFrame();
+            should_end_frame = true;
+        }
 
-        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, false);
+        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = false });
         var path_u16: [300]u16 = undefined;
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
@@ -360,15 +363,20 @@ pub const D3D12State = struct {
             break :blk t;
         };
 
-        self.gctx.endFrame();
-        self.gctx.finishGpuCommands();
+        if (should_end_frame) {
+            self.gctx.endFrame();
+            self.gctx.finishGpuCommands();
+        }
 
         return try self.texture_pool.add(.{ .obj = texture });
     }
 
     pub fn scheduleLoadTextureCubemap(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
-        // TODO: Schedule the upload instead of uploading immediately
-        self.gctx.beginFrame();
+        var should_end_frame = false;
+        if (!self.gctx.is_cmdlist_opened) {
+            self.gctx.beginFrame();
+            should_end_frame = true;
+        }
 
         const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = true });
         var path_u16: [300]u16 = undefined;
@@ -407,8 +415,10 @@ pub const D3D12State = struct {
             break :blk t;
         };
 
-        self.gctx.endFrame();
-        self.gctx.finishGpuCommands();
+        if (should_end_frame) {
+            self.gctx.endFrame();
+            self.gctx.finishGpuCommands();
+        }
 
         return try self.texture_pool.add(.{ .obj = texture });
     }

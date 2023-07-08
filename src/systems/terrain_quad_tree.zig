@@ -359,72 +359,6 @@ fn createTextureFromPixelBuffer(
     };
 }
 
-fn createDDSTextureFromFile(
-    path: []const u8,
-    arena: std.mem.Allocator,
-    gfxstate: *gfx.D3D12State,
-    in_frame: bool,
-) !gfx.Texture {
-    // Generate Path
-    std.log.debug("Creating texture from DDS {s}", .{path});
-
-    if (!in_frame) {
-        // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
-        // having the data from the first uploaded texture :(
-        gfxstate.gctx.beginFrame();
-    }
-
-    // Load DDS data into D3D12_SUBRESOURCE_DATA
-    var subresources = std.ArrayList(d3d12.SUBRESOURCE_DATA).init(arena);
-    const dds_info = dds_loader.loadTextureFromFile(path, arena, gfxstate.gctx.device, 0, &subresources) catch unreachable;
-
-    // Create a texture and upload all its subresources to the GPU
-    const resource = blk: {
-        // Reserve space for the texture (subresources) from a pre-allocated HEAP
-        var resource = allocateTextureMemory(
-            gfxstate,
-            dds_info.width,
-            dds_info.height,
-            dds_info.format,
-            dds_info.mip_map_count,
-        ) catch unreachable;
-
-        // Set a debug name
-        {
-            var path_u16: [300]u16 = undefined;
-            assert(path.len < path_u16.len - 1);
-            const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
-            path_u16[path_len] = 0;
-            _ = resource.SetName(@as(w32.LPCWSTR, @ptrCast(&path_u16)));
-        }
-
-        // Upload all subresources
-        uploadSubResources(gfxstate, resource, subresources.items, d3d12.RESOURCE_STATES.GENERIC_READ);
-
-        break :blk resource;
-    };
-
-    if (!in_frame) {
-        // NOTE:(gmodarelli) If I schedule all of these uploads in a single frame I end up with all the textures
-        // having the data from the first uploaded texture :(
-        gfxstate.gctx.endFrame();
-        gfxstate.gctx.finishGpuCommands();
-    }
-
-    // Create a persisten SRV descriptor for the texture
-    const srv_allocation = gfxstate.gctx.allocatePersistentGpuDescriptors(1);
-    gfxstate.gctx.device.CreateShaderResourceView(
-        resource,
-        null,
-        srv_allocation.cpu_handle,
-    );
-
-    return gfx.Texture{
-        .resource = resource,
-        .persistent_descriptor = srv_allocation,
-    };
-}
-
 fn allocateTextureMemory(gfxstate: *gfx.D3D12State, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
     assert(gfxstate.gctx.is_cmdlist_opened);
 
@@ -606,7 +540,12 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, false) catch unreachable;
+        var path_u16: [300]u16 = undefined;
+        assert(path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+        path_u16[path_len] = 0;
+
+        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena) catch unreachable;
     };
 
     const normal = blk: {
@@ -618,7 +557,12 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, false) catch unreachable;
+        var path_u16: [300]u16 = undefined;
+        assert(path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+        path_u16[path_len] = 0;
+
+        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena) catch unreachable;
     };
 
     const arm = blk: {
@@ -630,13 +574,18 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, false) catch unreachable;
+        var path_u16: [300]u16 = undefined;
+        assert(path.len < path_u16.len - 1);
+        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
+        path_u16[path_len] = 0;
+
+        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena) catch unreachable;
     };
 
     return .{
-        .diffuse = try gfxstate.texture_pool.add(.{ .obj = diffuse }),
-        .normal = try gfxstate.texture_pool.add(.{ .obj = normal }),
-        .arm = try gfxstate.texture_pool.add(.{ .obj = arm }),
+        .diffuse = diffuse,
+        .normal = normal,
+        .arm = arm,
     };
 }
 
