@@ -175,11 +175,6 @@ const SystemState = struct {
     draw_calls: std.ArrayList(DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
-    // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
-    // but for now it's here to speed test it out and speed things along
-    textures_heap: *d3d12.IHeap,
-    textures_heap_offset: u64 = 0,
-
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(Mesh),
     quads_to_render: std.ArrayList(u32),
@@ -298,8 +293,6 @@ const TextureDesc = struct {
 fn createTextureFromPixelBuffer(
     texture_desc: TextureDesc,
     gfxstate: *gfx.D3D12State,
-    heap: *d3d12.IHeap,
-    heap_offset: *u64,
     in_frame: bool,
     debug_name: ?[]const u8,
 ) !gfx.Texture {
@@ -325,8 +318,6 @@ fn createTextureFromPixelBuffer(
         // Reserve space for the texture (subresources) from a pre-allocated HEAP
         var resource = allocateTextureMemory(
             gfxstate,
-            heap,
-            heap_offset,
             texture_desc.width,
             texture_desc.height,
             texture_desc.format,
@@ -372,8 +363,6 @@ fn createDDSTextureFromFile(
     path: []const u8,
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
-    heap: *d3d12.IHeap,
-    heap_offset: *u64,
     in_frame: bool,
 ) !gfx.Texture {
     // Generate Path
@@ -394,8 +383,6 @@ fn createDDSTextureFromFile(
         // Reserve space for the texture (subresources) from a pre-allocated HEAP
         var resource = allocateTextureMemory(
             gfxstate,
-            heap,
-            heap_offset,
             dds_info.width,
             dds_info.height,
             dds_info.format,
@@ -438,10 +425,10 @@ fn createDDSTextureFromFile(
     };
 }
 
-fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_offset: *u64, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
+fn allocateTextureMemory(gfxstate: *gfx.D3D12State, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
     assert(gfxstate.gctx.is_cmdlist_opened);
 
-    var heap_desc = heap.GetDesc();
+    var heap_desc = gfxstate.small_textures_heap.GetDesc();
     const heap_size = heap_desc.SizeInBytes;
 
     var resource: *d3d12.IResource = undefined;
@@ -474,11 +461,11 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         size_in_bytes = allocation_info.SizeInBytes;
     }
 
-    assert(heap_offset.* + size_in_bytes < heap_size);
+    assert(gfxstate.small_textures_heap_offset + size_in_bytes < heap_size);
 
     hrPanicOnFail(gfxstate.gctx.device.CreatePlacedResource(
-        heap,
-        heap_offset.*,
+        gfxstate.small_textures_heap,
+        gfxstate.small_textures_heap_offset,
         &desc,
         .{ .COPY_DEST = true },
         null,
@@ -486,7 +473,7 @@ fn allocateTextureMemory(gfxstate: *gfx.D3D12State, heap: *d3d12.IHeap, heap_off
         @as(*?*anyopaque, @ptrCast(&resource)),
     ));
 
-    heap_offset.* += size_in_bytes;
+    gfxstate.small_textures_heap_offset += size_in_bytes;
     return resource;
 }
 
@@ -609,8 +596,6 @@ fn loadTerrainLayer(
     name: []const u8,
     arena: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
-    textures_heap: *d3d12.IHeap,
-    textures_heap_offset: *u64,
 ) !TerrainLayer {
     const diffuse = blk: {
         // Generate Path
@@ -621,7 +606,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, false) catch unreachable;
     };
 
     const normal = blk: {
@@ -633,7 +618,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, false) catch unreachable;
     };
 
     const arm = blk: {
@@ -645,7 +630,7 @@ fn loadTerrainLayer(
             .{name},
         ) catch unreachable;
 
-        break :blk createDDSTextureFromFile(path, arena, gfxstate, textures_heap, textures_heap_offset, false) catch unreachable;
+        break :blk createDDSTextureFromFile(path, arena, gfxstate, false) catch unreachable;
     };
 
     return .{
@@ -657,8 +642,6 @@ fn loadTerrainLayer(
 
 fn loadNodeHeightmap(
     gfxstate: *gfx.D3D12State,
-    textures_heap: *d3d12.IHeap,
-    textures_heap_offset: *u64,
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     in_frame: bool,
@@ -689,15 +672,13 @@ fn loadNodeHeightmap(
             .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
         ) catch unreachable;
 
-        const heightmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame, debug_name) catch unreachable;
+        const heightmap = createTextureFromPixelBuffer(texture_desc, gfxstate, in_frame, debug_name) catch unreachable;
         node.heightmap_handle = try gfxstate.texture_pool.add(.{ .obj = heightmap });
     }
 }
 
 fn loadNodeSplatmap(
     gfxstate: *gfx.D3D12State,
-    textures_heap: *d3d12.IHeap,
-    textures_heap_offset: *u64,
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     in_frame: bool,
@@ -728,15 +709,13 @@ fn loadNodeSplatmap(
             .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
         ) catch unreachable;
 
-        const splatmap = createTextureFromPixelBuffer(texture_desc, gfxstate, textures_heap, textures_heap_offset, in_frame, debug_name) catch unreachable;
+        const splatmap = createTextureFromPixelBuffer(texture_desc, gfxstate, in_frame, debug_name) catch unreachable;
         node.splatmap_handle = try gfxstate.texture_pool.add(.{ .obj = splatmap });
     }
 }
 
 fn loadHeightAndSplatMaps(
     gfxstate: *gfx.D3D12State,
-    textures_heap: *d3d12.IHeap,
-    textures_heap_offset: *u64,
     node: *QuadTreeNode,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     in_frame: bool,
@@ -744,7 +723,7 @@ fn loadHeightAndSplatMaps(
     splatmap_patch_type_id: world_patch_manager.PatchTypeId,
 ) !void {
     if (node.heightmap_handle == null) {
-        loadNodeHeightmap(gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame, heightmap_patch_type_id) catch unreachable;
+        loadNodeHeightmap(gfxstate, node, world_patch_mgr, in_frame, heightmap_patch_type_id) catch unreachable;
     }
 
     // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
@@ -754,7 +733,7 @@ fn loadHeightAndSplatMaps(
     }
 
     if (node.splatmap_handle == null) {
-        loadNodeSplatmap(gfxstate, textures_heap, textures_heap_offset, node, world_patch_mgr, in_frame, splatmap_patch_type_id) catch unreachable;
+        loadNodeSplatmap(gfxstate, node, world_patch_mgr, in_frame, splatmap_patch_type_id) catch unreachable;
     }
 }
 
@@ -762,8 +741,6 @@ fn loadResources(
     allocator: std.mem.Allocator,
     quad_tree_nodes: *std.ArrayList(QuadTreeNode),
     gfxstate: *gfx.D3D12State,
-    textures_heap: *d3d12.IHeap,
-    textures_heap_offset: *u64,
     terrain_layers: *std.ArrayList(TerrainLayer),
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     heightmap_patch_type_id: world_patch_manager.PatchTypeId,
@@ -775,10 +752,10 @@ fn loadResources(
 
     // Load terrain layers textures
     {
-        const dry_ground = loadTerrainLayer("dry_ground_rocks", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
-        const forest_ground = loadTerrainLayer("forest_ground_01", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
-        const rock_ground = loadTerrainLayer("rock_ground", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
-        const snow = loadTerrainLayer("snow_02", arena, gfxstate, textures_heap, textures_heap_offset) catch unreachable;
+        const dry_ground = loadTerrainLayer("dry_ground_rocks", arena, gfxstate) catch unreachable;
+        const forest_ground = loadTerrainLayer("forest_ground_01", arena, gfxstate) catch unreachable;
+        const rock_ground = loadTerrainLayer("rock_ground", arena, gfxstate) catch unreachable;
+        const snow = loadTerrainLayer("snow_02", arena, gfxstate) catch unreachable;
 
         // NOTE: There's an implicit dependency on the order of the Splatmap here
         // - 0 dirt
@@ -816,8 +793,6 @@ fn loadResources(
             var node = &quad_tree_nodes.items[i];
             loadHeightAndSplatMaps(
                 gfxstate,
-                textures_heap,
-                textures_heap_offset,
                 node,
                 world_patch_mgr,
                 false, // in frame
@@ -874,20 +849,6 @@ pub fn create(
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
     var query_camera = query_builder_camera.buildQuery();
-
-    // NOTE(gmodarelli): This should be part of gfx_d3d12.zig or texture.zig
-    // but for now it's here to speed test it out and speed things along
-    // NOTE(gmodarelli): We're currently loading up to 10880 1-channel R8_UNORM textures, so we need roughly
-    // 150MB of space.
-    const heap_desc = d3d12.HEAP_DESC{
-        .SizeInBytes = 150 * 1024 * 1024,
-        .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
-        .Alignment = 0,
-        .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
-    };
-    var textures_heap: *d3d12.IHeap = undefined;
-    hrPanicOnFail(gfxstate.gctx.device.CreateHeap(&heap_desc, &d3d12.IID_IHeap, @as(*?*anyopaque, @ptrCast(&textures_heap))));
-    var textures_heap_offset: u64 = 0;
 
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
     const max_quad_tree_nodes: usize = 85 * 64;
@@ -972,8 +933,6 @@ pub fn create(
         allocator,
         &terrain_quad_tree_nodes,
         gfxstate,
-        textures_heap,
-        &textures_heap_offset,
         &terrain_layers,
         world_patch_mgr,
         heightmap_patch_type_id,
@@ -1045,8 +1004,6 @@ pub fn create(
         .index_buffer = index_buffer,
         .instance_data_buffers = instance_data_buffers,
         .draw_calls = draw_calls,
-        .textures_heap = textures_heap,
-        .textures_heap_offset = textures_heap_offset,
         .instance_data = instance_data,
         .terrain_layers_buffer = terrain_layers_buffer,
         .terrain_lod_meshes = meshes,
@@ -1068,10 +1025,6 @@ pub fn destroy(state: *SystemState) void {
     // This was also triggering a Device Removal error.
     // We won't need to do this once we decouple systems from the renderer
     state.gfx.gctx.finishGpuCommands();
-
-    state.gfx.releaseAllTextures();
-    _ = state.textures_heap.Release();
-    state.textures_heap.* = undefined;
 
     state.terrain_lod_meshes.deinit();
     state.instance_data.deinit();
@@ -1232,8 +1185,6 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var node = &state.terrain_quad_tree_nodes.items[quad_index];
         loadHeightAndSplatMaps(
             state.gfx,
-            state.textures_heap,
-            &state.textures_heap_offset,
             node,
             state.world_patch_mgr,
             true, // in frame

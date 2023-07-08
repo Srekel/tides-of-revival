@@ -222,8 +222,11 @@ pub const D3D12State = struct {
     specular_texture: TextureHandle,
     brdf_integration_texture: TextureHandle,
 
-    buffer_pool: BufferPool,
     texture_pool: TexturePool,
+    small_textures_heap: *d3d12.IHeap,
+    small_textures_heap_offset: u64,
+
+    buffer_pool: BufferPool,
     pipelines: PipelineHashMap,
 
     mesh_pool: MeshPool,
@@ -360,7 +363,6 @@ pub const D3D12State = struct {
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
 
-        // return self.texture_pool.addTexture(texture);
         return try self.texture_pool.add(.{ .obj = texture });
     }
 
@@ -408,26 +410,29 @@ pub const D3D12State = struct {
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
 
-        // return self.texture_pool.addTexture(texture);
         return try self.texture_pool.add(.{ .obj = texture });
     }
 
-    pub fn releaseAllTextures(_: *D3D12State) void {
-        // self.texture_pool.releaseAllTextures();
-        // TODO
-        // var texture_index: u32 = 0;
-        // while (texture_index < pool.textures.len) : (texture_index += 1) {
-        //     var texture = &pool.textures[texture_index];
-        //     if (texture.resource != null) {
-        //         _ = texture.resource.?.Release();
-        //         texture.resource = null;
-        //     }
-        // }
+    pub fn releaseAllTextures(self: *D3D12State) void {
+        var live_handles = self.texture_pool.liveHandles();
+        while (live_handles.next()) |handle| {
+            var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch {
+                std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
+                continue;
+            };
+
+            if (texture) |t| {
+                if (t.resource != null) {
+                    _ = t.resource.?.Release();
+                    t.resource = null;
+                }
+            }
+
+            _ = self.texture_pool.removeIfLive(handle);
+        }
     }
 
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
-        // return self.texture_pool.lookupTexture(handle);
-
         var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch blk: {
             std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
             break :blk null;
@@ -503,13 +508,6 @@ pub const D3D12State = struct {
     }
 
     pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture } {
-        // return .{
-        //     .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
-        //     .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
-        //     .specular = self.texture_pool.lookupTexture(self.specular_texture),
-        //     .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
-        // };
-
         return .{
             .radiance = self.lookupTexture(self.radiance_texture),
             .irradiance = self.lookupTexture(self.irradiance_texture),
@@ -584,7 +582,6 @@ pub const D3D12State = struct {
 
         self.gctx.destroyPipeline(generate_brdf_integration_texture_pso);
 
-        // return self.texture_pool.addTexture(texture);
         return try self.texture_pool.add(.{ .obj = texture });
     }
 };
@@ -657,8 +654,20 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     gctx.present_flags = .{ .ALLOW_TEARING = false };
     gctx.present_interval = 1;
 
+    // Create a heap for small textures allocations.
+    // This is mainly used for terrain's height and splat maps
+    // NOTE(gmodarelli): We're currently loading up to 10880 1-channel R8_UNORM textures, so we need roughly
+    // 150MB of space.
+    const heap_desc = d3d12.HEAP_DESC{
+        .SizeInBytes = 150 * 1024 * 1024,
+        .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
+        .Alignment = 0,
+        .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
+    };
+    var small_textures_heap: *d3d12.IHeap = undefined;
+    hrPanicOnFail(gctx.device.CreateHeap(&heap_desc, &d3d12.IID_IHeap, @as(*?*anyopaque, @ptrCast(&small_textures_heap))));
+
     var buffer_pool = BufferPool.init(allocator);
-    // var texture_pool = TexturePool.init(allocator);
     var texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
     var mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
 
@@ -907,6 +916,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
+        .small_textures_heap = small_textures_heap,
+        .small_textures_heap_offset = 0,
         .mesh_pool = mesh_pool,
         .skybox_mesh = undefined,
     };
@@ -966,11 +977,14 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     self.gctx.finishGpuCommands();
     self.gpu_profiler.deinit();
+    self.releaseAllTextures();
 
     self.buffer_pool.deinit(allocator, &self.gctx);
-    // self.texture_pool.deinit(allocator);
     self.texture_pool.deinit();
     self.mesh_pool.deinit();
+
+    _ = self.small_textures_heap.Release();
+    self.small_textures_heap_offset = 0;
 
     // Destroy all pipelines
     {
@@ -1014,13 +1028,7 @@ pub fn beginFrame(state: *D3D12State) void {
 pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [3]f32) void {
     var gctx = &state.gctx;
 
-    // var skybox_mesh: ?Mesh = state.mesh_pool.getColumn(state.skybox_mesh, .obj) catch blk: {
-    //     std.log.debug("Failed to find skybox mesh. Handle: {any}", .{state.skybox_mesh});
-    //     break :blk null;
-    // };
-
     var skybox_mesh = state.lookupMesh(state.skybox_mesh);
-
     if (skybox_mesh) |mesh| {
         zpix.beginEvent(gctx.cmdlist, "Skybox");
         {
