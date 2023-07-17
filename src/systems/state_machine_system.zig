@@ -1,8 +1,9 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 
 const zm = @import("zmath");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const fsm = @import("../fsm/fsm.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
@@ -19,15 +20,15 @@ const StateSpider = @import("../fsm/creature/state_spider.zig");
 const StateMachineInstance = struct {
     state_machine: *const fsm.StateMachine,
     curr_states: std.ArrayList(*fsm.State),
-    entities: std.ArrayList(flecs.Entity),
+    entities: std.ArrayList(ecs.entity_t),
     blob_array: BlobArray(16),
 };
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
-    flecs_sys: flecs.EntityId,
-    query: flecs.Query,
+    ecs_world: *ecs.world_t,
+    flecs_sys: ecs.entity_t,
+    query: ecsu.Query,
     state_machines: std.ArrayList(fsm.StateMachine),
     instances: std.ArrayList(StateMachineInstance),
     frame_data: *input.FrameData,
@@ -38,21 +39,21 @@ const SystemState = struct {
 pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecs_world: *ecs.world_t,
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     audio_engine: *zaudio.Engine,
 ) !*SystemState {
-    var query_builder = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init.init(ecs_world.*);
     _ = query_builder
         .with(fd.FSM);
     var query = query_builder.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecs_world = ecs_world,
         .flecs_sys = flecs_sys,
         .query = query,
         .state_machines = std.ArrayList(fsm.StateMachine).init(allocator),
@@ -62,7 +63,7 @@ pub fn create(
         .audio_engine = audio_engine,
     };
 
-    flecs_world.observer(ObserverCallback, .on_set, system);
+    ecs_world.observer(ObserverCallback, .on_set, system);
 
     initStateData(system);
     return system;
@@ -76,7 +77,7 @@ pub fn destroy(system: *SystemState) void {
 fn initStateData(system: *SystemState) void {
     const sm_ctx = fsm.StateCreateContext{
         .allocator = system.allocator,
-        .flecs_world = system.flecs_world,
+        .ecs_world = system.ecs_world,
     };
 
     const player_sm = blk: {
@@ -91,7 +92,7 @@ fn initStateData(system: *SystemState) void {
     system.instances.append(.{
         .state_machine = player_sm,
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
-        .entities = std.ArrayList(flecs.Entity).init(system.allocator),
+        .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
             var blob_array = BlobArray(16).create(system.allocator, player_sm.max_state_size);
             break :blk blob_array;
@@ -110,7 +111,7 @@ fn initStateData(system: *SystemState) void {
     system.instances.append(.{
         .state_machine = debug_camera_sm,
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
-        .entities = std.ArrayList(flecs.Entity).init(system.allocator),
+        .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
             var blob_array = BlobArray(16).create(system.allocator, debug_camera_sm.max_state_size);
             break :blk blob_array;
@@ -129,7 +130,7 @@ fn initStateData(system: *SystemState) void {
     system.instances.append(.{
         .state_machine = fps_camera_sm,
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
-        .entities = std.ArrayList(flecs.Entity).init(system.allocator),
+        .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
             var blob_array = BlobArray(16).create(system.allocator, fps_camera_sm.max_state_size);
             break :blk blob_array;
@@ -148,7 +149,7 @@ fn initStateData(system: *SystemState) void {
     system.instances.append(.{
         .state_machine = spider_sm,
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
-        .entities = std.ArrayList(flecs.Entity).init(system.allocator),
+        .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
             var blob_array = BlobArray(16).create(system.allocator, spider_sm.max_state_size);
             break :blk blob_array;
@@ -156,7 +157,7 @@ fn initStateData(system: *SystemState) void {
     }) catch unreachable;
 }
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     const dt4 = zm.f32x4s(iter.iter.delta_time);
 
@@ -169,7 +170,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     // }
 
     // const NextState = struct {
-    //     entity: flecs.Entity,
+    //     entity: ecs.entity_t,
     //     next_state: *fsm.State,
     // };
 
@@ -183,7 +184,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 // .entity = instance.entities.items[i],
                 // .data = instance.blob_array.getBlob(i),
                 .transition_events = .{},
-                .flecs_world = system.flecs_world,
+                .ecs_world = system.ecs_world,
                 .physics_world = system.physics_world,
                 .audio_engine = system.audio_engine,
                 .dt = dt4,
@@ -200,11 +201,11 @@ const ObserverCallback = struct {
     pub const run = onSetCIFSM;
 };
 
-fn onSetCIFSM(it: *flecs.Iterator(ObserverCallback)) void {
-    var observer = @as(*flecs.c.ecs_observer_t, @ptrCast(@alignCast(it.iter.ctx)));
+fn onSetCIFSM(it: *ecsu.Iterator(ObserverCallback)) void {
+    var observer = @as(*ecs.observer_t, @ptrCast(@alignCast(it.iter.ctx)));
     var system: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIFSM), @as(i32, @intCast(it.index))).?;
+        const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIFSM), @as(i32, @intCast(it.index))).?;
         var ci = @as(*fd.CIFSM, @ptrCast(@alignCast(ci_ptr)));
 
         const smi_i = blk_smi_i: {

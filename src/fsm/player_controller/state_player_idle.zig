@@ -1,10 +1,11 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../flecs_data.zig");
 const fr = @import("../../flecs_relation.zig");
 const zm = @import("zmath");
@@ -68,11 +69,11 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
     }
 }
 
-fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
-    const transform = entity.get(fd.Transform);
+fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
+    const transform = ecs.get(ctx.ecs_world, entity, fd.Transform);
     const pos = transform.?.getPos00();
 
-    const environment_info = ctx.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const environment_info = ctx.ecs_world.getSingletonMut(fd.EnvironmentInfo).?;
     if (environment_info.sun_height > -0.5) {
         return;
     }
@@ -83,18 +84,18 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
     };
 
     var safe_from_darkness = false;
-    var filter = ctx.flecs_world.filter(FilterCallback);
+    var filter = ctx.ecs_world.filter(FilterCallback);
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (filter_it.entity().hasPair(flecs.c.Constants.EcsChildOf, entity.id)) {
+        if (filter_it.entity().hasPair(ecs.EcsChildOf, entity.id)) {
             continue;
         }
 
         const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
         if (dist < comps.light.range) {
             safe_from_darkness = true;
-            flecs.c.ecs_iter_fini(filter_it.iter);
+            ecs.ecs_iter_fini(filter_it.iter);
             break;
         }
     }
@@ -104,8 +105,8 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
     }
 }
 
-fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
-    const transform = entity.get(fd.Transform);
+fn updateWinFromArrival(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
+    const transform = ecs.get(ctx.ecs_world, entity, fd.Transform);
     const pos = transform.?.getPos00();
 
     const FilterCallback = struct {
@@ -113,7 +114,7 @@ fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
         city: *const fd.CompCity,
     };
 
-    var filter = ctx.flecs_world.filter(FilterCallback);
+    var filter = ctx.ecs_world.filter(FilterCallback);
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
@@ -124,7 +125,7 @@ fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
         const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
         if (dist < 20) {
             std.debug.panic("win", .{});
-            flecs.c.ecs_iter_fini(filter_it.iter);
+            ecs.ecs_iter_fini(filter_it.iter);
             break;
         }
     }
@@ -136,7 +137,7 @@ pub const StateIdle = struct {
 };
 
 const StatePlayerIdle = struct {
-    query: flecs.Query,
+    query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -208,7 +209,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = flecs.QueryBuilder.init(ctx.flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init.init(ctx.ecs_world.*);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Position)

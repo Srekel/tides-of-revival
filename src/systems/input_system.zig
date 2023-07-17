@@ -1,36 +1,37 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const zm = @import("zmath");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const input = @import("../input.zig");
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
-    flecs_sys: flecs.EntityId,
-    query: flecs.Query,
+    ecs_world: *ecs.world_t,
+    flecs_sys: ecs.entity_t,
+    query: ecsu.Query,
     frame_data: *input.FrameData,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
-    var query_builder = flecs.QueryBuilder.init(flecs_world.*);
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecs_world: *ecs.world_t, frame_data: *input.FrameData) !*SystemState {
+    var query_builder = ecsu.QueryBuilder.init.init(ecs_world.*);
     _ = query_builder
         .with(fd.Input);
     var query = query_builder.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecs_world = ecs_world,
         .flecs_sys = flecs_sys,
         .query = query,
         .frame_data = frame_data,
     };
 
-    // flecs_world.observer(ObserverCallback, .on_set, system);
+    // ecs_world.observer(ObserverCallback, .on_set, system);
 
     // initStateData(system);
     return system;
@@ -41,7 +42,7 @@ pub fn destroy(system: *SystemState) void {
     system.allocator.destroy(system);
 }
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // const dt4 = zm.f32x4s(iter.iter.delta_time);
     // _ = system;
@@ -70,7 +71,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     //             // .entity = instance.entities.items[i],
     //             // .data = instance.blob_array.getBlob(i),
     //             .transition_events = .{},
-    //             .flecs_world = system.flecs_world,
+    //             .ecs_world = system.ecs_world,
     //             .dt = dt4,
     //         };
     //         fsm_state.update(ctx);

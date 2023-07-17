@@ -4,7 +4,52 @@ const zglfw = @import("zglfw");
 const zphy = @import("zphysics");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
+const IdLocal = @import("variant.zig").IdLocal;
+
+pub fn registerComponents(ecs_world: *ecs.world_t) void {
+    ecs.COMPONENT(ecs_world, NOCOMP);
+    ecs.COMPONENT(ecs_world, ColorRGB);
+    ecs.COMPONENT(ecs_world, ColorRGBRoughness);
+    ecs.COMPONENT(ecs_world, LocalSpace);
+    ecs.COMPONENT(ecs_world, WorldSpace);
+    ecs.COMPONENT(ecs_world, Position);
+    ecs.COMPONENT(ecs_world, Forward);
+    ecs.COMPONENT(ecs_world, Rotation);
+    ecs.COMPONENT(ecs_world, EulerRotation);
+    ecs.COMPONENT(ecs_world, Scale);
+    ecs.COMPONENT(ecs_world, Transform);
+    ecs.COMPONENT(ecs_world, Dynamic);
+    ecs.COMPONENT(ecs_world, Velocity);
+    ecs.COMPONENT(ecs_world, CIShapeMeshDefinition);
+    ecs.COMPONENT(ecs_world, ShapeMeshDefinition);
+    ecs.COMPONENT(ecs_world, CIShapeMeshInstance);
+    ecs.COMPONENT(ecs_world, ShapeMeshInstance);
+    ecs.COMPONENT(ecs_world, CICamera);
+    ecs.COMPONENT(ecs_world, Camera);
+    // ecs.COMPONENT(ecs_world, CIPhysicsBody);
+    ecs.COMPONENT(ecs_world, PhysicsBody);
+    ecs.COMPONENT(ecs_world, TerrainPatchLookup);
+    ecs.COMPONENT(ecs_world, WorldLoader);
+    ecs.COMPONENT(ecs_world, WorldPatch);
+    // ecs.COMPONENT(ecs_world, ComponentData);
+    ecs.COMPONENT(ecs_world, Light);
+    ecs.COMPONENT(ecs_world, CIFSM);
+    ecs.COMPONENT(ecs_world, FSM);
+    ecs.COMPONENT(ecs_world, Input);
+    ecs.COMPONENT(ecs_world, Interactor);
+    ecs.COMPONENT(ecs_world, SpawnPoint);
+    ecs.COMPONENT(ecs_world, Health);
+    ecs.COMPONENT(ecs_world, Quality);
+    ecs.COMPONENT(ecs_world, Effect);
+    ecs.COMPONENT(ecs_world, CompCity);
+    ecs.COMPONENT(ecs_world, CompBanditCamp);
+    ecs.COMPONENT(ecs_world, CompCaravan);
+    ecs.COMPONENT(ecs_world, CompCombatant);
+    ecs.COMPONENT(ecs_world, EnvironmentInfo);
+    ecs.COMPONENT(ecs_world, ProjectileWeapon);
+    ecs.COMPONENT(ecs_world, Projectile);
+}
 
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
@@ -14,7 +59,6 @@ const flecs = @import("flecs");
 //     }
 // };
 
-const IdLocal = @import("variant.zig").IdLocal;
 pub const NOCOMP = struct {};
 
 pub const ColorRGB = struct {
@@ -422,7 +466,7 @@ pub const Input = struct {
 
 pub const Interactor = struct {
     active: bool = false,
-    wielded_item_ent_id: flecs.EntityId,
+    wielded_item_ent: ecs.entity_t,
 };
 
 // ███████╗██████╗  █████╗ ██╗    ██╗███╗   ██╗
@@ -473,15 +517,15 @@ pub const CompCity = struct {
     next_spawn_time: f32,
     spawn_cooldown: f32,
     caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]flecs.EntityId,
-    curr_target_city: flecs.EntityId,
+    closest_cities: [2]ecs.entity_t,
+    curr_target_city: ecs.entity_t,
 };
 pub const CompBanditCamp = struct {
     next_spawn_time: f32,
     spawn_cooldown: f32,
     caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]flecs.EntityId,
-    // curr_target_city: flecs.EntityId,
+    closest_cities: [2]ecs.entity_t,
+    // curr_target_city: ecs.entity_t,
 };
 pub const CompCaravan = struct {
     start_pos: [3]f32,
@@ -513,11 +557,11 @@ pub const EnvironmentInfo = struct {
 //  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═══╝
 
 pub const ProjectileWeapon = struct {
-    chambered_projectile: flecs.EntityId = 0,
+    chambered_projectile: ecs.entity_t = 0,
     charge: f32 = 0,
 };
 
 pub const Projectile = struct {
     dummy: u8 = 0,
-    // chambered_projectile: flecs.EntityId = 0,
+    // chambered_projectile: ecs.entity_t = 0,
 };

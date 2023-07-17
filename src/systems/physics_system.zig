@@ -1,9 +1,10 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
 
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
@@ -133,7 +134,7 @@ const ContactListener = extern struct {
 };
 
 const WorldLoaderData = struct {
-    ent: flecs.EntityId = 0,
+    ent: ecs.entity_t = 0,
     pos_old: [3]f32 = .{ -100000, 0, -100000 },
 };
 
@@ -147,16 +148,16 @@ const IndexType = u32;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecs_world: *ecs.world_t,
     physics_world: *zphy.PhysicsSystem,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     event_manager: *EventManager,
-    sys: flecs.EntityId,
+    sys: ecs.entity_t,
 
     contact_listener: *ContactListener,
     frame_contacts: std.ArrayList(config.events.CollisionContact),
-    comp_query_body: flecs.Query,
-    comp_query_loader: flecs.Query,
+    comp_query_body: ecsu.Query,
+    comp_query_loader: ecsu.Query,
     loaders: [1]WorldLoaderData = .{.{}},
     requester_id: world_patch_manager.RequesterId,
     patches: std.ArrayList(Patch),
@@ -165,18 +166,18 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const flecs_world = ctx.get(config.flecs_world.hash, flecs.World);
+    const ecs_world = ctx.get(config.ecs_world.hash, ecs.world_t);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
     const world_patch_mgr = ctx.get(config.world_patch_mgr.hash, world_patch_manager.WorldPatchManager);
 
-    var query_builder_body = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_body = ecsu.QueryBuilder.init.init(ecs_world.*);
     _ = query_builder_body.with(fd.PhysicsBody)
         .with(fd.Position)
         .with(fd.EulerRotation);
     // .with(fd.Transform);
     const comp_query_body = query_builder_body.buildQuery();
 
-    var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_loader = ecsu.QueryBuilder.init.init(ecs_world.*);
     _ = query_builder_loader.with(fd.WorldLoader)
         .with(fd.Transform);
     const comp_query_loader = query_builder_loader.buildQuery();
@@ -206,10 +207,10 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     physics_world.setGravity(.{ 0, -10.0, 0 });
 
     var system = allocator.create(SystemState) catch unreachable;
-    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecs_world = ecs_world,
         .physics_world = physics_world,
         .world_patch_mgr = world_patch_mgr,
         .sys = sys,
@@ -229,7 +230,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     };
     physics_world.setContactListener(contact_listener);
     system.contact_listener = contact_listener;
-    // flecs_world.observer(ObserverCallback, .on_set, system);
+    // ecs_world.observer(ObserverCallback, .on_set, system);
 
     return system;
 }
@@ -245,7 +246,7 @@ pub fn destroy(system: *SystemState) void {
     system.allocator.destroy(system);
 }
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // system.physics_world.optimizeBroadPhase();
     _ = system.physics_world.update(iter.iter.delta_time, .{}) catch unreachable;
@@ -265,59 +266,6 @@ fn updateCollisions(system: *SystemState) void {
     };
     system.event_manager.triggerEvent(config.events.frame_collisions_id, &frame_collisions_data);
     system.frame_contacts.clearRetainingCapacity();
-
-    // const flecs_world = system.flecs_world;
-    // var id_list = [_]flecs.c.EcsId{
-    //     flecs.meta.componentId(flecs_world.world, fd.PhysicsBody),
-    // };
-    // const ids = flecs.c.EcsType{
-    //     .array = id_list[0..].ptr,
-    //     .count = 1,
-    // };
-
-    // var param = config.events.OnCollisionContext{
-    //     .contacts = system.frame_contacts.items,
-    // };
-
-    // var desc: flecs.c.EcsEventDesc = .{
-    //     .event = config.events.onCollisionId(flecs_world.world),
-    //     .ids = &ids,
-    //     .param = &param, // list of collisions since previous frame
-    //     .table = null,
-    //     .other_table = null,
-    //     .offset = 0,
-    //     .count = 0,
-    //     .entity = system.sys,
-    //     .observable = null,
-    //     .flags = 0,
-    // };
-
-    // flecs.ecs_emit(flecs_world.world, &desc);
-    // system.frame_contacts.clearRetainingCapacity();
-
-    // for (system.frame_contacts.items) |*contact| {
-    //     // _ = flecs_world;
-    //     // const ent1 = flecs.Entity.init(flecs_world.world, body1.user_data);
-    //     // const ent2 = flecs.Entity.init(flecs_world.world, body2.user_data);
-
-    //     // const context = config.events.OnCollisionContext{};
-    //     // _ = context;
-    //     // var desc: flecs.c.EcsEventDesc = .{
-    //     //     // .event = config.event.OnCollision,
-    //     //     .event = config.events.onCollisionId(flecs_world.world),
-    //     //     .ids = &ids,
-    //     //     .param = contact,
-    //     //     .table = null,
-    //     //     .other_table = null,
-    //     //     .offset = 0,
-    //     //     .count = 0,
-    //     //     .entity = 0,
-    //     //     .observable = null,
-    //     //     .flags = 0,
-    //     // };
-
-    //     // flecs.ecs_emit(flecs_world.world, &desc);
-    // }
 }
 
 fn updateBodies(system: *SystemState) void {
@@ -591,7 +539,7 @@ fn updatePatches(system: *SystemState) void {
             //             var post_transform = fd.Transform.initFromPosition(post_pos2);
             //             post_transform.setScale([_]f32{ 0.2, 0.2, 0.2 });
 
-            //             const post_ent = system.flecs_world.newEntity();
+            //             const post_ent = system.ecs_world.newEntity();
             //             post_ent.set(post_pos2);
             //             post_ent.set(fd.EulerRotation{});
             //             post_ent.set(fd.Scale.create(0.2, 0.2, 0.2));
@@ -652,12 +600,12 @@ fn updatePatches(system: *SystemState) void {
 //     pub const run = onSetCIPhysicsBody;
 // };
 
-// fn onSetCIPhysicsBody(it: *flecs.Iterator(ObserverCallback)) void {
-//     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
+// fn onSetCIPhysicsBody(it: *ecsu.Iterator(ObserverCallback)) void {
+//     var observer = @ptrCast(*ecs.observer_t, @alignCast(@alignOf(ecs.observer_t), it.iter.ctx));
 //     var system : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 //     _ = system;
 //     // while (it.next()) |_| {
-//     //     const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
+//     //     const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
 //     //     var ci = @ptrCast(*fd.CIPhysicsBody, @alignCast(@alignOf(fd.CIPhysicsBody), ci_ptr));
 
 //     //     var transform = it.entity().getMut(fd.Transform).?;

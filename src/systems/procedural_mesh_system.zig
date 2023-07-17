@@ -7,12 +7,13 @@ const glfw = @import("glfw");
 const zm = @import("zmath");
 const zmu = @import("zmathutil");
 const zmesh = @import("zmesh");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 
 const gfx = @import("../gfx_d3d12.zig");
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const input = @import("../input.zig");
@@ -59,8 +60,8 @@ const ProcMesh = struct {
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
-    sys: flecs.EntityId,
+    ecs_world: *ecs.world_t,
+    sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
 
@@ -74,8 +75,8 @@ const SystemState = struct {
     gpu_frame_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(ProcMesh),
-    query_camera: flecs.Query,
-    query_mesh: flecs.Query,
+    query_camera: ecsu.Query,
+    query_mesh: ecsu.Query,
 
     freeze_rendering: bool,
     draw_bounding_spheres: bool,
@@ -91,7 +92,7 @@ const SystemState = struct {
 
 fn appendShapeMesh(
     id: IdLocal,
-    // entity: flecs.EntityId,
+    // entity: ecs.entity_t,
     z_mesh: zmesh.Shape,
     meshes: *std.ArrayList(ProcMesh),
     meshes_indices: *std.ArrayList(IndexType),
@@ -228,7 +229,7 @@ fn initScene(
     _ = appendObjMesh(allocator, IdLocal.init("unit_sphere_lp"), "content/meshes/unit_sphere_lp.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecs_world: *ecs.world_t, frame_data: *input.FrameData) !*SystemState {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -310,15 +311,15 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
-    // var sys_post = flecs_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
+    var sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    // var sys_post = ecs_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_camera = ecsu.QueryBuilder.init.init(ecs_world.*);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
-    var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_mesh = ecsu.QueryBuilder.init.init(ecs_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.ShapeMeshInstance);
@@ -327,7 +328,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     state.* = .{
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecs_world = ecs_world,
         .sys = sys,
         .gfx = gfxstate,
         .vertex_buffer = vertex_buffer,
@@ -345,8 +346,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .frame_data = frame_data,
     };
 
-    // flecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
-    flecs_world.observer(ShapeMeshInstanceObserverCallback, .on_set, state);
+    // ecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
+    ecs_world.observer(ShapeMeshInstanceObserverCallback, .on_set, state);
 
     return state;
 }
@@ -368,7 +369,7 @@ pub fn destroy(state: *SystemState) void {
 // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     const CameraQueryComps = struct {
@@ -379,7 +380,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
         while (entity_iter_camera.next()) |comps| {
             if (comps.cam.active) {
-                flecs.c.ecs_iter_fini(entity_iter_camera.iter);
+                ecs.ecs_iter_fini(entity_iter_camera.iter);
                 break :blk comps;
             }
         }
@@ -658,12 +659,12 @@ const ShapeMeshInstanceObserverCallback = struct {
     pub const run = onSetCIShapeMeshInstance;
 };
 
-// fn onSetCIShapeMeshDefinition(it: *flecs.Iterator(ShapeMeshDefinitionObserverCallback)) void {
-//     var observer = @ptrCast(*flecs.c.ecs_observer_t, @alignCast(@alignOf(flecs.c.ecs_observer_t), it.iter.ctx));
+// fn onSetCIShapeMeshDefinition(it: *ecsu.Iterator(ShapeMeshDefinitionObserverCallback)) void {
+//     var observer = @ptrCast(*ecs.observer_t, @alignCast(@alignOf(ecs.observer_t), it.iter.ctx));
 //     var state : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
 //     while (it.next()) |_| {
-//         const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshDefinition), @intCast(i32, it.index)).?;
+//         const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshDefinition), @intCast(i32, it.index)).?;
 //         var ci = @ptrCast(*fd.CIShapeMeshDefinition, @alignCast(@alignOf(fd.CIShapeMeshDefinition), ci_ptr));
 
 //         const ent = it.entity();
@@ -685,12 +686,12 @@ const ShapeMeshInstanceObserverCallback = struct {
 //     }
 // }
 
-fn onSetCIShapeMeshInstance(it: *flecs.Iterator(ShapeMeshInstanceObserverCallback)) void {
-    var observer = @as(*flecs.c.ecs_observer_t, @ptrCast(@alignCast(it.iter.ctx)));
+fn onSetCIShapeMeshInstance(it: *ecsu.Iterator(ShapeMeshInstanceObserverCallback)) void {
+    var observer = @as(*ecs.observer_t, @ptrCast(@alignCast(it.iter.ctx)));
     var state: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
     while (it.next()) |_| {
-        const ci_ptr = flecs.c.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @as(i32, @intCast(it.index))).?;
+        const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @as(i32, @intCast(it.index))).?;
         var ci = @as(*fd.CIShapeMeshInstance, @ptrCast(@alignCast(ci_ptr)));
 
         const mesh_index = mesh_blk: {

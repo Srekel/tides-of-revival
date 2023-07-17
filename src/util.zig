@@ -1,5 +1,5 @@
 const std = @import("std");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const fd = @import("flecs_data.zig");
 const znoise = @import("znoise");
 const v = @import("variant.zig");
@@ -60,7 +60,7 @@ pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y
 //     ent: flecs.Entity,
 //     parent_pos: fd.WorldPosition,
 //     parent_rot: fd.EulerRotation,
-//     flecs_world: flecs.World,
+//     ecs_world: ecs.world_t,
 // ) void {
 //     if (ent.getMut(fd.Position)) |pos| {
 //         if (ent.getMut(fd.EulerRotation)) |rot| {
@@ -74,7 +74,7 @@ pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y
 //             std.log.debug("{s}: {d}", .{ e.getName(), p_actual });
 
 //             // Iterate children recursively
-//             var term = flecs.Term({}).initWithPair(world, world.pair(flecs.c.EcsChildOf, e.id));
+//             var term = flecs.Term({}).initWithPair(world, world.pair(ecs.EcsChildOf, e.id));
 //             var iter = term.entityIterator();
 //             while (iter.next()) |entity| {
 //                 iterateTree(world, entity, p_actual);
@@ -83,7 +83,7 @@ pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y
 //     }
 // }
 
-// pub fn applyTransform(entity: flecs.Entity, flecs_world: *flecs.World) void {
+// pub fn applyTransform(entity: flecs.Entity, ecs_world: *ecs.world_t) void {
 //     const FilterCallback = struct {
 //         position: *const Position,
 //     };
@@ -94,7 +94,7 @@ pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y
 //         var iter = filter.iterator(FilterCallback);
 //         const p_actual = .{ .x = position.x + p_parent.x, .y = position.y + p_parent.y };
 
-//         var term = flecs.Term({}).initWithPair(world, world.pair(flecs.c.EcsChildOf, e.id));
+//         var term = flecs.Term({}).initWithPair(world, world.pair(ecs.EcsChildOf, e.id));
 //         var iter = term.entityIterator();
 //         while (iter.next()) |child_ent| {
 //             iterateTree(world, child_ent, p_actual);

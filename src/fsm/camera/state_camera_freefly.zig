@@ -1,10 +1,11 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../flecs_data.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
@@ -68,7 +69,7 @@ pub const StateIdle = struct {
 };
 
 const StateCameraFreefly = struct {
-    query: flecs.Query,
+    query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -110,7 +111,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = flecs.QueryBuilder.init(ctx.flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init.init(ctx.ecs_world.*);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Camera)

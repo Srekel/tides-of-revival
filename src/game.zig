@@ -1,6 +1,6 @@
 const std = @import("std");
 const args = @import("args");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const zaudio = @import("zaudio");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
@@ -12,6 +12,7 @@ const Variant = @import("variant.zig").Variant;
 const IdLocal = @import("variant.zig").IdLocal;
 const config = @import("config.zig");
 const util = @import("util.zig");
+const ecsu = @import("flecs_util/flecs_util.zig");
 const fd = @import("flecs_data.zig");
 const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
@@ -38,19 +39,18 @@ const timeline_system = @import("systems/timeline_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
 const SpawnContext = struct {
-    flecs_world: *flecs.World,
+    ecs_world: *ecs.world_t,
     physics_world: *zphy.PhysicsSystem,
     // player_pos: [3]f32,
 };
 
-fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
+fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     const ctx = util.castOpaque(SpawnContext, data);
-    const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
-    const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
-    const player_pos = player_ent.get(fd.Position).?;
+    const player_ent = ecs.ecs_lookup(ctx.ecs_world.world, "player");
+    const player_pos = ecs.get(ctx.ecs_world, player_ent, fd.Position).?;
 
-    var ent = ctx.flecs_world.newEntity();
+    var ent = ctx.ecs_world.newEntity();
     var spawn_pos = [3]f32{
         player_pos.x + 10,
         player_pos.y + 2,
@@ -114,9 +114,10 @@ pub fn run() void {
     // music.start() catch unreachable;
     // defer music.destroy();
 
-    var flecs_world = flecs.World.init();
-    defer flecs_world.deinit();
-    _ = flecs.c.ecs_log_set_level(0);
+    var ecs_world = ecs.init();
+    defer ecs_world.fini(ecs_world);
+    // _ = ecs.ecs_log_set_level(0);
+    fd.registerComponents(ecs_world);
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -314,7 +315,7 @@ pub fn run() void {
     var input_sys = try input_system.create(
         IdLocal.init("input_sys"),
         std.heap.page_allocator,
-        &flecs_world,
+        &ecs_world,
         &input_frame_data,
     );
     defer input_system.destroy(input_sys);
@@ -335,56 +336,56 @@ pub fn run() void {
 
     var system_context = util.Context.init(std.heap.page_allocator);
     system_context.putConst(config.allocator, &std.heap.page_allocator);
-    system_context.put(config.flecs_world, &flecs_world);
+    system_context.put(config.ecs_world, &ecs_world);
     system_context.put(config.event_manager, &event_manager);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
 
-    var physics_sys = try physics_system.create(
-        IdLocal.init("physics_system"),
-        system_context,
-    );
-    defer physics_system.destroy(physics_sys);
+    // var physics_sys = try physics_system.create(
+    //     IdLocal.init("physics_system"),
+    //     system_context,
+    // );
+    // defer physics_system.destroy(physics_sys);
 
-    var state_machine_sys = try state_machine_system.create(
-        IdLocal.init("state_machine_sys"),
-        std.heap.page_allocator,
-        &flecs_world,
-        &input_frame_data,
-        physics_sys.physics_world,
-        audio_engine,
-    );
-    defer state_machine_system.destroy(state_machine_sys);
+    // var state_machine_sys = try state_machine_system.create(
+    //     IdLocal.init("state_machine_sys"),
+    //     std.heap.page_allocator,
+    //     &ecs_world,
+    //     &input_frame_data,
+    //     physics_sys.physics_world,
+    //     audio_engine,
+    // );
+    // defer state_machine_system.destroy(state_machine_sys);
 
-    system_context.put(config.input_frame_data, &input_frame_data);
-    system_context.putOpaque(config.physics_world, physics_sys.physics_world);
+    // system_context.put(config.input_frame_data, &input_frame_data);
+    // system_context.putOpaque(config.physics_world, physics_sys.physics_world);
 
-    var interact_sys = try interact_system.create(
-        IdLocal.init("interact_sys"),
-        system_context,
-    );
-    defer interact_system.destroy(interact_sys);
+    // var interact_sys = try interact_system.create(
+    //     IdLocal.init("interact_sys"),
+    //     system_context,
+    // );
+    // defer interact_system.destroy(interact_sys);
 
-    var timeline_sys = try timeline_system.create(
-        IdLocal.init("timeline_sys"),
-        system_context,
-    );
-    defer timeline_system.destroy(timeline_sys);
+    // var timeline_sys = try timeline_system.create(
+    //     IdLocal.init("timeline_sys"),
+    //     system_context,
+    // );
+    // defer timeline_system.destroy(timeline_sys);
 
-    var city_sys = try city_system.create(
-        IdLocal.init("city_system"),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-        physics_sys.physics_world,
-        &asset_manager,
-    );
-    defer city_system.destroy(city_sys);
+    // var city_sys = try city_system.create(
+    //     IdLocal.init("city_system"),
+    //     std.heap.page_allocator,
+    //     &gfx_state,
+    //     &ecs_world,
+    //     physics_sys.physics_world,
+    //     &asset_manager,
+    // );
+    // defer city_system.destroy(city_sys);
 
     var camera_sys = try camera_system.create(
         IdLocal.init("camera_system"),
         std.heap.page_allocator,
         &gfx_state,
-        &flecs_world,
+        &ecs_world,
         &input_frame_data,
     );
     defer camera_system.destroy(camera_sys);
@@ -395,41 +396,31 @@ pub fn run() void {
     zmesh.init(arena);
     defer zmesh.deinit();
 
-    var patch_prop_sys = try patch_prop_system.create(
-        IdLocal.initFormat("patch_prop_system_{}", .{0}),
-        std.heap.page_allocator,
-        &flecs_world,
-        world_patch_mgr,
-    );
-    defer patch_prop_system.destroy(patch_prop_sys);
+    // var patch_prop_sys = try patch_prop_system.create(
+    //     IdLocal.initFormat("patch_prop_system_{}", .{0}),
+    //     std.heap.page_allocator,
+    //     &ecs_world,
+    //     world_patch_mgr,
+    // );
+    // defer patch_prop_system.destroy(patch_prop_sys);
 
-    var procmesh_sys = try procmesh_system.create(
-        IdLocal.initFormat("procmesh_system_{}", .{0}),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-        &input_frame_data,
-    );
-    defer procmesh_system.destroy(procmesh_sys);
-
-    var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
-        IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
-        std.heap.page_allocator,
-        &gfx_state,
-        &flecs_world,
-        world_patch_mgr,
-    );
-    defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
-
-    // var terrain_sys = try terrain_system.create(
-    //     IdLocal.init("terrain_system"),
+    // var procmesh_sys = try procmesh_system.create(
+    //     IdLocal.initFormat("procmesh_system_{}", .{0}),
     //     std.heap.page_allocator,
     //     &gfx_state,
-    //     &flecs_world,
-    //     physics_sys.physics_world,
-    //     terrain_noise,
+    //     &ecs_world,
+    //     &input_frame_data,
     // );
-    // defer terrain_system.destroy(terrain_sys);
+    // defer procmesh_system.destroy(procmesh_sys);
+
+    // var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
+    //     IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
+    //     std.heap.page_allocator,
+    //     &gfx_state,
+    //     &ecs_world,
+    //     world_patch_mgr,
+    // );
+    // defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
 
     // var gui_sys = try gui_system.create(
     //     std.heap.page_allocator,
@@ -438,10 +429,10 @@ pub fn run() void {
     // );
     // defer gui_system.destroy(&gui_sys);
 
-    city_system.createEntities(city_sys);
+    // city_system.createEntities(city_sys);
 
     // Make sure systems are initialized and any initial system entities are created.
-    update(&flecs_world, &gfx_state);
+    update(&ecs_world, &gfx_state);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
@@ -450,43 +441,43 @@ pub fn run() void {
     //    ██║   ██║██║ ╚═╝ ██║███████╗███████╗██║██║ ╚████║███████╗███████║
     //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 
-    var tl_spider_spawn_ctx = SpawnContext{
-        .flecs_world = &flecs_world,
-        .physics_world = physics_sys.physics_world,
-        // .player_ent =
-    };
+    // var tl_spider_spawn_ctx = SpawnContext{
+    //     .ecs_world = &ecs_world,
+    //     .physics_world = physics_sys.physics_world,
+    //     // .player_ent =
+    // };
 
-    const tl_spider_spawn = config.events.TimelineTemplateData{
-        .id = IdLocal.init("spiderSpawn"),
-        .events = &[_]timeline_system.TimelineEvent{
-            .{
-                .trigger_time = 5,
-                .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
-                .func = spawnSpider,
-                .data = &tl_spider_spawn_ctx,
-            },
-        },
-        // .curves = &[_]timeline_system.TimelineCurve{
-        //     .{
-        //         .curve_type = .quality{
-        //             .component_name = "Health",
-        //         },
-        //         .curve_type = .run_a_function{
-        //             .func = null,
-        //             .data = null,
-        //         },
-        //     },
-        // },
-        .loop_behavior = .loop_no_time_loss,
-    };
+    // const tl_spider_spawn = config.events.TimelineTemplateData{
+    //     .id = IdLocal.init("spiderSpawn"),
+    //     .events = &[_]timeline_system.TimelineEvent{
+    //         .{
+    //             .trigger_time = 5,
+    //             .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
+    //             .func = spawnSpider,
+    //             .data = &tl_spider_spawn_ctx,
+    //         },
+    //     },
+    //     // .curves = &[_]timeline_system.TimelineCurve{
+    //     //     .{
+    //     //         .curve_type = .quality{
+    //     //             .component_name = "Health",
+    //     //         },
+    //     //         .curve_type = .run_a_function{
+    //     //             .func = null,
+    //     //             .data = null,
+    //     //         },
+    //     //     },
+    //     // },
+    //     .loop_behavior = .loop_no_time_loss,
+    // };
 
-    const tli_spider_spawn = config.events.TimelineInstanceData{
-        .ent = 0,
-        .timeline = IdLocal.init("spiderSpawn"),
-    };
+    // const tli_spider_spawn = config.events.TimelineInstanceData{
+    //     .ent = 0,
+    //     .timeline = IdLocal.init("spiderSpawn"),
+    // };
 
-    event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_spider_spawn);
-    event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_spider_spawn);
+    // event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_spider_spawn);
+    // event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_spider_spawn);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -495,35 +486,35 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-    const player_spawn = blk: {
-        var builder = flecs.QueryBuilder.init(flecs_world);
-        _ = builder
-            .with(fd.SpawnPoint)
-            .with(fd.Position);
+    // const player_spawn = blk: {
+    //     var builder = ecsu.QueryBuilder.init.init(ecs_world);
+    //     _ = builder
+    //         .with(fd.SpawnPoint)
+    //         .with(fd.Position);
 
-        var filter = builder.buildFilter();
-        defer filter.deinit();
+    //     var filter = builder.buildFilter();
+    //     defer filter.deinit();
 
-        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
-        while (entity_iter.next()) |comps| {
-            const city_ent = flecs.c.ecs_get_target(
-                flecs_world.world,
-                entity_iter.entity().id,
-                flecs_world.componentId(fr.Hometown),
-                0,
-            );
-            const spawnpoint_ent = entity_iter.entity();
-            flecs.c.ecs_iter_fini(entity_iter.iter);
-            break :blk .{
-                .pos = comps.pos.*,
-                .spawnpoint_ent = spawnpoint_ent,
-                .city_ent = city_ent,
-            };
-        }
-        break :blk null;
-    };
+    //     var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
+    //     while (entity_iter.next()) |comps| {
+    //         const city_ent = ecs.ecs_get_target(
+    //             ecs_world.world,
+    //             entity_iter.entity().id,
+    //             ecs_world.componentId(fr.Hometown),
+    //             0,
+    //         );
+    //         const spawnpoint_ent = entity_iter.entity();
+    //         ecs.ecs_iter_fini(entity_iter.iter);
+    //         break :blk .{
+    //             .pos = comps.pos.*,
+    //             .spawnpoint_ent = spawnpoint_ent,
+    //             .city_ent = city_ent,
+    //         };
+    //     }
+    //     break :blk null;
+    // };
 
-    // const entity3 = flecs_world.newEntity();
+    // const entity3 = ecs_world.newEntity();
     // entity3.set(fd.Transform.initWithScale(0, 0, 0, 100));
     // entity3.set(fd.CIShapeMeshInstance{
     //     .id = IdLocal.id64("sphere"),
@@ -535,15 +526,16 @@ pub fn run() void {
     //     .sphere = .{ .radius = 10.5 },
     // });
 
-    // const entity4 = flecs_world.newEntity();
+    // const entity4 = ecs_world.newEntity();
     // entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
     // entity4.set(fd.CIShapeMeshInstance{
     //     .id = IdLocal.id64("sphere"),
     //     .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 1.0, .roughness = 0.8 },
     // });
 
-    const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    const debug_camera_ent = flecs_world.newEntity();
+    // const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
+    const player_pos = fd.Position.init(100, 100, 100);
+    const debug_camera_ent = ecs_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.EulerRotation{});
@@ -571,7 +563,7 @@ pub fn run() void {
     // ██████╔╝╚██████╔╝╚███╔███╔╝
     // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = flecs_world.newEntity();
+    const bow_ent = ecs_world.newEntity();
     bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.EulerRotation{});
@@ -585,7 +577,7 @@ pub fn run() void {
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
     });
 
-    var proj_ent = flecs_world.newEntity();
+    var proj_ent = ecs_world.newEntity();
     // proj_ent.setName("arrow2");
     // proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
     // proj_ent.set(fd.EulerRotation{});
@@ -601,7 +593,7 @@ pub fn run() void {
     // proj_ent.childOf(bow_ent);
     // weapon_comp.chambered_projectile = proj_ent.id;
 
-    var spider_ent = flecs_world.newEntity();
+    var spider_ent = ecs_world.newEntity();
     // proj_ent.setName("arrow2");
     spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
     spider_ent.set(fd.EulerRotation{});
@@ -623,7 +615,7 @@ pub fn run() void {
 
     // _ = player_pos;
     // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
-    const player_ent = flecs_world.newEntity();
+    const player_ent = ecs_world.newEntity();
     player_ent.setName("player");
     player_ent.set(player_pos);
     // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
@@ -644,13 +636,13 @@ pub fn run() void {
     });
     player_ent.set(fd.Input{ .active = false, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
-    if (player_spawn) |ps| {
-        player_ent.addPair(fr.Hometown, ps.city_ent);
-    }
+    // if (player_spawn) |ps| {
+    //     player_ent.addPair(fr.Hometown, ps.city_ent);
+    // }
 
-    player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
+    player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent = bow_ent.id });
 
-    const player_camera_ent = flecs_world.newEntity();
+    const player_camera_ent = ecs_world.newEntity();
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
@@ -682,7 +674,7 @@ pub fn run() void {
     // ██║     ███████╗███████╗╚██████╗███████║
     // ╚═╝     ╚══════╝╚══════╝ ╚═════╝╚══════╝
 
-    flecs_world.setSingleton(fd.EnvironmentInfo{
+    ecs_world.setSingleton(fd.EnvironmentInfo{
         .time_of_day_percent = 0,
         .sun_height = 0,
         .world_time = 0,
@@ -690,7 +682,7 @@ pub fn run() void {
 
     // Flecs config
     // Delete children when parent is destroyed
-    _ = flecs_world.pair(flecs.c.Constants.EcsOnDeleteTarget, flecs.c.Constants.EcsOnDelete);
+    _ = ecs_world.pair(ecs.EcsOnDeleteTarget, ecs.EcsOnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
@@ -709,19 +701,19 @@ pub fn run() void {
         }
 
         world_patch_mgr.tickOne();
-        update(&flecs_world, &gfx_state);
+        update(&ecs_world, &gfx_state);
     }
 }
 
-fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
+fn update(ecs_world: *ecs.world_t, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
     const dt: f32 = @floatCast(stats.delta_time);
 
-    const flecs_stats = flecs.c.ecs_get_world_info(flecs_world.world);
+    const flecs_stats = ecs.ecs_get_world_info(ecs_world.world);
     {
         const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
         const world_time = flecs_stats.*.world_time_total;
-        const environment_info = flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+        const environment_info = ecs_world.getSingletonMut(fd.EnvironmentInfo).?;
         const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
@@ -730,9 +722,9 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
 
     gfx.beginFrame(gfx_state);
 
-    flecs_world.progress(dt);
+    ecs_world.progress(dt);
 
-    const camera_comps = getActiveCamera(flecs_world);
+    const camera_comps = getActiveCamera(ecs_world);
     if (camera_comps) |comps| {
         gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
     } else {
@@ -755,8 +747,8 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     }
 }
 
-fn getActiveCamera(flecs_world: *flecs.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
-    var builder = flecs.QueryBuilder.init(flecs_world.*);
+fn getActiveCamera(ecs_world: *ecs.world_t) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
+    var builder = ecsu.QueryBuilder.init.init(ecs_world.*);
     _ = builder
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);

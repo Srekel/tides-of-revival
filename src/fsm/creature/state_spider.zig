@@ -1,10 +1,11 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../flecs_data.zig");
 const fr = @import("../../flecs_relation.zig");
 const zm = @import("zmath");
@@ -115,7 +116,7 @@ pub const StateData = struct {
 };
 
 const StateSpider = struct {
-    query: flecs.Query,
+    query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -143,12 +144,11 @@ fn update(ctx: fsm.StateFuncContext) void {
         fsm: *fd.FSM,
     });
 
-    const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
-    const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
-    const player_pos = player_ent.get(fd.Position).?;
+    const player_ent = ecs.ecs_lookup(ctx.ecs_world.world, "player");
+    const player_pos = ecs.get(ctx.ecs_world, player_ent, fd.Position).?;
 
     while (entity_iter.next()) |comps| {
-        if (entity_iter.entity().id == player_ent_id) {
+        if (entity_iter.entity().id == player_ent) {
             // HACK
             continue;
         }
@@ -160,7 +160,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = flecs.QueryBuilder.init(ctx.flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init.init(ctx.ecs_world.*);
     _ = query_builder
         .with(fd.Position)
         .with(fd.EulerRotation)
