@@ -26,21 +26,21 @@ pub usingnamespace @import("utils.zig");
 pub const meta = @import("meta.zig");
 
 // Builtin pipeline tags
-pub const Phase = enum(c.EcsId) {
-    monitor = c.ECS_HI_COMPONENT_ID + 61,
-    inactive = c.ECS_HI_COMPONENT_ID + 63,
-    pipeline = c.ECS_HI_COMPONENT_ID + 64,
-    pre_frame = c.ECS_HI_COMPONENT_ID + 65,
-    on_load = c.ECS_HI_COMPONENT_ID + 66,
-    post_load = c.ECS_HI_COMPONENT_ID + 67,
-    pre_update = c.ECS_HI_COMPONENT_ID + 68,
-    on_update = c.ECS_HI_COMPONENT_ID + 69,
-    on_validate = c.ECS_HI_COMPONENT_ID + 70,
-    post_update = c.ECS_HI_COMPONENT_ID + 71,
-    pre_store = c.ECS_HI_COMPONENT_ID + 72,
-    on_store = c.ECS_HI_COMPONENT_ID + 73,
-    post_frame = c.ECS_HI_COMPONENT_ID + 74,
-};
+// pub const Phase = enum(c.EcsId) {
+//     monitor = c.ECS_HI_COMPONENT_ID + 61,
+//     inactive = c.ECS_HI_COMPONENT_ID + 63,
+//     pipeline = c.ECS_HI_COMPONENT_ID + 64,
+//     pre_frame = c.ECS_HI_COMPONENT_ID + 65,
+//     on_load = c.ECS_HI_COMPONENT_ID + 66,
+//     post_load = c.ECS_HI_COMPONENT_ID + 67,
+//     pre_update = c.ECS_HI_COMPONENT_ID + 68,
+//     on_update = c.ECS_HI_COMPONENT_ID + 69,
+//     on_validate = c.ECS_HI_COMPONENT_ID + 70,
+//     post_update = c.ECS_HI_COMPONENT_ID + 71,
+//     pre_store = c.ECS_HI_COMPONENT_ID + 72,
+//     on_store = c.ECS_HI_COMPONENT_ID + 73,
+//     post_frame = c.ECS_HI_COMPONENT_ID + 74,
+// };
 
 pub const Event = enum(c.EcsId) {
     // Event. Triggers when an id (component, tag, pair) is added to an entity

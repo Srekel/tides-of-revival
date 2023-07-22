@@ -21,8 +21,8 @@ pub const Type = struct {
         return str[0..len];
     }
 
-    /// returns an array of component ids
-    pub fn toArray(self: Type) []const ecs.entity_t {
-        return @as([*c]const ecs.entity_t, @ptrCast(@alignCast(flecs.c._ecs_vector_first(self.type, @sizeOf(u64), @alignOf(u64)))))[1 .. self.count() + 1];
-    }
+    // /// returns an array of component ids
+    // pub fn toArray(self: Type) []const ecs.entity_t {
+    //     return @as([*c]const ecs.entity_t, @ptrCast(@alignCast(flecs.c._ecs_vector_first(self.type, @sizeOf(u64), @alignOf(u64)))))[1 .. self.count() + 1];
+    // }
 };

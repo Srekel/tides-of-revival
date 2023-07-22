@@ -5,9 +5,11 @@ const zphy = @import("zphysics");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const ecs = @import("zflecs");
+const ecsu = @import("flecs_util/flecs_util.zig");
 const IdLocal = @import("variant.zig").IdLocal;
 
-pub fn registerComponents(ecs_world: *ecs.world_t) void {
+pub fn registerComponents(ecsu_world: ecsu.World) void {
+    var ecs_world = ecsu_world.world;
     ecs.COMPONENT(ecs_world, NOCOMP);
     ecs.COMPONENT(ecs_world, ColorRGB);
     ecs.COMPONENT(ecs_world, ColorRGBRoughness);

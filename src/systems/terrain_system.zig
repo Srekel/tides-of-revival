@@ -90,7 +90,7 @@ const max_loaded_patches = 64;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     physics_world: *zbt.PhysicsWorld,
     sys: ecs.entity_t,
 
@@ -210,24 +210,24 @@ pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     physics_world: *zbt.PhysicsWorld,
     noise: znoise.FnlGenerator,
 ) !*SystemState {
     std.log.debug("Creating terrain system", .{});
-    var query_builder_camera = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Position);
     var query_camera = query_builder_camera.buildQuery();
 
-    var query_builder_lights = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_lights = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_lights
         .with(fd.Light)
         .with(fd.Transform);
     var query_lights = query_builder_lights.buildQuery();
 
-    var query_builder_loader = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_loader
         .with(fd.WorldLoader)
         .with(fd.Position);
@@ -244,10 +244,10 @@ pub fn create(
 
     // State
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .sys = sys,
 
@@ -275,7 +275,7 @@ pub fn create(
         // patch.index_offset = @intCast(u32, i) * indices_per_patch;
         // patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
     }
-    // ecs_world.observer(ObserverCallback, .on_set, state);
+    // ecsu_world.observer(ObserverCallback, ecs.OnSet, state);
 
     return state;
 }
@@ -524,7 +524,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                         if (unload_patch.entity != 0) {
                             // Do here...?
-                            state.ecs_world.delete(unload_patch.entity);
+                            state.ecsu_world.delete(unload_patch.entity);
                         }
                         unload_patch.entity = 0;
 
@@ -663,7 +663,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                                 const z_tree_st_matrix = zm.mul(z_tree_scale_matrix, z_tree_translate_matrix);
                                 zm.storeMat43(tree_transform.matrix[0..], z_tree_st_matrix);
 
-                                var tree_ent = state.ecs_world.newEntity();
+                                var tree_ent = state.ecsu_world.newEntity();
                                 tree_ent.set(tree_transform);
                                 tree_ent.set(fd.CIShapeMeshInstance{
                                     .id = IdLocal.id64("pine"),
@@ -678,7 +678,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 break :blk .loaded;
             },
             .loaded => blk: {
-                const patch_ent = state.ecs_world.newEntity();
+                const patch_ent = state.ecsu_world.newEntity();
                 // patch_ent.set(fd.WorldPatch{ .lookup = 12 });
                 patch_ent.set(fd.Position{ .x = @as(f32, @floatFromInt(patch.pos[0])), .y = 0, .z = @as(f32, @floatFromInt(patch.pos[1])) });
                 patch.entity = patch_ent.id;
@@ -697,7 +697,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     while (entity_iter_camera.next()) |comps| {
         if (comps.cam.active) {
             camera_comps = comps;
-            ecs.ecs_iter_fini(entity_iter_camera.iter);
+            ecs.iter_fini(entity_iter_camera.iter);
             break;
         }
     }

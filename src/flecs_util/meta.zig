@@ -18,18 +18,17 @@ pub fn assertMsg(ok: bool, comptime msg: []const u8, args: anytype) void {
 
 /// TODO: Remove, legacy, handled in zig-flecs now
 /// registered component handle cache. Stores the EntityId for the type.
-pub fn componentHandle(comptime T: type) *ecs.id_t {
-    return ecs.id(T);
-}
+// pub fn componentHandle(comptime T: type) *ecs.id_t {
+//     return ecs.id(T);
+// }
 
 /// TODO: Remove, legacy, handled in zig-flecs now
 /// gets the EntityId for T creating it if it doesn't already exist
 pub fn componentId(world: *ecs.world_t, comptime T: type) ecs.id_t {
     _ = world;
-    var handle = componentHandle(T);
-    std.debug.assert(handle != null);
-    std.debug.assert(handle.* != 0);
-    return handle.*;
+    var id = ecs.id(T);
+    std.debug.assert(id != 0);
+    return id;
     // if (handle.* < std.math.maxInt(ecs.entity_t)) {
     //     return handle.*;
     // }
@@ -44,7 +43,7 @@ pub fn componentId(world: *ecs.world_t, comptime T: type) ecs.id_t {
     //         .type = .{
     //             .size = @sizeOf(T),
     //             .alignment = @alignOf(T),
-    //             .hooks = std.mem.zeroInit(flecs.EcsTypeHooks, .{}),
+    //             .hooks = std.mem.zeroInit(flecs.TypeHooks, .{}),
     //             .component = 0,
     //         },
     //     });
@@ -188,29 +187,30 @@ pub fn validateIterator(comptime Components: type, iter: *const ecs.iter_t) void
     if (@import("builtin").mode == .Debug) {
         var index: usize = 0;
         const component_info = @typeInfo(Components).Struct;
+        const terms = iter.terms.?;
 
         inline for (component_info.fields) |field| {
             // skip filters since they arent returned when we iterate
-            while (iter.terms[index].inout == .ecs_in_out_none) : (index += 1) {}
+            while (terms[index].inout == .InOutNone) : (index += 1) {}
             const is_optional = @typeInfo(field.type) == .Optional;
             const col_type = FinalChild(field.type);
-            const type_entity = ecsu.meta.componentHandle(col_type).*;
+            const type_entity = ecs.id(col_type);
 
             // ensure order matches for terms vs struct fields. note that pairs need to have their first term extracted.
-            if (ecs.id_is_pair(iter.terms[index].id)) {
-                assertMsg(ecs.pair_first(iter.terms[index].id) == type_entity, "Order of struct does not match order of iter.terms! {d} != {d}\n", .{ iter.terms[index].id, type_entity });
+            if (ecs.id_is_pair(terms[index].id)) {
+                assertMsg(ecs.pair_first(terms[index].id) == type_entity, "Order of struct does not match order of terms! {d} != {d}\n", .{ terms[index].id, type_entity });
             } else {
-                assertMsg(iter.terms[index].id == type_entity, "Order of struct does not match order of iter.terms! {d} != {d}. term index: {d}\n", .{ iter.terms[index].id, type_entity, index });
+                assertMsg(terms[index].id == type_entity, "Order of struct does not match order of terms! {d} != {d}. term index: {d}\n", .{ terms[index].id, type_entity, index });
             }
 
             // validate readonly (non-ptr types in the struct) matches up with the inout
             const is_const = isConst(field.type);
-            if (is_const) assert(iter.terms[index].inout == .ecs_in);
-            if (iter.terms[index].inout == .ecs_in) assert(is_const);
+            if (is_const) assert(terms[index].inout == .In);
+            if (terms[index].inout == .In) assert(is_const);
 
             // validate that optionals (?* types in the struct) match up with valid opers
-            if (is_optional) assert(iter.terms[index].oper == .ecs_or or iter.terms[index].oper == .ecs_optional);
-            if (iter.terms[index].oper == .ecs_or or iter.terms[index].oper == .ecs_optional) assert(is_optional);
+            if (is_optional) assert(terms[index].oper == .Or or terms[index].oper == .Optional);
+            if (terms[index].oper == .Or or terms[index].oper == .Optional) assert(is_optional);
 
             index += 1;
         }
@@ -249,7 +249,7 @@ pub fn validateOrderByType(comptime Components: type, comptime T: type) void {
         if (@hasDecl(Components, "modifiers")) {
             inline for (Components.modifiers) |inout_tuple| {
                 const ti = TermInfo.init(inout_tuple);
-                if (ti.inout == .ecs_in_out_none) {
+                if (ti.inout == .InOutNone) {
                     if (ti.term_type == T)
                         valid = true;
                 }
@@ -366,10 +366,10 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
         desc.terms[i].id = world.componentId(ecsu.meta.FinalChild(field.type));
 
         if (@typeInfo(field.type) == .Optional)
-            desc.terms[i].oper = .ecs_optional;
+            desc.terms[i].oper = .Optional;
 
         if (ecsu.meta.isConst(field.type))
-            desc.terms[i].inout = .ecs_in;
+            desc.terms[i].inout = .In;
     }
 
     // optionally, apply any additional modifiers if present. Keep track of the term_index in case we have to add Or + Filters or Ands
@@ -385,13 +385,13 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
 
                 // if we have a Filter on an existing type ensure we also have an Or. That is the only legit case for having a Filter and also
                 // having the term present in the query. For that case, we will leave both optionals and add the two Or terms.
-                if (ti.inout == .ecs_in_out_none) {
+                if (ti.inout == .InOutNone) {
                     assert(ti.oper == .ecs_or);
                     if (ti.or_term_type) |or_term_type| {
                         // ensure the term is optional. If the second Or term is present ensure it is optional as well.
-                        assert(desc.terms[term_index].oper == .ecs_optional);
+                        assert(desc.terms[term_index].oper == .Optional);
                         if (getTermIndex(or_term_type, null, &desc, component_info.fields)) |or_term_index| {
-                            assert(desc.terms[or_term_index].oper == .ecs_optional);
+                            assert(desc.terms[or_term_index].oper == .Optional);
                         }
 
                         desc.terms[next_term_index].id = world.componentId(ti.term_type);
@@ -405,17 +405,17 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
                         next_term_index += 1;
                     } else unreachable;
                 } else {
-                    if (ti.inout == .ecs_out) {
+                    if (ti.inout == .Out) {
                         assert(desc.terms[term_index].inout == .ecs_in_out_default);
                         desc.terms[term_index].inout = ti.inout;
                     }
 
                     // the only valid oper left is Or since Not terms cant be in Components struct
                     if (ti.oper == .ecs_or) {
-                        assert(desc.terms[term_index].oper == .ecs_optional);
+                        assert(desc.terms[term_index].oper == .Optional);
 
                         if (getTermIndex(ti.or_term_type.?, null, &desc, component_info.fields)) |or_term_index| {
-                            assert(desc.terms[or_term_index].oper == .ecs_optional);
+                            assert(desc.terms[or_term_index].oper == .Optional);
                             desc.terms[or_term_index].oper = ti.oper;
                         } else unreachable;
                         desc.terms[term_index].oper = ti.oper;
@@ -432,8 +432,8 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
                 }
             } else {
                 // the term wasnt found so we must have either a Filter, Not or EcsNothing mask
-                if (ti.inout != .ecs_in_out_none and ti.oper != .ecs_not and ti.mask != .ecs_nothing) std.debug.print("invalid inout found! No matching type found in the Components struct. Only Not and Filters are valid for types not in the struct. This should assert/panic but a zig bug lets us only print it.\n", .{});
-                if (ti.inout == .ecs_in_out_none) {
+                if (ti.inout != .InOutNone and ti.oper != .ecs_not and ti.mask != .ecs_nothing) std.debug.print("invalid inout found! No matching type found in the Components struct. Only Not and Filters are valid for types not in the struct. This should assert/panic but a zig bug lets us only print it.\n", .{});
+                if (ti.inout == .InOutNone) {
                     desc.terms[next_term_index].id = world.componentId(ti.term_type);
                     desc.terms[next_term_index].inout = ti.inout;
                     next_term_index += 1;
@@ -465,7 +465,7 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
 /// gets the index into the terms array of this type or null if it isnt found (likely a new filter term)
 pub fn getTermIndex(comptime T: type, field_name: ?[]const u8, filter: *ecs.filter_desc_t, fields: []const std.builtin.Type.StructField) ?usize {
     if (fields.len == 0) return null;
-    const comp_id = ecsu.meta.componentHandle(T).*;
+    const comp_id = ecsu.meta.componentId(T).*;
 
     // if we have a field_name get the index of it so we can match it up to the term index and double check the type matches
     const named_field_index: ?usize = if (field_name) |fname| blk: {

@@ -137,6 +137,7 @@ pub fn build(b: *std.Build) void {
     exe.rdynamic = true;
 
     exe.addModule("zaudio", zaudio_pkg.zaudio);
+    exe.addModule("zflecs", zflecs_pkg.zflecs);
     exe.addModule("zglfw", zglfw_pkg.zglfw);
     exe.addModule("zmath", zmath_pkg.zmath);
     exe.addModule("zmesh", zmesh_pkg.zmesh);

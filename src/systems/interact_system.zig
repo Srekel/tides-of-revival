@@ -19,7 +19,7 @@ const SystemState = struct {
     flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     frame_data: *input.FrameData,
 
     comp_query_interactor: ecsu.Query,
@@ -27,30 +27,30 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecs_world = ctx.get(config.ecs_world.hash, ecs.world_t);
+    const ecsu_world = ctx.get(config.ecsu_world.hash, ecs.world_t);
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
 
-    var query_builder_interactor = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_interactor = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_interactor
         .with(fd.Interactor)
         .with(fd.Transform);
     const comp_query_interactor = query_builder_interactor.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .frame_data = frame_data,
         .comp_query_interactor = comp_query_interactor,
     };
 
-    // ecs_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
-    // ecs_world.observer(OnCollideObserverCallback, config.events.onCollisionEvent(ecs_world.world), system);
+    // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
+    // ecsu_world.observer(OnCollideObserverCallback, config.events.onCollisionEvent(ecsu_world.world), system);
     event_manager.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, system);
 
     // initStateData(system);
@@ -80,11 +80,11 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         var interactor_comp = comps.interactor;
 
         const item_ent = interactor_comp.wielded_item_ent;
-        var weapon_comp = ecs.get_mut(system.ecs_world, item_ent, fd.ProjectileWeapon).?;
+        var weapon_comp = ecs.get_mut(system.ecsu_world, item_ent, fd.ProjectileWeapon).?;
 
         if (weapon_comp.chambered_projectile == 0) {
             // Load new projectile
-            var proj_ent = system.ecs_world.newEntity();
+            var proj_ent = system.ecsu_world.newEntity();
             // proj_ent.setName("arrow");
             proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
             proj_ent.set(fd.EulerRotation{});
@@ -103,7 +103,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         }
 
         var proj_ent = weapon_comp.chambered_projectile;
-        var item_rotation = ecs.get_mut(system.ecs_world, item_ent, fd.EulerRotation).?;
+        var item_rotation = ecs.get_mut(system.ecsu_world, item_ent, fd.EulerRotation).?;
         const item_transform = item_ent.get(fd.Transform).?;
         const target_roll: f32 = if (wielded_use_primary_held) -1 else 0;
         item_rotation.roll = zm.lerpV(item_rotation.roll, target_roll, 0.1);
@@ -115,7 +115,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
             // state.physics_world.optimizeBroadPhase();
             weapon_comp.chambered_projectile = 0;
-            proj_ent.removePair(ecs.EcsChildOf, item_ent);
+            proj_ent.removePair(ecs.ChildOf, item_ent);
 
             const body_interface = system.physics_world.getBodyInterfaceMut();
 
@@ -152,19 +152,19 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             body_interface.setLinearVelocity(proj_body_id, velocity);
         } else if (wielded_use_primary_held) {
             // Pull string
-            var proj_pos = ecs.get_mut(system.ecs_world, proj_ent, fd.Position).?;
+            var proj_pos = ecs.get_mut(system.ecsu_world, proj_ent, fd.Position).?;
 
             proj_pos.z = zm.lerpV(proj_pos.z, -0.8, 0.01);
             weapon_comp.charge = zm.mapLinearV(proj_pos.z, -0.4, -0.8, 0, 1);
         } else {
             // Relax string
-            var proj_pos = ecs.get_mut(system.ecs_world, proj_ent, fd.Position).?;
+            var proj_pos = ecs.get_mut(system.ecsu_world, proj_ent, fd.Position).?;
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
     }
 
     // // Arrows
-    // var builder_proj = ecsu.QueryBuilder.init.init(system.ecs_world.*);
+    // var builder_proj = ecsu.QueryBuilder.init(system.ecsu_world);
     // _ = builder_proj
     //     .with(fd.PhysicsBody)
     //     .with(fd.Projectile);
@@ -237,14 +237,14 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             continue;
         }
 
-        if (ent1 != 0 and ecs.has_id(system.ecs_world, ent1, ecs.id(fd.Projectile))) {
+        if (ent1 != 0 and ecs.has_id(system.ecsu_world, ent1, ecs.id(fd.Projectile))) {
             // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
             body_interface.removeAndDestroyBody(contact.body_id1);
             ent1.remove(fd.PhysicsBody);
             removed_entities.append(ent1.id) catch unreachable;
 
-            if (ent2 != 0 and ecs.has_id(system.ecs_world, ent2, ecs.id(fd.Health))) {
-                var health2 = ecs.get_mut(system.ecs_world, ent2, fd.Health).?;
+            if (ent2 != 0 and ecs.has_id(system.ecsu_world, ent2, ecs.id(fd.Health))) {
+                var health2 = ecs.get_mut(system.ecsu_world, ent2, fd.Health).?;
                 if (health2.value > 0) {
                     health2.value -= 50;
                     if (health2.value <= 0) {
@@ -257,14 +257,14 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             }
         }
 
-        if (contact.ent2 != 0 and ecs.has_id(system.ecs_world, ent2, ecs.id(fd.Projectile))) {
+        if (contact.ent2 != 0 and ecs.has_id(system.ecsu_world, ent2, ecs.id(fd.Projectile))) {
             // std.debug.print("proj2 {any} body:{any}\n", .{contact.ent2, contact.body_id2});
             body_interface.removeAndDestroyBody(contact.body_id2);
             ent2.remove(fd.PhysicsBody);
             removed_entities.append(ent2.id) catch unreachable;
 
-            if (contact.ent1 != 0 and ecs.has_id(system.ecs_world, ent1, ecs.id(fd.Health))) {
-                var health1 = ecs.get_mut(system.ecs_world, ent1, fd.Health).?;
+            if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world, ent1, ecs.id(fd.Health))) {
+                var health1 = ecs.get_mut(system.ecsu_world, ent1, fd.Health).?;
                 if (health1.value > 0) {
                     health1.value -= 50;
                     if (health1.value <= 0) {

@@ -111,7 +111,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init.init(ctx.ecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Camera)

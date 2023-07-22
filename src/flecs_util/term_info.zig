@@ -11,7 +11,7 @@ pub const TermInfo = struct {
     relation_type: ?type = null,
     inout: ecs.inout_kind_t = .InOutDefault,
     oper: ecs.oper_kind_t = .And,
-    mask: u8 = flecs.c.EcsDefaultSet,
+    mask: u8 = 0, //flecs.c.EcsDefaultSet,
     field: ?[]const u8 = null,
 
     pub fn init(comptime T: type) TermInfo {
@@ -50,7 +50,7 @@ pub const TermInfo = struct {
             term_info.or_term_type = fields[1].type;
 
             if (term_info.oper != 0) @compileError("Bad oper in query. Previous modifier already set oper. " ++ @typeName(T));
-            term_info.oper = .ecs_or;
+            term_info.oper = .Or;
         }
 
         // Pairs will have an obj_type as well
@@ -81,23 +81,23 @@ pub const TermInfo = struct {
     }
 
     fn validate(comptime self: TermInfo) void {
-        if (self.inout == .ecs_in_out_none and self.oper == .ecs_not) @compileError("Filter cant be combined with Not");
+        if (self.inout == .InOutNone and self.oper == .ecs_not) @compileError("Filter cant be combined with Not");
         if (self.oper == .ecs_not and self.inout != .ecs_in_out_default) @compileError("Not cant be combined with any other modifiers");
     }
 
     pub fn format(comptime value: TermInfo, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         const inout = switch (value.inout) {
             .ecs_in_out_default => "InOutDefault",
-            .ecs_in_out_none => "Filter",
-            .ecs_in => "In",
-            .ecs_out => "Out",
+            .InOutNone => "Filter",
+            .In => "In",
+            .Out => "Out",
             else => unreachable,
         };
         const oper = switch (value.oper) {
             .ecs_and => "And",
             .ecs_or => "Or",
             .ecs_not => "Not",
-            .ecs_optional => "Optional",
+            .Optional => "Optional",
             else => unreachable,
         };
         try std.fmt.format(writer, "TermInfo{{ type = {d}, or_type = {d}, inout: {s}, oper: {s}, mask: {d}, obj_type: {any}, relation_type: {any}, field_name: {s} }}", .{ value.term_type, value.or_term_type, inout, oper, value.mask, value.obj_type, value.relation_type, value.field });

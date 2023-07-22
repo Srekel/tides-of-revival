@@ -16,7 +16,7 @@ const AssetManager = @import("../../core/asset_manager.zig").AssetManager;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     sys: ecs.entity_t,
     asset_manager: *AssetManager = undefined,
@@ -44,45 +44,45 @@ pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     asset_manager: *AssetManager,
 ) !*SystemState {
-    var query_builder_city = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_city = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_city
         .with(fd.CompCity)
         .with(fd.Position);
     var query_city = query_builder_city.buildQuery();
 
-    var query_builder_camp = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_camp = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_camp
         .with(fd.CompBanditCamp)
         .with(fd.Position);
     var query_camp = query_builder_camp.buildQuery();
 
-    var query_builder_caravan = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_caravan = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_caravan
         .with(fd.CompCaravan)
         .with(fd.Position);
     var query_caravan = query_builder_caravan.buildQuery();
 
-    var query_builder_combat = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_combat = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_combat
         .with(fd.CompCombatant)
         .with(fd.Position);
     var query_combat = query_builder_combat.buildQuery();
 
-    var query_builder_syncpos = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_syncpos = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_syncpos
         .with(fd.Position)
         .with(fd.Transform);
     var query_syncpos = query_builder_syncpos.buildQuery();
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .sys = sys,
         .asset_manager = asset_manager,
@@ -96,7 +96,7 @@ pub fn create(
     return state;
 }
 pub fn createEntities(state: *SystemState) void {
-    var ecs_world = state.ecs_world;
+    var ecsu_world = state.ecsu_world;
     var city_ents = std.ArrayList(CityEnt).init(state.allocator);
     defer city_ents.deinit();
 
@@ -131,7 +131,7 @@ pub fn createEntities(state: *SystemState) void {
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
         _ = rot_y;
 
-        var city_ent = ecs_world.newEntity();
+        var city_ent = ecsu_world.newEntity();
         city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
         city_ent.set(fd.Scale.createScalar(10));
         city_ent.set(fd.CIShapeMeshInstance{
@@ -140,14 +140,14 @@ pub fn createEntities(state: *SystemState) void {
         });
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
 
-        var light_ent = state.ecs_world.newEntity();
+        var light_ent = state.ecsu_world.newEntity();
         light_ent.set(fd.Transform.initFromPosition(.{ .x = pos_x, .y = pos_y + 5, .z = pos_z }));
         light_ent.set(fd.Light{
             .radiance = .{ .r = 4, .g = 2, .b = 1 },
             .range = 70,
         });
 
-        // var light_viz_ent = ecs_world.newEntity();
+        // var light_viz_ent = ecsu_world.newEntity();
         // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
         // light_viz_ent.set(fd.Scale.createScalar(1));
         // light_viz_ent.set(fd.CIShapeMeshInstance{
@@ -158,7 +158,7 @@ pub fn createEntities(state: *SystemState) void {
         if (!added_spawn) {
             added_spawn = true;
             var spawn_pos = fd.Position.init(pos_x, pos_y + 1, pos_z);
-            var spawn_ent = state.ecs_world.newEntity();
+            var spawn_ent = state.ecsu_world.newEntity();
             spawn_ent.set(spawn_pos);
             spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
             spawn_ent.addPair(fr.Hometown, city_ent);
@@ -258,7 +258,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     _ = state;
 
-    // const environment_info = state.ecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    // const environment_info = state.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     // const world_time = environment_info.world_time;
     // var rand1 = std.rand.DefaultPrng.init(@floatToInt(u64, world_time * 100));
     // var rand = rand1.random();
@@ -278,7 +278,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //             city.next_spawn_time += city.spawn_cooldown;
     //             city.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 3, 10);
     //             const city_index = rand.intRangeAtMost(u32, 0, 1);
-    //             const next_city = flecs.Entity.init(state.ecs_world.world, city.closest_cities[city_index]);
+    //             const next_city = flecs.Entity.init(state.ecsu_world.world, city.closest_cities[city_index]);
     //             city.curr_target_city = next_city.id;
     //             continue;
     //         }
@@ -286,11 +286,11 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         city.caravan_members_to_spawn -= 1;
     //         city.next_spawn_time += 0.05 + rand.float(f32) * 0.5;
 
-    //         const next_city = flecs.Entity.init(state.ecs_world.world, city.curr_target_city);
+    //         const next_city = flecs.Entity.init(state.ecsu_world.world, city.curr_target_city);
     //         const next_city_pos = next_city.get(fd.Position).?.*.elemsConst().*;
     //         const distance = math.dist3_xz(next_city_pos, pos.elemsConst().*);
 
-    //         var caravan_ent = state.ecs_world.newEntity();
+    //         var caravan_ent = state.ecsu_world.newEntity();
     //         caravan_ent.set(fd.Transform{});
     //         caravan_ent.set(pos.*);
     //         caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
@@ -329,7 +329,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //             camp.next_spawn_time += camp.spawn_cooldown;
     //             camp.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 2, 5);
     //             // const campIndex = rand.intRangeAtMost(u32, 0, 1);
-    //             // const next_city = flecs.Entity.init(state.ecs_world.world, camp.closest_cities[campIndex]);
+    //             // const next_city = flecs.Entity.init(state.ecsu_world.world, camp.closest_cities[campIndex]);
     //             // camp.curr_target_city = next_city.id;
     //             continue;
     //         }
@@ -337,15 +337,15 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         camp.caravan_members_to_spawn -= 1;
     //         camp.next_spawn_time += 0.1 + rand.float(f32) * 1;
 
-    //         const next_city1 = flecs.Entity.init(state.ecs_world.world, camp.closest_cities[0]);
-    //         const next_city2 = flecs.Entity.init(state.ecs_world.world, camp.closest_cities[1]);
+    //         const next_city1 = flecs.Entity.init(state.ecsu_world.world, camp.closest_cities[0]);
+    //         const next_city2 = flecs.Entity.init(state.ecsu_world.world, camp.closest_cities[1]);
     //         const z_next_city_pos1 = zm.loadArr3(next_city1.get(fd.Position).?.elemsConst().*);
     //         const z_next_city_pos2 = zm.loadArr3(next_city2.get(fd.Position).?.elemsConst().*);
     //         const z_target_pos = (z_next_city_pos1 + z_next_city_pos2) * zm.f32x4s(0.5);
     //         const target_pos = zm.vecToArr3(z_target_pos);
     //         const distance = math.dist3_xz(target_pos, pos.elemsConst().*);
 
-    //         var caravan_ent = state.ecs_world.newEntity();
+    //         var caravan_ent = state.ecsu_world.newEntity();
     //         caravan_ent.set(fd.Transform.init(pos.x, pos.y, pos.z));
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
     //         caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
@@ -377,10 +377,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     //     if (caravan.time_to_arrive < world_time) {
     //         if (caravan.destroy_on_arrival) {
-    //             state.ecs_world.delete(entity_iter_caravan.entity().id);
+    //             state.ecsu_world.delete(entity_iter_caravan.entity().id);
     //         } else {
     //             // hack :)
-    //             state.ecs_world.remove(entity_iter_caravan.entity().id, fd.CompBanditCamp);
+    //             state.ecsu_world.remove(entity_iter_caravan.entity().id, fd.CompBanditCamp);
     //         }
     //         continue;
     //     }
@@ -424,8 +424,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         }
 
     //         if (combat1.faction == 1) {
-    //             state.ecs_world.delete(entity_iter_combat1.entity().id);
-    //             ecs.ecs_iter_fini(entity_iter_combat1.iter);
+    //             state.ecsu_world.delete(entity_iter_combat1.entity().id);
+    //             ecs.iter_fini(entity_iter_combat1.iter);
     //             break :combat_loop;
     //         }
     //     }

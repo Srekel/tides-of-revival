@@ -152,7 +152,7 @@ const QuadTreeNode = struct {
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     sys: ecs.entity_t,
 
@@ -842,11 +842,11 @@ pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !*SystemState {
     // Queries
-    var query_builder_camera = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
@@ -1010,11 +1010,11 @@ pub fn create(
     gfxstate.scheduleUploadDataToBuffer(TerrainLayerTextureIndices, terrain_layers_buffer, 0, terrain_layer_texture_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
 
     state.* = .{
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .world_patch_mgr = world_patch_mgr,
         .sys = sys,
         .gfx = gfxstate,

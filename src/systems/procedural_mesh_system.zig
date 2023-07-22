@@ -60,7 +60,7 @@ const ProcMesh = struct {
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
@@ -229,7 +229,7 @@ fn initScene(
     _ = appendObjMesh(allocator, IdLocal.init("unit_sphere_lp"), "content/meshes/unit_sphere_lp.obj", meshes, meshes_indices, meshes_vertices) catch unreachable;
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecs_world: *ecs.world_t, frame_data: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: ecsu.World, frame_data: *input.FrameData) !*SystemState {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -311,15 +311,15 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
-    // var sys_post = ecs_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
+    // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_camera = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
-    var query_builder_mesh = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.ShapeMeshInstance);
@@ -328,7 +328,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     state.* = .{
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .sys = sys,
         .gfx = gfxstate,
         .vertex_buffer = vertex_buffer,
@@ -346,8 +346,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .frame_data = frame_data,
     };
 
-    // ecs_world.observer(ShapeMeshDefinitionObserverCallback, .on_set, state);
-    ecs_world.observer(ShapeMeshInstanceObserverCallback, .on_set, state);
+    // ecsu_world.observer(ShapeMeshDefinitionObserverCallback, ecs.OnSet, state);
+    ecsu_world.observer(ShapeMeshInstanceObserverCallback, ecs.OnSet, state);
 
     return state;
 }
@@ -380,7 +380,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
         while (entity_iter_camera.next()) |comps| {
             if (comps.cam.active) {
-                ecs.ecs_iter_fini(entity_iter_camera.iter);
+                ecs.iter_fini(entity_iter_camera.iter);
                 break :blk comps;
             }
         }
@@ -664,7 +664,7 @@ const ShapeMeshInstanceObserverCallback = struct {
 //     var state : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
 //     while (it.next()) |_| {
-//         const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshDefinition), @intCast(i32, it.index)).?;
+//         const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIShapeMeshDefinition), @intCast(i32, it.index)).?;
 //         var ci = @ptrCast(*fd.CIShapeMeshDefinition, @alignCast(@alignOf(fd.CIShapeMeshDefinition), ci_ptr));
 
 //         const ent = it.entity();
@@ -691,7 +691,7 @@ fn onSetCIShapeMeshInstance(it: *ecsu.Iterator(ShapeMeshInstanceObserverCallback
     var state: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
     while (it.next()) |_| {
-        const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @as(i32, @intCast(it.index))).?;
+        const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIShapeMeshInstance), @as(i32, @intCast(it.index))).?;
         var ci = @as(*fd.CIShapeMeshInstance, @ptrCast(@alignCast(ci_ptr)));
 
         const mesh_index = mesh_blk: {

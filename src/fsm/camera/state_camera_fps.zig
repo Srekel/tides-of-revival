@@ -19,7 +19,7 @@ fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void 
     rot.pitch = @max(rot.pitch, -0.48 * math.pi);
 }
 
-fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecs_world: *ecs.world_t, input_state: *const input.FrameData) void {
+fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData) void {
     // TODO: No, interaction shouldn't be in camera.. :)
     if (!input_state.just_pressed(config.input_interact)) {
         return;
@@ -46,7 +46,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
         var post_transform = fd.Transform.initFromPosition(post_pos);
         post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
 
-        const post_ent = ecs_world.newEntity();
+        const post_ent = ecsu_world.newEntity();
         post_ent.set(post_pos);
         post_ent.set(fd.EulerRotation{});
         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
@@ -58,7 +58,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
 
         // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
         // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
-        // const light_ent = ecs_world.newEntity();
+        // const light_ent = ecsu_world.newEntity();
         // light_ent.childOf(post_ent);
         // light_ent.set(light_pos);
         // light_ent.set(light_transform);
@@ -114,14 +114,14 @@ fn update(ctx: fsm.StateFuncContext) void {
             comps.transform,
             // comps.fwd,
             ctx.physics_world,
-            ctx.ecs_world,
+            ctx.ecsu_world,
             ctx.frame_data,
         );
     }
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init.init(ctx.ecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Camera)

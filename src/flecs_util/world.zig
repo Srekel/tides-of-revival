@@ -2,7 +2,6 @@ const std = @import("std");
 const ecs = @import("zflecs");
 const ecsu = @import("flecs_util.zig");
 
-const Entity = ecs.entity_t;
 const FlecsOrderByAction = fn (ecs.entity_t, ?*const anyopaque, ecs.entity_t, ?*const anyopaque) callconv(.C) c_int;
 
 fn dummyFn(_: [*c]ecs.iter_t) callconv(.C) void {}
@@ -15,7 +14,7 @@ pub const World = struct {
     world: *ecs.world_t,
 
     pub fn init() World {
-        return .{ .world = ecs.init().? };
+        return .{ .world = ecs.init() };
     }
 
     pub fn deinit(self: *World) void {
@@ -46,13 +45,13 @@ pub const World = struct {
         return ecs.type_str(self.world, typ);
     }
 
-    pub fn newEntity(self: World) Entity {
-        return ecs.new_id(self.world);
+    pub fn newEntity(self: World) ecsu.Entity {
+        return ecsu.Entity.init(self.world, ecs.new_id(self.world));
     }
 
-    pub fn newEntityWithName(self: World, name: [*c]const u8) Entity {
+    pub fn newEntityWithName(self: World, name: [*c]const u8) ecsu.Entity {
         var desc = std.mem.zeroInit(ecs.entity_desc_t, .{ .name = name });
-        return ecs.entity_init(self.world, &desc);
+        return ecsu.Entity.init(self.world, ecs.entity_init(self.world, &desc));
     }
 
     pub fn newPrefab(self: World, name: [*c]const u8) ecs.entity_t {
@@ -74,18 +73,18 @@ pub const World = struct {
             c_int => @as(ecs.entity_t, @intCast(relation)),
             type => self.componentId(relation),
             ecs.entity_t => relation,
-            ecs.entity_t => relation.id,
+            ecsu.Entity => relation.id,
             else => unreachable,
         };
 
         const obj_id = switch (Object) {
             type => self.componentId(object),
             ecs.entity_t => object,
-            ecs.entity_t => object.id,
+            ecsu.Entity => object.id,
             else => unreachable,
         };
 
-        return ecs.ECS_PAIR | (rel_id << @as(u32, 32)) + @as(u32, @truncate(obj_id));
+        return ecs.pair(rel_id, obj_id);
     }
 
     /// bulk registers a tuple of Types
@@ -142,20 +141,20 @@ pub const World = struct {
         ecs.dim_type(self.world, ecs_type, entity_count);
     }
 
-    pub fn newSystem(self: World, name: [*c]const u8, phase: ecsu.Phase, signature: [*c]const u8, action: ecs.iter_action_t) void {
+    pub fn newSystem(self: World, name: [*c]const u8, phase: ecs.id_t, signature: [*c]const u8, action: ecs.iter_action_t) void {
         var desc = std.mem.zeroes(ecs.system_desc_t);
         desc.entity.name = name;
-        desc.entity.add[0] = @intFromEnum(phase);
+        desc.entity.add[0] = phase;
         desc.query.filter.expr = signature;
         // desc.multi_threaded = true;
         desc.callback = action;
         _ = ecs.system_init(self.world, &desc);
     }
 
-    pub fn newRunSystem(self: World, name: [*c]const u8, phase: ecsu.Phase, signature: [*c]const u8, action: ecs.iter_action_t) void {
+    pub fn newRunSystem(self: World, name: [*c]const u8, phase: ecs.id_t, signature: [*c]const u8, action: ecs.iter_action_t) void {
         var desc = std.mem.zeroes(ecs.system_desc_t);
         desc.entity.name = name;
-        desc.entity.add[0] = @intFromEnum(phase);
+        desc.entity.add[0] = phase;
         desc.query.filter.expr = signature;
         // desc.multi_threaded = true;
         desc.callback = dummyFn;
@@ -163,13 +162,13 @@ pub const World = struct {
         _ = ecs.system_init(self.world, &desc);
     }
 
-    pub fn newWrappedRunSystem(self: World, name: [*c]const u8, phase: ecsu.Phase, comptime Components: type, comptime action: fn (*ecsu.Iterator(Components)) void, params: SystemParameters) ecs.entity_t {
+    pub fn newWrappedRunSystem(self: World, name: [*c]const u8, phase: ecs.id_t, comptime Components: type, comptime action: fn (*ecsu.Iterator(Components)) void, params: SystemParameters) ecs.entity_t {
         var edesc = std.mem.zeroes(ecs.entity_desc_t);
 
         edesc.id = 0;
         edesc.name = name;
-        edesc.add[0] = ecs.ecs_make_pair(ecs.EcsDependsOn, @intFromEnum(phase));
-        edesc.add[1] = @intFromEnum(phase);
+        edesc.add[0] = ecs.make_pair(ecs.DependsOn, phase);
+        edesc.add[1] = phase;
 
         var desc = std.mem.zeroes(ecs.system_desc_t);
         desc.entity = ecs.entity_init(self.world, &edesc);
@@ -215,7 +214,7 @@ pub const World = struct {
 
         if (@hasDecl(Components, "instanced") and Components.instanced) desc.filter.instanced = true;
 
-        return ecsu.Query.init(self, &desc);
+        return ecsu.Query.init(self.world, &desc);
     }
 
     /// adds a system to the World using the passed in struct
@@ -227,7 +226,7 @@ pub const World = struct {
         var desc = std.mem.zeroes(ecs.system_desc_t);
         desc.callback = dummyFn;
         desc.entity.name = Components.name;
-        desc.entity.add[0] = @intFromEnum(phase);
+        desc.entity.add[0] = phase;
         // desc.multi_threaded = true;
         desc.run = wrapSystemFn(Components, Components.run);
         desc.query.filter = ecsu.meta.generateFilterDesc(self, Components);
@@ -248,7 +247,7 @@ pub const World = struct {
     }
 
     /// adds an observer system to the World using the passed in struct (see systems)
-    pub fn observer(self: World, comptime Components: type, event: ecsu.Event, ctx: ?*anyopaque) void {
+    pub fn observer(self: World, comptime Components: type, event: ecs.entity_t, ctx: ?*anyopaque) void {
         std.debug.assert(@typeInfo(Components) == .Struct);
         std.debug.assert(@hasDecl(Components, "run"));
         std.debug.assert(@hasDecl(Components, "name"));
@@ -258,7 +257,7 @@ pub const World = struct {
         desc.ctx = ctx;
         // TODO
         // desc.entity.name = Components.name;
-        desc.events[0] = @intFromEnum(event);
+        desc.events[0] = event;
 
         desc.run = wrapSystemFn(Components, Components.run);
         desc.filter = ecsu.meta.generateFilterDesc(self, Components);

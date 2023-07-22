@@ -148,7 +148,7 @@ const IndexType = u32;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     event_manager: *EventManager,
@@ -166,18 +166,18 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecs_world = ctx.get(config.ecs_world.hash, ecs.world_t);
+    const ecsu_world = ctx.get(config.ecsu_world.hash, ecs.world_t);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
     const world_patch_mgr = ctx.get(config.world_patch_mgr.hash, world_patch_manager.WorldPatchManager);
 
-    var query_builder_body = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_body = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_body.with(fd.PhysicsBody)
         .with(fd.Position)
         .with(fd.EulerRotation);
     // .with(fd.Transform);
     const comp_query_body = query_builder_body.buildQuery();
 
-    var query_builder_loader = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_loader.with(fd.WorldLoader)
         .with(fd.Transform);
     const comp_query_loader = query_builder_loader.buildQuery();
@@ -207,10 +207,10 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     physics_world.setGravity(.{ 0, -10.0, 0 });
 
     var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .world_patch_mgr = world_patch_mgr,
         .sys = sys,
@@ -230,7 +230,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     };
     physics_world.setContactListener(contact_listener);
     system.contact_listener = contact_listener;
-    // ecs_world.observer(ObserverCallback, .on_set, system);
+    // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
 
     return system;
 }
@@ -539,7 +539,7 @@ fn updatePatches(system: *SystemState) void {
             //             var post_transform = fd.Transform.initFromPosition(post_pos2);
             //             post_transform.setScale([_]f32{ 0.2, 0.2, 0.2 });
 
-            //             const post_ent = system.ecs_world.newEntity();
+            //             const post_ent = system.ecsu_world.newEntity();
             //             post_ent.set(post_pos2);
             //             post_ent.set(fd.EulerRotation{});
             //             post_ent.set(fd.Scale.create(0.2, 0.2, 0.2));
@@ -605,7 +605,7 @@ fn updatePatches(system: *SystemState) void {
 //     var system : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 //     _ = system;
 //     // while (it.next()) |_| {
-//     //     const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
+//     //     const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
 //     //     var ci = @ptrCast(*fd.CIPhysicsBody, @alignCast(@alignOf(fd.CIPhysicsBody), ci_ptr));
 
 //     //     var transform = it.entity().getMut(fd.Transform).?;

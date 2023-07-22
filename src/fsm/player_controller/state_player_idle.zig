@@ -70,10 +70,10 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
 }
 
 fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-    const transform = ecs.get(ctx.ecs_world, entity, fd.Transform);
+    const transform = ecs.get(ctx.ecsu_world, entity, fd.Transform);
     const pos = transform.?.getPos00();
 
-    const environment_info = ctx.ecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     if (environment_info.sun_height > -0.5) {
         return;
     }
@@ -84,18 +84,18 @@ fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void
     };
 
     var safe_from_darkness = false;
-    var filter = ctx.ecs_world.filter(FilterCallback);
+    var filter = ctx.ecsu_world.filter(FilterCallback);
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (filter_it.entity().hasPair(ecs.EcsChildOf, entity.id)) {
+        if (filter_it.entity().hasPair(ecs.ChildOf, entity.id)) {
             continue;
         }
 
         const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
         if (dist < comps.light.range) {
             safe_from_darkness = true;
-            ecs.ecs_iter_fini(filter_it.iter);
+            ecs.iter_fini(filter_it.iter);
             break;
         }
     }
@@ -106,7 +106,7 @@ fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void
 }
 
 fn updateWinFromArrival(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-    const transform = ecs.get(ctx.ecs_world, entity, fd.Transform);
+    const transform = ecs.get(ctx.ecsu_world, entity, fd.Transform);
     const pos = transform.?.getPos00();
 
     const FilterCallback = struct {
@@ -114,7 +114,7 @@ fn updateWinFromArrival(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
         city: *const fd.CompCity,
     };
 
-    var filter = ctx.ecs_world.filter(FilterCallback);
+    var filter = ctx.ecsu_world.filter(FilterCallback);
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
@@ -125,7 +125,7 @@ fn updateWinFromArrival(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
         const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
         if (dist < 20) {
             std.debug.panic("win", .{});
-            ecs.ecs_iter_fini(filter_it.iter);
+            ecs.iter_fini(filter_it.iter);
             break;
         }
     }
@@ -209,7 +209,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init.init(ctx.ecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Position)

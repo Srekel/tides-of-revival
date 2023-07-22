@@ -24,7 +24,7 @@ const Patch = struct {
 const SystemState = struct {
     flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 
     cam_pos_old: ?[3]f32 = null,
@@ -37,27 +37,27 @@ const SystemState = struct {
 pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !*SystemState {
-    var query_builder_loader = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_loader.with(fd.WorldLoader)
         .with(fd.Transform);
     const comp_query_loader = query_builder_loader.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .world_patch_mgr = world_patch_mgr,
         .comp_query_loader = comp_query_loader,
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("props")),
         .patches = std.ArrayList(Patch).initCapacity(allocator, 32 * 32) catch unreachable,
     };
 
-    // ecs_world.observer(ObserverCallback, .on_set, system);
+    // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
 
     // initStateData(system);
     return system;
@@ -161,7 +161,7 @@ fn updateLoaders(system: *SystemState) void {
                     if (patch.lookup.eql(lookup)) {
                         // TODO: Batch delete
                         for (patch.entities.items) |ent| {
-                            system.ecs_world.delete(ent);
+                            system.ecsu_world.delete(ent);
                         }
 
                         patch.entities.deinit();
@@ -227,14 +227,14 @@ fn updatePatches(system: *SystemState) void {
                 const z_prop_srt_matrix = zm.mul(z_prop_sr_matrix, z_prop_translate_matrix);
                 zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
 
-                var prop_ent = system.ecs_world.newEntity();
+                var prop_ent = system.ecsu_world.newEntity();
                 prop_ent.set(prop_transform);
                 if (prop.id.hash == city_id.hash) {
-                    // var light_ent = system.ecs_world.newEntity();
+                    // var light_ent = system.ecsu_world.newEntity();
                     // light_ent.set(fd.Transform.initFromPosition(.{ .x = prop.pos[0], .y = prop.pos[1] + 2 + 10, .z = prop.pos[2] }));
                     // light_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 100 });
 
-                    // // var light_viz_ent = system.ecs_world.newEntity();
+                    // // var light_viz_ent = system.ecsu_world.newEntity();
                     // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
                     // // light_viz_ent.set(fd.Scale.createScalar(1));
                     // // light_viz_ent.set(fd.CIShapeMeshInstance{
@@ -245,7 +245,7 @@ fn updatePatches(system: *SystemState) void {
                     // if (!added_spawn) {
                     //     added_spawn = true;
                     //     var spawn_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
-                    //     var spawn_ent = system.ecs_world.newEntity();
+                    //     var spawn_ent = system.ecsu_world.newEntity();
                     //     spawn_ent.set(spawn_pos);
                     //     spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
                     //     spawn_ent.addPair(fr.Hometown, prop_ent);

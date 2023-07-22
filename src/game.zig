@@ -1,6 +1,7 @@
 const std = @import("std");
 const args = @import("args");
 const ecs = @import("zflecs");
+const ecsu = @import("flecs_util/flecs_util.zig");
 const zaudio = @import("zaudio");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
@@ -12,7 +13,6 @@ const Variant = @import("variant.zig").Variant;
 const IdLocal = @import("variant.zig").IdLocal;
 const config = @import("config.zig");
 const util = @import("util.zig");
-const ecsu = @import("flecs_util/flecs_util.zig");
 const fd = @import("flecs_data.zig");
 const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
@@ -39,7 +39,7 @@ const timeline_system = @import("systems/timeline_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
 const SpawnContext = struct {
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     // player_pos: [3]f32,
 };
@@ -47,10 +47,10 @@ const SpawnContext = struct {
 fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     const ctx = util.castOpaque(SpawnContext, data);
-    const player_ent = ecs.ecs_lookup(ctx.ecs_world.world, "player");
-    const player_pos = ecs.get(ctx.ecs_world, player_ent, fd.Position).?;
+    const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
+    const player_pos = ecs.get(ctx.ecsu_world, player_ent, fd.Position).?;
 
-    var ent = ctx.ecs_world.newEntity();
+    var ent = ctx.ecsu_world.newEntity();
     var spawn_pos = [3]f32{
         player_pos.x + 10,
         player_pos.y + 2,
@@ -114,10 +114,10 @@ pub fn run() void {
     // music.start() catch unreachable;
     // defer music.destroy();
 
-    var ecs_world = ecs.init();
-    defer ecs_world.fini(ecs_world);
-    // _ = ecs.ecs_log_set_level(0);
-    fd.registerComponents(ecs_world);
+    var ecsu_world = ecsu.World.init();
+    defer ecsu_world.deinit();
+    // _ = ecs.log_set_level(0);
+    fd.registerComponents(ecsu_world);
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -315,7 +315,7 @@ pub fn run() void {
     var input_sys = try input_system.create(
         IdLocal.init("input_sys"),
         std.heap.page_allocator,
-        &ecs_world,
+        ecsu_world,
         &input_frame_data,
     );
     defer input_system.destroy(input_sys);
@@ -336,7 +336,7 @@ pub fn run() void {
 
     var system_context = util.Context.init(std.heap.page_allocator);
     system_context.putConst(config.allocator, &std.heap.page_allocator);
-    system_context.put(config.ecs_world, &ecs_world);
+    system_context.put(config.ecsu_world, &ecsu_world);
     system_context.put(config.event_manager, &event_manager);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
 
@@ -349,7 +349,7 @@ pub fn run() void {
     // var state_machine_sys = try state_machine_system.create(
     //     IdLocal.init("state_machine_sys"),
     //     std.heap.page_allocator,
-    //     &ecs_world,
+    //     ecsu_world,
     //     &input_frame_data,
     //     physics_sys.physics_world,
     //     audio_engine,
@@ -375,7 +375,7 @@ pub fn run() void {
     //     IdLocal.init("city_system"),
     //     std.heap.page_allocator,
     //     &gfx_state,
-    //     &ecs_world,
+    //     ecsu_world,
     //     physics_sys.physics_world,
     //     &asset_manager,
     // );
@@ -385,7 +385,7 @@ pub fn run() void {
         IdLocal.init("camera_system"),
         std.heap.page_allocator,
         &gfx_state,
-        &ecs_world,
+        ecsu_world,
         &input_frame_data,
     );
     defer camera_system.destroy(camera_sys);
@@ -399,7 +399,7 @@ pub fn run() void {
     // var patch_prop_sys = try patch_prop_system.create(
     //     IdLocal.initFormat("patch_prop_system_{}", .{0}),
     //     std.heap.page_allocator,
-    //     &ecs_world,
+    //     ecsu_world,
     //     world_patch_mgr,
     // );
     // defer patch_prop_system.destroy(patch_prop_sys);
@@ -408,7 +408,7 @@ pub fn run() void {
     //     IdLocal.initFormat("procmesh_system_{}", .{0}),
     //     std.heap.page_allocator,
     //     &gfx_state,
-    //     &ecs_world,
+    //     ecsu_world,
     //     &input_frame_data,
     // );
     // defer procmesh_system.destroy(procmesh_sys);
@@ -417,7 +417,7 @@ pub fn run() void {
     //     IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
     //     std.heap.page_allocator,
     //     &gfx_state,
-    //     &ecs_world,
+    //     ecsu_world,
     //     world_patch_mgr,
     // );
     // defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
@@ -432,7 +432,7 @@ pub fn run() void {
     // city_system.createEntities(city_sys);
 
     // Make sure systems are initialized and any initial system entities are created.
-    update(&ecs_world, &gfx_state);
+    update(ecsu_world, &gfx_state);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
@@ -442,7 +442,7 @@ pub fn run() void {
     //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 
     // var tl_spider_spawn_ctx = SpawnContext{
-    //     .ecs_world = &ecs_world,
+    //     .ecsu_world = ecsu_world,
     //     .physics_world = physics_sys.physics_world,
     //     // .player_ent =
     // };
@@ -487,7 +487,7 @@ pub fn run() void {
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
     // const player_spawn = blk: {
-    //     var builder = ecsu.QueryBuilder.init.init(ecs_world);
+    //     var builder = ecsu.QueryBuilder.init(ecsu_world);
     //     _ = builder
     //         .with(fd.SpawnPoint)
     //         .with(fd.Position);
@@ -497,14 +497,14 @@ pub fn run() void {
 
     //     var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
     //     while (entity_iter.next()) |comps| {
-    //         const city_ent = ecs.ecs_get_target(
-    //             ecs_world.world,
+    //         const city_ent = ecs.get_target(
+    //             ecsu_world.world,
     //             entity_iter.entity().id,
-    //             ecs_world.componentId(fr.Hometown),
+    //             ecsu_world.componentId(fr.Hometown),
     //             0,
     //         );
     //         const spawnpoint_ent = entity_iter.entity();
-    //         ecs.ecs_iter_fini(entity_iter.iter);
+    //         ecs.iter_fini(entity_iter.iter);
     //         break :blk .{
     //             .pos = comps.pos.*,
     //             .spawnpoint_ent = spawnpoint_ent,
@@ -514,7 +514,7 @@ pub fn run() void {
     //     break :blk null;
     // };
 
-    // const entity3 = ecs_world.newEntity();
+    // const entity3 = ecsu_world.newEntity();
     // entity3.set(fd.Transform.initWithScale(0, 0, 0, 100));
     // entity3.set(fd.CIShapeMeshInstance{
     //     .id = IdLocal.id64("sphere"),
@@ -526,7 +526,7 @@ pub fn run() void {
     //     .sphere = .{ .radius = 10.5 },
     // });
 
-    // const entity4 = ecs_world.newEntity();
+    // const entity4 = ecsu_world.newEntity();
     // entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
     // entity4.set(fd.CIShapeMeshInstance{
     //     .id = IdLocal.id64("sphere"),
@@ -535,7 +535,7 @@ pub fn run() void {
 
     // const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     const player_pos = fd.Position.init(100, 100, 100);
-    const debug_camera_ent = ecs_world.newEntity();
+    const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.EulerRotation{});
@@ -563,7 +563,7 @@ pub fn run() void {
     // ██████╔╝╚██████╔╝╚███╔███╔╝
     // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = ecs_world.newEntity();
+    const bow_ent = ecsu_world.newEntity();
     bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.EulerRotation{});
@@ -577,7 +577,7 @@ pub fn run() void {
         .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
     });
 
-    var proj_ent = ecs_world.newEntity();
+    var proj_ent = ecsu_world.newEntity();
     // proj_ent.setName("arrow2");
     // proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
     // proj_ent.set(fd.EulerRotation{});
@@ -593,7 +593,7 @@ pub fn run() void {
     // proj_ent.childOf(bow_ent);
     // weapon_comp.chambered_projectile = proj_ent.id;
 
-    var spider_ent = ecs_world.newEntity();
+    var spider_ent = ecsu_world.newEntity();
     // proj_ent.setName("arrow2");
     spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
     spider_ent.set(fd.EulerRotation{});
@@ -615,7 +615,7 @@ pub fn run() void {
 
     // _ = player_pos;
     // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
-    const player_ent = ecs_world.newEntity();
+    const player_ent = ecsu_world.newEntity();
     player_ent.setName("player");
     player_ent.set(player_pos);
     // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
@@ -642,7 +642,7 @@ pub fn run() void {
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent = bow_ent.id });
 
-    const player_camera_ent = ecs_world.newEntity();
+    const player_camera_ent = ecsu_world.newEntity();
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
@@ -674,7 +674,7 @@ pub fn run() void {
     // ██║     ███████╗███████╗╚██████╗███████║
     // ╚═╝     ╚══════╝╚══════╝ ╚═════╝╚══════╝
 
-    ecs_world.setSingleton(fd.EnvironmentInfo{
+    ecsu_world.setSingleton(fd.EnvironmentInfo{
         .time_of_day_percent = 0,
         .sun_height = 0,
         .world_time = 0,
@@ -682,7 +682,7 @@ pub fn run() void {
 
     // Flecs config
     // Delete children when parent is destroyed
-    _ = ecs_world.pair(ecs.EcsOnDeleteTarget, ecs.EcsOnDelete);
+    _ = ecsu_world.pair(ecs.OnDeleteTarget, ecs.OnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
@@ -701,19 +701,19 @@ pub fn run() void {
         }
 
         world_patch_mgr.tickOne();
-        update(&ecs_world, &gfx_state);
+        update(ecsu_world, &gfx_state);
     }
 }
 
-fn update(ecs_world: *ecs.world_t, gfx_state: *gfx.D3D12State) void {
+fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
     const dt: f32 = @floatCast(stats.delta_time);
 
-    const flecs_stats = ecs.ecs_get_world_info(ecs_world.world);
+    const flecs_stats = ecs.get_world_info(ecsu_world.world);
     {
         const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
         const world_time = flecs_stats.*.world_time_total;
-        const environment_info = ecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+        const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
         const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
@@ -722,9 +722,9 @@ fn update(ecs_world: *ecs.world_t, gfx_state: *gfx.D3D12State) void {
 
     gfx.beginFrame(gfx_state);
 
-    ecs_world.progress(dt);
+    ecsu_world.progress(dt);
 
-    const camera_comps = getActiveCamera(ecs_world);
+    const camera_comps = getActiveCamera(ecsu_world);
     if (camera_comps) |comps| {
         gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
     } else {
@@ -747,8 +747,8 @@ fn update(ecs_world: *ecs.world_t, gfx_state: *gfx.D3D12State) void {
     }
 }
 
-fn getActiveCamera(ecs_world: *ecs.world_t) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
-    var builder = ecsu.QueryBuilder.init.init(ecs_world.*);
+fn getActiveCamera(ecsu_world: ecsu.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
+    var builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = builder
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);

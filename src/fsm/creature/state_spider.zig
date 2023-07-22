@@ -144,8 +144,8 @@ fn update(ctx: fsm.StateFuncContext) void {
         fsm: *fd.FSM,
     });
 
-    const player_ent = ecs.ecs_lookup(ctx.ecs_world.world, "player");
-    const player_pos = ecs.get(ctx.ecs_world, player_ent, fd.Position).?;
+    const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
+    const player_pos = ecs.get(ctx.ecsu_world, player_ent, fd.Position).?;
 
     while (entity_iter.next()) |comps| {
         if (entity_iter.entity().id == player_ent) {
@@ -160,7 +160,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init.init(ctx.ecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Position)
         .with(fd.EulerRotation)

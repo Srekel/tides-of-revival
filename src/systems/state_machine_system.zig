@@ -26,7 +26,7 @@ const StateMachineInstance = struct {
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     flecs_sys: ecs.entity_t,
     query: ecsu.Query,
     state_machines: std.ArrayList(fsm.StateMachine),
@@ -39,21 +39,21 @@ const SystemState = struct {
 pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     audio_engine: *zaudio.Engine,
 ) !*SystemState {
-    var query_builder = ecsu.QueryBuilder.init.init(ecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
         .with(fd.FSM);
     var query = query_builder.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .flecs_sys = flecs_sys,
         .query = query,
         .state_machines = std.ArrayList(fsm.StateMachine).init(allocator),
@@ -63,7 +63,7 @@ pub fn create(
         .audio_engine = audio_engine,
     };
 
-    ecs_world.observer(ObserverCallback, .on_set, system);
+    ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
 
     initStateData(system);
     return system;
@@ -77,7 +77,7 @@ pub fn destroy(system: *SystemState) void {
 fn initStateData(system: *SystemState) void {
     const sm_ctx = fsm.StateCreateContext{
         .allocator = system.allocator,
-        .ecs_world = system.ecs_world,
+        .ecsu_world = system.ecsu_world,
     };
 
     const player_sm = blk: {
@@ -184,7 +184,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 // .entity = instance.entities.items[i],
                 // .data = instance.blob_array.getBlob(i),
                 .transition_events = .{},
-                .ecs_world = system.ecs_world,
+                .ecsu_world = system.ecsu_world,
                 .physics_world = system.physics_world,
                 .audio_engine = system.audio_engine,
                 .dt = dt4,
@@ -205,7 +205,7 @@ fn onSetCIFSM(it: *ecsu.Iterator(ObserverCallback)) void {
     var observer = @as(*ecs.observer_t, @ptrCast(@alignCast(it.iter.ctx)));
     var system: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
     while (it.next()) |_| {
-        const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIFSM), @as(i32, @intCast(it.index))).?;
+        const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIFSM), @as(i32, @intCast(it.index))).?;
         var ci = @as(*fd.CIFSM, @ptrCast(@alignCast(ci_ptr)));
 
         const smi_i = blk_smi_i: {

@@ -4,7 +4,7 @@ const ecsu = @import("flecs_util.zig");
 
 pub const Filter = struct {
     world: *ecs.world_t,
-    filter: *ecs.Filter = undefined,
+    filter: *ecs.filter_t = undefined,
 
     /// filter iterator that lets you fetch components via get/getOpt
     /// TODO: is this thing necessary? Seems the other iterators are more then capable compared to this thing.
@@ -19,7 +19,7 @@ pub const Filter = struct {
         pub fn next(self: *@This()) ?void {
             if (self.index >= self.iter.count) {
                 self.index = 0;
-                if (!ecs.ecs_filter_next(&self.iter)) return null;
+                if (!ecs.filter_next(&self.iter)) return null;
             }
 
             self.index += 1;
@@ -51,9 +51,9 @@ pub const Filter = struct {
         pub fn getConst(self: @This(), comptime T: type) *const T {
             const index = self.getTermIndex(T);
             const column_index = self.iter.terms[index].index;
-            std.debug.assert(ecs.ecs_field_is_readonly(&self.iter, @intCast(index + 1)));
+            std.debug.assert(ecs.field_is_readonly(&self.iter, @intCast(index + 1)));
 
-            // const column_index = ecs.ecs_iter_find_column(&self.iter, ecsu.meta.componentHandle(T).*);
+            // const column_index = ecs.iter_find_column(&self.iter, ecsu.meta.componentHandle(T).*);
             return &ecsu.column(&self.iter, T, column_index + 1)[self.index - 1];
         }
 
@@ -61,7 +61,7 @@ pub const Filter = struct {
         pub fn getOpt(self: @This(), comptime T: type) ?*T {
             const index = self.getTermIndex(T);
             const column_index = self.iter.terms[index].index;
-            var skip_term = ecs.id(T) != ecs.ecs_term_id(&self.iter, @intCast(column_index + 1));
+            var skip_term = ecs.id(T) != ecs.term_id(&self.iter, @intCast(column_index + 1));
             if (skip_term) return null;
 
             if (ecsu.columnOpt(&self.iter, T, column_index + 1)) |col| {
@@ -73,10 +73,10 @@ pub const Filter = struct {
         /// gets a term that is optional and readonly. Returns null if it isnt found.
         pub fn getConstOpt(self: @This(), comptime T: type) ?*const T {
             const index = self.getTermIndex(T);
-            std.debug.assert(ecs.ecs_field_is_readonly(&self.iter, @as(i32, @intCast(index + 1))));
+            std.debug.assert(ecs.field_is_readonly(&self.iter, @as(i32, @intCast(index + 1))));
 
             const column_index = self.iter.terms[index].index;
-            var skip_term = ecs.id(T) != ecs.ecs_term_id(&self.iter, @as(usize, @intCast(column_index + 1)));
+            var skip_term = ecs.id(T) != ecs.term_id(&self.iter, @as(usize, @intCast(column_index + 1)));
             if (skip_term) return null;
 
             if (ecsu.columnOpt(&self.iter, T, column_index + 1)) |col| {
@@ -93,8 +93,7 @@ pub const Filter = struct {
 
         filter_storage.hdr.magic = ecs.filter_t_magic;
         desc.storage = filter_storage;
-        var out_filter = ecs.ecs_filter_init(world, desc);
-        std.debug.assert(out_filter != null);
+        var out_filter = ecs.filter_init(world, desc) catch unreachable;
         var filter = @This(){
             .world = world,
             .filter = out_filter,
@@ -103,22 +102,22 @@ pub const Filter = struct {
     }
 
     pub fn deinit(self: *@This()) void {
-        ecs.ecs_filter_fini(self.filter);
+        ecs.filter_fini(self.filter);
         std.heap.c_allocator.destroy(self.filter);
     }
 
     pub fn asString(self: *@This()) [*c]u8 {
-        return ecs.ecs_filter_str(self.world, self.filter);
+        return ecs.filter_str(self.world, self.filter);
     }
 
     pub fn filterIterator(self: *@This()) FilterIterator {
-        return FilterIterator.init(ecs.ecs_filter_iter(self.world, self.filter));
+        return FilterIterator.init(ecs.filter_iter(self.world, self.filter));
     }
 
     /// gets an iterator that let you iterate the tables and then it provides an inner iterator to interate entities
     pub fn tableIterator(self: *@This(), comptime Components: type) ecsu.TableIterator(Components) {
-        temp_iter_storage = ecs.ecs_filter_iter(self.world, self.filter);
-        return ecsu.TableIterator(Components).init(&temp_iter_storage, ecs.ecs_filter_next);
+        temp_iter_storage = ecs.filter_iter(self.world, self.filter);
+        return ecsu.TableIterator(Components).init(&temp_iter_storage, ecs.filter_next);
     }
 
     // storage for the iterator so it can be passed by reference. Do not in-flight two Filters at once!
@@ -126,8 +125,8 @@ pub const Filter = struct {
 
     /// gets an iterator that iterates all matched entities from all tables in one iteration. Do not create more than one at a time!
     pub fn iterator(self: *@This(), comptime Components: type) ecsu.Iterator(Components) {
-        temp_iter_storage = ecs.ecs_filter_iter(self.world, self.filter);
-        return ecsu.Iterator(Components).init(&temp_iter_storage, ecs.ecs_filter_next);
+        temp_iter_storage = ecs.filter_iter(self.world, self.filter);
+        return ecsu.Iterator(Components).init(&temp_iter_storage, ecs.filter_next);
     }
 
     // /// allows either a function that takes 1 parameter (a struct with fields that match the components in the query) or multiple paramters

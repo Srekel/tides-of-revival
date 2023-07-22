@@ -18,9 +18,9 @@ pub fn Iterator(comptime Components: type) type {
         iter: *ecs.iter_t,
         inner_iter: ?TableColumns = null,
         index: usize = 0,
-        nextFn: *const fn ([*c]ecs.iter_t) callconv(.C) bool,
+        nextFn: *const fn (*ecs.iter_t) callconv(.C) bool,
 
-        pub fn init(iter: *ecs.iter_t, comptime nextFn: fn ([*c]ecs.iter_t) callconv(.C) bool) @This() {
+        pub fn init(iter: *ecs.iter_t, comptime nextFn: fn (*ecs.iter_t) callconv(.C) bool) @This() {
             ecsu.meta.validateIterator(Components, iter);
             return .{
                 .iter = iter,
@@ -29,7 +29,7 @@ pub fn Iterator(comptime Components: type) type {
         }
 
         pub fn entity(self: *@This()) ecs.entity_t {
-            return self.iter.entities[self.index - 1];
+            return self.iter.entities()[self.index - 1];
         }
 
         pub fn world(self: *@This()) ecsu.World {
@@ -41,8 +41,8 @@ pub fn Iterator(comptime Components: type) type {
         }
 
         pub fn skip(self: *@This()) void {
-            ecsu.meta.assertMsg(self.nextFn == ecs.ecs_query_next, "skip only valid on Queries!", .{});
-            ecs.ecs_query_skip(&self.iter);
+            ecsu.meta.assertMsg(self.nextFn == ecs.query_next, "skip only valid on Queries!", .{});
+            ecs.query_skip(&self.iter);
         }
 
         /// gets the next Entity from the query results if one is available
@@ -82,25 +82,26 @@ pub fn Iterator(comptime Components: type) type {
         inline fn nextTable(self: *@This()) ?TableColumns {
             if (!self.nextFn(self.iter)) return null;
 
-            var iter: TableColumns = .{ .count = self.iter.count };
+            var terms = self.iter.terms.?;
+            var iter: TableColumns = .{ .count = self.iter.count_ };
             var index: usize = 0;
             inline for (@typeInfo(Components).Struct.fields, 0..) |field, i| {
                 // skip filters and EcsNothing masks since they arent returned when we iterate
-                while (self.iter.terms[index].inout == .ecs_in_out_none or self.iter.terms[index].src.flags == ecs.IsEntity) : (index += 1) {}
+                while (terms[index].inout == .InOutNone or terms[index].src.flags == ecs.IsEntity) : (index += 1) {}
 
                 const is_optional = @typeInfo(field.type) == .Optional;
                 const col_type = ecsu.meta.FinalChild(field.type);
-                if (ecsu.meta.isConst(field.type)) std.debug.assert(ecs.ecs_field_is_readonly(self.iter, i + 1));
+                if (ecsu.meta.isConst(field.type)) std.debug.assert(ecs.field_is_readonly(self.iter, i + 1));
 
                 if (is_optional) @field(iter.columns, field.name) = null;
-                const column_index = self.iter.terms[index].field_index;
-                const raw_term_id = ecs.ecs_field_id(self.iter, column_index + 1);
-                const term_id = if (ecs.ecs_id_is_pair(raw_term_id)) ecs.pair_first(raw_term_id) else raw_term_id;
-                var skip_term = if (is_optional) ecsu.meta.componentHandle(col_type).* != term_id else false;
+                const column_index = terms[index].field_index;
+                const raw_term_id = ecs.field_id(self.iter, column_index + 1);
+                const term_id = if (ecs.id_is_pair(raw_term_id)) ecs.pair_first(raw_term_id) else raw_term_id;
+                var skip_term = if (is_optional) ecsu.meta.componentId(self.iter.world, col_type) != term_id else false;
 
                 // note that an OR is actually a single term!
                 // std.debug.print("---- col_type: {any}, optional: {any}, i: {d}, col_index: {d}, skip_term: {d}\n", .{ col_type, is_optional, i, column_index, skip_term });
-                // std.debug.print("---- compId: {any}, term_id: {any}\n", .{ ecsu.meta.componentHandle(col_type).*, ecs.ecs_term_id(self.iter, @intCast(usize, column_index + 1)) });
+                // std.debug.print("---- compId: {any}, term_id: {any}\n", .{ ecsu.meta.componentHandle(col_type).*, ecs.term_id(self.iter, @intCast(usize, column_index + 1)) });
                 if (!skip_term) {
                     if (ecsu.columnOpt(self.iter, col_type, column_index + 1)) |col| {
                         @field(iter.columns, field.name) = col;

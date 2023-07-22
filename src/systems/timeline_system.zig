@@ -52,7 +52,7 @@ const SystemState = struct {
     flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,
-    ecs_world: *ecs.world_t,
+    ecsu_world: ecsu.World,
     frame_data: *input.FrameData,
 
     timelines: std.ArrayList(Timeline),
@@ -60,17 +60,17 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecs_world = ctx.get(config.ecs_world.hash, ecs.world_t);
+    const ecsu_world = ctx.get(config.ecsu_world.hash, ecs.world_t);
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
-        .ecs_world = ecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .frame_data = frame_data,
         .timelines = std.ArrayList(Timeline).initCapacity(allocator, 16) catch unreachable,
@@ -93,7 +93,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
 fn updateTimelines(system: *SystemState, dt: f32) void {
     _ = dt;
-    const environment_info = system.ecs_world.getSingleton(fd.EnvironmentInfo).?;
+    const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     const time_now = environment_info.world_time;
 
     for (system.timelines.items) |timeline| {
@@ -151,7 +151,7 @@ fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyo
     const timeline_instance_data = util.castOpaqueConst(config.events.TimelineInstanceData, event_data);
     for (system.timelines.items) |*timeline| {
         if (timeline.id.eql(timeline_instance_data.timeline)) {
-            const environment_info = system.ecs_world.getSingleton(fd.EnvironmentInfo).?;
+            const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
             const time_now = environment_info.world_time;
             timeline.instances.append(.{
                 .time_start = time_now,
