@@ -703,7 +703,7 @@ fn onSetCIShapeMeshInstance(it: *ecsu.Iterator(ShapeMeshInstanceObserverCallback
             unreachable;
         };
 
-        const ent = it.entity();
+        const ent = ecsu.Entity.init(it.world().world, it.entity());
         ent.remove(fd.CIShapeMeshInstance);
         ent.set(fd.ShapeMeshInstance{
             .mesh_index = mesh_index,

@@ -230,8 +230,8 @@ fn onSetCIFSM(it: *ecsu.Iterator(ObserverCallback)) void {
         };
 
         const state_machine_instance = smi_i.smi;
-        const ent = it.entity();
-        state_machine_instance.entities.append(ent) catch unreachable;
+        const ent = ecsu.Entity.init(it.world().world, it.entity());
+        state_machine_instance.entities.append(ent.id) catch unreachable;
         state_machine_instance.curr_states.append(state_machine_instance.state_machine.initial_state) catch unreachable;
         const blob_lookup = state_machine_instance.blob_array.addBlob();
 

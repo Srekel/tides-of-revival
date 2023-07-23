@@ -166,7 +166,7 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecsu_world = ctx.get(config.ecsu_world.hash, ecs.world_t);
+    const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
     const world_patch_mgr = ctx.get(config.world_patch_mgr.hash, world_patch_manager.WorldPatchManager);
 
@@ -319,13 +319,13 @@ fn updateLoaders(system: *SystemState) void {
 
         var loader = blk: {
             for (&system.loaders) |*loader| {
-                if (loader.ent == entity_iter.entity().id) {
+                if (loader.ent == entity_iter.entity()) {
                     break :blk loader;
                 }
             }
 
             // HACK
-            system.loaders[0].ent = entity_iter.entity().id;
+            system.loaders[0].ent = entity_iter.entity();
             break :blk &system.loaders[0];
 
             // unreachable;

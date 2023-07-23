@@ -187,6 +187,9 @@ pub fn validateIterator(comptime Components: type, iter: *const ecs.iter_t) void
     if (@import("builtin").mode == .Debug) {
         var index: usize = 0;
         const component_info = @typeInfo(Components).Struct;
+        if (component_info.fields.len == 0) {
+            return;
+        }
         const terms = iter.terms.?;
 
         inline for (component_info.fields) |field| {

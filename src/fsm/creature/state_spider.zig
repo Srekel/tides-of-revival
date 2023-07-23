@@ -145,10 +145,10 @@ fn update(ctx: fsm.StateFuncContext) void {
     });
 
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
-    const player_pos = ecs.get(ctx.ecsu_world, player_ent, fd.Position).?;
+    const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
 
     while (entity_iter.next()) |comps| {
-        if (entity_iter.entity().id == player_ent) {
+        if (entity_iter.entity() == player_ent) {
             // HACK
             continue;
         }

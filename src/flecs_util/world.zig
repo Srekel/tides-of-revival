@@ -183,7 +183,7 @@ pub const World = struct {
     pub fn filter(self: World, comptime Components: type) ecsu.Filter {
         std.debug.assert(@typeInfo(Components) == .Struct);
         var desc = ecsu.meta.generateFilterDesc(self, Components);
-        return ecsu.Filter.init(self, &desc);
+        return ecsu.Filter.init(self.world, &desc);
     }
 
     /// probably temporary until we find a better way to handle it better, but a way to

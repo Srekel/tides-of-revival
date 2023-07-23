@@ -70,7 +70,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
 }
 
 fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-    const transform = ecs.get(ctx.ecsu_world, entity, fd.Transform);
+    const transform = ecs.get(ctx.ecsu_world.world, entity, fd.Transform);
     const pos = transform.?.getPos00();
 
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
@@ -88,7 +88,8 @@ fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (filter_it.entity().hasPair(ecs.ChildOf, entity.id)) {
+        const filter_ent = ecsu.Entity.init(filter_it.world().world, filter_it.entity());
+        if (filter_ent.hasPair(ecs.ChildOf, entity)) {
             continue;
         }
 
@@ -105,8 +106,9 @@ fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void
     }
 }
 
-fn updateWinFromArrival(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-    const transform = ecs.get(ctx.ecsu_world, entity, fd.Transform);
+fn updateWinFromArrival(entity_id: ecs.entity_t, ctx: fsm.StateFuncContext) void {
+    const ent = ecsu.Entity.init(ctx.ecsu_world.world, entity_id);
+    const transform = ecs.get(ctx.ecsu_world.world, entity_id, fd.Transform);
     const pos = transform.?.getPos00();
 
     const FilterCallback = struct {
@@ -118,7 +120,7 @@ fn updateWinFromArrival(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (entity.hasPair(fr.Hometown, filter_it.entity().id)) {
+        if (ent.hasPair(fr.Hometown, filter_it.entity())) {
             continue;
         }
 
@@ -162,7 +164,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         rot: *fd.EulerRotation,
         fwd: *fd.Forward,
         fsm: *fd.FSM,
-        cam: *fd.Camera,
+        // cam: *fd.Camera,
     });
 
     while (entity_iter.next()) |comps| {

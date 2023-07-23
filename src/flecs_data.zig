@@ -61,7 +61,9 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
 //     }
 // };
 
-pub const NOCOMP = struct {};
+pub const NOCOMP = struct {
+    // dummy: u32 = 0,
+};
 
 pub const ColorRGB = struct {
     r: f32,
@@ -468,7 +470,7 @@ pub const Input = struct {
 
 pub const Interactor = struct {
     active: bool = false,
-    wielded_item_ent: ecs.entity_t,
+    wielded_item_ent_id: ecs.entity_t,
 };
 
 // ███████╗██████╗  █████╗ ██╗    ██╗███╗   ██╗

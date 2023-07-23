@@ -60,7 +60,7 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecsu_world = ctx.get(config.ecsu_world.hash, ecs.world_t);
+    const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);

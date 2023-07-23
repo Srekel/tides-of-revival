@@ -27,7 +27,7 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecsu_world = ctx.get(config.ecsu_world.hash, ecs.world_t);
+    const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
@@ -79,8 +79,8 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
 
-        const item_ent = interactor_comp.wielded_item_ent;
-        var weapon_comp = ecs.get_mut(system.ecsu_world, item_ent, fd.ProjectileWeapon).?;
+        const item_ent_id = interactor_comp.wielded_item_ent_id;
+        var weapon_comp = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.ProjectileWeapon).?;
 
         if (weapon_comp.chambered_projectile == 0) {
             // Load new projectile
@@ -97,14 +97,14 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
                 .id = IdLocal.id64("arrow"),
                 .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
             });
-            proj_ent.childOf(item_ent);
+            proj_ent.childOf(item_ent_id);
             weapon_comp.chambered_projectile = proj_ent.id;
             return;
         }
 
-        var proj_ent = weapon_comp.chambered_projectile;
-        var item_rotation = ecs.get_mut(system.ecsu_world, item_ent, fd.EulerRotation).?;
-        const item_transform = item_ent.get(fd.Transform).?;
+        var proj_ent = ecsu.Entity.init(system.ecsu_world.world, weapon_comp.chambered_projectile);
+        var item_rotation = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.EulerRotation).?;
+        const item_transform = ecs.get(system.ecsu_world.world, item_ent_id, fd.Transform).?;
         const target_roll: f32 = if (wielded_use_primary_held) -1 else 0;
         item_rotation.roll = zm.lerpV(item_rotation.roll, target_roll, 0.1);
         if (wielded_use_primary_released) {
@@ -115,7 +115,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
             // state.physics_world.optimizeBroadPhase();
             weapon_comp.chambered_projectile = 0;
-            proj_ent.removePair(ecs.ChildOf, item_ent);
+            proj_ent.removePair(ecs.ChildOf, item_ent_id);
 
             const body_interface = system.physics_world.getBodyInterfaceMut();
 
@@ -152,13 +152,13 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             body_interface.setLinearVelocity(proj_body_id, velocity);
         } else if (wielded_use_primary_held) {
             // Pull string
-            var proj_pos = ecs.get_mut(system.ecsu_world, proj_ent, fd.Position).?;
+            var proj_pos = ecs.get_mut(system.ecsu_world.world, proj_ent.id, fd.Position).?;
 
             proj_pos.z = zm.lerpV(proj_pos.z, -0.8, 0.01);
             weapon_comp.charge = zm.mapLinearV(proj_pos.z, -0.4, -0.8, 0, 1);
         } else {
             // Relax string
-            var proj_pos = ecs.get_mut(system.ecsu_world, proj_ent, fd.Position).?;
+            var proj_pos = ecs.get_mut(system.ecsu_world.world, proj_ent.id, fd.Position).?;
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
     }
@@ -237,40 +237,40 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             continue;
         }
 
-        if (ent1 != 0 and ecs.has_id(system.ecsu_world, ent1, ecs.id(fd.Projectile))) {
+        if (ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Projectile))) {
             // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
             body_interface.removeAndDestroyBody(contact.body_id1);
-            ent1.remove(fd.PhysicsBody);
-            removed_entities.append(ent1.id) catch unreachable;
+            ecs.remove(system.ecsu_world.world, ent1, fd.PhysicsBody);
+            removed_entities.append(ent1) catch unreachable;
 
-            if (ent2 != 0 and ecs.has_id(system.ecsu_world, ent2, ecs.id(fd.Health))) {
-                var health2 = ecs.get_mut(system.ecsu_world, ent2, fd.Health).?;
+            if (ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Health))) {
+                var health2 = ecs.get_mut(system.ecsu_world.world, ent2, fd.Health).?;
                 if (health2.value > 0) {
                     health2.value -= 50;
                     if (health2.value <= 0) {
                         body_interface.setMotionType(contact.body_id2, .dynamic, .dont_activate);
-                        ent2.remove(fd.FSM);
-                        removed_entities.append(ent2.id) catch unreachable;
+                        ecs.remove(system.ecsu_world.world, ent2, fd.FSM);
+                        removed_entities.append(ent2) catch unreachable;
                     }
                     // std.debug.print("lol2 {any}\n", .{ent2.id});
                 }
             }
         }
 
-        if (contact.ent2 != 0 and ecs.has_id(system.ecsu_world, ent2, ecs.id(fd.Projectile))) {
+        if (contact.ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Projectile))) {
             // std.debug.print("proj2 {any} body:{any}\n", .{contact.ent2, contact.body_id2});
             body_interface.removeAndDestroyBody(contact.body_id2);
-            ent2.remove(fd.PhysicsBody);
-            removed_entities.append(ent2.id) catch unreachable;
+            ecs.remove(system.ecsu_world.world, ent2, fd.PhysicsBody);
+            removed_entities.append(ent2) catch unreachable;
 
-            if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world, ent1, ecs.id(fd.Health))) {
-                var health1 = ecs.get_mut(system.ecsu_world, ent1, fd.Health).?;
+            if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Health))) {
+                var health1 = ecs.get_mut(system.ecsu_world.world, ent1, fd.Health).?;
                 if (health1.value > 0) {
                     health1.value -= 50;
                     if (health1.value <= 0) {
                         body_interface.setMotionType(contact.body_id1, .dynamic, .dont_activate);
-                        ent1.remove(fd.FSM);
-                        removed_entities.append(ent1.id) catch unreachable;
+                        ecs.remove(system.ecsu_world.world, ent1, fd.FSM);
+                        removed_entities.append(ent1) catch unreachable;
                     }
                     // std.debug.print("lol1 {any}\n", .{health1.value});
                 }

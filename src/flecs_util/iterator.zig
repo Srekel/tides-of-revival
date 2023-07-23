@@ -33,7 +33,7 @@ pub fn Iterator(comptime Components: type) type {
         }
 
         pub fn world(self: *@This()) ecsu.World {
-            return .{ .world = self.iter.world.? };
+            return .{ .world = self.iter.world };
         }
 
         pub fn tableType(self: *@This()) ecsu.Type {

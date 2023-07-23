@@ -93,13 +93,13 @@ fn updateLoaders(system: *SystemState) void {
 
         var loader = blk: {
             for (&system.loaders) |*loader| {
-                if (loader.ent == entity_iter.entity().id) {
+                if (loader.ent == entity_iter.entity()) {
                     break :blk loader;
                 }
             }
 
             // HACK
-            system.loaders[0].ent = entity_iter.entity().id;
+            system.loaders[0].ent = entity_iter.entity();
             break :blk &system.loaders[0];
 
             // unreachable;
