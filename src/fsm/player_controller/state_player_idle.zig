@@ -175,8 +175,8 @@ fn update(ctx: fsm.StateFuncContext) void {
         const pos_before = comps.pos.*;
         updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
-        updateDeathFromDarkness(entity_iter.entity(), ctx);
-        updateWinFromArrival(entity_iter.entity(), ctx);
+        // updateDeathFromDarkness(entity_iter.entity(), ctx);
+        // updateWinFromArrival(entity_iter.entity(), ctx);
         const pos_after = comps.pos.*;
         const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
         state.*.amount_moved += @fabs(pos_after.x - pos_before.x);
