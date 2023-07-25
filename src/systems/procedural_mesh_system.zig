@@ -176,28 +176,6 @@ fn appendObjMesh(
     meshes.append(.{ .id = id, .mesh_handle = mesh_handle }) catch unreachable;
 }
 
-fn appendMesh(
-    name: [:0]const u8,
-    allocator: std.mem.Allocator,
-    gfxstate: *gfx.D3D12State,
-    id: IdLocal,
-    path: [:0]const u8,
-    meshes: *std.ArrayList(IdLocalToMeshHandle),
-) !void {
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    var indices = std.ArrayList(IndexType).init(arena);
-    var vertices = std.ArrayList(Vertex).init(arena);
-    defer indices.deinit();
-    defer vertices.deinit();
-    const mesh = mesh_loader.loadMeshFromFile(allocator, path, &indices, &vertices) catch unreachable;
-    const mesh_handle = gfxstate.uploadMeshData(name, mesh, vertices.items, indices.items) catch unreachable;
-
-    meshes.append(.{ .id = id, .mesh_handle = mesh_handle }) catch unreachable;
-}
-
 fn initScene(
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,

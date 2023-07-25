@@ -16,7 +16,7 @@ const fd = @import("flecs_data.zig");
 const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const gfx = @import("gfx_d3d12.zig");
-const prefab_loader = @import("renderer/mesh_loader.zig");
+const pm = @import("prefab_manager.zig");
 const window = @import("window.zig");
 const EventManager = @import("core/event_manager.zig").EventManager;
 
@@ -125,6 +125,9 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state, std.heap.page_allocator);
 
+    var prefab_manager = pm.PrefabManager.init(std.heap.page_allocator);
+    defer prefab_manager.deinit();
+
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -132,7 +135,7 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    spider_prefab = prefab_loader.loadPrefabFromGLTF("content/prefabs/spider/Spider.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/spider/spider.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
