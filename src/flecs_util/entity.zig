@@ -91,7 +91,6 @@ pub const Entity = struct {
         var component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
         const id = ecsu.meta.componentId(self.world, T);
         ecs.override_id(self.world, self.id, id);
-        // ecs.add_id(self.world, self.id, flecs.c.ECS_OVERRIDE | id);
         // Do we need the line below?
         _ = ecs.set_id(self.world, self.id, id, @sizeOf(T), component);
         unreachable;

@@ -118,6 +118,7 @@ pub fn run() void {
     defer ecsu_world.deinit();
     // _ = ecs.log_set_level(0);
     fd.registerComponents(ecsu_world);
+    fr.registerRelations(ecsu_world);
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -429,7 +430,7 @@ pub fn run() void {
     // );
     // defer gui_system.destroy(&gui_sys);
 
-    // city_system.createEntities(city_sys);
+    city_system.createEntities(city_sys);
 
     // Make sure systems are initialized and any initial system entities are created.
     update(ecsu_world, &gfx_state);
@@ -500,7 +501,7 @@ pub fn run() void {
             const city_ent = ecs.get_target(
                 ecsu_world.world,
                 entity_iter.entity(),
-                ecsu_world.componentId(fr.Hometown),
+                fr.Hometown,
                 0,
             );
             const spawnpoint_ent = entity_iter.entity();

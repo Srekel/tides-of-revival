@@ -26,7 +26,7 @@ pub fn assertMsg(ok: bool, comptime msg: []const u8, args: anytype) void {
 /// gets the EntityId for T creating it if it doesn't already exist
 pub fn componentId(world: *ecs.world_t, comptime T: type) ecs.id_t {
     _ = world;
-    var id = ecs.id(T);
+    const id = ecs.id(T);
     std.debug.assert(id != 0);
     return id;
     // if (handle.* < std.math.maxInt(ecs.entity_t)) {

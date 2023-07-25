@@ -31,7 +31,7 @@ const SystemState = struct {
 
 const CityEnt = struct {
     class: u32,
-    ent: ecs.entity_t,
+    ent: ecsu.Entity,
     x: f32,
     z: f32,
     nearest: [2]ecs.entity_t = .{ 0, 0 },
