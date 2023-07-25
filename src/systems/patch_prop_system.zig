@@ -1,7 +1,8 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const zm = @import("zmath");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const fr = @import("../flecs_relation.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
@@ -9,54 +10,54 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const tides_math = @import("../core/math.zig");
 
 const WorldLoaderData = struct {
-    ent: flecs.EntityId = 0,
+    ent: ecs.entity_t = 0,
     pos_old: ?[3]f32 = null,
 };
 
 const Patch = struct {
     loaded: bool = false,
-    entities: std.ArrayList(flecs.EntityId),
+    entities: std.ArrayList(ecs.entity_t),
     lod: u32 = 1, // todo
     lookup: world_patch_manager.PatchLookup,
 };
 
 const SystemState = struct {
-    flecs_sys: flecs.EntityId,
+    flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 
     cam_pos_old: ?[3]f32 = null,
     patches: std.ArrayList(Patch),
     loaders: [1]WorldLoaderData = .{.{}},
     requester_id: world_patch_manager.RequesterId,
-    comp_query_loader: flecs.Query,
+    comp_query_loader: ecsu.Query,
 };
 
 pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !*SystemState {
-    var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_loader.with(fd.WorldLoader)
         .with(fd.Transform);
     const comp_query_loader = query_builder_loader.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecsu_world = ecsu_world,
         .world_patch_mgr = world_patch_mgr,
         .comp_query_loader = comp_query_loader,
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("props")),
         .patches = std.ArrayList(Patch).initCapacity(allocator, 32 * 32) catch unreachable,
     };
 
-    // flecs_world.observer(ObserverCallback, .on_set, system);
+    // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
 
     // initStateData(system);
     return system;
@@ -68,7 +69,7 @@ pub fn destroy(system: *SystemState) void {
     system.allocator.destroy(system);
 }
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateLoaders(system);
     updatePatches(system);
@@ -92,13 +93,13 @@ fn updateLoaders(system: *SystemState) void {
 
         var loader = blk: {
             for (&system.loaders) |*loader| {
-                if (loader.ent == entity_iter.entity().id) {
+                if (loader.ent == entity_iter.entity()) {
                     break :blk loader;
                 }
             }
 
             // HACK
-            system.loaders[0].ent = entity_iter.entity().id;
+            system.loaders[0].ent = entity_iter.entity();
             break :blk &system.loaders[0];
 
             // unreachable;
@@ -160,7 +161,7 @@ fn updateLoaders(system: *SystemState) void {
                     if (patch.lookup.eql(lookup)) {
                         // TODO: Batch delete
                         for (patch.entities.items) |ent| {
-                            system.flecs_world.delete(ent);
+                            system.ecsu_world.delete(ent);
                         }
 
                         patch.entities.deinit();
@@ -178,7 +179,7 @@ fn updateLoaders(system: *SystemState) void {
             system.patches.appendAssumeCapacity(.{
                 .lookup = lookup,
                 .lod = 1,
-                .entities = std.ArrayList(flecs.EntityId).init(system.allocator),
+                .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
             });
         }
     }
@@ -226,14 +227,14 @@ fn updatePatches(system: *SystemState) void {
                 const z_prop_srt_matrix = zm.mul(z_prop_sr_matrix, z_prop_translate_matrix);
                 zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
 
-                var prop_ent = system.flecs_world.newEntity();
+                var prop_ent = system.ecsu_world.newEntity();
                 prop_ent.set(prop_transform);
                 if (prop.id.hash == city_id.hash) {
-                    // var light_ent = system.flecs_world.newEntity();
+                    // var light_ent = system.ecsu_world.newEntity();
                     // light_ent.set(fd.Transform.initFromPosition(.{ .x = prop.pos[0], .y = prop.pos[1] + 2 + 10, .z = prop.pos[2] }));
                     // light_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 100 });
 
-                    // // var light_viz_ent = system.flecs_world.newEntity();
+                    // // var light_viz_ent = system.ecsu_world.newEntity();
                     // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
                     // // light_viz_ent.set(fd.Scale.createScalar(1));
                     // // light_viz_ent.set(fd.CIShapeMeshInstance{
@@ -244,7 +245,7 @@ fn updatePatches(system: *SystemState) void {
                     // if (!added_spawn) {
                     //     added_spawn = true;
                     //     var spawn_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
-                    //     var spawn_ent = system.flecs_world.newEntity();
+                    //     var spawn_ent = system.ecsu_world.newEntity();
                     //     spawn_ent.set(spawn_pos);
                     //     spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
                     //     spawn_ent.addPair(fr.Hometown, prop_ent);

@@ -1,7 +1,7 @@
 const std = @import("std");
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const gfx = @import("../gfx_d3d12.zig");
 const Vertex = gfx.Vertex;
 
@@ -15,6 +15,7 @@ const glfw = @import("glfw");
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const config = @import("../config.zig");
 const util = @import("../util.zig");
@@ -48,7 +49,7 @@ const DrawUniforms = struct {
 };
 
 const Mesh = struct {
-    // entity: flecs.EntityId,
+    // entity: ecs.entity_t,
     index_offset: u32,
     vertex_offset: i32,
     num_indices: u32,
@@ -82,16 +83,16 @@ const Patch = struct {
     vertices: [patch_side_vertex_count * patch_side_vertex_count]Vertex,
     physics_shape: ?zbt.Shape,
     physics_body: zbt.Body,
-    entity: flecs.EntityId = 0,
+    entity: ecs.entity_t = 0,
 };
 
 const max_loaded_patches = 64;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     physics_world: *zbt.PhysicsWorld,
-    sys: flecs.EntityId,
+    sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
 
@@ -101,9 +102,9 @@ const SystemState = struct {
     patches: std.ArrayList(Patch),
     loading_patch: bool = false,
 
-    query_camera: flecs.Query,
-    query_lights: flecs.Query,
-    query_loader: flecs.Query,
+    query_camera: ecsu.Query,
+    query_lights: ecsu.Query,
+    query_loader: ecsu.Query,
     noise: znoise.FnlGenerator,
 };
 
@@ -209,24 +210,24 @@ pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     physics_world: *zbt.PhysicsWorld,
     noise: znoise.FnlGenerator,
 ) !*SystemState {
     std.log.debug("Creating terrain system", .{});
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Position);
     var query_camera = query_builder_camera.buildQuery();
 
-    var query_builder_lights = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_lights = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_lights
         .with(fd.Light)
         .with(fd.Transform);
     var query_lights = query_builder_lights.buildQuery();
 
-    var query_builder_loader = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_loader
         .with(fd.WorldLoader)
         .with(fd.Position);
@@ -243,10 +244,10 @@ pub fn create(
 
     // State
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
     state.* = .{
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .sys = sys,
 
@@ -274,7 +275,7 @@ pub fn create(
         // patch.index_offset = @intCast(u32, i) * indices_per_patch;
         // patch.vertex_offset = @intCast(i32, i * vertices_per_patch);
     }
-    // flecs_world.observer(ObserverCallback, .on_set, state);
+    // ecsu_world.observer(ObserverCallback, ecs.OnSet, state);
 
     return state;
 }
@@ -446,7 +447,7 @@ fn jobGenerateNormals(ctx: ThreadContextGenerateNormals) !void {
 // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     _ = state.physics_world.stepSimulation(iter.iter.delta_time, .{});
 
@@ -523,7 +524,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
 
                         if (unload_patch.entity != 0) {
                             // Do here...?
-                            state.flecs_world.delete(unload_patch.entity);
+                            state.ecsu_world.delete(unload_patch.entity);
                         }
                         unload_patch.entity = 0;
 
@@ -662,7 +663,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                                 const z_tree_st_matrix = zm.mul(z_tree_scale_matrix, z_tree_translate_matrix);
                                 zm.storeMat43(tree_transform.matrix[0..], z_tree_st_matrix);
 
-                                var tree_ent = state.flecs_world.newEntity();
+                                var tree_ent = state.ecsu_world.newEntity();
                                 tree_ent.set(tree_transform);
                                 tree_ent.set(fd.CIShapeMeshInstance{
                                     .id = IdLocal.id64("pine"),
@@ -677,7 +678,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
                 break :blk .loaded;
             },
             .loaded => blk: {
-                const patch_ent = state.flecs_world.newEntity();
+                const patch_ent = state.ecsu_world.newEntity();
                 // patch_ent.set(fd.WorldPatch{ .lookup = 12 });
                 patch_ent.set(fd.Position{ .x = @as(f32, @floatFromInt(patch.pos[0])), .y = 0, .z = @as(f32, @floatFromInt(patch.pos[1])) });
                 patch.entity = patch_ent.id;
@@ -696,7 +697,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
     while (entity_iter_camera.next()) |comps| {
         if (comps.cam.active) {
             camera_comps = comps;
-            flecs.c.ecs_iter_fini(entity_iter_camera.iter);
+            ecs.iter_fini(entity_iter_camera.iter);
             break;
         }
     }

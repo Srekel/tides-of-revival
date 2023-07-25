@@ -1,10 +1,11 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../flecs_data.zig");
 const fr = @import("../../flecs_relation.zig");
 const zm = @import("zmath");
@@ -86,26 +87,28 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
         const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
         const self_pos_z = zm.loadArr3(pos.elems().*);
         const vec_to_player = player_pos_z - self_pos_z;
-        const dir_to_player = zm.normalize3(vec_to_player);
-        const angle_to_player = std.math.atan2(f32, -dir_to_player[2], dir_to_player[0]);
-        const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player + std.math.pi * 0.5);
+        if (zm.length3(vec_to_player)[0] > 1) {
+            const dir_to_player = zm.normalize3(vec_to_player);
+            const angle_to_player = std.math.atan2(f32, -dir_to_player[2], dir_to_player[0]);
+            const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player + std.math.pi * 0.5);
 
-        const rot_wanted_z = zm.qmul(rot_towards_player_z, rot_slope_z);
-        const rot_curr_z = zm.loadArr4(body_self.getRotation());
-        const rot_new_z = zm.slerp(rot_curr_z, rot_wanted_z, 0.01); // TODO SmoothDamp
-        const rot_new_normalized_z = zm.normalize4(rot_new_z);
-        var rot: [4]f32 = undefined;
-        zm.storeArr4(&rot, rot_new_normalized_z);
+            const rot_wanted_z = zm.qmul(rot_towards_player_z, rot_slope_z);
+            const rot_curr_z = zm.loadArr4(body_self.getRotation());
+            const rot_new_z = zm.slerp(rot_curr_z, rot_wanted_z, 0.01); // TODO SmoothDamp
+            const rot_new_normalized_z = zm.normalize4(rot_new_z);
+            var rot: [4]f32 = undefined;
+            zm.storeArr4(&rot, rot_new_normalized_z);
 
-        // NOTE: Should this use MoveKinematic?
-        const body_interface = physics_world.getBodyInterfaceMut();
-        body_interface.setPositionRotationAndVelocity(
-            body.body_id,
-            pos.elems().*,
-            rot,
-            [3]f32{ 0, 0, 0 },
-            [3]f32{ 0, 0, 0 },
-        );
+            // NOTE: Should this use MoveKinematic?
+            const body_interface = physics_world.getBodyInterfaceMut();
+            body_interface.setPositionRotationAndVelocity(
+                body.body_id,
+                pos.elems().*,
+                rot,
+                [3]f32{ 0, 0, 0 },
+                [3]f32{ 0, 0, 0 },
+            );
+        }
     }
 }
 
@@ -115,7 +118,7 @@ pub const StateData = struct {
 };
 
 const StateSpider = struct {
-    query: flecs.Query,
+    query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -143,12 +146,11 @@ fn update(ctx: fsm.StateFuncContext) void {
         fsm: *fd.FSM,
     });
 
-    const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
-    const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
-    const player_pos = player_ent.get(fd.Position).?;
+    const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
+    const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
 
     while (entity_iter.next()) |comps| {
-        if (entity_iter.entity().id == player_ent_id) {
+        if (entity_iter.entity() == player_ent) {
             // HACK
             continue;
         }
@@ -160,7 +162,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = flecs.QueryBuilder.init(ctx.flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Position)
         .with(fd.EulerRotation)

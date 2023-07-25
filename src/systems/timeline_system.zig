@@ -1,9 +1,10 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
 
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const fr = @import("../flecs_relation.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
@@ -14,7 +15,7 @@ const config = @import("../config.zig");
 const input = @import("../input.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 
-pub const EventFunc = fn (entity: flecs.EntityId, data: *anyopaque) void;
+pub const EventFunc = fn (entity: ecs.entity_t, data: *anyopaque) void;
 
 pub const TimelineEvent = struct {
     trigger_time: f32,
@@ -43,15 +44,15 @@ pub const Timeline = struct {
 pub const Instance = struct {
     time_start: f32,
     time_end: f32 = 0,
-    entity: flecs.EntityId = 0,
+    entity: ecs.entity_t = 0,
     upcoming_event_index: u32 = 0,
 };
 
 const SystemState = struct {
-    flecs_sys: flecs.EntityId,
+    flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     frame_data: *input.FrameData,
 
     timelines: std.ArrayList(Timeline),
@@ -59,17 +60,17 @@ const SystemState = struct {
 
 pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const flecs_world = ctx.get(config.flecs_world.hash, flecs.World);
+    const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .frame_data = frame_data,
         .timelines = std.ArrayList(Timeline).initCapacity(allocator, 16) catch unreachable,
@@ -85,14 +86,14 @@ pub fn destroy(system: *SystemState) void {
     system.allocator.destroy(system);
 }
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateTimelines(system, iter.iter.delta_time);
 }
 
 fn updateTimelines(system: *SystemState, dt: f32) void {
     _ = dt;
-    const environment_info = system.flecs_world.getSingleton(fd.EnvironmentInfo).?;
+    const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     const time_now = environment_info.world_time;
 
     for (system.timelines.items) |timeline| {
@@ -150,7 +151,7 @@ fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyo
     const timeline_instance_data = util.castOpaqueConst(config.events.TimelineInstanceData, event_data);
     for (system.timelines.items) |*timeline| {
         if (timeline.id.eql(timeline_instance_data.timeline)) {
-            const environment_info = system.flecs_world.getSingleton(fd.EnvironmentInfo).?;
+            const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
             const time_now = environment_info.world_time;
             timeline.instances.append(.{
                 .time_start = time_now,
