@@ -7,6 +7,7 @@ const zmesh = @import("zmesh");
 const flecs = @import("flecs");
 const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
 const TextureHandle = @import("gfx_d3d12.zig").TextureHandle;
+const MaterialHandle = @import("gfx_d3d12.zig").MaterialHandle;
 
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
@@ -146,6 +147,13 @@ pub const Transform = struct {
         };
     }
 
+    pub fn initWithQuaternion(quat: [4]f32) Transform {
+        var z_rotation_matrix = zm.matFromQuat(zm.Quat{quat[0], quat[1], quat[2], quat[3]});
+        var transform = Transform{};
+        zm.storeMat43(&transform.matrix, z_rotation_matrix);
+        return transform;
+    }
+
     pub fn getPos00(self: Transform) [3]f32 {
         return self.matrix[9..].*;
     }
@@ -245,6 +253,18 @@ pub const PBRMaterial = struct {
     arm: TextureHandle,
     emissive: TextureHandle,
 
+    pub fn init() PBRMaterial {
+        return .{
+            .base_color = ColorRGB.init(1, 1, 1),
+            .roughness = 1,
+            .metallic = 0,
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
+        };
+    }
+
     pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) PBRMaterial {
         return .{
             .base_color = base_color,
@@ -258,7 +278,6 @@ pub const PBRMaterial = struct {
     }
 };
 
-// TODO(gmodarelli): Add material slot
 pub const CIStaticMesh = struct {
     id: u64,
     material: PBRMaterial,
@@ -267,6 +286,11 @@ pub const CIStaticMesh = struct {
 pub const StaticMesh = struct {
     mesh_handle: MeshHandle,
     material: PBRMaterial,
+};
+
+pub const StaticMeshComponent = struct {
+    mesh_handle: MeshHandle,
+    material_handle: MaterialHandle,
 };
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗

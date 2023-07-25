@@ -74,7 +74,7 @@ def main():
     sync_lib(
         "zig-flecs",
         "https://github.com/Srekel/zig-flecs.git",
-        "f06689bbea7d2aea0a50e05e0d171006a948e945",
+        "8b404bd2e43e8ace800893f0a83079c15fd3f5aa",
     )
     sync_lib(
         "zigimg",

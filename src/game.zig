@@ -16,6 +16,7 @@ const fd = @import("flecs_data.zig");
 const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const gfx = @import("gfx_d3d12.zig");
+const prefab_loader = @import("renderer/mesh_loader.zig");
 const window = @import("window.zig");
 const EventManager = @import("core/event_manager.zig").EventManager;
 
@@ -32,6 +33,7 @@ const physics_system = @import("systems/physics_system.zig");
 const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const patch_prop_system = @import("systems/patch_prop_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
+const static_mesh_renderer_system = @import("systems/static_mesh_renderer_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const timeline_system = @import("systems/timeline_system.zig");
 // const terrain_system = @import("systems/terrain_system.zig");
@@ -43,34 +45,31 @@ const SpawnContext = struct {
     // player_pos: [3]f32,
 };
 
+var spider_prefab: flecs.Entity = undefined;
+
 fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
     _ = entity;
     const ctx = util.castOpaque(SpawnContext, data);
+    const is_a = flecs.Entity.init(ctx.flecs_world.world, flecs.c.Constants.EcsIsA);
+
     const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
     const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
     const player_pos = player_ent.get(fd.Position).?;
 
     var ent = ctx.flecs_world.newEntity();
+    ent.addPair(is_a, spider_prefab);
+
     var spawn_pos = [3]f32{
         player_pos.x + 10,
         player_pos.y + 2,
         player_pos.z + 10,
     };
-    ent.set(fd.Position{
+    ent.setOverride(fd.Position{
         .x = spawn_pos[0],
         .y = spawn_pos[1],
         .z = spawn_pos[2],
     });
-    ent.set(fd.EulerRotation{});
-    ent.set(fd.Scale.createScalar(1));
-    ent.set(fd.Transform{});
-    ent.set(fd.Forward{});
-    ent.set(fd.Dynamic{});
     ent.set(fd.Health{ .value = 100 });
-    ent.set(fd.CIStaticMesh{
-        .id = IdLocal.id64("spider_body"),
-        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-    });
 
     ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
 
@@ -125,6 +124,15 @@ pub fn run() void {
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state, std.heap.page_allocator);
+
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    zmesh.init(arena);
+    defer zmesh.deinit();
+
+    // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
+    spider_prefab = prefab_loader.loadPrefabFromGLTF("content/prefabs/spider/Spider.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -389,12 +397,6 @@ pub fn run() void {
     );
     defer camera_system.destroy(camera_sys);
 
-    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-    zmesh.init(arena);
-    defer zmesh.deinit();
-
     var patch_prop_sys = try patch_prop_system.create(
         IdLocal.initFormat("patch_prop_system_{}", .{0}),
         std.heap.page_allocator,
@@ -412,6 +414,15 @@ pub fn run() void {
     );
     defer procmesh_system.destroy(procmesh_sys);
 
+    var static_mesh_renderer_sys = try static_mesh_renderer_system.create(
+        IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
+        std.heap.page_allocator,
+        &gfx_state,
+        &flecs_world,
+        &input_frame_data,
+    );
+    defer static_mesh_renderer_system.destroy(static_mesh_renderer_sys);
+
     var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
         IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
         std.heap.page_allocator,
@@ -420,23 +431,6 @@ pub fn run() void {
         world_patch_mgr,
     );
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
-
-    // var terrain_sys = try terrain_system.create(
-    //     IdLocal.init("terrain_system"),
-    //     std.heap.page_allocator,
-    //     &gfx_state,
-    //     &flecs_world,
-    //     physics_sys.physics_world,
-    //     terrain_noise,
-    // );
-    // defer terrain_system.destroy(terrain_sys);
-
-    // var gui_sys = try gui_system.create(
-    //     std.heap.page_allocator,
-    //     &gfx_state,
-    //     main_window,
-    // );
-    // defer gui_system.destroy(&gui_sys);
 
     city_system.createEntities(city_sys);
 

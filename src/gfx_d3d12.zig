@@ -40,10 +40,17 @@ pub const TextureDesc = renderer_types.TextureDesc;
 // Mesh Pool
 const MeshPool = Pool(16, 16, Mesh, struct { obj: Mesh });
 pub const MeshHandle = MeshPool.Handle;
+const MeshHashMap = std.StringHashMap(MeshHandle);
 
 // Texture Pool
 const TexturePool = Pool(16, 16, Texture, struct { obj: Texture });
 pub const TextureHandle = TexturePool.Handle;
+const TextureHashMap = std.StringHashMap(TextureHandle);
+
+// Material Pool
+const MaterialPool = Pool(16, 16, fd.PBRMaterial, struct { obj: fd.PBRMaterial });
+pub const MaterialHandle = MaterialPool.Handle;
+const MaterialHashMap = std.StringHashMap(MaterialHandle);
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
@@ -223,12 +230,16 @@ pub const D3D12State = struct {
     brdf_integration_texture: TextureHandle,
 
     texture_pool: TexturePool,
+    texture_hash: TextureHashMap,
     small_textures_heap: *d3d12.IHeap,
     small_textures_heap_offset: u64,
 
     buffer_pool: BufferPool,
     pipelines: PipelineHashMap,
 
+    material_pool: MaterialPool,
+    material_hash: MaterialHashMap,
+    mesh_hash: MeshHashMap,
     mesh_pool: MeshPool,
     skybox_mesh: MeshHandle,
 
@@ -331,7 +342,14 @@ pub const D3D12State = struct {
         return aligned_size;
     }
 
-    pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
+    pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator, options: struct { hash: bool }) !TextureHandle {
+        if (options.hash) {
+            var existing_texture = self.texture_hash.get(path);
+            if (existing_texture) |texture_handle| {
+                return texture_handle;
+            }
+        }
+
         var should_end_frame = false;
         if (!self.gctx.is_cmdlist_opened) {
             self.gctx.beginFrame();
@@ -368,10 +386,19 @@ pub const D3D12State = struct {
             self.gctx.finishGpuCommands();
         }
 
-        return try self.texture_pool.add(.{ .obj = texture });
+        const texture_handle = try self.texture_pool.add(.{ .obj = texture });
+        if (options.hash) {
+            self.texture_hash.put(path, texture_handle) catch unreachable;
+        }
+        return texture_handle;
     }
 
     pub fn scheduleLoadTextureCubemap(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
+        var existing_texture = self.texture_hash.get(path);
+        if (existing_texture) |texture_handle| {
+            return texture_handle;
+        }
+
         var should_end_frame = false;
         if (!self.gctx.is_cmdlist_opened) {
             self.gctx.beginFrame();
@@ -420,7 +447,9 @@ pub const D3D12State = struct {
             self.gctx.finishGpuCommands();
         }
 
-        return try self.texture_pool.add(.{ .obj = texture });
+        const texture_handle = try self.texture_pool.add(.{ .obj = texture });
+        self.texture_hash.put(path, texture_handle) catch unreachable;
+        return texture_handle;
     }
 
     pub fn releaseAllTextures(self: *D3D12State) void {
@@ -442,6 +471,15 @@ pub const D3D12State = struct {
         }
     }
 
+    pub fn findTextureByName(self: *D3D12State, name: [:0]const u8) ?TextureHandle {
+        var texture = self.texture_hash.get(name);
+        if (texture) |texture_handle| {
+            return texture_handle;
+        }
+
+        return null;
+    }
+
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
         var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch blk: {
             std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
@@ -451,7 +489,50 @@ pub const D3D12State = struct {
         return texture;
     }
 
-    pub fn uploadMeshData(self: *D3D12State, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
+    pub fn findMaterialByName(self: *D3D12State, name: [:0]const u8) ?MaterialHandle {
+        var material = self.material_hash.get(name);
+        if (material) |material_handle| {
+            return material_handle;
+        }
+
+        return null;
+    }
+
+    pub inline fn lookUpMaterial(self: *D3D12State, handle: MaterialHandle) ?*fd.PBRMaterial {
+        var material: ?*fd.PBRMaterial = self.material_pool.getColumnPtr(handle, .obj) catch blk: {
+            std.log.debug("Failed to lookup material with handle: {any}", .{handle});
+            break :blk null;
+        };
+
+        return material;
+    }
+
+    pub fn storeMaterial(self: *D3D12State, name: [:0]const u8, material: fd.PBRMaterial) !MaterialHandle {
+        var existing_material = self.material_hash.get(name);
+        if (existing_material) |material_handle| {
+            return material_handle;
+        }
+
+        const material_handle = try self.material_pool.add(.{ .obj = material });
+        self.material_hash.put(name, material_handle) catch unreachable;
+        return material_handle;
+    }
+
+    pub fn findMeshByName(self: *D3D12State, name: [:0]const u8) ?MeshHandle {
+        var mesh = self.mesh_hash.get(name);
+        if (mesh) |mesh_handle| {
+            return mesh_handle;
+        }
+
+        return null;
+    }
+
+    pub fn uploadMeshData(self: *D3D12State, name: [:0]const u8, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
+        var existing_mesh = self.mesh_hash.get(name);
+        if (existing_mesh) |mesh_handle| {
+            return mesh_handle;
+        }
+
         // NOTE(gmodarelli): For now we create a vertex and an index buffer for every mesh, but in the future these
         // buffer will be backed by one big memory allocation/heap
         // Create a index buffer.
@@ -505,7 +586,12 @@ pub const D3D12State = struct {
         _ = self.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, indices);
 
         // 4. Store the mesh into the mesh pool
-        return try self.mesh_pool.add(.{ .obj = new_mesh });
+        const mesh_handle = try self.mesh_pool.add(.{ .obj = new_mesh });
+
+        // 5. Store the mapping between mesh name and handle
+        self.mesh_hash.put(name, mesh_handle) catch unreachable;
+
+        return mesh_handle;
     }
 
     pub fn lookupMesh(self: *D3D12State, handle: MeshHandle) ?Mesh {
@@ -679,7 +765,11 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var buffer_pool = BufferPool.init(allocator);
     var texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
+    var texture_hash = TextureHashMap.init(allocator);
+    var material_pool = MaterialPool.initMaxCapacity(allocator) catch unreachable;
+    var material_hash = MaterialHashMap.init(allocator);
     var mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
+    var mesh_hash = MeshHashMap.init(allocator);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -926,8 +1016,12 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
+        .texture_hash = texture_hash,
         .small_textures_heap = small_textures_heap,
         .small_textures_heap_offset = 0,
+        .material_pool = material_pool,
+        .material_hash = material_hash,
+        .mesh_hash = mesh_hash,
         .mesh_pool = mesh_pool,
         .skybox_mesh = undefined,
     };
@@ -940,7 +1034,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         defer meshes_vertices.deinit();
         const mesh = mesh_loader.loadObjMeshFromFile(allocator, "content/meshes/cube.obj", &meshes_indices, &meshes_vertices) catch unreachable;
 
-        d3d12_state.skybox_mesh = d3d12_state.uploadMeshData(mesh, meshes_vertices.items, meshes_indices.items) catch unreachable;
+        d3d12_state.skybox_mesh = d3d12_state.uploadMeshData("skybox", mesh, meshes_vertices.items, meshes_indices.items) catch unreachable;
     }
 
     // Radiance
@@ -991,7 +1085,11 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     self.buffer_pool.deinit(allocator, &self.gctx);
     self.texture_pool.deinit();
+    self.texture_hash.deinit();
+    self.material_pool.deinit();
+    self.material_hash.deinit();
     self.mesh_pool.deinit();
+    self.mesh_hash.deinit();
 
     _ = self.small_textures_heap.Release();
     self.small_textures_heap_offset = 0;

@@ -1,11 +1,154 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const zmesh = @import("zmesh");
+const zcgltf = zmesh.io.zcgltf;
 const zm = @import("zmath");
-
+const flecs = @import("flecs");
+const fd = @import("../flecs_data.zig");
+const gfx = @import("../gfx_d3d12.zig");
+const zwin32 = @import("zwin32");
+const d3d12 = zwin32.d3d12;
+const util = @import("../util.zig");
 const IndexType = @import("renderer_types.zig").IndexType;
 const Vertex = @import("renderer_types.zig").Vertex;
 const Mesh = @import("renderer_types.zig").Mesh;
+
+// TODO:
+// 0.
+// 1. prefab subfolders
+// 2. lowercase file names
+// 3.
+
+pub fn loadPrefabFromGLTF(
+    path: [:0]const u8,
+    world: *flecs.World,
+    gfxstate: *gfx.D3D12State,
+    allocator: std.mem.Allocator,
+) !flecs.Entity {
+    const data = try zmesh.io.parseAndLoadFile(path);
+    defer zmesh.io.freeData(data);
+
+    assert(data.scenes_count == 1);
+    const scene = &data.scenes.?[0];
+    assert(scene.nodes_count == 1);
+
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    var prefab = world.newPrefab(path);
+    prefab.setOverride(fd.Position.init(0, 0, 0));
+    prefab.setOverride(fd.EulerRotation{});
+    prefab.setOverride(fd.Scale.createScalar(1));
+    prefab.setOverride(fd.Transform{});
+    prefab.setOverride(fd.Forward{});
+    prefab.setOverride(fd.Dynamic{});
+    parseNode(scene.nodes.?[0], prefab, world, gfxstate, arena);
+
+    return prefab;
+}
+
+fn parseNode(node: *zcgltf.Node, parent_entity: flecs.Entity, world: *flecs.World, gfxstate: *gfx.D3D12State, arena: std.mem.Allocator) void {
+    // Set parent
+    var entity = world.newPrefab(node.name);
+    entity.addPair(flecs.c.Constants.EcsChildOf, parent_entity);
+    entity.setOverride(fd.Forward{});
+    entity.setOverride(fd.Dynamic{});
+    entity.setOverride(fd.Transform{});
+
+    // Set transform
+    var position = fd.Position.init(0, 0, 0);
+    var rotation = fd.EulerRotation{};
+    var scale = fd.Scale.createScalar(1);
+
+    if (node.has_rotation != 0) {
+        var euler = zm.quatToRollPitchYaw(node.rotation);
+        rotation.roll = euler[0];
+        rotation.pitch = euler[1];
+        rotation.yaw = euler[2];
+    }
+
+    if (node.has_translation != 0) {
+        position.x = node.translation[0];
+        position.y = node.translation[1];
+        position.z = node.translation[2];
+    }
+
+    if (node.has_scale != 0) {
+        scale.x = node.scale[0];
+        scale.y = node.scale[1];
+        scale.z = node.scale[2];
+    }
+    entity.setOverride(position);
+    entity.setOverride(rotation);
+    entity.setOverride(scale);
+
+    // Parse and assign mesh
+    if (node.mesh != null) {
+        var static_mesh_component: fd.StaticMeshComponent = undefined;
+
+        // TODO(gmodarelli): Cycle through all primitives
+        assert(node.mesh.?.primitives_count == 1);
+        const primitive = &node.mesh.?.primitives[0];
+
+        const mesh_name = util.asConstSentinelTerminated(node.mesh.?.name.?);
+
+        if (gfxstate.findMeshByName(mesh_name)) |mesh_handle| {
+            static_mesh_component.mesh_handle = mesh_handle;
+        } else {
+            var indices = std.ArrayList(IndexType).init(arena);
+            var vertices = std.ArrayList(Vertex).init(arena);
+            indices.deinit();
+            vertices.deinit();
+
+            var mesh = appendMeshPrimitive(primitive, &indices, &vertices, arena) catch unreachable;
+            static_mesh_component.mesh_handle = gfxstate.uploadMeshData(mesh_name, mesh, vertices.items, indices.items) catch unreachable;
+        }
+
+        if (primitive.material != null) {
+            const material = &primitive.material.?.*;
+            assert(material.has_pbr_metallic_roughness == 1);
+
+            const material_name = util.asConstSentinelTerminated(material.name.?);
+
+            if (gfxstate.findMaterialByName(material_name)) |material_handle| {
+                static_mesh_component.material_handle = material_handle;
+            } else {
+                var pbr_material = fd.PBRMaterial.init();
+
+                const base_color_texture = material.pbr_metallic_roughness.base_color_texture.texture.?.image.?.*;
+                const base_color_texture_path = util.asConstSentinelTerminated(base_color_texture.uri.?);
+                pbr_material.albedo = gfxstate.scheduleLoadTexture(base_color_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&base_color_texture_path)) }, arena, .{ .hash = true }) catch unreachable;
+
+                const metallic_roughness_texture = material.pbr_metallic_roughness.metallic_roughness_texture.texture.?.image.?.*;
+                const metallic_roughness_texture_path = util.asConstSentinelTerminated(metallic_roughness_texture.uri.?);
+                pbr_material.arm = gfxstate.scheduleLoadTexture(metallic_roughness_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&metallic_roughness_texture_path)) }, arena, .{ .hash = true }) catch unreachable;
+
+                const normal_texture = material.normal_texture.texture.?.image.?.*;
+                const normal_texture_path = util.asConstSentinelTerminated(normal_texture.uri.?);
+                pbr_material.normal = gfxstate.scheduleLoadTexture(normal_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&normal_texture_path)) }, arena, .{ .hash = true }) catch unreachable;
+
+                pbr_material.base_color = fd.ColorRGB.init(
+                    material.pbr_metallic_roughness.base_color_factor[0],
+                    material.pbr_metallic_roughness.base_color_factor[1],
+                    material.pbr_metallic_roughness.base_color_factor[2],
+                );
+
+                pbr_material.metallic = material.pbr_metallic_roughness.metallic_factor;
+                pbr_material.roughness = material.pbr_metallic_roughness.roughness_factor;
+
+                static_mesh_component.material_handle = gfxstate.storeMaterial(material_name, pbr_material) catch unreachable;
+            }
+        }
+
+        entity.setOverride(static_mesh_component);
+    }
+
+    var i: u32 = 0;
+    while (i < node.children_count) : (i += 1) {
+        parseNode(node.children.?[i], entity, world, gfxstate, arena);
+    }
+}
 
 pub fn loadMeshFromFile(
     allocator: std.mem.Allocator,
@@ -105,6 +248,179 @@ pub fn loadMeshFromFile(
 
     return mesh;
 }
+
+pub fn appendMeshPrimitive(
+    primitive: *zcgltf.Primitive,
+    meshes_indices: *std.ArrayList(IndexType),
+    meshes_vertices: *std.ArrayList(Vertex),
+    arena: std.mem.Allocator,
+) !Mesh {
+    const num_vertices: u32 = @as(u32, @intCast(primitive.attributes[0].data.count));
+    const num_indices: u32 = @as(u32, @intCast(primitive.indices.?.count));
+
+    var indices = std.ArrayList(IndexType).init(arena);
+    var positions = std.ArrayList([3]f32).init(arena);
+    var normals = std.ArrayList([3]f32).init(arena);
+    var tangents = std.ArrayList([4]f32).init(arena);
+    var uvs = std.ArrayList([2]f32).init(arena);
+    defer indices.deinit();
+    defer positions.deinit();
+    defer normals.deinit();
+    defer tangents.deinit();
+    defer uvs.deinit();
+
+    // Indices.
+    {
+        try indices.ensureTotalCapacity(indices.items.len + num_indices);
+
+        const accessor = primitive.indices.?;
+        const buffer_view = accessor.buffer_view.?;
+
+        assert(accessor.stride == buffer_view.stride or buffer_view.stride == 0);
+        assert(accessor.stride * accessor.count == buffer_view.size);
+        assert(buffer_view.buffer.data != null);
+
+        const data_addr = @as([*]const u8, @ptrCast(buffer_view.buffer.data)) +
+            accessor.offset + buffer_view.offset;
+
+        if (accessor.stride == 1) {
+            assert(accessor.component_type == .r_8u);
+            const src = @as([*]const u8, @ptrCast(data_addr));
+            var i: u32 = 0;
+            while (i < num_indices) : (i += 1) {
+                indices.appendAssumeCapacity(src[i]);
+            }
+        } else if (accessor.stride == 2) {
+            assert(accessor.component_type == .r_16u);
+            const src = @as([*]const u16, @ptrCast(@alignCast(data_addr)));
+            var i: u32 = 0;
+            while (i < num_indices) : (i += 1) {
+                indices.appendAssumeCapacity(src[i]);
+            }
+        } else if (accessor.stride == 4) {
+            assert(accessor.component_type == .r_32u);
+            const src = @as([*]const u32, @ptrCast(@alignCast(data_addr)));
+            var i: u32 = 0;
+            while (i < num_indices) : (i += 1) {
+                indices.appendAssumeCapacity(src[i]);
+            }
+        } else {
+            unreachable;
+        }
+    }
+
+    // Attributes.
+    {
+        const attributes = primitive.attributes[0..primitive.attributes_count];
+        for (attributes) |attrib| {
+            const accessor = attrib.data;
+            assert(accessor.component_type == .r_32f);
+
+            const buffer_view = accessor.buffer_view.?;
+            assert(buffer_view.buffer.data != null);
+
+            assert(accessor.stride == buffer_view.stride or buffer_view.stride == 0);
+            assert(accessor.stride * accessor.count == buffer_view.size);
+
+            const data_addr = @as([*]const u8, @ptrCast(buffer_view.buffer.data)) +
+                accessor.offset + buffer_view.offset;
+
+            if (attrib.type == .position) {
+                assert(accessor.type == .vec3);
+                const slice = @as([*]const [3]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                try positions.appendSlice(slice);
+            } else if (attrib.type == .normal) {
+                assert(accessor.type == .vec3);
+                const slice = @as([*]const [3]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                try normals.appendSlice(slice);
+            } else if (attrib.type == .texcoord) {
+                assert(accessor.type == .vec2);
+                const slice = @as([*]const [2]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                try uvs.appendSlice(slice);
+            } else if (attrib.type == .tangent) {
+                assert(accessor.type == .vec4);
+                const slice = @as([*]const [4]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                try tangents.appendSlice(slice);
+            }
+        }
+    }
+
+    // Post processing
+    // ===============
+    // 1. Convert to Left Hand coordinate to conform to DirectX
+    var i: u32 = 0;
+    while (i < positions.items.len) : (i += 1) {
+        positions.items[i][2] *= -1.0;
+    }
+    i = 0;
+    while (i < normals.items.len) : (i += 1) {
+        normals.items[i][2] *= -1.0;
+    }
+    i = 0;
+    while (i < tangents.items.len) : (i += 1) {
+        tangents.items[i][2] *= -1.0;
+    }
+    // 2. Flip the UV's V component
+    // i = 0;
+    // while (i < uvs.items.len) : (i += 1) {
+    //     uvs.items[i][1] *= -1.0;
+    // }
+    // 3. Convert mesh to clock-wise winding
+    i = 0;
+    while (i < indices.items.len) : (i += 3) {
+        std.mem.swap(u32, &indices.items[i + 1], &indices.items[i + 2]);
+    }
+
+    // TODO: glTF 2.0 files can specify a min/max pair for their attributes, so we could check there first
+    // instead of calculating the bounding box
+    // Calculate bounding box
+    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+
+    for (positions.items) |position| {
+        min[0] = @min(min[0], position[0]);
+        min[1] = @min(min[1], position[1]);
+        min[2] = @min(min[2], position[2]);
+
+        max[0] = @max(max[0], position[0]);
+        max[1] = @max(max[1], position[1]);
+        max[2] = @max(max[2], position[2]);
+    }
+
+    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
+    var mesh = Mesh{
+        .vertex_buffer = undefined,
+        .index_buffer = undefined,
+        .num_lods = 1,
+        .lods = undefined,
+        .bounding_box = .{
+            .min = min,
+            .max = max,
+        },
+    };
+
+    mesh.lods[0] = .{
+        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
+        .index_count = @as(u32, @intCast(indices.items.len)),
+        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
+        .vertex_count = @as(u32, @intCast(positions.items.len)),
+    };
+
+    try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
+    for (positions.items, 0..) |_, index| {
+        meshes_vertices.appendAssumeCapacity(.{
+            .position = positions.items[index],
+            .normal = normals.items[index],
+            .uv = uvs.items[index],
+            .tangent = tangents.items[index],
+            .color = [3]f32{ 1.0, 1.0, 1.0 },
+        });
+    }
+
+    meshes_indices.appendSlice(indices.items) catch unreachable;
+    return mesh;
+}
+
 
 pub fn loadObjMeshFromFile(
     allocator: std.mem.Allocator,
