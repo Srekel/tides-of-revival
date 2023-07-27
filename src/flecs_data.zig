@@ -10,11 +10,11 @@ const IdLocal = @import("variant.zig").IdLocal;
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
     var ecs_world = ecsu_world.world;
-    ecs.COMPONENT(ecs_world, NOCOMP);
+    ecs.TAG(ecs_world, NOCOMP);
+    ecs.TAG(ecs_world, LocalSpace);
+    ecs.TAG(ecs_world, WorldSpace);
     ecs.COMPONENT(ecs_world, ColorRGB);
     ecs.COMPONENT(ecs_world, ColorRGBRoughness);
-    ecs.COMPONENT(ecs_world, LocalSpace);
-    ecs.COMPONENT(ecs_world, WorldSpace);
     ecs.COMPONENT(ecs_world, Position);
     ecs.COMPONENT(ecs_world, Forward);
     ecs.COMPONENT(ecs_world, Rotation);
