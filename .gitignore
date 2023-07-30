@@ -9,6 +9,7 @@ content/audio/*
 content/patch
 content/textures
 content/meshes
+content/prefabs
 .svn
 design
 content/content.csv
