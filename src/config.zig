@@ -75,6 +75,7 @@ pub const flecs_world = IdLocal.init("flecs_world");
 pub const input_frame_data = IdLocal.init("input_frame_data");
 pub const physics_world = IdLocal.init("physics_world");
 pub const world_patch_mgr = IdLocal.init("world_patch_mgr");
+pub const prefab_manager = IdLocal.init("prefab_manager");
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
 // ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝

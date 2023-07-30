@@ -13,6 +13,7 @@ const util = @import("../util.zig");
 const config = @import("../config.zig");
 const input = @import("../input.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
+const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 
 const SystemState = struct {
     flecs_sys: flecs.EntityId,
@@ -20,14 +21,12 @@ const SystemState = struct {
     physics_world: *zphy.PhysicsSystem,
     flecs_world: *flecs.World,
     frame_data: *input.FrameData,
+    prefab_manager: *PrefabManager,
 
     comp_query_interactor: flecs.Query,
-    // TODO(gmodarelli): This is temporary (TM)
-    arrow_prefab: flecs.Entity,
-    is_a: flecs.Entity,
 };
 
-pub fn create(name: IdLocal, ctx: util.Context, arrow_prefab: flecs.Entity, is_a: flecs.Entity) !*SystemState {
+pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
     const flecs_world = ctx.get(config.flecs_world.hash, flecs.World);
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
@@ -48,9 +47,8 @@ pub fn create(name: IdLocal, ctx: util.Context, arrow_prefab: flecs.Entity, is_a
         .flecs_world = flecs_world,
         .physics_world = physics_world,
         .frame_data = frame_data,
+        .prefab_manager = ctx.get(config.prefab_manager.hash, PrefabManager),
         .comp_query_interactor = comp_query_interactor,
-        .arrow_prefab = arrow_prefab,
-        .is_a = is_a,
     };
 
     // flecs_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
@@ -80,6 +78,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
     const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
     const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
+    const arrow_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
 
@@ -88,8 +87,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         if (weapon_comp.chambered_projectile == 0) {
             // Load new projectile
-            var proj_ent = system.flecs_world.newEntity();
-            proj_ent.addPair(system.is_a, system.arrow_prefab);
+            var proj_ent = system.prefab_manager.instantiatePrefab(system.flecs_world, arrow_prefab);
             proj_ent.setOverride(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
             proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
             proj_ent.set(fd.Projectile{});

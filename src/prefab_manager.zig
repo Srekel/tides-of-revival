@@ -9,19 +9,22 @@ const gfx = @import("gfx_d3d12.zig");
 const mesh_loader = @import("renderer/mesh_loader.zig");
 const util = @import("util.zig");
 const rt = @import("renderer/renderer_types.zig");
+const IdLocal = @import("variant.zig").IdLocal;
 
 const assert = std.debug.assert;
 const d3d12 = zwin32.d3d12;
 const zcgltf = zmesh.io.zcgltf;
 
-const PrefabHashMap = std.StringHashMap(flecs.Entity);
+const PrefabHashMap = std.AutoHashMap(IdLocal, flecs.Entity);
 
 pub const PrefabManager = struct {
     prefab_hash_map: PrefabHashMap,
+    is_a: flecs.Entity,
 
-    pub fn init(allocator: std.mem.Allocator) PrefabManager {
+    pub fn init(world: *flecs.World, allocator: std.mem.Allocator) PrefabManager {
         return PrefabManager{
             .prefab_hash_map = PrefabHashMap.init(allocator),
+            .is_a = flecs.Entity.init(world.world, flecs.c.Constants.EcsIsA),
         };
     }
 
@@ -36,7 +39,8 @@ pub const PrefabManager = struct {
         gfxstate: *gfx.D3D12State,
         allocator: std.mem.Allocator
     ) !flecs.Entity {
-        var existing_prefab = self.prefab_hash_map.get(path);
+        const path_id = IdLocal.init(path);
+        var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
             return prefab;
         }
@@ -61,9 +65,25 @@ pub const PrefabManager = struct {
         prefab.setOverride(fd.Dynamic{});
         self.parseNode(scene.nodes.?[0], prefab, world, gfxstate, arena);
 
-        self.prefab_hash_map.put(path, prefab) catch unreachable;
+        self.prefab_hash_map.put(path_id, prefab) catch unreachable;
 
         return prefab;
+    }
+
+    pub fn getPrefabByPath(self: *@This(), path: [:0]const u8) ?flecs.Entity {
+        const path_id = IdLocal.init(path);
+        var existing_prefab = self.prefab_hash_map.get(path_id);
+        if (existing_prefab) |prefab| {
+            return prefab;
+        }
+
+        return null;
+    }
+
+    pub fn instantiatePrefab(self: @This(), world: *flecs.World, prefab: flecs.Entity) flecs.Entity {
+        const entity = world.newEntity();
+        entity.addPair(self.is_a, prefab);
+        return entity;
     }
 
     fn parseNode(

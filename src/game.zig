@@ -36,32 +36,27 @@ const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const static_mesh_renderer_system = @import("systems/static_mesh_renderer_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const timeline_system = @import("systems/timeline_system.zig");
-// const terrain_system = @import("systems/terrain_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
 const SpawnContext = struct {
     flecs_world: *flecs.World,
     physics_world: *zphy.PhysicsSystem,
+    prefab_manager: *pm.PrefabManager,
     // player_pos: [3]f32,
 };
 
 var spider_prefab: flecs.Entity = undefined;
 var bow_prefab: flecs.Entity = undefined;
-var arrow_prefab: flecs.Entity = undefined;
 
 fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
     _ = entity;
     const ctx = util.castOpaque(SpawnContext, data);
-    // TODO(gmodarelli): Maybe we need a function to instantiate a prefab
-    // TODO(gmodarelli): This should be in flecs_relations.zig
-    const is_a = flecs.Entity.init(ctx.flecs_world.world, flecs.c.Constants.EcsIsA);
 
     const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
     const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
     const player_pos = player_ent.get(fd.Position).?;
 
-    var ent = ctx.flecs_world.newEntity();
-    ent.addPair(is_a, spider_prefab);
+    var ent = ctx.prefab_manager.instantiatePrefab(ctx.flecs_world, spider_prefab);
 
     var spawn_pos = [3]f32{
         player_pos.x + 10,
@@ -129,7 +124,7 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state, std.heap.page_allocator);
 
-    var prefab_manager = pm.PrefabManager.init(std.heap.page_allocator);
+    var prefab_manager = pm.PrefabManager.init(&flecs_world, std.heap.page_allocator);
     defer prefab_manager.deinit();
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -141,7 +136,7 @@ pub fn run() void {
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
     spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/spider/spider.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    arrow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -355,6 +350,7 @@ pub fn run() void {
     system_context.put(config.flecs_world, &flecs_world);
     system_context.put(config.event_manager, &event_manager);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
+    system_context.put(config.prefab_manager, &prefab_manager);
 
     var physics_sys = try physics_system.create(
         IdLocal.init("physics_system"),
@@ -375,13 +371,9 @@ pub fn run() void {
     system_context.put(config.input_frame_data, &input_frame_data);
     system_context.putOpaque(config.physics_world, physics_sys.physics_world);
 
-    const is_a = flecs.Entity.init(flecs_world.world, flecs.c.Constants.EcsIsA);
     var interact_sys = try interact_system.create(
         IdLocal.init("interact_sys"),
         system_context,
-        // TODO(gmodarelli): These last 2 params are temporary
-        arrow_prefab,
-        is_a,
     );
     defer interact_system.destroy(interact_sys);
 
@@ -460,6 +452,7 @@ pub fn run() void {
     var tl_spider_spawn_ctx = SpawnContext{
         .flecs_world = &flecs_world,
         .physics_world = physics_sys.physics_world,
+        .prefab_manager = &prefab_manager,
         // .player_ent =
     };
 
@@ -578,8 +571,7 @@ pub fn run() void {
     // ██████╔╝╚██████╔╝╚███╔███╔╝
     // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = flecs_world.newEntity();
-    bow_ent.addPair(is_a, bow_prefab);
+    const bow_ent = prefab_manager.instantiatePrefab(&flecs_world, bow_prefab);
     bow_ent.setName("bow");
     bow_ent.setOverride(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     // TODO(gmodarelli): Store components in GLFT 2 from Blender
