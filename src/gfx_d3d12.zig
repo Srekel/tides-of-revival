@@ -40,12 +40,12 @@ pub const TextureDesc = renderer_types.TextureDesc;
 // Mesh Pool
 const MeshPool = Pool(16, 16, Mesh, struct { obj: Mesh });
 pub const MeshHandle = MeshPool.Handle;
-const MeshHashMap = std.StringHashMap(MeshHandle);
+const MeshHashMap = std.AutoHashMap(IdLocal, MeshHandle);
 
 // Texture Pool
 const TexturePool = Pool(16, 16, Texture, struct { obj: Texture });
 pub const TextureHandle = TexturePool.Handle;
-const TextureHashMap = std.StringHashMap(TextureHandle);
+const TextureHashMap = std.AutoHashMap(IdLocal, TextureHandle);
 
 // Material Pool
 const MaterialPool = Pool(16, 16, fd.PBRMaterial, struct { obj: fd.PBRMaterial });
@@ -342,12 +342,11 @@ pub const D3D12State = struct {
         return aligned_size;
     }
 
-    pub fn scheduleLoadTexture(self: *D3D12State, path: [:0]const u8, textureDesc: TextureDesc, arena: std.mem.Allocator, options: struct { hash: bool }) !TextureHandle {
-        if (options.hash) {
-            var existing_texture = self.texture_hash.get(path);
-            if (existing_texture) |texture_handle| {
-                return texture_handle;
-            }
+    pub fn scheduleLoadTexture(self: *D3D12State, path: [:0]const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
+        const path_id = IdLocal.init(path);
+        var existing_texture = self.texture_hash.get(path_id);
+        if (existing_texture) |texture_handle| {
+            return texture_handle;
         }
 
         var should_end_frame = false;
@@ -387,14 +386,13 @@ pub const D3D12State = struct {
         }
 
         const texture_handle = try self.texture_pool.add(.{ .obj = texture });
-        if (options.hash) {
-            self.texture_hash.put(path, texture_handle) catch unreachable;
-        }
+        self.texture_hash.put(path_id, texture_handle) catch unreachable;
         return texture_handle;
     }
 
     pub fn scheduleLoadTextureCubemap(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
-        var existing_texture = self.texture_hash.get(path);
+        const path_id = IdLocal.init(path);
+        var existing_texture = self.texture_hash.get(path_id);
         if (existing_texture) |texture_handle| {
             return texture_handle;
         }
@@ -448,7 +446,7 @@ pub const D3D12State = struct {
         }
 
         const texture_handle = try self.texture_pool.add(.{ .obj = texture });
-        self.texture_hash.put(path, texture_handle) catch unreachable;
+        self.texture_hash.put(path_id, texture_handle) catch unreachable;
         return texture_handle;
     }
 
@@ -472,7 +470,8 @@ pub const D3D12State = struct {
     }
 
     pub fn findTextureByName(self: *D3D12State, name: [:0]const u8) ?TextureHandle {
-        var texture = self.texture_hash.get(name);
+        const name_id = IdLocal.init(name);
+        var texture = self.texture_hash.get(name_id);
         if (texture) |texture_handle| {
             return texture_handle;
         }
@@ -519,7 +518,8 @@ pub const D3D12State = struct {
     }
 
     pub fn findMeshByName(self: *D3D12State, name: [:0]const u8) ?MeshHandle {
-        var mesh = self.mesh_hash.get(name);
+        const name_id = IdLocal.init(name);
+        var mesh = self.mesh_hash.get(name_id);
         if (mesh) |mesh_handle| {
             return mesh_handle;
         }
@@ -528,7 +528,8 @@ pub const D3D12State = struct {
     }
 
     pub fn uploadMeshData(self: *D3D12State, name: [:0]const u8, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
-        var existing_mesh = self.mesh_hash.get(name);
+        const name_id = IdLocal.init(name);
+        var existing_mesh = self.mesh_hash.get(name_id);
         if (existing_mesh) |mesh_handle| {
             return mesh_handle;
         }
@@ -589,7 +590,7 @@ pub const D3D12State = struct {
         const mesh_handle = try self.mesh_pool.add(.{ .obj = new_mesh });
 
         // 5. Store the mapping between mesh name and handle
-        // self.mesh_hash.put(name, mesh_handle) catch unreachable;
+        self.mesh_hash.put(name_id, mesh_handle) catch unreachable;
 
         return mesh_handle;
     }

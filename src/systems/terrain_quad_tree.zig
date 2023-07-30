@@ -545,7 +545,7 @@ fn loadTerrainLayer(
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
         path_u16[path_len] = 0;
 
-        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena, .{ .hash = false }) catch unreachable;
+        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena) catch unreachable;
     };
 
     const normal = blk: {
@@ -562,7 +562,7 @@ fn loadTerrainLayer(
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
         path_u16[path_len] = 0;
 
-        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena, .{ .hash = false }) catch unreachable;
+        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena) catch unreachable;
     };
 
     const arm = blk: {
@@ -579,7 +579,7 @@ fn loadTerrainLayer(
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
         path_u16[path_len] = 0;
 
-        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena, .{ .hash = false }) catch unreachable;
+        break :blk gfxstate.scheduleLoadTexture(path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&path_u16)) }, arena) catch unreachable;
     };
 
     return .{
