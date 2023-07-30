@@ -165,12 +165,13 @@ pub fn parseMeshPrimitive(
     };
 
     try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
+    const has_tangents = if (tangents.items.len == positions.items.len) true else false;
     for (positions.items, 0..) |_, index| {
         meshes_vertices.appendAssumeCapacity(.{
             .position = positions.items[index],
             .normal = normals.items[index],
             .uv = uvs.items[index],
-            .tangent = tangents.items[index],
+            .tangent = if (has_tangents) tangents.items[index] else [4]f32{0.0, 0.0, 1.0, 0.0},
             .color = [3]f32{ 1.0, 1.0, 1.0 },
         });
     }

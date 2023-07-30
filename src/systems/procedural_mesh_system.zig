@@ -229,16 +229,12 @@ fn initScene(
         appendShapeMesh("procedural_cylinder", allocator, gfxstate, IdLocal.init("cylinder"), mesh, meshes);
     }
 
-    appendObjMesh("arrow", allocator, gfxstate, IdLocal.init("arrow"), "content/meshes/arrow.obj", meshes) catch unreachable;
     appendObjMesh("big_house", allocator, gfxstate, IdLocal.init("big_house"), "content/meshes/big_house.obj", meshes) catch unreachable;
-    appendObjMesh("bow", allocator, gfxstate, IdLocal.init("bow"), "content/meshes/bow.obj", meshes) catch unreachable;
     appendObjMesh("long_house", allocator, gfxstate, IdLocal.init("long_house"), "content/meshes/long_house.obj", meshes) catch unreachable;
     appendObjMesh("medium_house", allocator, gfxstate, IdLocal.init("medium_house"), "content/meshes/medium_house.obj", meshes) catch unreachable;
     appendObjMesh("pine", allocator, gfxstate, IdLocal.init("pine"), "content/meshes/pine.obj", meshes) catch unreachable;
     appendObjMesh("small_house_fireplace", allocator, gfxstate, IdLocal.init("small_house_fireplace"), "content/meshes/small_house_fireplace.obj", meshes) catch unreachable;
     appendObjMesh("small_house", allocator, gfxstate, IdLocal.init("small_house"), "content/meshes/small_house.obj", meshes) catch unreachable;
-    appendObjMesh("spider_body", allocator, gfxstate, IdLocal.init("spider_body"), "content/meshes/spider_body.obj", meshes) catch unreachable;
-    appendObjMesh("spider_leg", allocator, gfxstate, IdLocal.init("spider_leg"), "content/meshes/spider_leg.obj", meshes) catch unreachable;
     appendObjMesh("unit_sphere_lp", allocator, gfxstate, IdLocal.init("unit_sphere_lp"), "content/meshes/unit_sphere_lp.obj", meshes) catch unreachable;
 }
 

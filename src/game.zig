@@ -46,10 +46,14 @@ const SpawnContext = struct {
 };
 
 var spider_prefab: flecs.Entity = undefined;
+var bow_prefab: flecs.Entity = undefined;
+var arrow_prefab: flecs.Entity = undefined;
 
 fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
     _ = entity;
     const ctx = util.castOpaque(SpawnContext, data);
+    // TODO(gmodarelli): Maybe we need a function to instantiate a prefab
+    // TODO(gmodarelli): This should be in flecs_relations.zig
     const is_a = flecs.Entity.init(ctx.flecs_world.world, flecs.c.Constants.EcsIsA);
 
     const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
@@ -135,7 +139,9 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/spider/spider.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/spider/spider.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    arrow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -369,9 +375,13 @@ pub fn run() void {
     system_context.put(config.input_frame_data, &input_frame_data);
     system_context.putOpaque(config.physics_world, physics_sys.physics_world);
 
+    const is_a = flecs.Entity.init(flecs_world.world, flecs.c.Constants.EcsIsA);
     var interact_sys = try interact_system.create(
         IdLocal.init("interact_sys"),
         system_context,
+        // TODO(gmodarelli): These last 2 params are temporary
+        arrow_prefab,
+        is_a,
     );
     defer interact_system.destroy(interact_sys);
 
@@ -569,18 +579,11 @@ pub fn run() void {
     // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
     const bow_ent = flecs_world.newEntity();
+    bow_ent.addPair(is_a, bow_prefab);
     bow_ent.setName("bow");
-    bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
-    bow_ent.set(fd.EulerRotation{});
-    bow_ent.set(fd.Scale.createScalar(1));
-    bow_ent.set(fd.Transform{});
-    bow_ent.set(fd.Forward{});
-    bow_ent.set(fd.Dynamic{});
+    bow_ent.setOverride(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
+    // TODO(gmodarelli): Store components in GLFT 2 from Blender
     bow_ent.set(fd.ProjectileWeapon{});
-    bow_ent.set(fd.CIStaticMesh{
-        .id = IdLocal.id64("bow"),
-        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-    });
 
     var proj_ent = flecs_world.newEntity();
     // proj_ent.setName("arrow2");
@@ -598,18 +601,18 @@ pub fn run() void {
     // proj_ent.childOf(bow_ent);
     // weapon_comp.chambered_projectile = proj_ent.id;
 
-    var spider_ent = flecs_world.newEntity();
-    // proj_ent.setName("arrow2");
-    spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
-    spider_ent.set(fd.EulerRotation{});
-    spider_ent.set(fd.Scale.createScalar(1));
-    spider_ent.set(fd.Transform{});
-    spider_ent.set(fd.Forward{});
-    spider_ent.set(fd.Dynamic{});
-    spider_ent.set(fd.CIStaticMesh{
-        .id = IdLocal.id64("spider_body"),
-        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-    });
+    // var spider_ent = flecs_world.newEntity();
+    // // proj_ent.setName("arrow2");
+    // spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
+    // spider_ent.set(fd.EulerRotation{});
+    // spider_ent.set(fd.Scale.createScalar(1));
+    // spider_ent.set(fd.Transform{});
+    // spider_ent.set(fd.Forward{});
+    // spider_ent.set(fd.Dynamic{});
+    // spider_ent.set(fd.CIStaticMesh{
+    //     .id = IdLocal.id64("spider_body"),
+    //     .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
+    // });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗

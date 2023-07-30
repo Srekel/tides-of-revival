@@ -22,9 +22,12 @@ const SystemState = struct {
     frame_data: *input.FrameData,
 
     comp_query_interactor: flecs.Query,
+    // TODO(gmodarelli): This is temporary (TM)
+    arrow_prefab: flecs.Entity,
+    is_a: flecs.Entity,
 };
 
-pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
+pub fn create(name: IdLocal, ctx: util.Context, arrow_prefab: flecs.Entity, is_a: flecs.Entity) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
     const flecs_world = ctx.get(config.flecs_world.hash, flecs.World);
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
@@ -46,6 +49,8 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .physics_world = physics_world,
         .frame_data = frame_data,
         .comp_query_interactor = comp_query_interactor,
+        .arrow_prefab = arrow_prefab,
+        .is_a = is_a,
     };
 
     // flecs_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
@@ -84,18 +89,10 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         if (weapon_comp.chambered_projectile == 0) {
             // Load new projectile
             var proj_ent = system.flecs_world.newEntity();
-            // proj_ent.setName("arrow");
-            proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
-            proj_ent.set(fd.EulerRotation{});
-            proj_ent.set(fd.Scale.createScalar(1));
+            proj_ent.addPair(system.is_a, system.arrow_prefab);
+            proj_ent.setOverride(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
             proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
-            proj_ent.set(fd.Forward{});
-            proj_ent.set(fd.Dynamic{});
             proj_ent.set(fd.Projectile{});
-            proj_ent.set(fd.CIStaticMesh{
-                .id = IdLocal.id64("arrow"),
-                .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-            });
             proj_ent.childOf(item_ent);
             weapon_comp.chambered_projectile = proj_ent.id;
             return;

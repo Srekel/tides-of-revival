@@ -342,7 +342,7 @@ pub const D3D12State = struct {
         return aligned_size;
     }
 
-    pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator, options: struct { hash: bool }) !TextureHandle {
+    pub fn scheduleLoadTexture(self: *D3D12State, path: [:0]const u8, textureDesc: TextureDesc, arena: std.mem.Allocator, options: struct { hash: bool }) !TextureHandle {
         if (options.hash) {
             var existing_texture = self.texture_hash.get(path);
             if (existing_texture) |texture_handle| {
@@ -589,7 +589,7 @@ pub const D3D12State = struct {
         const mesh_handle = try self.mesh_pool.add(.{ .obj = new_mesh });
 
         // 5. Store the mapping between mesh name and handle
-        self.mesh_hash.put(name, mesh_handle) catch unreachable;
+        // self.mesh_hash.put(name, mesh_handle) catch unreachable;
 
         return mesh_handle;
     }
