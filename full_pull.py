@@ -3,6 +3,9 @@ import sys
 import shutil
 import subprocess
 import sync_external
+import platform
+import filecmp
+
 from pathlib import Path
 
 
@@ -38,39 +41,72 @@ def task_sync_svn():
 
 def task_build_game():
     Path(os.path.join("zig-out", "bin", "content", "systems")).mkdir(parents=True, exist_ok=True)
-    os.system("zig build")
-
-
-def task_nuke_cache():
-    if os.path.isdir("zig-cache"):
-        shutil.rmtree("zig-cache")
-
-def task_nuke_old_world():
-    if os.path.isdir("zig-out\\bin\\content\\patch"):
-        shutil.rmtree("zig-out\\bin\\content\\patch")
-
-
-def task_generate_new_world():
-    os.system("zig-out\\bin\\TidesOfRevival.exe --offlinegen")
-
-
-def task_sync_world():
+    # os.system("zig build")
     subprocess.run(
         [
-            "robocopy",
-            os.path.join("content", "patch"),
-            os.path.join("zig-out", "bin", "content", "patch"),
-            "/MIR",
-            "/MT:4",
+            "zig",
+            "build",
         ],
         cwd=".",
         capture_output=False,
         text=True,
     )
 
+def task_nuke_cache():
+    if os.path.isdir("zig-cache"):
+        shutil.rmtree("zig-cache")
 
-def task_copy_new_world():
-    shutil.copytree("content\\patch", "zig-out\\bin\\content\\patch")
+
+def task_nuke_old_world():
+    path = os.path.join("zig-out", "bin", "content", "patch")
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+
+
+def task_generate_new_world():
+    path = os.path.join("zig-out", "bin", "TidesOfRevival.exe")
+    os.system(path + " --offlinegen")
+
+
+def task_sync_world():
+    if platform.system() == "Windows":
+        subprocess.run(
+            [
+                "robocopy",
+                os.path.join("content", "patch"),
+                os.path.join("zig-out", "bin", "content", "patch"),
+                "/MIR",
+                "/MT:4",
+            ],
+            cwd=".",
+            capture_output=False,
+            text=True,
+        )
+    else:
+        # https://stackoverflow.com/questions/22493492/compare-directories-delete-leftover-files-copy-new-ones
+        src = os.path.join("content", "patch")
+        dst = os.path.join("zig-out", "bin", "content", "patch")
+        for src_root, src_dirs, src_files in os.walk(src, topdown=True):
+            dst_root = os.path.join(dst, os.path.relpath(src_root, src))
+            dirs = filecmp.dircmp(src_root, dst_root)
+            for item in dirs.right_only:
+                print('Removing ' + item)
+                dst_path = os.path.join(dst_root, item)
+                if os.path.isdir(dst_path):
+                    shutil.rmtree(dst_path)
+                else:
+                    os.remove(dst_path)
+            for item in dirs.left_only:
+                print('Adding ' + item)
+                src_path = os.path.join(src_root, item)
+                if os.path.isdir(src_path):
+                    shutil.copytree(src_path, os.path.join(dst_root, item))
+                else:
+                    shutil.copy2(src_path, os.path.join(dst_root, item))
+
+
+# def task_copy_new_world():
+#     shutil.copytree("content\\patch", "zig-out\\bin\\content\\patch")
 
 
 build = "Ask"
