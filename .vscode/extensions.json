@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "ms-vscode.cpptools",
+        "ziglang.vscode-zig",
+        "streetsidesoftware.code-spell-checker",
+        "helixquar.asciidecorator",
+        "sleistner.vscode-fileutils",
+        "slevesque.vscode-3dviewer"
+    ]
+}
