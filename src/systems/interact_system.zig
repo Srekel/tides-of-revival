@@ -167,44 +167,49 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         }
     }
 
-    // // Arrows
-    // var builder_proj = ecsu.QueryBuilder.init(system.ecsu_world);
-    // _ = builder_proj
-    //     .with(fd.PhysicsBody)
-    //     .with(fd.Projectile);
+    // Arrows
+    var builder_proj = ecsu.QueryBuilder.init(system.ecsu_world);
+    _ = builder_proj
+        .with(fd.PhysicsBody)
+        .with(fd.Projectile);
 
-    // var filter = builder_proj.buildFilter();
-    // defer filter.deinit();
+    var filter = builder_proj.buildFilter();
+    defer filter.deinit();
 
-    // const body_interface = system.physics_world.getBodyInterfaceMut();
-    // var entity_iter_proj = filter.iterator(struct {
-    //     body: *fd.PhysicsBody,
-    //     proj: *fd.Projectile,
-    // });
-    // while (entity_iter_proj.next()) |comps| {
+    const body_interface = system.physics_world.getBodyInterfaceMut();
+    var entity_iter_proj = filter.iterator(struct {
+        body: *fd.PhysicsBody,
+        proj: *fd.Projectile,
+    });
+    const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
+    while (entity_iter_proj.next()) |comps| {
+        const velocity = body_interface.getLinearVelocity(comps.body.body_id);
+        const velocity_z = zm.loadArr3(velocity);
+        if (zm.length3(velocity_z)[0] < 0.01) {
+            continue;
+        }
+        const direction_z = zm.normalize3(velocity_z);
 
-    //     // if (comps.input.index == state.active_index) {
-    //     //     active = true;
-    //     // }
+        const right_z = zm.normalize3(zm.cross3(direction_z, up_world_z));
+        const up_local_z = zm.normalize3(zm.cross3(right_z, direction_z));
 
-    //     // comps.input.active = active;
-    //     // if (comps.cam) |cam| {
-    //     //     cam.active = active;
-    //     // }
+        // const body_transform = body_interface.getWorldTransform(comps.body.body_id);
+        // const up_local = zm.f32x4(
+        //     body_transform.rotation[3],
+        //     body_transform.rotation[4],
+        //     body_transform.rotation[5],
+        //     1.0,
+        // );
+        // _ = up_local;
 
-    //     const velocity = body_interface.getLinearVelocity(comps.body.body_id);
-    //     const velocity_z = zm.loadArr3(velocity);
-    //     const direction_z = zm.normalize3(velocity_z);
-    //     const rotation_from_vel_z = zm.quatFromAxisAngle(direction_z, 0);
-    //     _ = rotation_from_vel_z;
-    //     const rotation_base_z = zm.quatFromAxisAngle(zm.f32x4(0, 0, 1, 0), 0);
-    //     _ = rotation_base_z;
-    //     // zm.
+        const look_to_z = zm.lookToRh(zm.f32x4(0, 0, 0, 0), direction_z, up_local_z);
+        const look_to_jolt_z = zm.transpose(look_to_z);
+        const rot_z = zm.matToQuat(look_to_jolt_z);
+        var rot: [4]f32 = undefined;
+        zm.storeArr4(&rot, rot_z);
 
-    //     // body_interface.setRotation(comps.body.body_id, in_rotation: [4]Real, in_activation_type: Activation)
-    //     var active = false;
-    //     _ = active;
-    // }
+        body_interface.setRotation(comps.body.body_id, rot, .dont_activate);
+    }
 }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
