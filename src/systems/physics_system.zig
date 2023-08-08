@@ -246,10 +246,15 @@ pub fn destroy(system: *SystemState) void {
     system.allocator.destroy(system);
 }
 
+const physics_skip_frame_rate = 1;
+var physics_skip_frame_counter: u32 = 1;
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // system.physics_world.optimizeBroadPhase();
-    _ = system.physics_world.update(iter.iter.delta_time, .{}) catch unreachable;
+    physics_skip_frame_counter += 1;
+    if (physics_skip_frame_counter % physics_skip_frame_rate == 0) {
+        _ = system.physics_world.update(iter.iter.delta_time, .{}) catch unreachable;
+    }
     updateCollisions(system);
     updateBodies(system);
     updateLoaders(system);
@@ -276,6 +281,9 @@ fn updateBodies(system: *SystemState) void {
         // transform: *fd.Transform,
     });
 
+    const handedness_offset = std.math.pi;
+    const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
+    const jolt_rot_z = zm.quatFromAxisAngle(up_world_z, handedness_offset);
     const body_interface = system.physics_world.getBodyInterfaceMut();
     while (entity_iter.next()) |comps| {
         var body_comp = comps.body;
@@ -290,8 +298,9 @@ fn updateBodies(system: *SystemState) void {
         comps.pos.elems().* = body_pos;
 
         // Rot
-        const body_rot = body_interface.getRotation(body_id);
-        const body_rot_z = zm.loadArr4(body_rot);
+        const body_rot_jolt = body_interface.getRotation(body_id);
+        const body_rot_jolt_z = zm.loadArr4(body_rot_jolt);
+        const body_rot_z = zm.qmul(jolt_rot_z, body_rot_jolt_z);
         const body_rot_rpy = zm.quatToRollPitchYaw([_]f32{ body_rot_z[0], body_rot_z[1], body_rot_z[2], body_rot_z[3] });
 
         comps.rot.roll = body_rot_rpy[2];

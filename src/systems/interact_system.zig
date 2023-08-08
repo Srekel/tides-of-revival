@@ -122,6 +122,10 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             const proj_transform = proj_ent.get(fd.Transform).?;
             const proj_pos_world = proj_transform.getPos00();
             const proj_rot_world = proj_transform.getRotQuaternion();
+            const proj_rot_world_flip_z = zm.quatFromAxisAngle(zm.f32x4(0.0, 1.0, 0.0, 0.0), std.math.pi);
+            const proj_rot_world_z = zm.qmul(proj_rot_world_flip_z, zm.loadArr4(proj_rot_world));
+            var proj_rot_world_physics: [4]f32 = undefined;
+            zm.storeArr4(&proj_rot_world_physics, proj_rot_world_z);
 
             const proj_shape_settings = zphy.BoxShapeSettings.create(.{ 0.15, 0.15, 1.0 }) catch unreachable;
             defer proj_shape_settings.release();
@@ -131,7 +135,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
             const proj_body_id = body_interface.createAndAddBody(.{
                 .position = .{ proj_pos_world[0], proj_pos_world[1], proj_pos_world[2], 0 },
-                .rotation = proj_rot_world,
+                .rotation = proj_rot_world_physics,
                 .shape = proj_shape,
                 .motion_type = .dynamic,
                 .object_layer = config.object_layers.moving,

@@ -61,6 +61,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
     if (result.has_hit) {
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
 
+        const handedness_offset = std.math.pi;
         const up_z = zm.f32x4(0, 1, 0, 0);
 
         const body_lock_interface = physics_world.getBodyLockInterfaceNoLock();
@@ -89,8 +90,8 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
         const vec_to_player = player_pos_z - self_pos_z;
         if (zm.length3(vec_to_player)[0] > 1) {
             const dir_to_player = zm.normalize3(vec_to_player);
-            const angle_to_player = std.math.atan2(f32, -dir_to_player[2], dir_to_player[0]);
-            const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player + std.math.pi * 0.5);
+            const angle_to_player = std.math.atan2(f32, dir_to_player[0], dir_to_player[2]);
+            const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player + handedness_offset);
 
             const rot_wanted_z = zm.qmul(rot_towards_player_z, rot_slope_z);
             const rot_curr_z = zm.loadArr4(body_self.getRotation());
