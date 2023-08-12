@@ -544,6 +544,8 @@ pub const CompCombatant = struct {
 };
 
 pub const EnvironmentInfo = struct {
+    paused: bool,
+    time_multiplier: f32 = 1.0,
     world_time: f32,
     time_of_day_percent: f32,
     sun_height: f32,

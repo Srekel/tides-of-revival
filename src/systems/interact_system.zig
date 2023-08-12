@@ -156,6 +156,8 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             body_interface.setLinearVelocity(proj_body_id, velocity);
         } else if (wielded_use_primary_held) {
             // Pull string
+            const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+            environment_info.time_multiplier = 0.25;
             var proj_pos = ecs.get_mut(system.ecsu_world.world, proj_ent.id, fd.Position).?;
 
             proj_pos.z = zm.lerpV(proj_pos.z, -0.8, 0.01);

@@ -676,6 +676,7 @@ pub fn run() void {
     // // ╚═╝     ╚══════╝╚══════╝ ╚═════╝╚══════╝
 
     ecsu_world.setSingleton(fd.EnvironmentInfo{
+        .paused = false,
         .time_of_day_percent = 0,
         .sun_height = 0,
         .world_time = 0,
@@ -708,13 +709,15 @@ pub fn run() void {
 
 fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
-    const dt: f32 = @floatCast(stats.delta_time);
+    const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const dt_actual: f32 = @floatCast(stats.delta_time);
+    const dt_game = dt_actual * environment_info.time_multiplier;
+    environment_info.time_multiplier = 1;
 
     const flecs_stats = ecs.get_world_info(ecsu_world.world);
     {
         const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
         const world_time = flecs_stats.*.world_time_total;
-        const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
         const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
@@ -723,7 +726,7 @@ fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
 
     gfx.beginFrame(gfx_state);
 
-    ecsu_world.progress(dt);
+    ecsu_world.progress(dt_game);
 
     const camera_comps = getActiveCamera(ecsu_world);
     if (camera_comps) |comps| {
