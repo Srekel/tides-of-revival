@@ -59,7 +59,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
     );
 
     if (result.has_hit) {
-        pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+        pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction + 0.1;
 
         const handedness_offset = std.math.pi;
         const up_z = zm.f32x4(0, 1, 0, 0);
