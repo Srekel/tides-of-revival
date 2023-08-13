@@ -183,6 +183,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         body: *fd.PhysicsBody,
         proj: *fd.Projectile,
     });
+
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
     while (entity_iter_proj.next()) |comps| {
         const velocity = body_interface.getLinearVelocity(comps.body.body_id);
@@ -194,15 +195,6 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         const right_z = zm.normalize3(zm.cross3(direction_z, up_world_z));
         const up_local_z = zm.normalize3(zm.cross3(right_z, direction_z));
-
-        // const body_transform = body_interface.getWorldTransform(comps.body.body_id);
-        // const up_local = zm.f32x4(
-        //     body_transform.rotation[3],
-        //     body_transform.rotation[4],
-        //     body_transform.rotation[5],
-        //     1.0,
-        // );
-        // _ = up_local;
 
         const look_to_z = zm.lookToRh(zm.f32x4(0, 0, 0, 0), direction_z, up_local_z);
         const look_to_jolt_z = zm.transpose(look_to_z);
@@ -250,6 +242,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
         if (ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Projectile))) {
             // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
+            const pos = body_interface.getCenterOfMassPosition(contact.body_id1);
+            const velocity = body_interface.getLinearVelocity(contact.body_id1);
             body_interface.removeAndDestroyBody(contact.body_id1);
             ecs.remove(system.ecsu_world.world, ent1, fd.PhysicsBody);
             removed_entities.append(ent1) catch unreachable;
@@ -259,9 +253,22 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 if (health2.value > 0) {
                     health2.value -= 50;
                     if (health2.value <= 0) {
-                        body_interface.setMotionType(contact.body_id2, .dynamic, .dont_activate);
+                        body_interface.setMotionType(contact.body_id2, .dynamic, .activate);
+                        body_interface.addImpulseAtPosition(
+                            contact.body_id2,
+                            .{
+                                velocity[0] * 100,
+                                velocity[1] * 0,
+                                velocity[2] * 100,
+                            },
+                            pos,
+                        );
                         ecs.remove(system.ecsu_world.world, ent2, fd.FSM);
                         removed_entities.append(ent2) catch unreachable;
+                        body_interface.addImpulse(
+                            contact.body_id2,
+                            .{ 0, 500, 0 },
+                        );
                     }
                     // std.debug.print("lol2 {any}\n", .{ent2.id});
                 }
@@ -270,6 +277,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
         if (contact.ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Projectile))) {
             // std.debug.print("proj2 {any} body:{any}\n", .{contact.ent2, contact.body_id2});
+            const pos = body_interface.getCenterOfMassPosition(contact.body_id2);
+            const velocity = body_interface.getLinearVelocity(contact.body_id2);
             body_interface.removeAndDestroyBody(contact.body_id2);
             ecs.remove(system.ecsu_world.world, ent2, fd.PhysicsBody);
             removed_entities.append(ent2) catch unreachable;
@@ -279,9 +288,22 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 if (health1.value > 0) {
                     health1.value -= 50;
                     if (health1.value <= 0) {
-                        body_interface.setMotionType(contact.body_id1, .dynamic, .dont_activate);
+                        body_interface.setMotionType(contact.body_id1, .dynamic, .activate);
+                        body_interface.addImpulseAtPosition(
+                            contact.body_id1,
+                            .{
+                                velocity[0] * 100,
+                                velocity[1] * 0,
+                                velocity[2] * 100,
+                            },
+                            pos,
+                        );
                         ecs.remove(system.ecsu_world.world, ent1, fd.FSM);
                         removed_entities.append(ent1) catch unreachable;
+                        body_interface.addImpulse(
+                            contact.body_id1,
+                            .{ 0, 500, 0 },
+                        );
                     }
                     // std.debug.print("lol1 {any}\n", .{health1.value});
                 }

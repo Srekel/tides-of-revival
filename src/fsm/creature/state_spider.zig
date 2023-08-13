@@ -149,6 +149,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
     const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
+    const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
     while (entity_iter.next()) |comps| {
         if (entity_iter.entity() == player_ent) {
@@ -157,8 +158,11 @@ fn update(ctx: fsm.StateFuncContext) void {
         }
         const pos_before = comps.pos.*;
         _ = pos_before;
-        updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, player_pos);
-        updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos);
+
+        if (body_interface.getMotionType(comps.body.body_id) == .kinematic) {
+            updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, player_pos);
+            updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos);
+        }
     }
 }
 
