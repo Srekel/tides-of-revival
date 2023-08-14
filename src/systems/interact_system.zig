@@ -224,6 +224,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
     const arena = arena_state.allocator();
     var removed_entities = std.ArrayList(ecs.entity_t).initCapacity(arena, 32) catch unreachable;
 
+    // This is in dire need of refactoring...
     for (frame_collisions_data.contacts) |contact| {
         if (!body_interface.isAdded(contact.body_id2)) {
             continue;
@@ -249,6 +250,13 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             removed_entities.append(ent1) catch unreachable;
 
             if (ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Health))) {
+                var pos_target = ecs.get(system.ecsu_world.world, ent2, fd.Position).?;
+                var pos_proj = ecs.get_mut(system.ecsu_world.world, ent1, fd.Position).?;
+                pos_proj.x -= pos_target.x;
+                pos_proj.y -= pos_target.y;
+                pos_proj.z -= pos_target.z;
+                ecs.add_id(system.ecsu_world.world, ent1, system.ecsu_world.pair(ecs.ChildOf, ent2));
+
                 var health2 = ecs.get_mut(system.ecsu_world.world, ent2, fd.Health).?;
                 if (health2.value > 0) {
                     health2.value -= 50;
@@ -284,6 +292,13 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             removed_entities.append(ent2) catch unreachable;
 
             if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Health))) {
+                var pos_target = ecs.get(system.ecsu_world.world, ent1, fd.Position).?;
+                var pos_proj = ecs.get_mut(system.ecsu_world.world, ent2, fd.Position).?;
+                pos_proj.x -= pos_target.x;
+                pos_proj.y -= pos_target.y;
+                pos_proj.z -= pos_target.z;
+                ecs.add_id(system.ecsu_world.world, ent2, system.ecsu_world.pair(ecs.ChildOf, ent1));
+
                 var health1 = ecs.get_mut(system.ecsu_world.world, ent1, fd.Health).?;
                 if (health1.value > 0) {
                     health1.value -= 50;
