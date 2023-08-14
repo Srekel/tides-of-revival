@@ -273,6 +273,9 @@ pub const Velocity = struct {
     x: f32 = 0,
     y: f32 = 0,
     z: f32 = 0,
+    pub fn elems(self: *Velocity) *[3]f32 {
+        return @as(*[3]f32, @ptrCast(&self.x));
+    }
 };
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗

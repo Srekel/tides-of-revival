@@ -37,6 +37,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.
     _ = query_builder_transform
         .with(fd.Transform)
         .optional(fd.Forward)
+        .optional(fd.Velocity)
         .withReadonly(fd.Position)
         .withReadonly(fd.EulerRotation)
         .withReadonly(fd.Scale)
@@ -91,21 +92,25 @@ pub fn destroy(state: *SystemState) void {
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateCameraSwitch(state);
-    updateTransformHierarchy(state);
+    updateTransformHierarchy(state, iter.iter.delta_time);
     updateCameraMatrices(state);
     updateCameraFrustum(state);
 }
 
-fn updateTransformHierarchy(state: *SystemState) void {
+fn updateTransformHierarchy(state: *SystemState, dt: f32) void {
     var entity_iter_transform = state.query_transform.iterator(struct {
         transform: *fd.Transform,
         fwd: ?*fd.Forward,
+        vel: ?*fd.Velocity,
         pos: *const fd.Position,
         rot: *const fd.EulerRotation,
         scale: *const fd.Scale,
         dynamic: *const fd.Dynamic,
         parent_transform: ?*const fd.Transform,
     });
+
+    const is_actual_frame = dt > 0.00001;
+    const dt4: zm.F32x4 = @splat(dt);
 
     while (entity_iter_transform.next()) |comps| {
         const z_scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
@@ -127,6 +132,14 @@ fn updateTransformHierarchy(state: *SystemState) void {
         if (comps.fwd) |fwd| {
             const z_fwd = zm.util.getAxisZ(z_world_matrix);
             zm.storeArr3(fwd.*.elems(), z_fwd);
+        }
+
+        if (is_actual_frame) {
+            if (comps.vel) |vel| {
+                const pos_prev = zm.loadArr3(comps.transform.getPos00());
+                const pos_curr = zm.util.getTranslationVec(z_world_matrix);
+                zm.storeArr3(vel.elems(), (pos_curr - pos_prev) / dt4);
+            }
         }
         zm.storeMat43(&comps.transform.matrix, z_world_matrix);
     }
