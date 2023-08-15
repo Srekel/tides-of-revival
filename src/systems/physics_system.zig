@@ -173,7 +173,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     var query_builder_body = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_body.with(fd.PhysicsBody)
         .with(fd.Position)
-        .with(fd.EulerRotation);
+        .with(fd.Rotation);
     // .with(fd.Transform);
     const comp_query_body = query_builder_body.buildQuery();
 
@@ -277,7 +277,7 @@ fn updateBodies(system: *SystemState) void {
     var entity_iter = system.comp_query_body.iterator(struct {
         body: *fd.PhysicsBody,
         pos: *fd.Position,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
         // transform: *fd.Transform,
     });
 
@@ -301,11 +301,7 @@ fn updateBodies(system: *SystemState) void {
         const body_rot_jolt = body_interface.getRotation(body_id);
         const body_rot_jolt_z = zm.loadArr4(body_rot_jolt);
         const body_rot_z = zm.qmul(jolt_rot_z, body_rot_jolt_z);
-        const body_rot_rpy = zm.quatToRollPitchYaw([_]f32{ body_rot_z[0], body_rot_z[1], body_rot_z[2], body_rot_z[3] });
-
-        comps.rot.roll = body_rot_rpy[2];
-        comps.rot.pitch = body_rot_rpy[0];
-        comps.rot.yaw = body_rot_rpy[1];
+        comps.rot.fromZM(body_rot_z);
     }
 }
 
@@ -550,7 +546,7 @@ fn updatePatches(system: *SystemState) void {
 
             //             const post_ent = system.ecsu_world.newEntity();
             //             post_ent.set(post_pos2);
-            //             post_ent.set(fd.EulerRotation{});
+            //             post_ent.set(fd.Rotation{});
             //             post_ent.set(fd.Scale.create(0.2, 0.2, 0.2));
             //             post_ent.set(post_transform);
             //             post_ent.set(fd.CIShapeMeshInstance{

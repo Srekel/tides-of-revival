@@ -59,11 +59,11 @@ pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y
 // pub fn applyTransformRecursively(
 //     ent: flecs.Entity,
 //     parent_pos: fd.WorldPosition,
-//     parent_rot: fd.EulerRotation,
+//     parent_rot: fd.Rotation,
 //     ecsu_world: ecs.world_t,
 // ) void {
 //     if (ent.getMut(fd.Position)) |pos| {
-//         if (ent.getMut(fd.EulerRotation)) |rot| {
+//         if (ent.getMut(fd.Rotation)) |rot| {
 //             pos.x += parent_pos.x;
 //             pos.y += parent_pos.y;
 //             // Calculate actual position

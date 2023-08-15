@@ -112,15 +112,27 @@ pub const Forward = struct {
 };
 
 pub const Rotation = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-    w: f32,
+    x: f32 = 0,
+    y: f32 = 0,
+    z: f32 = 0,
+    w: f32 = 1,
+    pub fn initFromEuler(pitch: f32, yaw: f32, roll: f32) Rotation {
+        const rot_z = zm.quatFromRollPitchYaw(pitch, yaw, roll);
+        var rot = Rotation{};
+        zm.storeArr4(rot.elems(), rot_z);
+        return rot;
+    }
     pub fn elems(self: *Rotation) *[4]f32 {
         return @as(*[4]f32, @ptrCast(&self.x));
     }
     pub fn elemsConst(self: *const Rotation) *const [4]f32 {
         return @as(*const [4]f32, @ptrCast(&self.x));
+    }
+    pub fn asZM(self: *const Rotation) zm.Quat {
+        return zm.loadArr4(self.elemsConst().*);
+    }
+    pub fn fromZM(self: *Rotation, rot_z: zm.Quat) void {
+        zm.storeArr4(self.elems(), rot_z);
     }
 };
 

@@ -1,7 +1,15 @@
+const zm = @import("zmath");
 const zphy = @import("zphysics");
 const IdLocal = @import("variant.zig").IdLocal;
 
 pub const events = @import("events.zig");
+
+pub const UP_Z = zm.f32x4(0, 1, 0, 1);
+pub const FORWARD_Z = zm.f32x4(0, 0, 1, 1);
+pub const RIGHT_Z = zm.f32x4(1, 0, 0, 1);
+pub const PITCH_Z = RIGHT_Z;
+pub const YAW_Z = UP_Z;
+pub const ROLL_Z = FORWARD_Z;
 
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗
 // ╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔══██╗██║████╗  ██║

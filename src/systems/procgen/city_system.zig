@@ -293,7 +293,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         var caravan_ent = state.ecsu_world.newEntity();
     //         caravan_ent.set(fd.Transform{});
     //         caravan_ent.set(pos.*);
-    //         caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
+    //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
     //         caravan_ent.set(fd.Dynamic{});
     //         caravan_ent.set(fd.CIShapeMeshInstance{
@@ -348,7 +348,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         var caravan_ent = state.ecsu_world.newEntity();
     //         caravan_ent.set(fd.Transform.init(pos.x, pos.y, pos.z));
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
-    //         caravan_ent.set(fd.EulerRotation.init(0, 0, 0));
+    //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
     //         caravan_ent.set(fd.Dynamic{});
     //         caravan_ent.set(fd.CIShapeMeshInstance{
     //             .id = IdLocal.id64("cylinder"),

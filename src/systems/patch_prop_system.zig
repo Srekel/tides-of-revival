@@ -217,11 +217,11 @@ fn updatePatches(system: *SystemState) void {
             for (data) |prop| {
                 const prop_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
                 const prop_scale: f32 = 1.0 + rand.float(f32) * 0.2;
-                const prop_rot = fd.EulerRotation.init(0, prop.rot + std.math.pi * 0.5, 0);
+                const prop_rot = fd.Rotation.initFromEuler(0, prop.rot + std.math.pi * 0.5, 0);
 
                 var prop_transform: fd.Transform = undefined;
                 const z_prop_scale_matrix = zm.scaling(prop_scale, prop_scale, prop_scale);
-                const z_prop_rot_matrix = zm.matFromRollPitchYaw(prop_rot.pitch, prop_rot.yaw, prop_rot.roll);
+                const z_prop_rot_matrix = zm.matFromQuat(prop_rot.asZM());
                 const z_prop_translate_matrix = zm.translation(prop_pos.x, prop_pos.y, prop_pos.z);
                 const z_prop_sr_matrix = zm.mul(z_prop_scale_matrix, z_prop_rot_matrix);
                 const z_prop_srt_matrix = zm.mul(z_prop_sr_matrix, z_prop_translate_matrix);

@@ -12,11 +12,12 @@ const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 
-fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void {
-    const pitch = input_state.get(config.input_look_pitch);
-    rot.pitch += 0.0025 * pitch.number;
-    rot.pitch = @min(rot.pitch, 0.48 * math.pi);
-    rot.pitch = @max(rot.pitch, -0.48 * math.pi);
+fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
+    const movement_pitch = input_state.get(config.input_look_pitch).number;
+    const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
+    const rot_in = rot.asZM();
+    const rot_new = zm.qmul(rot_in, rot_pitch);
+    rot.fromZM(rot_new);
 }
 
 fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData) void {
@@ -48,7 +49,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
 
         const post_ent = ecsu_world.newEntity();
         post_ent.set(post_pos);
-        post_ent.set(fd.EulerRotation{});
+        post_ent.set(fd.Rotation{});
         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
         post_ent.set(post_transform);
         post_ent.set(fd.CIShapeMeshInstance{
@@ -94,7 +95,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         transform: *fd.Transform,
         // pos: *fd.Position,
         // fwd: *fd.Forward,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
     });
 
     // std.debug.print("cam.active {any}a\n", .{cam.active});
@@ -128,7 +129,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.Transform)
     // .with(fd.Position)
     // .with(fd.Forward)
-        .with(fd.EulerRotation);
+        .with(fd.Rotation);
 
     var query = query_builder.buildQuery();
     var self = ctx.allocator.create(StateCameraFPS) catch unreachable;

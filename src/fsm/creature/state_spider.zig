@@ -30,7 +30,7 @@ pub const NonMovingBroadPhaseLayerFilter = extern struct {
     }
 };
 
-fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, player_pos: *const fd.Position) void {
+fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, player_pos: *const fd.Position) void {
     _ = fwd;
     _ = rot;
     const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
@@ -140,7 +140,7 @@ fn update(ctx: fsm.StateFuncContext) void {
     const self = Util.castBytes(StateSpider, ctx.state.self);
     var entity_iter = self.query.iterator(struct {
         pos: *fd.Position,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
         fwd: *fd.Forward,
         health: *fd.Health,
         body: *fd.PhysicsBody,
@@ -170,7 +170,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
     var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Position)
-        .with(fd.EulerRotation)
+        .with(fd.Rotation)
         .with(fd.Forward)
         .with(fd.Health)
         .with(fd.PhysicsBody)

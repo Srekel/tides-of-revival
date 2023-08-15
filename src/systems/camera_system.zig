@@ -39,7 +39,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.
         .optional(fd.Forward)
         .optional(fd.Velocity)
         .withReadonly(fd.Position)
-        .withReadonly(fd.EulerRotation)
+        .withReadonly(fd.Rotation)
         .withReadonly(fd.Scale)
         .withReadonly(fd.Dynamic);
 
@@ -103,7 +103,7 @@ fn updateTransformHierarchy(state: *SystemState, dt: f32) void {
         fwd: ?*fd.Forward,
         vel: ?*fd.Velocity,
         pos: *const fd.Position,
-        rot: *const fd.EulerRotation,
+        rot: *const fd.Rotation,
         scale: *const fd.Scale,
         dynamic: *const fd.Dynamic,
         parent_transform: ?*const fd.Transform,
@@ -114,7 +114,7 @@ fn updateTransformHierarchy(state: *SystemState, dt: f32) void {
 
     while (entity_iter_transform.next()) |comps| {
         const z_scale_matrix = zm.scaling(comps.scale.x, comps.scale.y, comps.scale.z);
-        const z_rot_matrix = zm.matFromRollPitchYaw(comps.rot.pitch, comps.rot.yaw, comps.rot.roll);
+        const z_rot_matrix = zm.matFromQuat(comps.rot.asZM());
         const z_translate_matrix = zm.translation(comps.pos.x, comps.pos.y, comps.pos.z);
         const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
         const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);

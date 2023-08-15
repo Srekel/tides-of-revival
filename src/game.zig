@@ -61,7 +61,7 @@ fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
         .y = spawn_pos[1],
         .z = spawn_pos[2],
     });
-    ent.set(fd.EulerRotation{});
+    ent.set(fd.Rotation{});
     ent.set(fd.Scale.createScalar(1));
     ent.set(fd.Transform{});
     ent.set(fd.Forward{});
@@ -539,7 +539,7 @@ pub fn run() void {
     const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    debug_camera_ent.set(fd.EulerRotation{});
+    debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
     debug_camera_ent.set(fd.Dynamic{});
@@ -567,7 +567,7 @@ pub fn run() void {
     const bow_ent = ecsu_world.newEntity();
     bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
-    bow_ent.set(fd.EulerRotation{});
+    bow_ent.set(fd.Rotation{});
     bow_ent.set(fd.Scale.createScalar(1));
     bow_ent.set(fd.Transform{});
     bow_ent.set(fd.Forward{});
@@ -581,7 +581,7 @@ pub fn run() void {
     var proj_ent = ecsu_world.newEntity();
     // proj_ent.setName("arrow2");
     // proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
-    // proj_ent.set(fd.EulerRotation{});
+    // proj_ent.set(fd.Rotation{});
     // proj_ent.set(fd.Scale.createScalar(1));
     // proj_ent.set(fd.Transform{});
     // proj_ent.set(fd.Forward{});
@@ -597,7 +597,7 @@ pub fn run() void {
     var spider_ent = ecsu_world.newEntity();
     // proj_ent.setName("arrow2");
     spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
-    spider_ent.set(fd.EulerRotation{});
+    spider_ent.set(fd.Rotation{});
     spider_ent.set(fd.Scale.createScalar(1));
     spider_ent.set(fd.Transform{});
     spider_ent.set(fd.Forward{});
@@ -620,7 +620,7 @@ pub fn run() void {
     player_ent.setName("player");
     player_ent.set(player_pos);
     // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
-    player_ent.set(fd.EulerRotation{});
+    player_ent.set(fd.Rotation{});
     player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
@@ -647,7 +647,7 @@ pub fn run() void {
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
-    player_camera_ent.set(fd.EulerRotation{});
+    player_camera_ent.set(fd.Rotation{});
     player_camera_ent.set(fd.Scale.createScalar(1));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});

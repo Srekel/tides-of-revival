@@ -14,7 +14,7 @@ const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
 
-fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
+fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input_move_fast)) {
         speed_scalar = 6;
@@ -24,11 +24,14 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
 
     speed_scalar *= 2.0;
 
-    const yaw = input_state.get(config.input_look_yaw);
+    const yaw = input_state.get(config.input_look_yaw).number;
+    const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, yaw * 0.0025);
+    const rot_in = rot.asZM();
+    const rot_new = zm.qmul(rot_in, rot_yaw);
+    rot.fromZM(rot_new);
 
-    rot.yaw += 0.0025 * yaw.number;
     const speed = zm.f32x4s(speed_scalar);
-    const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
+    const transform = zm.matFromQuat(rot.asZM());
     var forward = zm.util.getAxisZ(transform);
 
     zm.store(fwd.elems()[0..], forward, 3);
@@ -161,7 +164,7 @@ fn update(ctx: fsm.StateFuncContext) void {
     var entity_iter = self.query.iterator(struct {
         input: *fd.Input,
         pos: *fd.Position,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
         fwd: *fd.Forward,
         fsm: *fd.FSM,
         // cam: *fd.Camera,
@@ -215,7 +218,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
     _ = query_builder
         .with(fd.Input)
         .with(fd.Position)
-        .with(fd.EulerRotation)
+        .with(fd.Rotation)
         .with(fd.Forward)
         .with(fd.FSM)
         .without(fd.Camera);

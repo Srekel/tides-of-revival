@@ -11,20 +11,21 @@ const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 
-fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void {
-    const movement_yaw = input_state.get(config.input_look_yaw);
-    const movement_pitch = input_state.get(config.input_look_pitch);
+fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
+    const movement_yaw = input_state.get(config.input_look_yaw).number;
+    const movement_pitch = input_state.get(config.input_look_pitch).number;
 
-    // if (cam.window.getMouseButton(.right) == .press) {
-    rot.pitch += 0.0025 * movement_pitch.number;
-    rot.yaw += 0.0025 * movement_yaw.number;
-    rot.pitch = @min(rot.pitch, 0.48 * math.pi);
-    rot.pitch = @max(rot.pitch, -0.48 * math.pi);
-    rot.yaw = zm.modAngle(rot.yaw);
-    // }
+    const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
+    const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
+    const rot_in = rot.asZM();
+    const rot_new = zm.qmul(
+        zm.qmul(rot_in, rot_pitch),
+        rot_yaw,
+    );
+    rot.fromZM(rot_new);
 }
 
-fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
+fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 50.0;
     if (input_state.held(config.input_move_fast)) {
         speed_scalar *= 50;
@@ -32,7 +33,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, dt: zm.F32x4, input
         speed_scalar *= 0.1;
     }
     const speed = zm.f32x4s(speed_scalar);
-    const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
+    const transform = zm.matFromQuat(rot.asZM());
     var forward = zm.util.getAxisZ(transform);
     var right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
     var up = zm.normalize3(zm.cross3(forward, right));
@@ -90,7 +91,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         input: *fd.Input,
         camera: *fd.Camera,
         pos: *fd.Position,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
         // fwd: *fd.Forward,
         // transform: *fd.Transform,
     });
@@ -116,7 +117,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.Input)
         .with(fd.Camera)
         .with(fd.Position)
-        .with(fd.EulerRotation)
+        .with(fd.Rotation)
     // .with(fd.Transform)
     ;
 

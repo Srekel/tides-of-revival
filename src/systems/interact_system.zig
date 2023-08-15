@@ -87,7 +87,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             var proj_ent = system.ecsu_world.newEntity();
             // proj_ent.setName("arrow");
             proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
-            proj_ent.set(fd.EulerRotation{});
+            proj_ent.set(fd.Rotation{});
             proj_ent.set(fd.Scale.createScalar(1));
             proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
             proj_ent.set(fd.Forward{});
@@ -103,10 +103,15 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         }
 
         var proj_ent = ecsu.Entity.init(system.ecsu_world.world, weapon_comp.chambered_projectile);
-        var item_rotation = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.EulerRotation).?;
-        const item_transform = ecs.get(system.ecsu_world.world, item_ent_id, fd.Transform).?;
-        const target_roll: f32 = if (wielded_use_primary_held) -1 else 0;
-        item_rotation.roll = zm.lerpV(item_rotation.roll, target_roll, 0.1);
+        var item_rotation = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.Rotation).?;
+        var axis = zm.f32x4s(0);
+        var angle: f32 = 0;
+        zm.quatToAxisAngle(item_rotation.asZM(), &axis, &angle);
+        const target_roll_angle: f32 = if (wielded_use_primary_held) -1 else 0;
+        const target_rot_z = zm.quatFromNormAxisAngle(config.ROLL_Z, target_roll_angle);
+        const final_rot_z = zm.slerp(item_rotation.asZM(), target_rot_z, 0.1);
+        item_rotation.fromZM(final_rot_z);
+
         if (wielded_use_primary_released) {
             // Shoot arrow
             // std.debug.print("RELEASE\n", .{});
@@ -147,6 +152,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.PhysicsBody{ .body_id = proj_body_id });
 
             // Send it flying
+            const item_transform = ecs.get(system.ecsu_world.world, item_ent_id, fd.Transform).?;
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
             const up_z = zm.f32x4(0, 1, 0, 0);
