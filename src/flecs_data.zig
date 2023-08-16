@@ -97,6 +97,12 @@ pub const Position = struct {
     pub fn elemsConst(self: *const Position) *const [3]f32 {
         return @as(*const [3]f32, @ptrCast(&self.x));
     }
+    pub fn asZM(self: *const Position) zm.Mat {
+        return zm.loadArr3(self.elemsConst());
+    }
+    pub fn fromZM(self: *Position, pos_z: zm.F32x4) void {
+        zm.storeArr3(self.elems(), pos_z);
+    }
 };
 
 pub const Forward = struct {
@@ -208,6 +214,10 @@ pub const Transform = struct {
         return self.matrix[9..].*;
     }
 
+    pub fn getPos(self: *Transform) []f32 {
+        return self.matrix[9..];
+    }
+
     pub fn setPos(self: *Transform, pos: [3]f32) void {
         self.matrix[9..].* = pos;
     }
@@ -231,6 +241,14 @@ pub const Transform = struct {
         self.matrix[0] = scale[0];
         self.matrix[4] = scale[1];
         self.matrix[8] = scale[2];
+    }
+
+    pub fn asZM(self: *const Transform) zm.Mat {
+        return zm.loadMat43(&self.matrix);
+    }
+
+    pub fn fromZM(self: *Transform, mat_z: zm.Mat) void {
+        zm.storeMat43(&self.matrix, mat_z);
     }
     // pub fn initWithRotY(x: f32, y: f32, z: f32, angle: f32) Transform {
     //     // f32x4(sc[1], 0.0, -sc[0], 0.0),

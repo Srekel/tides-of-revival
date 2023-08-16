@@ -76,7 +76,7 @@ fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
 
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-    const shape_settings = zphy.BoxShapeSettings.create(.{ 0.5, 0.1, 1 }) catch unreachable;
+    const shape_settings = zphy.BoxShapeSettings.create(.{ 0.25, 0.1, 0.5 }) catch unreachable;
     defer shape_settings.release();
 
     const shape = shape_settings.createShape() catch unreachable;

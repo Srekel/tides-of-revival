@@ -247,6 +247,11 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             continue;
         }
 
+        const contact_base_offset_z = zm.loadArr4(contact.manifold.base_offset);
+        const contact_point1_z = zm.loadArr4(contact.manifold.shape1_relative_contact.points[0]);
+        const contact_point_world_z = contact_base_offset_z + contact_point1_z;
+        _ = contact_point_world_z;
+
         if (ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Projectile))) {
             // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
             const pos = body_interface.getCenterOfMassPosition(contact.body_id1);
@@ -256,11 +261,28 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             removed_entities.append(ent1) catch unreachable;
 
             if (ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Health))) {
-                var pos_target = ecs.get(system.ecsu_world.world, ent2, fd.Position).?;
+                const transform_target = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
+                const transform_proj = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
+                // var transform_proj_mat = transform_proj_comp.matrix;
+                // var transform_proj_mod_pos = transform_proj_mat[9..];
+                // transform_proj_mod_pos[0] = contact_point_world_z[0];
+                // transform_proj_mod_pos[1] = contact_point_world_z[1];
+                // transform_proj_mod_pos[2] = contact_point_world_z[2];
+                const transform_target_z = transform_target.asZM();
+                const transform_proj_z = transform_proj.asZM();
+                // const transform_proj_z = zm.loadMat43(&transform_proj_mat);
+                // const transform_target_z = transform_target.asZM();
+                // const transform_proj_z = transform_proj.asZM();
+                const transform_target_inv_z = zm.inverse(transform_target_z);
+                const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
+                // const pos_z2 = contact_point_world_z;
+                const pos_z = zm.util.getTranslationVec(mat_z);
+                const rot_z = zm.matToQuat(mat_z);
                 var pos_proj = ecs.get_mut(system.ecsu_world.world, ent1, fd.Position).?;
-                pos_proj.x -= pos_target.x;
-                pos_proj.y -= pos_target.y;
-                pos_proj.z -= pos_target.z;
+                var rot_proj = ecs.get_mut(system.ecsu_world.world, ent1, fd.Rotation).?;
+                pos_proj.fromZM(pos_z);
+                rot_proj.fromZM(rot_z);
+
                 ecs.add_id(system.ecsu_world.world, ent1, system.ecsu_world.pair(ecs.ChildOf, ent2));
 
                 var health2 = ecs.get_mut(system.ecsu_world.world, ent2, fd.Health).?;
@@ -271,9 +293,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                         body_interface.addImpulseAtPosition(
                             contact.body_id2,
                             .{
-                                velocity[0] * 100,
+                                velocity[0] * 10,
                                 velocity[1] * 0,
-                                velocity[2] * 100,
+                                velocity[2] * 10,
                             },
                             pos,
                         );
@@ -281,7 +303,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                         removed_entities.append(ent2) catch unreachable;
                         body_interface.addImpulse(
                             contact.body_id2,
-                            .{ 0, 500, 0 },
+                            .{ 0, 100, 0 },
                         );
                     }
                     // std.debug.print("lol2 {any}\n", .{ent2.id});
@@ -298,11 +320,27 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             removed_entities.append(ent2) catch unreachable;
 
             if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Health))) {
-                var pos_target = ecs.get(system.ecsu_world.world, ent1, fd.Position).?;
+                // var pos_target = ecs.get(system.ecsu_world.world, ent1, fd.Position).?;
+                // _ = pos_target;
+                const transform_target = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
+                const transform_proj = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
+                // var transform_proj_mat = transform_proj_comp.matrix;
+                // var transform_proj_mod_pos = transform_proj_mat[9..];
+                // transform_proj_mod_pos[0] = contact_point_world_z[0];
+                // transform_proj_mod_pos[1] = contact_point_world_z[1];
+                // transform_proj_mod_pos[2] = contact_point_world_z[2];
+                const transform_target_z = transform_target.asZM();
+                const transform_proj_z = transform_proj.asZM();
+                // const transform_proj_z = zm.loadMat43(&transform_proj_mat);
+                const transform_target_inv_z = zm.inverse(transform_target_z);
+                const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
+                // const pos_z = contact_point_world_z;
+                const pos_z = zm.util.getTranslationVec(mat_z);
+                const rot_z = zm.matToQuat(mat_z);
                 var pos_proj = ecs.get_mut(system.ecsu_world.world, ent2, fd.Position).?;
-                pos_proj.x -= pos_target.x;
-                pos_proj.y -= pos_target.y;
-                pos_proj.z -= pos_target.z;
+                var rot_proj = ecs.get_mut(system.ecsu_world.world, ent2, fd.Rotation).?;
+                pos_proj.fromZM(pos_z);
+                rot_proj.fromZM(rot_z);
                 ecs.add_id(system.ecsu_world.world, ent2, system.ecsu_world.pair(ecs.ChildOf, ent1));
 
                 var health1 = ecs.get_mut(system.ecsu_world.world, ent1, fd.Health).?;
@@ -313,9 +351,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                         body_interface.addImpulseAtPosition(
                             contact.body_id1,
                             .{
-                                velocity[0] * 100,
+                                velocity[0] * 10,
                                 velocity[1] * 0,
-                                velocity[2] * 100,
+                                velocity[2] * 10,
                             },
                             pos,
                         );
@@ -323,7 +361,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                         removed_entities.append(ent1) catch unreachable;
                         body_interface.addImpulse(
                             contact.body_id1,
-                            .{ 0, 500, 0 },
+                            .{ 0, 100, 0 },
                         );
                     }
                     // std.debug.print("lol1 {any}\n", .{health1.value});
