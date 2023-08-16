@@ -14,6 +14,22 @@ const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
 
+pub const NonMovingBroadPhaseLayerFilter = extern struct {
+    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
+    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
+
+    const vtable = zphy.BroadPhaseLayerFilter.VTable{
+        .shouldCollide = shouldCollide,
+    };
+    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
+        _ = self;
+        if (layer == config.broad_phase_layers.moving) {
+            return false;
+        }
+        return true;
+    }
+};
+
 fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input_move_fast)) {
@@ -62,10 +78,15 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
 
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
-    var result = query.castRay(.{
-        .origin = ray_origin,
-        .direction = ray_dir,
-    }, .{});
+    var result = query.castRay(
+        .{
+            .origin = ray_origin,
+            .direction = ray_dir,
+        },
+        .{
+            .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
+        },
+    );
 
     if (result.has_hit) {
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
