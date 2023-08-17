@@ -23,6 +23,7 @@ pub const onRegisterTimeline_id = IdLocal.init("register_timeline");
 pub const TimelineTemplateData = struct {
     id: IdLocal,
     events: []const timeline_system.TimelineEvent,
+    curves: []const timeline_system.Curve,
     loop_behavior: timeline_system.LoopBehavior,
 };
 

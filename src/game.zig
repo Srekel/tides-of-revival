@@ -41,6 +41,7 @@ const timeline_system = @import("systems/timeline_system.zig");
 const SpawnContext = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
+    event_manager: *EventManager,
     // player_pos: [3]f32,
 };
 
@@ -447,6 +448,7 @@ pub fn run() void {
     var tl_spider_spawn_ctx = SpawnContext{
         .ecsu_world = ecsu_world,
         .physics_world = physics_sys.physics_world,
+        .event_manager = &event_manager,
         // .player_ent =
     };
 
@@ -460,17 +462,7 @@ pub fn run() void {
                 .data = &tl_spider_spawn_ctx,
             },
         },
-        // .curves = &[_]timeline_system.TimelineCurve{
-        //     .{
-        //         .curve_type = .quality{
-        //             .component_name = "Health",
-        //         },
-        //         .curve_type = .run_a_function{
-        //             .func = null,
-        //             .data = null,
-        //         },
-        //     },
-        // },
+        .curves = &.{},
         .loop_behavior = .loop_no_time_loss,
     };
 
@@ -481,6 +473,22 @@ pub fn run() void {
 
     event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_spider_spawn);
     event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_spider_spawn);
+
+    const tl_particle_trail = config.events.TimelineTemplateData{
+        .id = IdLocal.init("particle_trail"),
+        .events = &.{},
+        .curves = &[_]timeline_system.Curve{
+            .{
+                .class = .{}, // IdLocal.init("scale"),
+                .points = &[_]timeline_system.CurvePoint{
+                    .{ .time = 0, .value = 1 },
+                    .{ .time = 1, .value = 0 },
+                },
+            },
+        },
+        .loop_behavior = .loop_no_time_loss,
+    };
+    event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
