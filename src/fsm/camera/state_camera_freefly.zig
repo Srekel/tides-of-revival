@@ -19,10 +19,20 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
     const rot_in = rot.asZM();
     const rot_new = zm.qmul(
-        zm.qmul(rot_in, rot_pitch),
+        zm.qmul(rot_pitch, rot_in),
         rot_yaw,
     );
-    rot.fromZM(rot_new);
+
+    const rpy = zm.quatToRollPitchYaw(rot_new);
+    const rpy_constrained = .{
+        std.math.clamp(rpy[0], -0.9, 0.9),
+        rpy[1],
+        rpy[2],
+    };
+    const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
+
+    // rot.fromZM(rot_new);
+    rot.fromZM(constrained_z);
 }
 
 fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
