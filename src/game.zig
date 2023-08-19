@@ -481,12 +481,14 @@ pub fn run() void {
             .{
                 .class = .{}, // IdLocal.init("scale"),
                 .points = &[_]timeline_system.CurvePoint{
-                    .{ .time = 0, .value = 1 },
-                    .{ .time = 1, .value = 0 },
+                    .{ .time = 0, .value = 0.000 },
+                    .{ .time = 0.2, .value = 0.003 },
+                    .{ .time = 0.35, .value = 0.002 },
+                    .{ .time = 0.5, .value = 0 },
                 },
             },
         },
-        .loop_behavior = .loop_no_time_loss,
+        .loop_behavior = .remove_entity,
     };
     event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
 

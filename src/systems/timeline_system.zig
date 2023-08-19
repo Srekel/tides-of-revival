@@ -30,8 +30,8 @@ pub const TimelineEvent = struct {
 };
 
 pub const LoopBehavior = enum {
-    remove,
-    // remove_entity,
+    remove_instance,
+    remove_entity,
     loop_from_zero,
     loop_no_time_loss,
     // ping_pong,
@@ -125,8 +125,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
             continue;
         }
 
-        // timeline.instances.appendSlice(timeline.instances_to_add.items) catch unreachable;
-        // timeline.instances_to_add.clearRetainingCapacity();
+        var instances_to_remove = std.ArrayList(usize).init(system.allocator);
 
         std.debug.print("timeline {s} curves {any}\n", .{ timeline.id.toString(), timeline.curves.items.len });
         for (timeline.curves.items) |curve| {
@@ -135,21 +134,29 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                     for (timeline.instances.items) |*instance| {
                         const time_curr = time_now - instance.time_start;
                         const ent = instance.ent;
-                        // var scale = ecs.get_mut(system.ecsu_world.world, ent, fd.Scale).?;
-                        var scale = ecs.get_mut(system.ecsu_world.world, ent, fd.Scale).?;
-                        // if (scale) |sss| {
-                        std.debug.print("timeline {s} curves {any} scale {any}\n", .{ timeline.id.toString(), timeline.curves.items.len, scale.x });
-                        // }
-                        scale.x = @max(0, 1.0 - time_curr * 1.01);
-                        scale.y = @max(0, 1.0 - time_curr * 1.01);
-                        scale.z = @max(0, 1.0 - time_curr * 1.01);
+                        for (curve.points[0 .. curve.points.len - 1], 0..) |cp, i| {
+                            const cp_next = curve.points[i + 1];
+                            if (cp_next.time < time_curr) {
+                                continue;
+                            }
+
+                            const cp_duration = cp_next.time - cp.time;
+                            const cp_progress = (time_curr - cp.time) / cp_duration;
+                            const value = std.math.lerp(cp.value, cp_next.value, cp_progress);
+
+                            var scale = ecs.get_mut(system.ecsu_world.world, ent, fd.Scale).?;
+                            scale.x = value;
+                            scale.y = value;
+                            scale.z = value;
+                            break;
+                        }
                     }
                 },
                 else => {},
             }
         }
 
-        for (timeline.instances.items) |*instance| {
+        for (timeline.instances.items, 0..) |*instance, i| {
             const time_curr = time_now - instance.time_start;
 
             while (instance.upcoming_event_index < events.items.len) {
@@ -164,8 +171,12 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
 
             if (time_curr >= instance.time_end) {
                 switch (timeline.loop_behavior) {
-                    .remove => {
-                        // TODO
+                    .remove_instance => {
+                        instances_to_remove.append(i) catch unreachable;
+                    },
+                    .remove_entity => {
+                        system.ecsu_world.delete(instance.ent);
+                        instances_to_remove.append(i) catch unreachable;
                     },
                     .loop_from_zero => {
                         instance.time_start = time_now;
@@ -177,6 +188,11 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                     },
                 }
             }
+        }
+
+        var it = std.mem.reverseIterator(instances_to_remove.items);
+        while (it.next()) |index| {
+            _ = timeline.instances.swapRemove(index);
         }
     }
 }

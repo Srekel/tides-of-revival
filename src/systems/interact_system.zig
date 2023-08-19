@@ -21,6 +21,7 @@ const SystemState = struct {
     physics_world: *zphy.PhysicsSystem,
     ecsu_world: ecsu.World,
     frame_data: *input.FrameData,
+    event_manager: *EventManager,
 
     comp_query_interactor: ecsu.Query,
 };
@@ -46,6 +47,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .frame_data = frame_data,
+        .event_manager = event_manager,
         .comp_query_interactor = comp_query_interactor,
     };
 
@@ -212,6 +214,28 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         zm.storeArr4(&rot, rot_z);
 
         body_interface.setRotation(comps.body.body_id, rot, .dont_activate);
+
+        // trail
+        const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
+        var fx_ent = system.ecsu_world.newEntity();
+        // proj_ent.setName("arrow");
+        fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
+        fx_ent.set(fd.Rotation{});
+        fx_ent.set(fd.Scale.createScalar(1));
+        fx_ent.set(fd.Transform.init(0, 0, 0));
+        fx_ent.set(fd.Forward{});
+        fx_ent.set(fd.Dynamic{});
+        fx_ent.set(fd.CIShapeMeshInstance{
+            .id = IdLocal.id64("sphere"),
+            .basecolor_roughness = .{ .r = 1.0, .g = 0.0, .b = 0.0, .roughness = 0.8 },
+        });
+
+        const tli_fx = config.events.TimelineInstanceData{
+            .ent = fx_ent.id,
+            .timeline = IdLocal.init("particle_trail"),
+        };
+
+        system.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
     }
 }
 
