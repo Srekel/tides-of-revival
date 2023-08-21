@@ -479,7 +479,7 @@ pub fn run() void {
         .events = &.{},
         .curves = &[_]timeline_system.Curve{
             .{
-                .class = .{}, // IdLocal.init("scale"),
+                .id = .{}, // IdLocal.init("scale"),
                 .points = &[_]timeline_system.CurvePoint{
                     .{ .time = 0, .value = 0.000 },
                     .{ .time = 0.2, .value = 0.003 },

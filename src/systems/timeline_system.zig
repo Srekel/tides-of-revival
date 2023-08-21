@@ -38,7 +38,7 @@ pub const LoopBehavior = enum {
 };
 
 pub const Curve = struct {
-    class: IdLocal,
+    id: IdLocal,
     points: []const CurvePoint,
 };
 
@@ -57,9 +57,10 @@ pub const Instance = struct {
     time_end: f32 = 0,
     ent: ecs.entity_t = 0,
     upcoming_event_index: u32 = 0,
+    speed: f32 = 1,
 };
 
-const SystemState = struct {
+pub const SystemState = struct {
     flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,
@@ -127,12 +128,13 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
 
         var instances_to_remove = std.ArrayList(usize).init(system.allocator);
 
-        std.debug.print("timeline {s} curves {any}\n", .{ timeline.id.toString(), timeline.curves.items.len });
         for (timeline.curves.items) |curve| {
-            switch (curve.class.hash) {
+            switch (curve.id.hash) {
                 0 => {
                     for (timeline.instances.items) |*instance| {
-                        const time_curr = time_now - instance.time_start;
+                        const speed = instance.speed;
+                        const time_into = time_now - instance.time_start;
+                        const time_curr = time_into * speed;
                         const ent = instance.ent;
                         for (curve.points[0 .. curve.points.len - 1], 0..) |cp, i| {
                             const cp_next = curve.points[i + 1];
@@ -157,7 +159,9 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
         }
 
         for (timeline.instances.items, 0..) |*instance, i| {
-            const time_curr = time_now - instance.time_start;
+            const speed = instance.speed;
+            const time_into = time_now - instance.time_start;
+            const time_curr = time_into * speed;
 
             while (instance.upcoming_event_index < events.items.len) {
                 const event = events.items[instance.upcoming_event_index];
@@ -183,7 +187,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                         instance.upcoming_event_index = 0;
                     },
                     .loop_no_time_loss => {
-                        instance.time_start += timeline.duration;
+                        instance.time_start += timeline.duration / speed;
                         instance.upcoming_event_index = 0;
                     },
                 }
@@ -196,6 +200,42 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
         }
     }
 }
+//  █████╗ ██████╗ ██╗
+// ██╔══██╗██╔══██╗██║
+// ███████║██████╔╝██║
+// ██╔══██║██╔═══╝ ██║
+// ██║  ██║██║     ██║
+// ╚═╝  ╚═╝╚═╝     ╚═╝
+
+pub fn modifyInstanceSpeed(self: *SystemState, timeline_id_hash: u64, ent: ecs.entity_t, speed: f32) void {
+    for (self.timelines.items) |*timeline| {
+        if (timeline.id.hash != timeline_id_hash) {
+            continue;
+        }
+
+        for (timeline.instances.items) |*instance| {
+            if (instance.ent == ent) {
+                instance.speed = speed;
+                return;
+            }
+        }
+
+        for (timeline.instances_to_add.items) |*instance| {
+            if (instance.ent == ent) {
+                instance.speed = speed;
+                return;
+            }
+        }
+    }
+    unreachable;
+}
+
+// ███████╗██╗   ██╗███████╗███╗   ██╗████████╗███████╗
+// ██╔════╝██║   ██║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
+// █████╗  ██║   ██║█████╗  ██╔██╗ ██║   ██║   ███████╗
+// ██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║╚██╗██║   ██║   ╚════██║
+// ███████╗ ╚████╔╝ ███████╗██║ ╚████║   ██║   ███████║
+// ╚══════╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 
 fn onRegisterTimeline(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
