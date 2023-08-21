@@ -279,7 +279,13 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         const contact_point_world_z = contact_base_offset_z + contact_point1_z;
         _ = contact_point_world_z;
 
-        if (ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Projectile))) {
+        const ent1_is_proj = ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Projectile));
+        const ent2_is_proj = ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Projectile));
+        if (ent1_is_proj and ent2_is_proj) {
+            continue;
+        }
+
+        if (ent1_is_proj) {
             // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
             const pos = body_interface.getCenterOfMassPosition(contact.body_id1);
             const velocity = body_interface.getLinearVelocity(contact.body_id1);
@@ -338,7 +344,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             }
         }
 
-        if (contact.ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Projectile))) {
+        if (ent2_is_proj) {
             // std.debug.print("proj2 {any} body:{any}\n", .{contact.ent2, contact.body_id2});
             const pos = body_interface.getCenterOfMassPosition(contact.body_id2);
             const velocity = body_interface.getLinearVelocity(contact.body_id2);
