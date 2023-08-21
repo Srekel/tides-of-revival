@@ -158,7 +158,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
             const up_z = zm.f32x4(0, 1, 0, 0);
-            const velocity_z = forward_z * zm.f32x4s(15 + charge * 30) + up_z * zm.f32x4s(charge);
+            const velocity_z = forward_z * zm.f32x4s(25 + charge * 25) + up_z * zm.f32x4s(charge);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
@@ -320,7 +320,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
                 var health2 = ecs.get_mut(system.ecsu_world.world, ent2, fd.Health).?;
                 if (health2.value > 0) {
-                    health2.value -= 50;
+                    const speed = zm.length3(zm.loadArr3(velocity))[0];
+                    const damage = speed;
+                    health2.value -= damage;
                     if (health2.value <= 0) {
                         body_interface.setMotionType(contact.body_id2, .dynamic, .activate);
                         body_interface.addImpulseAtPosition(
@@ -378,7 +380,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
                 var health1 = ecs.get_mut(system.ecsu_world.world, ent1, fd.Health).?;
                 if (health1.value > 0) {
-                    health1.value -= 50;
+                    const speed = zm.length3(zm.loadArr3(velocity))[0];
+                    const damage = speed;
+                    health1.value -= damage;
                     if (health1.value <= 0) {
                         body_interface.setMotionType(contact.body_id1, .dynamic, .activate);
                         body_interface.addImpulseAtPosition(
