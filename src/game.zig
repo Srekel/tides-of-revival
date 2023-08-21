@@ -42,12 +42,17 @@ const SpawnContext = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     event_manager: *EventManager,
+    timeline_system: *timeline_system.SystemState,
     // player_pos: [3]f32,
+    speed: f32 = 1,
 };
 
 fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
-    const ctx = util.castOpaque(SpawnContext, data);
+    var ctx = util.castOpaque(SpawnContext, data);
+    ctx.speed += 0.1;
+    timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("spiderSpawn").hash, 0, ctx.speed);
+
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
     const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
 
@@ -449,6 +454,7 @@ pub fn run() void {
         .ecsu_world = ecsu_world,
         .physics_world = physics_sys.physics_world,
         .event_manager = &event_manager,
+        .timeline_system = timeline_sys,
         // .player_ent =
     };
 
