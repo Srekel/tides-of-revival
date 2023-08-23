@@ -479,7 +479,7 @@ fn updatePatches(system: *SystemState) void {
 
             // std.debug.assert(patch_indices.len == indices_per_patch);
 
-            //  TODO: Use heightfield...?
+            //  TODO: Use mesh
             const height_field_size = config.patch_size;
             var samples: [height_field_size * height_field_size]f32 = undefined;
 
@@ -498,7 +498,9 @@ fn updatePatches(system: *SystemState) void {
             //     while (x < width - 1) : (x += 1) {}
             // }
 
-            const shape_settings = zphy.HeightFieldShapeSettings.create(&samples, height_field_size) catch unreachable;
+            const scale: f32 = 65.0 / 64.0;
+            var shape_settings = zphy.HeightFieldShapeSettings.create(&samples, height_field_size) catch unreachable;
+            shape_settings.setScale(.{ scale, 1, scale });
             defer shape_settings.release();
             const shape = shape_settings.createShape() catch unreachable;
 
