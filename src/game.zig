@@ -43,7 +43,7 @@ const SpawnContext = struct {
     physics_world: *zphy.PhysicsSystem,
     event_manager: *EventManager,
     timeline_system: *timeline_system.SystemState,
-    // player_pos: [3]f32,
+    root_ent: ?ecs.entity_t,
     speed: f32 = 1,
 };
 
@@ -53,53 +53,55 @@ fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     ctx.speed += 0.1;
     timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("spiderSpawn").hash, 0, ctx.speed);
 
-    const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
-    const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
+    const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
-    var ent = ctx.ecsu_world.newEntity();
-    var spawn_pos = [3]f32{
-        player_pos.x + 10,
-        player_pos.y + 2,
-        player_pos.z + 10,
-    };
-    ent.set(fd.Position{
-        .x = spawn_pos[0],
-        .y = spawn_pos[1],
-        .z = spawn_pos[2],
-    });
-    ent.set(fd.Rotation{});
-    ent.set(fd.Scale.createScalar(1));
-    ent.set(fd.Transform{});
-    ent.set(fd.Forward{});
-    ent.set(fd.Dynamic{});
-    ent.set(fd.Health{ .value = 100 });
-    ent.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("spider_body"),
-        .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
-    });
+    for (0..5) |i_spider| {
+        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_spider)) / 5.0;
+        var ent = ctx.ecsu_world.newEntity();
+        var spawn_pos = [3]f32{
+            root_pos.x + 50 * std.math.sin(ctx.speed * 50) + 5 * std.math.sin(angle),
+            root_pos.y + 20,
+            root_pos.z + 50 * std.math.cos(ctx.speed * 50) + 5 * std.math.cos(angle),
+        };
+        ent.set(fd.Position{
+            .x = spawn_pos[0],
+            .y = spawn_pos[1],
+            .z = spawn_pos[2],
+        });
+        ent.set(fd.Rotation{});
+        ent.set(fd.Scale.createScalar(1));
+        ent.set(fd.Transform{});
+        ent.set(fd.Forward{});
+        ent.set(fd.Dynamic{});
+        ent.set(fd.Health{ .value = 100 });
+        ent.set(fd.CIShapeMeshInstance{
+            .id = IdLocal.id64("spider_body"),
+            .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
+        });
 
-    ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+        ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
 
-    const body_interface = ctx.physics_world.getBodyInterfaceMut();
+        const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-    const shape_settings = zphy.BoxShapeSettings.create(.{ 0.25, 0.1, 0.5 }) catch unreachable;
-    defer shape_settings.release();
+        const shape_settings = zphy.BoxShapeSettings.create(.{ 0.25, 0.1, 0.5 }) catch unreachable;
+        defer shape_settings.release();
 
-    const shape = shape_settings.createShape() catch unreachable;
-    defer shape.release();
+        const shape = shape_settings.createShape() catch unreachable;
+        defer shape.release();
 
-    const body_id = body_interface.createAndAddBody(.{
-        .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
-        .rotation = .{ 0, 0, 0, 1 },
-        .shape = shape,
-        .motion_type = .kinematic,
-        .object_layer = config.object_layers.moving,
-        .motion_quality = .discrete,
-        .user_data = ent.id,
-    }, .activate) catch unreachable;
+        const body_id = body_interface.createAndAddBody(.{
+            .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
+            .rotation = .{ 0, 0, 0, 1 },
+            .shape = shape,
+            .motion_type = .kinematic,
+            .object_layer = config.object_layers.moving,
+            .motion_quality = .discrete,
+            .user_data = ent.id,
+        }, .activate) catch unreachable;
 
-    //  Assign to flecs component
-    ent.set(fd.PhysicsBody{ .body_id = body_id });
+        //  Assign to flecs component
+        ent.set(fd.PhysicsBody{ .body_id = body_id });
+    }
 }
 
 pub fn run() void {
@@ -455,7 +457,7 @@ pub fn run() void {
         .physics_world = physics_sys.physics_world,
         .event_manager = &event_manager,
         .timeline_system = timeline_sys,
-        // .player_ent =
+        .root_ent = null,
     };
 
     const tl_spider_spawn = config.events.TimelineTemplateData{
@@ -524,6 +526,7 @@ pub fn run() void {
             );
             const spawnpoint_ent = entity_iter.entity();
             ecs.iter_fini(entity_iter.iter);
+            tl_spider_spawn_ctx.root_ent = city_ent;
             break :blk .{
                 .pos = comps.pos.*,
                 .spawnpoint_ent = spawnpoint_ent,
