@@ -45,18 +45,21 @@ const SpawnContext = struct {
     timeline_system: *timeline_system.SystemState,
     root_ent: ?ecs.entity_t,
     speed: f32 = 1,
+    stage: f32 = 0,
 };
 
 fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     var ctx = util.castOpaque(SpawnContext, data);
-    ctx.speed += 0.1;
+    ctx.stage += 1;
+    ctx.speed += 0.05;
     timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("spiderSpawn").hash, 0, ctx.speed);
 
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
-    for (0..5) |i_spider| {
-        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_spider)) / 5.0;
+    const to_spawn = 2 + @round(ctx.stage / 5);
+    for (0..@intFromFloat(to_spawn)) |i_spider| {
+        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_spider)) / to_spawn;
         var ent = ctx.ecsu_world.newEntity();
         var spawn_pos = [3]f32{
             root_pos.x + 50 * std.math.sin(ctx.speed * 50) + 5 * std.math.sin(angle),
@@ -73,7 +76,7 @@ fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
         ent.set(fd.Transform{});
         ent.set(fd.Forward{});
         ent.set(fd.Dynamic{});
-        ent.set(fd.Health{ .value = 100 });
+        ent.set(fd.Health{ .value = 10 + ctx.stage * 2 });
         ent.set(fd.CIShapeMeshInstance{
             .id = IdLocal.id64("spider_body"),
             .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
