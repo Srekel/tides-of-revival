@@ -30,7 +30,10 @@ pub const NonMovingBroadPhaseLayerFilter = extern struct {
     }
 };
 
-fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
+fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData, ctx: fsm.StateFuncContext) void {
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const boosting = state.boost_active_time > environment_info.world_time;
+
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input_move_fast)) {
         speed_scalar = 6;
@@ -39,12 +42,22 @@ fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm
     }
 
     speed_scalar *= 2.0;
+    if (boosting) {
+        speed_scalar = 150;
+    }
 
-    const yaw = input_state.get(config.input_look_yaw).number;
-    const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, yaw * 0.0025);
-    const rot_in = rot.asZM();
-    const rot_new = zm.qmul(rot_in, rot_yaw);
-    rot.fromZM(rot_new);
+    if (!boosting) {
+        const yaw = input_state.get(config.input_look_yaw).number;
+        const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, yaw * 0.0025);
+        const rot_in = rot.asZM();
+        const rot_new = zm.qmul(rot_in, rot_yaw);
+        rot.fromZM(rot_new);
+
+        if (input_state.just_pressed(config.input_interact) and state.boost_next_cooldown < environment_info.world_time) {
+            state.boost_next_cooldown = environment_info.world_time + 5;
+            state.boost_active_time = environment_info.world_time + 0.5;
+        }
+    }
 
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.matFromQuat(rot.asZM());
@@ -159,6 +172,8 @@ fn updateWinFromArrival(entity_id: ecs.entity_t, ctx: fsm.StateFuncContext) void
 
 pub const StateIdle = struct {
     amount_moved: f32,
+    boost_next_cooldown: f32,
+    boost_active_time: f32,
     sfx_footstep_index: u32,
 };
 
@@ -195,14 +210,14 @@ fn update(ctx: fsm.StateFuncContext) void {
         if (!comps.input.active) {
             continue;
         }
+        const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
 
         const pos_before = comps.pos.*;
-        updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
+        updateMovement(state, comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data, ctx);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
         // updateDeathFromDarkness(entity_iter.entity(), ctx);
         // updateWinFromArrival(entity_iter.entity(), ctx);
         const pos_after = comps.pos.*;
-        const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
         state.*.amount_moved += @fabs(pos_after.x - pos_before.x);
         state.*.amount_moved += @fabs(pos_after.y - pos_before.y);
 
