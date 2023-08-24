@@ -54,7 +54,6 @@ pub const Timeline = struct {
 
 pub const Instance = struct {
     time_start: f32,
-    time_end: f32 = 0,
     ent: ecs.entity_t = 0,
     upcoming_event_index: u32 = 0,
     speed: f32 = 1,
@@ -173,7 +172,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                 }
             }
 
-            if (time_curr >= instance.time_end) {
+            if (time_curr >= timeline.duration) {
                 switch (timeline.loop_behavior) {
                     .remove_instance => {
                         instances_to_remove.append(i) catch unreachable;
@@ -272,7 +271,6 @@ fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyo
             const world_time = environment_info.world_time;
             timeline.instances_to_add.append(.{
                 .time_start = world_time,
-                .time_end = world_time + timeline.duration,
                 .ent = timeline_instance_data.ent,
             }) catch unreachable;
 
