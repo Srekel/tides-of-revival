@@ -344,6 +344,7 @@ pub const CICamera = struct {
 pub const Camera = struct {
     near: f32,
     far: f32,
+    fov: f32,
     view: [16]f32 = undefined,
     projection: [16]f32 = undefined,
     view_projection: [16]f32 = undefined,

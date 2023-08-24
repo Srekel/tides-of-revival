@@ -759,6 +759,7 @@ fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
         const camera = fd.Camera{
             .near = 0.01,
             .far = 100.0,
+            .fov = 1,
             .view = undefined,
             .projection = undefined,
             .view_projection = undefined,

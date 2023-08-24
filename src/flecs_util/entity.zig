@@ -138,6 +138,11 @@ pub const Entity = struct {
     }
 
     /// returns true if the entity is alive
+    pub fn isValid(self: Entity) bool {
+        return self.id != 0;
+    }
+
+    /// returns true if the entity is alive
     pub fn isAlive(self: Entity) bool {
         return ecs.is_alive(self.world, self.id);
     }

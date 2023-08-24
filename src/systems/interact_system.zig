@@ -107,7 +107,17 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             continue;
         }
 
-        var item_rotation = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.Rotation).?;
+        const player_ent_id = ecs.lookup(ecs_world, "player");
+        if (player_ent_id != 0) {
+            const camera_ent = ecsu.Entity.init(ecs_world, ecs.lookup_child(ecs_world, player_ent_id, "playercamera"));
+            if (camera_ent.isValid() and camera_ent.isAlive()) {
+                var camera_comp = camera_ent.getMut(fd.Camera).?;
+                const target_fov: f32 = if (wielded_use_primary_held and weapon_comp.chambered_projectile != 0 and weapon_comp.charge > 0.25) (0.25 - 0.1 * weapon_comp.charge * weapon_comp.charge) else 0.25;
+                camera_comp.fov = std.math.lerp(camera_comp.fov, target_fov * math.pi, 0.3);
+            }
+        }
+
+        var item_rotation = ecs.get_mut(ecs_world, item_ent_id, fd.Rotation).?;
         var axis = zm.f32x4s(0);
         var angle: f32 = 0;
         zm.quatToAxisAngle(item_rotation.asZM(), &axis, &angle);

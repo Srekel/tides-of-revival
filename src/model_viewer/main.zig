@@ -519,6 +519,7 @@ fn render(gfx_state: *gfx.D3D12State, model_viewer_state: *ModelViewerState) voi
     const camera = fd.Camera{
         .near = 0.01,
         .far = 100.0,
+        .fov = 1.0,
         .view = view,
         .projection = projection,
         .view_projection = view_projection,

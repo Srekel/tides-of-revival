@@ -173,7 +173,7 @@ fn updateCameraMatrices(state: *SystemState) void {
 
         const z_projection =
             zm.perspectiveFovLh(
-            0.25 * math.pi,
+            cam.fov,
             @as(f32, @floatFromInt(framebuffer_width)) / @as(f32, @floatFromInt(framebuffer_height)),
             comps.camera.far,
             comps.camera.near,
@@ -252,6 +252,7 @@ fn onSetCICamera(it: *ecsu.Iterator(ObserverCallback)) void {
         ent.set(fd.Camera{
             .far = ci.far,
             .near = ci.near,
+            .fov = 0.25 * std.math.pi,
             .window = ci.window,
             .active = ci.active,
             .class = ci.class,
