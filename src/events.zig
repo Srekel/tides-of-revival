@@ -33,4 +33,5 @@ pub const onAddTimelineInstance_id = IdLocal.init("timeline_instance");
 pub const TimelineInstanceData = struct {
     ent: ecs.entity_t,
     timeline: IdLocal,
+    start_time: f32 = 0,
 };

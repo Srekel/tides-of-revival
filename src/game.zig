@@ -479,6 +479,7 @@ pub fn run() void {
 
     const tli_spider_spawn = config.events.TimelineInstanceData{
         .ent = 0,
+        .start_time = 2,
         .timeline = IdLocal.init("spiderSpawn"),
     };
 
@@ -618,18 +619,18 @@ pub fn run() void {
     // proj_ent.childOf(bow_ent);
     // weapon_comp.chambered_projectile = proj_ent.id;
 
-    var spider_ent = ecsu_world.newEntity();
-    // proj_ent.setName("arrow2");
-    spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
-    spider_ent.set(fd.Rotation{});
-    spider_ent.set(fd.Scale.createScalar(1));
-    spider_ent.set(fd.Transform{});
-    spider_ent.set(fd.Forward{});
-    spider_ent.set(fd.Dynamic{});
-    spider_ent.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("spider_body"),
-        .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
-    });
+    // var spider_ent = ecsu_world.newEntity();
+    // // proj_ent.setName("arrow2");
+    // spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
+    // spider_ent.set(fd.Rotation{});
+    // spider_ent.set(fd.Scale.createScalar(1));
+    // spider_ent.set(fd.Transform{});
+    // spider_ent.set(fd.Forward{});
+    // spider_ent.set(fd.Dynamic{});
+    // spider_ent.set(fd.CIShapeMeshInstance{
+    //     .id = IdLocal.id64("spider_body"),
+    //     .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
+    // });
 
     // // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
