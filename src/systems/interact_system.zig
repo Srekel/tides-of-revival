@@ -76,6 +76,9 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         transform: *fd.Transform,
     });
 
+    var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const world_time = environment_info.world_time;
+
     const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
     const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
     while (entity_iter.next()) |comps| {
@@ -84,7 +87,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         const item_ent_id = interactor_comp.wielded_item_ent_id;
         var weapon_comp = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.ProjectileWeapon).?;
 
-        if (weapon_comp.chambered_projectile == 0) {
+        if (weapon_comp.chambered_projectile == 0 and weapon_comp.cooldown < world_time) {
             // Load new projectile
             var proj_ent = system.ecsu_world.newEntity();
             // proj_ent.setName("arrow");
@@ -101,26 +104,29 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             });
             proj_ent.childOf(item_ent_id);
             weapon_comp.chambered_projectile = proj_ent.id;
-            return;
+            continue;
         }
 
-        var proj_ent = ecsu.Entity.init(system.ecsu_world.world, weapon_comp.chambered_projectile);
         var item_rotation = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.Rotation).?;
         var axis = zm.f32x4s(0);
         var angle: f32 = 0;
         zm.quatToAxisAngle(item_rotation.asZM(), &axis, &angle);
-        const target_roll_angle: f32 = if (wielded_use_primary_held) -1 else 0;
+        const target_roll_angle: f32 = if (wielded_use_primary_held and weapon_comp.chambered_projectile != 0) -1 else 0;
         const target_rot_z = zm.quatFromNormAxisAngle(config.ROLL_Z, target_roll_angle);
         const final_rot_z = zm.slerp(item_rotation.asZM(), target_rot_z, 0.1);
         item_rotation.fromZM(final_rot_z);
 
+        if (weapon_comp.chambered_projectile == 0) {
+            continue;
+        }
+
+        var proj_ent = ecsu.Entity.init(system.ecsu_world.world, weapon_comp.chambered_projectile);
         if (wielded_use_primary_released) {
             // Shoot arrow
-            // std.debug.print("RELEASE\n", .{});
+            weapon_comp.cooldown = world_time + 0.5;
             const charge = weapon_comp.charge;
             weapon_comp.charge = 0;
 
-            // state.physics_world.optimizeBroadPhase();
             weapon_comp.chambered_projectile = 0;
             proj_ent.removePair(ecs.ChildOf, item_ent_id);
 
@@ -158,13 +164,12 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
             const up_z = zm.f32x4(0, 1, 0, 0);
-            const velocity_z = forward_z * zm.f32x4s(25 + charge * 25) + up_z * zm.f32x4s(charge);
+            const velocity_z = forward_z * zm.f32x4s(15 + charge * 45) + up_z * zm.f32x4s(charge);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
         } else if (wielded_use_primary_held) {
             // Pull string
-            const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
             environment_info.time_multiplier = 0.25;
             var proj_pos = ecs.get_mut(system.ecsu_world.world, proj_ent.id, fd.Position).?;
 
