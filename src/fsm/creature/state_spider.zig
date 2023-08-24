@@ -110,6 +110,9 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
                 [3]f32{ 0, 0, 0 },
             );
         }
+    } else {
+        const body_interface = physics_world.getBodyInterfaceMut();
+        body_interface.setPosition(body.body_id, pos.elems().*, .dont_activate);
     }
 }
 
