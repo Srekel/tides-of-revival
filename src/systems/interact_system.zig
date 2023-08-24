@@ -76,6 +76,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         transform: *fd.Transform,
     });
 
+    var ecs_world = system.ecsu_world.world;
     var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
 
@@ -85,7 +86,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         var interactor_comp = comps.interactor;
 
         const item_ent_id = interactor_comp.wielded_item_ent_id;
-        var weapon_comp = ecs.get_mut(system.ecsu_world.world, item_ent_id, fd.ProjectileWeapon).?;
+        var weapon_comp = ecs.get_mut(ecs_world, item_ent_id, fd.ProjectileWeapon).?;
 
         if (weapon_comp.chambered_projectile == 0 and weapon_comp.cooldown < world_time) {
             // Load new projectile
@@ -130,7 +131,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             continue;
         }
 
-        var proj_ent = ecsu.Entity.init(system.ecsu_world.world, weapon_comp.chambered_projectile);
+        var proj_ent = ecsu.Entity.init(ecs_world, weapon_comp.chambered_projectile);
         if (wielded_use_primary_released) {
             // Shoot arrow
             weapon_comp.cooldown = world_time + 0.5;
@@ -170,7 +171,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.PhysicsBody{ .body_id = proj_body_id });
 
             // Send it flying
-            const item_transform = ecs.get(system.ecsu_world.world, item_ent_id, fd.Transform).?;
+            const item_transform = ecs.get(ecs_world, item_ent_id, fd.Transform).?;
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
             const up_z = zm.f32x4(0, 1, 0, 0);
@@ -181,13 +182,13 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         } else if (wielded_use_primary_held) {
             // Pull string
             environment_info.time_multiplier = 0.25;
-            var proj_pos = ecs.get_mut(system.ecsu_world.world, proj_ent.id, fd.Position).?;
+            var proj_pos = ecs.get_mut(ecs_world, proj_ent.id, fd.Position).?;
 
             proj_pos.z = zm.lerpV(proj_pos.z, -0.8, 0.01);
             weapon_comp.charge = zm.mapLinearV(proj_pos.z, -0.4, -0.8, 0, 1);
         } else {
             // Relax string
-            var proj_pos = ecs.get_mut(system.ecsu_world.world, proj_ent.id, fd.Position).?;
+            var proj_pos = ecs.get_mut(ecs_world, proj_ent.id, fd.Position).?;
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
     }
