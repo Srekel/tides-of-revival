@@ -106,7 +106,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 fn updateTimelines(system: *SystemState, dt: f32) void {
     _ = dt;
     const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
-    const time_now = environment_info.world_time;
+    const world_time = environment_info.world_time;
 
     for (system.timelines.items) |*timeline| {
         // const events = timeline.events;
@@ -133,7 +133,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                 0 => {
                     for (timeline.instances.items) |*instance| {
                         const speed = instance.speed;
-                        const time_into = time_now - instance.time_start;
+                        const time_into = world_time - instance.time_start;
                         const time_curr = time_into * speed;
                         const ent = instance.ent;
                         for (curve.points[0 .. curve.points.len - 1], 0..) |cp, i| {
@@ -160,7 +160,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
 
         for (timeline.instances.items, 0..) |*instance, i| {
             const speed = instance.speed;
-            const time_into = time_now - instance.time_start;
+            const time_into = world_time - instance.time_start;
             const time_curr = time_into * speed;
 
             while (instance.upcoming_event_index < events.items.len) {
@@ -183,7 +183,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                         instances_to_remove.append(i) catch unreachable;
                     },
                     .loop_from_zero => {
-                        instance.time_start = time_now;
+                        instance.time_start = world_time;
                         instance.upcoming_event_index = 0;
                     },
                     .loop_no_time_loss => {
@@ -269,10 +269,10 @@ fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyo
     for (system.timelines.items) |*timeline| {
         if (timeline.id.eql(timeline_instance_data.timeline)) {
             const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
-            const time_now = environment_info.world_time;
+            const world_time = environment_info.world_time;
             timeline.instances_to_add.append(.{
-                .time_start = time_now,
-                .time_end = time_now + timeline.duration,
+                .time_start = world_time,
+                .time_end = world_time + timeline.duration,
                 .ent = timeline_instance_data.ent,
             }) catch unreachable;
 

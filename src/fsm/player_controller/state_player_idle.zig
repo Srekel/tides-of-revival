@@ -31,7 +31,7 @@ pub const NonMovingBroadPhaseLayerFilter = extern struct {
 };
 
 fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData, ctx: fsm.StateFuncContext) void {
-    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     const boosting = state.boost_active_time > environment_info.world_time;
 
     var speed_scalar: f32 = 1.7;
@@ -110,7 +110,7 @@ fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void
     const transform = ecs.get(ctx.ecsu_world.world, entity, fd.Transform);
     const pos = transform.?.getPos00();
 
-    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     if (environment_info.sun_height > -0.5) {
         return;
     }
