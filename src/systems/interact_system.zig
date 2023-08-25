@@ -373,8 +373,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Health))) {
                 // var pos_target = ecs.get(system.ecsu_world.world, ent1, fd.Position).?;
                 // _ = pos_target;
-                const transform_target = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
-                const transform_proj = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
+                const transform_target = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
+                const transform_proj = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
                 // var transform_proj_mat = transform_proj_comp.matrix;
                 // var transform_proj_mod_pos = transform_proj_mat[9..];
                 // transform_proj_mod_pos[0] = contact_point_world_z[0];
