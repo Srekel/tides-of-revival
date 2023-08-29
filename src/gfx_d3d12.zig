@@ -342,7 +342,7 @@ pub const D3D12State = struct {
         return aligned_size;
     }
 
-    pub fn scheduleLoadTexture(self: *D3D12State, path: [:0]const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
+    pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
         const path_id = IdLocal.init(path);
         var existing_texture = self.texture_hash.get(path_id);
         if (existing_texture) |texture_handle| {
@@ -488,7 +488,7 @@ pub const D3D12State = struct {
         return texture;
     }
 
-    pub fn findMaterialByName(self: *D3D12State, name: [:0]const u8) ?MaterialHandle {
+    pub fn findMaterialByName(self: *D3D12State, name: []const u8) ?MaterialHandle {
         var material = self.material_hash.get(name);
         if (material) |material_handle| {
             return material_handle;
@@ -506,7 +506,7 @@ pub const D3D12State = struct {
         return material;
     }
 
-    pub fn storeMaterial(self: *D3D12State, name: [:0]const u8, material: fd.PBRMaterial) !MaterialHandle {
+    pub fn storeMaterial(self: *D3D12State, name: []const u8, material: fd.PBRMaterial) !MaterialHandle {
         var existing_material = self.material_hash.get(name);
         if (existing_material) |material_handle| {
             return material_handle;
@@ -517,7 +517,7 @@ pub const D3D12State = struct {
         return material_handle;
     }
 
-    pub fn findMeshByName(self: *D3D12State, name: [:0]const u8) ?MeshHandle {
+    pub fn findMeshByName(self: *D3D12State, name: []const u8) ?MeshHandle {
         const name_id = IdLocal.init(name);
         var mesh = self.mesh_hash.get(name_id);
         if (mesh) |mesh_handle| {
@@ -527,7 +527,7 @@ pub const D3D12State = struct {
         return null;
     }
 
-    pub fn uploadMeshData(self: *D3D12State, name: [:0]const u8, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
+    pub fn uploadMeshData(self: *D3D12State, name: []const u8, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
         const name_id = IdLocal.init(name);
         var existing_mesh = self.mesh_hash.get(name_id);
         if (existing_mesh) |mesh_handle| {

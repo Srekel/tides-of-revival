@@ -136,7 +136,7 @@ pub const PrefabManager = struct {
             assert(node.mesh.?.primitives_count == 1);
             const primitive = &node.mesh.?.primitives[0];
 
-            const mesh_name = util.asConstSentinelTerminated(node.mesh.?.name.?);
+            const mesh_name = util.fromCStringToStringSlice(node.mesh.?.name.?);
 
             if (gfxstate.findMeshByName(mesh_name)) |mesh_handle| {
                 static_mesh_component.mesh_handle = mesh_handle;
@@ -154,7 +154,7 @@ pub const PrefabManager = struct {
                 const material = &primitive.material.?.*;
                 assert(material.has_pbr_metallic_roughness == 1);
 
-                const material_name = util.asConstSentinelTerminated(material.name.?);
+                const material_name = util.fromCStringToStringSlice(material.name.?);
 
                 if (gfxstate.findMaterialByName(material_name)) |material_handle| {
                     static_mesh_component.material_handle = material_handle;
@@ -162,15 +162,15 @@ pub const PrefabManager = struct {
                     var pbr_material = fd.PBRMaterial.init();
 
                     const base_color_texture = material.pbr_metallic_roughness.base_color_texture.texture.?.image.?.*;
-                    const base_color_texture_path = util.asConstSentinelTerminated(base_color_texture.uri.?);
+                    const base_color_texture_path = util.fromCStringToStringSlice(base_color_texture.uri.?);
                     pbr_material.albedo = gfxstate.scheduleLoadTexture(base_color_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&base_color_texture_path)) }, arena) catch unreachable;
 
                     const metallic_roughness_texture = material.pbr_metallic_roughness.metallic_roughness_texture.texture.?.image.?.*;
-                    const metallic_roughness_texture_path = util.asConstSentinelTerminated(metallic_roughness_texture.uri.?);
+                    const metallic_roughness_texture_path = util.fromCStringToStringSlice(metallic_roughness_texture.uri.?);
                     pbr_material.arm = gfxstate.scheduleLoadTexture(metallic_roughness_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&metallic_roughness_texture_path)) }, arena) catch unreachable;
 
                     const normal_texture = material.normal_texture.texture.?.image.?.*;
-                    const normal_texture_path = util.asConstSentinelTerminated(normal_texture.uri.?);
+                    const normal_texture_path = util.fromCStringToStringSlice(normal_texture.uri.?);
                     pbr_material.normal = gfxstate.scheduleLoadTexture(normal_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&normal_texture_path)) }, arena) catch unreachable;
 
                     pbr_material.base_color = fd.ColorRGB.init(

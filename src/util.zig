@@ -24,6 +24,11 @@ pub fn asConstSentinelTerminated(string_ptr: [*:0]u8) [:0]const u8 {
     return @as([:0]const u8, @ptrCast(string_ptr[0..string_len]));
 }
 
+pub fn fromCStringToStringSlice(string_ptr: [*:0]u8) []const u8 {
+    const string_len = std.mem.len(string_ptr);
+    return @as([]const u8, @ptrCast(string_ptr[0..string_len]));
+}
+
 // pub fn sliceOfInstance2(comptime T: type, instance: *T) []T {
 //     var slice: []T = undefined;
 //     slice.ptr = @ptrCast([*]T, instance);
