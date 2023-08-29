@@ -88,7 +88,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         if (weapon_comp.chambered_projectile == 0) {
             // Load new projectile
             var proj_ent = system.prefab_manager.instantiatePrefab(system.flecs_world, arrow_prefab);
-            proj_ent.setOverride(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
+            proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
             proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
             proj_ent.set(fd.Projectile{});
             proj_ent.childOf(item_ent);

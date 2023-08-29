@@ -63,7 +63,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
         player_pos.y + 2,
         player_pos.z + 10,
     };
-    ent.setOverride(fd.Position{
+    ent.set(fd.Position{
         .x = spawn_pos[0],
         .y = spawn_pos[1],
         .z = spawn_pos[2],
@@ -573,7 +573,7 @@ pub fn run() void {
 
     const bow_ent = prefab_manager.instantiatePrefab(&flecs_world, bow_prefab);
     bow_ent.setName("bow");
-    bow_ent.setOverride(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
+    bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     // TODO(gmodarelli): Store components in GLFT 2 from Blender
     bow_ent.set(fd.ProjectileWeapon{});
 
