@@ -26,8 +26,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    b.installArtifact(exe);
-
     exe.addModule("websocket", b.createModule(.{
         .source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
         .dependencies = &.{},
