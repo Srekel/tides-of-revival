@@ -545,7 +545,6 @@ pub fn run() void {
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     const debug_camera_ent = flecs_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.EulerRotation{});
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
@@ -578,33 +577,7 @@ pub fn run() void {
     bow_ent.set(fd.ProjectileWeapon{});
 
     var proj_ent = flecs_world.newEntity();
-    // proj_ent.setName("arrow2");
-    // proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
-    // proj_ent.set(fd.EulerRotation{});
-    // proj_ent.set(fd.Scale.createScalar(1));
-    // proj_ent.set(fd.Transform{});
-    // proj_ent.set(fd.Forward{});
-    // proj_ent.set(fd.Dynamic{});
     proj_ent.set(fd.Projectile{});
-    // proj_ent.set(fd.CIStaticMesh{
-    //     .id = IdLocal.id64("bow"),
-    //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
-    // });
-    // proj_ent.childOf(bow_ent);
-    // weapon_comp.chambered_projectile = proj_ent.id;
-
-    // var spider_ent = flecs_world.newEntity();
-    // // proj_ent.setName("arrow2");
-    // spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
-    // spider_ent.set(fd.EulerRotation{});
-    // spider_ent.set(fd.Scale.createScalar(1));
-    // spider_ent.set(fd.Transform{});
-    // spider_ent.set(fd.Forward{});
-    // spider_ent.set(fd.Dynamic{});
-    // spider_ent.set(fd.CIStaticMesh{
-    //     .id = IdLocal.id64("spider_body"),
-    //     .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-    // });
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
@@ -613,12 +586,9 @@ pub fn run() void {
     // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    // _ = player_pos;
-    // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
     const player_ent = flecs_world.newEntity();
     player_ent.setName("player");
     player_ent.set(player_pos);
-    // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
     player_ent.set(fd.EulerRotation{});
     player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
