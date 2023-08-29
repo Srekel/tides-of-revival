@@ -70,7 +70,7 @@ pub const PrefabManager = struct {
         return prefab;
     }
 
-    pub fn getPrefabByPath(self: *@This(), path: [:0]const u8) ?flecs.Entity {
+    pub fn getPrefabByPath(self: *@This(), path: []const u8) ?flecs.Entity {
         const path_id = IdLocal.init(path);
         var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
