@@ -4,10 +4,57 @@ const zglfw = @import("zglfw");
 const zphy = @import("zphysics");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
+const ecsu = @import("flecs_util/flecs_util.zig");
+const IdLocal = @import("variant.zig").IdLocal;
 const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
 const TextureHandle = @import("gfx_d3d12.zig").TextureHandle;
 const MaterialHandle = @import("gfx_d3d12.zig").MaterialHandle;
+
+pub fn registerComponents(ecsu_world: ecsu.World) void {
+    var ecs_world = ecsu_world.world;
+    ecs.TAG(ecs_world, NOCOMP);
+    ecs.TAG(ecs_world, LocalSpace);
+    ecs.TAG(ecs_world, WorldSpace);
+    ecs.COMPONENT(ecs_world, ColorRGB);
+    ecs.COMPONENT(ecs_world, ColorRGBRoughness);
+    ecs.COMPONENT(ecs_world, Position);
+    ecs.COMPONENT(ecs_world, Forward);
+    ecs.COMPONENT(ecs_world, Rotation);
+    ecs.COMPONENT(ecs_world, EulerRotation);
+    ecs.COMPONENT(ecs_world, Scale);
+    ecs.COMPONENT(ecs_world, Transform);
+    ecs.COMPONENT(ecs_world, Dynamic);
+    ecs.COMPONENT(ecs_world, Velocity);
+    ecs.COMPONENT(ecs_world, CIShapeMeshDefinition);
+    ecs.COMPONENT(ecs_world, ShapeMeshDefinition);
+    ecs.COMPONENT(ecs_world, CIShapeMeshInstance);
+    ecs.COMPONENT(ecs_world, ShapeMeshInstance);
+    ecs.COMPONENT(ecs_world, CICamera);
+    ecs.COMPONENT(ecs_world, Camera);
+    // ecs.COMPONENT(ecs_world, CIPhysicsBody);
+    ecs.COMPONENT(ecs_world, PhysicsBody);
+    ecs.COMPONENT(ecs_world, TerrainPatchLookup);
+    ecs.COMPONENT(ecs_world, WorldLoader);
+    ecs.COMPONENT(ecs_world, WorldPatch);
+    // ecs.COMPONENT(ecs_world, ComponentData);
+    ecs.COMPONENT(ecs_world, Light);
+    ecs.COMPONENT(ecs_world, CIFSM);
+    ecs.COMPONENT(ecs_world, FSM);
+    ecs.COMPONENT(ecs_world, Input);
+    ecs.COMPONENT(ecs_world, Interactor);
+    ecs.COMPONENT(ecs_world, SpawnPoint);
+    ecs.COMPONENT(ecs_world, Health);
+    ecs.COMPONENT(ecs_world, Quality);
+    ecs.COMPONENT(ecs_world, Effect);
+    ecs.COMPONENT(ecs_world, CompCity);
+    ecs.COMPONENT(ecs_world, CompBanditCamp);
+    ecs.COMPONENT(ecs_world, CompCaravan);
+    ecs.COMPONENT(ecs_world, CompCombatant);
+    ecs.COMPONENT(ecs_world, EnvironmentInfo);
+    ecs.COMPONENT(ecs_world, ProjectileWeapon);
+    ecs.COMPONENT(ecs_world, Projectile);
+}
 
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
@@ -17,8 +64,9 @@ const MaterialHandle = @import("gfx_d3d12.zig").MaterialHandle;
 //     }
 // };
 
-const IdLocal = @import("variant.zig").IdLocal;
-pub const NOCOMP = struct {};
+pub const NOCOMP = struct {
+    // dummy: u32 = 0,
+};
 
 pub const ColorRGB = struct {
     r: f32,
@@ -52,6 +100,12 @@ pub const Position = struct {
     pub fn elemsConst(self: *const Position) *const [3]f32 {
         return @as(*const [3]f32, @ptrCast(&self.x));
     }
+    pub fn asZM(self: *const Position) zm.Mat {
+        return zm.loadArr3(self.elemsConst());
+    }
+    pub fn fromZM(self: *Position, pos_z: zm.F32x4) void {
+        zm.storeArr3(self.elems(), pos_z);
+    }
 };
 
 pub const Forward = struct {
@@ -67,15 +121,27 @@ pub const Forward = struct {
 };
 
 pub const Rotation = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-    w: f32,
+    x: f32 = 0,
+    y: f32 = 0,
+    z: f32 = 0,
+    w: f32 = 1,
+    pub fn initFromEuler(pitch: f32, yaw: f32, roll: f32) Rotation {
+        const rot_z = zm.quatFromRollPitchYaw(pitch, yaw, roll);
+        var rot = Rotation{};
+        zm.storeArr4(rot.elems(), rot_z);
+        return rot;
+    }
     pub fn elems(self: *Rotation) *[4]f32 {
         return @as(*[4]f32, @ptrCast(&self.x));
     }
     pub fn elemsConst(self: *const Rotation) *const [4]f32 {
         return @as(*const [4]f32, @ptrCast(&self.x));
+    }
+    pub fn asZM(self: *const Rotation) zm.Quat {
+        return zm.loadArr4(self.elemsConst().*);
+    }
+    pub fn fromZM(self: *Rotation, rot_z: zm.Quat) void {
+        zm.storeArr4(self.elems(), rot_z);
     }
 };
 
@@ -158,6 +224,10 @@ pub const Transform = struct {
         return self.matrix[9..].*;
     }
 
+    pub fn getPos(self: *Transform) []f32 {
+        return self.matrix[9..];
+    }
+
     pub fn setPos(self: *Transform, pos: [3]f32) void {
         self.matrix[9..].* = pos;
     }
@@ -181,6 +251,14 @@ pub const Transform = struct {
         self.matrix[0] = scale[0];
         self.matrix[4] = scale[1];
         self.matrix[8] = scale[2];
+    }
+
+    pub fn asZM(self: *const Transform) zm.Mat {
+        return zm.loadMat43(&self.matrix);
+    }
+
+    pub fn fromZM(self: *Transform, mat_z: zm.Mat) void {
+        zm.storeMat43(&self.matrix, mat_z);
     }
     // pub fn initWithRotY(x: f32, y: f32, z: f32, angle: f32) Transform {
     //     // f32x4(sc[1], 0.0, -sc[0], 0.0),
@@ -235,6 +313,9 @@ pub const Velocity = struct {
     x: f32 = 0,
     y: f32 = 0,
     z: f32 = 0,
+    pub fn elems(self: *Velocity) *[3]f32 {
+        return @as(*[3]f32, @ptrCast(&self.x));
+    }
 };
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗
@@ -312,6 +393,7 @@ pub const CICamera = struct {
 pub const Camera = struct {
     near: f32,
     far: f32,
+    fov: f32,
     view: [16]f32 = undefined,
     projection: [16]f32 = undefined,
     view_projection: [16]f32 = undefined,
@@ -471,7 +553,7 @@ pub const Input = struct {
 
 pub const Interactor = struct {
     active: bool = false,
-    wielded_item_ent_id: flecs.EntityId,
+    wielded_item_ent_id: ecs.entity_t,
 };
 
 // ███████╗██████╗  █████╗ ██╗    ██╗███╗   ██╗
@@ -522,15 +604,15 @@ pub const CompCity = struct {
     next_spawn_time: f32,
     spawn_cooldown: f32,
     caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]flecs.EntityId,
-    curr_target_city: flecs.EntityId,
+    closest_cities: [2]ecs.entity_t,
+    curr_target_city: ecs.entity_t,
 };
 pub const CompBanditCamp = struct {
     next_spawn_time: f32,
     spawn_cooldown: f32,
     caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]flecs.EntityId,
-    // curr_target_city: flecs.EntityId,
+    closest_cities: [2]ecs.entity_t,
+    // curr_target_city: ecs.entity_t,
 };
 pub const CompCaravan = struct {
     start_pos: [3]f32,
@@ -545,6 +627,8 @@ pub const CompCombatant = struct {
 };
 
 pub const EnvironmentInfo = struct {
+    paused: bool,
+    time_multiplier: f32 = 1.0,
     world_time: f32,
     time_of_day_percent: f32,
     sun_height: f32,
@@ -562,11 +646,12 @@ pub const EnvironmentInfo = struct {
 //  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═══╝
 
 pub const ProjectileWeapon = struct {
-    chambered_projectile: flecs.EntityId = 0,
+    chambered_projectile: ecs.entity_t = 0,
+    cooldown: f32 = 0,
     charge: f32 = 0,
 };
 
 pub const Projectile = struct {
     dummy: u8 = 0,
-    // chambered_projectile: flecs.EntityId = 0,
+    // chambered_projectile: ecs.entity_t = 0,
 };

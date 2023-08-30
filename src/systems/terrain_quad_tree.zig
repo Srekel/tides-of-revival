@@ -5,7 +5,7 @@ const math = std.math;
 
 const zm = @import("zmath");
 const zmu = @import("zmathutil");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 
 const config = @import("../config.zig");
 const gfx = @import("../gfx_d3d12.zig");
@@ -20,6 +20,7 @@ const d3d12 = zwin32.d3d12;
 const dds_loader = zwin32.dds_loader;
 
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const tides_math = @import("../core/math.zig");
@@ -159,13 +160,13 @@ const DrawCall = struct {
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    sys: flecs.EntityId,
+    sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
 
-    query_camera: flecs.Query,
+    query_camera: ecsu.Query,
 
     vertex_buffer: gfx.BufferHandle,
     index_buffer: gfx.BufferHandle,
@@ -789,11 +790,11 @@ pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
     gfxstate: *gfx.D3D12State,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !*SystemState {
     // Queries
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
@@ -941,11 +942,11 @@ pub fn create(
     _ = gfxstate.scheduleUploadDataToBuffer(TerrainLayerTextureIndices, terrain_layers_buffer, 0, terrain_layer_texture_indices.items);
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
 
     state.* = .{
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecsu_world = ecsu_world,
         .world_patch_mgr = world_patch_mgr,
         .sys = sys,
         .gfx = gfxstate,
@@ -991,7 +992,7 @@ pub fn destroy(state: *SystemState) void {
 // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     var arena_state = std.heap.ArenaAllocator.init(state.allocator);

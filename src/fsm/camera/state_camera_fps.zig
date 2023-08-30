@@ -1,6 +1,7 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
@@ -11,14 +12,15 @@ const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 
-fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void {
-    const pitch = input_state.get(config.input_look_pitch);
-    rot.pitch += 0.0025 * pitch.number;
-    rot.pitch = @min(rot.pitch, 0.48 * math.pi);
-    rot.pitch = @max(rot.pitch, -0.48 * math.pi);
+fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
+    const movement_pitch = input_state.get(config.input_look_pitch).number;
+    const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
+    const rot_in = rot.asZM();
+    const rot_new = zm.qmul(rot_in, rot_pitch);
+    rot.fromZM(rot_new);
 }
 
-fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, flecs_world: *flecs.World, input_state: *const input.FrameData) void {
+fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData) void {
     // TODO: No, interaction shouldn't be in camera.. :)
     if (!input_state.just_pressed(config.input_interact)) {
         return;
@@ -45,9 +47,9 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
         var post_transform = fd.Transform.initFromPosition(post_pos);
         post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
 
-        const post_ent = flecs_world.newEntity();
+        const post_ent = ecsu_world.newEntity();
         post_ent.set(post_pos);
-        post_ent.set(fd.EulerRotation{});
+        post_ent.set(fd.Rotation{});
         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
         post_ent.set(post_transform);
         post_ent.set(fd.CIStaticMesh{
@@ -57,7 +59,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
 
         // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
         // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
-        // const light_ent = flecs_world.newEntity();
+        // const light_ent = ecsu_world.newEntity();
         // light_ent.childOf(post_ent);
         // light_ent.set(light_pos);
         // light_ent.set(light_transform);
@@ -70,7 +72,7 @@ pub const StateIdle = struct {
 };
 
 const StateCameraFPS = struct {
-    query: flecs.Query,
+    query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -93,7 +95,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         transform: *fd.Transform,
         // pos: *fd.Position,
         // fwd: *fd.Forward,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
     });
 
     // std.debug.print("cam.active {any}a\n", .{cam.active});
@@ -109,25 +111,25 @@ fn update(ctx: fsm.StateFuncContext) void {
         }
 
         updateLook(comps.rot, ctx.frame_data);
-        updateInteract(
-            comps.transform,
-            // comps.fwd,
-            ctx.physics_world,
-            ctx.flecs_world,
-            ctx.frame_data,
-        );
+        // updateInteract(
+        //     comps.transform,
+        //     // comps.fwd,
+        //     ctx.physics_world,
+        //     ctx.ecsu_world,
+        //     ctx.frame_data,
+        // );
     }
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = flecs.QueryBuilder.init(ctx.flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Camera)
         .with(fd.Transform)
     // .with(fd.Position)
     // .with(fd.Forward)
-        .with(fd.EulerRotation);
+        .with(fd.Rotation);
 
     var query = query_builder.buildQuery();
     var self = ctx.allocator.create(StateCameraFPS) catch unreachable;

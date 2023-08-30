@@ -1,10 +1,11 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../flecs_data.zig");
 const fr = @import("../../flecs_relation.zig");
 const zm = @import("zmath");
@@ -13,7 +14,26 @@ const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
 
-fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData) void {
+pub const NonMovingBroadPhaseLayerFilter = extern struct {
+    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
+    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
+
+    const vtable = zphy.BroadPhaseLayerFilter.VTable{
+        .shouldCollide = shouldCollide,
+    };
+    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
+        _ = self;
+        if (layer == config.broad_phase_layers.moving) {
+            return false;
+        }
+        return true;
+    }
+};
+
+fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData, ctx: fsm.StateFuncContext) void {
+    const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
+    const boosting = state.boost_active_time > environment_info.world_time;
+
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input_move_fast)) {
         speed_scalar = 6;
@@ -22,12 +42,25 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, fwd: *fd.Forward, d
     }
 
     speed_scalar *= 2.0;
+    if (boosting) {
+        speed_scalar = 150;
+    }
 
-    const yaw = input_state.get(config.input_look_yaw);
+    if (!boosting) {
+        const yaw = input_state.get(config.input_look_yaw).number;
+        const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, yaw * 0.0025);
+        const rot_in = rot.asZM();
+        const rot_new = zm.qmul(rot_in, rot_yaw);
+        rot.fromZM(rot_new);
 
-    rot.yaw += 0.0025 * yaw.number;
+        if (input_state.just_pressed(config.input_interact) and state.boost_next_cooldown < environment_info.world_time) {
+            state.boost_next_cooldown = environment_info.world_time + 5;
+            state.boost_active_time = environment_info.world_time + 0.5;
+        }
+    }
+
     const speed = zm.f32x4s(speed_scalar);
-    const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
+    const transform = zm.matFromQuat(rot.asZM());
     var forward = zm.util.getAxisZ(transform);
 
     zm.store(fwd.elems()[0..], forward, 3);
@@ -58,21 +91,26 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
 
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
-    var result = query.castRay(.{
-        .origin = ray_origin,
-        .direction = ray_dir,
-    }, .{});
+    var result = query.castRay(
+        .{
+            .origin = ray_origin,
+            .direction = ray_dir,
+        },
+        .{
+            .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
+        },
+    );
 
     if (result.has_hit) {
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
     }
 }
 
-fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
-    const transform = entity.get(fd.Transform);
+fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
+    const transform = ecs.get(ctx.ecsu_world.world, entity, fd.Transform);
     const pos = transform.?.getPos00();
 
-    const environment_info = ctx.flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     if (environment_info.sun_height > -0.5) {
         return;
     }
@@ -83,18 +121,19 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
     };
 
     var safe_from_darkness = false;
-    var filter = ctx.flecs_world.filter(FilterCallback);
+    var filter = ctx.ecsu_world.filter(FilterCallback);
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (filter_it.entity().hasPair(flecs.c.Constants.EcsChildOf, entity.id)) {
+        const filter_ent = ecsu.Entity.init(filter_it.world().world, filter_it.entity());
+        if (filter_ent.hasPair(ecs.ChildOf, entity)) {
             continue;
         }
 
         const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
         if (dist < comps.light.range) {
             safe_from_darkness = true;
-            flecs.c.ecs_iter_fini(filter_it.iter);
+            ecs.iter_fini(filter_it.iter);
             break;
         }
     }
@@ -104,8 +143,9 @@ fn updateDeathFromDarkness(entity: flecs.Entity, ctx: fsm.StateFuncContext) void
     }
 }
 
-fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
-    const transform = entity.get(fd.Transform);
+fn updateWinFromArrival(entity_id: ecs.entity_t, ctx: fsm.StateFuncContext) void {
+    const ent = ecsu.Entity.init(ctx.ecsu_world.world, entity_id);
+    const transform = ecs.get(ctx.ecsu_world.world, entity_id, fd.Transform);
     const pos = transform.?.getPos00();
 
     const FilterCallback = struct {
@@ -113,18 +153,18 @@ fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
         city: *const fd.CompCity,
     };
 
-    var filter = ctx.flecs_world.filter(FilterCallback);
+    var filter = ctx.ecsu_world.filter(FilterCallback);
     defer filter.deinit();
     var filter_it = filter.iterator(FilterCallback);
     while (filter_it.next()) |comps| {
-        if (entity.hasPair(fr.Hometown, filter_it.entity().id)) {
+        if (ent.hasPair(fr.Hometown, filter_it.entity())) {
             continue;
         }
 
         const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
         if (dist < 20) {
             std.debug.panic("win", .{});
-            flecs.c.ecs_iter_fini(filter_it.iter);
+            ecs.iter_fini(filter_it.iter);
             break;
         }
     }
@@ -132,11 +172,13 @@ fn updateWinFromArrival(entity: flecs.Entity, ctx: fsm.StateFuncContext) void {
 
 pub const StateIdle = struct {
     amount_moved: f32,
+    boost_next_cooldown: f32,
+    boost_active_time: f32,
     sfx_footstep_index: u32,
 };
 
 const StatePlayerIdle = struct {
-    query: flecs.Query,
+    query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -158,24 +200,24 @@ fn update(ctx: fsm.StateFuncContext) void {
     var entity_iter = self.query.iterator(struct {
         input: *fd.Input,
         pos: *fd.Position,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
         fwd: *fd.Forward,
         fsm: *fd.FSM,
-        cam: *fd.Camera,
+        // cam: *fd.Camera,
     });
 
     while (entity_iter.next()) |comps| {
         if (!comps.input.active) {
             continue;
         }
+        const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
 
         const pos_before = comps.pos.*;
-        updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data);
+        updateMovement(state, comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data, ctx);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
-        updateDeathFromDarkness(entity_iter.entity(), ctx);
-        updateWinFromArrival(entity_iter.entity(), ctx);
+        // updateDeathFromDarkness(entity_iter.entity(), ctx);
+        // updateWinFromArrival(entity_iter.entity(), ctx);
         const pos_after = comps.pos.*;
-        const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
         state.*.amount_moved += @fabs(pos_after.x - pos_before.x);
         state.*.amount_moved += @fabs(pos_after.y - pos_before.y);
 
@@ -208,11 +250,11 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = flecs.QueryBuilder.init(ctx.flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Position)
-        .with(fd.EulerRotation)
+        .with(fd.Rotation)
         .with(fd.Forward)
         .with(fd.FSM)
         .without(fd.Camera);

@@ -1,29 +1,41 @@
 const std = @import("std");
 const math = std.math;
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const Util = @import("../../util.zig");
 const BlobArray = @import("../../blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../flecs_data.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 
-fn updateLook(rot: *fd.EulerRotation, input_state: *const input.FrameData) void {
-    const movement_yaw = input_state.get(config.input_look_yaw);
-    const movement_pitch = input_state.get(config.input_look_pitch);
+fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
+    const movement_yaw = input_state.get(config.input_look_yaw).number;
+    const movement_pitch = input_state.get(config.input_look_pitch).number;
 
-    // if (cam.window.getMouseButton(.right) == .press) {
-    rot.pitch += 0.0025 * movement_pitch.number;
-    rot.yaw += 0.0025 * movement_yaw.number;
-    rot.pitch = @min(rot.pitch, 0.48 * math.pi);
-    rot.pitch = @max(rot.pitch, -0.48 * math.pi);
-    rot.yaw = zm.modAngle(rot.yaw);
-    // }
+    const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
+    const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
+    const rot_in = rot.asZM();
+    const rot_new = zm.qmul(
+        zm.qmul(rot_pitch, rot_in),
+        rot_yaw,
+    );
+
+    const rpy = zm.quatToRollPitchYaw(rot_new);
+    const rpy_constrained = .{
+        std.math.clamp(rpy[0], -0.9, 0.9),
+        rpy[1],
+        rpy[2],
+    };
+    const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
+
+    // rot.fromZM(rot_new);
+    rot.fromZM(constrained_z);
 }
 
-fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
+fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 50.0;
     if (input_state.held(config.input_move_fast)) {
         speed_scalar *= 50;
@@ -31,7 +43,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.EulerRotation, dt: zm.F32x4, input
         speed_scalar *= 0.1;
     }
     const speed = zm.f32x4s(speed_scalar);
-    const transform = zm.mul(zm.rotationX(rot.pitch), zm.rotationY(rot.yaw));
+    const transform = zm.matFromQuat(rot.asZM());
     var forward = zm.util.getAxisZ(transform);
     var right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
     var up = zm.normalize3(zm.cross3(forward, right));
@@ -68,7 +80,7 @@ pub const StateIdle = struct {
 };
 
 const StateCameraFreefly = struct {
-    query: flecs.Query,
+    query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -89,7 +101,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         input: *fd.Input,
         camera: *fd.Camera,
         pos: *fd.Position,
-        rot: *fd.EulerRotation,
+        rot: *fd.Rotation,
         // fwd: *fd.Forward,
         // transform: *fd.Transform,
     });
@@ -110,12 +122,12 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = flecs.QueryBuilder.init(ctx.flecs_world.*);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.Input)
         .with(fd.Camera)
         .with(fd.Position)
-        .with(fd.EulerRotation)
+        .with(fd.Rotation)
     // .with(fd.Transform)
     ;
 

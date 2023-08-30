@@ -1,5 +1,6 @@
 const std = @import("std");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
 const zm = @import("zmath");
@@ -86,14 +87,14 @@ pub const State = struct {
 
 pub const StateCreateContext = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
 };
 
 pub const StateFuncContext = struct {
     state: *const State,
     transition_events: std.BoundedArray(Trigger, 32),
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     blob_array: *BlobArray(16),
     frame_data: *const input.FrameData,
@@ -133,11 +134,11 @@ pub const StateMachine = struct {
         };
     }
 
-    // pub fn update(self: *StateMachine, entity: flecs.Entity, flecs_world: flecs.World) void {
+    // pub fn update(self: *StateMachine, entity: flecs.Entity, ecsu_world: ecs.world_t) void {
     //     var ctx: StateFuncContext = .{
     //         .entity = entity,
     //         .transition_events = .{},
-    //         .flecs_world = flecs_world,
+    //         .ecsu_world = ecsu_world,
     //     };
     //     self.current_state.update(ctx);
 

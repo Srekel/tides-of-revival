@@ -1,6 +1,7 @@
 const std = @import("std");
 const args = @import("args");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
+const ecsu = @import("flecs_util/flecs_util.zig");
 const zaudio = @import("zaudio");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
@@ -39,42 +40,44 @@ const timeline_system = @import("systems/timeline_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
 const SpawnContext = struct {
-    flecs_world: *flecs.World,
+    ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     prefab_manager: *pm.PrefabManager,
-    // player_pos: [3]f32,
+    event_manager: *EventManager,
+    timeline_system: *timeline_system.SystemState,
+    root_ent: ?ecs.entity_t,
+    speed: f32 = 1,
+    stage: f32 = 0,
 };
 
 var spider_prefab: flecs.Entity = undefined;
 var bow_prefab: flecs.Entity = undefined;
 
-fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
+fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     const ctx = util.castOpaque(SpawnContext, data);
-
     const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
     const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
     const player_pos = player_ent.get(fd.Position).?;
 
     var ent = ctx.prefab_manager.instantiatePrefab(ctx.flecs_world, spider_prefab);
-
     var spawn_pos = [3]f32{
-        player_pos.x + 10,
-        player_pos.y + 2,
-        player_pos.z + 10,
+            root_pos.x + 50 * std.math.sin(ctx.speed * 50) + 5 * std.math.sin(angle),
+            root_pos.y + 20,
+            root_pos.z + 50 * std.math.cos(ctx.speed * 50) + 5 * std.math.cos(angle),
     };
     ent.set(fd.Position{
         .x = spawn_pos[0],
         .y = spawn_pos[1],
         .z = spawn_pos[2],
     });
-    ent.set(fd.Health{ .value = 100 });
+    ent.set(fd.Health{ .value = 10 + ctx.stage * 2 });
 
     ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
 
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-    const shape_settings = zphy.BoxShapeSettings.create(.{ 0.5, 0.5, 0.5 }) catch unreachable;
+        const shape_settings = zphy.BoxShapeSettings.create(.{ 0.25, 0.1, 0.5 }) catch unreachable;
     defer shape_settings.release();
 
     const shape = shape_settings.createShape() catch unreachable;
@@ -92,6 +95,7 @@ fn spawnSpider(entity: flecs.EntityId, data: *anyopaque) void {
 
     //  Assign to flecs component
     ent.set(fd.PhysicsBody{ .body_id = body_id });
+    }
 }
 
 pub fn run() void {
@@ -112,9 +116,11 @@ pub fn run() void {
     // music.start() catch unreachable;
     // defer music.destroy();
 
-    var flecs_world = flecs.World.init();
-    defer flecs_world.deinit();
-    _ = flecs.c.ecs_log_set_level(0);
+    var ecsu_world = ecsu.World.init();
+    defer ecsu_world.deinit();
+    // _ = ecs.log_set_level(0);
+    fd.registerComponents(ecsu_world);
+    fr.registerRelations(ecsu_world);
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -190,8 +196,8 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .keyboard_key = .left_control } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .keyboard_key = .left_shift } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_interact, .source = input.BindingSource{ .keyboard_key = .f } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .mouse_button = .left } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .mouse_button = .right } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .keyboard_key = .g } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .keyboard_key = .h } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
@@ -206,6 +212,8 @@ pub fn run() void {
         };
         mouse_map.bindings.ensureTotalCapacity(8) catch unreachable;
         mouse_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_cursor_pos, .source = .mouse_cursor });
+        mouse_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .mouse_button = .left } });
+        mouse_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .mouse_button = .right } });
         mouse_map.processors.ensureTotalCapacity(8) catch unreachable;
         mouse_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_cursor_movement,
@@ -326,7 +334,7 @@ pub fn run() void {
     var input_sys = try input_system.create(
         IdLocal.init("input_sys"),
         std.heap.page_allocator,
-        &flecs_world,
+        ecsu_world,
         &input_frame_data,
     );
     defer input_system.destroy(input_sys);
@@ -347,7 +355,7 @@ pub fn run() void {
 
     var system_context = util.Context.init(std.heap.page_allocator);
     system_context.putConst(config.allocator, &std.heap.page_allocator);
-    system_context.put(config.flecs_world, &flecs_world);
+    system_context.put(config.ecsu_world, &ecsu_world);
     system_context.put(config.event_manager, &event_manager);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
     system_context.put(config.prefab_manager, &prefab_manager);
@@ -361,7 +369,7 @@ pub fn run() void {
     var state_machine_sys = try state_machine_system.create(
         IdLocal.init("state_machine_sys"),
         std.heap.page_allocator,
-        &flecs_world,
+        ecsu_world,
         &input_frame_data,
         physics_sys.physics_world,
         audio_engine,
@@ -387,7 +395,7 @@ pub fn run() void {
         IdLocal.init("city_system"),
         std.heap.page_allocator,
         &gfx_state,
-        &flecs_world,
+        ecsu_world,
         physics_sys.physics_world,
         &asset_manager,
     );
@@ -397,7 +405,7 @@ pub fn run() void {
         IdLocal.init("camera_system"),
         std.heap.page_allocator,
         &gfx_state,
-        &flecs_world,
+        ecsu_world,
         &input_frame_data,
     );
     defer camera_system.destroy(camera_sys);
@@ -405,7 +413,7 @@ pub fn run() void {
     var patch_prop_sys = try patch_prop_system.create(
         IdLocal.initFormat("patch_prop_system_{}", .{0}),
         std.heap.page_allocator,
-        &flecs_world,
+        ecsu_world,
         world_patch_mgr,
     );
     defer patch_prop_system.destroy(patch_prop_sys);
@@ -414,7 +422,7 @@ pub fn run() void {
         IdLocal.initFormat("procmesh_system_{}", .{0}),
         std.heap.page_allocator,
         &gfx_state,
-        &flecs_world,
+        ecsu_world,
         &input_frame_data,
     );
     defer procmesh_system.destroy(procmesh_sys);
@@ -432,7 +440,7 @@ pub fn run() void {
         IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
         std.heap.page_allocator,
         &gfx_state,
-        &flecs_world,
+        ecsu_world,
         world_patch_mgr,
     );
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
@@ -440,7 +448,7 @@ pub fn run() void {
     city_system.createEntities(city_sys);
 
     // Make sure systems are initialized and any initial system entities are created.
-    update(&flecs_world, &gfx_state);
+    update(ecsu_world, &gfx_state);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
@@ -450,10 +458,12 @@ pub fn run() void {
     //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 
     var tl_spider_spawn_ctx = SpawnContext{
-        .flecs_world = &flecs_world,
+        .ecsu_world = ecsu_world,
         .physics_world = physics_sys.physics_world,
         .prefab_manager = &prefab_manager,
-        // .player_ent =
+        .event_manager = &event_manager,
+        .timeline_system = timeline_sys,
+        .root_ent = null,
     };
 
     const tl_spider_spawn = config.events.TimelineTemplateData{
@@ -466,27 +476,36 @@ pub fn run() void {
                 .data = &tl_spider_spawn_ctx,
             },
         },
-        // .curves = &[_]timeline_system.TimelineCurve{
-        //     .{
-        //         .curve_type = .quality{
-        //             .component_name = "Health",
-        //         },
-        //         .curve_type = .run_a_function{
-        //             .func = null,
-        //             .data = null,
-        //         },
-        //     },
-        // },
+        .curves = &.{},
         .loop_behavior = .loop_no_time_loss,
     };
 
     const tli_spider_spawn = config.events.TimelineInstanceData{
         .ent = 0,
+        .start_time = 2,
         .timeline = IdLocal.init("spiderSpawn"),
     };
 
     event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_spider_spawn);
     event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_spider_spawn);
+
+    const tl_particle_trail = config.events.TimelineTemplateData{
+        .id = IdLocal.init("particle_trail"),
+        .events = &.{},
+        .curves = &[_]timeline_system.Curve{
+            .{
+                .id = .{}, // IdLocal.init("scale"),
+                .points = &[_]timeline_system.CurvePoint{
+                    .{ .time = 0, .value = 0.000 },
+                    .{ .time = 0.2, .value = 0.003 },
+                    .{ .time = 0.35, .value = 0.002 },
+                    .{ .time = 0.5, .value = 0 },
+                },
+            },
+        },
+        .loop_behavior = .remove_entity,
+    };
+    event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -496,7 +515,7 @@ pub fn run() void {
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
     const player_spawn = blk: {
-        var builder = flecs.QueryBuilder.init(flecs_world);
+        var builder = ecsu.QueryBuilder.init(ecsu_world);
         _ = builder
             .with(fd.SpawnPoint)
             .with(fd.Position);
@@ -506,14 +525,15 @@ pub fn run() void {
 
         var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
         while (entity_iter.next()) |comps| {
-            const city_ent = flecs.c.ecs_get_target(
-                flecs_world.world,
-                entity_iter.entity().id,
-                flecs_world.componentId(fr.Hometown),
+            const city_ent = ecs.get_target(
+                ecsu_world.world,
+                entity_iter.entity(),
+                fr.Hometown,
                 0,
             );
             const spawnpoint_ent = entity_iter.entity();
-            flecs.c.ecs_iter_fini(entity_iter.iter);
+            ecs.iter_fini(entity_iter.iter);
+            tl_spider_spawn_ctx.root_ent = city_ent;
             break :blk .{
                 .pos = comps.pos.*,
                 .spawnpoint_ent = spawnpoint_ent,
@@ -523,7 +543,7 @@ pub fn run() void {
         break :blk null;
     };
 
-    // const entity3 = flecs_world.newEntity();
+    // const entity3 = ecsu_world.newEntity();
     // entity3.set(fd.Transform.initWithScale(0, 0, 0, 100));
     // entity3.set(fd.CIStaticMesh{
     //     .id = IdLocal.id64("sphere"),
@@ -535,7 +555,7 @@ pub fn run() void {
     //     .sphere = .{ .radius = 10.5 },
     // });
 
-    // const entity4 = flecs_world.newEntity();
+    // const entity4 = ecsu_world.newEntity();
     // entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
     // entity4.set(fd.CIStaticMesh{
     //     .id = IdLocal.id64("sphere"),
@@ -543,9 +563,11 @@ pub fn run() void {
     // });
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    const debug_camera_ent = flecs_world.newEntity();
+    // const player_pos = fd.Position.init(100, 100, 100);
+    const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    debug_camera_ent.set(fd.EulerRotation{});
+    // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
     debug_camera_ent.set(fd.Dynamic{});
@@ -563,33 +585,32 @@ pub fn run() void {
     debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
-    // ██████╗  ██████╗ ██╗    ██╗
-    // ██╔══██╗██╔═══██╗██║    ██║
-    // ██████╔╝██║   ██║██║ █╗ ██║
-    // ██╔══██╗██║   ██║██║███╗██║
-    // ██████╔╝╚██████╔╝╚███╔███╔╝
-    // ╚═════╝  ╚═════╝  ╚══╝╚══╝
+    // // ██████╗  ██████╗ ██╗    ██╗
+    // // ██╔══██╗██╔═══██╗██║    ██║
+    // // ██████╔╝██║   ██║██║ █╗ ██║
+    // // ██╔══██╗██║   ██║██║███╗██║
+    // // ██████╔╝╚██████╔╝╚███╔███╔╝
+    // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
     const bow_ent = prefab_manager.instantiatePrefab(&flecs_world, bow_prefab);
     bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
-    // TODO(gmodarelli): Store components in GLFT 2 from Blender
     bow_ent.set(fd.ProjectileWeapon{});
 
     var proj_ent = flecs_world.newEntity();
     proj_ent.set(fd.Projectile{});
 
-    // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
-    // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
-    // ██████╔╝██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
-    // ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
-    // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
-    // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+    // // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
+    // // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
+    // // ██████╔╝██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
+    // // ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
+    // // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
+    // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_ent = flecs_world.newEntity();
+    const player_ent = ecsu_world.newEntity();
     player_ent.setName("player");
     player_ent.set(player_pos);
-    player_ent.set(fd.EulerRotation{});
+    player_ent.set(fd.Rotation{});
     player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
@@ -606,17 +627,17 @@ pub fn run() void {
     });
     player_ent.set(fd.Input{ .active = false, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
-    if (player_spawn) |ps| {
-        player_ent.addPair(fr.Hometown, ps.city_ent);
-    }
+    // if (player_spawn) |ps| {
+    //     player_ent.addPair(fr.Hometown, ps.city_ent);
+    // }
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
-    const player_camera_ent = flecs_world.newEntity();
+    const player_camera_ent = ecsu_world.newEntity();
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
-    player_camera_ent.set(fd.EulerRotation{});
+    player_camera_ent.set(fd.Rotation{});
     player_camera_ent.set(fd.Scale.createScalar(1));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
@@ -637,14 +658,15 @@ pub fn run() void {
     player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
     bow_ent.childOf(player_camera_ent);
 
-    // ███████╗██╗     ███████╗ ██████╗███████╗
-    // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝
-    // █████╗  ██║     █████╗  ██║     ███████╗
-    // ██╔══╝  ██║     ██╔══╝  ██║     ╚════██║
-    // ██║     ███████╗███████╗╚██████╗███████║
-    // ╚═╝     ╚══════╝╚══════╝ ╚═════╝╚══════╝
+    // // ███████╗██╗     ███████╗ ██████╗███████╗
+    // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝
+    // // █████╗  ██║     █████╗  ██║     ███████╗
+    // // ██╔══╝  ██║     ██╔══╝  ██║     ╚════██║
+    // // ██║     ███████╗███████╗╚██████╗███████║
+    // // ╚═╝     ╚══════╝╚══════╝ ╚═════╝╚══════╝
 
-    flecs_world.setSingleton(fd.EnvironmentInfo{
+    ecsu_world.setSingleton(fd.EnvironmentInfo{
+        .paused = false,
         .time_of_day_percent = 0,
         .sun_height = 0,
         .world_time = 0,
@@ -652,7 +674,7 @@ pub fn run() void {
 
     // Flecs config
     // Delete children when parent is destroyed
-    _ = flecs_world.pair(flecs.c.Constants.EcsOnDeleteTarget, flecs.c.Constants.EcsOnDelete);
+    _ = ecsu_world.pair(ecs.OnDeleteTarget, ecs.OnDelete);
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
@@ -671,19 +693,21 @@ pub fn run() void {
         }
 
         world_patch_mgr.tickOne();
-        update(&flecs_world, &gfx_state);
+        update(ecsu_world, &gfx_state);
     }
 }
 
-fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
+fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
-    const dt: f32 = @floatCast(stats.delta_time);
+    const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const dt_actual: f32 = @floatCast(stats.delta_time);
+    const dt_game = dt_actual * environment_info.time_multiplier;
+    environment_info.time_multiplier = 1;
 
-    const flecs_stats = flecs.c.ecs_get_world_info(flecs_world.world);
+    const flecs_stats = ecs.get_world_info(ecsu_world.world);
     {
         const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
         const world_time = flecs_stats.*.world_time_total;
-        const environment_info = flecs_world.getSingletonMut(fd.EnvironmentInfo).?;
         const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
@@ -692,15 +716,16 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
 
     gfx.beginFrame(gfx_state);
 
-    flecs_world.progress(dt);
+    ecsu_world.progress(dt_game);
 
-    const camera_comps = getActiveCamera(flecs_world);
+    const camera_comps = getActiveCamera(ecsu_world);
     if (camera_comps) |comps| {
         gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
     } else {
         const camera = fd.Camera{
             .near = 0.01,
             .far = 100.0,
+            .fov = 1,
             .view = undefined,
             .projection = undefined,
             .view_projection = undefined,
@@ -717,8 +742,8 @@ fn update(flecs_world: *flecs.World, gfx_state: *gfx.D3D12State) void {
     }
 }
 
-fn getActiveCamera(flecs_world: *flecs.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
-    var builder = flecs.QueryBuilder.init(flecs_world.*);
+fn getActiveCamera(ecsu_world: ecsu.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
+    var builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = builder
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);

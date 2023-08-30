@@ -1,7 +1,15 @@
+const zm = @import("zmath");
 const zphy = @import("zphysics");
 const IdLocal = @import("variant.zig").IdLocal;
 
 pub const events = @import("events.zig");
+
+pub const UP_Z = zm.f32x4(0, 1, 0, 1);
+pub const FORWARD_Z = zm.f32x4(0, 0, 1, 1);
+pub const RIGHT_Z = zm.f32x4(1, 0, 0, 1);
+pub const PITCH_Z = RIGHT_Z;
+pub const YAW_Z = UP_Z;
+pub const ROLL_Z = FORWARD_Z;
 
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗
 // ╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔══██╗██║████╗  ██║
@@ -71,7 +79,7 @@ pub const input_exit = IdLocal.init("exit");
 
 pub const allocator = IdLocal.init("allocator");
 pub const event_manager = IdLocal.init("event_manager");
-pub const flecs_world = IdLocal.init("flecs_world");
+pub const ecsu_world = IdLocal.init("ecsu_world");
 pub const input_frame_data = IdLocal.init("input_frame_data");
 pub const physics_world = IdLocal.init("physics_world");
 pub const world_patch_mgr = IdLocal.init("world_patch_mgr");

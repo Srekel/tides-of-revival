@@ -21,5 +21,13 @@
         "*.cdb": "json",
         "functional": "cpp",
         "xutility": "cpp"
-    }
+    },
+    "search.exclude": {
+        "external/zig-gamedev/libs/zgpu/*": true,
+        "external/zig-gamedev/libs/zopengl/*": true,
+        "external/zig-gamedev/libs/zbullet/*": true,
+        // "external/zig-gamedev/libs/zphysics/**/*.cpp": true,
+        "**/zig-cache/*": true,
+    },
+    "explorer.excludeGitIgnore": false,
 }
