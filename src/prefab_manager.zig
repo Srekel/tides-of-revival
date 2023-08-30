@@ -1,5 +1,6 @@
 const std = @import("std");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
+const ecsu = @import("flecs_util/flecs_util.zig");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const zwin32 = @import("zwin32");
@@ -15,16 +16,16 @@ const assert = std.debug.assert;
 const d3d12 = zwin32.d3d12;
 const zcgltf = zmesh.io.zcgltf;
 
-const PrefabHashMap = std.AutoHashMap(IdLocal, flecs.Entity);
+const PrefabHashMap = std.AutoHashMap(IdLocal, ecsu.Entity);
 
 pub const PrefabManager = struct {
     prefab_hash_map: PrefabHashMap,
-    is_a: flecs.Entity,
+    is_a: ecsu.Entity,
 
-    pub fn init(world: *flecs.World, allocator: std.mem.Allocator) PrefabManager {
+    pub fn init(world: *ecsu.World, allocator: std.mem.Allocator) PrefabManager {
         return PrefabManager{
             .prefab_hash_map = PrefabHashMap.init(allocator),
-            .is_a = flecs.Entity.init(world.world, flecs.c.Constants.EcsIsA),
+            .is_a = ecsu.Entity.init(world.world, ecs.IsA),
         };
     }
 
@@ -32,13 +33,7 @@ pub const PrefabManager = struct {
         self.prefab_hash_map.deinit();
     }
 
-    pub fn loadPrefabFromGLTF(
-        self: *@This(),
-        path: [:0]const u8,
-        world: *flecs.World,
-        gfxstate: *gfx.D3D12State,
-        allocator: std.mem.Allocator
-    ) !flecs.Entity {
+    pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: *ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator) !ecsu.Entity {
         const path_id = IdLocal.init(path);
         var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
@@ -58,7 +53,7 @@ pub const PrefabManager = struct {
 
         var prefab = world.newPrefab(path);
         prefab.setOverride(fd.Position.init(0, 0, 0));
-        prefab.setOverride(fd.EulerRotation{});
+        prefab.setOverride(fd.Rotation{});
         prefab.setOverride(fd.Scale.createScalar(1));
         prefab.setOverride(fd.Transform{});
         prefab.setOverride(fd.Forward{});
@@ -70,7 +65,7 @@ pub const PrefabManager = struct {
         return prefab;
     }
 
-    pub fn getPrefabByPath(self: *@This(), path: []const u8) ?flecs.Entity {
+    pub fn getPrefabByPath(self: *@This(), path: []const u8) ?ecsu.Entity {
         const path_id = IdLocal.init(path);
         var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
@@ -80,7 +75,7 @@ pub const PrefabManager = struct {
         return null;
     }
 
-    pub fn instantiatePrefab(self: @This(), world: *flecs.World, prefab: flecs.Entity) flecs.Entity {
+    pub fn instantiatePrefab(self: @This(), world: *ecsu.World, prefab: ecsu.Entity) ecsu.Entity {
         const entity = world.newEntity();
         entity.addPair(self.is_a, prefab);
         return entity;
@@ -89,28 +84,25 @@ pub const PrefabManager = struct {
     fn parseNode(
         self: *@This(),
         node: *zcgltf.Node,
-        parent_entity: flecs.Entity,
-        world: *flecs.World,
+        parent_entity: ecsu.Entity,
+        world: *ecsu.World,
         gfxstate: *gfx.D3D12State,
         arena: std.mem.Allocator,
     ) void {
         // Set parent
         var entity = world.newPrefab(node.name);
-        entity.addPair(flecs.c.Constants.EcsChildOf, parent_entity);
+        entity.addPair(ecs.ChildOf, parent_entity);
         entity.setOverride(fd.Forward{});
         entity.setOverride(fd.Dynamic{});
         entity.setOverride(fd.Transform{});
 
         // Set transform
         var position = fd.Position.init(0, 0, 0);
-        var rotation = fd.EulerRotation{};
+        var rotation = fd.Rotation{};
         var scale = fd.Scale.createScalar(1);
 
         if (node.has_rotation != 0) {
-            var euler = zm.quatToRollPitchYaw(node.rotation);
-            rotation.roll = euler[0];
-            rotation.pitch = euler[1];
-            rotation.yaw = euler[2];
+            rotation.elems().* = node.rotation;
         }
 
         if (node.has_translation != 0) {

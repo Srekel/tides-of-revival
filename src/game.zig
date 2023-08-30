@@ -50,51 +50,51 @@ const SpawnContext = struct {
     stage: f32 = 0,
 };
 
-var spider_prefab: flecs.Entity = undefined;
-var bow_prefab: flecs.Entity = undefined;
+var spider_prefab: ecsu.Entity = undefined;
+var bow_prefab: ecsu.Entity = undefined;
 
 fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     const ctx = util.castOpaque(SpawnContext, data);
-    const player_ent_id = flecs.c.ecs_lookup(ctx.flecs_world.world, "player");
-    const player_ent = flecs.Entity{ .id = player_ent_id, .world = ctx.flecs_world.world };
-    const player_pos = player_ent.get(fd.Position).?;
+    const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
-    var ent = ctx.prefab_manager.instantiatePrefab(ctx.flecs_world, spider_prefab);
-    var spawn_pos = [3]f32{
+    for (0..5) |i_spider| {
+        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_spider)) / 5.0;
+        var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, spider_prefab);
+        var spawn_pos = [3]f32{
             root_pos.x + 50 * std.math.sin(ctx.speed * 50) + 5 * std.math.sin(angle),
             root_pos.y + 20,
             root_pos.z + 50 * std.math.cos(ctx.speed * 50) + 5 * std.math.cos(angle),
-    };
-    ent.set(fd.Position{
-        .x = spawn_pos[0],
-        .y = spawn_pos[1],
-        .z = spawn_pos[2],
-    });
-    ent.set(fd.Health{ .value = 10 + ctx.stage * 2 });
+        };
+        ent.set(fd.Position{
+            .x = spawn_pos[0],
+            .y = spawn_pos[1],
+            .z = spawn_pos[2],
+        });
+        ent.set(fd.Health{ .value = 10 + ctx.stage * 2 });
 
-    ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+        ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
 
-    const body_interface = ctx.physics_world.getBodyInterfaceMut();
+        const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
         const shape_settings = zphy.BoxShapeSettings.create(.{ 0.25, 0.1, 0.5 }) catch unreachable;
-    defer shape_settings.release();
+        defer shape_settings.release();
 
-    const shape = shape_settings.createShape() catch unreachable;
-    defer shape.release();
+        const shape = shape_settings.createShape() catch unreachable;
+        defer shape.release();
 
-    const body_id = body_interface.createAndAddBody(.{
-        .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
-        .rotation = .{ 0, 0, 0, 1 },
-        .shape = shape,
-        .motion_type = .kinematic,
-        .object_layer = config.object_layers.moving,
-        .motion_quality = .discrete,
-        .user_data = ent.id,
-    }, .activate) catch unreachable;
+        const body_id = body_interface.createAndAddBody(.{
+            .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
+            .rotation = .{ 0, 0, 0, 1 },
+            .shape = shape,
+            .motion_type = .kinematic,
+            .object_layer = config.object_layers.moving,
+            .motion_quality = .discrete,
+            .user_data = ent.id,
+        }, .activate) catch unreachable;
 
-    //  Assign to flecs component
-    ent.set(fd.PhysicsBody{ .body_id = body_id });
+        //  Assign to flecs component
+        ent.set(fd.PhysicsBody{ .body_id = body_id });
     }
 }
 
@@ -130,7 +130,7 @@ pub fn run() void {
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state, std.heap.page_allocator);
 
-    var prefab_manager = pm.PrefabManager.init(&flecs_world, std.heap.page_allocator);
+    var prefab_manager = pm.PrefabManager.init(&ecsu_world, std.heap.page_allocator);
     defer prefab_manager.deinit();
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -140,9 +140,9 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/spider/spider.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &flecs_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/spider/spider.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -422,7 +422,7 @@ pub fn run() void {
         IdLocal.initFormat("procmesh_system_{}", .{0}),
         std.heap.page_allocator,
         &gfx_state,
-        ecsu_world,
+        &ecsu_world,
         &input_frame_data,
     );
     defer procmesh_system.destroy(procmesh_sys);
@@ -431,7 +431,7 @@ pub fn run() void {
         IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
         std.heap.page_allocator,
         &gfx_state,
-        &flecs_world,
+        &ecsu_world,
         &input_frame_data,
     );
     defer static_mesh_renderer_system.destroy(static_mesh_renderer_sys);
@@ -592,12 +592,12 @@ pub fn run() void {
     // // ██████╔╝╚██████╔╝╚███╔███╔╝
     // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = prefab_manager.instantiatePrefab(&flecs_world, bow_prefab);
+    const bow_ent = prefab_manager.instantiatePrefab(&ecsu_world, bow_prefab);
     bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.ProjectileWeapon{});
 
-    var proj_ent = flecs_world.newEntity();
+    var proj_ent = ecsu_world.newEntity();
     proj_ent.set(fd.Projectile{});
 
     // // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗

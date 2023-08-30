@@ -5,7 +5,8 @@ const math = std.math;
 
 const zm = @import("zmath");
 const zmu = @import("zmathutil");
-const flecs = @import("flecs");
+const ecs = @import("zflecs");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 
 const gfx = @import("../gfx_d3d12.zig");
 const zwin32 = @import("zwin32");
@@ -50,8 +51,8 @@ const max_draw_distance: f32 = 500.0;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    flecs_world: *flecs.World,
-    sys: flecs.EntityId,
+    ecsu_world: *ecsu.World,
+    sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
 
@@ -62,8 +63,8 @@ const SystemState = struct {
     draw_calls: std.ArrayList(gfx.DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
-    query_camera: flecs.Query,
-    query_mesh: flecs.Query,
+    query_camera: ecsu.Query,
+    query_mesh: ecsu.Query,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -73,7 +74,7 @@ const SystemState = struct {
     } = .{},
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World, _: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: *ecsu.World, _: *input.FrameData) !*SystemState {
     // Create instance buffers.
     const instance_transform_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
@@ -118,15 +119,15 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
     var state = allocator.create(SystemState) catch unreachable;
-    var sys = flecs_world.newWrappedRunSystem(name.toCString(), .on_update, fd.NOCOMP, update, .{ .ctx = state });
-    // var sys_post = flecs_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
+    // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_camera = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world.*);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
-    var query_builder_mesh = flecs.QueryBuilder.init(flecs_world.*);
+    var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.StaticMeshComponent);
@@ -135,7 +136,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     state.* = .{
         .allocator = allocator,
-        .flecs_world = flecs_world,
+        .ecsu_world = ecsu_world,
         .sys = sys,
         .gfx = gfxstate,
         .instance_transform_buffers = instance_transform_buffers,
@@ -166,7 +167,7 @@ pub fn destroy(state: *SystemState) void {
 // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
-fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
+fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     const CameraQueryComps = struct {
@@ -177,7 +178,7 @@ fn update(iter: *flecs.Iterator(fd.NOCOMP)) void {
         var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
         while (entity_iter_camera.next()) |comps| {
             if (comps.cam.active) {
-                flecs.c.ecs_iter_fini(entity_iter_camera.iter);
+                ecs.iter_fini(entity_iter_camera.iter);
                 break :blk comps;
             }
         }

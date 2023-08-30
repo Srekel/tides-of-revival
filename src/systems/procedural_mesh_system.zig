@@ -76,7 +76,6 @@ const SystemState = struct {
     draw_calls: std.ArrayList(gfx.DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
-
     meshes: std.ArrayList(IdLocalToMeshHandle),
     query_camera: ecsu.Query,
     query_mesh: ecsu.Query,
@@ -111,9 +110,9 @@ fn appendShapeMesh(
     var mesh = Mesh{
         .vertex_buffer = undefined,
         .index_buffer = undefined,
-            .num_lods = 1,
-            .lods = undefined,
-            .bounding_box = undefined,
+        .num_lods = 1,
+        .lods = undefined,
+        .bounding_box = undefined,
     };
 
     var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
@@ -240,40 +239,9 @@ fn initScene(
     appendObjMesh("unit_sphere_lp", allocator, gfxstate, IdLocal.init("unit_sphere_lp"), "content/meshes/unit_sphere_lp.obj", meshes) catch unreachable;
 }
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, flecs_world: *flecs.World, frame_data: *input.FrameData) !*SystemState {
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    var meshes = std.ArrayList(ProcMesh).init(allocator);
-    var meshes_indices = std.ArrayList(IndexType).init(arena);
-    var meshes_vertices = std.ArrayList(Vertex).init(arena);
-    initScene(allocator, &meshes, &meshes_indices, &meshes_vertices);
-
-    const total_num_vertices = @as(u32, @intCast(meshes_vertices.items.len));
-    const total_num_indices = @as(u32, @intCast(meshes_indices.items.len));
-
-    // Create a vertex buffer.
-    var vertex_buffer = gfxstate.createBuffer(.{
-        .size = total_num_vertices * @sizeOf(Vertex),
-        .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-        .name = L("Vertex Buffer"),
-        .persistent = true,
-        .has_cbv = false,
-        .has_srv = true,
-        .has_uav = false,
-    }) catch unreachable;
-
-    // Create an index buffer.
-    var index_buffer = gfxstate.createBuffer(.{
-        .size = total_num_indices * @sizeOf(IndexType),
-        .state = .{ .INDEX_BUFFER = true },
-        .name = L("Index Buffer"),
-        .persistent = false,
-        .has_cbv = false,
-        .has_srv = false,
-        .has_uav = false,
-    }) catch unreachable;
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: *ecsu.World, frame_data: *input.FrameData) !*SystemState {
+    var meshes = std.ArrayList(IdLocalToMeshHandle).init(allocator);
+    initScene(allocator, gfxstate, &meshes);
 
     // Create instance buffers.
     const instance_transform_buffers = blk: {
@@ -323,11 +291,11 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world);
+    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world.*);
     _ = query_builder_camera
         .withReadonly(fd.Camera)
         .withReadonly(fd.Transform);
-    var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
+    var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.StaticMesh);
@@ -336,7 +304,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     state.* = .{
         .allocator = allocator,
-        .ecsu_world = ecsu_world,
+        .ecsu_world = ecsu_world.*,
         .sys = sys,
         .gfx = gfxstate,
         .instance_transform_buffers = instance_transform_buffers,
@@ -428,83 +396,83 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         var maybe_mesh = state.gfx.lookupMesh(comps.mesh.mesh_handle);
 
         if (maybe_mesh) |mesh| {
-        const z_world = zm.loadMat43(comps.transform.matrix[0..]);
+            const z_world = zm.loadMat43(comps.transform.matrix[0..]);
 
-        const bb_ws = mesh.calculateBoundingBoxCoordinates(z_world);
-        if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
-            continue;
-        }
+            const bb_ws = mesh.calculateBoundingBoxCoordinates(z_world);
+            if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
+                continue;
+            }
 
-        // Build bounding sphere matrix for debugging purpouses
-        const z_bb_matrix = zm.mul(zm.scaling(bb_ws.radius, bb_ws.radius, bb_ws.radius), zm.translation(bb_ws.center[0], bb_ws.center[1], bb_ws.center[2]));
+            // Build bounding sphere matrix for debugging purpouses
+            const z_bb_matrix = zm.mul(zm.scaling(bb_ws.radius, bb_ws.radius, bb_ws.radius), zm.translation(bb_ws.center[0], bb_ws.center[1], bb_ws.center[2]));
 
-        lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+            lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
             if (first_iteration) {
                 last_mesh_handle = comps.mesh.mesh_handle;
-            last_lod_index = lod_index;
+                last_lod_index = lod_index;
                 first_iteration = false;
-        }
+            }
 
             if (isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle) and lod_index == last_lod_index) {
-            if (instance_count < max_instances_per_draw_call) {
-                instance_count += 1;
-            } else {
-                state.draw_calls.append(.{
+                if (instance_count < max_instances_per_draw_call) {
+                    instance_count += 1;
+                } else {
+                    state.draw_calls.append(.{
                         .mesh_handle = comps.mesh.mesh_handle,
                         .lod_index = lod_index,
+                        .instance_count = instance_count,
+                        .start_instance_location = start_instance_location,
+                    }) catch unreachable;
+
+                    start_instance_location += instance_count;
+                    instance_count = 1;
+                }
+            } else if (isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle) and lod_index != last_lod_index) {
+                state.draw_calls.append(.{
+                    .mesh_handle = last_mesh_handle,
+                    .lod_index = last_lod_index,
                     .instance_count = instance_count,
                     .start_instance_location = start_instance_location,
                 }) catch unreachable;
 
                 start_instance_location += instance_count;
                 instance_count = 1;
-            }
-            } else if (isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle) and lod_index != last_lod_index) {
-            state.draw_calls.append(.{
-                    .mesh_handle = last_mesh_handle,
-                    .lod_index = last_lod_index,
-                .instance_count = instance_count,
-                .start_instance_location = start_instance_location,
-            }) catch unreachable;
-
-            start_instance_location += instance_count;
-            instance_count = 1;
-            last_lod_index = lod_index;
+                last_lod_index = lod_index;
             } else if (!isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle)) {
-            state.draw_calls.append(.{
+                state.draw_calls.append(.{
                     .mesh_handle = last_mesh_handle,
                     .lod_index = last_lod_index,
-                .instance_count = instance_count,
-                .start_instance_location = start_instance_location,
-            }) catch unreachable;
+                    .instance_count = instance_count,
+                    .start_instance_location = start_instance_location,
+                }) catch unreachable;
 
-            start_instance_location += instance_count;
-            instance_count = 1;
+                start_instance_location += instance_count;
+                instance_count = 1;
 
                 last_mesh_handle = comps.mesh.mesh_handle;
-            lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+                lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
 
-            last_lod_index = lod_index;
+                last_lod_index = lod_index;
+            }
+
+            const invalid_texture_index = std.math.maxInt(u32);
+            state.instance_transforms.append(.{
+                .object_to_world = zm.transpose(z_world),
+                .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
+            }) catch unreachable;
+            state.instance_materials.append(.{
+                .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+                .roughness = 1.0,
+                .metallic = 0.0,
+                .normal_intensity = 1.0,
+                .albedo_texture_index = invalid_texture_index,
+                .emissive_texture_index = invalid_texture_index,
+                .normal_texture_index = invalid_texture_index,
+                .arm_texture_index = invalid_texture_index,
+                .padding = 42,
+            }) catch unreachable;
         }
-
-        const invalid_texture_index = std.math.maxInt(u32);
-        state.instance_transforms.append(.{
-            .object_to_world = zm.transpose(z_world),
-            .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
-        }) catch unreachable;
-        state.instance_materials.append(.{
-            .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-            .roughness = 1.0,
-            .metallic = 0.0,
-            .normal_intensity = 1.0,
-            .albedo_texture_index = invalid_texture_index,
-            .emissive_texture_index = invalid_texture_index,
-            .normal_texture_index = invalid_texture_index,
-            .arm_texture_index = invalid_texture_index,
-            .padding = 42,
-        }) catch unreachable;
-    }
     }
 
     if (instance_count >= 1) {
@@ -614,12 +582,12 @@ const StaticMeshObserverCallback = struct {
     pub const run = onSetCIStaticMesh;
 };
 
-fn onSetCIStaticMesh(it: *flecs.Iterator(StaticMeshObserverCallback)) void {
-    var observer: *ecs.ecs_observer_t = @ptrCast(@alignCast(it.iter.ctx));
+fn onSetCIStaticMesh(it: *ecsu.Iterator(StaticMeshObserverCallback)) void {
+    var observer: *ecs.observer_t = @ptrCast(@alignCast(it.iter.ctx));
     var state: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
 
     while (it.next()) |_| {
-        const ci_ptr = ecs.ecs_field_w_size(it.iter, @sizeOf(fd.CIStaticMesh), @as(i32, @intCast(it.index))).?;
+        const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIStaticMesh), @as(i32, @intCast(it.index))).?;
         var ci: *fd.CIStaticMesh = @ptrCast(@alignCast(ci_ptr));
 
         const mesh_handle = mesh_blk: {
@@ -631,7 +599,7 @@ fn onSetCIStaticMesh(it: *flecs.Iterator(StaticMeshObserverCallback)) void {
             unreachable;
         };
 
-        const ent = it.entity();
+        const ent = ecsu.Entity.init(it.world().world, it.entity());
         ent.remove(fd.CIStaticMesh);
         ent.set(fd.StaticMesh{
             .mesh_handle = mesh_handle,

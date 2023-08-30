@@ -54,8 +54,9 @@ pub const World = struct {
         return ecsu.Entity.init(self.world, ecs.entity_init(self.world, &desc));
     }
 
-    pub fn newPrefab(self: World, name: [*c]const u8) ecs.entity_t {
-        return ecs.new_prefab(self.world, name);
+    pub fn newPrefab(self: World, name: [*c]const u8) ecsu.Entity {
+        const ent = ecs.new_prefab(self.world, name);
+        return ecsu.Entity.init(self.world, ent);
     }
 
     /// Allowed params: Entity, EntityId, type

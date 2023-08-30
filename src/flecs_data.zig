@@ -26,10 +26,9 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Transform);
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
-    ecs.COMPONENT(ecs_world, CIShapeMeshDefinition);
-    ecs.COMPONENT(ecs_world, ShapeMeshDefinition);
-    ecs.COMPONENT(ecs_world, CIShapeMeshInstance);
-    ecs.COMPONENT(ecs_world, ShapeMeshInstance);
+    ecs.COMPONENT(ecs_world, CIStaticMesh);
+    ecs.COMPONENT(ecs_world, StaticMesh);
+    ecs.COMPONENT(ecs_world, StaticMeshComponent);
     ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
@@ -214,7 +213,7 @@ pub const Transform = struct {
     }
 
     pub fn initWithQuaternion(quat: [4]f32) Transform {
-        var z_rotation_matrix = zm.matFromQuat(zm.Quat{quat[0], quat[1], quat[2], quat[3]});
+        var z_rotation_matrix = zm.matFromQuat(zm.Quat{ quat[0], quat[1], quat[2], quat[3] });
         var transform = Transform{};
         zm.storeMat43(&transform.matrix, z_rotation_matrix);
         return transform;
