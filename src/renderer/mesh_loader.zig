@@ -44,22 +44,19 @@ pub fn parseMeshPrimitive(
         if (accessor.stride == 1) {
             assert(accessor.component_type == .r_8u);
             const src = @as([*]const u8, @ptrCast(data_addr));
-            var i: u32 = 0;
-            while (i < num_indices) : (i += 1) {
+            for (0..num_indices) |i| {
                 indices.appendAssumeCapacity(src[i]);
             }
         } else if (accessor.stride == 2) {
             assert(accessor.component_type == .r_16u);
             const src = @as([*]const u16, @ptrCast(@alignCast(data_addr)));
-            var i: u32 = 0;
-            while (i < num_indices) : (i += 1) {
+            for (0..num_indices) |i| {
                 indices.appendAssumeCapacity(src[i]);
             }
         } else if (accessor.stride == 4) {
             assert(accessor.component_type == .r_32u);
             const src = @as([*]const u32, @ptrCast(@alignCast(data_addr)));
-            var i: u32 = 0;
-            while (i < num_indices) : (i += 1) {
+            for (0..num_indices) |i| {
                 indices.appendAssumeCapacity(src[i]);
             }
         } else {
@@ -106,25 +103,21 @@ pub fn parseMeshPrimitive(
     // Post processing
     // ===============
     // 1. Convert to Left Hand coordinate to conform to DirectX
-    var i: u32 = 0;
-    while (i < positions.items.len) : (i += 1) {
+    for (0..positions.items.len) |i| {
         positions.items[i][2] *= -1.0;
     }
-    i = 0;
-    while (i < normals.items.len) : (i += 1) {
+    for (0..normals.items.len) |i| {
         normals.items[i][2] *= -1.0;
     }
-    i = 0;
-    while (i < tangents.items.len) : (i += 1) {
+    for (0..tangents.items.len) |i| {
         tangents.items[i][2] *= -1.0;
     }
     // 2. Flip the UV's V component
-    // i = 0;
-    // while (i < uvs.items.len) : (i += 1) {
+    // for (0..uvs.items.len) |i| {
     //     uvs.items[i][1] *= -1.0;
     // }
     // 3. Convert mesh to clock-wise winding
-    i = 0;
+    var i: u32 = 0;
     while (i < indices.items.len) : (i += 3) {
         std.mem.swap(u32, &indices.items[i + 1], &indices.items[i + 2]);
     }
@@ -354,8 +347,7 @@ fn storeMeshLod(
         var bitangents = std.ArrayList([3]f32).init(arena);
         try bitangents.resize(vertices.items.len);
 
-        var i: u32 = 0;
-        while (i < tangents.items.len) : (i += 1) {
+        for (0..tangents.items.len) |i| {
             var t = &tangents.items[i];
             t[0] = 0.0;
             t[1] = 0.0;
@@ -420,8 +412,7 @@ fn storeMeshLod(
             bitangents.items[indices.items[index + 2]][2] += bitangent[2];
         }
 
-        var vi: u32 = 0;
-        while (vi < vertices.items.len) : (vi += 1) {
+        for (0..vertices.items.len) |vi| {
             var vertex = &vertices.items[vi];
 
             const tangent = zm.loadArr3(tangents.items[vi]);
