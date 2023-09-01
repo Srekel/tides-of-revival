@@ -7,6 +7,9 @@ const zmesh = @import("zmesh");
 const ecs = @import("zflecs");
 const ecsu = @import("flecs_util/flecs_util.zig");
 const IdLocal = @import("variant.zig").IdLocal;
+const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
+const TextureHandle = @import("gfx_d3d12.zig").TextureHandle;
+const MaterialHandle = @import("gfx_d3d12.zig").MaterialHandle;
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
     var ecs_world = ecsu_world.world;
@@ -23,10 +26,9 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Transform);
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
-    ecs.COMPONENT(ecs_world, CIShapeMeshDefinition);
-    ecs.COMPONENT(ecs_world, ShapeMeshDefinition);
-    ecs.COMPONENT(ecs_world, CIShapeMeshInstance);
-    ecs.COMPONENT(ecs_world, ShapeMeshInstance);
+    ecs.COMPONENT(ecs_world, CIStaticMesh);
+    ecs.COMPONENT(ecs_world, StaticMesh);
+    ecs.COMPONENT(ecs_world, StaticMeshComponent);
     ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
@@ -210,6 +212,13 @@ pub const Transform = struct {
         };
     }
 
+    pub fn initWithQuaternion(quat: [4]f32) Transform {
+        var z_rotation_matrix = zm.matFromQuat(zm.Quat{ quat[0], quat[1], quat[2], quat[3] });
+        var transform = Transform{};
+        zm.storeMat43(&transform.matrix, z_rotation_matrix);
+        return transform;
+    }
+
     pub fn getPos00(self: Transform) [3]f32 {
         return self.matrix[9..].*;
     }
@@ -315,23 +324,62 @@ pub const Velocity = struct {
 // ██║ ╚═╝ ██║███████╗███████║██║  ██║
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
-pub const CIShapeMeshDefinition = struct {
-    id: IdLocal,
-    shape: zmesh.Shape,
-};
-pub const ShapeMeshDefinition = struct {
-    id: IdLocal,
-    mesh_index: u64,
+pub const PBRMaterial = struct {
+    base_color: ColorRGB,
+    metallic: f32,
+    roughness: f32,
+    albedo: TextureHandle,
+    normal: TextureHandle,
+    arm: TextureHandle,
+    emissive: TextureHandle,
+
+    pub fn init() PBRMaterial {
+        return .{
+            .base_color = ColorRGB.init(1, 1, 1),
+            .roughness = 1,
+            .metallic = 0,
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
+        };
+    }
+
+    pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) PBRMaterial {
+        return .{
+            .base_color = base_color,
+            .roughness = roughness,
+            .metallic = metallic,
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
+        };
+    }
 };
 
-pub const CIShapeMeshInstance = struct {
+pub const CIStaticMesh = struct {
     id: u64,
-    basecolor_roughness: ColorRGBRoughness,
+    material: PBRMaterial,
 };
-pub const ShapeMeshInstance = struct {
-    mesh_index: u64,
-    basecolor_roughness: ColorRGBRoughness,
+
+pub const StaticMesh = struct {
+    mesh_handle: MeshHandle,
+    material: PBRMaterial,
 };
+
+pub const StaticMeshComponent = struct {
+    mesh_handle: MeshHandle,
+    material_handle: MaterialHandle,
+};
+
+//  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
+// ██╔════╝██╔══██╗████╗ ████║██╔════╝██╔══██╗██╔══██╗
+// ██║     ███████║██╔████╔██║█████╗  ██████╔╝███████║
+// ██║     ██╔══██║██║╚██╔╝██║██╔══╝  ██╔══██╗██╔══██║
+// ╚██████╗██║  ██║██║ ╚═╝ ██║███████╗██║  ██║██║  ██║
+//  ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
+//
 
 pub const CICamera = struct {
     near: f32,

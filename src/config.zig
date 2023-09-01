@@ -83,6 +83,7 @@ pub const ecsu_world = IdLocal.init("ecsu_world");
 pub const input_frame_data = IdLocal.init("input_frame_data");
 pub const physics_world = IdLocal.init("physics_world");
 pub const world_patch_mgr = IdLocal.init("world_patch_mgr");
+pub const prefab_manager = IdLocal.init("prefab_manager");
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
 // ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝

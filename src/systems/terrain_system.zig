@@ -665,7 +665,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                                 var tree_ent = state.ecsu_world.newEntity();
                                 tree_ent.set(tree_transform);
-                                tree_ent.set(fd.CIShapeMeshInstance{
+                                tree_ent.set(fd.CIStaticMesh{
                                     .id = IdLocal.id64("pine"),
                                     .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
                                 });

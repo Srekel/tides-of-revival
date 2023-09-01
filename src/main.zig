@@ -1,14 +1,12 @@
 const std = @import("std");
 const args = @import("args");
 const offline = @import("offline_generation/main.zig");
-const model_viewer = @import("model_viewer/main.zig");
 const game = @import("game.zig");
 
 pub fn main() void {
     const options = args.parseForCurrentProcess(struct {
         // This declares long options for double hyphen
-        @"offlinegen": bool = false,
-        @"model_viewer": bool = false,
+        offlinegen: bool = false,
         // output: ?[]const u8 = null,
         // @"with-offset": bool = false,
         // @"with-hexdump": bool = false,
@@ -21,7 +19,6 @@ pub fn main() void {
         // This declares short-hand options for single hyphen
         pub const shorthands = .{
             .g = "offlinegen",
-            .m = "model_viewer",
             // .b = "with-hexdump",
             // .O = "with-offset",
             // .o = "output",
@@ -29,10 +26,8 @@ pub fn main() void {
     }, std.heap.page_allocator, .print) catch unreachable;
     defer options.deinit();
 
-    if (options.options.@"offlinegen") {
+    if (options.options.offlinegen) {
         offline.generate();
-    } else if (options.options.@"model_viewer") {
-        model_viewer.run() catch unreachable;
     } else {
         game.run();
     }

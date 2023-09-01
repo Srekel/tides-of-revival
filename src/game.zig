@@ -17,6 +17,7 @@ const fd = @import("flecs_data.zig");
 const fr = @import("flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const gfx = @import("gfx_d3d12.zig");
+const pm = @import("prefab_manager.zig");
 const window = @import("window.zig");
 const EventManager = @import("core/event_manager.zig").EventManager;
 
@@ -33,14 +34,15 @@ const physics_system = @import("systems/physics_system.zig");
 const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const patch_prop_system = @import("systems/patch_prop_system.zig");
 const procmesh_system = @import("systems/procedural_mesh_system.zig");
+const static_mesh_renderer_system = @import("systems/static_mesh_renderer_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const timeline_system = @import("systems/timeline_system.zig");
-// const terrain_system = @import("systems/terrain_system.zig");
 // const gui_system = @import("systems/gui_system.zig");
 
 const SpawnContext = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
+    prefab_manager: *pm.PrefabManager,
     event_manager: *EventManager,
     timeline_system: *timeline_system.SystemState,
     root_ent: ?ecs.entity_t,
@@ -48,19 +50,17 @@ const SpawnContext = struct {
     stage: f32 = 0,
 };
 
+var spider_prefab: ecsu.Entity = undefined;
+var bow_prefab: ecsu.Entity = undefined;
+
 fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
-    var ctx = util.castOpaque(SpawnContext, data);
-    ctx.stage += 1;
-    ctx.speed += 0.05;
-    timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("spiderSpawn").hash, 0, ctx.speed);
-
+    const ctx = util.castOpaque(SpawnContext, data);
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
-    const to_spawn = 2 + @round(ctx.stage / 5);
-    for (0..@intFromFloat(to_spawn)) |i_spider| {
-        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_spider)) / to_spawn;
-        var ent = ctx.ecsu_world.newEntity();
+    for (0..5) |i_spider| {
+        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_spider)) / 5.0;
+        var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, spider_prefab);
         var spawn_pos = [3]f32{
             root_pos.x + 50 * std.math.sin(ctx.speed * 50) + 5 * std.math.sin(angle),
             root_pos.y + 20,
@@ -71,16 +71,7 @@ fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
             .y = spawn_pos[1],
             .z = spawn_pos[2],
         });
-        ent.set(fd.Rotation{});
-        ent.set(fd.Scale.createScalar(1));
-        ent.set(fd.Transform{});
-        ent.set(fd.Forward{});
-        ent.set(fd.Dynamic{});
         ent.set(fd.Health{ .value = 10 + ctx.stage * 2 });
-        ent.set(fd.CIShapeMeshInstance{
-            .id = IdLocal.id64("spider_body"),
-            .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
-        });
 
         ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
 
@@ -138,6 +129,20 @@ pub fn run() void {
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(&gfx_state, std.heap.page_allocator);
+
+    var prefab_manager = pm.PrefabManager.init(&ecsu_world, std.heap.page_allocator);
+    defer prefab_manager.deinit();
+
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    zmesh.init(arena);
+    defer zmesh.deinit();
+
+    // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
+    spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/spider/spider.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -353,6 +358,7 @@ pub fn run() void {
     system_context.put(config.ecsu_world, &ecsu_world);
     system_context.put(config.event_manager, &event_manager);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
+    system_context.put(config.prefab_manager, &prefab_manager);
 
     var physics_sys = try physics_system.create(
         IdLocal.init("physics_system"),
@@ -404,12 +410,6 @@ pub fn run() void {
     );
     defer camera_system.destroy(camera_sys);
 
-    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-    zmesh.init(arena);
-    defer zmesh.deinit();
-
     var patch_prop_sys = try patch_prop_system.create(
         IdLocal.initFormat("patch_prop_system_{}", .{0}),
         std.heap.page_allocator,
@@ -422,10 +422,19 @@ pub fn run() void {
         IdLocal.initFormat("procmesh_system_{}", .{0}),
         std.heap.page_allocator,
         &gfx_state,
-        ecsu_world,
+        &ecsu_world,
         &input_frame_data,
     );
     defer procmesh_system.destroy(procmesh_sys);
+
+    var static_mesh_renderer_sys = try static_mesh_renderer_system.create(
+        IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
+        std.heap.page_allocator,
+        &gfx_state,
+        &ecsu_world,
+        &input_frame_data,
+    );
+    defer static_mesh_renderer_system.destroy(static_mesh_renderer_sys);
 
     var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
         IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
@@ -435,13 +444,6 @@ pub fn run() void {
         world_patch_mgr,
     );
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
-
-    // var gui_sys = try gui_system.create(
-    //     std.heap.page_allocator,
-    //     &gfx_state,
-    //     main_window,
-    // );
-    // defer gui_system.destroy(&gui_sys);
 
     city_system.createEntities(city_sys);
 
@@ -458,6 +460,7 @@ pub fn run() void {
     var tl_spider_spawn_ctx = SpawnContext{
         .ecsu_world = ecsu_world,
         .physics_world = physics_sys.physics_world,
+        .prefab_manager = &prefab_manager,
         .event_manager = &event_manager,
         .timeline_system = timeline_sys,
         .root_ent = null,
@@ -542,7 +545,7 @@ pub fn run() void {
 
     // const entity3 = ecsu_world.newEntity();
     // entity3.set(fd.Transform.initWithScale(0, 0, 0, 100));
-    // entity3.set(fd.CIShapeMeshInstance{
+    // entity3.set(fd.CIStaticMesh{
     //     .id = IdLocal.id64("sphere"),
     //     .basecolor_roughness = .{ .r = 1.0, .g = 0.0, .b = 0.0, .roughness = 0.8 },
     // });
@@ -552,12 +555,12 @@ pub fn run() void {
     //     .sphere = .{ .radius = 10.5 },
     // });
 
-    const entity4 = ecsu_world.newEntity();
-    entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
-    entity4.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("sphere"),
-        .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 1.0, .roughness = 0.8 },
-    });
+    // const entity4 = ecsu_world.newEntity();
+    // entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
+    // entity4.set(fd.CIStaticMesh{
+    //     .id = IdLocal.id64("sphere"),
+    //     .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 1.0, .roughness = 0.8 },
+    // });
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     // const player_pos = fd.Position.init(100, 100, 100);
@@ -589,48 +592,13 @@ pub fn run() void {
     // // ██████╔╝╚██████╔╝╚███╔███╔╝
     // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = ecsu_world.newEntity();
+    const bow_ent = prefab_manager.instantiatePrefab(&ecsu_world, bow_prefab);
     bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
-    bow_ent.set(fd.Rotation{});
-    bow_ent.set(fd.Scale.createScalar(1));
-    bow_ent.set(fd.Transform{});
-    bow_ent.set(fd.Forward{});
-    bow_ent.set(fd.Dynamic{});
     bow_ent.set(fd.ProjectileWeapon{});
-    bow_ent.set(fd.CIShapeMeshInstance{
-        .id = IdLocal.id64("bow"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
-    });
 
     var proj_ent = ecsu_world.newEntity();
-    // proj_ent.setName("arrow2");
-    // proj_ent.set(fd.Position{ .x = 0, .y = 0, .z = -0.5 });
-    // proj_ent.set(fd.Rotation{});
-    // proj_ent.set(fd.Scale.createScalar(1));
-    // proj_ent.set(fd.Transform{});
-    // proj_ent.set(fd.Forward{});
-    // proj_ent.set(fd.Dynamic{});
     proj_ent.set(fd.Projectile{});
-    // proj_ent.set(fd.CIShapeMeshInstance{
-    //     .id = IdLocal.id64("bow"),
-    //     .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
-    // });
-    // proj_ent.childOf(bow_ent);
-    // weapon_comp.chambered_projectile = proj_ent.id;
-
-    // var spider_ent = ecsu_world.newEntity();
-    // // proj_ent.setName("arrow2");
-    // spider_ent.set(fd.Position{ .x = player_pos.x + 10, .y = player_pos.y, .z = player_pos.z + 10 });
-    // spider_ent.set(fd.Rotation{});
-    // spider_ent.set(fd.Scale.createScalar(1));
-    // spider_ent.set(fd.Transform{});
-    // spider_ent.set(fd.Forward{});
-    // spider_ent.set(fd.Dynamic{});
-    // spider_ent.set(fd.CIShapeMeshInstance{
-    //     .id = IdLocal.id64("spider_body"),
-    //     .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 0.0, .roughness = 1.0 },
-    // });
 
     // // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
@@ -639,12 +607,9 @@ pub fn run() void {
     // // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    // // _ = player_pos;
-    // // const player_height = config.noise_scale_y * (config.noise_offset_y + terrain_noise.noise2(20 * config.noise_scale_xz, 20 * config.noise_scale_xz));
     const player_ent = ecsu_world.newEntity();
     player_ent.setName("player");
     player_ent.set(player_pos);
-    // player_ent.set(fd.Position{ .x = 20, .y = player_height + 1, .z = 20 });
     player_ent.set(fd.Rotation{});
     player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
@@ -652,9 +617,9 @@ pub fn run() void {
     player_ent.set(fd.Velocity{});
     player_ent.set(fd.Dynamic{});
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
-    player_ent.set(fd.CIShapeMeshInstance{
+    player_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("cylinder"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
     player_ent.set(fd.WorldLoader{
         .range = 2,
@@ -686,9 +651,9 @@ pub fn run() void {
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    player_camera_ent.set(fd.CIShapeMeshInstance{
+    player_camera_ent.set(fd.CIStaticMesh{
         .id = IdLocal.id64("sphere"),
-        .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 0.8 },
+        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
     player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
     bow_ent.childOf(player_camera_ent);

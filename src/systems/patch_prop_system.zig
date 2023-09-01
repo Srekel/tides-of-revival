@@ -237,7 +237,7 @@ fn updatePatches(system: *SystemState) void {
                     // // var light_viz_ent = system.ecsu_world.newEntity();
                     // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
                     // // light_viz_ent.set(fd.Scale.createScalar(1));
-                    // // light_viz_ent.set(fd.CIShapeMeshInstance{
+                    // // light_viz_ent.set(fd.CIStaticMesh{
                     // //     .id = IdLocal.id64("sphere"),
                     // //     .basecolor_roughness = city_params.center_color,
                     // // });
@@ -252,7 +252,7 @@ fn updatePatches(system: *SystemState) void {
                     //     // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
                     // }
                 } else {
-                    prop_ent.set(fd.CIShapeMeshInstance{
+                    prop_ent.set(fd.CIStaticMesh{
                         .id = blk: {
                             if (prop.id.hash == tree_id.hash) {
                                 break :blk IdLocal.id64("pine");
@@ -263,7 +263,7 @@ fn updatePatches(system: *SystemState) void {
                             }
                             unreachable;
                         },
-                        .basecolor_roughness = .{ .r = 0.6, .g = 0.6, .b = 0.1, .roughness = 1.0 },
+                        .material = fd.PBRMaterial.initNoTexture(.{ .r = 0.6, .g = 0.6, .b = 0.1 }, 1.0, 0.0),
                     });
                 }
                 patch.entities.append(prop_ent.id) catch unreachable;

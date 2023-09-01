@@ -14,10 +14,10 @@ const zd3d12 = @import("zd3d12");
 const dds_loader = zwin32.dds_loader;
 const zglfw = @import("zglfw");
 const profiler_module = @import("renderer/d3d12/profiler.zig");
+const Pool = @import("zpool").Pool;
 const IdLocal = @import("variant.zig").IdLocal;
 const IdLocalContext = @import("variant.zig").IdLocalContext;
 const buffer_module = @import("renderer/d3d12/buffer.zig");
-const texture_module = @import("renderer/d3d12/texture.zig");
 const renderer_types = @import("renderer/renderer_types.zig");
 const mesh_loader = @import("renderer/mesh_loader.zig");
 const zm = @import("zmath");
@@ -34,11 +34,23 @@ pub const BufferHandle = buffer_module.BufferHandle;
 const IndexType = renderer_types.IndexType;
 const Vertex = renderer_types.Vertex;
 const Mesh = renderer_types.Mesh;
+pub const Texture = renderer_types.Texture;
+pub const TextureDesc = renderer_types.TextureDesc;
 
-pub const Texture = texture_module.Texture;
-const TexturePool = texture_module.TexturePool;
-pub const TextureDesc = texture_module.TextureDesc;
-pub const TextureHandle = texture_module.TextureHandle;
+// Mesh Pool
+const MeshPool = Pool(16, 16, Mesh, struct { obj: Mesh });
+pub const MeshHandle = MeshPool.Handle;
+const MeshHashMap = std.AutoHashMap(IdLocal, MeshHandle);
+
+// Texture Pool
+const TexturePool = Pool(16, 16, Texture, struct { obj: Texture });
+pub const TextureHandle = TexturePool.Handle;
+const TextureHashMap = std.AutoHashMap(IdLocal, TextureHandle);
+
+// Material Pool
+const MaterialPool = Pool(16, 16, fd.PBRMaterial, struct { obj: fd.PBRMaterial });
+pub const MaterialHandle = MaterialPool.Handle;
+const MaterialHashMap = std.StringHashMap(MaterialHandle);
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
@@ -65,11 +77,9 @@ pub const SceneUniforms = extern struct {
 };
 
 pub const DrawCall = struct {
-    mesh_index: u32,
-    index_count: u32,
+    mesh_handle: MeshHandle,
+    lod_index: u32,
     instance_count: u32,
-    index_offset: u32,
-    vertex_offset: i32,
     start_instance_location: u32,
 };
 
@@ -219,13 +229,19 @@ pub const D3D12State = struct {
     specular_texture: TextureHandle,
     brdf_integration_texture: TextureHandle,
 
-    buffer_pool: BufferPool,
     texture_pool: TexturePool,
+    texture_hash: TextureHashMap,
+    small_textures_heap: *d3d12.IHeap,
+    small_textures_heap_offset: u64,
+
+    buffer_pool: BufferPool,
     pipelines: PipelineHashMap,
 
-    vertex_buffer: BufferHandle,
-    index_buffer: BufferHandle,
-    skybox_mesh: Mesh,
+    material_pool: MaterialPool,
+    material_hash: MaterialHashMap,
+    mesh_hash: MeshHashMap,
+    mesh_pool: MeshPool,
+    skybox_mesh: MeshHandle,
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
         return self.pipelines.get(pipeline_id);
@@ -284,26 +300,33 @@ pub const D3D12State = struct {
         return self.buffer_pool.lookupBuffer(handle);
     }
 
-    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
+    pub fn scheduleUploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) u64 {
         // TODO: Schedule the upload instead of uploading immediately
         self.gctx.beginFrame();
 
-        self.uploadDataToBuffer(T, buffer_handle, buffer_offset, data);
+        const offset = self.uploadDataToBuffer(T, buffer_handle, buffer_offset, data);
 
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
+
+        return offset;
     }
 
-    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) void {
+    pub fn uploadDataToBuffer(self: *D3D12State, comptime T: type, buffer_handle: BufferHandle, buffer_offset: u64, data: []T) u64 {
         const buffer = self.buffer_pool.lookupBuffer(buffer_handle);
         if (buffer == null)
-            return;
+            return 0;
 
         self.gctx.addTransitionBarrier(buffer.?.resource, .{ .COPY_DEST = true });
         self.gctx.flushResourceBarriers();
 
         const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @as(u32, @intCast(data.len)));
         std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
+
+        // NOTE(gmodarelli): Let's have zd3d12 return the aligned size instead
+        const alloc_alignment: u64 = 512;
+        const size = data.len * @sizeOf(T);
+        const aligned_size = (size + (alloc_alignment - 1)) & ~(alloc_alignment - 1);
 
         self.gctx.cmdlist.CopyBufferRegion(
             self.gctx.lookupResource(buffer.?.resource).?,
@@ -315,13 +338,24 @@ pub const D3D12State = struct {
 
         self.gctx.addTransitionBarrier(buffer.?.resource, buffer.?.state);
         self.gctx.flushResourceBarriers();
+
+        return aligned_size;
     }
 
     pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
-        // TODO: Schedule the upload instead of uploading immediately
-        self.gctx.beginFrame();
+        const path_id = IdLocal.init(path);
+        var existing_texture = self.texture_hash.get(path_id);
+        if (existing_texture) |texture_handle| {
+            return texture_handle;
+        }
 
-        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, false);
+        var should_end_frame = false;
+        if (!self.gctx.is_cmdlist_opened) {
+            self.gctx.beginFrame();
+            should_end_frame = true;
+        }
+
+        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = false });
         var path_u16: [300]u16 = undefined;
         assert(path.len < path_u16.len - 1);
         const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
@@ -346,15 +380,28 @@ pub const D3D12State = struct {
             break :blk t;
         };
 
-        self.gctx.endFrame();
-        self.gctx.finishGpuCommands();
+        if (should_end_frame) {
+            self.gctx.endFrame();
+            self.gctx.finishGpuCommands();
+        }
 
-        return self.texture_pool.addTexture(texture);
+        const texture_handle = try self.texture_pool.add(.{ .obj = texture });
+        self.texture_hash.put(path_id, texture_handle) catch unreachable;
+        return texture_handle;
     }
 
     pub fn scheduleLoadTextureCubemap(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
-        // TODO: Schedule the upload instead of uploading immediately
-        self.gctx.beginFrame();
+        const path_id = IdLocal.init(path);
+        var existing_texture = self.texture_hash.get(path_id);
+        if (existing_texture) |texture_handle| {
+            return texture_handle;
+        }
+
+        var should_end_frame = false;
+        if (!self.gctx.is_cmdlist_opened) {
+            self.gctx.beginFrame();
+            should_end_frame = true;
+        }
 
         const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = true });
         var path_u16: [300]u16 = undefined;
@@ -393,26 +440,176 @@ pub const D3D12State = struct {
             break :blk t;
         };
 
-        self.gctx.endFrame();
-        self.gctx.finishGpuCommands();
+        if (should_end_frame) {
+            self.gctx.endFrame();
+            self.gctx.finishGpuCommands();
+        }
 
-        return self.texture_pool.addTexture(texture);
+        const texture_handle = try self.texture_pool.add(.{ .obj = texture });
+        self.texture_hash.put(path_id, texture_handle) catch unreachable;
+        return texture_handle;
     }
 
     pub fn releaseAllTextures(self: *D3D12State) void {
-        self.texture_pool.releaseAllTextures();
+        var live_handles = self.texture_pool.liveHandles();
+        while (live_handles.next()) |handle| {
+            var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch {
+                std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
+                continue;
+            };
+
+            if (texture) |t| {
+                if (t.resource != null) {
+                    _ = t.resource.?.Release();
+                    t.resource = null;
+                }
+            }
+
+            _ = self.texture_pool.removeIfLive(handle);
+        }
+    }
+
+    pub fn findTextureByName(self: *D3D12State, name: [:0]const u8) ?TextureHandle {
+        const name_id = IdLocal.init(name);
+        var texture = self.texture_hash.get(name_id);
+        if (texture) |texture_handle| {
+            return texture_handle;
+        }
+
+        return null;
     }
 
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
-        return self.texture_pool.lookupTexture(handle);
+        var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch blk: {
+            std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
+            break :blk null;
+        };
+
+        return texture;
+    }
+
+    pub fn findMaterialByName(self: *D3D12State, name: []const u8) ?MaterialHandle {
+        var material = self.material_hash.get(name);
+        if (material) |material_handle| {
+            return material_handle;
+        }
+
+        return null;
+    }
+
+    pub inline fn lookUpMaterial(self: *D3D12State, handle: MaterialHandle) ?*fd.PBRMaterial {
+        var material: ?*fd.PBRMaterial = self.material_pool.getColumnPtr(handle, .obj) catch blk: {
+            std.log.debug("Failed to lookup material with handle: {any}", .{handle});
+            break :blk null;
+        };
+
+        return material;
+    }
+
+    pub fn storeMaterial(self: *D3D12State, name: []const u8, material: fd.PBRMaterial) !MaterialHandle {
+        var existing_material = self.material_hash.get(name);
+        if (existing_material) |material_handle| {
+            return material_handle;
+        }
+
+        const material_handle = try self.material_pool.add(.{ .obj = material });
+        self.material_hash.put(name, material_handle) catch unreachable;
+        return material_handle;
+    }
+
+    pub fn findMeshByName(self: *D3D12State, name: []const u8) ?MeshHandle {
+        const name_id = IdLocal.init(name);
+        var mesh = self.mesh_hash.get(name_id);
+        if (mesh) |mesh_handle| {
+            return mesh_handle;
+        }
+
+        return null;
+    }
+
+    pub fn uploadMeshData(self: *D3D12State, name: []const u8, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
+        const name_id = IdLocal.init(name);
+        var existing_mesh = self.mesh_hash.get(name_id);
+        if (existing_mesh) |mesh_handle| {
+            return mesh_handle;
+        }
+
+        // NOTE(gmodarelli): For now we create a vertex and an index buffer for every mesh, but in the future these
+        // buffer will be backed by one big memory allocation/heap
+        // Create a index buffer.
+        var vertex_buffer = self.createBuffer(.{
+            .size = vertices.len * @sizeOf(Vertex),
+            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .name = L("Vertex Buffer"),
+            .persistent = true,
+            .has_cbv = false,
+            .has_srv = true,
+            .has_uav = false,
+        }) catch unreachable;
+
+        // Create an index buffer.
+        var index_buffer = self.createBuffer(.{
+            .size = indices.len * @sizeOf(IndexType),
+            .state = .{ .INDEX_BUFFER = true },
+            .name = L("Index Buffer"),
+            .persistent = false,
+            .has_cbv = false,
+            .has_srv = false,
+            .has_uav = false,
+        }) catch unreachable;
+
+        var new_mesh = Mesh{
+            .vertex_buffer = vertex_buffer,
+            .index_buffer = index_buffer,
+            .num_lods = mesh.num_lods,
+            .lods = undefined,
+            .bounding_box = .{
+                .min = [3]f32{ mesh.bounding_box.min[0], mesh.bounding_box.min[1], mesh.bounding_box.min[2] },
+                .max = [3]f32{ mesh.bounding_box.max[0], mesh.bounding_box.max[1], mesh.bounding_box.max[2] },
+            },
+        };
+
+        // 1. Update mesh's lods vertex and index offsets
+        {
+            var i: u32 = 0;
+            while (i < mesh.num_lods) : (i += 1) {
+                new_mesh.lods[i].vertex_offset = mesh.lods[i].vertex_offset;
+                new_mesh.lods[i].index_offset = mesh.lods[i].index_offset;
+                new_mesh.lods[i].vertex_count = mesh.lods[i].vertex_count;
+                new_mesh.lods[i].index_count = mesh.lods[i].index_count;
+            }
+        }
+
+        // 2. Upload vertex data to the vertex buffer
+        _ = self.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, vertices);
+
+        // 3. Upload index data to the index buffer
+        _ = self.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, indices);
+
+        // 4. Store the mesh into the mesh pool
+        const mesh_handle = try self.mesh_pool.add(.{ .obj = new_mesh });
+
+        // 5. Store the mapping between mesh name and handle
+        self.mesh_hash.put(name_id, mesh_handle) catch unreachable;
+
+        return mesh_handle;
+    }
+
+    pub fn lookupMesh(self: *D3D12State, handle: MeshHandle) ?Mesh {
+        var mesh: ?Mesh = self.mesh_pool.getColumn(handle, .obj) catch blk: {
+            std.log.debug("Failed to lookup mesh with handle: {any}", .{handle});
+            break :blk null;
+        };
+
+        return mesh;
     }
 
     pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture } {
         return .{
-            .radiance = self.texture_pool.lookupTexture(self.radiance_texture),
-            .irradiance = self.texture_pool.lookupTexture(self.irradiance_texture),
-            .specular = self.texture_pool.lookupTexture(self.specular_texture),
-            .brdf = self.texture_pool.lookupTexture(self.brdf_integration_texture),
+            .radiance = self.lookupTexture(self.radiance_texture),
+            .irradiance = self.lookupTexture(self.irradiance_texture),
+            .specular = self.lookupTexture(self.specular_texture),
+            .brdf = self.lookupTexture(self.brdf_integration_texture),
         };
     }
 
@@ -482,7 +679,7 @@ pub const D3D12State = struct {
 
         self.gctx.destroyPipeline(generate_brdf_integration_texture_pso);
 
-        return self.texture_pool.addTexture(texture);
+        return try self.texture_pool.add(.{ .obj = texture });
     }
 };
 
@@ -554,8 +751,26 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     gctx.present_flags = .{ .ALLOW_TEARING = false };
     gctx.present_interval = 1;
 
+    // Create a heap for small textures allocations.
+    // This is mainly used for terrain's height and splat maps
+    // NOTE(gmodarelli): We're currently loading up to 10880 1-channel R8_UNORM textures, so we need roughly
+    // 150MB of space.
+    const heap_desc = d3d12.HEAP_DESC{
+        .SizeInBytes = 150 * 1024 * 1024,
+        .Properties = d3d12.HEAP_PROPERTIES.initType(.DEFAULT),
+        .Alignment = 0,
+        .Flags = d3d12.HEAP_FLAGS.ALLOW_ONLY_NON_RT_DS_TEXTURES,
+    };
+    var small_textures_heap: *d3d12.IHeap = undefined;
+    hrPanicOnFail(gctx.device.CreateHeap(&heap_desc, &d3d12.IID_IHeap, @as(*?*anyopaque, @ptrCast(&small_textures_heap))));
+
     var buffer_pool = BufferPool.init(allocator);
-    var texture_pool = TexturePool.init(allocator);
+    var texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
+    var texture_hash = TextureHashMap.init(allocator);
+    var material_pool = MaterialPool.initMaxCapacity(allocator) catch unreachable;
+    var material_hash = MaterialHashMap.init(allocator);
+    var mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
+    var mesh_hash = MeshHashMap.init(allocator);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -802,48 +1017,25 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
-        .vertex_buffer = undefined,
-        .index_buffer = undefined,
+        .texture_hash = texture_hash,
+        .small_textures_heap = small_textures_heap,
+        .small_textures_heap_offset = 0,
+        .material_pool = material_pool,
+        .material_hash = material_hash,
+        .mesh_hash = mesh_hash,
+        .mesh_pool = mesh_pool,
         .skybox_mesh = undefined,
     };
 
+    // Upload skybox mesh
     {
         var meshes_indices = std.ArrayList(IndexType).init(arena);
         var meshes_vertices = std.ArrayList(Vertex).init(arena);
-
+        defer meshes_indices.deinit();
+        defer meshes_vertices.deinit();
         const mesh = mesh_loader.loadObjMeshFromFile(allocator, "content/meshes/cube.obj", &meshes_indices, &meshes_vertices) catch unreachable;
 
-        const total_num_vertices = @as(u32, @intCast(meshes_vertices.items.len));
-        const total_num_indices = @as(u32, @intCast(meshes_indices.items.len));
-
-        // Create a vertex buffer.
-        var vertex_buffer = d3d12_state.createBuffer(.{
-            .size = total_num_vertices * @sizeOf(Vertex),
-            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-            .name = L("GFX Vertex Buffer"),
-            .persistent = true,
-            .has_cbv = false,
-            .has_srv = true,
-            .has_uav = false,
-        }) catch unreachable;
-
-        // Create an index buffer.
-        var index_buffer = d3d12_state.createBuffer(.{
-            .size = total_num_indices * @sizeOf(IndexType),
-            .state = .{ .INDEX_BUFFER = true },
-            .name = L("GFX Index Buffer"),
-            .persistent = false,
-            .has_cbv = false,
-            .has_srv = false,
-            .has_uav = false,
-        }) catch unreachable;
-
-        d3d12_state.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
-        d3d12_state.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
-
-        d3d12_state.vertex_buffer = vertex_buffer;
-        d3d12_state.index_buffer = index_buffer;
-        d3d12_state.skybox_mesh = mesh;
+        d3d12_state.skybox_mesh = d3d12_state.uploadMeshData("skybox", mesh, meshes_vertices.items, meshes_indices.items) catch unreachable;
     }
 
     // Radiance
@@ -890,9 +1082,18 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     self.gctx.finishGpuCommands();
     self.gpu_profiler.deinit();
+    self.releaseAllTextures();
 
     self.buffer_pool.deinit(allocator, &self.gctx);
-    self.texture_pool.deinit(allocator);
+    self.texture_pool.deinit();
+    self.texture_hash.deinit();
+    self.material_pool.deinit();
+    self.material_hash.deinit();
+    self.mesh_pool.deinit();
+    self.mesh_hash.deinit();
+
+    _ = self.small_textures_heap.Release();
+    self.small_textures_heap_offset = 0;
 
     // Destroy all pipelines
     {
@@ -936,49 +1137,52 @@ pub fn beginFrame(state: *D3D12State) void {
 pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [3]f32) void {
     var gctx = &state.gctx;
 
-    zpix.beginEvent(gctx.cmdlist, "Skybox");
-    {
-        const pipeline_info = state.getPipeline(IdLocal.init("skybox"));
-        gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-        gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-        const index_buffer = state.lookupBuffer(state.index_buffer);
-        const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
-        gctx.cmdlist.IASetIndexBuffer(&.{
-            .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-            .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
-            .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
-        });
-
-        var z_view = zm.loadMat(camera.view[0..]);
-        z_view[3] = zm.f32x4(0.0, 0.0, 0.0, 1.0);
-        const z_projection = zm.loadMat(camera.projection[0..]);
-
+    var skybox_mesh = state.lookupMesh(state.skybox_mesh);
+    if (skybox_mesh) |mesh| {
+        zpix.beginEvent(gctx.cmdlist, "Skybox");
         {
-            const mem = gctx.allocateUploadMemory(zm.Mat, 16);
-            mem.cpu_slice[0] = zm.transpose(zm.mul(z_view, z_projection));
+            const pipeline_info = state.getPipeline(IdLocal.init("skybox"));
+            gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-            gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+            gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+            const index_buffer = state.lookupBuffer(mesh.index_buffer);
+            const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
+            gctx.cmdlist.IASetIndexBuffer(&.{
+                .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+                .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
+                .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+            });
+
+            var z_view = zm.loadMat(camera.view[0..]);
+            z_view[3] = zm.f32x4(0.0, 0.0, 0.0, 1.0);
+            const z_projection = zm.loadMat(camera.projection[0..]);
+
+            {
+                const mem = gctx.allocateUploadMemory(zm.Mat, 16);
+                mem.cpu_slice[0] = zm.transpose(zm.mul(z_view, z_projection));
+
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+            }
+
+            const vertex_buffer = state.lookupBuffer(mesh.vertex_buffer);
+
+            const lod_index: u32 = 0;
+
+            {
+                const mem = gctx.allocateUploadMemory(u32, 1);
+                mem.cpu_slice[0] = vertex_buffer.?.persistent_descriptor.index;
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+            }
+
+            gctx.cmdlist.DrawIndexedInstanced(
+                mesh.lods[lod_index].index_count,
+                1,
+                mesh.lods[lod_index].index_offset,
+                @as(i32, @intCast(mesh.lods[lod_index].vertex_offset)),
+                0,
+            );
         }
-
-        const vertex_buffer = state.lookupBuffer(state.vertex_buffer);
-
-        const lod_index: u32 = 0;
-        const mesh = state.skybox_mesh;
-
-        {
-            const mem = gctx.allocateUploadMemory(u32, 1);
-            mem.cpu_slice[0] = vertex_buffer.?.persistent_descriptor.index;
-            gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-        }
-
-        gctx.cmdlist.DrawIndexedInstanced(
-            mesh.lods[lod_index].index_count,
-            1,
-            mesh.lods[lod_index].index_offset,
-            @as(i32, @intCast(mesh.lods[lod_index].vertex_offset)),
-            0,
-        );
+        zpix.endEvent(gctx.cmdlist);
     }
 
     zpix.endEvent(gctx.cmdlist); // End GBuffer event

@@ -1,18 +1,189 @@
 const std = @import("std");
-const assert = std.debug.assert;
 const zmesh = @import("zmesh");
 const zm = @import("zmath");
 
-const IndexType = @import("renderer_types.zig").IndexType;
-const Vertex = @import("renderer_types.zig").Vertex;
-const Mesh = @import("renderer_types.zig").Mesh;
+const rt = @import("renderer_types.zig");
+
+const assert = std.debug.assert;
+const zcgltf = zmesh.io.zcgltf;
+
+pub fn parseMeshPrimitive(
+    primitive: *zcgltf.Primitive,
+    meshes_indices: *std.ArrayList(rt.IndexType),
+    meshes_vertices: *std.ArrayList(rt.Vertex),
+    arena: std.mem.Allocator,
+) !rt.Mesh {
+    const num_vertices: u32 = @as(u32, @intCast(primitive.attributes[0].data.count));
+    const num_indices: u32 = @as(u32, @intCast(primitive.indices.?.count));
+
+    var indices = std.ArrayList(rt.IndexType).init(arena);
+    var positions = std.ArrayList([3]f32).init(arena);
+    var normals = std.ArrayList([3]f32).init(arena);
+    var tangents = std.ArrayList([4]f32).init(arena);
+    var uvs = std.ArrayList([2]f32).init(arena);
+    defer indices.deinit();
+    defer positions.deinit();
+    defer normals.deinit();
+    defer tangents.deinit();
+    defer uvs.deinit();
+
+    // Indices.
+    {
+        try indices.ensureTotalCapacity(indices.items.len + num_indices);
+
+        const accessor = primitive.indices.?;
+        const buffer_view = accessor.buffer_view.?;
+
+        assert(accessor.stride == buffer_view.stride or buffer_view.stride == 0);
+        assert(accessor.stride * accessor.count == buffer_view.size);
+        assert(buffer_view.buffer.data != null);
+
+        const data_addr = @as([*]const u8, @ptrCast(buffer_view.buffer.data)) +
+            accessor.offset + buffer_view.offset;
+
+        if (accessor.stride == 1) {
+            assert(accessor.component_type == .r_8u);
+            const src = @as([*]const u8, @ptrCast(data_addr));
+            for (0..num_indices) |i| {
+                indices.appendAssumeCapacity(src[i]);
+            }
+        } else if (accessor.stride == 2) {
+            assert(accessor.component_type == .r_16u);
+            const src = @as([*]const u16, @ptrCast(@alignCast(data_addr)));
+            for (0..num_indices) |i| {
+                indices.appendAssumeCapacity(src[i]);
+            }
+        } else if (accessor.stride == 4) {
+            assert(accessor.component_type == .r_32u);
+            const src = @as([*]const u32, @ptrCast(@alignCast(data_addr)));
+            for (0..num_indices) |i| {
+                indices.appendAssumeCapacity(src[i]);
+            }
+        } else {
+            unreachable;
+        }
+    }
+
+    // Attributes.
+    {
+        const attributes = primitive.attributes[0..primitive.attributes_count];
+        for (attributes) |attrib| {
+            const accessor = attrib.data;
+            assert(accessor.component_type == .r_32f);
+
+            const buffer_view = accessor.buffer_view.?;
+            assert(buffer_view.buffer.data != null);
+
+            assert(accessor.stride == buffer_view.stride or buffer_view.stride == 0);
+            assert(accessor.stride * accessor.count == buffer_view.size);
+
+            const data_addr = @as([*]const u8, @ptrCast(buffer_view.buffer.data)) +
+                accessor.offset + buffer_view.offset;
+
+            if (attrib.type == .position) {
+                assert(accessor.type == .vec3);
+                const array: [*]const [3]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
+                try positions.appendSlice(slice);
+            } else if (attrib.type == .normal) {
+                assert(accessor.type == .vec3);
+                const array: [*]const [3]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
+                try normals.appendSlice(slice);
+            } else if (attrib.type == .texcoord) {
+                assert(accessor.type == .vec2);
+                const array: [*]const [2]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
+                try uvs.appendSlice(slice);
+            } else if (attrib.type == .tangent) {
+                assert(accessor.type == .vec4);
+                const array: [*]const [4]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
+                try tangents.appendSlice(slice);
+            }
+        }
+    }
+
+    // Post processing
+    // ===============
+    // 1. Convert to Left Hand coordinate to conform to DirectX
+    for (0..positions.items.len) |i| {
+        positions.items[i][2] *= -1.0;
+    }
+    for (0..normals.items.len) |i| {
+        normals.items[i][2] *= -1.0;
+    }
+    for (0..tangents.items.len) |i| {
+        tangents.items[i][2] *= -1.0;
+    }
+    // 2. Flip the UV's V component
+    // for (0..uvs.items.len) |i| {
+    //     uvs.items[i][1] *= -1.0;
+    // }
+    // 3. Convert mesh to clock-wise winding
+    var i: u32 = 0;
+    while (i < indices.items.len) : (i += 3) {
+        std.mem.swap(u32, &indices.items[i + 1], &indices.items[i + 2]);
+    }
+
+    // TODO: glTF 2.0 files can specify a min/max pair for their attributes, so we could check there first
+    // instead of calculating the bounding box
+    // Calculate bounding box
+    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+
+    for (positions.items) |position| {
+        min[0] = @min(min[0], position[0]);
+        min[1] = @min(min[1], position[1]);
+        min[2] = @min(min[2], position[2]);
+
+        max[0] = @max(max[0], position[0]);
+        max[1] = @max(max[1], position[1]);
+        max[2] = @max(max[2], position[2]);
+    }
+
+    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
+    var mesh = rt.Mesh{
+        .vertex_buffer = undefined,
+        .index_buffer = undefined,
+        .num_lods = 1,
+        .lods = undefined,
+        .bounding_box = .{
+            .min = min,
+            .max = max,
+        },
+    };
+
+    mesh.lods[0] = .{
+        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
+        .index_count = @as(u32, @intCast(indices.items.len)),
+        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
+        .vertex_count = @as(u32, @intCast(positions.items.len)),
+    };
+
+    try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
+    const has_tangents = if (tangents.items.len == positions.items.len) true else false;
+    for (positions.items, 0..) |_, index| {
+        meshes_vertices.appendAssumeCapacity(.{
+            .position = positions.items[index],
+            .normal = normals.items[index],
+            .uv = uvs.items[index],
+            .tangent = if (has_tangents) tangents.items[index] else [4]f32{0.0, 0.0, 1.0, 0.0},
+            .color = [3]f32{ 1.0, 1.0, 1.0 },
+        });
+    }
+
+    meshes_indices.appendSlice(indices.items) catch unreachable;
+    return mesh;
+}
+
 
 pub fn loadObjMeshFromFile(
     allocator: std.mem.Allocator,
     path: []const u8,
-    meshes_indices: *std.ArrayList(IndexType),
-    meshes_vertices: *std.ArrayList(Vertex),
-) !Mesh {
+    meshes_indices: *std.ArrayList(rt.IndexType),
+    meshes_vertices: *std.ArrayList(rt.Vertex),
+) !rt.Mesh {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -26,8 +197,8 @@ pub fn loadObjMeshFromFile(
     var buffer_reader = std.io.bufferedReader(file.reader());
     var in_stream = buffer_reader.reader();
 
-    var indices = std.ArrayList(IndexType).init(arena);
-    var vertices = std.ArrayList(Vertex).init(arena);
+    var indices = std.ArrayList(rt.IndexType).init(arena);
+    var vertices = std.ArrayList(rt.Vertex).init(arena);
 
     var positions = std.ArrayList([3]f32).init(arena);
     var colors = std.ArrayList([3]f32).init(arena);
@@ -40,7 +211,10 @@ pub fn loadObjMeshFromFile(
     var previous_obj_uvs_count: u32 = 0;
     var previous_obj_normals_count: u32 = 0;
 
-    var mesh = Mesh{
+    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
+    var mesh = rt.Mesh{
+        .vertex_buffer = undefined,
+        .index_buffer = undefined,
         .num_lods = 0,
         .lods = undefined,
         .bounding_box = undefined,
@@ -123,13 +297,13 @@ pub fn loadObjMeshFromFile(
                 // NOTE(gmodarelli): We're assuming Positions, UV's and Normals are exported with the OBJ file.
                 // TODO(gmodarelli): Parse the OBJ in 2 passes. First collect all attributes and then generate
                 // vertices and indices. Positions and UV's must be present, Normals can be calculated.
-                var position_index = try std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10);
+                var position_index = try std.fmt.parseInt(rt.IndexType, triangles_iterator.next().?, 10);
                 position_index -= previous_obj_positions_count;
                 position_index -= 1;
-                var uv_index = try std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10);
+                var uv_index = try std.fmt.parseInt(rt.IndexType, triangles_iterator.next().?, 10);
                 uv_index -= previous_obj_uvs_count;
                 uv_index -= 1;
-                var normal_index = try std.fmt.parseInt(IndexType, triangles_iterator.next().?, 10);
+                var normal_index = try std.fmt.parseInt(rt.IndexType, triangles_iterator.next().?, 10);
                 normal_index -= previous_obj_normals_count;
                 normal_index -= 1;
 
@@ -164,11 +338,11 @@ pub fn loadObjMeshFromFile(
 
 fn storeMeshLod(
     arena: std.mem.Allocator,
-    indices: *std.ArrayList(IndexType),
-    vertices: *std.ArrayList(Vertex),
-    meshes_indices: *std.ArrayList(IndexType),
-    meshes_vertices: *std.ArrayList(Vertex),
-    mesh: *Mesh,
+    indices: *std.ArrayList(rt.IndexType),
+    vertices: *std.ArrayList(rt.Vertex),
+    meshes_indices: *std.ArrayList(rt.IndexType),
+    meshes_vertices: *std.ArrayList(rt.Vertex),
+    mesh: *rt.Mesh,
 ) !void {
     // Calculate tangents for every vertex
     {
@@ -177,8 +351,7 @@ fn storeMeshLod(
         var bitangents = std.ArrayList([3]f32).init(arena);
         try bitangents.resize(vertices.items.len);
 
-        var i: u32 = 0;
-        while (i < tangents.items.len) : (i += 1) {
+        for (0..tangents.items.len) |i| {
             var t = &tangents.items[i];
             t[0] = 0.0;
             t[1] = 0.0;
@@ -243,8 +416,7 @@ fn storeMeshLod(
             bitangents.items[indices.items[index + 2]][2] += bitangent[2];
         }
 
-        var vi: u32 = 0;
-        while (vi < vertices.items.len) : (vi += 1) {
+        for (0..vertices.items.len) |vi| {
             var vertex = &vertices.items[vi];
 
             const tangent = zm.loadArr3(tangents.items[vi]);
@@ -271,15 +443,15 @@ fn storeMeshLod(
     const num_unique_vertices = zmesh.opt.generateVertexRemap(
         remapped_indices.items,
         indices.items,
-        Vertex,
+        rt.Vertex,
         vertices.items,
     );
 
-    var optimized_vertices = std.ArrayList(Vertex).init(arena);
+    var optimized_vertices = std.ArrayList(rt.Vertex).init(arena);
     optimized_vertices.resize(num_unique_vertices) catch unreachable;
 
     zmesh.opt.remapVertexBuffer(
-        Vertex,
+        rt.Vertex,
         optimized_vertices.items,
         vertices.items,
         remapped_indices.items,
@@ -295,7 +467,7 @@ fn storeMeshLod(
     mesh.num_lods += 1;
 
     // NOTE(gmodarelli): Flipping the triangles winding order so they are clock-wise
-    var flipped_indices = std.ArrayList(IndexType).init(arena);
+    var flipped_indices = std.ArrayList(rt.IndexType).init(arena);
     try flipped_indices.ensureTotalCapacity(remapped_indices.items.len);
     {
         var i: u32 = 0;
@@ -319,6 +491,7 @@ fn storeMeshLod(
         max[1] = @max(max[1], vertex.position[1]);
         max[2] = @max(max[2], vertex.position[2]);
     }
+
     mesh.bounding_box = .{
         .min = min,
         .max = max,

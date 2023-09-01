@@ -14,6 +14,7 @@ const util = @import("../util.zig");
 const config = @import("../config.zig");
 const input = @import("../input.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
+const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 
 const SystemState = struct {
     flecs_sys: ecs.entity_t,
@@ -22,6 +23,7 @@ const SystemState = struct {
     ecsu_world: ecsu.World,
     frame_data: *input.FrameData,
     event_manager: *EventManager,
+    prefab_manager: *PrefabManager,
 
     comp_query_interactor: ecsu.Query,
 };
@@ -48,6 +50,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .physics_world = physics_world,
         .frame_data = frame_data,
         .event_manager = event_manager,
+        .prefab_manager = ctx.get(config.prefab_manager.hash, PrefabManager),
         .comp_query_interactor = comp_query_interactor,
     };
 
@@ -82,6 +85,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
     const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
     const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
+    const arrow_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
 
@@ -90,19 +94,10 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         if (weapon_comp.chambered_projectile == 0 and weapon_comp.cooldown < world_time) {
             // Load new projectile
-            var proj_ent = system.ecsu_world.newEntity();
-            // proj_ent.setName("arrow");
+            var proj_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, arrow_prefab);
             proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
-            proj_ent.set(fd.Rotation{});
-            proj_ent.set(fd.Scale.createScalar(1));
             proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
-            proj_ent.set(fd.Forward{});
-            proj_ent.set(fd.Dynamic{});
             proj_ent.set(fd.Projectile{});
-            proj_ent.set(fd.CIShapeMeshInstance{
-                .id = IdLocal.id64("arrow"),
-                .basecolor_roughness = .{ .r = 1.0, .g = 1.0, .b = 1.0, .roughness = 1.0 },
-            });
             proj_ent.childOf(item_ent_id);
             weapon_comp.chambered_projectile = proj_ent.id;
             continue;
@@ -241,9 +236,9 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         fx_ent.set(fd.Transform.init(0, 0, 0));
         fx_ent.set(fd.Forward{});
         fx_ent.set(fd.Dynamic{});
-        fx_ent.set(fd.CIShapeMeshInstance{
+        fx_ent.set(fd.CIStaticMesh{
             .id = IdLocal.id64("sphere"),
-            .basecolor_roughness = .{ .r = 1.0, .g = 0.0, .b = 0.0, .roughness = 0.8 },
+            .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 0.0 }, 0.8, 0.0),
         });
 
         const tli_fx = config.events.TimelineInstanceData{

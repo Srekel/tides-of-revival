@@ -105,6 +105,14 @@ pub fn build(b: *std.Build) void {
     install_meshes_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_meshes_step.step);
 
+    const install_prefabs_step = b.addInstallDirectory(.{
+        .source_dir = .{ .path = thisDir() ++ "/content/prefabs" },
+        .install_dir = .{ .custom = "" },
+        .install_subdir = "bin/content/prefabs",
+    });
+    install_prefabs_step.step.dependOn(dxc_step);
+    exe.step.dependOn(&install_prefabs_step.step);
+
     // const install_patches_step = b.addInstallDirectory(.{
     //     .source_dir = thisDir() ++ "/content/patch",
     //     .install_dir = .{ .custom = "" },

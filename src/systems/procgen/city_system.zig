@@ -134,9 +134,9 @@ pub fn createEntities(state: *SystemState) void {
         var city_ent = ecsu_world.newEntity();
         city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
         city_ent.set(fd.Scale.createScalar(10));
-        city_ent.set(fd.CIShapeMeshInstance{
+        city_ent.set(fd.CIStaticMesh{
             .id = IdLocal.id64("sphere"),
-            .basecolor_roughness = .{ .r = 1, .g = 1, .b = 1, .roughness = 0.8 },
+            .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
         });
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
 
@@ -150,7 +150,7 @@ pub fn createEntities(state: *SystemState) void {
         // var light_viz_ent = ecsu_world.newEntity();
         // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
         // light_viz_ent.set(fd.Scale.createScalar(1));
-        // light_viz_ent.set(fd.CIShapeMeshInstance{
+        // light_viz_ent.set(fd.CIStaticMesh{
         //     .id = IdLocal.id64("sphere"),
         //     .basecolor_roughness = city_params.center_color,
         // });
@@ -296,7 +296,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
     //         caravan_ent.set(fd.Dynamic{});
-    //         caravan_ent.set(fd.CIShapeMeshInstance{
+    //         caravan_ent.set(fd.CIStaticMesh{
     //             .id = IdLocal.id64("cylinder"),
     //             .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
     //         });
@@ -350,7 +350,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
     //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
     //         caravan_ent.set(fd.Dynamic{});
-    //         caravan_ent.set(fd.CIShapeMeshInstance{
+    //         caravan_ent.set(fd.CIStaticMesh{
     //             .id = IdLocal.id64("cylinder"),
     //             .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
     //         });

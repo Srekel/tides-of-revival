@@ -5,23 +5,20 @@ const math = std.math;
 
 const zm = @import("zmath");
 const zmu = @import("zmathutil");
-const zmesh = @import("zmesh");
 const ecs = @import("zflecs");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 
 const gfx = @import("../gfx_d3d12.zig");
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 
-const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const input = @import("../input.zig");
-const config = @import("../config.zig");
 
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
-const mesh_loader = @import("../renderer/mesh_loader.zig");
 
 const DrawUniforms = struct {
     start_instance_location: u32,
@@ -52,19 +49,9 @@ const max_instances = 1000000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
 
-const ProcMesh = struct {
-    id: IdLocal,
-    mesh: Mesh,
-};
-
-const IdLocalToMeshHandle = struct {
-    id: IdLocal,
-    mesh_handle: gfx.MeshHandle,
-};
-
 const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecsu_world: ecsu.World,
+    ecsu_world: *ecsu.World,
     sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
@@ -76,12 +63,8 @@ const SystemState = struct {
     draw_calls: std.ArrayList(gfx.DrawCall),
     gpu_frame_profiler_index: u64 = undefined,
 
-    meshes: std.ArrayList(IdLocalToMeshHandle),
     query_camera: ecsu.Query,
     query_mesh: ecsu.Query,
-
-    freeze_rendering: bool,
-    frame_data: *input.FrameData,
 
     camera: struct {
         position: [3]f32 = .{ 0.0, 4.0, -4.0 },
@@ -91,158 +74,7 @@ const SystemState = struct {
     } = .{},
 };
 
-fn appendShapeMesh(
-    name: [:0]const u8,
-    allocator: std.mem.Allocator,
-    gfxstate: *gfx.D3D12State,
-    id: IdLocal,
-    z_mesh: zmesh.Shape,
-    meshes: *std.ArrayList(IdLocalToMeshHandle),
-) void {
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    var vertices = std.ArrayList(Vertex).init(arena);
-    defer vertices.deinit();
-
-    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
-    var mesh = Mesh{
-        .vertex_buffer = undefined,
-        .index_buffer = undefined,
-        .num_lods = 1,
-        .lods = undefined,
-        .bounding_box = undefined,
-    };
-
-    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
-    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
-
-    var i: u64 = 0;
-    while (i < z_mesh.positions.len) : (i += 1) {
-        min[0] = @min(min[0], z_mesh.positions[i][0]);
-        min[1] = @min(min[1], z_mesh.positions[i][1]);
-        min[2] = @min(min[2], z_mesh.positions[i][2]);
-
-        max[0] = @max(max[0], z_mesh.positions[i][0]);
-        max[1] = @max(max[1], z_mesh.positions[i][1]);
-        max[2] = @max(max[2], z_mesh.positions[i][2]);
-
-        vertices.append(.{
-            .position = z_mesh.positions[i],
-            .normal = z_mesh.normals.?[i],
-            .uv = [2]f32{ 0.0, 0.0 },
-            .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
-            .color = [3]f32{ 1.0, 1.0, 1.0 },
-        }) catch unreachable;
-    }
-
-    mesh.lods[0] = .{
-        .index_offset = 0,
-        .index_count = @as(u32, @intCast(z_mesh.indices.len)),
-        .vertex_offset = 0,
-        .vertex_count = @as(u32, @intCast(vertices.items.len)),
-    };
-
-    mesh.bounding_box = .{
-        .min = min,
-        .max = max,
-    };
-
-    const mesh_handle = gfxstate.uploadMeshData(name, mesh, vertices.items, z_mesh.indices) catch unreachable;
-
-    meshes.append(.{ .id = id, .mesh_handle = mesh_handle }) catch unreachable;
-}
-
-fn appendObjMesh(
-    name: [:0]const u8,
-    allocator: std.mem.Allocator,
-    gfxstate: *gfx.D3D12State,
-    id: IdLocal,
-    path: []const u8,
-    meshes: *std.ArrayList(IdLocalToMeshHandle),
-) !void {
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    var indices = std.ArrayList(IndexType).init(arena);
-    var vertices = std.ArrayList(Vertex).init(arena);
-    defer indices.deinit();
-    defer vertices.deinit();
-
-    const mesh = mesh_loader.loadObjMeshFromFile(allocator, path, &indices, &vertices) catch unreachable;
-    const mesh_handle = gfxstate.uploadMeshData(name, mesh, vertices.items, indices.items) catch unreachable;
-
-    meshes.append(.{ .id = id, .mesh_handle = mesh_handle }) catch unreachable;
-}
-
-fn initScene(
-    allocator: std.mem.Allocator,
-    gfxstate: *gfx.D3D12State,
-    meshes: *std.ArrayList(IdLocalToMeshHandle),
-) void {
-    {
-        var mesh = zmesh.Shape.initParametricSphere(20, 20);
-        defer mesh.deinit();
-        mesh.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
-        mesh.unweld();
-        mesh.computeNormals();
-
-        appendShapeMesh("procedural_sphere", allocator, gfxstate, IdLocal.init("sphere"), mesh, meshes);
-    }
-
-    {
-        var mesh = zmesh.Shape.initCube();
-        defer mesh.deinit();
-        mesh.unweld();
-        mesh.computeNormals();
-
-        appendShapeMesh("procedural_cube", allocator, gfxstate, IdLocal.init("cube"), mesh, meshes);
-    }
-
-    {
-        var mesh = zmesh.Shape.initCylinder(10, 10);
-        defer mesh.deinit();
-        mesh.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
-        mesh.scale(0.5, 1.0, 0.5);
-        mesh.translate(0.0, 1.0, 0.0);
-
-        // Top cap.
-        var top = zmesh.Shape.initParametricDisk(10, 2);
-        defer top.deinit();
-        top.rotate(-math.pi * 0.5, 1.0, 0.0, 0.0);
-        top.scale(0.5, 1.0, 0.5);
-        top.translate(0.0, 1.0, 0.0);
-
-        // Bottom cap.
-        var bottom = zmesh.Shape.initParametricDisk(10, 2);
-        defer bottom.deinit();
-        bottom.rotate(math.pi * 0.5, 1.0, 0.0, 0.0);
-        bottom.scale(0.5, 1.0, 0.5);
-        bottom.translate(0.0, 0.0, 0.0);
-
-        mesh.merge(top);
-        mesh.merge(bottom);
-        mesh.unweld();
-        mesh.computeNormals();
-
-        appendShapeMesh("procedural_cylinder", allocator, gfxstate, IdLocal.init("cylinder"), mesh, meshes);
-    }
-
-    appendObjMesh("big_house", allocator, gfxstate, IdLocal.init("big_house"), "content/meshes/big_house.obj", meshes) catch unreachable;
-    appendObjMesh("long_house", allocator, gfxstate, IdLocal.init("long_house"), "content/meshes/long_house.obj", meshes) catch unreachable;
-    appendObjMesh("medium_house", allocator, gfxstate, IdLocal.init("medium_house"), "content/meshes/medium_house.obj", meshes) catch unreachable;
-    appendObjMesh("pine", allocator, gfxstate, IdLocal.init("pine"), "content/meshes/pine.obj", meshes) catch unreachable;
-    appendObjMesh("small_house_fireplace", allocator, gfxstate, IdLocal.init("small_house_fireplace"), "content/meshes/small_house_fireplace.obj", meshes) catch unreachable;
-    appendObjMesh("small_house", allocator, gfxstate, IdLocal.init("small_house"), "content/meshes/small_house.obj", meshes) catch unreachable;
-    appendObjMesh("unit_sphere_lp", allocator, gfxstate, IdLocal.init("unit_sphere_lp"), "content/meshes/unit_sphere_lp.obj", meshes) catch unreachable;
-}
-
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: *ecsu.World, frame_data: *input.FrameData) !*SystemState {
-    var meshes = std.ArrayList(IdLocalToMeshHandle).init(allocator);
-    initScene(allocator, gfxstate, &meshes);
-
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: *ecsu.World, _: *input.FrameData) !*SystemState {
     // Create instance buffers.
     const instance_transform_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
@@ -298,13 +130,13 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
-        .withReadonly(fd.StaticMesh);
+        .withReadonly(fd.StaticMeshComponent);
     var query_camera = query_builder_camera.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
 
     state.* = .{
         .allocator = allocator,
-        .ecsu_world = ecsu_world.*,
+        .ecsu_world = ecsu_world,
         .sys = sys,
         .gfx = gfxstate,
         .instance_transform_buffers = instance_transform_buffers,
@@ -312,14 +144,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .draw_calls = draw_calls,
         .instance_transforms = instance_transforms,
         .instance_materials = instance_materials,
-        .meshes = meshes,
         .query_camera = query_camera,
         .query_mesh = query_mesh,
-        .freeze_rendering = false,
-        .frame_data = frame_data,
     };
-
-    ecsu_world.observer(StaticMeshObserverCallback, ecs.OnSet, state);
 
     return state;
 }
@@ -327,7 +154,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.query_mesh.deinit();
-    state.meshes.deinit();
     state.instance_transforms.deinit();
     state.instance_materials.deinit();
     state.draw_calls.deinit();
@@ -367,16 +193,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const cam = camera_comps.?.cam;
     const camera_position = camera_comps.?.transform.getPos00();
 
-    // NOTE(gmodarelli): Testing a frustum culling implementation directly in this system
-    // since it's the one we generate the most draw calls from. I'll move it to the camera
-    // once I know it works
-    if (state.frame_data.just_pressed(config.input_camera_freeze_rendering)) {
-        state.freeze_rendering = !state.freeze_rendering;
-    }
-
     var entity_iter_mesh = state.query_mesh.iterator(struct {
         transform: *const fd.Transform,
-        mesh: *const fd.StaticMesh,
+        mesh: *const fd.StaticMeshComponent,
     });
 
     // Reset transforms, materials and draw calls array list
@@ -461,17 +280,57 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .object_to_world = zm.transpose(z_world),
                 .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
             }) catch unreachable;
-            state.instance_materials.append(.{
-                .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-                .roughness = 1.0,
-                .metallic = 0.0,
-                .normal_intensity = 1.0,
-                .albedo_texture_index = invalid_texture_index,
-                .emissive_texture_index = invalid_texture_index,
-                .normal_texture_index = invalid_texture_index,
-                .arm_texture_index = invalid_texture_index,
-                .padding = 42,
-            }) catch unreachable;
+
+            var maybe_material = state.gfx.lookUpMaterial(comps.mesh.material_handle);
+            if (maybe_material) |material| {
+                const albedo = blk: {
+                    if (state.gfx.lookupTexture(material.albedo)) |albedo| {
+                        break :blk albedo.persistent_descriptor.index;
+                    } else {
+                        break :blk invalid_texture_index;
+                    }
+                };
+
+                const arm = blk: {
+                    if (state.gfx.lookupTexture(material.arm)) |arm| {
+                        break :blk arm.persistent_descriptor.index;
+                    } else {
+                        break :blk invalid_texture_index;
+                    }
+                };
+
+                const normal = blk: {
+                    if (state.gfx.lookupTexture(material.normal)) |normal| {
+                        break :blk normal.persistent_descriptor.index;
+                    } else {
+                        break :blk invalid_texture_index;
+                    }
+                };
+
+                state.instance_materials.append(.{
+                    .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
+                    .roughness = material.roughness,
+                    .metallic = material.metallic,
+                    .normal_intensity = 1.0,
+                    .albedo_texture_index = albedo,
+                    .emissive_texture_index = invalid_texture_index,
+                    .normal_texture_index = normal,
+                    .arm_texture_index = arm,
+                    .padding = 42,
+                }) catch unreachable;
+            } else {
+                state.instance_materials.append(.{
+                    .albedo_color = [4]f32{ 1.0, 0.0, 1.0, 1.0 },
+                    .roughness = 1.0,
+                    .metallic = 0.0,
+                    .normal_intensity = 1.0,
+                    .albedo_texture_index = invalid_texture_index,
+                    .emissive_texture_index = invalid_texture_index,
+                    .normal_texture_index = invalid_texture_index,
+                    .arm_texture_index = invalid_texture_index,
+                    .padding = 42,
+                }) catch unreachable;
+            }
         }
     }
 
@@ -484,7 +343,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }) catch unreachable;
     }
 
-    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
+    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Static Mesh Renderer System");
 
     if (state.draw_calls.items.len > 0) {
         const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
@@ -573,37 +432,4 @@ fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32,
 
 fn isSameMeshHandle(a: gfx.MeshHandle, b: gfx.MeshHandle) bool {
     return a.index() == b.index() and a.cycle() == b.cycle();
-}
-
-const StaticMeshObserverCallback = struct {
-    comp: *const fd.CIStaticMesh,
-
-    pub const name = "CIStaticMesh";
-    pub const run = onSetCIStaticMesh;
-};
-
-fn onSetCIStaticMesh(it: *ecsu.Iterator(StaticMeshObserverCallback)) void {
-    var observer: *ecs.observer_t = @ptrCast(@alignCast(it.iter.ctx));
-    var state: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
-
-    while (it.next()) |_| {
-        const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIStaticMesh), @as(i32, @intCast(it.index))).?;
-        var ci: *fd.CIStaticMesh = @ptrCast(@alignCast(ci_ptr));
-
-        const mesh_handle = mesh_blk: {
-            for (state.meshes.items) |mesh| {
-                if (mesh.id.eqlHash(ci.id)) {
-                    break :mesh_blk mesh.mesh_handle;
-                }
-            }
-            unreachable;
-        };
-
-        const ent = ecsu.Entity.init(it.world().world, it.entity());
-        ent.remove(fd.CIStaticMesh);
-        ent.set(fd.StaticMesh{
-            .mesh_handle = mesh_handle,
-            .material = ci.material,
-        });
-    }
 }
