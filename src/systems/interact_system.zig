@@ -84,6 +84,9 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     const world_time = environment_info.world_time;
 
     const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
+    const wielded_use_secondary_held = system.frame_data.held(config.input_wielded_use_secondary);
+    const wielded_use_held = wielded_use_primary_held or wielded_use_secondary_held;
+    _ = wielded_use_held;
     const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
     const arrow_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
@@ -108,19 +111,29 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             const camera_ent = ecsu.Entity.init(ecs_world, ecs.lookup_child(ecs_world, player_ent_id, "playercamera"));
             if (camera_ent.isValid() and camera_ent.isAlive()) {
                 var camera_comp = camera_ent.getMut(fd.Camera).?;
-                const target_fov: f32 = if (wielded_use_primary_held and weapon_comp.chambered_projectile != 0 and weapon_comp.charge > 0.25) (0.25 - 0.1 * weapon_comp.charge * weapon_comp.charge) else 0.25;
+                const target_fov: f32 =
+                    if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0 and weapon_comp.charge > 0.25))
+                    (0.25 - 0.1 * weapon_comp.charge * weapon_comp.charge)
+                else
+                    0.25;
                 camera_comp.fov = std.math.lerp(camera_comp.fov, target_fov * math.pi, 0.3);
             }
         }
 
-        var item_rotation = ecs.get_mut(ecs_world, item_ent_id, fd.Rotation).?;
+        var item_pos = ecs.get_mut(ecs_world, item_ent_id, fd.Position).?;
+        const target_pos_x: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) 0.1 else 0.25;
+        const target_pos_y: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) -0.12 else 0;
+        item_pos.x = std.math.lerp(item_pos.x, target_pos_x, 0.03);
+        item_pos.y = std.math.lerp(item_pos.y, target_pos_y, 0.03);
+
+        var item_rot = ecs.get_mut(ecs_world, item_ent_id, fd.Rotation).?;
         var axis = zm.f32x4s(0);
         var angle: f32 = 0;
-        zm.quatToAxisAngle(item_rotation.asZM(), &axis, &angle);
-        const target_roll_angle: f32 = if (wielded_use_primary_held and weapon_comp.chambered_projectile != 0) -1 else 0;
+        zm.quatToAxisAngle(item_rot.asZM(), &axis, &angle);
+        const target_roll_angle: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) -1.25 else 0;
         const target_rot_z = zm.quatFromNormAxisAngle(config.ROLL_Z, target_roll_angle);
-        const final_rot_z = zm.slerp(item_rotation.asZM(), target_rot_z, 0.1);
-        item_rotation.fromZM(final_rot_z);
+        const final_rot_z = zm.slerp(item_rot.asZM(), target_rot_z, 0.1);
+        item_rot.fromZM(final_rot_z);
 
         if (weapon_comp.chambered_projectile == 0) {
             continue;
@@ -170,7 +183,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
             const up_z = zm.f32x4(0, 1, 0, 0);
-            const velocity_z = forward_z * zm.f32x4s(15 + charge * 45) + up_z * zm.f32x4s(charge);
+            const velocity_z = forward_z * zm.f32x4s(30 + charge * 180) + up_z * zm.f32x4s(1 + charge * 4);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
@@ -179,7 +192,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             environment_info.time_multiplier = 0.25;
             var proj_pos = ecs.get_mut(ecs_world, proj_ent.id, fd.Position).?;
 
-            proj_pos.z = zm.lerpV(proj_pos.z, -0.8, 0.01);
+            proj_pos.z = zm.lerpV(proj_pos.z, -0.7, 0.02);
             weapon_comp.charge = zm.mapLinearV(proj_pos.z, -0.4, -0.8, 0, 1);
         } else {
             // Relax string
@@ -225,6 +238,12 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         zm.storeArr4(&rot, rot_z);
 
         body_interface.setRotation(comps.body.body_id, rot, .dont_activate);
+        if (velocity[1] < 0) {
+            const anti_force: [3]f32 = .{
+                0, -1000, 0,
+            };
+            body_interface.addForce(comps.body.body_id, anti_force);
+        }
 
         // trail
         const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
@@ -237,7 +256,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         fx_ent.set(fd.Forward{});
         fx_ent.set(fd.Dynamic{});
         fx_ent.set(fd.CIStaticMesh{
-            .id = IdLocal.id64("sphere"),
+            .id = IdLocal.id64("cylinder"),
             .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 0.0 }, 0.8, 0.0),
         });
 
