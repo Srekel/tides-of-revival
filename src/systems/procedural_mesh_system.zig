@@ -461,10 +461,11 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .object_to_world = zm.transpose(z_world),
                 .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
             }) catch unreachable;
+            const material = comps.mesh.material;
             state.instance_materials.append(.{
-                .albedo_color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-                .roughness = 1.0,
-                .metallic = 0.0,
+                .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
+                .roughness = material.roughness,
+                .metallic = material.metallic,
                 .normal_intensity = 1.0,
                 .albedo_texture_index = invalid_texture_index,
                 .emissive_texture_index = invalid_texture_index,
