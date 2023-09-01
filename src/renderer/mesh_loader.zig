@@ -82,19 +82,23 @@ pub fn parseMeshPrimitive(
 
             if (attrib.type == .position) {
                 assert(accessor.type == .vec3);
-                const slice = @as([*]const [3]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                const array: [*]const [3]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
                 try positions.appendSlice(slice);
             } else if (attrib.type == .normal) {
                 assert(accessor.type == .vec3);
-                const slice = @as([*]const [3]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                const array: [*]const [3]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
                 try normals.appendSlice(slice);
             } else if (attrib.type == .texcoord) {
                 assert(accessor.type == .vec2);
-                const slice = @as([*]const [2]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                const array: [*]const [2]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
                 try uvs.appendSlice(slice);
             } else if (attrib.type == .tangent) {
                 assert(accessor.type == .vec4);
-                const slice = @as([*]const [4]f32, @ptrCast(@alignCast(data_addr)))[0..num_vertices];
+                const array: [*]const [4]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
                 try tangents.appendSlice(slice);
             }
         }
