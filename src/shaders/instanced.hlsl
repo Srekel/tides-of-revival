@@ -141,6 +141,8 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
         float3 tangent_normal = normalize(unpack(normal_texture.Sample(sam_aniso_wrap, input.uv).rgb));
         float normal_intensity = clamp(material.normal_intensity, 0.012f, material.normal_intensity);
         tangent_normal.xy *= saturate(normal_intensity);
+        tangent_normal.z = sqrt(1.0 - saturate(dot(tangent_normal.xy, tangent_normal.xy)));
+        tangent_normal = normalize(tangent_normal);
         normal = normalize(mul(tangent_normal, TBN));
     }
 
