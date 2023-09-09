@@ -14,7 +14,7 @@ pub const columnNonQuery = @import("utils.zig").columnNonQuery;
 pub const componentCast = @import("utils.zig").componentCast;
 pub const meta = @import("meta.zig");
 
-pub const ECS_HI_COMPONENT_ID = 256;
+// pub const ECS_HI_COMPONENT_ID = 256;
 
 // NOTE(Anders): This folder is essentially a copy of prime31's original bindings with various
 // changes to make it suit Tides of Revival and to make it be a utility layer on top of the
