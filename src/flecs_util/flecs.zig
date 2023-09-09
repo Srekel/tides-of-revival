@@ -42,21 +42,21 @@ pub const meta = @import("meta.zig");
 //     post_frame = c.ECS_HI_COMPONENT_ID + 74,
 // };
 
-pub const Event = enum(c.EcsId) {
-    // Event. Triggers when an id (component, tag, pair) is added to an entity
-    on_add = c.ECS_HI_COMPONENT_ID + 33,
-    // Event. Triggers when an id (component, tag, pair) is removed from an entity
-    on_remove = c.ECS_HI_COMPONENT_ID + 34,
-    // Event. Triggers when a component is set for an entity
-    on_set = c.ECS_HI_COMPONENT_ID + 35,
-    // Event. Triggers when a component is unset for an entity
-    un_set = c.ECS_HI_COMPONENT_ID + 36,
-    // Event. Triggers when an entity is deleted.
-    on_delete = c.ECS_HI_COMPONENT_ID + 37,
-    // Event. Exactly-once trigger for when an entity matches/unmatches a filter
-    monitor = c.ECS_HI_COMPONENT_ID + 61,
-    _,
-};
+// pub const Event = enum(c.EcsId) {
+//     // Event. Triggers when an id (component, tag, pair) is added to an entity
+//     on_add = c.ECS_HI_COMPONENT_ID + 33,
+//     // Event. Triggers when an id (component, tag, pair) is removed from an entity
+//     on_remove = c.ECS_HI_COMPONENT_ID + 34,
+//     // Event. Triggers when a component is set for an entity
+//     on_set = c.ECS_HI_COMPONENT_ID + 35,
+//     // Event. Triggers when a component is unset for an entity
+//     un_set = c.ECS_HI_COMPONENT_ID + 36,
+//     // Event. Triggers when an entity is deleted.
+//     on_delete = c.ECS_HI_COMPONENT_ID + 37,
+//     // Event. Exactly-once trigger for when an entity matches/unmatches a filter
+//     monitor = c.ECS_HI_COMPONENT_ID + 61,
+//     _,
+// };
 
 // pub const OperKind = enum(c_int) {
 //     and_ = c.EcsAnd,
