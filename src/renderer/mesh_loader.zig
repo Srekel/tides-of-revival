@@ -104,29 +104,7 @@ pub fn parseMeshPrimitive(
         }
     }
 
-    // Post processing
-    // ===============
-    // 1. Convert to Left Hand coordinate to conform to DirectX
-    for (0..positions.items.len) |i| {
-        positions.items[i][2] *= -1.0;
-    }
-    for (0..normals.items.len) |i| {
-        normals.items[i][2] *= -1.0;
-    }
-    for (0..tangents.items.len) |i| {
-        tangents.items[i][2] *= -1.0;
-    }
-    // 2. Flip the UV's V component
-    // for (0..uvs.items.len) |i| {
-    //     uvs.items[i][1] *= -1.0;
-    // }
-    // 3. Convert mesh to clock-wise winding
-    var i: u32 = 0;
-    while (i < indices.items.len) : (i += 3) {
-        std.mem.swap(u32, &indices.items[i + 1], &indices.items[i + 2]);
-    }
-
-    // TODO: glTF 2.0 files can specify a min/max pair for their attributes, so we could check there first
+    // TODO(gmodarelli): glTF 2.0 files can specify a min/max pair for their attributes, so we could check there first
     // instead of calculating the bounding box
     // Calculate bounding box
     var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
