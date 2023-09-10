@@ -106,7 +106,7 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     float3 tangent = input.tangent;
     float2 uv = input.uv;
 
-    // Derive normals from the heightmap
+    // Derive normals from the heightmap using the central differences method
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
