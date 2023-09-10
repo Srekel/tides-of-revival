@@ -94,9 +94,8 @@ pub const PrefabManager = struct {
         entity.addPair(ecs.ChildOf, parent_entity);
         entity.setOverride(fd.Forward{});
         entity.setOverride(fd.Dynamic{});
-        entity.setOverride(fd.Transform{});
 
-        // Set transform
+        // Set position, rotation and scale
         var position = fd.Position.init(0, 0, 0);
         var rotation = fd.Rotation{};
         var scale = fd.Scale.createScalar(1);
@@ -119,6 +118,11 @@ pub const PrefabManager = struct {
         entity.setOverride(position);
         entity.setOverride(rotation);
         entity.setOverride(scale);
+
+        // Set transform
+        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
+        transform.setPos(position.elems().*);
+        entity.setOverride(transform);
 
         // Parse and assign mesh
         if (node.mesh != null) {

@@ -50,21 +50,21 @@ const SpawnContext = struct {
     stage: f32 = 0,
 };
 
-var spider_prefab: ecsu.Entity = undefined;
+var giant_ant_prefab: ecsu.Entity = undefined;
 var bow_prefab: ecsu.Entity = undefined;
 
-fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
+fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     var ctx = util.castOpaque(SpawnContext, data);
     ctx.stage += 1;
     ctx.speed += 0.05;
-    timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("spiderSpawn").hash, 0, ctx.speed);
+    timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("giantAntSpawn").hash, 0, ctx.speed);
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
     const to_spawn = 1 + @round(ctx.stage / 5);
-    for (0..@intFromFloat(to_spawn)) |i_spider| {
-        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_spider)) / to_spawn;
-        var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, spider_prefab);
+    for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
+        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
+        var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, giant_ant_prefab);
         var spawn_pos = [3]f32{
             root_pos.x + 50 * std.math.sin(ctx.speed * 50) + 5 * std.math.sin(angle),
             root_pos.y + 20,
@@ -77,7 +77,7 @@ fn spawnSpider(entity: ecs.entity_t, data: *anyopaque) void {
         });
         ent.set(fd.Health{ .value = 10 + ctx.stage * 2 });
 
-        ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("spider") });
+        ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("giant_ant") });
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
@@ -144,7 +144,7 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    spider_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/spider/spider.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
@@ -461,7 +461,7 @@ pub fn run() void {
     //    ██║   ██║██║ ╚═╝ ██║███████╗███████╗██║██║ ╚████║███████╗███████║
     //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 
-    var tl_spider_spawn_ctx = SpawnContext{
+    var tl_giant_ant_spawn_ctx = SpawnContext{
         .ecsu_world = ecsu_world,
         .physics_world = physics_sys.physics_world,
         .prefab_manager = &prefab_manager,
@@ -470,28 +470,28 @@ pub fn run() void {
         .root_ent = null,
     };
 
-    const tl_spider_spawn = config.events.TimelineTemplateData{
-        .id = IdLocal.init("spiderSpawn"),
+    const tl_giant_ant_spawn = config.events.TimelineTemplateData{
+        .id = IdLocal.init("giantAntSpawn"),
         .events = &[_]timeline_system.TimelineEvent{
             .{
                 .trigger_time = 10,
                 .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
-                .func = spawnSpider,
-                .data = &tl_spider_spawn_ctx,
+                .func = spawnGiantAnt,
+                .data = &tl_giant_ant_spawn_ctx,
             },
         },
         .curves = &.{},
         .loop_behavior = .loop_no_time_loss,
     };
 
-    const tli_spider_spawn = config.events.TimelineInstanceData{
+    const tli_giant_ant_spawn = config.events.TimelineInstanceData{
         .ent = 0,
         .start_time = 2,
-        .timeline = IdLocal.init("spiderSpawn"),
+        .timeline = IdLocal.init("giantAntSpawn"),
     };
 
-    event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_spider_spawn);
-    event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_spider_spawn);
+    event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
+    event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
 
     const tl_particle_trail = config.events.TimelineTemplateData{
         .id = IdLocal.init("particle_trail"),
@@ -537,7 +537,7 @@ pub fn run() void {
             );
             const spawnpoint_ent = entity_iter.entity();
             ecs.iter_fini(entity_iter.iter);
-            tl_spider_spawn_ctx.root_ent = city_ent;
+            tl_giant_ant_spawn_ctx.root_ent = city_ent;
             break :blk .{
                 .pos = comps.pos.*,
                 .spawnpoint_ent = spawnpoint_ent,

@@ -15,7 +15,7 @@ const zphy = @import("zphysics");
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
 const StateCameraFPS = @import("../fsm/camera/state_camera_fps.zig");
 const StatePlayerIdle = @import("../fsm/player_controller/state_player_idle.zig");
-const StateSpider = @import("../fsm/creature/state_spider.zig");
+const StateGiantAnt = @import("../fsm/creature/state_giant_ant.zig");
 
 const StateMachineInstance = struct {
     state_machine: *const fsm.StateMachine,
@@ -137,21 +137,21 @@ fn initStateData(system: *SystemState) void {
         },
     }) catch unreachable;
 
-    const spider_sm = blk: {
-        var initial_state = StateSpider.create(sm_ctx);
+    const giant_ant_sm = blk: {
+        var initial_state = StateGiantAnt.create(sm_ctx);
         var states = std.ArrayList(fsm.State).init(system.allocator);
         states.append(initial_state) catch unreachable;
-        const sm = fsm.StateMachine.create("spider", states, "spider");
+        const sm = fsm.StateMachine.create("giant_ant", states, "giant_ant");
         system.state_machines.append(sm) catch unreachable;
         break :blk &system.state_machines.items[system.state_machines.items.len - 1];
     };
 
     system.instances.append(.{
-        .state_machine = spider_sm,
+        .state_machine = giant_ant_sm,
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
         .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
-            var blob_array = BlobArray(16).create(system.allocator, spider_sm.max_state_size);
+            var blob_array = BlobArray(16).create(system.allocator, giant_ant_sm.max_state_size);
             break :blk blob_array;
         },
     }) catch unreachable;

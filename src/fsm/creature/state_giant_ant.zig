@@ -121,26 +121,26 @@ pub const StateData = struct {
     sfx_footstep_index: u32,
 };
 
-const StateSpider = struct {
+const StateGiantAnt = struct {
     query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateSpider, ctx.state.self);
+    const self = Util.castBytes(StateGiantAnt, ctx.state.self);
     _ = self;
     // const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
     // state.*.amount_moved = 0;
 }
 
 fn exit(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateSpider, ctx.state.self);
+    const self = Util.castBytes(StateGiantAnt, ctx.state.self);
     _ = self;
 }
 
 fn update(ctx: fsm.StateFuncContext) void {
     // const self = Util.cast(StateIdle, ctx.data.ptr);
     // _ = self;
-    const self = Util.castBytes(StateSpider, ctx.state.self);
+    const self = Util.castBytes(StateGiantAnt, ctx.state.self);
     var entity_iter = self.query.iterator(struct {
         pos: *fd.Position,
         rot: *fd.Rotation,
@@ -181,11 +181,11 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .without(fd.Input);
 
     var query = query_builder.buildQuery();
-    var self = ctx.allocator.create(StateSpider) catch unreachable;
+    var self = ctx.allocator.create(StateGiantAnt) catch unreachable;
     self.query = query;
 
     return .{
-        .name = IdLocal.init("spider"),
+        .name = IdLocal.init("giant_ant"),
         .self = std.mem.asBytes(self),
         .size = @sizeOf(StateData),
         .transitions = std.ArrayList(fsm.Transition).init(ctx.allocator),
