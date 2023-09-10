@@ -91,9 +91,10 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     return output;
 }
 
-static const float g_wireframe_smoothing = 1.0;
-static const float g_wireframe_thickness = 0.25;
-static const float2 texel = 1.0f / float2(65.0f, 65.0f);
+// NOTE(gmodarelli): 65 is the resolution of our heightmaps
+static const float texel = 1.0f / 65.0f;
+// TODO(gmodarelli): Pass 500.0 in as height scale
+static const float heightmap_scale = 500.0f;
 
 [RootSignature(ROOT_SIGNATURE)]
 GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics */) {
@@ -105,16 +106,16 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     float3 tangent = input.tangent;
     float2 uv = input.uv;
 
-    // NOTE(gmodarelli): I'm not sure this is correct.
     // Derive normals from the heightmap
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
-        float r = heightmap.Sample(sam_linear_clamp, uv + texel * float2( 1.0,  0.0)).r;
-        float l = heightmap.Sample(sam_linear_clamp, uv + texel * float2(-1.0,  0.0)).r;
-        float t = heightmap.Sample(sam_linear_clamp, uv + texel * float2( 0.0,  1.0)).r;
-        float b = heightmap.Sample(sam_linear_clamp, uv + texel * float2( 0.0, -1.0)).r;
-        normal = normalize(float3(2.0 * (r - l), 2.0 * (b - t), -4));
+        float2 e = float2(texel, 0.0);
+        float l = heightmap.SampleLevel(sam_linear_clamp, uv - e.xy, 0).r / heightmap_scale;
+        float r = heightmap.SampleLevel(sam_linear_clamp, uv + e.xy, 0).r / heightmap_scale;
+        float b = heightmap.SampleLevel(sam_linear_clamp, uv - e.yx, 0).r / heightmap_scale;
+        float t = heightmap.SampleLevel(sam_linear_clamp, uv + e.yx, 0).r / heightmap_scale;
+        normal = normalize(float3(l - r, 2.0 * e.x, b - t));
 
         // Recalculating the tangent now that the normal has been adjusted.
         float3 tmp = normalize(cross(normal, tangent));
@@ -148,22 +149,10 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     float occlusion = arm.r;
     float emission = 0.0;
 
-
     GBufferTargets gbuffer;
     gbuffer.albedo = float4(albedo.rgb, 1.0);
     gbuffer.normal = float4(n.xyz, 0.0);
     gbuffer.material = float4(roughness, metallic, emission, occlusion);
-
-    // wireframe
-    /*
-    float3 barys = barycentrics;
-    const float3 deltas = fwidth(barys);
-    const float3 smoothing = deltas * 1.0;
-    const float3 thickness = deltas * 0.25;
-    barys = smoothstep(thickness, thickness + smoothing, barys);
-    float min_bary = min(barys.x, min(barys.y, barys.z));
-    gbuffer.albedo = float4(min_bary * albedo.rgb, 1.0);
-    */
 
     return gbuffer;
 }
