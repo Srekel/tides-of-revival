@@ -25,6 +25,7 @@ const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
 
+const light_system = @import("systems/light_system.zig");
 const camera_system = @import("systems/camera_system.zig");
 const city_system = @import("systems/procgen/city_system.zig");
 const input_system = @import("systems/input_system.zig");
@@ -431,6 +432,15 @@ pub fn run() void {
     );
     defer procmesh_system.destroy(procmesh_sys);
 
+    var light_sys = try light_system.create(
+        IdLocal.initFormat("light_system_{}", .{0}),
+        std.heap.page_allocator,
+        &gfx_state,
+        &ecsu_world,
+        &input_frame_data,
+    );
+    defer light_system.destroy(light_sys);
+
     var static_mesh_renderer_sys = try static_mesh_renderer_system.create(
         IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
         std.heap.page_allocator,
@@ -517,6 +527,10 @@ pub fn run() void {
     // ██╔══╝  ██║╚██╗██║   ██║   ██║   ██║   ██║██╔══╝  ╚════██║
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
+
+    const sun_light = ecsu_world.newEntity();
+    sun_light.set(fd.Rotation.initFromEuler(50.0 * std.math.pi / 180.0, -30.0 * std.math.pi / 180.0, 0.0));
+    sun_light.set(fd.Light.directionalLight(.{ .r = 1.5, .g = 1.5, .b = 1.5 }));
 
     const player_spawn = blk: {
         var builder = ecsu.QueryBuilder.init(ecsu_world);
@@ -659,7 +673,7 @@ pub fn run() void {
         .id = IdLocal.id64("sphere"),
         .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
-    player_camera_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 10 });
+    player_camera_ent.set(fd.Light.pointLight(.{ .r = 4, .g = 2, .b = 1 }, 10));
     bow_ent.childOf(player_camera_ent);
 
     // // ███████╗██╗     ███████╗ ██████╗███████╗

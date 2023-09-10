@@ -52,14 +52,19 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         float occlusion = gbuffer_2_sample.a;
         float3 position = getPositionFromDepth(depth, uv, cbv_frame_const.view_projection_inverted);
 
-        // TODO(gmodarelli): Apply real lights
-        float3 lightColor = float3(1.0, 1.0, 1.0);
-        float3 lightDirection = normalize(float3(1.0, 1.0, 1.0));
+        // TODO(gmodarelli): Apply all lights
+        ByteAddressBuffer lights_buffer = ResourceDescriptorHeap[cbv_scene_const.lights_buffer_index];
+        Light light = lights_buffer.Load<Light>((0) * sizeof(Light));
+
         const float3 V = normalize(cbv_frame_const.camera_position - position);
-        float3 color = LightSurface(V, normal, lightDirection, lightColor, albedo, roughness, metallic, occlusion);
+        float3 color = LightSurface(V, normal, light.position, light.radiance, albedo, roughness, metallic, occlusion);
 
         float3 emissive = gbuffer_2_sample.b * albedo;
         hdr_texture[dispatch_id.xy] = float4(color + emissive, 1.0);
+
+        float NdotL = saturate(dot(normal, light.position));
+        color = albedo * light.radiance * NdotL;
+        hdr_texture[dispatch_id.xy] = float4(color, 1.0);
     }
     else
     {

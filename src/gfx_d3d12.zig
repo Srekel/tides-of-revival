@@ -74,6 +74,7 @@ pub const SceneUniforms = extern struct {
     irradiance_texture_index: u32,
     specular_texture_index: u32,
     brdf_integration_texture_index: u32,
+    lights_buffer_index: u32,
 };
 
 pub const DrawCall = struct {
@@ -205,6 +206,7 @@ const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalContext, 80);
 
 pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
+    pub const max_num_lights: u32 = 1000;
 
     gctx: zd3d12.GraphicsContext,
     gpu_profiler: Profiler,
@@ -242,6 +244,8 @@ pub const D3D12State = struct {
     mesh_hash: MeshHashMap,
     mesh_pool: MeshPool,
     skybox_mesh: MeshHandle,
+
+    lights_buffers: [num_buffered_frames]BufferHandle,
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
         return self.pipelines.get(pipeline_id);
@@ -1025,6 +1029,26 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .mesh_hash = mesh_hash,
         .mesh_pool = mesh_pool,
         .skybox_mesh = undefined,
+        .lights_buffers = undefined,
+    };
+
+    d3d12_state.lights_buffers = blk: {
+        var buffers: [D3D12State.num_buffered_frames]BufferHandle = undefined;
+        for (buffers, 0..) |_, buffer_index| {
+            const bufferDesc = BufferDesc{
+                .size = D3D12State.max_num_lights * @sizeOf(fd.Light),
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("Lights Buffer"),
+                .persistent = true,
+                .has_cbv = false,
+                .has_srv = true,
+                .has_uav = false,
+            };
+
+            buffers[buffer_index] = d3d12_state.createBuffer(bufferDesc) catch unreachable;
+        }
+
+        break :blk buffers;
     };
 
     // Upload skybox mesh
@@ -1188,6 +1212,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
 
     const ibl_textures = state.lookupIBLTextures();
+    const lights_buffer = state.lookupBuffer(state.lights_buffers[gctx.frame_index]);
     const view_projection = zm.loadMat(camera.view_projection[0..]);
     const view_projection_inverted = zm.inverse(view_projection);
 
@@ -1211,6 +1236,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
             mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
             mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
+            mem.cpu_slice[0].lights_buffer_index = lights_buffer.?.persistent_descriptor.index;
             gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
         }
 

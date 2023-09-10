@@ -518,8 +518,28 @@ pub const WorldPatch = struct {
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
 pub const Light = struct {
+    position: [3]f32,
     radiance: ColorRGB,
-    range: f32,
+    range: f32,         // Used only for Point Lights
+    light_type: u32,    // 0: Directional, 1: Point
+
+    pub fn directionalLight(radiance: ColorRGB) Light {
+        return .{
+            .position = [3]f32{ 0, 0, 0 },
+            .radiance = radiance,
+            .range = 0.0,
+            .light_type = 0,
+        };
+    }
+
+    pub fn pointLight(radiance: ColorRGB, range: f32) Light {
+        return .{
+            .position = [3]f32{ 0, 0, 0 },
+            .radiance = radiance,
+            .range = range,
+            .light_type = 1,
+        };
+    }
 };
 
 // ███████╗███████╗███╗   ███╗
