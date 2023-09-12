@@ -51,14 +51,16 @@ const DrawUniforms = struct {
     vertex_buffer_index: u32,
     instance_data_buffer_index: u32,
     terrain_layers_buffer_index: u32,
+    terrain_height: f32,
+    heightmap_texel_size: f32,
 };
 
 const InstanceData = struct {
     object_to_world: zm.Mat,
     heightmap_index: u32,
     splatmap_index: u32,
+    lod: u32,
     padding1: u32,
-    padding2: u32,
 };
 
 const max_instances = 1000;
@@ -1083,8 +1085,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .object_to_world = zm.transpose(object_to_world),
                 .heightmap_index = heightmap.?.persistent_descriptor.index,
                 .splatmap_index = splatmap.?.persistent_descriptor.index,
+                .lod = quad.mesh_lod,
                 .padding1 = 42,
-                .padding2 = 42,
             }) catch unreachable;
 
             const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
@@ -1118,6 +1120,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
         mem.cpu_slice[0].instance_data_buffer_index = instance_data_buffer.?.persistent_descriptor.index;
         mem.cpu_slice[0].terrain_layers_buffer_index = terrain_layers_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].terrain_height = config.terrain_span;
+        mem.cpu_slice[0].heightmap_texel_size = 1.0 / @as(f32, @floatFromInt(config.patch_resolution));
         state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         state.gfx.gctx.cmdlist.DrawIndexedInstanced(

@@ -31,14 +31,16 @@ struct DrawConst {
     uint vertex_buffer_index;
     uint instance_data_buffer_index;
     uint terrain_layers_buffer_index;
+    float terrain_height;
+    float heightmap_texel_size;
 };
 
 struct InstanceData {
     float4x4 object_to_world;
     uint heightmap_index;
     uint splatmap_index;
+    uint lod;
     uint padding1;
-    uint padding2;
 };
 
 struct TerrainLayerTextureIndices {
@@ -91,11 +93,6 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     return output;
 }
 
-// NOTE(gmodarelli): 65 is the resolution of our heightmaps
-static const float texel = 1.0f / 65.0f;
-// TODO(gmodarelli): Pass 500.0 in as height scale
-static const float heightmap_scale = 500.0f;
-
 [RootSignature(ROOT_SIGNATURE)]
 GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics */) {
     ByteAddressBuffer instance_data_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_data_buffer_index];
@@ -110,11 +107,13 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
-        float2 e = float2(texel, 0.0);
-        float l = heightmap.SampleLevel(sam_linear_clamp, uv - e.xy, 0).r / heightmap_scale;
-        float r = heightmap.SampleLevel(sam_linear_clamp, uv + e.xy, 0).r / heightmap_scale;
-        float b = heightmap.SampleLevel(sam_linear_clamp, uv - e.yx, 0).r / heightmap_scale;
-        float t = heightmap.SampleLevel(sam_linear_clamp, uv + e.yx, 0).r / heightmap_scale;
+        // NOTE(gmodarelli): We're changing the epsilon value based on the mesh LOD,
+        // otherwise two different neighbouring LODs would have quite different normal values
+        float2 e = float2(cbv_draw_const.heightmap_texel_size * pow(2, instance.lod), 0.0);
+        float l = heightmap.SampleLevel(sam_linear_clamp, saturate(uv - e.xy), 0).r / cbv_draw_const.terrain_height;
+        float r = heightmap.SampleLevel(sam_linear_clamp, saturate(uv + e.xy), 0).r / cbv_draw_const.terrain_height;
+        float b = heightmap.SampleLevel(sam_linear_clamp, saturate(uv - e.yx), 0).r / cbv_draw_const.terrain_height;
+        float t = heightmap.SampleLevel(sam_linear_clamp, saturate(uv + e.yx), 0).r / cbv_draw_const.terrain_height;
         normal = normalize(float3(l - r, 2.0 * e.x, b - t));
 
         // Recalculating the tangent now that the normal has been adjusted.
