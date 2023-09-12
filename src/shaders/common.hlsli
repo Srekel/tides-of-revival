@@ -20,6 +20,20 @@ static const float EPSILON = 1e-6f;
 #define per_pass_space     space2
 #define per_frame_space    space3
 
+struct DirectionalLight {
+    float3 direction;
+    float3 radiance;
+};
+
+struct PointLight {
+    float3 position;
+    float3 radiance;
+    float radius;
+    float falloff;
+    float max_intensity;
+};
+
+
 struct FrameConst {
     float4x4 view_projection;
     float4x4 view_projection_inverted;
@@ -27,11 +41,14 @@ struct FrameConst {
 };
 
 struct SceneConst {
+    float3 main_light_direction;
+    uint point_lights_buffer_index;
+    float3 main_light_radiance;
+    uint num_point_lights;
     uint radiance_texture_index;
     uint irradiance_texture_index;
     uint specular_texture_index;
     uint brdf_integration_texture_index;
-    uint lights_buffer_index;
 };
 
 struct FullscreenTriangleOutput {
@@ -51,13 +68,6 @@ struct GBufferTargets {
     float4 albedo : SV_Target0;         // R8B8G8A8_UNORM
     float4 normal : SV_Target1;         // R10G10B10A2_UNORM
     float4 material : SV_Target2;       // R8G8B8A8_UNORM
-};
-
-struct Light {
-    float3 position;
-    float3 radiance;
-    float range;
-    uint light_type;
 };
 
 bool has_valid_texture(uint texture_index) { return texture_index != INVALID_TEXTURE_INDEX; }

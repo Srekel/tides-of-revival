@@ -80,11 +80,14 @@ pub const TonemapperUniforms = struct {
 };
 
 pub const SceneUniforms = extern struct {
+    main_light_direction: [3]f32,
+    point_lights_buffer_index: u32,
+    main_light_radiance: [3]f32,
+    num_point_lights: u32,
     radiance_texture_index: u32,
     irradiance_texture_index: u32,
     specular_texture_index: u32,
     brdf_integration_texture_index: u32,
-    lights_buffer_index: u32,
 };
 
 pub const DrawCall = struct {
@@ -255,7 +258,9 @@ pub const D3D12State = struct {
     mesh_pool: MeshPool,
     skybox_mesh: MeshHandle,
 
-    lights_buffers: [num_buffered_frames]BufferHandle,
+    main_light: renderer_types.DirectionalLightGPU,
+    point_lights_buffers: [num_buffered_frames]BufferHandle,
+    num_point_lights: [num_buffered_frames]u32,
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
         return self.pipelines.get(pipeline_id);
@@ -1039,16 +1044,18 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .mesh_hash = mesh_hash,
         .mesh_pool = mesh_pool,
         .skybox_mesh = undefined,
-        .lights_buffers = undefined,
+        .main_light = undefined,
+        .point_lights_buffers = undefined,
+        .num_point_lights = [D3D12State.num_buffered_frames]u32{ 0, 0 },
     };
 
-    d3d12_state.lights_buffers = blk: {
+    d3d12_state.point_lights_buffers = blk: {
         var buffers: [D3D12State.num_buffered_frames]BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = BufferDesc{
-                .size = D3D12State.max_num_lights * @sizeOf(fd.Light),
+                .size = D3D12State.max_num_lights * @sizeOf(renderer_types.PointLightGPU),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Lights Buffer"),
+                .name = L("Point Lights Buffer"),
                 .persistent = true,
                 .has_cbv = false,
                 .has_srv = true,
@@ -1222,7 +1229,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
 
     const ibl_textures = state.lookupIBLTextures();
-    const lights_buffer = state.lookupBuffer(state.lights_buffers[gctx.frame_index]);
+    const point_lights_buffer = state.lookupBuffer(state.point_lights_buffers[gctx.frame_index]);
+    const num_point_lights = state.num_point_lights[gctx.frame_index];
     const view_projection = zm.loadMat(camera.view_projection[0..]);
     const view_projection_inverted = zm.inverse(view_projection);
 
@@ -1242,11 +1250,14 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         // Upload per-scene constant data.
         {
             const mem = gctx.allocateUploadMemory(SceneUniforms, 1);
+            mem.cpu_slice[0].main_light_direction = state.main_light.direction;
+            mem.cpu_slice[0].main_light_radiance = state.main_light.radiance;
+            mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
+            mem.cpu_slice[0].num_point_lights = num_point_lights;
             mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
             mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
             mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
             mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-            mem.cpu_slice[0].lights_buffer_index = lights_buffer.?.persistent_descriptor.index;
             gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
         }
 

@@ -37,7 +37,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, WorldLoader);
     ecs.COMPONENT(ecs_world, WorldPatch);
     // ecs.COMPONENT(ecs_world, ComponentData);
-    ecs.COMPONENT(ecs_world, Light);
+    ecs.COMPONENT(ecs_world, DirectionalLight);
+    ecs.COMPONENT(ecs_world, PointLight);
     ecs.COMPONENT(ecs_world, CIFSM);
     ecs.COMPONENT(ecs_world, FSM);
     ecs.COMPONENT(ecs_world, Input);
@@ -517,29 +518,15 @@ pub const WorldPatch = struct {
 // ███████╗██║╚██████╔╝██║  ██║   ██║
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
-pub const Light = struct {
-    position: [3]f32,
+pub const DirectionalLight = struct {
     radiance: ColorRGB,
-    range: f32,         // Used only for Point Lights
-    light_type: u32,    // 0: Directional, 1: Point
+};
 
-    pub fn directionalLight(radiance: ColorRGB) Light {
-        return .{
-            .position = [3]f32{ 0, 0, 0 },
-            .radiance = radiance,
-            .range = 0.0,
-            .light_type = 0,
-        };
-    }
-
-    pub fn pointLight(radiance: ColorRGB, range: f32) Light {
-        return .{
-            .position = [3]f32{ 0, 0, 0 },
-            .radiance = radiance,
-            .range = range,
-            .light_type = 1,
-        };
-    }
+pub const PointLight = struct {
+    radiance: ColorRGB,
+    radius: f32,
+    falloff: f32,
+    max_intensity: f32,
 };
 
 // ███████╗███████╗███╗   ███╗
