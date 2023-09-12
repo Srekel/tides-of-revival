@@ -43,7 +43,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
     var query_builder_point_lights = ecsu.QueryBuilder.init(ecsu_world.*);
     _ = query_builder_point_lights
-        .withReadonly(fd.Position)
+        .withReadonly(fd.Transform)
         .withReadonly(fd.PointLight);
     var query_point_lights = query_builder_point_lights.buildQuery();
 
@@ -94,7 +94,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
 
     var entity_iter_point_lights = state.query_point_lights.iterator(struct {
-        position: *const fd.Position,
+        transform: *const fd.Transform,
         light: *const fd.PointLight,
     });
 
@@ -103,7 +103,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     while (entity_iter_point_lights.next()) |comps| {
         // TODO(gmodarelli): Implement frustum culling
         const point_light = renderer_types.PointLightGPU{
-            .position = [3]f32{ comps.position.x, comps.position.y, comps.position.z },
+            .position = comps.transform.getPos00(),
             .radiance = [3]f32{ comps.light.radiance.r, comps.light.radiance.g, comps.light.radiance.b },
             .radius = comps.light.radius,
             .falloff = comps.light.falloff,

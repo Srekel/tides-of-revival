@@ -677,9 +677,9 @@ pub fn run() void {
     });
     player_camera_ent.set(fd.PointLight{
         .radiance = .{ .r = 4, .g = 2, .b = 1 },
-        .radius = 20.0,
-        .falloff = 10.0,
-        .max_intensity = 20.0,
+        .radius = 10.0,
+        .falloff = 5.0,
+        .max_intensity = 2.0,
     });
     bow_ent.childOf(player_camera_ent);
 

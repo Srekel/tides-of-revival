@@ -1,4 +1,5 @@
 #include "common.hlsli"
+#include "brdf.hlsli"
 
 #define ROOT_SIGNATURE \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
