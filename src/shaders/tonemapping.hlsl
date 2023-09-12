@@ -9,6 +9,7 @@ SamplerState sam_aniso_clamp : register(s0);
 
 struct DrawConst {
     uint hdr_texture_index;
+    uint tonemapping_function;
 };
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
@@ -78,6 +79,16 @@ float4 psTonemapping(FullscreenTriangleOutput input) : SV_Target
 {
     Texture2D hdr_texture = ResourceDescriptorHeap[cbv_draw_const.hdr_texture_index];
 
-    float3 color = gamma(aces(hdr_texture.Sample(sam_aniso_clamp, input.uv).rgb));
-    return float4(color, 1.0);
+    float3 hdr_sample = hdr_texture.Sample(sam_aniso_clamp, input.uv).rgb;
+    float3 color = hdr_sample;
+    if (cbv_draw_const.tonemapping_function == 0)
+    {
+        color = aces(color);
+    }
+    else if (cbv_draw_const.tonemapping_function == 1)
+    {
+        color = reinhard(color);
+    }
+
+    return float4(gamma(color), 1.0);
 }

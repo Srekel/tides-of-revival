@@ -55,6 +55,11 @@ const MaterialHashMap = std.StringHashMap(MaterialHandle);
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
 
+pub const Tonemapper = enum(u32) {
+    Aces,
+    Reihnard,
+};
+
 pub const RenderTargetsUniforms = struct {
     gbuffer_0_index: u32,
     gbuffer_1_index: u32,
@@ -67,6 +72,11 @@ pub const FrameUniforms = struct {
     view_projection: zm.Mat,
     view_projection_inverted: zm.Mat,
     camera_position: [3]f32,
+};
+
+pub const TonemapperUniforms = struct {
+    hdr_texture_index: u32,
+    tonemapper: Tonemapper,
 };
 
 pub const SceneUniforms = extern struct {
@@ -1295,8 +1305,9 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         const pipeline_info = state.getPipeline(IdLocal.init("tonemapping"));
         gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-        const mem = gctx.allocateUploadMemory(u32, 1);
-        mem.cpu_slice[0] = state.hdr_rt.srv_persistent_descriptor.index;
+        const mem = gctx.allocateUploadMemory(TonemapperUniforms, 1);
+        mem.cpu_slice[0].tonemapper = .Aces;
+        mem.cpu_slice[0].hdr_texture_index = state.hdr_rt.srv_persistent_descriptor.index;
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
