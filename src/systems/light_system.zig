@@ -116,6 +116,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     if (state.point_lights.items.len > 0) {
         const frame_index = state.gfx.gctx.frame_index;
         _ = state.gfx.uploadDataToBuffer(renderer_types.PointLightGPU, state.gfx.point_lights_buffers[frame_index], 0, state.point_lights.items);
-        state.gfx.point_lights_count[frame_index] = @as(u32, @intCast(state.point_lights.items.len));
+        state.gfx.point_lights_count[frame_index] = @intCast(state.point_lights.items.len);
     }
 }
