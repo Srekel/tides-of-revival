@@ -1,5 +1,5 @@
 #include "common.hlsli"
-#include "brdf.hlsli"
+#include "pbr.hlsli"
 
 #define root_signature \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
@@ -15,11 +15,6 @@ ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 
 SamplerState sam_aniso_clamp : register(s0);
 SamplerState sam_bilinear_clamp : register(s1);
-
-float DistributionGGX(BrdfData data);
-float GeometrySchlickGGX(float NdotV, float roughness);
-float GeometrySmith(BrdfData data);
-float3 FresnelSchlick(float cosTheta, float3 F0);
 
 float calculatePointLightAttenuation(float distance, float radius, float max_intensity, float falloff);
 
@@ -72,25 +67,10 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         // Main Directional Light
         {
             float3 L = cbv_scene_const.main_light_direction;
-            BrdfData brdf_data = prepareBRDFData(N, L, V, material_properties);
-            float3 F0 = float3(0.04, 0.04, 0.04);
-            F0 = lerp(F0, material_properties.baseColor, material_properties.metalness);
-
-            // Cook-Torrance BRDF
-            float NDF = DistributionGGX(brdf_data);
-            float G = GeometrySmith(brdf_data);
-            float3 F = FresnelSchlick(brdf_data.NdotH, F0);
-
-            float3 kS = F;
-            float3 kD = float3(1.0, 1.0, 1.0) - kS;
-            kD *= 1.0 - material_properties.metalness;
-
-            float3 numerator = NDF * G * F;
-            float denominator = 4.0 * brdf_data.NdotV * brdf_data.NdotL + 0.0001;
-            float3 specular = numerator / denominator;
+            float attenuation = 1.0;
 
             // add to outgoing radiance Lo
-            Lo += (kD * material_properties.baseColor / PI + specular) * cbv_scene_const.main_light_radiance * brdf_data.NdotL;
+            Lo += calculateLightContribution(N, L, V, material_properties, cbv_scene_const.main_light_radiance, attenuation);
         }
 
         // Point Lights
@@ -100,29 +80,13 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
             float3 L = normalize(light.position - position);
             float attenuation = calculatePointLightAttenuation(distance(light.position, position), light.radius, light.max_intensity, light.falloff);
 
-            BrdfData brdf_data = prepareBRDFData(N, L, V, material_properties);
-            float3 F0 = float3(0.04, 0.04, 0.04);
-            F0 = lerp(F0, material_properties.baseColor, material_properties.metalness);
-
-            // Cook-Torrance BRDF
-            float NDF = DistributionGGX(brdf_data);
-            float G = GeometrySmith(brdf_data);
-            float3 F = FresnelSchlick(brdf_data.NdotH, F0);
-
-            float3 kS = F;
-            float3 kD = float3(1.0, 1.0, 1.0) - kS;
-            kD *= 1.0 - material_properties.metalness;
-
-            float3 numerator = NDF * G * F;
-            float denominator = 4.0 * brdf_data.NdotV * brdf_data.NdotL + 0.0001;
-            float3 specular = numerator / denominator;
-
             // add to outgoing radiance Lo
-            Lo += (kD * material_properties.baseColor / PI + specular) * light.radiance * brdf_data.NdotL * attenuation;
+            Lo += calculateLightContribution(N, L, V, material_properties, light.radiance, attenuation);
         }
 
 
-        float3 ambient = float3(0.03, 0.03, 0.03) * material_properties.baseColor;
+        float ambient_factor = 0.03;
+        float3 ambient = float3(ambient_factor, ambient_factor, ambient_factor) * material_properties.baseColor;
         float3 color = ambient + Lo;
 
         hdr_texture[dispatch_id.xy] = float4(color, 1.0);
@@ -134,36 +98,6 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         float3 env = environment_texture.SampleLevel(sam_bilinear_clamp, N, 0).rgb;
         hdr_texture[dispatch_id.xy] = float4(clamp(env, 0, 32767.0f), 1.0);
     }
-}
-
-float DistributionGGX(BrdfData data)
-{
-    float NdotH2 = data.NdotH * data.NdotH;
-    float denom = (NdotH2 * (data.alphaSquared - 1.0) + 1.0);
-    denom = PI * denom * denom;
-
-    return data.alphaSquared / denom;
-}
-
-float GeometrySchlickGGX(float NdotV, float roughness)
-{
-    float r = roughness + 1;
-    float k = (r * r) / 8.0;
-
-    return NdotV / (NdotV * (1.0 - k) + k);
-}
-
-float GeometrySmith(BrdfData data)
-{
-    float ggx2 = GeometrySchlickGGX(data.NdotV, data.roughness);
-    float ggx1 = GeometrySchlickGGX(data.NdotL, data.roughness);
-
-    return ggx1 * ggx2;
-}
-
-float3 FresnelSchlick(float cosTheta, float3 F0)
-{
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 // https://lisyarus.github.io/blog/graphics/2022/07/30/point-light-attenuation.html
