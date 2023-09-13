@@ -131,6 +131,9 @@ pub const Rotation = struct {
         zm.storeArr4(rot.elems(), rot_z);
         return rot;
     }
+    pub fn initFromEulerDegrees(pitch: f32, yaw: f32, roll: f32) Rotation {
+        return initFromEuler(std.math.degreesToRadians(f32, pitch), std.math.degreesToRadians(f32, yaw), std.math.degreesToRadians(f32, roll));
+    }
     pub fn elems(self: *Rotation) *[4]f32 {
         return @as(*[4]f32, @ptrCast(&self.x));
     }

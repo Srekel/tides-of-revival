@@ -529,7 +529,7 @@ pub fn run() void {
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
     const sun_light = ecsu_world.newEntity();
-    sun_light.set(fd.Rotation.initFromEuler(50.0 * std.math.pi / 180.0, -30.0 * std.math.pi / 180.0, 0.0));
+    sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
     sun_light.set(fd.DirectionalLight{
         .radiance = .{ .r = 2.5, .g = 2.5, .b = 2.5 }
     });
