@@ -37,7 +37,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, WorldLoader);
     ecs.COMPONENT(ecs_world, WorldPatch);
     // ecs.COMPONENT(ecs_world, ComponentData);
-    ecs.COMPONENT(ecs_world, Light);
+    ecs.COMPONENT(ecs_world, DirectionalLight);
+    ecs.COMPONENT(ecs_world, PointLight);
     ecs.COMPONENT(ecs_world, CIFSM);
     ecs.COMPONENT(ecs_world, FSM);
     ecs.COMPONENT(ecs_world, Input);
@@ -129,6 +130,9 @@ pub const Rotation = struct {
         var rot = Rotation{};
         zm.storeArr4(rot.elems(), rot_z);
         return rot;
+    }
+    pub fn initFromEulerDegrees(pitch: f32, yaw: f32, roll: f32) Rotation {
+        return initFromEuler(std.math.degreesToRadians(f32, pitch), std.math.degreesToRadians(f32, yaw), std.math.degreesToRadians(f32, roll));
     }
     pub fn elems(self: *Rotation) *[4]f32 {
         return @as(*[4]f32, @ptrCast(&self.x));
@@ -517,9 +521,15 @@ pub const WorldPatch = struct {
 // ███████╗██║╚██████╔╝██║  ██║   ██║
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
-pub const Light = struct {
+pub const DirectionalLight = struct {
     radiance: ColorRGB,
-    range: f32,
+};
+
+pub const PointLight = struct {
+    radiance: ColorRGB,
+    radius: f32,
+    falloff: f32,
+    max_intensity: f32,
 };
 
 // ███████╗███████╗███╗   ███╗

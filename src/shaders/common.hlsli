@@ -7,18 +7,24 @@
 static const float GAMMA = 2.2;
 static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
 
-static const float FLT_MIN             = 0.00000001f;
-static const float FLT_MAX_11          = 1023.0f;
-static const float FLT_MAX_16          = 32767.0f;
-
-static const float PI = 3.14159265f;
-static const float INV_PI = 1.0f / PI;
-static const float EPSILON = 1e-6f;
-
 #define per_object_space   space0
 #define per_material_space space1
 #define per_pass_space     space2
 #define per_frame_space    space3
+
+struct DirectionalLight {
+    float3 direction;
+    float3 radiance;
+};
+
+struct PointLight {
+    float3 position;
+    float3 radiance;
+    float radius;
+    float falloff;
+    float max_intensity;
+};
+
 
 struct FrameConst {
     float4x4 view_projection;
@@ -27,6 +33,10 @@ struct FrameConst {
 };
 
 struct SceneConst {
+    float3 main_light_direction;
+    uint point_lights_buffer_index;
+    float3 main_light_radiance;
+    uint point_lights_count;
     uint radiance_texture_index;
     uint irradiance_texture_index;
     uint specular_texture_index;
@@ -78,33 +88,5 @@ float3 getPositionFromDepth(float depth, float2 uv, float4x4 view_projection_inv
     float4 position_ws = mul(position_cs, view_projection_inverted);
     return position_ws.xyz / position_ws.w;
 }
-
-/*------------------------------------------------------------------------------
-    LUMINANCE
-------------------------------------------------------------------------------*/
-static const float3 lumCoeff = float3(0.299f, 0.587f, 0.114f);
-
-float luminance(float3 color)
-{
-    return max(dot(color, lumCoeff), 0.0001f);
-}
-
-float luminance(float4 color)
-{
-    return max(dot(color.rgb, lumCoeff), 0.0001f);
-}
-
-/*------------------------------------------------------------------------------
-    SATURATE
-------------------------------------------------------------------------------*/
-float  saturate_11(float x)  { return clamp(x, 0.0f, FLT_MAX_11); }
-float2 saturate_11(float2 x) { return clamp(x, 0.0f, FLT_MAX_11); }
-float3 saturate_11(float3 x) { return clamp(x, 0.0f, FLT_MAX_11); }
-float4 saturate_11(float4 x) { return clamp(x, 0.0f, FLT_MAX_11); }
-
-float  saturate_16(float x)  { return clamp(x, 0.0f, FLT_MAX_16); }
-float2 saturate_16(float2 x) { return clamp(x, 0.0f, FLT_MAX_16); }
-float3 saturate_16(float3 x) { return clamp(x, 0.0f, FLT_MAX_16); }
-float4 saturate_16(float4 x) { return clamp(x, 0.0f, FLT_MAX_16); }
 
 #endif // __COMMON_HLSL__

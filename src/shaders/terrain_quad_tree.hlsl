@@ -31,14 +31,16 @@ struct DrawConst {
     uint vertex_buffer_index;
     uint instance_data_buffer_index;
     uint terrain_layers_buffer_index;
+    float terrain_height;
+    float heightmap_texel_size;
 };
 
 struct InstanceData {
     float4x4 object_to_world;
     uint heightmap_index;
     uint splatmap_index;
+    uint lod;
     uint padding1;
-    uint padding2;
 };
 
 struct TerrainLayerTextureIndices {
@@ -91,10 +93,6 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     return output;
 }
 
-static const float g_wireframe_smoothing = 1.0;
-static const float g_wireframe_thickness = 0.25;
-static const float2 texel = 1.0f / float2(65.0f, 65.0f);
-
 [RootSignature(ROOT_SIGNATURE)]
 GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics : SV_Barycentrics */) {
     ByteAddressBuffer instance_data_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_data_buffer_index];
@@ -105,16 +103,18 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     float3 tangent = input.tangent;
     float2 uv = input.uv;
 
-    // NOTE(gmodarelli): I'm not sure this is correct.
-    // Derive normals from the heightmap
+    // Derive normals from the heightmap using the central differences method
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
-        float r = heightmap.Sample(sam_linear_clamp, uv + texel * float2( 1.0,  0.0)).r;
-        float l = heightmap.Sample(sam_linear_clamp, uv + texel * float2(-1.0,  0.0)).r;
-        float t = heightmap.Sample(sam_linear_clamp, uv + texel * float2( 0.0,  1.0)).r;
-        float b = heightmap.Sample(sam_linear_clamp, uv + texel * float2( 0.0, -1.0)).r;
-        normal = normalize(float3(2.0 * (r - l), 2.0 * (b - t), -4));
+        // NOTE(gmodarelli): We're changing the epsilon value based on the mesh LOD,
+        // otherwise two different neighbouring LODs would have quite different normal values
+        float2 e = float2(cbv_draw_const.heightmap_texel_size * pow(2, instance.lod), 0.0);
+        float l = heightmap.SampleLevel(sam_linear_clamp, saturate(uv - e.xy), 0).r / cbv_draw_const.terrain_height;
+        float r = heightmap.SampleLevel(sam_linear_clamp, saturate(uv + e.xy), 0).r / cbv_draw_const.terrain_height;
+        float b = heightmap.SampleLevel(sam_linear_clamp, saturate(uv - e.yx), 0).r / cbv_draw_const.terrain_height;
+        float t = heightmap.SampleLevel(sam_linear_clamp, saturate(uv + e.yx), 0).r / cbv_draw_const.terrain_height;
+        normal = normalize(float3(l - r, 2.0 * e.x, b - t));
 
         // Recalculating the tangent now that the normal has been adjusted.
         float3 tmp = normalize(cross(normal, tangent));
@@ -148,22 +148,10 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     float occlusion = arm.r;
     float emission = 0.0;
 
-
     GBufferTargets gbuffer;
     gbuffer.albedo = float4(albedo.rgb, 1.0);
     gbuffer.normal = float4(n.xyz, 0.0);
     gbuffer.material = float4(roughness, metallic, emission, occlusion);
-
-    // wireframe
-    /*
-    float3 barys = barycentrics;
-    const float3 deltas = fwidth(barys);
-    const float3 smoothing = deltas * 1.0;
-    const float3 thickness = deltas * 0.25;
-    barys = smoothstep(thickness, thickness + smoothing, barys);
-    float min_bary = min(barys.x, min(barys.y, barys.z));
-    gbuffer.albedo = float4(min_bary * albedo.rgb, 1.0);
-    */
 
     return gbuffer;
 }
