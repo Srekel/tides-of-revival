@@ -74,7 +74,7 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         }
 
         // Point Lights
-        for (uint i = 0; i < cbv_scene_const.num_point_lights; i++)
+        for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
         {
             PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
             float3 L = normalize(light.position - position);

@@ -36,7 +36,7 @@ struct SceneConst {
     float3 main_light_direction;
     uint point_lights_buffer_index;
     float3 main_light_radiance;
-    uint num_point_lights;
+    uint point_lights_count;
     uint radiance_texture_index;
     uint irradiance_texture_index;
     uint specular_texture_index;

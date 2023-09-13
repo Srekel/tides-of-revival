@@ -83,7 +83,7 @@ pub const SceneUniforms = extern struct {
     main_light_direction: [3]f32,
     point_lights_buffer_index: u32,
     main_light_radiance: [3]f32,
-    num_point_lights: u32,
+    point_lights_count: u32,
     radiance_texture_index: u32,
     irradiance_texture_index: u32,
     specular_texture_index: u32,
@@ -219,7 +219,7 @@ const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalContext, 80);
 
 pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
-    pub const max_num_lights: u32 = 1000;
+    pub const point_lights_count_max: u32 = 1000;
 
     gctx: zd3d12.GraphicsContext,
     gpu_profiler: Profiler,
@@ -260,7 +260,7 @@ pub const D3D12State = struct {
 
     main_light: renderer_types.DirectionalLightGPU,
     point_lights_buffers: [num_buffered_frames]BufferHandle,
-    num_point_lights: [num_buffered_frames]u32,
+    point_lights_count: [num_buffered_frames]u32,
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
         return self.pipelines.get(pipeline_id);
@@ -1046,14 +1046,14 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .skybox_mesh = undefined,
         .main_light = undefined,
         .point_lights_buffers = undefined,
-        .num_point_lights = [D3D12State.num_buffered_frames]u32{ 0, 0 },
+        .point_lights_count = [D3D12State.num_buffered_frames]u32{ 0, 0 },
     };
 
     d3d12_state.point_lights_buffers = blk: {
         var buffers: [D3D12State.num_buffered_frames]BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = BufferDesc{
-                .size = D3D12State.max_num_lights * @sizeOf(renderer_types.PointLightGPU),
+                .size = D3D12State.point_lights_count_max * @sizeOf(renderer_types.PointLightGPU),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
                 .name = L("Point Lights Buffer"),
                 .persistent = true,
@@ -1230,7 +1230,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
     const ibl_textures = state.lookupIBLTextures();
     const point_lights_buffer = state.lookupBuffer(state.point_lights_buffers[gctx.frame_index]);
-    const num_point_lights = state.num_point_lights[gctx.frame_index];
+    const point_lights_count = state.point_lights_count[gctx.frame_index];
     const view_projection = zm.loadMat(camera.view_projection[0..]);
     const view_projection_inverted = zm.inverse(view_projection);
 
@@ -1253,7 +1253,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].main_light_direction = state.main_light.direction;
             mem.cpu_slice[0].main_light_radiance = state.main_light.radiance;
             mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
-            mem.cpu_slice[0].num_point_lights = num_point_lights;
+            mem.cpu_slice[0].point_lights_count = point_lights_count;
             mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
             mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
             mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
