@@ -608,6 +608,9 @@ pub const D3D12State = struct {
             }
         }
 
+        new_mesh.bounding_box.min = [3]f32{ mesh.bounding_box.min[0], mesh.bounding_box.min[1], mesh.bounding_box.min[2] };
+        new_mesh.bounding_box.max = [3]f32{ mesh.bounding_box.max[0], mesh.bounding_box.max[1], mesh.bounding_box.max[2] };
+
         // 2. Upload vertex data to the vertex buffer
         _ = self.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, vertices);
 

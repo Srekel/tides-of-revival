@@ -178,6 +178,7 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_gamepad_move_y, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_look_yaw, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_look_pitch, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_draw_bounding_spheres, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_switch, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_freeze_rendering, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_exit, input.TargetValue{ .number = 0 });
@@ -205,6 +206,7 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_interact, .source = input.BindingSource{ .keyboard_key = .f } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .keyboard_key = .g } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .keyboard_key = .h } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_draw_bounding_spheres, .source = input.BindingSource{ .keyboard_key = .b } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
@@ -532,9 +534,7 @@ pub fn run() void {
 
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
-    sun_light.set(fd.DirectionalLight{
-        .radiance = .{ .r = 2.5, .g = 2.5, .b = 2.5 }
-    });
+    sun_light.set(fd.DirectionalLight{ .radiance = .{ .r = 2.5, .g = 2.5, .b = 2.5 } });
 
     const player_spawn = blk: {
         var builder = ecsu.QueryBuilder.init(ecsu_world);

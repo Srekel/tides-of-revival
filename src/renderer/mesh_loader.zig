@@ -146,7 +146,7 @@ pub fn parseMeshPrimitive(
             .position = positions.items[index],
             .normal = normals.items[index],
             .uv = uvs.items[index],
-            .tangent = if (has_tangents) tangents.items[index] else [4]f32{0.0, 0.0, 1.0, 0.0},
+            .tangent = if (has_tangents) tangents.items[index] else [4]f32{ 0.0, 0.0, 1.0, 0.0 },
             .color = [3]f32{ 1.0, 1.0, 1.0 },
         });
     }
@@ -154,7 +154,6 @@ pub fn parseMeshPrimitive(
     meshes_indices.appendSlice(indices.items) catch unreachable;
     return sub_mesh;
 }
-
 
 pub fn loadObjMeshFromFile(
     allocator: std.mem.Allocator,
@@ -315,15 +314,11 @@ pub fn loadObjMeshFromFile(
         inside_object = false;
     }
 
-
     // Update mesh bounding box (encapsulates all sub-meshes bounding boxes)
     var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
     var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
 
-    std.log.debug("Mesh: {s}", .{path});
     for (0..mesh.sub_mesh_count) |i| {
-        std.log.debug("Sub Mesh {d} - Min ({d:.3}, {d:.3}, {d:.3}) - Max ({d:.3}, {d:.3}, {d:.3})", .{i, mesh.sub_meshes[i].bounding_box.min[0], mesh.sub_meshes[i].bounding_box.min[1], mesh.sub_meshes[i].bounding_box.min[2], mesh.sub_meshes[i].bounding_box.max[0], mesh.sub_meshes[i].bounding_box.max[1], mesh.sub_meshes[i].bounding_box.max[2]});
-
         min[0] = @min(min[0], mesh.sub_meshes[i].bounding_box.min[0]);
         min[1] = @min(min[1], mesh.sub_meshes[i].bounding_box.min[1]);
         min[2] = @min(min[2], mesh.sub_meshes[i].bounding_box.min[2]);
@@ -337,7 +332,6 @@ pub fn loadObjMeshFromFile(
         .min = min,
         .max = max,
     };
-    std.log.debug("Mesh - Min ({d:.3}, {d:.3}, {d:.3}) - Max ({d:.3}, {d:.3}, {d:.3})\n", .{mesh.bounding_box.min[0], mesh.bounding_box.min[1], mesh.bounding_box.min[2], mesh.bounding_box.max[0], mesh.bounding_box.max[1], mesh.bounding_box.max[2]});
 
     return mesh;
 }

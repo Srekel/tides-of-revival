@@ -74,6 +74,7 @@ const SystemState = struct {
     instance_transforms: std.ArrayList(InstanceTransform),
     instance_materials: std.ArrayList(InstanceMaterial),
     draw_calls: std.ArrayList(gfx.DrawCall),
+    draw_bounding_spheres: bool,
     gpu_frame_profiler_index: u64 = undefined,
 
     meshes: std.ArrayList(IdLocalToMeshHandle),
@@ -327,6 +328,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .query_camera = query_camera,
         .query_mesh = query_mesh,
         .freeze_rendering = false,
+        .draw_bounding_spheres = false,
         .frame_data = frame_data,
     };
 
@@ -383,6 +385,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     // once I know it works
     if (state.frame_data.just_pressed(config.input_camera_freeze_rendering)) {
         state.freeze_rendering = !state.freeze_rendering;
+    }
+
+    if (state.frame_data.just_pressed(config.input_draw_bounding_spheres)) {
+        state.draw_bounding_spheres = !state.draw_bounding_spheres;
     }
 
     var entity_iter_mesh = state.query_mesh.iterator(struct {
@@ -541,6 +547,61 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                 const vertex_buffer = state.gfx.lookupBuffer(mesh.vertex_buffer);
                 const mesh_lod = mesh.sub_meshes[draw_call.sub_mesh_index].lods[draw_call.lod_index];
+                const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
+                mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+                mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
+                mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+                mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+                mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+                state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+                state.gfx.gctx.cmdlist.DrawIndexedInstanced(
+                    mesh_lod.index_count,
+                    draw_call.instance_count,
+                    mesh_lod.index_offset,
+                    @as(i32, @intCast(mesh_lod.vertex_offset)),
+                    draw_call.start_instance_location,
+                );
+            }
+        }
+    }
+
+    if (state.draw_bounding_spheres and state.draw_calls.items.len > 0) {
+        const pipeline_info = state.gfx.getPipeline(IdLocal.init("frustum_debug"));
+        state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        // Upload per-frame constant data.
+        const z_view_projection = zm.loadMat(cam.view_projection[0..]);
+        const z_view_projection_inverted = zm.inverse(z_view_projection);
+        {
+            const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+            mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
+            mem.cpu_slice[0].camera_position = camera_position;
+
+            state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+        }
+
+        const frame_index = state.gfx.gctx.frame_index;
+
+        const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
+        const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
+
+        var mesh_handle = state.gfx.findMeshByName("procedural_sphere");
+        var maybe_mesh = state.gfx.lookupMesh(mesh_handle.?);
+        if (maybe_mesh) |mesh| {
+            for (state.draw_calls.items) |draw_call| {
+                state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+                const index_buffer = state.gfx.lookupBuffer(mesh.index_buffer);
+                const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
+                state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
+                    .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+                    .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
+                    .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+                });
+
+                const vertex_buffer = state.gfx.lookupBuffer(mesh.vertex_buffer);
+                const mesh_lod = mesh.sub_meshes[0].lods[0];
                 const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
                 mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
                 mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
