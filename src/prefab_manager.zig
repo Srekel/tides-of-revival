@@ -124,70 +124,108 @@ pub const PrefabManager = struct {
         transform.setPos(position.elems().*);
         entity.setOverride(transform);
 
-        // Parse and assign mesh
+        // Parse and assign mesh and materials
         if (node.mesh != null) {
             var static_mesh_component: fd.StaticMeshComponent = undefined;
 
-            // TODO(gmodarelli): Cycle through all primitives
-            assert(node.mesh.?.primitives_count == 1);
-            const primitive = &node.mesh.?.primitives[0];
-
             const mesh_name = util.fromCStringToStringSlice(node.mesh.?.name.?);
-
             if (gfxstate.findMeshByName(mesh_name)) |mesh_handle| {
                 static_mesh_component.mesh_handle = mesh_handle;
+
+                for (0..node.mesh.?.primitives_count) |primitive_index| {
+                    const primitive = &node.mesh.?.primitives[primitive_index];
+                    static_mesh_component.material_handles[primitive_index] = self.parsePrimitiveMaterial(primitive, gfxstate, arena);
+                }
             } else {
+                assert(node.mesh.?.primitives_count <= rt.sub_mesh_count_max);
                 var indices = std.ArrayList(rt.IndexType).init(arena);
                 var vertices = std.ArrayList(rt.Vertex).init(arena);
-                indices.deinit();
-                vertices.deinit();
+                defer indices.deinit();
+                defer vertices.deinit();
 
-                var mesh = mesh_loader.parseMeshPrimitive(primitive, &indices, &vertices, arena) catch unreachable;
-                static_mesh_component.mesh_handle = gfxstate.uploadMeshData(mesh_name, mesh, vertices.items, indices.items) catch unreachable;
-            }
+                var mesh = rt.Mesh{
+                    .vertex_buffer = undefined,
+                    .index_buffer = undefined,
+                    .sub_mesh_count = @intCast(node.mesh.?.primitives_count),
+                    .sub_meshes = undefined,
+                    .bounding_box = undefined,
+                };
 
-            if (primitive.material != null) {
-                const material = &primitive.material.?.*;
-                assert(material.has_pbr_metallic_roughness == 1);
-
-                const material_name = util.fromCStringToStringSlice(material.name.?);
-
-                if (gfxstate.findMaterialByName(material_name)) |material_handle| {
-                    static_mesh_component.material_handle = material_handle;
-                } else {
-                    var pbr_material = fd.PBRMaterial.init();
-
-                    const base_color_texture = material.pbr_metallic_roughness.base_color_texture.texture.?.image.?.*;
-                    const base_color_texture_path = util.fromCStringToStringSlice(base_color_texture.uri.?);
-                    pbr_material.albedo = gfxstate.scheduleLoadTexture(base_color_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&base_color_texture_path)) }, arena) catch unreachable;
-
-                    const metallic_roughness_texture = material.pbr_metallic_roughness.metallic_roughness_texture.texture.?.image.?.*;
-                    const metallic_roughness_texture_path = util.fromCStringToStringSlice(metallic_roughness_texture.uri.?);
-                    pbr_material.arm = gfxstate.scheduleLoadTexture(metallic_roughness_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&metallic_roughness_texture_path)) }, arena) catch unreachable;
-
-                    const normal_texture = material.normal_texture.texture.?.image.?.*;
-                    const normal_texture_path = util.fromCStringToStringSlice(normal_texture.uri.?);
-                    pbr_material.normal = gfxstate.scheduleLoadTexture(normal_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&normal_texture_path)) }, arena) catch unreachable;
-
-                    pbr_material.base_color = fd.ColorRGB.init(
-                        material.pbr_metallic_roughness.base_color_factor[0],
-                        material.pbr_metallic_roughness.base_color_factor[1],
-                        material.pbr_metallic_roughness.base_color_factor[2],
-                    );
-
-                    pbr_material.metallic = material.pbr_metallic_roughness.metallic_factor;
-                    pbr_material.roughness = material.pbr_metallic_roughness.roughness_factor;
-
-                    static_mesh_component.material_handle = gfxstate.storeMaterial(material_name, pbr_material) catch unreachable;
+                for (0..node.mesh.?.primitives_count) |primitive_index| {
+                    const primitive = &node.mesh.?.primitives[primitive_index];
+                    mesh.sub_meshes[primitive_index] = mesh_loader.parseMeshPrimitive(primitive, &indices, &vertices, arena) catch unreachable;
+                    static_mesh_component.material_handles[primitive_index] = self.parsePrimitiveMaterial(primitive, gfxstate, arena);
                 }
+
+                // Update mesh bounding box (encapsulates all sub-meshes bounding boxes)
+                var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+                var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+
+                for (0..mesh.sub_mesh_count) |i| {
+                    min[0] = @min(min[0], mesh.sub_meshes[i].bounding_box.min[0]);
+                    min[1] = @min(min[1], mesh.sub_meshes[i].bounding_box.min[1]);
+                    min[2] = @min(min[2], mesh.sub_meshes[i].bounding_box.min[2]);
+
+                    max[0] = @max(max[0], mesh.sub_meshes[i].bounding_box.max[0]);
+                    max[1] = @max(max[1], mesh.sub_meshes[i].bounding_box.max[1]);
+                    max[2] = @max(max[2], mesh.sub_meshes[i].bounding_box.max[2]);
+                }
+
+                mesh.bounding_box = .{
+                    .min = min,
+                    .max = max,
+                };
+
+                static_mesh_component.mesh_handle = gfxstate.uploadMeshData(mesh_name, mesh, vertices.items, indices.items) catch unreachable;
             }
 
             entity.setOverride(static_mesh_component);
         }
 
-        var i: u32 = 0;
-        while (i < node.children_count) : (i += 1) {
+        for (0..node.children_count) |i| {
             self.parseNode(node.children.?[i], entity, world, gfxstate, arena);
+        }
+    }
+
+
+    fn parsePrimitiveMaterial(
+        _: *@This(),
+        primitive: *const zcgltf.Primitive,
+        gfxstate: *gfx.D3D12State,
+        arena: std.mem.Allocator,
+    ) gfx.MaterialHandle {
+        const material = &primitive.material.?.*;
+        assert(material.has_pbr_metallic_roughness == 1);
+
+        const material_name = util.fromCStringToStringSlice(material.name.?);
+
+        if (gfxstate.findMaterialByName(material_name)) |material_handle| {
+            return material_handle;
+        } else {
+            var pbr_material = fd.PBRMaterial.init();
+
+            const base_color_texture = material.pbr_metallic_roughness.base_color_texture.texture.?.image.?.*;
+            const base_color_texture_path = util.fromCStringToStringSlice(base_color_texture.uri.?);
+            pbr_material.albedo = gfxstate.scheduleLoadTexture(base_color_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&base_color_texture_path)) }, arena) catch unreachable;
+
+            const metallic_roughness_texture = material.pbr_metallic_roughness.metallic_roughness_texture.texture.?.image.?.*;
+            const metallic_roughness_texture_path = util.fromCStringToStringSlice(metallic_roughness_texture.uri.?);
+            pbr_material.arm = gfxstate.scheduleLoadTexture(metallic_roughness_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&metallic_roughness_texture_path)) }, arena) catch unreachable;
+
+            const normal_texture = material.normal_texture.texture.?.image.?.*;
+            const normal_texture_path = util.fromCStringToStringSlice(normal_texture.uri.?);
+            pbr_material.normal = gfxstate.scheduleLoadTexture(normal_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&normal_texture_path)) }, arena) catch unreachable;
+
+            pbr_material.base_color = fd.ColorRGB.init(
+                material.pbr_metallic_roughness.base_color_factor[0],
+                material.pbr_metallic_roughness.base_color_factor[1],
+                material.pbr_metallic_roughness.base_color_factor[2],
+            );
+
+            pbr_material.metallic = material.pbr_metallic_roughness.metallic_factor;
+            pbr_material.roughness = material.pbr_metallic_roughness.roughness_factor;
+
+            return gfxstate.storeMaterial(material_name, pbr_material) catch unreachable;
         }
     }
 };

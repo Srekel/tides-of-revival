@@ -1092,10 +1092,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
 
             state.draw_calls.append(.{
-                .index_count = mesh.lods[0].index_count,
+                .index_count = mesh.sub_meshes[0].lods[0].index_count,
                 .instance_count = 1,
-                .index_offset = mesh.lods[0].index_offset,
-                .vertex_offset = @as(i32, @intCast(mesh.lods[0].vertex_offset)),
+                .index_offset = mesh.sub_meshes[0].lods[0].index_offset,
+                .vertex_offset = @as(i32, @intCast(mesh.sub_meshes[0].lods[0].vertex_offset)),
                 .start_instance_location = start_instance_location,
             }) catch unreachable;
 

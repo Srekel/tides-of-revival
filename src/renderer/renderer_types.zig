@@ -5,7 +5,8 @@ const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 const BufferHandle = @import("d3d12/buffer.zig").BufferHandle;
 
-pub const max_num_lods: u32 = 8;
+pub const lod_count_max: u32 = 8;
+pub const sub_mesh_count_max: u32 = 8;
 
 pub const MeshLod = struct {
     index_offset: u32,
@@ -14,27 +15,32 @@ pub const MeshLod = struct {
     vertex_count: u32,
 };
 
-pub const BoundingBox = struct {
-    min: [3]f32,
-    max: [3]f32,
-};
+pub const SubMesh = struct {
+    lod_count: u32,
+    lods: [lod_count_max]MeshLod,
 
-pub const BoundingBoxCoordinates = struct {
-    center: [3]f32,
-    radius: f32,
+    bounding_box: BoundingBox,
 };
 
 pub const Mesh = struct {
     vertex_buffer: BufferHandle,
     index_buffer: BufferHandle,
-    num_lods: u32,
-    lods: [max_num_lods]MeshLod,
-    bounding_box: BoundingBox,
 
-    pub fn calculateBoundingBoxCoordinates(mesh: *const Mesh, z_world: zm.Mat) BoundingBoxCoordinates {
-        var z_bb_min = zm.loadArr3(mesh.bounding_box.min);
+    sub_mesh_count: u32,
+    sub_meshes: [sub_mesh_count_max]SubMesh,
+
+    bounding_box: BoundingBox,
+};
+
+
+pub const BoundingBox = struct {
+    min: [3]f32,
+    max: [3]f32,
+
+    pub fn calculateBoundingBoxCoordinates(self: *const BoundingBox, z_world: zm.Mat) BoundingBoxCoordinates {
+        var z_bb_min = zm.loadArr3(self.min);
         z_bb_min[3] = 1.0;
-        var z_bb_max = zm.loadArr3(mesh.bounding_box.max);
+        var z_bb_max = zm.loadArr3(self.max);
         z_bb_max[3] = 1.0;
         const z_bb_min_ws = zm.mul(z_bb_min, z_world);
         const z_bb_max_ws = zm.mul(z_bb_max, z_world);
@@ -46,6 +52,11 @@ pub const Mesh = struct {
 
         return .{ .center = center, .radius = radius };
     }
+};
+
+pub const BoundingBoxCoordinates = struct {
+    center: [3]f32,
+    radius: f32,
 };
 
 pub const IndexType = u32;

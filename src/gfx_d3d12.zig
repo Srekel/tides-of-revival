@@ -34,6 +34,7 @@ pub const BufferHandle = buffer_module.BufferHandle;
 const IndexType = renderer_types.IndexType;
 const Vertex = renderer_types.Vertex;
 const Mesh = renderer_types.Mesh;
+const SubMesh = renderer_types.SubMesh;
 pub const Texture = renderer_types.Texture;
 pub const TextureDesc = renderer_types.TextureDesc;
 
@@ -50,7 +51,7 @@ const TextureHashMap = std.AutoHashMap(IdLocal, TextureHandle);
 // Material Pool
 const MaterialPool = Pool(16, 16, fd.PBRMaterial, struct { obj: fd.PBRMaterial });
 pub const MaterialHandle = MaterialPool.Handle;
-const MaterialHashMap = std.StringHashMap(MaterialHandle);
+const MaterialHashMap = std.AutoHashMap(IdLocal, MaterialHandle);
 
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
@@ -92,6 +93,7 @@ pub const SceneUniforms = extern struct {
 
 pub const DrawCall = struct {
     mesh_handle: MeshHandle,
+    sub_mesh_index: u32,
     lod_index: u32,
     instance_count: u32,
     start_instance_location: u32,
@@ -508,7 +510,8 @@ pub const D3D12State = struct {
     }
 
     pub fn findMaterialByName(self: *D3D12State, name: []const u8) ?MaterialHandle {
-        var material = self.material_hash.get(name);
+        const material_id = IdLocal.init(name);
+        var material = self.material_hash.get(material_id);
         if (material) |material_handle| {
             return material_handle;
         }
@@ -526,13 +529,14 @@ pub const D3D12State = struct {
     }
 
     pub fn storeMaterial(self: *D3D12State, name: []const u8, material: fd.PBRMaterial) !MaterialHandle {
-        var existing_material = self.material_hash.get(name);
+        const material_id = IdLocal.init(name);
+        var existing_material = self.material_hash.get(material_id);
         if (existing_material) |material_handle| {
             return material_handle;
         }
 
         const material_handle = try self.material_pool.add(.{ .obj = material });
-        self.material_hash.put(name, material_handle) catch unreachable;
+        self.material_hash.put(material_id, material_handle) catch unreachable;
         return material_handle;
     }
 
@@ -580,22 +584,27 @@ pub const D3D12State = struct {
         var new_mesh = Mesh{
             .vertex_buffer = vertex_buffer,
             .index_buffer = index_buffer,
-            .num_lods = mesh.num_lods,
-            .lods = undefined,
-            .bounding_box = .{
-                .min = [3]f32{ mesh.bounding_box.min[0], mesh.bounding_box.min[1], mesh.bounding_box.min[2] },
-                .max = [3]f32{ mesh.bounding_box.max[0], mesh.bounding_box.max[1], mesh.bounding_box.max[2] },
-            },
+            .sub_mesh_count = mesh.sub_mesh_count,
+            .sub_meshes = undefined,
+            .bounding_box = undefined,
         };
 
-        // 1. Update mesh's lods vertex and index offsets
-        {
-            var i: u32 = 0;
-            while (i < mesh.num_lods) : (i += 1) {
-                new_mesh.lods[i].vertex_offset = mesh.lods[i].vertex_offset;
-                new_mesh.lods[i].index_offset = mesh.lods[i].index_offset;
-                new_mesh.lods[i].vertex_count = mesh.lods[i].vertex_count;
-                new_mesh.lods[i].index_count = mesh.lods[i].index_count;
+        // 1. Update sub meshes' lods vertex and index offsets
+        for (0..mesh.sub_mesh_count) |sub_mesh_index| {
+            new_mesh.sub_meshes[sub_mesh_index] = SubMesh{
+                .lod_count = mesh.sub_meshes[sub_mesh_index].lod_count,
+                .lods = undefined,
+                .bounding_box = .{
+                    .min = [3]f32{ mesh.sub_meshes[sub_mesh_index].bounding_box.min[0], mesh.sub_meshes[sub_mesh_index].bounding_box.min[1], mesh.sub_meshes[sub_mesh_index].bounding_box.min[2] },
+                    .max = [3]f32{ mesh.sub_meshes[sub_mesh_index].bounding_box.max[0], mesh.sub_meshes[sub_mesh_index].bounding_box.max[1], mesh.sub_meshes[sub_mesh_index].bounding_box.max[2] },
+                },
+            };
+
+            for (0..new_mesh.sub_meshes[sub_mesh_index].lod_count) |i| {
+                new_mesh.sub_meshes[sub_mesh_index].lods[i].vertex_offset = mesh.sub_meshes[sub_mesh_index].lods[i].vertex_offset;
+                new_mesh.sub_meshes[sub_mesh_index].lods[i].index_offset = mesh.sub_meshes[sub_mesh_index].lods[i].index_offset;
+                new_mesh.sub_meshes[sub_mesh_index].lods[i].vertex_count = mesh.sub_meshes[sub_mesh_index].lods[i].vertex_count;
+                new_mesh.sub_meshes[sub_mesh_index].lods[i].index_count = mesh.sub_meshes[sub_mesh_index].lods[i].index_count;
             }
         }
 
@@ -1216,10 +1225,10 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             }
 
             gctx.cmdlist.DrawIndexedInstanced(
-                mesh.lods[lod_index].index_count,
+                mesh.sub_meshes[0].lods[lod_index].index_count,
                 1,
-                mesh.lods[lod_index].index_offset,
-                @as(i32, @intCast(mesh.lods[lod_index].vertex_offset)),
+                mesh.sub_meshes[0].lods[lod_index].index_offset,
+                @as(i32, @intCast(mesh.sub_meshes[0].lods[lod_index].vertex_offset)),
                 0,
             );
         }

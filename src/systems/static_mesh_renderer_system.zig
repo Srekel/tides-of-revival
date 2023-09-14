@@ -217,7 +217,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         if (maybe_mesh) |mesh| {
             const z_world = zm.loadMat43(comps.transform.matrix[0..]);
 
-            const bb_ws = mesh.calculateBoundingBoxCoordinates(z_world);
+            const bb_ws = mesh.bounding_box.calculateBoundingBoxCoordinates(z_world);
             if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
                 continue;
             }
@@ -225,7 +225,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             // Build bounding sphere matrix for debugging purpouses
             const z_bb_matrix = zm.mul(zm.scaling(bb_ws.radius, bb_ws.radius, bb_ws.radius), zm.translation(bb_ws.center[0], bb_ws.center[1], bb_ws.center[2]));
 
-            lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+            // NOTE(gmodarelli): We're assuming all sub-meshes have the same number of LODs (which makes sense)
+            lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.sub_meshes[0].lod_count);
 
             if (first_iteration) {
                 last_mesh_handle = comps.mesh.mesh_handle;
@@ -239,6 +240,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 } else {
                     state.draw_calls.append(.{
                         .mesh_handle = comps.mesh.mesh_handle,
+                        .sub_mesh_index = 0,
                         .lod_index = lod_index,
                         .instance_count = instance_count,
                         .start_instance_location = start_instance_location,
@@ -250,6 +252,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             } else if (isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle) and lod_index != last_lod_index) {
                 state.draw_calls.append(.{
                     .mesh_handle = last_mesh_handle,
+                    .sub_mesh_index = 0,
                     .lod_index = last_lod_index,
                     .instance_count = instance_count,
                     .start_instance_location = start_instance_location,
@@ -261,6 +264,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             } else if (!isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle)) {
                 state.draw_calls.append(.{
                     .mesh_handle = last_mesh_handle,
+                    .sub_mesh_index = 0,
                     .lod_index = last_lod_index,
                     .instance_count = instance_count,
                     .start_instance_location = start_instance_location,
@@ -270,7 +274,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 instance_count = 1;
 
                 last_mesh_handle = comps.mesh.mesh_handle;
-                lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.num_lods);
+                lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.sub_meshes[0].lod_count);
 
                 last_lod_index = lod_index;
             }
@@ -281,7 +285,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
             }) catch unreachable;
 
-            var maybe_material = state.gfx.lookUpMaterial(comps.mesh.material_handle);
+            var maybe_material = state.gfx.lookUpMaterial(comps.mesh.material_handles[0]);
             if (maybe_material) |material| {
                 const albedo = blk: {
                     if (state.gfx.lookupTexture(material.albedo)) |albedo| {
@@ -337,6 +341,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     if (instance_count >= 1) {
         state.draw_calls.append(.{
             .mesh_handle = last_mesh_handle,
+            .sub_mesh_index = 0,
             .lod_index = last_lod_index,
             .instance_count = instance_count,
             .start_instance_location = start_instance_location,
@@ -382,7 +387,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 });
 
                 const vertex_buffer = state.gfx.lookupBuffer(mesh.vertex_buffer);
-                const mesh_lod = mesh.lods[draw_call.lod_index];
+                const mesh_lod = mesh.sub_meshes[draw_call.sub_mesh_index].lods[draw_call.lod_index];
                 const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
                 mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
                 mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
@@ -405,8 +410,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
 }
 
-fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32, num_lods: u32) u32 {
-    if (num_lods == 1) {
+fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32, lod_count: u32) u32 {
+    if (lod_count == 1) {
         return 0;
     }
 
@@ -418,15 +423,15 @@ fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32,
     const t = squared_distance / squared_draw_distance;
 
     // TODO(gmodarelli): Store these LODs percentages in the Mesh itself.
-    // assert(num_lods == 4);
+    // assert(lod_count == 4);
     if (t <= 0.05) {
         return 0;
     } else if (t <= 0.1) {
-        return @min(num_lods - 1, 1);
+        return @min(lod_count - 1, 1);
     } else if (t <= 0.2) {
-        return @min(num_lods - 1, 2);
+        return @min(lod_count - 1, 2);
     } else {
-        return @min(num_lods - 1, 3);
+        return @min(lod_count - 1, 3);
     }
 }
 
