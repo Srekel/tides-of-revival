@@ -591,20 +591,24 @@ pub const D3D12State = struct {
 
         // 1. Update sub meshes' lods vertex and index offsets
         for (0..mesh.sub_mesh_count) |sub_mesh_index| {
+            const sub_mesh = &mesh.sub_meshes[sub_mesh_index];
+            const bounding_box = sub_mesh.bounding_box;
+
             new_mesh.sub_meshes[sub_mesh_index] = SubMesh{
-                .lod_count = mesh.sub_meshes[sub_mesh_index].lod_count,
+                .lod_count = sub_mesh.lod_count,
                 .lods = undefined,
                 .bounding_box = .{
-                    .min = [3]f32{ mesh.sub_meshes[sub_mesh_index].bounding_box.min[0], mesh.sub_meshes[sub_mesh_index].bounding_box.min[1], mesh.sub_meshes[sub_mesh_index].bounding_box.min[2] },
-                    .max = [3]f32{ mesh.sub_meshes[sub_mesh_index].bounding_box.max[0], mesh.sub_meshes[sub_mesh_index].bounding_box.max[1], mesh.sub_meshes[sub_mesh_index].bounding_box.max[2] },
+                    .min = [3]f32{ bounding_box.min[0], bounding_box.min[1], bounding_box.min[2] },
+                    .max = [3]f32{ bounding_box.max[0], bounding_box.max[1], bounding_box.max[2] },
                 },
             };
 
-            for (0..new_mesh.sub_meshes[sub_mesh_index].lod_count) |i| {
-                new_mesh.sub_meshes[sub_mesh_index].lods[i].vertex_offset = mesh.sub_meshes[sub_mesh_index].lods[i].vertex_offset;
-                new_mesh.sub_meshes[sub_mesh_index].lods[i].index_offset = mesh.sub_meshes[sub_mesh_index].lods[i].index_offset;
-                new_mesh.sub_meshes[sub_mesh_index].lods[i].vertex_count = mesh.sub_meshes[sub_mesh_index].lods[i].vertex_count;
-                new_mesh.sub_meshes[sub_mesh_index].lods[i].index_count = mesh.sub_meshes[sub_mesh_index].lods[i].index_count;
+            var new_submesh = &new_mesh.sub_meshes[sub_mesh_index];
+            for (0..new_submesh.lod_count) |i| {
+                new_submesh.lods[i].vertex_offset = sub_mesh.lods[i].vertex_offset;
+                new_submesh.lods[i].index_offset = sub_mesh.lods[i].index_offset;
+                new_submesh.lods[i].vertex_count = sub_mesh.lods[i].vertex_count;
+                new_submesh.lods[i].index_count = sub_mesh.lods[i].index_count;
             }
         }
 
