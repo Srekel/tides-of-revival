@@ -10,6 +10,7 @@ const IdLocal = @import("variant.zig").IdLocal;
 const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
 const TextureHandle = @import("gfx_d3d12.zig").TextureHandle;
 const MaterialHandle = @import("gfx_d3d12.zig").MaterialHandle;
+const rt = @import("renderer/renderer_types.zig");
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
     var ecs_world = ecsu_world.world;
@@ -374,7 +375,9 @@ pub const StaticMesh = struct {
 
 pub const StaticMeshComponent = struct {
     mesh_handle: MeshHandle,
-    material_handle: MaterialHandle,
+
+    material_count: u32,
+    material_handles: [rt.sub_mesh_count_max]MaterialHandle,
 };
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗

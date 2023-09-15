@@ -8,6 +8,7 @@ const fr = @import("../flecs_relation.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const tides_math = @import("../core/math.zig");
+const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 
 const WorldLoaderData = struct {
     ent: ecs.entity_t = 0,
@@ -26,6 +27,7 @@ const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    prefab_manager: *PrefabManager,
 
     cam_pos_old: ?[3]f32 = null,
     patches: std.ArrayList(Patch),
@@ -39,6 +41,7 @@ pub fn create(
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    prefab_manager: *PrefabManager,
 ) !*SystemState {
     var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_loader.with(fd.WorldLoader)
@@ -52,6 +55,7 @@ pub fn create(
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .world_patch_mgr = world_patch_mgr,
+        .prefab_manager = prefab_manager,
         .comp_query_loader = comp_query_loader,
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("props")),
         .patches = std.ArrayList(Patch).initCapacity(allocator, 32 * 32) catch unreachable,
@@ -189,6 +193,7 @@ fn updateLoaders(system: *SystemState) void {
 var added_spawn = false;
 
 fn updatePatches(system: *SystemState) void {
+    const medium_house_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/buildings/medium_house/medium_house.gltf").?;
     for (system.patches.items) |*patch| {
         if (patch.loaded) {
             continue;
@@ -227,46 +232,53 @@ fn updatePatches(system: *SystemState) void {
                 const z_prop_srt_matrix = zm.mul(z_prop_sr_matrix, z_prop_translate_matrix);
                 zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
 
-                var prop_ent = system.ecsu_world.newEntity();
-                prop_ent.set(prop_transform);
-                if (prop.id.hash == city_id.hash) {
-                    // var light_ent = system.ecsu_world.newEntity();
-                    // light_ent.set(fd.Transform.initFromPosition(.{ .x = prop.pos[0], .y = prop.pos[1] + 2 + 10, .z = prop.pos[2] }));
-                    // light_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 100 });
-
-                    // // var light_viz_ent = system.ecsu_world.newEntity();
-                    // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
-                    // // light_viz_ent.set(fd.Scale.createScalar(1));
-                    // // light_viz_ent.set(fd.CIStaticMesh{
-                    // //     .id = IdLocal.id64("sphere"),
-                    // //     .basecolor_roughness = city_params.center_color,
-                    // // });
-
-                    // if (!added_spawn) {
-                    //     added_spawn = true;
-                    //     var spawn_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
-                    //     var spawn_ent = system.ecsu_world.newEntity();
-                    //     spawn_ent.set(spawn_pos);
-                    //     spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
-                    //     spawn_ent.addPair(fr.Hometown, prop_ent);
-                    //     // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
-                    // }
+                if (prop.id.hash == house_id.hash) {
+                    var house_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, medium_house_prefab);
+                    house_ent.set(prop_transform);
+                    house_ent.set(prop_pos);
+                    house_ent.set(prop_rot);
+                    house_ent.set(fd.Scale.createScalar(prop_scale));
+                    patch.entities.append(house_ent.id) catch unreachable;
                 } else {
-                    prop_ent.set(fd.CIStaticMesh{
-                        .id = blk: {
-                            if (prop.id.hash == tree_id.hash) {
-                                break :blk IdLocal.id64("pine");
-                            } else if (prop.id.hash == wall_id.hash) {
-                                break :blk IdLocal.id64("long_house");
-                            } else if (prop.id.hash == house_id.hash) {
-                                break :blk IdLocal.id64("small_house");
-                            }
-                            unreachable;
-                        },
-                        .material = fd.PBRMaterial.initNoTexture(.{ .r = 0.6, .g = 0.6, .b = 0.1 }, 1.0, 0.0),
-                    });
+                    var prop_ent = system.ecsu_world.newEntity();
+                    prop_ent.set(prop_transform);
+                    if (prop.id.hash == city_id.hash) {
+                        // var light_ent = system.ecsu_world.newEntity();
+                        // light_ent.set(fd.Transform.initFromPosition(.{ .x = prop.pos[0], .y = prop.pos[1] + 2 + 10, .z = prop.pos[2] }));
+                        // light_ent.set(fd.Light{ .radiance = .{ .r = 4, .g = 2, .b = 1 }, .range = 100 });
+
+                        // // var light_viz_ent = system.ecsu_world.newEntity();
+                        // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
+                        // // light_viz_ent.set(fd.Scale.createScalar(1));
+                        // // light_viz_ent.set(fd.CIStaticMesh{
+                        // //     .id = IdLocal.id64("sphere"),
+                        // //     .basecolor_roughness = city_params.center_color,
+                        // // });
+
+                        // if (!added_spawn) {
+                        //     added_spawn = true;
+                        //     var spawn_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
+                        //     var spawn_ent = system.ecsu_world.newEntity();
+                        //     spawn_ent.set(spawn_pos);
+                        //     spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
+                        //     spawn_ent.addPair(fr.Hometown, prop_ent);
+                        //     // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
+                        // }
+                    } else {
+                        prop_ent.set(fd.CIStaticMesh{
+                            .id = blk: {
+                                if (prop.id.hash == tree_id.hash) {
+                                    break :blk IdLocal.id64("pine");
+                                } else if (prop.id.hash == wall_id.hash) {
+                                    break :blk IdLocal.id64("long_house");
+                                }
+                                unreachable;
+                            },
+                            .material = fd.PBRMaterial.initNoTexture(.{ .r = 0.6, .g = 0.6, .b = 0.1 }, 1.0, 0.0),
+                        });
+                    }
+                    patch.entities.append(prop_ent.id) catch unreachable;
                 }
-                patch.entities.append(prop_ent.id) catch unreachable;
             }
         }
     }

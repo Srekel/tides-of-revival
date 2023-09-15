@@ -83,7 +83,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     });
 
     while (entity_iter_directional_lights.next()) |comps| {
-        const z_forward = zm.rotate(comps.rotation.asZM(), zm.Vec{0, 0, 1, 0});
+        const z_forward = zm.rotate(comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
         // std.log.debug("Directional light forward: {d:.3}, {d:.3}, {d:.3}\n", .{z_forward[0], z_forward[1], z_forward[2]});
 
         state.gfx.main_light = renderer_types.DirectionalLightGPU{
@@ -91,7 +91,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             .radiance = [3]f32{ comps.light.radiance.r, comps.light.radiance.g, comps.light.radiance.b },
         };
     }
-
 
     var entity_iter_point_lights = state.query_point_lights.iterator(struct {
         transform: *const fd.Transform,

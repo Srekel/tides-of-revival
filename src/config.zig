@@ -66,6 +66,7 @@ pub const input_gamepad_move_y = IdLocal.init("input_gamepad_move_y");
 pub const input_look_yaw = IdLocal.init("look_yaw");
 pub const input_look_pitch = IdLocal.init("look_pitch");
 
+pub const input_draw_bounding_spheres = IdLocal.init("draw_bounding_spheres");
 pub const input_camera_switch = IdLocal.init("camera_switch");
 pub const input_camera_freeze_rendering = IdLocal.init("camera_freeze_rendering");
 pub const input_exit = IdLocal.init("exit");

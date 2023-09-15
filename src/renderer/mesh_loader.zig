@@ -12,9 +12,9 @@ pub fn parseMeshPrimitive(
     meshes_indices: *std.ArrayList(rt.IndexType),
     meshes_vertices: *std.ArrayList(rt.Vertex),
     arena: std.mem.Allocator,
-) !rt.Mesh {
-    const num_vertices: u32 = @as(u32, @intCast(primitive.attributes[0].data.count));
-    const num_indices: u32 = @as(u32, @intCast(primitive.indices.?.count));
+) !rt.SubMesh {
+    const num_vertices: u32 = @intCast(primitive.attributes[0].data.count);
+    const num_indices: u32 = @intCast(primitive.indices.?.count);
 
     var indices = std.ArrayList(rt.IndexType).init(arena);
     var positions = std.ArrayList([3]f32).init(arena);
@@ -123,11 +123,8 @@ pub fn parseMeshPrimitive(
         max[2] = @max(max[2], position[2]);
     }
 
-    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
-    var mesh = rt.Mesh{
-        .vertex_buffer = undefined,
-        .index_buffer = undefined,
-        .num_lods = 1,
+    var sub_mesh = rt.SubMesh{
+        .lod_count = 1,
         .lods = undefined,
         .bounding_box = .{
             .min = min,
@@ -135,11 +132,11 @@ pub fn parseMeshPrimitive(
         },
     };
 
-    mesh.lods[0] = .{
-        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
-        .index_count = @as(u32, @intCast(indices.items.len)),
-        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
-        .vertex_count = @as(u32, @intCast(positions.items.len)),
+    sub_mesh.lods[0] = .{
+        .index_offset = @intCast(meshes_indices.items.len),
+        .index_count = @intCast(indices.items.len),
+        .vertex_offset = @intCast(meshes_vertices.items.len),
+        .vertex_count = @intCast(positions.items.len),
     };
 
     try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
@@ -149,15 +146,14 @@ pub fn parseMeshPrimitive(
             .position = positions.items[index],
             .normal = normals.items[index],
             .uv = uvs.items[index],
-            .tangent = if (has_tangents) tangents.items[index] else [4]f32{0.0, 0.0, 1.0, 0.0},
+            .tangent = if (has_tangents) tangents.items[index] else [4]f32{ 0.0, 0.0, 1.0, 0.0 },
             .color = [3]f32{ 1.0, 1.0, 1.0 },
         });
     }
 
     meshes_indices.appendSlice(indices.items) catch unreachable;
-    return mesh;
+    return sub_mesh;
 }
-
 
 pub fn loadObjMeshFromFile(
     allocator: std.mem.Allocator,
@@ -192,14 +188,18 @@ pub fn loadObjMeshFromFile(
     var previous_obj_uvs_count: u32 = 0;
     var previous_obj_normals_count: u32 = 0;
 
-    // TODO(gmodarelli): use a different Mesh struct here since we're not interested in vertex and index buffers
     var mesh = rt.Mesh{
         .vertex_buffer = undefined,
         .index_buffer = undefined,
-        .num_lods = 0,
-        .lods = undefined,
+        .sub_mesh_count = 1,
+        .sub_meshes = undefined,
         .bounding_box = undefined,
     };
+
+    var sub_mesh = &mesh.sub_meshes[0];
+    sub_mesh.lod_count = 0;
+    sub_mesh.lods = undefined;
+    sub_mesh.bounding_box = undefined;
 
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         var it = std.mem.split(u8, line, " ");
@@ -213,15 +213,15 @@ pub fn loadObjMeshFromFile(
                     &vertices,
                     meshes_indices,
                     meshes_vertices,
-                    &mesh,
+                    sub_mesh,
                 );
 
                 indices.clearRetainingCapacity();
                 vertices.clearRetainingCapacity();
 
-                previous_obj_positions_count += @as(u32, @intCast(positions.items.len));
-                previous_obj_uvs_count += @as(u32, @intCast(uvs.items.len));
-                previous_obj_normals_count += @as(u32, @intCast(normals.items.len));
+                previous_obj_positions_count += @intCast(positions.items.len);
+                previous_obj_uvs_count += @intCast(uvs.items.len);
+                previous_obj_normals_count += @intCast(normals.items.len);
 
                 positions.clearRetainingCapacity();
                 colors.clearRetainingCapacity();
@@ -236,9 +236,9 @@ pub fn loadObjMeshFromFile(
                 indices.clearRetainingCapacity();
                 vertices.clearRetainingCapacity();
 
-                previous_obj_positions_count += @as(u32, @intCast(positions.items.len));
-                previous_obj_uvs_count += @as(u32, @intCast(uvs.items.len));
-                previous_obj_normals_count += @as(u32, @intCast(normals.items.len));
+                previous_obj_positions_count += @intCast(positions.items.len);
+                previous_obj_uvs_count += @intCast(uvs.items.len);
+                previous_obj_normals_count += @intCast(normals.items.len);
 
                 positions.clearRetainingCapacity();
                 colors.clearRetainingCapacity();
@@ -288,7 +288,7 @@ pub fn loadObjMeshFromFile(
                 normal_index -= previous_obj_normals_count;
                 normal_index -= 1;
 
-                const unique_vertex_index = @as(u32, @intCast(vertices.items.len));
+                const unique_vertex_index: u32 = @intCast(vertices.items.len);
                 try indices.append(unique_vertex_index);
                 try vertices.append(.{
                     .position = positions.items[position_index],
@@ -308,11 +308,30 @@ pub fn loadObjMeshFromFile(
             &vertices,
             meshes_indices,
             meshes_vertices,
-            &mesh,
+            sub_mesh,
         );
 
         inside_object = false;
     }
+
+    // Update mesh bounding box (encapsulates all sub-meshes bounding boxes)
+    var min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
+
+    for (0..mesh.sub_mesh_count) |i| {
+        min[0] = @min(min[0], mesh.sub_meshes[i].bounding_box.min[0]);
+        min[1] = @min(min[1], mesh.sub_meshes[i].bounding_box.min[1]);
+        min[2] = @min(min[2], mesh.sub_meshes[i].bounding_box.min[2]);
+
+        max[0] = @max(max[0], mesh.sub_meshes[i].bounding_box.max[0]);
+        max[1] = @max(max[1], mesh.sub_meshes[i].bounding_box.max[1]);
+        max[2] = @max(max[2], mesh.sub_meshes[i].bounding_box.max[2]);
+    }
+
+    mesh.bounding_box = .{
+        .min = min,
+        .max = max,
+    };
 
     return mesh;
 }
@@ -323,7 +342,7 @@ fn storeMeshLod(
     vertices: *std.ArrayList(rt.Vertex),
     meshes_indices: *std.ArrayList(rt.IndexType),
     meshes_vertices: *std.ArrayList(rt.Vertex),
-    mesh: *rt.Mesh,
+    sub_mesh: *rt.SubMesh,
 ) !void {
     // Calculate tangents for every vertex
     {
@@ -438,14 +457,14 @@ fn storeMeshLod(
         remapped_indices.items,
     );
 
-    mesh.lods[mesh.num_lods] = .{
-        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
-        .index_count = @as(u32, @intCast(remapped_indices.items.len)),
-        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
-        .vertex_count = @as(u32, @intCast(optimized_vertices.items.len)),
+    sub_mesh.lods[sub_mesh.lod_count] = .{
+        .index_offset = @intCast(meshes_indices.items.len),
+        .index_count = @intCast(remapped_indices.items.len),
+        .vertex_offset = @intCast(meshes_vertices.items.len),
+        .vertex_count = @intCast(optimized_vertices.items.len),
     };
 
-    mesh.num_lods += 1;
+    sub_mesh.lod_count += 1;
 
     // NOTE(gmodarelli): Flipping the triangles winding order so they are clock-wise
     var flipped_indices = std.ArrayList(rt.IndexType).init(arena);
@@ -473,7 +492,7 @@ fn storeMeshLod(
         max[2] = @max(max[2], vertex.position[2]);
     }
 
-    mesh.bounding_box = .{
+    sub_mesh.bounding_box = .{
         .min = min,
         .max = max,
     };

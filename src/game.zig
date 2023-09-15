@@ -53,6 +53,7 @@ const SpawnContext = struct {
 
 var giant_ant_prefab: ecsu.Entity = undefined;
 var bow_prefab: ecsu.Entity = undefined;
+var medium_house_prefab: ecsu.Entity = undefined;
 
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
@@ -145,6 +146,7 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
+    medium_house_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
@@ -176,6 +178,7 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_gamepad_move_y, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_look_yaw, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_look_pitch, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_draw_bounding_spheres, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_switch, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_freeze_rendering, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_exit, input.TargetValue{ .number = 0 });
@@ -203,6 +206,7 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_interact, .source = input.BindingSource{ .keyboard_key = .f } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .keyboard_key = .g } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_secondary, .source = input.BindingSource{ .keyboard_key = .h } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_draw_bounding_spheres, .source = input.BindingSource{ .keyboard_key = .b } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
@@ -420,6 +424,7 @@ pub fn run() void {
         std.heap.page_allocator,
         ecsu_world,
         world_patch_mgr,
+        &prefab_manager,
     );
     defer patch_prop_system.destroy(patch_prop_sys);
 
@@ -530,9 +535,7 @@ pub fn run() void {
 
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
-    sun_light.set(fd.DirectionalLight{
-        .radiance = .{ .r = 2.5, .g = 2.5, .b = 2.5 }
-    });
+    sun_light.set(fd.DirectionalLight{ .radiance = .{ .r = 2.5, .g = 2.5, .b = 2.5 } });
 
     const player_spawn = blk: {
         var builder = ecsu.QueryBuilder.init(ecsu_world);

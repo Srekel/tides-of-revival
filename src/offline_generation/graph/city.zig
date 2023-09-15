@@ -381,7 +381,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     var city_x: f32 = 0;
                     while (city_x < CITY_HEIGHT_TEST_SKIP) : (city_x += stride_f) {
                         pixels_index = @as(u64, //
-                        @intFromFloat(@divFloor(pos[0] + city_x, stride_f) + //
+                            @intFromFloat(@divFloor(pos[0] + city_x, stride_f) + //
                             @divFloor((pos[2] + city_z) * image_width, stride_f)));
                         // pixels_index = @intCast(u64, @divFloor(pos[0], stride) + @divFloor((pos[2] + 0) * image_width, stride));
                         // const height = patches.getHeight(pos[0],pos[2]);
