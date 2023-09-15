@@ -156,27 +156,27 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn registerRequester(self: *WorldPatchManager, id: IdLocal) RequesterId {
-        const requester_id = @intCast(u8, self.requesters.items.len);
+        const requester_id = @as(u8, @intCast(self.requesters.items.len));
         self.requesters.appendAssumeCapacity(id);
         return requester_id;
     }
 
     pub fn registerPatchType(self: *WorldPatchManager, patch_type: PatchType) PatchTypeId {
-        const patch_type_id = @intCast(u8, self.patch_types.items.len);
+        const patch_type_id = @as(u8, @intCast(self.patch_types.items.len));
         self.patch_types.appendAssumeCapacity(patch_type);
         return patch_type_id;
     }
 
     pub fn addLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD, prio: Priority) void {
-        const world_stride = self.lod_0_patch_size * std.math.pow(f32, @floatFromInt(f32, lod), 2);
+        const world_stride = self.lod_0_patch_size * std.math.pow(f32, @as(f32, @floatFromInt(lod)), 2);
         const world_x_begin = @divFloor(area.x, world_stride);
         const world_z_begin = @divFloor(area.z, world_stride);
         const world_x_end = @divFloor(area.x + area.width - 1, world_stride) + 1;
         const world_z_end = @divFloor(area.z + area.height - 1, world_stride) + 1;
-        const patch_x_begin = @intFromFloat(u16, @divExact(world_x_begin, world_stride));
-        const patch_z_begin = @intFromFloat(u16, @divExact(world_z_begin, world_stride));
-        const patch_x_end = @intFromFloat(u16, @divExact(world_x_end, world_stride));
-        const patch_z_end = @intFromFloat(u16, @divExact(world_z_end, world_stride));
+        const patch_x_begin = @as(u16, @intFromFloat(@divExact(world_x_begin, world_stride)));
+        const patch_z_begin = @as(u16, @intFromFloat(@divExact(world_z_begin, world_stride)));
+        const patch_x_end = @as(u16, @intFromFloat(@divExact(world_x_end, world_stride)));
+        const patch_z_end = @as(u16, @intFromFloat(@divExact(world_z_end, world_stride)));
 
         var patch_z = patch_z_begin;
         while (patch_z < patch_z_end) {
@@ -212,7 +212,7 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn removeLoadRequest(self: *WorldPatchManager, requester_id: RequesterId, patch_type_id: PatchTypeId, area: RequestArea, lod: LoD) void {
-        const world_stride = self.lod_0_patch_size * std.math.pow(f32, @floatFromInt(f32, lod), 2);
+        const world_stride = self.lod_0_patch_size * std.math.pow(f32, @as(f32, @floatFromInt(lod)), 2);
         const world_x_begin = @divFloor(area.x, world_stride);
         const world_z_begin = @divFloor(area.z, world_stride);
         const world_x_end = @divFloor(area.x + area.width - 1, world_stride) + 1;

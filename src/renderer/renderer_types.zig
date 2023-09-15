@@ -32,7 +32,6 @@ pub const Mesh = struct {
     bounding_box: BoundingBox,
 };
 
-
 pub const BoundingBox = struct {
     min: [3]f32,
     max: [3]f32,

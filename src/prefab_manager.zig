@@ -187,7 +187,6 @@ pub const PrefabManager = struct {
         }
     }
 
-
     fn parsePrimitiveMaterial(
         _: *@This(),
         primitive: *const zcgltf.Primitive,
