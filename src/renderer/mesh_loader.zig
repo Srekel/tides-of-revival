@@ -13,8 +13,8 @@ pub fn parseMeshPrimitive(
     meshes_vertices: *std.ArrayList(rt.Vertex),
     arena: std.mem.Allocator,
 ) !rt.SubMesh {
-    const num_vertices: u32 = @as(u32, @intCast(primitive.attributes[0].data.count));
-    const num_indices: u32 = @as(u32, @intCast(primitive.indices.?.count));
+    const num_vertices: u32 = @intCast(primitive.attributes[0].data.count);
+    const num_indices: u32 = @intCast(primitive.indices.?.count);
 
     var indices = std.ArrayList(rt.IndexType).init(arena);
     var positions = std.ArrayList([3]f32).init(arena);
@@ -133,10 +133,10 @@ pub fn parseMeshPrimitive(
     };
 
     sub_mesh.lods[0] = .{
-        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
-        .index_count = @as(u32, @intCast(indices.items.len)),
-        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
-        .vertex_count = @as(u32, @intCast(positions.items.len)),
+        .index_offset = @intCast(meshes_indices.items.len),
+        .index_count = @intCast(indices.items.len),
+        .vertex_offset = @intCast(meshes_vertices.items.len),
+        .vertex_count = @intCast(positions.items.len),
     };
 
     try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
@@ -219,9 +219,9 @@ pub fn loadObjMeshFromFile(
                 indices.clearRetainingCapacity();
                 vertices.clearRetainingCapacity();
 
-                previous_obj_positions_count += @as(u32, @intCast(positions.items.len));
-                previous_obj_uvs_count += @as(u32, @intCast(uvs.items.len));
-                previous_obj_normals_count += @as(u32, @intCast(normals.items.len));
+                previous_obj_positions_count += @intCast(positions.items.len);
+                previous_obj_uvs_count += @intCast(uvs.items.len);
+                previous_obj_normals_count += @intCast(normals.items.len);
 
                 positions.clearRetainingCapacity();
                 colors.clearRetainingCapacity();
@@ -236,9 +236,9 @@ pub fn loadObjMeshFromFile(
                 indices.clearRetainingCapacity();
                 vertices.clearRetainingCapacity();
 
-                previous_obj_positions_count += @as(u32, @intCast(positions.items.len));
-                previous_obj_uvs_count += @as(u32, @intCast(uvs.items.len));
-                previous_obj_normals_count += @as(u32, @intCast(normals.items.len));
+                previous_obj_positions_count += @intCast(positions.items.len);
+                previous_obj_uvs_count += @intCast(uvs.items.len);
+                previous_obj_normals_count += @intCast(normals.items.len);
 
                 positions.clearRetainingCapacity();
                 colors.clearRetainingCapacity();
@@ -288,7 +288,7 @@ pub fn loadObjMeshFromFile(
                 normal_index -= previous_obj_normals_count;
                 normal_index -= 1;
 
-                const unique_vertex_index = @as(u32, @intCast(vertices.items.len));
+                const unique_vertex_index: u32 = @intCast(vertices.items.len);
                 try indices.append(unique_vertex_index);
                 try vertices.append(.{
                     .position = positions.items[position_index],
@@ -458,10 +458,10 @@ fn storeMeshLod(
     );
 
     sub_mesh.lods[sub_mesh.lod_count] = .{
-        .index_offset = @as(u32, @intCast(meshes_indices.items.len)),
-        .index_count = @as(u32, @intCast(remapped_indices.items.len)),
-        .vertex_offset = @as(u32, @intCast(meshes_vertices.items.len)),
-        .vertex_count = @as(u32, @intCast(optimized_vertices.items.len)),
+        .index_offset = @intCast(meshes_indices.items.len),
+        .index_count = @intCast(remapped_indices.items.len),
+        .vertex_offset = @intCast(meshes_vertices.items.len),
+        .vertex_count = @intCast(optimized_vertices.items.len),
     };
 
     sub_mesh.lod_count += 1;
