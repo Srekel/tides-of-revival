@@ -424,6 +424,7 @@ pub fn run() void {
         std.heap.page_allocator,
         ecsu_world,
         world_patch_mgr,
+        &prefab_manager,
     );
     defer patch_prop_system.destroy(patch_prop_sys);
 
