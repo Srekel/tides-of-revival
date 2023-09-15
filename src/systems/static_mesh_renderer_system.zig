@@ -45,6 +45,12 @@ const InstanceMaterial = struct {
     padding: u32,
 };
 
+const DrawCallInfo = struct {
+    mesh_handle: gfx.MeshHandle,
+    lod_index: u32,
+    sub_mesh_index: u32,
+};
+
 const max_instances = 1000000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
@@ -61,6 +67,7 @@ const SystemState = struct {
     instance_transforms: std.ArrayList(InstanceTransform),
     instance_materials: std.ArrayList(InstanceMaterial),
     draw_calls: std.ArrayList(gfx.DrawCall),
+    draw_calls_info: std.ArrayList(DrawCallInfo),
     gpu_frame_profiler_index: u64 = undefined,
 
     query_camera: ecsu.Query,
@@ -115,6 +122,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     };
 
     var draw_calls = std.ArrayList(gfx.DrawCall).init(allocator);
+    var draw_calls_info = std.ArrayList(DrawCallInfo).init(allocator);
     var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
     var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
 
@@ -142,6 +150,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .instance_transform_buffers = instance_transform_buffers,
         .instance_material_buffers = instance_material_buffers,
         .draw_calls = draw_calls,
+        .draw_calls_info = draw_calls_info,
         .instance_transforms = instance_transforms,
         .instance_materials = instance_materials,
         .query_camera = query_camera,
@@ -157,6 +166,7 @@ pub fn destroy(state: *SystemState) void {
     state.instance_transforms.deinit();
     state.instance_materials.deinit();
     state.draw_calls.deinit();
+    state.draw_calls_info.deinit();
     state.allocator.destroy(state);
 }
 
@@ -202,15 +212,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     state.instance_transforms.clearRetainingCapacity();
     state.instance_materials.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
+    state.draw_calls_info.clearRetainingCapacity();
 
-    var instance_count: u32 = 0;
-    var start_instance_location: u32 = 0;
-
-    var last_lod_index: u32 = 0;
-    var last_mesh_handle: gfx.MeshHandle = undefined;
-    var lod_index: u32 = 0;
-    var first_iteration = true;
-
+    // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
     while (entity_iter_mesh.next()) |comps| {
         var maybe_mesh = state.gfx.lookupMesh(comps.mesh.mesh_handle);
 
@@ -226,126 +230,123 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             const z_bb_matrix = zm.mul(zm.scaling(bb_ws.radius, bb_ws.radius, bb_ws.radius), zm.translation(bb_ws.center[0], bb_ws.center[1], bb_ws.center[2]));
 
             // NOTE(gmodarelli): We're assuming all sub-meshes have the same number of LODs (which makes sense)
-            lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.sub_meshes[0].lod_count);
+            const lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.sub_meshes[0].lod_count);
 
-            if (first_iteration) {
-                last_mesh_handle = comps.mesh.mesh_handle;
-                last_lod_index = lod_index;
-                first_iteration = false;
-            }
-
-            if (isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle) and lod_index == last_lod_index) {
-                if (instance_count < max_instances_per_draw_call) {
-                    instance_count += 1;
-                } else {
-                    state.draw_calls.append(.{
-                        .mesh_handle = comps.mesh.mesh_handle,
-                        .sub_mesh_index = 0,
-                        .lod_index = lod_index,
-                        .instance_count = instance_count,
-                        .start_instance_location = start_instance_location,
-                    }) catch unreachable;
-
-                    start_instance_location += instance_count;
-                    instance_count = 1;
-                }
-            } else if (isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle) and lod_index != last_lod_index) {
-                state.draw_calls.append(.{
-                    .mesh_handle = last_mesh_handle,
-                    .sub_mesh_index = 0,
-                    .lod_index = last_lod_index,
-                    .instance_count = instance_count,
-                    .start_instance_location = start_instance_location,
-                }) catch unreachable;
-
-                start_instance_location += instance_count;
-                instance_count = 1;
-                last_lod_index = lod_index;
-            } else if (!isSameMeshHandle(last_mesh_handle, comps.mesh.mesh_handle)) {
-                state.draw_calls.append(.{
-                    .mesh_handle = last_mesh_handle,
-                    .sub_mesh_index = 0,
-                    .lod_index = last_lod_index,
-                    .instance_count = instance_count,
-                    .start_instance_location = start_instance_location,
-                }) catch unreachable;
-
-                start_instance_location += instance_count;
-                instance_count = 1;
-
-                last_mesh_handle = comps.mesh.mesh_handle;
-                lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.sub_meshes[0].lod_count);
-
-                last_lod_index = lod_index;
-            }
+            var draw_call_info = DrawCallInfo{
+                .mesh_handle = comps.mesh.mesh_handle,
+                .lod_index = lod_index,
+                .sub_mesh_index = undefined,
+            };
 
             const invalid_texture_index = std.math.maxInt(u32);
-            state.instance_transforms.append(.{
-                .object_to_world = zm.transpose(z_world),
-                .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
-            }) catch unreachable;
+            for (0..mesh.sub_mesh_count) |sub_mesh_index| {
+                draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
+                state.draw_calls_info.append(draw_call_info) catch unreachable;
 
-            var maybe_material = state.gfx.lookUpMaterial(comps.mesh.material_handles[0]);
-            if (maybe_material) |material| {
-                const albedo = blk: {
-                    if (state.gfx.lookupTexture(material.albedo)) |albedo| {
-                        break :blk albedo.persistent_descriptor.index;
-                    } else {
-                        break :blk invalid_texture_index;
-                    }
-                };
-
-                const arm = blk: {
-                    if (state.gfx.lookupTexture(material.arm)) |arm| {
-                        break :blk arm.persistent_descriptor.index;
-                    } else {
-                        break :blk invalid_texture_index;
-                    }
-                };
-
-                const normal = blk: {
-                    if (state.gfx.lookupTexture(material.normal)) |normal| {
-                        break :blk normal.persistent_descriptor.index;
-                    } else {
-                        break :blk invalid_texture_index;
-                    }
-                };
-
-                state.instance_materials.append(.{
-                    .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
-                    .roughness = material.roughness,
-                    .metallic = material.metallic,
-                    .normal_intensity = 1.0,
-                    .albedo_texture_index = albedo,
-                    .emissive_texture_index = invalid_texture_index,
-                    .normal_texture_index = normal,
-                    .arm_texture_index = arm,
-                    .padding = 42,
+                state.instance_transforms.append(.{
+                    .object_to_world = zm.transpose(z_world),
+                    .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
                 }) catch unreachable;
-            } else {
-                state.instance_materials.append(.{
-                    .albedo_color = [4]f32{ 1.0, 0.0, 1.0, 1.0 },
-                    .roughness = 1.0,
-                    .metallic = 0.0,
-                    .normal_intensity = 1.0,
-                    .albedo_texture_index = invalid_texture_index,
-                    .emissive_texture_index = invalid_texture_index,
-                    .normal_texture_index = invalid_texture_index,
-                    .arm_texture_index = invalid_texture_index,
-                    .padding = 42,
-                }) catch unreachable;
+
+                var maybe_material = state.gfx.lookUpMaterial(comps.mesh.material_handles[sub_mesh_index]);
+                if (maybe_material) |material| {
+                    const albedo = blk: {
+                        if (state.gfx.lookupTexture(material.albedo)) |albedo| {
+                            break :blk albedo.persistent_descriptor.index;
+                        } else {
+                            break :blk invalid_texture_index;
+                        }
+                    };
+
+                    const arm = blk: {
+                        if (state.gfx.lookupTexture(material.arm)) |arm| {
+                            break :blk arm.persistent_descriptor.index;
+                        } else {
+                            break :blk invalid_texture_index;
+                        }
+                    };
+
+                    const normal = blk: {
+                        if (state.gfx.lookupTexture(material.normal)) |normal| {
+                            break :blk normal.persistent_descriptor.index;
+                        } else {
+                            break :blk invalid_texture_index;
+                        }
+                    };
+
+                    state.instance_materials.append(.{
+                        .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
+                        .roughness = material.roughness,
+                        .metallic = material.metallic,
+                        .normal_intensity = 1.0,
+                        .albedo_texture_index = albedo,
+                        .emissive_texture_index = invalid_texture_index,
+                        .normal_texture_index = normal,
+                        .arm_texture_index = arm,
+                        .padding = 42,
+                    }) catch unreachable;
+                } else {
+                    state.instance_materials.append(.{
+                        .albedo_color = [4]f32{ 1.0, 0.0, 1.0, 1.0 },
+                        .roughness = 1.0,
+                        .metallic = 0.0,
+                        .normal_intensity = 1.0,
+                        .albedo_texture_index = invalid_texture_index,
+                        .emissive_texture_index = invalid_texture_index,
+                        .normal_texture_index = invalid_texture_index,
+                        .arm_texture_index = invalid_texture_index,
+                        .padding = 42,
+                    }) catch unreachable;
+                }
             }
         }
     }
 
-    if (instance_count >= 1) {
-        state.draw_calls.append(.{
-            .mesh_handle = last_mesh_handle,
-            .sub_mesh_index = 0,
-            .lod_index = last_lod_index,
-            .instance_count = instance_count,
-            .start_instance_location = start_instance_location,
-        }) catch unreachable;
+    var start_instance_location: u32 = 0;
+    var current_draw_call: gfx.DrawCall = undefined;
+
+    for (state.draw_calls_info.items, 0..) |draw_call_info, i| {
+        if (i == 0) {
+            current_draw_call = .{
+                .mesh_handle = draw_call_info.mesh_handle,
+                .sub_mesh_index = draw_call_info.sub_mesh_index,
+                .lod_index = draw_call_info.lod_index,
+                .instance_count = 1,
+                .start_instance_location = start_instance_location,
+            };
+
+            start_instance_location += 1;
+
+            if (i == state.draw_calls_info.items.len - 1) {
+                state.draw_calls.append(current_draw_call) catch unreachable;
+            }
+            continue;
+        }
+
+        if (isSameMeshHandle(current_draw_call.mesh_handle, draw_call_info.mesh_handle) and current_draw_call.lod_index == draw_call_info.lod_index and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index) {
+            current_draw_call.instance_count += 1;
+            start_instance_location += 1;
+
+            if (i == state.draw_calls_info.items.len - 1) {
+                state.draw_calls.append(current_draw_call) catch unreachable;
+            }
+        } else {
+            state.draw_calls.append(current_draw_call) catch unreachable;
+
+            current_draw_call = .{
+                .mesh_handle = draw_call_info.mesh_handle,
+                .sub_mesh_index = draw_call_info.sub_mesh_index,
+                .lod_index = draw_call_info.lod_index,
+                .instance_count = 1,
+                .start_instance_location = start_instance_location,
+            };
+
+            start_instance_location += 1;
+
+            if (i == state.draw_calls_info.items.len - 1) {
+                state.draw_calls.append(current_draw_call) catch unreachable;
+            }
+        }
     }
 
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Static Mesh Renderer System");
