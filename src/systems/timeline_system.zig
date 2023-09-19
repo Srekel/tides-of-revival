@@ -153,6 +153,32 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                         }
                     }
                 },
+                1 => {
+                    for (timeline.instances.items) |*instance| {
+                        const speed = instance.speed;
+                        const time_into = world_time - instance.time_start;
+                        const time_curr = time_into * speed;
+                        const ent = instance.ent;
+                        for (curve.points[0 .. curve.points.len - 1], 0..) |cp, i| {
+                            const cp_next = curve.points[i + 1];
+                            if (cp_next.time < time_curr) {
+                                continue;
+                            }
+
+                            const cp_duration = cp_next.time - cp.time;
+                            const cp_progress = (time_curr - cp.time) / cp_duration;
+                            const value = std.math.lerp(cp.value, cp_next.value, cp_progress);
+
+                            var rotation = ecs.get_mut(system.ecsu_world.world, ent, fd.Rotation).?;
+                            var new_rotation = fd.Rotation.initFromEulerDegrees(0.0, value, 0.0);
+                            rotation.x = new_rotation.x;
+                            rotation.y = new_rotation.y;
+                            rotation.z = new_rotation.z;
+                            rotation.w = new_rotation.w;
+                            break;
+                        }
+                    }
+                },
                 else => {},
             }
         }
