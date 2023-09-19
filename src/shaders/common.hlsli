@@ -37,9 +37,9 @@ struct SceneConst {
     uint point_lights_buffer_index;
     float3 main_light_radiance;
     uint point_lights_count;
-    uint radiance_texture_index;
+    uint env_texture_index;
     uint irradiance_texture_index;
-    uint specular_texture_index;
+    uint prefiltered_env_texture_index;
     uint brdf_integration_texture_index;
 };
 

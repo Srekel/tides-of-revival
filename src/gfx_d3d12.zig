@@ -88,9 +88,9 @@ pub const SceneUniforms = extern struct {
     point_lights_buffer_index: u32,
     main_light_radiance: [3]f32,
     point_lights_count: u32,
-    radiance_texture_index: u32,
+    env_texture_index: u32,
     irradiance_texture_index: u32,
-    specular_texture_index: u32,
+    prefiltered_env_texture_index: u32,
     brdf_integration_texture_index: u32,
 };
 
@@ -176,6 +176,7 @@ pub const RenderTargetDesc = struct {
 const ResourceView = struct {
     resource: zd3d12.ResourceHandle,
     view: d3d12.CPU_DESCRIPTOR_HANDLE,
+    persistent_descriptor: zd3d12.PersistentDescriptor,
 };
 
 const HDRIConstBuffer = struct {
@@ -499,7 +500,9 @@ pub const D3D12State = struct {
                 null,
             ) catch |err| hrPanic(err),
             .view = self.gctx.allocateCpuDescriptors(.CBV_SRV_UAV, 1),
+            .persistent_descriptor = self.gctx.allocatePersistentGpuDescriptors(1),
         };
+
         self.gctx.device.CreateShaderResourceView(
             self.gctx.lookupResource(env_texture.resource).?,
             &d3d12.SHADER_RESOURCE_VIEW_DESC{
@@ -515,6 +518,23 @@ pub const D3D12State = struct {
                 },
             },
             env_texture.view,
+        );
+
+        self.gctx.device.CreateShaderResourceView(
+            self.gctx.lookupResource(env_texture.resource).?,
+            &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                .Format = .R16G16B16A16_FLOAT,
+                .ViewDimension = .TEXTURECUBE,
+                .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .u = .{
+                    .TextureCube = .{
+                        .MipLevels = 0xffff_ffff,
+                        .MostDetailedMip = 0,
+                        .ResourceMinLODClamp = 0.0,
+                    },
+                },
+            },
+            env_texture.persistent_descriptor.cpu_handle,
         );
 
         const irradiance_texture = .{
@@ -537,7 +557,9 @@ pub const D3D12State = struct {
                 null,
             ) catch |err| hrPanic(err),
             .view = self.gctx.allocateCpuDescriptors(.CBV_SRV_UAV, 1),
+            .persistent_descriptor = self.gctx.allocatePersistentGpuDescriptors(1),
         };
+
         self.gctx.device.CreateShaderResourceView(
             self.gctx.lookupResource(irradiance_texture.resource).?,
             &d3d12.SHADER_RESOURCE_VIEW_DESC{
@@ -553,6 +575,23 @@ pub const D3D12State = struct {
                 },
             },
             irradiance_texture.view,
+        );
+
+        self.gctx.device.CreateShaderResourceView(
+            self.gctx.lookupResource(irradiance_texture.resource).?,
+            &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                .Format = .UNKNOWN,
+                .ViewDimension = .TEXTURECUBE,
+                .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .u = .{
+                    .TextureCube = .{
+                        .MipLevels = 0xffff_ffff,
+                        .MostDetailedMip = 0,
+                        .ResourceMinLODClamp = 0.0,
+                    },
+                },
+            },
+            irradiance_texture.persistent_descriptor.cpu_handle,
         );
 
         const prefiltered_env_texture = .{
@@ -575,7 +614,9 @@ pub const D3D12State = struct {
                 null,
             ) catch |err| hrPanic(err),
             .view = self.gctx.allocateCpuDescriptors(.CBV_SRV_UAV, 1),
+            .persistent_descriptor = self.gctx.allocatePersistentGpuDescriptors(1),
         };
+
         self.gctx.device.CreateShaderResourceView(
             self.gctx.lookupResource(prefiltered_env_texture.resource).?,
             &d3d12.SHADER_RESOURCE_VIEW_DESC{
@@ -591,6 +632,23 @@ pub const D3D12State = struct {
                 },
             },
             prefiltered_env_texture.view,
+        );
+
+        self.gctx.device.CreateShaderResourceView(
+            self.gctx.lookupResource(prefiltered_env_texture.resource).?,
+            &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                .Format = .UNKNOWN,
+                .ViewDimension = .TEXTURECUBE,
+                .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .u = .{
+                    .TextureCube = .{
+                        .MipLevels = prefiltered_env_texture_num_mip_levels,
+                        .MostDetailedMip = 0,
+                        .ResourceMinLODClamp = 0.0,
+                    },
+                },
+            },
+            prefiltered_env_texture.persistent_descriptor.cpu_handle,
         );
 
         self.gctx.flushResourceBarriers();
@@ -1724,6 +1782,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
 
     // const ibl_textures = state.lookupIBLTextures();
+    const brdf_texture = state.lookupTexture(state.brdf_integration_texture);
     const point_lights_buffer = state.lookupBuffer(state.point_lights_buffers[gctx.frame_index]);
     const point_lights_count = state.point_lights_count[gctx.frame_index];
     const view_projection = zm.loadMat(camera.view_projection[0..]);
@@ -1749,14 +1808,10 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].main_light_radiance = state.main_light.radiance;
             mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
             mem.cpu_slice[0].point_lights_count = point_lights_count;
-            // mem.cpu_slice[0].radiance_texture_index = ibl_textures.radiance.?.persistent_descriptor.index;
-            // mem.cpu_slice[0].irradiance_texture_index = ibl_textures.irradiance.?.persistent_descriptor.index;
-            // mem.cpu_slice[0].specular_texture_index = ibl_textures.specular.?.persistent_descriptor.index;
-            // mem.cpu_slice[0].brdf_integration_texture_index = ibl_textures.brdf.?.persistent_descriptor.index;
-            mem.cpu_slice[0].radiance_texture_index = 42;
-            mem.cpu_slice[0].irradiance_texture_index = 42;
-            mem.cpu_slice[0].specular_texture_index = 42;
-            mem.cpu_slice[0].brdf_integration_texture_index = 42;
+            mem.cpu_slice[0].env_texture_index = state.env_texture.persistent_descriptor.index;
+            mem.cpu_slice[0].irradiance_texture_index = state.irradiance_texture.persistent_descriptor.index;
+            mem.cpu_slice[0].prefiltered_env_texture_index = state.prefiltered_env_texture.persistent_descriptor.index;
+            mem.cpu_slice[0].brdf_integration_texture_index = brdf_texture.?.persistent_descriptor.index;
             gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
         }
 
