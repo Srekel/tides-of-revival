@@ -39,6 +39,22 @@ pub fn build(b: *std.Build) void {
         .dependencies = &.{},
     }));
 
+    // Linking ImGUI
+    const abi = (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.abi;
+    exe.linkLibC();
+    if (abi != .msvc)
+        exe.linkLibCpp();
+    exe.linkSystemLibraryName("imm32");
+
+    exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs" });
+    exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui" });
+    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui.cpp" }, .flags = &.{""} });
+    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_widgets.cpp" }, .flags = &.{""} });
+    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_tables.cpp" }, .flags = &.{""} });
+    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_draw.cpp" }, .flags = &.{""} });
+    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_demo.cpp" }, .flags = &.{""} });
+    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/cimgui.cpp" }, .flags = &.{""} });
+
     const zaudio_pkg = zaudio.package(b, target, optimize, .{});
 
     const zflecs_pkg = zflecs.package(b, target, optimize, .{});
@@ -129,6 +145,14 @@ pub fn build(b: *std.Build) void {
     install_textures_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_textures_step.step);
 
+    const install_fonts_step = b.addInstallDirectory(.{
+        .source_dir = .{ .path = thisDir() ++ "/content/fonts" },
+        .install_dir = .{ .custom = "" },
+        .install_subdir = "bin/content/fonts",
+    });
+    install_fonts_step.step.dependOn(dxc_step);
+    exe.step.dependOn(&install_fonts_step.step);
+
     const install_systems_step = b.addInstallDirectory(.{
         .source_dir = .{ .path = thisDir() ++ "/content/systems" },
         .install_dir = .{ .custom = "" },
@@ -208,7 +232,32 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/deferred_lighting.hlsl", "csDeferredLighting", "deferred_lighting.cs.cso", "cs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
+    dxc_command = makeDxcCmd("src/shaders/generate_mipmaps.hlsl", "csGenerateMipmaps", "generate_mipmaps.cs.cso", "cs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
     dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateEnvTexture", "generate_env_texture.vs.cso", "vs", "PSO__GENERATE_ENV_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateEnvTexture", "generate_env_texture.ps.cso", "ps", "PSO__GENERATE_ENV_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsSampleEnvTexture", "sample_env_texture.vs.cso", "vs", "PSO__SAMPLE_ENV_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psSampleEnvTexture", "sample_env_texture.ps.cso", "ps", "PSO__SAMPLE_ENV_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateIrradianceTexture", "generate_irradiance_texture.vs.cso", "vs", "PSO__GENERATE_IRRADIANCE_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateIrradianceTexture", "generate_irradiance_texture.ps.cso", "ps", "PSO__GENERATE_IRRADIANCE_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.vs.cso", "vs", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.ps.cso", "ps", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/imgui.hlsl", "vsImGui", "imgui.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/imgui.hlsl", "psImGui", "imgui.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     return dxc_step;
