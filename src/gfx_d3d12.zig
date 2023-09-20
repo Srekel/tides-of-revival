@@ -88,6 +88,7 @@ pub const SceneUniforms = extern struct {
     point_lights_buffer_index: u32,
     main_light_radiance: [3]f32,
     point_lights_count: u32,
+    prefiltered_env_texture_max_lods: f32,
     env_texture_index: u32,
     irradiance_texture_index: u32,
     prefiltered_env_texture_index: u32,
@@ -305,17 +306,12 @@ pub const D3D12State = struct {
     hdr_rt: RenderTarget,
 
     // NOTE(gmodarelli): just a test, these textures should
-    // be loaded by the "world material"
-    radiance_texture: TextureHandle,
-    // irradiance_texture: TextureHandle,
-    specular_texture: TextureHandle,
-    brdf_integration_texture: TextureHandle,
-
+    // be loaded by a "sky light" component
     // IBL generated from HRDI
     env_texture: ResourceView,
     irradiance_texture: ResourceView,
     prefiltered_env_texture: ResourceView,
-
+    brdf_integration_texture: TextureHandle,
 
     texture_pool: TexturePool,
     texture_hash: TextureHashMap,
@@ -435,6 +431,8 @@ pub const D3D12State = struct {
     }
 
     pub fn generateIBLTextures(self: *D3D12State, hdri_path: []const u8, arena: std.mem.Allocator) !void {
+        self.mipgen_rgba16f = zd3d12.MipmapGenerator.init(arena, &self.gctx, .R16G16B16A16_FLOAT, "");
+
         self.gctx.beginFrame();
 
         const equirect_texture = blk: {
@@ -667,42 +665,55 @@ pub const D3D12State = struct {
         //
         // Generate env. (cube) texture content.
         //
-        var pipeline_info = self.getPipeline(IdLocal.init("generate_env_texture"));
-        self.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-        self.gctx.cmdlist.SetGraphicsRootDescriptorTable(1, self.gctx.copyDescriptorsToGpuHeap(1, equirect_texture.view));
-        self.drawToCubeTexture(mesh, env_texture.resource, 0);
-        self.mipgen_rgba16f.generateMipmaps(&self.gctx, env_texture.resource);
-        self.gctx.addTransitionBarrier(env_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
-        self.gctx.flushResourceBarriers();
+        zpix.beginEvent(self.gctx.cmdlist, "Generate Env Cubemap");
+        {
+            const pipeline_info = self.getPipeline(IdLocal.init("generate_env_texture"));
+            self.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+            self.gctx.cmdlist.SetGraphicsRootDescriptorTable(1, self.gctx.copyDescriptorsToGpuHeap(1, equirect_texture.view));
+            self.drawToCubeTexture(mesh, env_texture.resource, 0);
+            self.mipgen_rgba16f.generateMipmaps(&self.gctx, env_texture.resource);
+            self.gctx.addTransitionBarrier(env_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
+            self.gctx.flushResourceBarriers();
+        }
+        zpix.endEvent(self.gctx.cmdlist);
 
         //
         // Generate irradiance (cube) texture content.
         //
-        pipeline_info = self.getPipeline(IdLocal.init("generate_irradiance_texture"));
-        self.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-        self.gctx.cmdlist.SetGraphicsRootDescriptorTable(1, self.gctx.copyDescriptorsToGpuHeap(1, env_texture.view));
-        self.drawToCubeTexture(mesh, irradiance_texture.resource, 0);
-        self.mipgen_rgba16f.generateMipmaps(&self.gctx, irradiance_texture.resource);
-        self.gctx.addTransitionBarrier(irradiance_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
-        self.gctx.flushResourceBarriers();
+        zpix.beginEvent(self.gctx.cmdlist, "Generate Irradiance Cubemap");
+        {
+            const pipeline_info = self.getPipeline(IdLocal.init("generate_irradiance_texture"));
+            self.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+            self.gctx.cmdlist.SetGraphicsRootDescriptorTable(1, self.gctx.copyDescriptorsToGpuHeap(1, env_texture.view));
+            self.drawToCubeTexture(mesh, irradiance_texture.resource, 0);
+            self.mipgen_rgba16f.generateMipmaps(&self.gctx, irradiance_texture.resource);
+            self.gctx.addTransitionBarrier(irradiance_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
+            self.gctx.flushResourceBarriers();
+        }
+        zpix.endEvent(self.gctx.cmdlist);
 
         //
         // Generate prefiltered env. (cube) texture content.
         //
-        pipeline_info = self.getPipeline(IdLocal.init("generate_prefiltered_env_texture"));
-        self.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-        self.gctx.cmdlist.SetGraphicsRootDescriptorTable(2, self.gctx.copyDescriptorsToGpuHeap(1, env_texture.view));
+        zpix.beginEvent(self.gctx.cmdlist, "Generate Pre-Filtered Cubemap");
         {
-            var mip_level: u32 = 0;
-            while (mip_level < prefiltered_env_texture_num_mip_levels) : (mip_level += 1) {
-                const roughness = @as(f32, @floatFromInt(mip_level)) /
-                    @as(f32, @floatFromInt(prefiltered_env_texture_num_mip_levels - 1));
-                self.gctx.cmdlist.SetGraphicsRoot32BitConstant(1, @as(u32, @bitCast(roughness)), 0);
-                self.drawToCubeTexture(mesh, prefiltered_env_texture.resource, mip_level);
+            const pipeline_info = self.getPipeline(IdLocal.init("generate_prefiltered_env_texture"));
+            self.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+            self.gctx.cmdlist.SetGraphicsRootDescriptorTable(2, self.gctx.copyDescriptorsToGpuHeap(1, env_texture.view));
+            {
+                var mip_level: u32 = 0;
+                while (mip_level < prefiltered_env_texture_num_mip_levels) : (mip_level += 1) {
+                    const roughness = @as(f32, @floatFromInt(mip_level)) /
+                        @as(f32, @floatFromInt(prefiltered_env_texture_num_mip_levels - 1));
+                    self.gctx.cmdlist.SetGraphicsRoot32BitConstant(1, @as(u32, @bitCast(roughness)), 0);
+                    self.drawToCubeTexture(mesh, prefiltered_env_texture.resource, mip_level);
+                }
             }
+            self.gctx.addTransitionBarrier(prefiltered_env_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
+            self.gctx.flushResourceBarriers();
+
         }
-        self.gctx.addTransitionBarrier(prefiltered_env_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
-        self.gctx.flushResourceBarriers();
+        zpix.endEvent(self.gctx.cmdlist);
 
         self.gctx.endFrame();
         self.gctx.finishGpuCommands();
@@ -710,6 +721,8 @@ pub const D3D12State = struct {
         self.env_texture = env_texture;
         self.irradiance_texture = irradiance_texture;
         self.prefiltered_env_texture = prefiltered_env_texture;
+
+        self.mipgen_rgba16f.deinit(&self.gctx);
     }
 
     fn drawToCubeTexture(
@@ -1074,15 +1087,6 @@ pub const D3D12State = struct {
 
         return mesh;
     }
-
-    // pub fn lookupIBLTextures(self: *D3D12State) struct { radiance: ?*Texture, irradiance: ?*Texture, specular: ?*Texture, brdf: ?*Texture } {
-    //     return .{
-    //         .radiance = self.lookupTexture(self.radiance_texture),
-    //         .irradiance = self.lookupTexture(self.irradiance_texture),
-    //         .specular = self.lookupTexture(self.specular_texture),
-    //         .brdf = self.lookupTexture(self.brdf_integration_texture),
-    //     };
-    // }
 
     pub fn generateBrdfIntegrationTexture(self: *D3D12State, arena: std.mem.Allocator) !TextureHandle {
         self.gctx.beginFrame();
@@ -1534,7 +1538,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var d3d12_state = D3D12State{
         .gctx = gctx,
-        .mipgen_rgba16f = zd3d12.MipmapGenerator.init(arena, &gctx, .R16G16B16A16_FLOAT, ""),
+        .mipgen_rgba16f = undefined,
         .gpu_profiler = gpu_profiler,
         .guir = guir,
         .stats = FrameStats.init(),
@@ -1546,9 +1550,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_2 = gbuffer_2,
         .hdr_rt = hdr_rt,
         .env_texture = undefined,
-        .radiance_texture = undefined,
         .irradiance_texture = undefined,
-        .specular_texture = undefined,
         .prefiltered_env_texture = undefined,
         .brdf_integration_texture = undefined,
         .pipelines = pipelines,
@@ -1597,42 +1599,9 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         d3d12_state.skybox_mesh = d3d12_state.uploadMeshData("skybox", mesh, meshes_vertices.items, meshes_indices.items) catch unreachable;
     }
 
-    if (false)
-    {
-        // Radiance
-        {
-            const texture_desc = TextureDesc{
-                .state = d3d12.RESOURCE_STATES.COMMON,
-                .name = L("Radiance"),
-            };
-            const texture_handle = d3d12_state.scheduleLoadTextureCubemap(config.radiance_texture_path, texture_desc, arena) catch unreachable;
-            d3d12_state.radiance_texture = texture_handle;
-        }
-
-        // Irradiance
-        {
-            const texture_desc = TextureDesc{
-                .state = d3d12.RESOURCE_STATES.COMMON,
-                .name = L("Irradiance"),
-            };
-            const texture_handle = d3d12_state.scheduleLoadTextureCubemap(config.irradiance_texture_path, texture_desc, arena) catch unreachable;
-            d3d12_state.irradiance_texture = texture_handle;
-        }
-
-        // Specular
-        {
-            const texture_desc = TextureDesc{
-                .state = d3d12.RESOURCE_STATES.COMMON,
-                .name = L("Specular"),
-            };
-            const texture_handle = d3d12_state.scheduleLoadTextureCubemap(config.specular_texture_path, texture_desc, arena) catch unreachable;
-            d3d12_state.specular_texture = texture_handle;
-        }
-    }
-
     // Generate IBL textures from HDRI
     {
-        d3d12_state.generateIBLTextures("content/textures/env/Newport_Loft.hdr", arena) catch unreachable;
+        d3d12_state.generateIBLTextures("content/textures/env/belfast_sunset_2k.hdr", arena) catch unreachable;
     }
 
     // BRDF Integration
@@ -1648,8 +1617,6 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     w32.CoUninitialize();
 
     self.gctx.finishGpuCommands();
-
-    self.mipgen_rgba16f.deinit(&self.gctx);
 
     var ui = gui_renderer.c.igGetIO().?;
     assert(ui.*.BackendPlatformUserData != null);
@@ -1808,6 +1775,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].main_light_radiance = state.main_light.radiance;
             mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
             mem.cpu_slice[0].point_lights_count = point_lights_count;
+            mem.cpu_slice[0].prefiltered_env_texture_max_lods = prefiltered_env_texture_num_mip_levels;
             mem.cpu_slice[0].env_texture_index = state.env_texture.persistent_descriptor.index;
             mem.cpu_slice[0].irradiance_texture_index = state.irradiance_texture.persistent_descriptor.index;
             mem.cpu_slice[0].prefiltered_env_texture_index = state.prefiltered_env_texture.persistent_descriptor.index;

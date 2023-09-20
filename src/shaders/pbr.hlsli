@@ -57,7 +57,7 @@ float visibilitySmithGGXCorrelated(float NdotV, float NdotL, float a) {
 // where F0 is the surface reflectance at zero incidence.
 // https://en.wikipedia.org/wiki/Schlick%27s_approximation
 //
-float3 qrk_fresnelSchlick(float LdotH, float3 F0) {
+float3 fresnelSchlick(float LdotH, float3 F0) {
 	return F0 + (float3(1.0, 1.0, 1.0) - F0) * pow(1.0 - LdotH, 5.0);
 }
 
@@ -67,7 +67,7 @@ float3 qrk_fresnelSchlick(float LdotH, float3 F0) {
 // a color that is actually sampled from many directions, not just 1).
 // https://seblagarde.wordpress.com/2011/08/17/hello-world/
 //
-float3 qrk_fresnelSchlickRoughness(float LdotV, float3 F0, float roughness) {
+float3 fresnelSchlickRoughness(float LdotV, float3 F0, float roughness) {
 	float oneMinusRoughness = 1.0 - roughness;
 	return F0 + (max(float3(oneMinusRoughness, oneMinusRoughness, oneMinusRoughness), F0) - F0) * pow(1.0 - LdotV, 5.0);
 }
