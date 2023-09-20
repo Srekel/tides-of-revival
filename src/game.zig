@@ -682,7 +682,7 @@ pub fn run() void {
         .radiance = .{ .r = 4, .g = 2, .b = 1 },
         .radius = 10.0,
         .falloff = 5.0,
-        .max_intensity = 2.0,
+        .max_intensity = 1.0,
     });
     bow_ent.childOf(player_camera_ent);
 

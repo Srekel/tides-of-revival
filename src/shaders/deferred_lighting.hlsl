@@ -49,19 +49,14 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         float3 position = getPositionFromDepth(depth, uv, cbv_frame_const.view_projection_inverted);
         float3 normal = gbuffer_1_sample.xyz;
         float3 view = normalize(cbv_frame_const.camera_position - position);
-        float NdotV = max(dot(normal, view), 1e-4);
 
-        MaterialProperties material;
-        material.baseColor = gbuffer_0_sample.rgb;
-        material.metalness = gbuffer_2_sample.g;
-        material.emissive = gbuffer_2_sample.b * gbuffer_0_sample.rgb;
-        material.roughness = gbuffer_2_sample.r;
-        material.transmissivness = 0;
-        material.reflectance = 0.0;
-        material.opacity = gbuffer_0_sample.a;
+        float3 albedo = gbuffer_0_sample.rgb;
+        float roughness = gbuffer_2_sample.r;
+        float metallic = gbuffer_2_sample.g;
+        float3 emissive = gbuffer_2_sample.b * gbuffer_0_sample.rgb;
 
         float3 F0 = float3(0.04, 0.04, 0.04);
-        F0 = lerp(F0, material.baseColor, material.metalness);
+        F0 = lerp(F0, albedo, metallic);
 
         ByteAddressBuffer point_lights_buffer = ResourceDescriptorHeap[cbv_scene_const.point_lights_buffer_index];
 
@@ -69,39 +64,19 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
 
         // Main Directional Light
         {
+            float attenuation = 1.0;
             float3 L = cbv_scene_const.main_light_direction;
-            float3 H = normalize(L + view);
-
-            float a = max(material.roughness * material.roughness, 0.002025);
-
-            float NdotL = saturate(dot(normal, L));
-            float NdotH = saturate(dot(normal, H));
-            float LdotH = saturate(dot(L, H));
-
-            float D = distributionGGX(NdotH, a);
-            float3 F = fresnelSchlick(LdotH, F0);
-            float V = visibilitySmithGGXCorrelated(NdotV, NdotL, a);
-
-            // Specular BRDF
-            float3 specular = (D * V) * F;
-
-            // Diffuse BRDF (Lambertian)
-            float3 diffuseColor = (1.0 - material.metalness) * material.baseColor;
-            float3 diffuse = diffuseColor / PI;
-
-            Lo += (diffuse * cbv_scene_const.main_light_radiance + specular * cbv_scene_const.main_light_radiance) * NdotL;
+            Lo += calculateLightContribution(L, cbv_scene_const.main_light_radiance, attenuation, albedo, normal, roughness, metallic, F0, view);
         }
 
         // Point Lights
-        // for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
-        // {
-        //     PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
-        //     float3 L = normalize(light.position - position);
-        //     float attenuation = calculatePointLightAttenuation(distance(light.position, position), light.radius, light.max_intensity, light.falloff);
-
-        //     // add to outgoing radiance Lo
-        //     Lo += calculateLightContribution(normal, L, view, material_properties, light.radiance, attenuation);
-        // }
+        for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
+        {
+            PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
+            float attenuation = calculatePointLightAttenuation(distance(light.position, position), light.radius, light.max_intensity, light.falloff);
+            float3 L = normalize(light.position - position);
+            Lo += calculateLightContribution(L, light.radiance, attenuation, albedo, normal, roughness, metallic, F0, view);
+        }
 
         // IBL Ambient Light
         {
@@ -109,22 +84,24 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
             TextureCube prefiltered_env_texture = ResourceDescriptorHeap[cbv_scene_const.prefiltered_env_texture_index];
             Texture2D brdf_lut_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
 
+            float NdotV = max(dot(normal, view), 1e-4);
             float3 reflection = reflect(-view, normal);
 
             float3 irradiance = irradiance_texture.Sample(sam_bilinear_clamp, normalize(reflection)).rgb;
-            float mipLevel = material.roughness * cbv_scene_const.prefiltered_env_texture_max_lods;
+            float mipLevel = roughness * cbv_scene_const.prefiltered_env_texture_max_lods;
             float3 prefilteredEnvColor = prefiltered_env_texture.SampleLevel(sam_bilinear_clamp,reflection, mipLevel).rgb;
-            float2 brdfLUT = brdf_lut_texture.Sample(sam_bilinear_clamp, float2(NdotV, material.roughness)).rg;
+            float2 brdfLUT = brdf_lut_texture.Sample(sam_bilinear_clamp, float2(NdotV, roughness)).rg;
 
-            float3 F = fresnelSchlickRoughness(NdotV, F0, material.roughness);
+            float3 F = fresnelSchlickRoughness(NdotV, F0, roughness);
             float3 kS = F;
             float3 kD = 1.0 - kS;
-            kD *= 1.0 - material.metalness;
+            kD *= 1.0 - metallic;
 
-            float3 diffuse = kD * irradiance * material.baseColor;
+            float3 diffuse = kD * irradiance * albedo;
             float3 specular = prefilteredEnvColor * (F * brdfLUT.x + brdfLUT.y);
 
-            Lo += (diffuse + specular);
+            float3 ambient = diffuse + specular;
+            Lo += ambient;
         }
 
         float3 color = Lo;

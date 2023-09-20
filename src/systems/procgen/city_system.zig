@@ -146,7 +146,7 @@ pub fn createEntities(state: *SystemState) void {
             .radiance = .{ .r = 4, .g = 2, .b = 1 },
             .radius = 70.0,
             .falloff = 10.0,
-            .max_intensity = 10.0,
+            .max_intensity = 1.0,
         });
 
         // var light_viz_ent = ecsu_world.newEntity();
