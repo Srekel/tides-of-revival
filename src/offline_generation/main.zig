@@ -78,8 +78,8 @@ fn funcTemplateAdd(node: *g.Node, output: *g.NodeOutput, context: *g.GraphContex
 // ██║ ╚═╝ ██║██║  ██║██║██║ ╚████║
 // ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
 
-pub fn generate() void {
-    zstbi.init(std.heap.page_allocator);
+pub fn generate(allocator: std.mem.Allocator) void {
+    zstbi.init(allocator);
     defer zstbi.deinit();
 
     const numberFunc = g.NodeFuncTemplate{
@@ -176,7 +176,7 @@ pub fn generate() void {
     var heightmapNode = g.Node{
         .name = IdLocal.init("Heightmap"),
         .template = heightmapNodeTemplate,
-        .allocator = std.heap.page_allocator,
+        .allocator = allocator,
         .output_artifacts = false,
     };
     heightmapNode.init();
@@ -194,7 +194,7 @@ pub fn generate() void {
         var node = g.Node{
             .name = IdLocal.init("Splatmap"),
             .template = splatmapNodeTemplate,
-            .allocator = std.heap.page_allocator,
+            .allocator = allocator,
             .output_artifacts = false,
         };
         node.init();
@@ -214,7 +214,7 @@ pub fn generate() void {
         var node = g.Node{
             .name = IdLocal.init("Heightmap Patch Artifact"),
             .template = patchArtifactNodeTemplate,
-            .allocator = std.heap.page_allocator,
+            .allocator = allocator,
             .output_artifacts = true,
         };
         node.init();
@@ -234,7 +234,7 @@ pub fn generate() void {
         var node = g.Node{
             .name = IdLocal.init("Splatmap Patch Artifact"),
             .template = patchArtifactNodeTemplate,
-            .allocator = std.heap.page_allocator,
+            .allocator = allocator,
             .output_artifacts = true,
         };
         node.init();
@@ -255,7 +255,7 @@ pub fn generate() void {
         var node = g.Node{
             .name = IdLocal.init("City"),
             .template = cityNodeTemplate,
-            .allocator = std.heap.page_allocator,
+            .allocator = allocator,
             .output_artifacts = true,
         };
         node.init();
@@ -272,7 +272,7 @@ pub fn generate() void {
         var node = g.Node{
             .name = IdLocal.init("Forest"),
             .template = forestNodeTemplate,
-            .allocator = std.heap.page_allocator,
+            .allocator = allocator,
             .output_artifacts = true,
         };
         node.init();
@@ -288,7 +288,7 @@ pub fn generate() void {
         var node = g.Node{
             .name = IdLocal.init("props"),
             .template = propsNodeTemplate,
-            .allocator = std.heap.page_allocator,
+            .allocator = allocator,
             .output_artifacts = true,
         };
         node.init();
@@ -321,7 +321,6 @@ pub fn generate() void {
     // var addInputValueB = addNode.getInput(IdLocal.init("valueB"));
     // addInputValueB.reference.set("pcg");
 
-    var allocator = std.heap.page_allocator;
     var graph = g.Graph{
         .nodes = std.ArrayList(g.Node).init(allocator),
     };
