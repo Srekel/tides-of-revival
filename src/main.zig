@@ -27,7 +27,7 @@ pub fn main() void {
     defer options.deinit();
 
     if (options.options.offlinegen) {
-        offline.generate();
+        offline.generate(std.heap.c_allocator);
     } else {
         game.run();
     }
