@@ -69,7 +69,7 @@ def main():
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "c177e1d0b7c7bd7bd78ef75e09df50f4fd0d01b4",
+        "7f69965ab314ad7843ba43fdd499e2e514c2154a",
     )
     # sync_lib(
     #     "zig-flecs",
@@ -83,7 +83,7 @@ def main():
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
-    sync_zig_exe("0.12.0-dev.286+b0d9bb0bb")
+    sync_zig_exe("0.12.0-dev.464+a63a1c5cb")
 
     os.chdir("..")
     print("Done syncing external!")

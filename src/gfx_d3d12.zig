@@ -53,7 +53,7 @@ const MaterialPool = Pool(16, 16, fd.PBRMaterial, struct { obj: fd.PBRMaterial }
 pub const MaterialHandle = MaterialPool.Handle;
 const MaterialHashMap = std.AutoHashMap(IdLocal, MaterialHandle);
 
-pub export const D3D12SDKVersion: u32 = 608;
+pub export const D3D12SDKVersion: u32 = 610;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
 
 pub const Tonemapper = enum(u32) {
