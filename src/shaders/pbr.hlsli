@@ -73,12 +73,15 @@ float3 fresnelSchlickRoughness(float LdotV, float3 F0, float roughness) {
 }
 
 // Lighting
-float3 calculateLightContribution(float3 lightDirection, float3 lightRadiance, float attenuation, float3 albedo, float3 normal, float roughness, float metallic, float3 F0, float3 viewDirection) {
-	float NdotV = max(dot(normal, viewDirection), 1e-4);
+float3 calculateLightContribution(float3 lightDirection, float3 lightRadiance, float attenuation, float3 albedo, float3 normal, float roughness, float metallic, float3 viewDirection) {
 	float3 halfVector = normalize(lightDirection + viewDirection);
+
+	float3 F0 = float3(0.04, 0.04, 0.04);
+	F0 = lerp(F0, albedo, metallic);
 
 	float a = max(roughness * roughness, 0.002025);
 
+	float NdotV = saturate(dot(normal, viewDirection));
 	float NdotL = saturate(dot(normal, lightDirection));
 	float NdotH = saturate(dot(normal, halfVector));
 	float LdotH = saturate(dot(lightDirection, halfVector));

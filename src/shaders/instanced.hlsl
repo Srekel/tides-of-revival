@@ -128,9 +128,9 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     {
         Texture2D arm_texture = ResourceDescriptorHeap[material.arm_texture_index];
         float3 arm = arm_texture.Sample(sam_aniso_wrap, input.uv).rgb;
-        roughness *= arm.g;
-        metallic *= arm.b;
-        occlusion *= arm.r;
+        roughness = arm.g;
+        metallic = arm.b;
+        occlusion = arm.r;
     }
 
     // Normal

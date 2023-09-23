@@ -143,7 +143,7 @@ pub fn createEntities(state: *SystemState) void {
         var light_ent = state.ecsu_world.newEntity();
         light_ent.set(fd.Transform.initFromPosition(.{ .x = pos_x, .y = pos_y + 5, .z = pos_z }));
         light_ent.set(fd.PointLight{
-            .radiance = .{ .r = 4, .g = 2, .b = 1 },
+            .diffuse = .{ .r = 4, .g = 2, .b = 1 },
             .radius = 70.0,
             .falloff = 10.0,
             .max_intensity = 1.0,

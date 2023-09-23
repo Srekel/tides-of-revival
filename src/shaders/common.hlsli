@@ -14,12 +14,12 @@ static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
 
 struct DirectionalLight {
     float3 direction;
-    float3 radiance;
+    float3 diffuse;
 };
 
 struct PointLight {
     float3 position;
-    float3 radiance;
+    float3 diffuse;
     float radius;
     float falloff;
     float max_intensity;
@@ -35,7 +35,7 @@ struct FrameConst {
 struct SceneConst {
     float3 main_light_direction;
     uint point_lights_buffer_index;
-    float3 main_light_radiance;
+    float3 main_light_diffuse;
     uint point_lights_count;
     float prefiltered_env_texture_max_lods;
     uint env_texture_index;

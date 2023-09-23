@@ -525,11 +525,12 @@ pub const WorldPatch = struct {
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
 pub const DirectionalLight = struct {
-    radiance: ColorRGB,
+    diffuse: ColorRGB,
+    intensity: f32,
 };
 
 pub const PointLight = struct {
-    radiance: ColorRGB,
+    diffuse: ColorRGB,
     radius: f32,
     falloff: f32,
     max_intensity: f32,

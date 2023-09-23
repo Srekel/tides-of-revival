@@ -535,7 +535,10 @@ pub fn run() void {
 
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
-    sun_light.set(fd.DirectionalLight{ .radiance = .{ .r = 2.5, .g = 2.5, .b = 2.5 } });
+    sun_light.set(fd.DirectionalLight{
+        .diffuse = .{ .r = 0.5, .g = 0.5, .b = 0.5 },
+        .intensity = 10.0,
+    });
 
     const player_spawn = blk: {
         var builder = ecsu.QueryBuilder.init(ecsu_world);
@@ -588,7 +591,8 @@ pub fn run() void {
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     // const player_pos = fd.Position.init(100, 100, 100);
     const debug_camera_ent = ecsu_world.newEntity();
-    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    // debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    debug_camera_ent.set(fd.Position{ .x = 0, .y = 0, .z = -5 });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
@@ -679,7 +683,7 @@ pub fn run() void {
         .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
     player_camera_ent.set(fd.PointLight{
-        .radiance = .{ .r = 4, .g = 2, .b = 1 },
+        .diffuse = .{ .r = 4, .g = 2, .b = 1 },
         .radius = 10.0,
         .falloff = 5.0,
         .max_intensity = 1.0,

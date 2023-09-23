@@ -47,16 +47,13 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     if (gbuffer_0_sample.a > 0)
     {
         float3 position = getPositionFromDepth(depth, uv, cbv_frame_const.view_projection_inverted);
-        float3 normal = gbuffer_1_sample.xyz;
+        float3 normal = normalize(gbuffer_1_sample.xyz);
         float3 view = normalize(cbv_frame_const.camera_position - position);
 
         float3 albedo = gbuffer_0_sample.rgb;
         float roughness = gbuffer_2_sample.r;
         float metallic = gbuffer_2_sample.g;
         float3 emissive = gbuffer_2_sample.b * gbuffer_0_sample.rgb;
-
-        float3 F0 = float3(0.04, 0.04, 0.04);
-        F0 = lerp(F0, albedo, metallic);
 
         ByteAddressBuffer point_lights_buffer = ResourceDescriptorHeap[cbv_scene_const.point_lights_buffer_index];
 
@@ -66,17 +63,17 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         {
             float attenuation = 1.0;
             float3 L = cbv_scene_const.main_light_direction;
-            Lo += calculateLightContribution(L, cbv_scene_const.main_light_radiance, attenuation, albedo, normal, roughness, metallic, F0, view);
+            Lo += calculateLightContribution(L, cbv_scene_const.main_light_diffuse, attenuation, albedo, normal, roughness, metallic, view);
         }
 
         // Point Lights
-        for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
-        {
-            PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
-            float attenuation = calculatePointLightAttenuation(distance(light.position, position), light.radius, light.max_intensity, light.falloff);
-            float3 L = normalize(light.position - position);
-            Lo += calculateLightContribution(L, light.radiance, attenuation, albedo, normal, roughness, metallic, F0, view);
-        }
+        // for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
+        // {
+        //     PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
+        //     float attenuation = calculatePointLightAttenuation(distance(light.position, position), light.radius, light.max_intensity, light.falloff);
+        //     float3 L = normalize(light.position - position);
+        //     Lo += calculateLightContribution(L, light.diffuse, attenuation, albedo, normal, roughness, metallic, view);
+        // }
 
         // IBL Ambient Light
         {
@@ -84,7 +81,10 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
             TextureCube prefiltered_env_texture = ResourceDescriptorHeap[cbv_scene_const.prefiltered_env_texture_index];
             Texture2D brdf_lut_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
 
-            float NdotV = max(dot(normal, view), 1e-4);
+            float3 F0 = float3(0.04, 0.04, 0.04);
+            F0 = lerp(F0, albedo, metallic);
+
+            float NdotV = saturate(dot(normal, view));
             float3 reflection = reflect(-view, normal);
 
             float3 irradiance = irradiance_texture.Sample(sam_bilinear_clamp, normalize(reflection)).rgb;

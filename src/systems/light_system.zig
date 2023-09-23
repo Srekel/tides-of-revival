@@ -84,11 +84,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     while (entity_iter_directional_lights.next()) |comps| {
         const z_forward = zm.rotate(comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
-        // std.log.debug("Directional light forward: {d:.3}, {d:.3}, {d:.3}\n", .{z_forward[0], z_forward[1], z_forward[2]});
 
         state.gfx.main_light = renderer_types.DirectionalLightGPU{
             .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
-            .radiance = [3]f32{ comps.light.radiance.r, comps.light.radiance.g, comps.light.radiance.b },
+            .diffuse = [3]f32{ comps.light.diffuse.r * comps.light.intensity, comps.light.diffuse.g * comps.light.intensity, comps.light.diffuse.b * comps.light.intensity },
         };
     }
 
@@ -103,7 +102,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         // TODO(gmodarelli): Implement frustum culling
         const point_light = renderer_types.PointLightGPU{
             .position = comps.transform.getPos00(),
-            .radiance = [3]f32{ comps.light.radiance.r, comps.light.radiance.g, comps.light.radiance.b },
+            .diffuse = [3]f32{ comps.light.diffuse.r, comps.light.diffuse.g, comps.light.diffuse.b },
             .radius = comps.light.radius,
             .falloff = comps.light.falloff,
             .max_intensity = comps.light.max_intensity,

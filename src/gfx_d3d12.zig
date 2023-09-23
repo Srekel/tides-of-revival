@@ -86,7 +86,7 @@ pub const TonemapperUniforms = struct {
 pub const SceneUniforms = extern struct {
     main_light_direction: [3]f32,
     point_lights_buffer_index: u32,
-    main_light_radiance: [3]f32,
+    main_light_diffuse: [3]f32,
     point_lights_count: u32,
     prefiltered_env_texture_max_lods: f32,
     env_texture_index: u32,
@@ -1601,7 +1601,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     // Generate IBL textures from HDRI
     {
-        d3d12_state.generateIBLTextures("content/textures/env/belfast_sunset_2k.hdr", arena) catch unreachable;
+        d3d12_state.generateIBLTextures("content/textures/env/Kloppenheim.hdr", arena) catch unreachable;
     }
 
     // BRDF Integration
@@ -1662,7 +1662,7 @@ pub fn beginFrame(state: *D3D12State) void {
     // ImGUI test
     newImGuiFrame(state.stats.delta_time);
 
-    {
+    if (false) {
         gui_renderer.c.igSetNextWindowPos(
             gui_renderer.c.ImVec2{ .x = @as(f32, @floatFromInt(state.gctx.viewport_width)) - 600.0 - 20, .y = 20.0 },
             gui_renderer.c.ImGuiCond_FirstUseEver,
@@ -1772,7 +1772,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         {
             const mem = gctx.allocateUploadMemory(SceneUniforms, 1);
             mem.cpu_slice[0].main_light_direction = state.main_light.direction;
-            mem.cpu_slice[0].main_light_radiance = state.main_light.radiance;
+            mem.cpu_slice[0].main_light_diffuse = state.main_light.diffuse;
             mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
             mem.cpu_slice[0].point_lights_count = point_lights_count;
             mem.cpu_slice[0].prefiltered_env_texture_max_lods = prefiltered_env_texture_num_mip_levels;
