@@ -57,11 +57,6 @@ const MaterialHashMap = std.AutoHashMap(IdLocal, MaterialHandle);
 pub export const D3D12SDKVersion: u32 = 608;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
 
-pub const Tonemapper = enum(u32) {
-    Aces,
-    Reihnard,
-};
-
 pub const RenderTargetsUniforms = struct {
     gbuffer_0_index: u32,
     gbuffer_1_index: u32,
@@ -78,7 +73,17 @@ pub const FrameUniforms = struct {
 
 pub const TonemapperUniforms = struct {
     hdr_texture_index: u32,
-    tonemapper: Tonemapper,
+    bloom_texture_index: u32,
+};
+
+pub const DownsampleUniforms = struct {
+    source_texture_index: u32,
+    source_resolution: [2]f32,
+};
+
+pub const UpsampleBlurUniforms = struct {
+    source_texture_index: u32,
+    filter_radius: f32,
 };
 
 pub const SceneUniforms = extern struct {
@@ -244,6 +249,7 @@ const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalContext, 80);
 pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
     pub const point_lights_count_max: u32 = 1000;
+    pub const downsample_rt_count: u32 = 6;
 
     gctx: zd3d12.GraphicsContext,
     mipgen_rgba16f: zd3d12.MipmapGenerator,
@@ -261,6 +267,7 @@ pub const D3D12State = struct {
     gbuffer_2: RenderTarget,
 
     hdr_rt: RenderTarget,
+    downsample_rts: [downsample_rt_count]RenderTarget,
 
     // NOTE(gmodarelli): just a test, these textures should
     // be loaded by a "sky light" component
@@ -1233,6 +1240,19 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk createRenderTarget(&gctx, &desc);
     };
 
+    var downsample_rts: [D3D12State.downsample_rt_count]RenderTarget = undefined;
+    for (0..D3D12State.downsample_rt_count) |i| {
+        const divisor = std.math.pow(u32, 2, @as(u32, @intCast(i)) + 1);
+        const width = @divFloor(gctx.viewport_width, divisor);
+        const height = @divFloor(gctx.viewport_height, divisor);
+        std.log.debug("{d} -> {d}: ({d}x{d})", .{i, divisor, width, height});
+
+        downsample_rts[i] = blk: {
+            const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, width, height, true, true, L("Scene Color Downsampled"));
+            break :blk createRenderTarget(&gctx, &desc);
+        };
+    }
+
     var pipelines = PipelineHashMap.init(allocator);
 
     const tonemapping_pipeline = blk: {
@@ -1252,6 +1272,63 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             &pso_desc,
             "shaders/tonemapping.vs.cso",
             "shaders/tonemapping.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
+    };
+
+    const downsample_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R16G16B16A16_FLOAT;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DepthStencilState.DepthEnable = 0;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        const pso_handle = gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/downsample.vs.cso",
+            "shaders/downsample.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
+    };
+
+    const upsample_blur_pipeline = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R16G16B16A16_FLOAT;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DepthStencilState.DepthEnable = 0;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.BlendState.RenderTarget[0].BlendEnable = w32.TRUE;
+        pso_desc.BlendState.RenderTarget[0].SrcBlend = .ONE;
+        pso_desc.BlendState.RenderTarget[0].DestBlend = .ONE;
+        pso_desc.BlendState.RenderTarget[0].BlendOp = .ADD;
+        pso_desc.BlendState.RenderTarget[0].SrcBlendAlpha = .ONE;
+        pso_desc.BlendState.RenderTarget[0].DestBlendAlpha = .ONE;
+        pso_desc.BlendState.RenderTarget[0].BlendOpAlpha = .ADD;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        const pso_handle = gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/upsample_blur.vs.cso",
+            "shaders/upsample_blur.ps.cso",
         );
 
         // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
@@ -1425,6 +1502,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     );
 
     pipelines.put(IdLocal.init("tonemapping"), PipelineInfo{ .pipeline_handle = tonemapping_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("downsample"), PipelineInfo{ .pipeline_handle = downsample_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("upsample_blur"), PipelineInfo{ .pipeline_handle = upsample_blur_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
@@ -1481,6 +1560,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_1 = gbuffer_1,
         .gbuffer_2 = gbuffer_2,
         .hdr_rt = hdr_rt,
+        .downsample_rts = undefined,
         .env_texture = undefined,
         .irradiance_texture = undefined,
         .prefiltered_env_texture = undefined,
@@ -1500,6 +1580,10 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .point_lights_buffers = undefined,
         .point_lights_count = [D3D12State.num_buffered_frames]u32{ 0, 0 },
     };
+
+    for (0..D3D12State.downsample_rt_count) |i| {
+        d3d12_state.downsample_rts[i] = downsample_rts[i];
+    }
 
     d3d12_state.point_lights_buffers = blk: {
         var buffers: [D3D12State.num_buffered_frames]BufferHandle = undefined;
@@ -1601,7 +1685,24 @@ pub fn beginFrame(state: *D3D12State) void {
     gctx.addTransitionBarrier(state.hdr_rt.resource_handle, .{ .RENDER_TARGET = true });
     gctx.addTransitionBarrier(state.depth_rt.resource_handle, .{ .DEPTH_WRITE = true });
     gctx.flushResourceBarriers();
+
     bindGBuffer(state);
+
+    gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+        .TopLeftX = 0.0,
+        .TopLeftY = 0.0,
+        .Width = @floatFromInt(state.gbuffer_0.width),
+        .Height = @floatFromInt(state.gbuffer_0.height),
+        .MinDepth = 0.0,
+        .MaxDepth = 1.0,
+    }});
+
+    gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+        .left = 0,
+        .top = 0,
+        .right = @as(c_long, @intCast(state.gbuffer_0.width)),
+        .bottom = @as(c_long, @intCast(state.gbuffer_0.height)),
+    }});
 }
 
 pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [3]f32) void {
@@ -1609,6 +1710,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
     var skybox_mesh = state.lookupMesh(state.skybox_mesh);
     if (skybox_mesh) |mesh| {
+
+        const skybox_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Skybox");
         zpix.beginEvent(gctx.cmdlist, "Skybox");
         {
             const pipeline_info = state.getPipeline(IdLocal.init("skybox"));
@@ -1653,6 +1756,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             );
         }
         zpix.endEvent(gctx.cmdlist);
+        state.gpu_profiler.endProfile(gctx.cmdlist, skybox_profiler_index, gctx.frame_index);
     }
 
     zpix.endEvent(gctx.cmdlist); // End GBuffer event
@@ -1665,6 +1769,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     const view_projection_inverted = zm.inverse(view_projection);
 
     // Deferred Lighting
+    const deferred_lighting_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Deferred Lighting");
     zpix.beginEvent(gctx.cmdlist, "Deferred Lighting");
     {
         gctx.addTransitionBarrier(state.gbuffer_0.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
@@ -1721,15 +1826,137 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
     }
     zpix.endEvent(gctx.cmdlist);
+    state.gpu_profiler.endProfile(gctx.cmdlist, deferred_lighting_profiler_index, gctx.frame_index);
+
+    // Bloom
+    const bloom_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Bloom");
+    zpix.beginEvent(gctx.cmdlist, "Bloom");
+    {
+        // Downsample
+        zpix.beginEvent(gctx.cmdlist, "Downsample");
+        {
+            const pipeline_info = state.getPipeline(IdLocal.init("downsample"));
+            gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+            for (0..D3D12State.downsample_rt_count) |i| {
+                const source = if (i == 0) state.hdr_rt else state.downsample_rts[i - 1];
+
+                gctx.addTransitionBarrier(state.downsample_rts[i].resource_handle, .{ .RENDER_TARGET = true });
+                gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+                gctx.flushResourceBarriers();
+
+                gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+                    .TopLeftX = 0.0,
+                    .TopLeftY = 0.0,
+                    .Width = @floatFromInt(state.downsample_rts[i].width),
+                    .Height = @floatFromInt(state.downsample_rts[i].height),
+                    .MinDepth = 0.0,
+                    .MaxDepth = 1.0,
+                }});
+
+                gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+                    .left = 0,
+                    .top = 0,
+                    .right = @as(c_long, @intCast(state.downsample_rts[i].width)),
+                    .bottom = @as(c_long, @intCast(state.downsample_rts[i].height)),
+                }});
+
+                gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+                gctx.cmdlist.OMSetRenderTargets(
+                    1,
+                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.downsample_rts[i].descriptor},
+                    w32.TRUE,
+                    null,
+                );
+
+                const mem = gctx.allocateUploadMemory(DownsampleUniforms, 1);
+                mem.cpu_slice[0].source_texture_index = source.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+                gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+            }
+        }
+        zpix.endEvent(gctx.cmdlist);
+
+        // Upsample+Blur
+        zpix.beginEvent(gctx.cmdlist, "Upsample and Blur");
+        {
+            const pipeline_info = state.getPipeline(IdLocal.init("upsample_blur"));
+            gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+            var i: u32 = D3D12State.downsample_rt_count - 1;
+            while (i > 0) : (i -= 1) {
+                const source = state.downsample_rts[i];
+                const target = state.downsample_rts[i - 1];
+
+                gctx.addTransitionBarrier(target.resource_handle, .{ .RENDER_TARGET = true });
+                gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+                gctx.flushResourceBarriers();
+
+                gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+                    .TopLeftX = 0.0,
+                    .TopLeftY = 0.0,
+                    .Width = @floatFromInt(target.width),
+                    .Height = @floatFromInt(target.height),
+                    .MinDepth = 0.0,
+                    .MaxDepth = 1.0,
+                }});
+
+                gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+                    .left = 0,
+                    .top = 0,
+                    .right = @as(c_long, @intCast(target.width)),
+                    .bottom = @as(c_long, @intCast(target.height)),
+                }});
+
+                gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+                gctx.cmdlist.OMSetRenderTargets(
+                    1,
+                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.descriptor},
+                    w32.TRUE,
+                    null,
+                );
+
+                const mem = gctx.allocateUploadMemory(UpsampleBlurUniforms, 1);
+                mem.cpu_slice[0].source_texture_index = source.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].filter_radius = 0.005;
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+                gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+            }
+        }
+        zpix.endEvent(gctx.cmdlist);
+    }
+    zpix.endEvent(gctx.cmdlist);
+    state.gpu_profiler.endProfile(gctx.cmdlist, bloom_profiler_index, gctx.frame_index);
 
     // Tonemapping
+    const tonemapping_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Tonemapping");
     zpix.beginEvent(gctx.cmdlist, "Tonemapping");
     {
         const back_buffer = gctx.getBackBuffer();
 
         gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
         gctx.addTransitionBarrier(state.hdr_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.downsample_rts[0].resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
         gctx.flushResourceBarriers();
+
+        gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+            .TopLeftX = 0.0,
+            .TopLeftY = 0.0,
+            .Width = @floatFromInt(gctx.viewport_width),
+            .Height = @floatFromInt(gctx.viewport_height),
+            .MinDepth = 0.0,
+            .MaxDepth = 1.0,
+        }});
+
+        gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+            .left = 0,
+            .top = 0,
+            .right = @as(c_long, @intCast(gctx.viewport_width)),
+            .bottom = @as(c_long, @intCast(gctx.viewport_height)),
+        }});
 
         gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
         gctx.cmdlist.OMSetRenderTargets(
@@ -1749,13 +1976,14 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
         const mem = gctx.allocateUploadMemory(TonemapperUniforms, 1);
-        mem.cpu_slice[0].tonemapper = .Aces;
         mem.cpu_slice[0].hdr_texture_index = state.hdr_rt.srv_persistent_descriptor.index;
+        mem.cpu_slice[0].bloom_texture_index = state.downsample_rts[0].srv_persistent_descriptor.index;
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
     }
     zpix.endEvent(gctx.cmdlist);
+    state.gpu_profiler.endProfile(gctx.cmdlist, tonemapping_profiler_index, gctx.frame_index);
 
     zpix.endEvent(gctx.cmdlist); // Event: Render Scene
     state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);

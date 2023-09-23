@@ -9,7 +9,7 @@ SamplerState sam_aniso_clamp : register(s0);
 
 struct DrawConst {
     uint hdr_texture_index;
-    uint tonemapping_function;
+    uint bloom_texture_index;
 };
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
@@ -46,8 +46,11 @@ FullscreenTriangleOutput vsFullscreenTriangle(uint vertexID : SV_VertexID)
 float4 psTonemapping(FullscreenTriangleOutput input) : SV_Target
 {
     Texture2D hdr_texture = ResourceDescriptorHeap[cbv_draw_const.hdr_texture_index];
+    Texture2D bloom_texture = ResourceDescriptorHeap[cbv_draw_const.bloom_texture_index];
 
-    float3 hdr_sample = hdr_texture.Sample(sam_aniso_clamp, input.uv).rgb;
-    float3 color = acesApprox(hdr_sample);
+    float3 scene_color = hdr_texture.Sample(sam_aniso_clamp, input.uv).rgb;
+    float3 bloom_color = bloom_texture.Sample(sam_aniso_clamp, input.uv).rgb;
+    scene_color = lerp(scene_color, bloom_color, 0.04);
+    float3 color = acesApprox(scene_color);
     return float4(gamma(color), 1.0);
 }

@@ -210,6 +210,16 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "psTonemapping", "tonemapping.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
+    dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "vsFullscreenTriangle", "downsample.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "psDownsample", "downsample.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
+    dxc_command = makeDxcCmd("src/shaders/upsample_blur.hlsl", "vsFullscreenTriangle", "upsample_blur.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/upsample_blur.hlsl", "psUpsampleBlur", "upsample_blur.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "vsInstanced", "instanced.vs.cso", "vs", "PSO__INSTANCED");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/instanced.hlsl", "psInstanced", "instanced.ps.cso", "ps", "PSO__INSTANCED");
