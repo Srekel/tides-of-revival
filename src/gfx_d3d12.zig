@@ -14,8 +14,6 @@ const zd3d12 = @import("zd3d12");
 const dds_loader = zwin32.dds_loader;
 const zglfw = @import("zglfw");
 const profiler_module = @import("renderer/d3d12/profiler.zig");
-const gui_renderer = @import("gui_renderer.zig");
-const GuiRenderer = gui_renderer.GuiRenderer;
 const Pool = @import("zpool").Pool;
 const IdLocal = @import("variant.zig").IdLocal;
 const IdLocalContext = @import("variant.zig").IdLocalContext;
@@ -194,48 +192,6 @@ const prefiltered_env_texture_resolution = 256;
 const prefiltered_env_texture_num_mip_levels = 6;
 const brdf_integration_texture_resolution = 512;
 
-const GuiBackendState = struct {
-    window: ?w32.HWND,
-    mouse_window: ?w32.HWND,
-    mouse_tracked: bool,
-    mouse_buttons_down: u32,
-};
-
-fn isVkKeyDown(vk: c_int) bool {
-    return (@as(u16, @bitCast(w32.GetKeyState(vk))) & 0x8000) != 0;
-}
-
-pub fn newImGuiFrame(delta_time: f32) void {
-    assert(gui_renderer.c.igGetCurrentContext() != null);
-
-    var ui = gui_renderer.c.igGetIO().?;
-    var ui_backend = @as(*GuiBackendState, @ptrCast(@alignCast(ui.*.BackendPlatformUserData)));
-    assert(ui_backend.*.window != null);
-
-    var rect: w32.RECT = undefined;
-    _ = w32.GetClientRect(ui_backend.*.window.?, &rect);
-    const viewport_width = @as(f32, @floatFromInt(rect.right - rect.left));
-    const viewport_height = @as(f32, @floatFromInt(rect.bottom - rect.top));
-
-    ui.*.DisplaySize = gui_renderer.c.ImVec2{ .x = viewport_width, .y = viewport_height };
-    ui.*.DeltaTime = delta_time;
-    gui_renderer.c.igNewFrame();
-
-    if (gui_renderer.c.igIsKeyDown(gui_renderer.c.ImGuiKey_LeftShift) and !isVkKeyDown(w32.VK_LSHIFT)) {
-        gui_renderer.c.ImGuiIO_AddKeyEvent(ui, gui_renderer.c.ImGuiKey_LeftShift, false);
-    }
-    if (gui_renderer.c.igIsKeyDown(gui_renderer.c.ImGuiKey_RightShift) and !isVkKeyDown(w32.VK_RSHIFT)) {
-        gui_renderer.c.ImGuiIO_AddKeyEvent(ui, gui_renderer.c.ImGuiKey_RightShift, false);
-    }
-
-    if (gui_renderer.c.igIsKeyDown(gui_renderer.c.ImGuiKey_LeftSuper) and !isVkKeyDown(w32.VK_LWIN)) {
-        gui_renderer.c.ImGuiIO_AddKeyEvent(ui, gui_renderer.c.ImGuiKey_LeftSuper, false);
-    }
-    if (gui_renderer.c.igIsKeyDown(gui_renderer.c.ImGuiKey_LeftSuper) and !isVkKeyDown(w32.VK_RWIN)) {
-        gui_renderer.c.ImGuiIO_AddKeyEvent(ui, gui_renderer.c.ImGuiKey_RightSuper, false);
-    }
-}
-
 pub const FrameStats = struct {
     time: f64,
     delta_time: f32,
@@ -293,7 +249,6 @@ pub const D3D12State = struct {
     mipgen_rgba16f: zd3d12.MipmapGenerator,
     gpu_profiler: Profiler,
     gpu_frame_profiler_index: u64 = undefined,
-    guir: GuiRenderer,
 
     stats: FrameStats,
     stats_brush: *d2d1.ISolidColorBrush,
@@ -1228,34 +1183,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     var gctx = zd3d12.GraphicsContext.init(allocator, @as(w32.HWND, @ptrCast(hwnd)));
 
-    // NOTE(gmodarelli): we need to be in a frame to initialize ImGUI.
-    gctx.beginFrame();
-
-    assert(gui_renderer.c.igGetCurrentContext() == null);
-    _ = gui_renderer.c.igCreateContext(null);
-
-    var ui = gui_renderer.c.igGetIO().?;
-    assert(ui.*.BackendPlatformUserData == null);
-
-    const ui_backend = allocator.create(GuiBackendState) catch unreachable;
-    errdefer allocator.destroy(ui_backend);
-    ui_backend.* = .{
-        .window = null,
-        .mouse_window = null,
-        .mouse_tracked = false,
-        .mouse_buttons_down = 0,
-    };
-
-    ui.*.BackendPlatformUserData = ui_backend;
-    ui.*.BackendFlags |= gui_renderer.c.ImGuiBackendFlags_RendererHasVtxOffset;
-
-    var guir = GuiRenderer.init(arena, &gctx, 1);
-
-    ui_backend.*.window = @as(w32.HWND, @ptrCast(hwnd));
-    gui_renderer.c.igGetStyle().?.*.WindowRounding = 0.0;
-
-    gctx.endFrame();
-
     // Enable vsync.
     gctx.present_flags = .{ .ALLOW_TEARING = false };
     gctx.present_interval = 1;
@@ -1542,7 +1469,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gctx = gctx,
         .mipgen_rgba16f = undefined,
         .gpu_profiler = gpu_profiler,
-        .guir = guir,
         .stats = FrameStats.init(),
         .stats_brush = stats_brush,
         .stats_text_format = stats_text_format,
@@ -1620,12 +1546,6 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     self.gctx.finishGpuCommands();
 
-    var ui = gui_renderer.c.igGetIO().?;
-    assert(ui.*.BackendPlatformUserData != null);
-    allocator.destroy(@as(*GuiBackendState, @ptrCast(@alignCast(ui.*.BackendPlatformUserData))));
-    gui_renderer.c.igDestroyContext(null);
-    self.guir.deinit(&self.gctx);
-
     self.gpu_profiler.deinit();
     self.releaseAllTextures();
 
@@ -1660,24 +1580,6 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 pub fn beginFrame(state: *D3D12State) void {
     // Update frame counter and fps stats.
     state.stats.update();
-
-    // ImGUI test
-    newImGuiFrame(state.stats.delta_time);
-
-    if (false) {
-        gui_renderer.c.igSetNextWindowPos(
-            gui_renderer.c.ImVec2{ .x = @as(f32, @floatFromInt(state.gctx.viewport_width)) - 600.0 - 20, .y = 20.0 },
-            gui_renderer.c.ImGuiCond_FirstUseEver,
-            gui_renderer.c.ImVec2{ .x = 0.0, .y = 0.0 },
-        );
-        gui_renderer.c.igSetNextWindowSize(gui_renderer.c.ImVec2{ .x = 600.0, .y = 0.0 }, gui_renderer.c.ImGuiCond_FirstUseEver);
-        _ = gui_renderer.c.igBegin(
-            "Hello ImGUI!",
-            null,
-            gui_renderer.c.ImGuiWindowFlags_NoMove | gui_renderer.c.ImGuiWindowFlags_NoResize | gui_renderer.c.ImGuiWindowFlags_NoSavedSettings,
-        );
-        gui_renderer.c.igEnd();
-    }
 
     var gctx = &state.gctx;
 
@@ -1854,13 +1756,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
     state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
 
-    // Render ImGUI
-    {
-        state.guir.draw(gctx);
-    }
-
     // GPU Stats Pass
-    if (false)
     {
         const back_buffer = gctx.getBackBuffer();
         gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
