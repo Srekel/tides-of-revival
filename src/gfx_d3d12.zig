@@ -93,6 +93,8 @@ pub const SceneUniforms = extern struct {
     irradiance_texture_index: u32,
     prefiltered_env_texture_index: u32,
     brdf_integration_texture_index: u32,
+    ambient_light_intensity: f32,
+    padding: [2]f32,
 };
 
 pub const DrawCall = struct {
@@ -1780,6 +1782,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].irradiance_texture_index = state.irradiance_texture.persistent_descriptor.index;
             mem.cpu_slice[0].prefiltered_env_texture_index = state.prefiltered_env_texture.persistent_descriptor.index;
             mem.cpu_slice[0].brdf_integration_texture_index = brdf_texture.?.persistent_descriptor.index;
+            mem.cpu_slice[0].ambient_light_intensity = 0.2;
             gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
         }
 

@@ -42,7 +42,8 @@ struct SceneConst {
     uint irradiance_texture_index;
     uint prefiltered_env_texture_index;
     uint brdf_integration_texture_index;
-    float3 _padding;
+    float ambient_light_intensity;
+    float2 _padding;
 };
 
 struct FullscreenTriangleOutput {

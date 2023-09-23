@@ -67,13 +67,16 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         }
 
         // Point Lights
-        // for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
-        // {
-        //     PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
-        //     float attenuation = calculatePointLightAttenuation(distance(light.position, position), light.radius, light.max_intensity, light.falloff);
-        //     float3 L = normalize(light.position - position);
-        //     Lo += calculateLightContribution(L, light.diffuse, attenuation, albedo, normal, roughness, metallic, view);
-        // }
+        for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
+        {
+            PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
+            float d = distance(light.position, position);
+            float attenuation = calculatePointLightAttenuation(d, light.radius, light.max_intensity, light.falloff);
+            if (attenuation > 0.0) {
+                float3 L = normalize(light.position - position);
+                Lo += calculateLightContribution(L, light.diffuse, attenuation, albedo, normal, roughness, metallic, view);
+            }
+        }
 
         // IBL Ambient Light
         {
@@ -100,7 +103,7 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
             float3 diffuse = kD * irradiance * albedo;
             float3 specular = prefilteredEnvColor * (F * brdfLUT.x + brdfLUT.y);
 
-            float3 ambient = diffuse + specular;
+            float3 ambient = (diffuse + specular) * cbv_scene_const.ambient_light_intensity;
             Lo += ambient;
         }
 
@@ -118,9 +121,9 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
 }
 
 // https://lisyarus.github.io/blog/graphics/2022/07/30/point-light-attenuation.html
-float calculatePointLightAttenuation(float distance, float radius, float max_intensity, float falloff)
+float calculatePointLightAttenuation(float d, float radius, float max_intensity, float falloff)
 {
-	float s = distance / radius;
+	float s = d / radius;
 
 	if (s >= 1.0)
 		return 0.0;
