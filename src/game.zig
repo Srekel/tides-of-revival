@@ -591,8 +591,7 @@ pub fn run() void {
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     // const player_pos = fd.Position.init(100, 100, 100);
     const debug_camera_ent = ecsu_world.newEntity();
-    // debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
-    debug_camera_ent.set(fd.Position{ .x = 0, .y = 0, .z = -5 });
+    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
