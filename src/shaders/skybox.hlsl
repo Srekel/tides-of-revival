@@ -48,6 +48,7 @@ GBufferTargets psSkybox(
     gbuffer.albedo = 0;
     gbuffer.normal = float4(uvw, 0.0);
     gbuffer.material = float4(0.0, 0.0, 0.0, 1.0);
+    gbuffer.scene_color = float4(0.0, 0.0, 0.0, 0.0);
 
     return gbuffer;
 }

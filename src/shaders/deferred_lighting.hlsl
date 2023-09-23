@@ -109,14 +109,15 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
 
         float3 color = Lo;
 
-        hdr_texture[dispatch_id.xy] = float4(color, 1.0);
+        hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, color), 1.0);
     }
     else
     {
         TextureCube environment_texture = ResourceDescriptorHeap[cbv_scene_const.env_texture_index];
         float3 normal = gbuffer_1_sample.xyz;
         float3 env = environment_texture.SampleLevel(sam_bilinear_clamp, normal, 0).rgb;
-        hdr_texture[dispatch_id.xy] = float4(clamp(env, 0, 32767.0f), 1.0);
+        env = clamp(env, 0, 32767.0f);
+        hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, env), 1.0);
     }
 }
 

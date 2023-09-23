@@ -1214,22 +1214,22 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     };
 
     const gbuffer_0 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT0_Albedo"));
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("Albedo"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_1 = blk: {
-        const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT1_Normal"));
+        const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("World Normal"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const gbuffer_2 = blk: {
-        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 1.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("RT2_PBR"));
+        const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 1.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("Material"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
     const hdr_rt = blk: {
-        const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("HDR_RT"));
+        const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Scene Color"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
@@ -1269,7 +1269,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.NumRenderTargets = 3;
+        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
@@ -1297,7 +1298,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.NumRenderTargets = 3;
+        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
@@ -1326,7 +1328,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.NumRenderTargets = 3;
+        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
@@ -1368,7 +1371,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.NumRenderTargets = 3;
+        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.RasterizerState.CullMode = .FRONT;
@@ -1594,6 +1598,7 @@ pub fn beginFrame(state: *D3D12State) void {
     gctx.addTransitionBarrier(state.gbuffer_0.resource_handle, .{ .RENDER_TARGET = true });
     gctx.addTransitionBarrier(state.gbuffer_1.resource_handle, .{ .RENDER_TARGET = true });
     gctx.addTransitionBarrier(state.gbuffer_2.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.addTransitionBarrier(state.hdr_rt.resource_handle, .{ .RENDER_TARGET = true });
     gctx.addTransitionBarrier(state.depth_rt.resource_handle, .{ .DEPTH_WRITE = true });
     gctx.flushResourceBarriers();
     bindGBuffer(state);
@@ -1870,11 +1875,12 @@ pub fn bindGBuffer(state: *D3D12State) void {
     assert(gctx.is_cmdlist_opened);
 
     gctx.cmdlist.OMSetRenderTargets(
-        3,
+        4,
         &[_]d3d12.CPU_DESCRIPTOR_HANDLE{
             state.gbuffer_0.descriptor,
             state.gbuffer_1.descriptor,
             state.gbuffer_2.descriptor,
+            state.hdr_rt.descriptor,
         },
         w32.FALSE,
         &state.depth_rt.descriptor,
@@ -1897,6 +1903,13 @@ pub fn bindGBuffer(state: *D3D12State) void {
     gctx.cmdlist.ClearRenderTargetView(
         state.gbuffer_2.descriptor,
         &state.gbuffer_2.clear_value.u.Color,
+        0,
+        null,
+    );
+
+    gctx.cmdlist.ClearRenderTargetView(
+        state.hdr_rt.descriptor,
+        &state.hdr_rt.clear_value.u.Color,
         0,
         null,
     );

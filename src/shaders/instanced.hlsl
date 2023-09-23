@@ -42,11 +42,11 @@ struct InstanceMaterial {
     float roughness;
     float metallic;
     float normal_intensity;
+    float emissive_strength;
     uint albedo_texture_index;
     uint emissive_texture_index;
     uint normal_texture_index;
     uint arm_texture_index;
-    uint padding;
 };
 
 ConstantBuffer<DrawConst> cbv_draw_const : register(b0);
@@ -148,19 +148,18 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     }
 
     // Emission
-    float emission = 0.0f;
+    float3 emissive = 0.0;
     if (has_valid_texture(material.emissive_texture_index))
     {
         Texture2D emissive_texture = ResourceDescriptorHeap[material.emissive_texture_index];
-        float3 emissive_color = emissive_texture.Sample(sam_aniso_wrap, input.uv).rgb;
-        emission = luminance(emissive_color);
-        albedo.rgb += emissive_color;
+        emissive = emissive_texture.Sample(sam_aniso_wrap, input.uv).rgb * material.emissive_strength;
     }
 
     GBufferTargets gbuffer;
     gbuffer.albedo = albedo;
     gbuffer.normal = float4(normal, 0.0);
-    gbuffer.material = float4(roughness, metallic, emission, occlusion);
+    gbuffer.material = float4(roughness, metallic, 0.0, occlusion);
+    gbuffer.scene_color = float4(emissive, 0.0);
     return gbuffer;
 }
 
@@ -192,7 +191,8 @@ GBufferTargets psFrustumDebug(InstancedVertexOut input) {
     GBufferTargets gbuffer;
     gbuffer.albedo = albedo;
     gbuffer.normal = float4(normal, 0.0);
-    gbuffer.material = float4(roughness, metallic, emission, occlusion);
+    gbuffer.material = float4(roughness, metallic, 0.0, occlusion);
+    gbuffer.scene_color = float4(0.0, 0.0, 0.0, 0.0);
     return gbuffer;
 }
 #endif
