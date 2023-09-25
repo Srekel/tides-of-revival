@@ -1,14 +1,14 @@
 #include "common.hlsli"
 
 #define ROOT_SIGNATURE \
-    "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
     "CBV(b0), " \
-    "StaticSampler(s0, filter = FILTER_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_PIXEL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP)"
+    "DescriptorTable(SRV(t0), visibility = SHADER_VISIBILITY_PIXEL), " \
+    "StaticSampler(s0, filter = FILTER_MIN_MAG_LINEAR_MIP_POINT, visibility = SHADER_VISIBILITY_PIXEL, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP)"
 
+Texture2D source_texture : register(t0);
 SamplerState sam_linear_clamp : register(s0);
 
 struct DrawConst {
-    uint source_texture_index;
     float filter_radius;
 };
 
@@ -29,36 +29,41 @@ FullscreenTriangleOutput vsFullscreenTriangle(uint vertexID : SV_VertexID)
 [RootSignature(ROOT_SIGNATURE)]
 float4 psUpsampleBlur(FullscreenTriangleOutput input) : SV_Target
 {
-    // The filter kernel is applied with a radius, specified in texture
-    // coordinates, so that the radius will vary across mip resolutions.
-    float x = cbv_draw_const.filter_radius;
-    float y = cbv_draw_const.filter_radius;
-    Texture2D source_texture = ResourceDescriptorHeap[cbv_draw_const.source_texture_index];
+    float offsetX = cbv_draw_const.filter_radius;
+    float offsetY = cbv_draw_const.filter_radius;
 
-    // Take 9 samples around current texel:
-    // a - b - c
-    // d - e - f
-    // g - h - i
-    // === ('e' is the current texel) ===
-    float4 a = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - x, input.uv.y + y));
-    float4 b = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,     input.uv.y + y));
-    float4 c = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + x, input.uv.y + y));
+    // Take 9 samples around the current texel (cc):
+    //
+    // tl tt tr
+    // ll cc rr
+    // bl bb br
+    //
+    // Convention:
+    // - cc: current
+    // - tl: top left (etc)
+    // - br: bottom right (etc)
 
-    float4 d = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - x, input.uv.y));
-    float4 e = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,     input.uv.y));
-    float4 f = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + x, input.uv.y));
+    // clang-format off
+    float4 tl = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - offsetX, input.uv.y + offsetY));
+    float4 tt = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,           input.uv.y + offsetY));
+    float4 tr = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + offsetX, input.uv.y + offsetY));
 
-    float4 g = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - x, input.uv.y - y));
-    float4 h = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,     input.uv.y - y));
-    float4 i = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + x, input.uv.y - y));
+    float4 ll = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - offsetX, input.uv.y          ));
+    float4 cc = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,           input.uv.y          ));
+    float4 rr = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + offsetX, input.uv.y          ));
+
+    float4 bl = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - offsetX, input.uv.y - offsetY));
+    float4 bb = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,           input.uv.y - offsetY));
+    float4 br = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + offsetX, input.uv.y - offsetY));
+    // clang-format on
 
     // Apply weighted distribution by using a 3x3 tent filter:
-    //  1   | 1 2 1 |
-    // -- * | 2 4 2 |
-    // 16   | 1 2 1 |
-    float4 upsample_blur = e * 4.0;
-    upsample_blur += (b + d + f + h) * 2.0;
-    upsample_blur += (a + c + g + i);
+    // | 1 2 1 |
+    // | 2 4 2 | * 1/16
+    // | 1 2 1 |
+    float4 upsample_blur = cc * 4.0;
+    upsample_blur += (tt + ll + rr + bb) * 2.0;
+    upsample_blur += (tl + tr + bl + br) * 1.0;
     upsample_blur *= 1.0 / 16.0;
 
     return upsample_blur;

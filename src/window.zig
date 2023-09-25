@@ -33,7 +33,7 @@ pub fn deinit() void {
 pub fn createWindow(title: [:0]const u8) !*zglfw.Window {
     // const shareWindow = if (windows.items.len > 0) windows.items[0] else null;
     // const shareWindow = if (windows.items.len > 10000) windows.items[0] else null;
-    const window = try zglfw.Window.create(1600, 1000, title, null);
+    const window = try zglfw.Window.create(1920, 1080, title, null);
 
     try windows.append(.{
         .window = window,

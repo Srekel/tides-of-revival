@@ -97,7 +97,7 @@ float3 calculateLightContribution(float3 lightDirection, float3 lightRadiance, f
 	float3 diffuseColor = (1.0 - metallic) * albedo;
 	float3 diffuse = diffuseColor / PI;
 
-	return saturate((diffuse * lightRadiance + specular * lightRadiance) * NdotL * attenuation);
+	return (diffuse * lightRadiance + specular * lightRadiance) * NdotL * attenuation;
 }
 
 #endif // __PBR_HLSL__

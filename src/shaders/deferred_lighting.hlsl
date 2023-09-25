@@ -74,7 +74,7 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
             float attenuation = calculatePointLightAttenuation(d, light.radius, light.max_intensity, light.falloff);
             if (attenuation > 0.0) {
                 float3 L = normalize(light.position - position);
-                Lo += calculateLightContribution(L, light.diffuse, attenuation, albedo, normal, roughness, metallic, view);
+                // Lo += calculateLightContribution(L, light.diffuse, attenuation, albedo, normal, roughness, metallic, view);
             }
         }
 

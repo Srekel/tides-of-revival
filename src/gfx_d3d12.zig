@@ -77,12 +77,11 @@ pub const TonemapperUniforms = struct {
 };
 
 pub const DownsampleUniforms = struct {
-    source_texture_index: u32,
     source_resolution: [2]f32,
+    mip_level: u32,
 };
 
 pub const UpsampleBlurUniforms = struct {
-    source_texture_index: u32,
     filter_radius: f32,
 };
 
@@ -126,6 +125,7 @@ pub const RenderTargetDesc = struct {
     flags: d3d12.RESOURCE_FLAGS,
     initial_state: d3d12.RESOURCE_STATES,
     clear_value: d3d12.CLEAR_VALUE,
+    // mip_levels: u32,
     srv: bool,
     uav: bool,
     name: [*:0]const u16,
@@ -249,7 +249,7 @@ const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalContext, 80);
 pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
     pub const point_lights_count_max: u32 = 1000;
-    pub const downsample_rt_count: u32 = 6;
+    pub const downsample_rt_count: u32 = 10;
 
     gctx: zd3d12.GraphicsContext,
     mipgen_rgba16f: zd3d12.MipmapGenerator,
@@ -1248,7 +1248,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         std.log.debug("{d} -> {d}: ({d}x{d})", .{i, divisor, width, height});
 
         downsample_rts[i] = blk: {
-            const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, width, height, true, true, L("Scene Color Downsampled"));
+            const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, width, height, true, false, L("Scene Color Downsampled"));
             break :blk createRenderTarget(&gctx, &desc);
         };
     }
@@ -1319,9 +1319,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.BlendState.RenderTarget[0].SrcBlend = .ONE;
         pso_desc.BlendState.RenderTarget[0].DestBlend = .ONE;
         pso_desc.BlendState.RenderTarget[0].BlendOp = .ADD;
-        pso_desc.BlendState.RenderTarget[0].SrcBlendAlpha = .ONE;
-        pso_desc.BlendState.RenderTarget[0].DestBlendAlpha = .ONE;
-        pso_desc.BlendState.RenderTarget[0].BlendOpAlpha = .ADD;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
@@ -1839,17 +1836,18 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
             for (0..D3D12State.downsample_rt_count) |i| {
+                const target = state.downsample_rts[i];
                 const source = if (i == 0) state.hdr_rt else state.downsample_rts[i - 1];
 
-                gctx.addTransitionBarrier(state.downsample_rts[i].resource_handle, .{ .RENDER_TARGET = true });
+                gctx.addTransitionBarrier(target.resource_handle, .{ .RENDER_TARGET = true });
                 gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
                 gctx.flushResourceBarriers();
 
                 gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
                     .TopLeftX = 0.0,
                     .TopLeftY = 0.0,
-                    .Width = @floatFromInt(state.downsample_rts[i].width),
-                    .Height = @floatFromInt(state.downsample_rts[i].height),
+                    .Width = @floatFromInt(target.width),
+                    .Height = @floatFromInt(target.height),
                     .MinDepth = 0.0,
                     .MaxDepth = 1.0,
                 }});
@@ -1857,22 +1855,23 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
                     .left = 0,
                     .top = 0,
-                    .right = @as(c_long, @intCast(state.downsample_rts[i].width)),
-                    .bottom = @as(c_long, @intCast(state.downsample_rts[i].height)),
+                    .right = @as(c_long, @intCast(target.width)),
+                    .bottom = @as(c_long, @intCast(target.height)),
                 }});
 
                 gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
                 gctx.cmdlist.OMSetRenderTargets(
                     1,
-                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.downsample_rts[i].descriptor},
+                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.descriptor},
                     w32.TRUE,
                     null,
                 );
 
                 const mem = gctx.allocateUploadMemory(DownsampleUniforms, 1);
-                mem.cpu_slice[0].source_texture_index = source.srv_persistent_descriptor.index;
                 mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
+                mem.cpu_slice[0].mip_level = @intCast(i);
                 gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_persistent_descriptor.cpu_handle));
 
                 gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
             }
@@ -1919,9 +1918,9 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 );
 
                 const mem = gctx.allocateUploadMemory(UpsampleBlurUniforms, 1);
-                mem.cpu_slice[0].source_texture_index = source.srv_persistent_descriptor.index;
                 mem.cpu_slice[0].filter_radius = 0.005;
                 gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_persistent_descriptor.cpu_handle));
 
                 gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
             }
