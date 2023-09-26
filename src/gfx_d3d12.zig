@@ -82,7 +82,8 @@ pub const DownsampleUniforms = struct {
 };
 
 pub const UpsampleBlurUniforms = struct {
-    filter_radius: f32,
+    source_resolution: [2]f32,
+    sample_scale: f32,
 };
 
 pub const SceneUniforms = extern struct {
@@ -1614,7 +1615,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
     // Generate IBL textures from HDRI
     {
-        d3d12_state.generateIBLTextures("content/textures/env/Kloppenheim.hdr", arena) catch unreachable;
+        d3d12_state.generateIBLTextures("content/textures/env/belfast_sunset_2k.hdr", arena) catch unreachable;
     }
 
     // BRDF Integration
@@ -1791,7 +1792,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].irradiance_texture_index = state.irradiance_texture.persistent_descriptor.index;
             mem.cpu_slice[0].prefiltered_env_texture_index = state.prefiltered_env_texture.persistent_descriptor.index;
             mem.cpu_slice[0].brdf_integration_texture_index = brdf_texture.?.persistent_descriptor.index;
-            mem.cpu_slice[0].ambient_light_intensity = 0.2;
+            mem.cpu_slice[0].ambient_light_intensity = 1.0;
             gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
         }
 
@@ -1918,7 +1919,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 );
 
                 const mem = gctx.allocateUploadMemory(UpsampleBlurUniforms, 1);
-                mem.cpu_slice[0].filter_radius = 0.005;
+                mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
+                mem.cpu_slice[0].sample_scale = 1.0;
                 gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
                 gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_persistent_descriptor.cpu_handle));
 

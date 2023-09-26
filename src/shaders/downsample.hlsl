@@ -26,70 +26,48 @@ FullscreenTriangleOutput vsFullscreenTriangle(uint vertexID : SV_VertexID)
     return output;
 }
 
+// Better, temporally stable box filtering
+// [Jimenez14] http://goo.gl/eomGso
+// . . . . . . .
+// . A . B . C .
+// . . D . E . .
+// . F . G . H .
+// . . I . J . .
+// . K . L . M .
+// . . . . . . .
+float4 downsampleBox13Tap(Texture2D texture, SamplerState samplerState, float2 uv, float2 texelSize)
+{
+    float4 A = texture.Sample(samplerState, uv + texelSize * float2(-1.0, -1.0));
+    float4 B = texture.Sample(samplerState, uv + texelSize * float2( 0.0, -1.0));
+    float4 C = texture.Sample(samplerState, uv + texelSize * float2( 1.0, -1.0));
+    float4 D = texture.Sample(samplerState, uv + texelSize * float2(-0.5, -0.5));
+    float4 E = texture.Sample(samplerState, uv + texelSize * float2( 0.5, -0.5));
+    float4 F = texture.Sample(samplerState, uv + texelSize * float2(-1.0,  0.0));
+    float4 G = texture.Sample(samplerState, uv                                 );
+    float4 H = texture.Sample(samplerState, uv + texelSize * float2( 1.0,  0.0));
+    float4 I = texture.Sample(samplerState, uv + texelSize * float2(-0.5,  0.5));
+    float4 J = texture.Sample(samplerState, uv + texelSize * float2( 0.5,  0.5));
+    float4 K = texture.Sample(samplerState, uv + texelSize * float2(-1.0,  1.0));
+    float4 L = texture.Sample(samplerState, uv + texelSize * float2( 0.0,  1.0));
+    float4 M = texture.Sample(samplerState, uv + texelSize * float2( 1.0,  1.0));
+
+    float2 div = (1.0 / 4.0) * float2(0.5, 0.125);
+
+    float4 o = (D + E + I + J) * div.x;
+    o += (A + B + G + F) * div.y;
+    o += (B + C + H + G) * div.y;
+    o += (F + G + L + K) * div.y;
+    o += (G + H + M + L) * div.y;
+
+    return o;
+}
+
 // Based on Call of Duty 2014 ACM Siggraph Paper
 [RootSignature(ROOT_SIGNATURE)]
 float4 psDownsample(FullscreenTriangleOutput input) : SV_Target
 {
-    float2 source_texel_size = 1.0 / cbv_draw_const.source_resolution;
-
-    // Determine texel size.
-    // When rendering from one mip level to another mip of the same texture,
-    // calling code should use GL_TEXTURE_BASE_LEVEL and GL_TEXTURE_MAX_LEVEL to
-    // limit the textures that can be sampled from. When doing this,
-    // textureSize(..., 0) will correctly use the BASE mip level.
-    float offsetX = source_texel_size.x;
-    float offsetY = source_texel_size.y;
-
-    // Take 13 samples around the current texel (ccc):
-    //
-    // etl --- ett --- etr
-    // --- itl --- itr ---
-    // ell --- ccc --- err
-    // --- ibl --- ibr ---
-    // ebl --- ebb --- ebr
-    //
-    // Convention:
-    // - ccc: current
-    // - itl: interior top left (etc)
-    // - ebr: exterior bottom right (etc)
-
-    // clang-format off
-    float4 etl = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - 2 * offsetX, input.uv.y + 2 * offsetY));
-    float4 ett = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,               input.uv.y + 2 * offsetY));
-    float4 etr = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + 2 * offsetX, input.uv.y + 2 * offsetY));
-
-    float4 ell = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - 2 * offsetX, input.uv.y              ));
-    float4 ccc = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,               input.uv.y              ));
-    float4 err = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + 2 * offsetX, input.uv.y              ));
-
-    float4 ebl = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - 2 * offsetX, input.uv.y - 2 * offsetY));
-    float4 ebb = source_texture.Sample(sam_linear_clamp, float2(input.uv.x,               input.uv.y - 2 * offsetY));
-    float4 ebr = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + 2 * offsetX, input.uv.y - 2 * offsetY));
-
-    float4 itl = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - offsetX, input.uv.y + offsetY));
-    float4 itr = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + offsetX, input.uv.y + offsetY));
-    float4 ibl = source_texture.Sample(sam_linear_clamp, float2(input.uv.x - offsetX, input.uv.y - offsetY));
-    float4 ibr = source_texture.Sample(sam_linear_clamp, float2(input.uv.x + offsetX, input.uv.y - offsetY));
-    // clang-format on
-
-    // We want to weigh the sample amongst 5 square regions:
-    // - 50% weight for 1 center region comprised of itl,itr,ibl,ibr (including
-    //   the current texel).
-    // - 12.5% weight each for 4 regions around the corners (for example, the
-    //   top-left region of etl,ett,ell,ccc)
-    //
-    // However, if we just add up the samples naively, we'll double-count since
-    // the regions overlap. To preserve energy, since each region is comprised of
-    // exactly 5 samples, we redistribute the weights between all samples such
-    // that:
-    //   sample_weight =
-    //       sum((region_weight / 5) for each region that sample is in)
-    //
-    // This yields the following distribution. The weights all add up to 1.
-    float4 downsample = ccc * 0.2;
-    downsample += (itl + itr + ibl + ibr) * 0.125;
-    downsample += (ett + ell + err + ebb) * 0.05;
-    downsample += (etl + etr + ebl + ebr) * 0.025;
+    float2 texelSize = 1.0 / cbv_draw_const.source_resolution;
+    float4 downsample = downsampleBox13Tap(source_texture, sam_linear_clamp, input.uv, texelSize);
 
     if (cbv_draw_const.mip_level == 0) {
         downsample = max(downsample, 0.00001);
