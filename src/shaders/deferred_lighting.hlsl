@@ -1,5 +1,4 @@
-#include "common.hlsli"
-#include "pbr.hlsli"
+#include "lighting.hlsli"
 
 #define root_signature \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
@@ -15,8 +14,6 @@ ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 
 SamplerState sam_aniso_clamp : register(s0);
 SamplerState sam_bilinear_clamp : register(s1);
-
-float calculatePointLightAttenuation(float distance, float radius, float max_intensity, float falloff);
 
 [RootSignature(root_signature)]
 [numthreads(8, 8, 1)]
@@ -52,63 +49,67 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
         float3 view = normalize(cbv_frame_const.camera_position - position);
 
         float3 albedo = gbuffer_0_sample.rgb;
-        float roughness = gbuffer_2_sample.r;
         float metallic = gbuffer_2_sample.g;
-        float3 emissive = gbuffer_2_sample.b * gbuffer_0_sample.rgb;
+        float3 f0 = float3(0.04, 0.04, 0.04);
 
-        ByteAddressBuffer point_lights_buffer = ResourceDescriptorHeap[cbv_scene_const.point_lights_buffer_index];
+        float3 diffuseColor = albedo * (float3(1.0, 1.0, 1.0) - f0) * (1.0 - metallic);
+        float3 specularColor = lerp(f0, albedo, metallic);
 
-        float3 Lo = float3(0.0, 0.0, 0.0);
+        float perceptualRoughness = saturate(gbuffer_2_sample.r);
+        float alphaRoughness = perceptualRoughness * perceptualRoughness;
 
-        // Main Directional Light
+        float3 specularEnvironmentR0 = specularColor;
+        float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
+        float3 specularEnvironmentR90 = float3(1.0, 1.0, 1.0) * clamp(reflectance * 50.0, 0.0, 1.0);
+
+        MaterialInfo materialInfo = {
+            perceptualRoughness,
+            specularEnvironmentR0,
+            alphaRoughness,
+            diffuseColor,
+            specularEnvironmentR90,
+            specularColor
+        };
+
+        float3 color = float3(0.0, 0.0, 0.0);
+
+        // TODO(gmodarelli): Use a buffer of main lights
+        // Main Light
         {
-            float attenuation = 1.0;
-            float3 L = cbv_scene_const.main_light_direction;
-            Lo += calculateLightContribution(L, cbv_scene_const.main_light_diffuse, attenuation, albedo, normal, roughness, metallic, view);
+            DirectionalLight light = {
+                cbv_scene_const.main_light_direction,
+                cbv_scene_const.main_light_color,
+                cbv_scene_const.main_light_intensity,
+            };
+
+            color += applyDirectionalLight(light, materialInfo, normal, view);
         }
 
         // Point Lights
+        ByteAddressBuffer point_lights_buffer = ResourceDescriptorHeap[cbv_scene_const.point_lights_buffer_index];
         for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
         {
             PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
-            float d = distance(light.position, position);
-            float attenuation = calculatePointLightAttenuation(d, light.radius, light.max_intensity, light.falloff);
-            if (attenuation > 0.0) {
-                float3 L = normalize(light.position - position);
-                // Lo += calculateLightContribution(L, light.diffuse, attenuation, albedo, normal, roughness, metallic, view);
-            }
+            color += applyPointLight(light, materialInfo, normal, position, view);
         }
 
         // IBL Ambient Light
         {
-            TextureCube irradiance_texture = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
-            TextureCube prefiltered_env_texture = ResourceDescriptorHeap[cbv_scene_const.prefiltered_env_texture_index];
-            Texture2D brdf_lut_texture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
-
-            float3 F0 = float3(0.04, 0.04, 0.04);
-            F0 = lerp(F0, albedo, metallic);
-
-            float NdotV = saturate(dot(normal, view));
-            float3 reflection = reflect(-view, normal);
-
-            float3 irradiance = irradiance_texture.Sample(sam_bilinear_clamp, normalize(reflection)).rgb;
-            float mipLevel = roughness * cbv_scene_const.prefiltered_env_texture_max_lods;
-            float3 prefilteredEnvColor = prefiltered_env_texture.SampleLevel(sam_bilinear_clamp,reflection, mipLevel).rgb;
-            float2 brdfLUT = brdf_lut_texture.Sample(sam_bilinear_clamp, float2(NdotV, roughness)).rg;
-
-            float3 F = fresnelSchlickRoughness(NdotV, F0, roughness);
-            float3 kS = F;
-            float3 kD = 1.0 - kS;
-            kD *= 1.0 - metallic;
-
-            float3 diffuse = kD * irradiance * albedo;
-            float3 specular = prefilteredEnvColor * (F * brdfLUT.x + brdfLUT.y);
-
-            float3 ambient = (diffuse + specular) * cbv_scene_const.ambient_light_intensity;
-            Lo += ambient;
+            TextureCube diffuseCube = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
+            TextureCube specularCube = ResourceDescriptorHeap[cbv_scene_const.prefiltered_env_texture_index];
+            Texture2D brdfTexture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
+            float mipCount = cbv_scene_const.prefiltered_env_texture_max_lods;
+            color += getIBLContribution(
+                materialInfo,
+                normal,
+                view,
+                mipCount,
+                diffuseCube,
+                specularCube,
+                brdfTexture,
+                sam_bilinear_clamp
+            ) * cbv_scene_const.ambient_light_intensity;
         }
-
-        float3 color = Lo;
 
         hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, color), 1.0);
     }
@@ -116,21 +117,7 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     {
         TextureCube environment_texture = ResourceDescriptorHeap[cbv_scene_const.env_texture_index];
         float3 env = environment_texture.SampleLevel(sam_bilinear_clamp, normal, 0).rgb;
-        env = clamp(env, 0, 32767.0f);
+        // env = clamp(env, 0, 32767.0f);
         hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, env), 1.0);
     }
-}
-
-// https://lisyarus.github.io/blog/graphics/2022/07/30/point-light-attenuation.html
-float calculatePointLightAttenuation(float d, float radius, float max_intensity, float falloff)
-{
-	float s = d / radius;
-
-	if (s >= 1.0)
-		return 0.0;
-
-	float s2 = s * s;
-    float one_minus_s2 = 1 - s2;
-
-	return max_intensity * (one_minus_s2 * one_minus_s2) / (1 + falloff * s);
 }

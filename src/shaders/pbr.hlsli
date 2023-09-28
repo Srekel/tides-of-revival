@@ -3,6 +3,7 @@
 
 #include "utils.hlsli"
 #include "constants.hlsli"
+#include "common.hlsli"
 
 // PBR Sampling
 //
@@ -27,77 +28,53 @@ float3 importanceSampleGgx(float2 Xi, float roughness, float3 normal) {
 	return normalize(mul(halfVector, TBN));
 }
 
-// Microfacet model
-//
-// Returns the GGX microfacet distribution function.
-//
-float distributionGGX(float NdotH, float a) {
-	float a2 = a * a;
-	float f = (NdotH * a2 - NdotH) * NdotH + 1.0;
-	return a2 / (PI * f * f);
+// Lambert lighting
+// see https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
+float3 diffuse(MaterialInfo materialInfo)
+{
+    return materialInfo.diffuseColor / PI;
 }
 
-//
-// Returns the geometric visibility term based on the Smith-GGX approximation.
-// This is the shadowing-masking term used in Cook-Torrance microfacet models.
-// This formulation cancels out the standard BRDF denominator (4 * NdotV *
-// NdotL).
-// https://google.github.io/filament/Filament.html#materialsystem/specularbrdf/geometricshadowing(specularg)
-//
-float visibilitySmithGGXCorrelated(float NdotV, float NdotL, float a) {
-	float a2 = a * a;
-	float GGXV = NdotL * sqrt((NdotV - NdotV * a2) * NdotV + a2);
-	float GGXL = NdotV * sqrt((NdotL - NdotL * a2) * NdotL + a2);
-	return 0.5 / (GGXV + GGXL);
+// The following equation models the Fresnel reflectance term of the spec equation (aka F())
+// Implementation of fresnel from [4], Equation 15
+float3 specularReflection(MaterialInfo materialInfo, AngularInfo angularInfo)
+{
+    return materialInfo.reflectance0 + (materialInfo.reflectace90 - materialInfo.reflectance0) * pow(clamp(1.0 - angularInfo.VdotH, 0.0, 1.0), 5.0);
 }
 
-//
-// Returns Schlick's approximation of the Fresnel factor.
-//   F(w_i, h) = F0 + (1 - F0) * (1 - (w_i • h))^5
-// where F0 is the surface reflectance at zero incidence.
-// https://en.wikipedia.org/wiki/Schlick%27s_approximation
-//
-float3 fresnelSchlick(float LdotH, float3 F0) {
-	return F0 + (float3(1.0, 1.0, 1.0) - F0) * pow(1.0 - LdotH, 5.0);
+// Smith Joint GGX
+// Note: Vis = G / (4 * NdotL * NdotV)
+// see Eric Heitz. 2014. Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs. Journal of Computer Graphics Techniques, 3
+// see Real-Time Rendering. Page 331 to 336.
+// see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/geometricshadowing(specularg)
+float visibilityOcclusion(float NdotL, float NdotV, float alphaRoughness)
+{
+    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
+
+    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+
+    float GGX = GGXV + GGXL;
+    if (GGX > 0.0)
+    {
+        return 0.5 / GGX;
+    }
+    return 0.0;
 }
 
-//
-// A variant of Schlick's approximation that takes a roughness "fudge factor".
-// Meant to be used when computing the Fresnel factor on a prefiltered map (i.e.
-// a color that is actually sampled from many directions, not just 1).
-// https://seblagarde.wordpress.com/2011/08/17/hello-world/
-//
-float3 fresnelSchlickRoughness(float LdotV, float3 F0, float roughness) {
-	float oneMinusRoughness = 1.0 - roughness;
-	return F0 + (max(float3(oneMinusRoughness, oneMinusRoughness, oneMinusRoughness), F0) - F0) * pow(1.0 - LdotV, 5.0);
+float visibilityOcclusion(MaterialInfo materialInfo, AngularInfo angularInfo)
+{
+	return visibilityOcclusion(angularInfo.NdotL, angularInfo.NdotV, materialInfo.alphaRoughness);
 }
 
-// Lighting
-float3 calculateLightContribution(float3 lightDirection, float3 lightRadiance, float attenuation, float3 albedo, float3 normal, float roughness, float metallic, float3 viewDirection) {
-	float3 halfVector = normalize(lightDirection + viewDirection);
-
-	float3 F0 = float3(0.04, 0.04, 0.04);
-	F0 = lerp(F0, albedo, metallic);
-
-	float a = max(roughness * roughness, 0.002025);
-
-	float NdotV = saturate(dot(normal, viewDirection));
-	float NdotL = saturate(dot(normal, lightDirection));
-	float NdotH = saturate(dot(normal, halfVector));
-	float LdotH = saturate(dot(lightDirection, halfVector));
-
-	float D = distributionGGX(NdotH, a);
-	float3 F = fresnelSchlick(LdotH, F0);
-	float V = visibilitySmithGGXCorrelated(NdotV, NdotL, a);
-
-	// Specular BRDF
-	float3 specular = (D * V) * F;
-
-	// Diffuse BRDF (Lambertian)
-	float3 diffuseColor = (1.0 - metallic) * albedo;
-	float3 diffuse = diffuseColor / PI;
-
-	return (diffuse * lightRadiance + specular * lightRadiance) * NdotL * attenuation;
+// The following equation(s) model the distribution of microfacet normals across the area being drawn (aka D())
+// Implementation from "Average Irregularity Representation of a Roughened Surface for Ray Reflection" by T. S. Trowbridge, and K. P. Reitz
+// Follows the distribution function recommended in the SIGGRAPH 2013 course notes from EPIC Games [1], Equation 3.
+float microfacetDistribution(MaterialInfo materialInfo, AngularInfo angularInfo)
+{
+    float alphaRoughnessSq = materialInfo.alphaRoughness * materialInfo.alphaRoughness;
+    float f = (angularInfo.NdotH * alphaRoughnessSq - angularInfo.NdotH) * angularInfo.NdotH + 1.0;
+    return alphaRoughnessSq / (PI * f * f + 0.000001f);
 }
 
 #endif // __PBR_HLSL__

@@ -87,7 +87,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
         state.gfx.main_light = renderer_types.DirectionalLightGPU{
             .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
-            .diffuse = [3]f32{ comps.light.diffuse.r * comps.light.intensity, comps.light.diffuse.g * comps.light.intensity, comps.light.diffuse.b * comps.light.intensity },
+            .color = [3]f32{ comps.light.color.r, comps.light.color.g, comps.light.color.b },
+            .intensity = comps.light.intensity,
         };
     }
 
@@ -102,10 +103,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         // TODO(gmodarelli): Implement frustum culling
         const point_light = renderer_types.PointLightGPU{
             .position = comps.transform.getPos00(),
-            .diffuse = [3]f32{ comps.light.diffuse.r, comps.light.diffuse.g, comps.light.diffuse.b },
-            .radius = comps.light.radius,
-            .falloff = comps.light.falloff,
-            .max_intensity = comps.light.max_intensity,
+            .range = comps.light.range,
+            .color = [3]f32{ comps.light.color.r, comps.light.color.g, comps.light.color.b },
+            .intensity = comps.light.intensity,
         };
 
         state.point_lights.append(point_light) catch unreachable;

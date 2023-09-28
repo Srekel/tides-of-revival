@@ -31,7 +31,7 @@ float2 integrateBrdf(float NdotV, float roughness) {
             const float HdotV = saturate(dot(halfVector, viewDir));
 
             float a = roughness * roughness;
-            const float V = visibilitySmithGGXCorrelated(NdotV, NdotL, a);
+            const float V = visibilityOcclusion(NdotV, NdotL, a);
             const float g_vis = (4.0 * V * HdotV * NdotL) / NdotH;
             const float fc = pow(1.0 - HdotV, 5.0);
 
