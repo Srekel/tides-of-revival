@@ -66,6 +66,14 @@ struct GBufferTargets {
     float4 scene_color : SV_Target3;    // R16G16B16A16_FLOAT
 };
 
+float3 packNormal(float3 normal) {
+    return (normal + 1.0) * 0.5;
+}
+
+float3 unpackNormal(float3 normal) {
+    return normal * 2.0 - 1.0;
+}
+
 bool has_valid_texture(uint texture_index) { return texture_index != INVALID_TEXTURE_INDEX; }
 
 float3 gamma(float3 color) { return pow(color, 1.0f / GAMMA); }

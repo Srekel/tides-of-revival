@@ -157,7 +157,7 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
 
     GBufferTargets gbuffer;
     gbuffer.albedo = albedo;
-    gbuffer.normal = float4(normal, 0.0);
+    gbuffer.normal = float4(packNormal(normal), 0.0);
     gbuffer.material = float4(roughness, metallic, 0.0, occlusion);
     gbuffer.scene_color = float4(emissive, 0.0);
     return gbuffer;
@@ -190,7 +190,7 @@ GBufferTargets psFrustumDebug(InstancedVertexOut input) {
 
     GBufferTargets gbuffer;
     gbuffer.albedo = albedo;
-    gbuffer.normal = float4(normal, 0.0);
+    gbuffer.normal = float4(packNormal(normal), 0.0);
     gbuffer.material = float4(roughness, metallic, 0.0, occlusion);
     gbuffer.scene_color = float4(0.0, 0.0, 0.0, 0.0);
     return gbuffer;

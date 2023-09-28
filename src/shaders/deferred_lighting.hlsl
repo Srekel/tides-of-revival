@@ -44,10 +44,11 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     float4 gbuffer_1_sample = gbuffer_1.SampleLevel(sam_aniso_clamp, uv, 0);
     float4 gbuffer_2_sample = gbuffer_2.SampleLevel(sam_aniso_clamp, uv, 0);
 
+    float3 normal = normalize(unpackNormal(gbuffer_1_sample.xyz));
+
     if (gbuffer_0_sample.a > 0)
     {
         float3 position = getPositionFromDepth(depth, uv, cbv_frame_const.view_projection_inverted);
-        float3 normal = normalize(gbuffer_1_sample.xyz);
         float3 view = normalize(cbv_frame_const.camera_position - position);
 
         float3 albedo = gbuffer_0_sample.rgb;
@@ -114,7 +115,6 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     else
     {
         TextureCube environment_texture = ResourceDescriptorHeap[cbv_scene_const.env_texture_index];
-        float3 normal = gbuffer_1_sample.xyz;
         float3 env = environment_texture.SampleLevel(sam_bilinear_clamp, normal, 0).rgb;
         env = clamp(env, 0, 32767.0f);
         hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, env), 1.0);
