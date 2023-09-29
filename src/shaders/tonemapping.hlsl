@@ -34,7 +34,8 @@ float4 psTonemapping(FullscreenTriangleOutput input) : SV_Target
 
     float3 scene_color = hdr_texture.Sample(sam_aniso_clamp, input.uv).rgb;
     float3 bloom_color = bloom_texture.Sample(sam_aniso_clamp, input.uv).rgb;
-    scene_color = lerp(scene_color, bloom_color, 0.004);
+    // NOTE(gmodarelli): The lerp value should be 0.004
+    scene_color = lerp(scene_color, bloom_color, 0.008);
     float3 color = AMDTonemapper(scene_color);
     return float4(gamma(color), 1.0);
 }

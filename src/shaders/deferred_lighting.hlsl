@@ -117,7 +117,7 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     {
         TextureCube environment_texture = ResourceDescriptorHeap[cbv_scene_const.env_texture_index];
         float3 env = environment_texture.SampleLevel(sam_bilinear_clamp, normal, 0).rgb;
-        // env = clamp(env, 0, 32767.0f);
+        env = clamp(env, 0, FLOAT_16_MAX);
         hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, env), 1.0);
     }
 }
