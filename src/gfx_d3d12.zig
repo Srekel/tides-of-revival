@@ -111,7 +111,8 @@ pub const DrawCall = struct {
 
 pub const RenderTarget = struct {
     resource_handle: zd3d12.ResourceHandle,
-    descriptor: d3d12.CPU_DESCRIPTOR_HANDLE,
+    rtv_dsv_descriptor: d3d12.CPU_DESCRIPTOR_HANDLE,
+    srv_descriptor: d3d12.CPU_DESCRIPTOR_HANDLE,
     srv_persistent_descriptor: zd3d12.PersistentDescriptor,
     uav_persistent_descriptor: zd3d12.PersistentDescriptor,
     format: dxgi.FORMAT,
@@ -889,10 +890,7 @@ pub const D3D12State = struct {
     pub fn releaseAllTextures(self: *D3D12State) void {
         var live_handles = self.texture_pool.liveHandles();
         while (live_handles.next()) |handle| {
-            var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch {
-                std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
-                continue;
-            };
+            var texture = self.lookupTexture(handle);
 
             if (texture) |t| {
                 if (t.resource != null) {
@@ -916,6 +914,10 @@ pub const D3D12State = struct {
     }
 
     pub inline fn lookupTexture(self: *D3D12State, handle: TextureHandle) ?*Texture {
+        if (handle.id == TextureHandle.nil.id) {
+            return null;
+        }
+
         var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch blk: {
             std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
             break :blk null;
@@ -1865,7 +1867,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
                 gctx.cmdlist.OMSetRenderTargets(
                     1,
-                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.descriptor},
+                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.rtv_dsv_descriptor},
                     w32.TRUE,
                     null,
                 );
@@ -1874,7 +1876,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
                 mem.cpu_slice[0].mip_level = @intCast(i);
                 gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_persistent_descriptor.cpu_handle));
+                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_descriptor));
 
                 gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
             }
@@ -1915,7 +1917,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
                 gctx.cmdlist.OMSetRenderTargets(
                     1,
-                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.descriptor},
+                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.rtv_dsv_descriptor},
                     w32.TRUE,
                     null,
                 );
@@ -1924,7 +1926,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
                 mem.cpu_slice[0].sample_scale = 1.0;
                 gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_persistent_descriptor.cpu_handle));
+                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_descriptor));
 
                 gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
             }
@@ -2108,44 +2110,44 @@ pub fn bindGBuffer(state: *D3D12State) void {
     gctx.cmdlist.OMSetRenderTargets(
         4,
         &[_]d3d12.CPU_DESCRIPTOR_HANDLE{
-            state.gbuffer_0.descriptor,
-            state.gbuffer_1.descriptor,
-            state.gbuffer_2.descriptor,
-            state.hdr_rt.descriptor,
+            state.gbuffer_0.rtv_dsv_descriptor,
+            state.gbuffer_1.rtv_dsv_descriptor,
+            state.gbuffer_2.rtv_dsv_descriptor,
+            state.hdr_rt.rtv_dsv_descriptor,
         },
         w32.FALSE,
-        &state.depth_rt.descriptor,
+        &state.depth_rt.rtv_dsv_descriptor,
     );
 
     gctx.cmdlist.ClearRenderTargetView(
-        state.gbuffer_0.descriptor,
+        state.gbuffer_0.rtv_dsv_descriptor,
         &state.gbuffer_0.clear_value.u.Color,
         0,
         null,
     );
 
     gctx.cmdlist.ClearRenderTargetView(
-        state.gbuffer_1.descriptor,
+        state.gbuffer_1.rtv_dsv_descriptor,
         &state.gbuffer_1.clear_value.u.Color,
         0,
         null,
     );
 
     gctx.cmdlist.ClearRenderTargetView(
-        state.gbuffer_2.descriptor,
+        state.gbuffer_2.rtv_dsv_descriptor,
         &state.gbuffer_2.clear_value.u.Color,
         0,
         null,
     );
 
     gctx.cmdlist.ClearRenderTargetView(
-        state.hdr_rt.descriptor,
+        state.hdr_rt.rtv_dsv_descriptor,
         &state.hdr_rt.clear_value.u.Color,
         0,
         null,
     );
 
-    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.descriptor, .{ .DEPTH = true }, 0.0, 0, 0, null);
+    gctx.cmdlist.ClearDepthStencilView(state.depth_rt.rtv_dsv_descriptor, .{ .DEPTH = true }, 0.0, 0, 0, null);
 }
 
 pub fn bindBackBuffer(state: *D3D12State) void {
@@ -2180,7 +2182,7 @@ pub fn bindHDRTarget(state: *D3D12State) void {
 
     gctx.cmdlist.OMSetRenderTargets(
         1,
-        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.hdr_rt.descriptor},
+        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.hdr_rt.rtv_dsv_descriptor},
         w32.TRUE,
         null,
     );
@@ -2232,17 +2234,17 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
 
     _ = gctx.lookupResource(resource).?.SetName(rt_desc.name);
 
-    var descriptor: d3d12.CPU_DESCRIPTOR_HANDLE = undefined;
+    var rtv_dsv_descriptor: d3d12.CPU_DESCRIPTOR_HANDLE = undefined;
     // TODO(gmodarelli): support multiple depth formats
     if (rt_desc.format == .D32_FLOAT) {
-        descriptor = gctx.allocateCpuDescriptors(.DSV, 1);
+        rtv_dsv_descriptor = gctx.allocateCpuDescriptors(.DSV, 1);
         gctx.device.CreateDepthStencilView(
             gctx.lookupResource(resource).?,
             null,
-            descriptor,
+            rtv_dsv_descriptor,
         );
     } else {
-        descriptor = gctx.allocateCpuDescriptors(.RTV, 1);
+        rtv_dsv_descriptor = gctx.allocateCpuDescriptors(.RTV, 1);
         gctx.device.CreateRenderTargetView(
             gctx.lookupResource(resource).?,
             &d3d12.RENDER_TARGET_VIEW_DESC{
@@ -2255,7 +2257,29 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
                     },
                 },
             },
-            descriptor,
+            rtv_dsv_descriptor,
+        );
+    }
+
+    var srv_descriptor = gctx.allocateCpuDescriptors(.CBV_SRV_UAV, 1);
+    {
+        const srv_format = getDepthFormatSRV(rt_desc.format);
+        gctx.device.CreateShaderResourceView(
+            gctx.lookupResource(resource).?,
+            &d3d12.SHADER_RESOURCE_VIEW_DESC{
+                .Format = srv_format,
+                .ViewDimension = .TEXTURE2D,
+                .Shader4ComponentMapping = d3d12.DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .u = .{
+                    .Texture2D = .{
+                        .MostDetailedMip = 0,
+                        .MipLevels = 1,
+                        .PlaneSlice = 0,
+                        .ResourceMinLODClamp = 0.0,
+                    },
+                },
+            },
+            srv_descriptor,
         );
     }
 
@@ -2299,7 +2323,8 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
 
     return .{
         .resource_handle = resource,
-        .descriptor = descriptor,
+        .rtv_dsv_descriptor = rtv_dsv_descriptor,
+        .srv_descriptor = srv_descriptor,
         .srv_persistent_descriptor = srv_persistent_descriptor,
         .uav_persistent_descriptor = uav_persistent_descriptor,
         .format = rt_desc.format,
