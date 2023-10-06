@@ -38,11 +38,11 @@ const InstanceMaterial = struct {
     roughness: f32,
     metallic: f32,
     normal_intensity: f32,
+    emissive_strength: f32,
     albedo_texture_index: u32,
     emissive_texture_index: u32,
     normal_texture_index: u32,
     arm_texture_index: u32,
-    padding: u32,
 };
 
 const DrawCallInfo = struct {
@@ -274,16 +274,24 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                         }
                     };
 
+                    const emissive = blk: {
+                        if (state.gfx.lookupTexture(material.emissive)) |emissive| {
+                            break :blk emissive.persistent_descriptor.index;
+                        } else {
+                            break :blk invalid_texture_index;
+                        }
+                    };
+
                     state.instance_materials.append(.{
                         .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
                         .roughness = material.roughness,
                         .metallic = material.metallic,
-                        .normal_intensity = 1.0,
+                        .normal_intensity = material.normal_intensity,
+                        .emissive_strength = material.emissive_strength,
                         .albedo_texture_index = albedo,
-                        .emissive_texture_index = invalid_texture_index,
+                        .emissive_texture_index = emissive,
                         .normal_texture_index = normal,
                         .arm_texture_index = arm,
-                        .padding = 42,
                     }) catch unreachable;
                 } else {
                     state.instance_materials.append(.{
@@ -291,11 +299,11 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                         .roughness = 1.0,
                         .metallic = 0.0,
                         .normal_intensity = 1.0,
+                        .emissive_strength = 1.0,
                         .albedo_texture_index = invalid_texture_index,
                         .emissive_texture_index = invalid_texture_index,
                         .normal_texture_index = invalid_texture_index,
                         .arm_texture_index = invalid_texture_index,
-                        .padding = 42,
                     }) catch unreachable;
                 }
             }

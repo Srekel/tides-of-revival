@@ -333,6 +333,8 @@ pub const PBRMaterial = struct {
     base_color: ColorRGB,
     metallic: f32,
     roughness: f32,
+    normal_intensity: f32,
+    emissive_strength: f32,
     albedo: TextureHandle,
     normal: TextureHandle,
     arm: TextureHandle,
@@ -341,8 +343,10 @@ pub const PBRMaterial = struct {
     pub fn init() PBRMaterial {
         return .{
             .base_color = ColorRGB.init(1, 1, 1),
-            .roughness = 1,
+            .roughness = 0.5,
             .metallic = 0,
+            .normal_intensity = 1.0,
+            .emissive_strength = 1.0,
             .albedo = TextureHandle.nil,
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
@@ -355,6 +359,8 @@ pub const PBRMaterial = struct {
             .base_color = base_color,
             .roughness = roughness,
             .metallic = metallic,
+            .normal_intensity = 1.0,
+            .emissive_strength = 1.0,
             .albedo = TextureHandle.nil,
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
@@ -525,14 +531,14 @@ pub const WorldPatch = struct {
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
 pub const DirectionalLight = struct {
-    radiance: ColorRGB,
+    color: ColorRGB,
+    intensity: f32,
 };
 
 pub const PointLight = struct {
-    radiance: ColorRGB,
-    radius: f32,
-    falloff: f32,
-    max_intensity: f32,
+    color: ColorRGB,
+    range: f32,
+    intensity: f32,
 };
 
 // ███████╗███████╗███╗   ███╗

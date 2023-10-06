@@ -203,18 +203,6 @@ pub const PrefabManager = struct {
         } else {
             var pbr_material = fd.PBRMaterial.init();
 
-            const base_color_texture = material.pbr_metallic_roughness.base_color_texture.texture.?.image.?.*;
-            const base_color_texture_path = util.fromCStringToStringSlice(base_color_texture.uri.?);
-            pbr_material.albedo = gfxstate.scheduleLoadTexture(base_color_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&base_color_texture_path)) }, arena) catch unreachable;
-
-            const metallic_roughness_texture = material.pbr_metallic_roughness.metallic_roughness_texture.texture.?.image.?.*;
-            const metallic_roughness_texture_path = util.fromCStringToStringSlice(metallic_roughness_texture.uri.?);
-            pbr_material.arm = gfxstate.scheduleLoadTexture(metallic_roughness_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&metallic_roughness_texture_path)) }, arena) catch unreachable;
-
-            const normal_texture = material.normal_texture.texture.?.image.?.*;
-            const normal_texture_path = util.fromCStringToStringSlice(normal_texture.uri.?);
-            pbr_material.normal = gfxstate.scheduleLoadTexture(normal_texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = @as([*:0]const u16, @ptrCast(&normal_texture_path)) }, arena) catch unreachable;
-
             pbr_material.base_color = fd.ColorRGB.init(
                 material.pbr_metallic_roughness.base_color_factor[0],
                 material.pbr_metallic_roughness.base_color_factor[1],
@@ -223,6 +211,52 @@ pub const PrefabManager = struct {
 
             pbr_material.metallic = material.pbr_metallic_roughness.metallic_factor;
             pbr_material.roughness = material.pbr_metallic_roughness.roughness_factor;
+            pbr_material.normal_intensity = 1.0;
+            pbr_material.emissive_strength = 1.0;
+
+            if (material.pbr_metallic_roughness.base_color_texture.texture) |texture| {
+                if (texture.image) |image| {
+                    if (image.*.uri) |uri| {
+                        const texture_path = util.fromCStringToStringSlice(uri);
+                        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+                        pbr_material.albedo = gfxstate.scheduleLoadTexture(texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = texture_path_u16 }, arena) catch unreachable;
+                    }
+                }
+            }
+
+            if (material.pbr_metallic_roughness.metallic_roughness_texture.texture) |texture| {
+                if (texture.image) |image| {
+                    if (image.*.uri) |uri| {
+                        const texture_path = util.fromCStringToStringSlice(uri);
+                        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+                        pbr_material.arm = gfxstate.scheduleLoadTexture(texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = texture_path_u16 }, arena) catch unreachable;
+                    }
+                }
+            }
+
+            if (material.normal_texture.texture) |texture| {
+                if (texture.image) |image| {
+                    if (image.*.uri) |uri| {
+                        const texture_path = util.fromCStringToStringSlice(uri);
+                        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+                        pbr_material.normal = gfxstate.scheduleLoadTexture(texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = texture_path_u16 }, arena) catch unreachable;
+                    }
+                }
+            }
+
+            if (material.emissive_texture.texture) |texture| {
+                if (texture.image) |image| {
+                    if (image.*.uri) |uri| {
+                        const texture_path = util.fromCStringToStringSlice(uri);
+                        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+                        pbr_material.emissive = gfxstate.scheduleLoadTexture(texture_path, .{ .state = d3d12.RESOURCE_STATES.COMMON, .name = texture_path_u16 }, arena) catch unreachable;
+                    }
+                }
+            }
+
+            if (material.has_emissive_strength == 1) {
+                pbr_material.emissive_strength = material.emissive_strength.emissive_strength;
+            }
 
             return gfxstate.storeMaterial(material_name, pbr_material) catch unreachable;
         }

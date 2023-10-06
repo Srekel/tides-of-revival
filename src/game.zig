@@ -535,7 +535,10 @@ pub fn run() void {
 
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
-    sun_light.set(fd.DirectionalLight{ .radiance = .{ .r = 2.5, .g = 2.5, .b = 2.5 } });
+    sun_light.set(fd.DirectionalLight{
+        .color = .{ .r = 0.5, .g = 0.5, .b = 0.5 },
+        .intensity = 10.0,
+    });
 
     const player_spawn = blk: {
         var builder = ecsu.QueryBuilder.init(ecsu_world);
@@ -679,10 +682,9 @@ pub fn run() void {
         .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
     });
     player_camera_ent.set(fd.PointLight{
-        .radiance = .{ .r = 4, .g = 2, .b = 1 },
-        .radius = 10.0,
-        .falloff = 5.0,
-        .max_intensity = 2.0,
+        .color = .{ .r = 1, .g = 0.5, .b = 0.25 },
+        .range = 10.0,
+        .intensity = 2.0,
     });
     bow_ent.childOf(player_camera_ent);
 

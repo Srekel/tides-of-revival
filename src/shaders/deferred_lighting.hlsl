@@ -1,5 +1,4 @@
-#include "common.hlsli"
-#include "pbr.hlsli"
+#include "lighting.hlsli"
 
 #define root_signature \
     "RootFlags(CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED), " \
@@ -15,8 +14,6 @@ ConstantBuffer<SceneConst> cbv_scene_const : register(b2);
 
 SamplerState sam_aniso_clamp : register(s0);
 SamplerState sam_bilinear_clamp : register(s1);
-
-float calculatePointLightAttenuation(float distance, float radius, float max_intensity, float falloff);
 
 [RootSignature(root_signature)]
 [numthreads(8, 8, 1)]
@@ -44,72 +41,83 @@ void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     float4 gbuffer_1_sample = gbuffer_1.SampleLevel(sam_aniso_clamp, uv, 0);
     float4 gbuffer_2_sample = gbuffer_2.SampleLevel(sam_aniso_clamp, uv, 0);
 
+    float3 normal = normalize(unpackNormal(gbuffer_1_sample.xyz));
+
     if (gbuffer_0_sample.a > 0)
     {
         float3 position = getPositionFromDepth(depth, uv, cbv_frame_const.view_projection_inverted);
-        float3 N = gbuffer_1_sample.xyz;
-        float3 V = normalize(cbv_frame_const.camera_position - position);
+        float3 view = normalize(cbv_frame_const.camera_position - position);
 
-        MaterialProperties material_properties;
-        material_properties.baseColor = gbuffer_0_sample.rgb;
-        material_properties.metalness = gbuffer_2_sample.g;
-        material_properties.emissive = gbuffer_2_sample.b * gbuffer_0_sample.rgb;
-        material_properties.roughness = gbuffer_2_sample.r;
-        material_properties.transmissivness = 0;
-        material_properties.reflectance = 0.5;
-        material_properties.opacity = gbuffer_0_sample.a;
+        float3 albedo = gbuffer_0_sample.rgb;
+        float metallic = gbuffer_2_sample.g;
+        float3 f0 = float3(0.04, 0.04, 0.04);
 
+        float3 diffuseColor = albedo * (float3(1.0, 1.0, 1.0) - f0) * (1.0 - metallic);
+        float3 specularColor = lerp(f0, albedo, metallic);
 
-        ByteAddressBuffer point_lights_buffer = ResourceDescriptorHeap[cbv_scene_const.point_lights_buffer_index];
+        float perceptualRoughness = saturate(gbuffer_2_sample.r);
+        float alphaRoughness = perceptualRoughness * perceptualRoughness;
 
-        float3 Lo = float3(0.0, 0.0, 0.0);
+        float3 specularEnvironmentR0 = specularColor;
+        float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
+        float3 specularEnvironmentR90 = float3(1.0, 1.0, 1.0) * clamp(reflectance * 50.0, 0.0, 1.0);
 
-        // Main Directional Light
+        MaterialInfo materialInfo = {
+            perceptualRoughness,
+            specularEnvironmentR0,
+            alphaRoughness,
+            diffuseColor,
+            specularEnvironmentR90,
+            specularColor
+        };
+
+        float3 color = float3(0.0, 0.0, 0.0);
+
+        // TODO(gmodarelli): Use a buffer of main lights
+        // Main Light
         {
-            float3 L = cbv_scene_const.main_light_direction;
-            float attenuation = 1.0;
+            DirectionalLight light = {
+                cbv_scene_const.main_light_direction,
+                cbv_scene_const.main_light_color,
+                cbv_scene_const.main_light_intensity,
+            };
 
-            // add to outgoing radiance Lo
-            Lo += calculateLightContribution(N, L, V, material_properties, cbv_scene_const.main_light_radiance, attenuation);
+            color += applyDirectionalLight(light, materialInfo, normal, view);
         }
 
         // Point Lights
+        ByteAddressBuffer point_lights_buffer = ResourceDescriptorHeap[cbv_scene_const.point_lights_buffer_index];
         for (uint i = 0; i < cbv_scene_const.point_lights_count; i++)
         {
             PointLight light = point_lights_buffer.Load<PointLight>(i * sizeof(PointLight));
-            float3 L = normalize(light.position - position);
-            float attenuation = calculatePointLightAttenuation(distance(light.position, position), light.radius, light.max_intensity, light.falloff);
-
-            // add to outgoing radiance Lo
-            Lo += calculateLightContribution(N, L, V, material_properties, light.radiance, attenuation);
+            color += applyPointLight(light, materialInfo, normal, position, view);
         }
 
+        // IBL Ambient Light
+        {
+            TextureCube diffuseCube = ResourceDescriptorHeap[cbv_scene_const.irradiance_texture_index];
+            TextureCube specularCube = ResourceDescriptorHeap[cbv_scene_const.prefiltered_env_texture_index];
+            Texture2D brdfTexture = ResourceDescriptorHeap[cbv_scene_const.brdf_integration_texture_index];
+            float mipCount = cbv_scene_const.prefiltered_env_texture_max_lods;
+            color += getIBLContribution(
+                materialInfo,
+                normal,
+                view,
+                mipCount,
+                diffuseCube,
+                specularCube,
+                brdfTexture,
+                sam_bilinear_clamp
+            ) * cbv_scene_const.ambient_light_intensity;
+        }
 
-        float ambient_factor = 0.03;
-        float3 ambient = float3(ambient_factor, ambient_factor, ambient_factor) * material_properties.baseColor;
-        float3 color = ambient + Lo;
-
-        hdr_texture[dispatch_id.xy] = float4(color, 1.0);
+        hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, color), 1.0);
     }
     else
     {
-        TextureCube environment_texture = ResourceDescriptorHeap[cbv_scene_const.radiance_texture_index];
-        float3 N = gbuffer_1_sample.xyz;
-        float3 env = environment_texture.SampleLevel(sam_bilinear_clamp, N, 0).rgb;
-        hdr_texture[dispatch_id.xy] = float4(clamp(env, 0, 32767.0f), 1.0);
+        TextureCube environment_texture = ResourceDescriptorHeap[cbv_scene_const.env_texture_index];
+        float3 env = environment_texture.SampleLevel(sam_bilinear_clamp, normal, 0).rgb;
+        env = clamp(env, 0, FLOAT_16_MAX);
+        hdr_texture[dispatch_id.xy] = float4(max(hdr_texture[dispatch_id.xy].rgb, env), 1.0);
     }
-}
-
-// https://lisyarus.github.io/blog/graphics/2022/07/30/point-light-attenuation.html
-float calculatePointLightAttenuation(float distance, float radius, float max_intensity, float falloff)
-{
-	float s = distance / radius;
-
-	if (s >= 1.0)
-		return 0.0;
-
-	float s2 = s * s;
-    float one_minus_s2 = 1 - s2;
-
-	return max_intensity * (one_minus_s2 * one_minus_s2) / (1 + falloff * s);
 }

@@ -150,8 +150,9 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
 
     GBufferTargets gbuffer;
     gbuffer.albedo = float4(albedo.rgb, 1.0);
-    gbuffer.normal = float4(n.xyz, 0.0);
+    gbuffer.normal = float4(packNormal(n), 0.0);
     gbuffer.material = float4(roughness, metallic, emission, occlusion);
+    gbuffer.scene_color = float4(0.0, 0.0, 0.0, 0.0);
 
     return gbuffer;
 }
