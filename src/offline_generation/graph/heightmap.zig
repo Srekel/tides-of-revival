@@ -163,13 +163,26 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                             const x_world_f: f32 = @floatFromInt(patch_x * patch_width + x);
                             const y_world_f: f32 = @floatFromInt(patch_y * patch_width + y);
                             var value: f32 = 0;
-                            if (0 < x_world and x_world < 500 and 0 < y_world and y_world < 500) {
+                            if (0 < x_world and x_world < 1000 and 0 < y_world and y_world < 1000) {
                                 value = 0.1;
-                            } else if (500 < x_world and x_world < 1000 and 0 < y_world and y_world < 500) {
-                                value = (x_world_f - 500) / 500;
-                            } else if (500 < x_world and x_world < 1000 and 500 < y_world and y_world < 1000) {
-                                value = (x_world_f - 500) / 1000 + (y_world_f - 500) / 1000;
+                            } else if (1000 < x_world and x_world < 2000 and 0 < y_world and y_world < 1000) {
+                                value = (x_world_f - 1000) / 1000;
+                            } else if (2000 < x_world and x_world < 3000 and 0 < y_world and y_world < 1000) {
+                                value = (y_world_f - 0) / 1000;
+                            } else if (0 < x_world and x_world < 1000 and 1000 < y_world and y_world < 2000) {
+                                value = 0.5 * (0 - (x_world_f - 0) / 1000 + (y_world_f - 1000) / 1000);
+                            } else if (1000 < x_world and x_world < 2000 and 1000 < y_world and y_world < 2000) {
+                                value = 0.5 * (1 - (x_world_f - 1000) / 1000 + (y_world_f - 1000) / 1000);
+                            } else if (2000 < x_world and x_world < 3000 and 1000 < y_world and y_world < 2000) {
+                                value = 0.5 * ((x_world_f - 2000) / 1000 + 1 - (y_world_f - 1000) / 1000);
+                            } else if (3000 < x_world and x_world < 4000 and 1000 < y_world and y_world < 2000) {
+                                value = 0.5 * (1 - (x_world_f - 3000) / 1000 + 1 - (y_world_f - 1000) / 1000);
+                            } else if (2000 < x_world and x_world < 4000 and 2000 < y_world and y_world < 4000) {
+                                value = 0.25 * (2 +
+                                    std.math.sin(2 * std.math.pi * (x_world_f - 2000) / 2000) +
+                                    std.math.cos(4 * std.math.pi * (y_world_f - 2000) / 2000));
                             }
+                            value = std.math.clamp(value, 0, 1);
                             heightmap[x + y * patch_width] = @as(HeightmapHeight, @intFromFloat(value * 65535));
                             // heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 127);
                             // std.debug.print("({},{})", .{ x_world, y_world });
