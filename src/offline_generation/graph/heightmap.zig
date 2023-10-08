@@ -81,6 +81,9 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
     const seed_input = node.getInputByString("Seed");
     const seed = getInputResult(seed_input, context).getUInt64();
 
+    const debug_shape_input = node.getInputByString("Debug Shape");
+    const debug_shape = getInputResult(debug_shape_input, context).getBool();
+
     var world_x: u64 = 0;
     var world_y: u64 = 0;
     var width: u64 = world_width;
@@ -150,31 +153,56 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                 }
 
                 // Calc heightmap
-                var y: u64 = 0;
-                while (y < patch_width) : (y += 1) {
-                    var x: u64 = 0;
-                    while (x < patch_width) : (x += 1) {
-                        var x_world = patch_x * patch_width + x;
-                        var y_world = patch_y * patch_width + y;
-                        // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
-                        // and then we're converting it to a 16-bit unsigned integer
-                        var height_sample: f32 = data.noise.noise2(@as(f32, @floatFromInt(x_world)) * config.noise_scale_xz, @as(f32, @floatFromInt(y_world)) * config.noise_scale_xz) * 0.5 + 0.5;
-                        if (height_sample < 0.1) {
-                            height_sample = zm.mapLinearV(height_sample, 0.0, 0.05, 0, 0.1);
-                        } else if (height_sample < 0.5) {
-                            height_sample = zm.mapLinearV(height_sample, 0.05, 0.5, 0.1, 0.3);
-                        } else if (height_sample < 0.6) {
-                            height_sample = zm.mapLinearV(height_sample, 0.5, 0.6, 0.3, 0.5);
-                        } else if (height_sample < 0.7) {
-                            height_sample = zm.mapLinearV(height_sample, 0.6, 0.7, 0.5, 0.6);
-                        } else {
-                            height_sample = zm.mapLinearV(height_sample, 0.7, 1, 0.6, 1);
+                if (debug_shape) {
+                    var y: u64 = 0;
+                    while (y < patch_width) : (y += 1) {
+                        var x: u64 = 0;
+                        while (x < patch_width) : (x += 1) {
+                            const x_world = patch_x * patch_width + x;
+                            const y_world = patch_y * patch_width + y;
+                            const x_world_f: f32 = @floatFromInt(patch_x * patch_width + x);
+                            const y_world_f: f32 = @floatFromInt(patch_y * patch_width + y);
+                            var value: f32 = 0;
+                            if (0 < x_world and x_world < 500 and 0 < y_world and y_world < 500) {
+                                value = 0.1;
+                            } else if (500 < x_world and x_world < 1000 and 0 < y_world and y_world < 500) {
+                                value = (x_world_f - 500) / 500;
+                            } else if (500 < x_world and x_world < 1000 and 500 < y_world and y_world < 1000) {
+                                value = (x_world_f - 500) / 1000 + (y_world_f - 500) / 1000;
+                            }
+                            heightmap[x + y * patch_width] = @as(HeightmapHeight, @intFromFloat(value * 65535));
+                            // heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 127);
+                            // std.debug.print("({},{})", .{ x_world, y_world });
                         }
-                        heightmap[x + y * patch_width] = @as(HeightmapHeight, @intFromFloat(height_sample * 65535));
-                        // heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 127);
-                        // std.debug.print("({},{})", .{ x_world, y_world });
+                        // std.debug.print("\n", .{});
                     }
-                    // std.debug.print("\n", .{});
+                } else {
+                    var y: u64 = 0;
+                    while (y < patch_width) : (y += 1) {
+                        var x: u64 = 0;
+                        while (x < patch_width) : (x += 1) {
+                            var x_world = patch_x * patch_width + x;
+                            var y_world = patch_y * patch_width + y;
+                            // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
+                            // and then we're converting it to a 16-bit unsigned integer
+                            var height_sample: f32 = data.noise.noise2(@as(f32, @floatFromInt(x_world)) * config.noise_scale_xz, @as(f32, @floatFromInt(y_world)) * config.noise_scale_xz) * 0.5 + 0.5;
+                            if (height_sample < 0.1) {
+                                height_sample = zm.mapLinearV(height_sample, 0.0, 0.05, 0, 0.1);
+                            } else if (height_sample < 0.5) {
+                                height_sample = zm.mapLinearV(height_sample, 0.05, 0.5, 0.1, 0.3);
+                            } else if (height_sample < 0.6) {
+                                height_sample = zm.mapLinearV(height_sample, 0.5, 0.6, 0.3, 0.5);
+                            } else if (height_sample < 0.7) {
+                                height_sample = zm.mapLinearV(height_sample, 0.6, 0.7, 0.5, 0.6);
+                            } else {
+                                height_sample = zm.mapLinearV(height_sample, 0.7, 1, 0.6, 1);
+                            }
+                            heightmap[x + y * patch_width] = @as(HeightmapHeight, @intFromFloat(height_sample * 65535));
+                            // heightmap[x + y * patch_width] = @floatToInt(HeightmapHeight, height_sample * 127);
+                            // std.debug.print("({},{})", .{ x_world, y_world });
+                        }
+                        // std.debug.print("\n", .{});
+                    }
                 }
                 // std.debug.print("xxxxx\n", .{});
 
@@ -224,7 +252,9 @@ pub const heightmapFunc = g.NodeFuncTemplate{
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("World Width") }}) //
         ++ //
-        ([_]g.NodeInputTemplate{.{}} ** 13),
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Debug Shape") }}) //
+        ++ //
+        ([_]g.NodeInputTemplate{.{}} ** 12),
     .outputs = ([_]g.NodeOutputTemplate{.{ .name = IdLocal.init("Patches") }}) //
         ++ //
         ([_]g.NodeOutputTemplate{.{}} ** 15),

@@ -190,9 +190,17 @@ pub const Variant = struct {
             .tag = 0, // TODO
         };
     }
+
     pub fn createUInt64(int: anytype) Variant {
         return Variant{
             .value = .{ .uint64 = @as(u64, @intCast(int)) },
+            .tag = 0, // TODO
+        };
+    }
+
+    pub fn createBool(boolean: bool) Variant {
+        return Variant{
+            .value = .{ .boolean = boolean },
             .tag = 0, // TODO
         };
     }
@@ -218,6 +226,10 @@ pub const Variant = struct {
 
     pub fn setUInt64(self: *Variant, int: anytype) void {
         self = .{ .value = .{ .uint64 = @as(u64, @intCast(int)) } };
+    }
+
+    pub fn setBool(self: *Variant, boolean: bool) void {
+        self = .{ .value = .{ .boolean = boolean } };
     }
 
     pub fn getPtr(self: Variant, comptime T: type, tag: Tag) *T {
@@ -255,6 +267,13 @@ pub const Variant = struct {
     pub fn getUInt64(self: Variant) u64 {
         const v = self.value;
         const u = v.uint64;
+        return u;
+        // return self.value.uint64;
+    }
+
+    pub fn getBool(self: Variant) bool {
+        const v = self.value;
+        const u = v.boolean;
         return u;
         // return self.value.uint64;
     }
