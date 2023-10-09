@@ -224,7 +224,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             continue;
         }
         const direction_z = zm.normalize3(velocity_z);
-        if (@fabs(direction_z[1]) > 0.99) {
+        if (@abs(direction_z[1]) > 0.99) {
             continue;
         }
 

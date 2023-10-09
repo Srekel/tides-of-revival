@@ -86,8 +86,8 @@ const QuadTreeNode = struct {
 
     pub inline fn nearPoint(self: *QuadTreeNode, point: [2]f32, range: f32) bool {
         const half_size = self.size[0] / 2;
-        const circle_distance_x = @fabs(point[0] - self.center[0]);
-        const circle_distance_y = @fabs(point[1] - self.center[1]);
+        const circle_distance_x = @abs(point[0] - self.center[0]);
+        const circle_distance_y = @abs(point[1] - self.center[1]);
 
         if (circle_distance_x > (half_size + range)) {
             return false;

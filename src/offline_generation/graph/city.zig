@@ -57,8 +57,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             const world_x_f = @as(f32, @floatFromInt(world_x));
             const world_z_f = @as(f32, @floatFromInt(world_z));
             for (cities.items) |city| {
-                const city_diff_x = @fabs(city.pos[0] - world_x_f);
-                const city_diff_z = @fabs(city.pos[2] - world_z_f);
+                const city_diff_x = @abs(city.pos[0] - world_x_f);
+                const city_diff_z = @abs(city.pos[2] - world_z_f);
                 if (city_diff_x + city_diff_z - @as(f32, @floatFromInt((city.border_pos.items.len - CITY_MIN_BORDERS) * 1)) < CITY_MARGIN_CITY) {
                     continue :x_loop;
                 }
@@ -142,8 +142,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 const max_slope_center = 10;
                 const max_slope_edge = 3;
                 nswe_blk: for (posNSWE) |pos| {
-                    const pos_diff_x = @fabs(city.pos[0] - pos[0]);
-                    const pos_diff_z = @fabs(city.pos[2] - pos[2]);
+                    const pos_diff_x = @abs(city.pos[0] - pos[0]);
+                    const pos_diff_z = @abs(city.pos[2] - pos[2]);
                     if (pos_diff_x >= CITY_WIDTH_MAX or pos_diff_z >= CITY_WIDTH_MAX) {
                         continue;
                     }
@@ -152,7 +152,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         @as(i32, @intFromFloat(pos[0])),
                         @as(i32, @intFromFloat(pos[2])),
                     );
-                    const height_diff = @fabs(height_side - height_curr);
+                    const height_diff = @abs(height_side - height_curr);
                     // const height_diff = @floatFromInt(f32, height_diff_i);
                     // if (height_diff > CITY_HEIGHT_TEST_SKIP / 2) {
                     // const pos_curr_diff_x = std.math.absInt(pos_curr[0] - pos[0]) catch unreachable;

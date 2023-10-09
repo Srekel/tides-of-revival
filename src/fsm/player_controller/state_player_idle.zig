@@ -218,8 +218,8 @@ fn update(ctx: fsm.StateFuncContext) void {
         // updateDeathFromDarkness(entity_iter.entity(), ctx);
         // updateWinFromArrival(entity_iter.entity(), ctx);
         const pos_after = comps.pos.*;
-        state.*.amount_moved += @fabs(pos_after.x - pos_before.x);
-        state.*.amount_moved += @fabs(pos_after.y - pos_before.y);
+        state.*.amount_moved += @abs(pos_after.x - pos_before.x);
+        state.*.amount_moved += @abs(pos_after.y - pos_before.y);
 
         // HACK!!!
         // HACK!!!

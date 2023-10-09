@@ -74,8 +74,8 @@ pub const TargetValue = union(InputType) {
     }
     fn supersedes(self: TargetValue, other: TargetValue) bool {
         return switch (self) {
-            .number => |value| @fabs(value) > @fabs(other.number),
-            .vector2 => |value| @fabs(value[0]) > @fabs(other.vector2[0]) or @fabs(value[1]) > @fabs(other.vector2[1]), // TODO
+            .number => |value| @abs(value) > @abs(other.number),
+            .vector2 => |value| @abs(value[0]) > @abs(other.vector2[0]) or @abs(value[1]) > @abs(other.vector2[1]), // TODO
         };
     }
 };
@@ -147,7 +147,7 @@ pub const ProcessorDeadzone = struct {
     pub fn process(self: ProcessorDeadzone, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
         _ = targets_prev;
         var res = targets_curr.get(self.source_target).?;
-        if (std.math.fabs(res.number) < self.zone) {
+        if (@abs(res.number) < self.zone) {
             res.number = 0;
         } else {
             // Remap [zone..1] to [0..1]

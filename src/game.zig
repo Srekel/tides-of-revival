@@ -639,57 +639,57 @@ pub fn run() void {
     //    ██║   ██║██║ ╚═╝ ██║███████╗███████╗██║██║ ╚████║███████╗███████║
     //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 
-    // if ()
-    //     var tl_giant_ant_spawn_ctx = SpawnContext{
-    //         .ecsu_world = ecsu_world,
-    //         .physics_world = physics_sys.physics_world,
-    //         .prefab_manager = &prefab_manager,
-    //         .event_manager = &event_manager,
-    //         .timeline_system = timeline_sys,
-    //         .root_ent = null,
-    //     };
+    if (player_spawn != null) {
+        var tl_giant_ant_spawn_ctx = SpawnContext{
+            .ecsu_world = ecsu_world,
+            .physics_world = physics_sys.physics_world,
+            .prefab_manager = &prefab_manager,
+            .event_manager = &event_manager,
+            .timeline_system = timeline_sys,
+            .root_ent = player_spawn.?.city_ent,
+        };
 
-    //     const tl_giant_ant_spawn = config.events.TimelineTemplateData{
-    //         .id = IdLocal.init("giantAntSpawn"),
-    //         .events = &[_]timeline_system.TimelineEvent{
-    //             .{
-    //                 .trigger_time = 10,
-    //                 .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
-    //                 .func = spawnGiantAnt,
-    //                 .data = &tl_giant_ant_spawn_ctx,
-    //             },
-    //         },
-    //         .curves = &.{},
-    //         .loop_behavior = .loop_no_time_loss,
-    //     };
+        const tl_giant_ant_spawn = config.events.TimelineTemplateData{
+            .id = IdLocal.init("giantAntSpawn"),
+            .events = &[_]timeline_system.TimelineEvent{
+                .{
+                    .trigger_time = 10,
+                    .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
+                    .func = spawnGiantAnt,
+                    .data = &tl_giant_ant_spawn_ctx,
+                },
+            },
+            .curves = &.{},
+            .loop_behavior = .loop_no_time_loss,
+        };
 
-    //     const tli_giant_ant_spawn = config.events.TimelineInstanceData{
-    //         .ent = 0,
-    //         .start_time = 2,
-    //         .timeline = IdLocal.init("giantAntSpawn"),
-    //     };
+        const tli_giant_ant_spawn = config.events.TimelineInstanceData{
+            .ent = 0,
+            .start_time = 2,
+            .timeline = IdLocal.init("giantAntSpawn"),
+        };
 
-    //     event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
-    //     event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
+        event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
+        event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
 
-    //     const tl_particle_trail = config.events.TimelineTemplateData{
-    //         .id = IdLocal.init("particle_trail"),
-    //         .events = &.{},
-    //         .curves = &[_]timeline_system.Curve{
-    //             .{
-    //                 .id = .{}, // IdLocal.init("scale"),
-    //                 .points = &[_]timeline_system.CurvePoint{
-    //                     .{ .time = 0, .value = 0.000 },
-    //                     .{ .time = 0.1, .value = 0.01 },
-    //                     .{ .time = 0.35, .value = 0.004 },
-    //                     .{ .time = 0.5, .value = 0 },
-    //                 },
-    //             },
-    //         },
-    //         .loop_behavior = .remove_entity,
-    //     };
-    //     event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
-
+        const tl_particle_trail = config.events.TimelineTemplateData{
+            .id = IdLocal.init("particle_trail"),
+            .events = &.{},
+            .curves = &[_]timeline_system.Curve{
+                .{
+                    .id = .{}, // IdLocal.init("scale"),
+                    .points = &[_]timeline_system.CurvePoint{
+                        .{ .time = 0, .value = 0.000 },
+                        .{ .time = 0.1, .value = 0.01 },
+                        .{ .time = 0.35, .value = 0.004 },
+                        .{ .time = 0.5, .value = 0 },
+                    },
+                },
+            },
+            .loop_behavior = .remove_entity,
+        };
+        event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
+    }
     // // ███████╗██╗     ███████╗ ██████╗███████╗
     // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝
     // // █████╗  ██║     █████╗  ██║     ███████╗

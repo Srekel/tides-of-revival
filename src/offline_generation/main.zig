@@ -187,7 +187,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
     var heightmapWorldWidthInputValue = heightmapNode.getInput(IdLocal.init("World Width"));
     heightmapWorldWidthInputValue.reference = IdLocal.init("worldWidth");
     var heightmapDebugShapeValue = heightmapNode.getInput(IdLocal.init("Debug Shape"));
-    heightmapDebugShapeValue.value = v.Variant.createBool(true);
+    heightmapDebugShapeValue.value = v.Variant.createBool(false);
     var heightmapOutputValue = heightmapNode.getOutput(IdLocal.init("Patches"));
     heightmapOutputValue.reference.set("heightmapPatches");
 
