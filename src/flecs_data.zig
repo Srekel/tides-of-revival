@@ -414,7 +414,7 @@ pub const Camera = struct {
     active: bool = false,
     class: u32 = 0,
 
-    pub fn calculateFrusumPlanes(camera: *Camera) void {
+    pub fn calculateFrustumPlanes(camera: *Camera) void {
         const z_vp = zm.loadMat(camera.view_projection[0..]);
 
         // Left plane

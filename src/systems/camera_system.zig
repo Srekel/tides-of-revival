@@ -198,7 +198,7 @@ fn updateCameraFrustum(state: *SystemState) void {
         }
 
         // TODO(gmodarelli): Check if renderer is frozen
-        cam.calculateFrusumPlanes();
+        cam.calculateFrustumPlanes();
     }
 }
 
