@@ -42,12 +42,22 @@ const BroadPhaseLayerInterface = extern struct {
         return broad_phase_layers.len;
     }
 
+    // fn _getBroadPhaseLayer(
+    //     iself: *const zphy.BroadPhaseLayerInterface,
+    //     layer: zphy.ObjectLayer,
+    // ) callconv(.C) zphy.BroadPhaseLayer {
+    //     const self = @as(*const BroadPhaseLayerInterface, @ptrCast(iself));
+    //     return self.object_to_broad_phase[layer];
+    // }
+
     fn _getBroadPhaseLayer(
         iself: *const zphy.BroadPhaseLayerInterface,
+        out_layer: *zphy.BroadPhaseLayer,
         layer: zphy.ObjectLayer,
-    ) callconv(.C) zphy.BroadPhaseLayer {
+    ) callconv(.C) *const zphy.BroadPhaseLayer {
         const self = @as(*const BroadPhaseLayerInterface, @ptrCast(iself));
-        return self.object_to_broad_phase[layer];
+        out_layer.* = self.object_to_broad_phase[layer];
+        return &self.object_to_broad_phase[layer];
     }
 };
 

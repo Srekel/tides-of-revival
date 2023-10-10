@@ -6,7 +6,8 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "zig build -Dztracy-enable=false -Dzd3d12-enable_debug_layer=false --summary failures",
+            // "command": "zig build -Dztracy-enable=false -Dzd3d12-enable_debug_layer=false --summary failures",
+            "command": "zig build -Dztracy-enable=false -Dzd3d12-enable_debug_layer=false -Dtarget=native-native-msvc --summary failures",
             "group": "build",
             "problemMatcher": [
                 "$gcc"
