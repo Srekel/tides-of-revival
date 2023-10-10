@@ -798,6 +798,7 @@ fn getActiveCamera(ecsu_world: ecsu.World) ?struct { camera: *const fd.Camera, t
     var entity_iter_camera = filter.iterator(CameraQueryComps);
     while (entity_iter_camera.next()) |comps| {
         if (comps.cam.active) {
+            ecs.iter_fini(entity_iter_camera.iter);
             return .{ .camera = comps.cam, .transform = comps.transform };
         }
     }

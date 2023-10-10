@@ -249,6 +249,7 @@ pub fn destroy(system: *SystemState) void {
 const physics_skip_frame_rate = 1;
 var physics_skip_frame_counter: u32 = 1;
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // system.physics_world.optimizeBroadPhase();
     physics_skip_frame_counter += 1;

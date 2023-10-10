@@ -90,6 +90,7 @@ pub fn destroy(state: *SystemState) void {
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    defer ecs.iter_fini(iter.iter);
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateCameraSwitch(state);
     updateTransformHierarchy(state, iter.iter.delta_time);

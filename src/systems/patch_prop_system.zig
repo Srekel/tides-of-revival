@@ -74,6 +74,7 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateLoaders(system);
     updatePatches(system);

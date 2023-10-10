@@ -995,6 +995,7 @@ pub fn destroy(state: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    defer ecs.iter_fini(iter.iter);
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     var arena_state = std.heap.ArenaAllocator.init(state.allocator);
@@ -1009,6 +1010,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
         while (entity_iter_camera.next()) |comps| {
             if (comps.cam.active) {
+                ecs.iter_fini(entity_iter_camera.iter);
                 break :blk comps;
             }
         }

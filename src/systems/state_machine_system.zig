@@ -158,6 +158,7 @@ fn initStateData(system: *SystemState) void {
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     const dt4 = zm.f32x4s(iter.iter.delta_time);
 
