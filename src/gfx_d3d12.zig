@@ -34,6 +34,8 @@ pub const BufferDesc = buffer_module.BufferDesc;
 pub const BufferHandle = buffer_module.BufferHandle;
 const IndexType = renderer_types.IndexType;
 const Vertex = renderer_types.Vertex;
+const UIIndexType = renderer_types.UIIndexType;
+const UIVertex = renderer_types.UIVertex;
 const Mesh = renderer_types.Mesh;
 const SubMesh = renderer_types.SubMesh;
 pub const Texture = renderer_types.Texture;
@@ -84,6 +86,13 @@ pub const DownsampleUniforms = struct {
 pub const UpsampleBlurUniforms = struct {
     source_resolution: [2]f32,
     sample_scale: f32,
+};
+
+pub const UIUniforms = struct {
+    screen_to_clip: zm.Mat,
+    vertex_buffer_index: u32,
+    texture_index: u32,
+    opacity: f32,
 };
 
 pub const SceneUniforms = extern struct {
@@ -280,6 +289,10 @@ pub const D3D12State = struct {
     prefiltered_env_texture: ResourceView,
     brdf_integration_texture: TextureHandle,
 
+    // NOTE(gmodarelli): Testing UI rendering with a crosshair
+    crosshair_texture: zd3d12.ResourceHandle,
+    crosshair_texture_persistent_descriptor: zd3d12.PersistentDescriptor,
+
     texture_pool: TexturePool,
     texture_hash: TextureHashMap,
     small_textures_heap: *d3d12.IHeap,
@@ -293,6 +306,9 @@ pub const D3D12State = struct {
     mesh_hash: MeshHashMap,
     mesh_pool: MeshPool,
     skybox_mesh: MeshHandle,
+
+    quad_vertex_buffer: BufferHandle,
+    quad_index_buffer: BufferHandle,
 
     main_light: renderer_types.DirectionalLightGPU,
     point_lights_buffers: [num_buffered_frames]BufferHandle,
@@ -1471,6 +1487,33 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
+    const ui_pso = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.RasterizerState.CullMode = .NONE;
+        pso_desc.DepthStencilState.DepthEnable = w32.FALSE;
+        pso_desc.BlendState.RenderTarget[0].BlendEnable = w32.TRUE;
+        pso_desc.BlendState.RenderTarget[0].SrcBlend = .SRC_ALPHA;
+        pso_desc.BlendState.RenderTarget[0].DestBlend = .INV_SRC_ALPHA;
+        pso_desc.BlendState.RenderTarget[0].BlendOp = .ADD;
+        pso_desc.BlendState.RenderTarget[0].SrcBlendAlpha = .INV_SRC_ALPHA;
+        pso_desc.BlendState.RenderTarget[0].DestBlendAlpha = .ZERO;
+        pso_desc.BlendState.RenderTarget[0].BlendOpAlpha = .ADD;
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+        break :blk gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/ui.vs.cso",
+            "shaders/ui.ps.cso",
+        );
+    };
+
     var hdri_pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
     hdri_pso_desc.InputLayout = .{
         .pInputElementDescs = null,
@@ -1509,6 +1552,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("ui"), PipelineInfo{ .pipeline_handle = ui_pso }) catch unreachable;
     pipelines.put(IdLocal.init("frustum_debug"), PipelineInfo{ .pipeline_handle = frustum_debug_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("generate_env_texture"), PipelineInfo{ .pipeline_handle = generate_env_texture_pso }) catch unreachable;
     pipelines.put(IdLocal.init("generate_irradiance_texture"), PipelineInfo{ .pipeline_handle = generate_irradiance_texture_pso }) catch unreachable;
@@ -1549,6 +1593,25 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     hrPanicOnFail(stats_text_format.SetTextAlignment(.LEADING));
     hrPanicOnFail(stats_text_format.SetParagraphAlignment(.NEAR));
 
+    // Load crosshair texture
+    gctx.beginFrame();
+    const crosshair_texture = gctx.createAndUploadTex2dFromFile("content/textures/ui/crosshair085.png", .{}) catch unreachable;
+    const crosshair_texture_persistent_descriptor = blk: {
+        const srv_allocation = gctx.allocatePersistentGpuDescriptors(1);
+        gctx.device.CreateShaderResourceView(
+            gctx.lookupResource(crosshair_texture).?,
+            null,
+            srv_allocation.cpu_handle,
+        );
+
+        gctx.addTransitionBarrier(crosshair_texture, .{ .PIXEL_SHADER_RESOURCE = true });
+        gctx.flushResourceBarriers();
+
+        break :blk srv_allocation;
+    };
+    gctx.endFrame();
+    gctx.finishGpuCommands();
+
     var d3d12_state = D3D12State{
         .gctx = gctx,
         .mipgen_rgba16f = undefined,
@@ -1566,6 +1629,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .irradiance_texture = undefined,
         .prefiltered_env_texture = undefined,
         .brdf_integration_texture = undefined,
+        .crosshair_texture = crosshair_texture,
+        .crosshair_texture_persistent_descriptor = crosshair_texture_persistent_descriptor,
         .pipelines = pipelines,
         .buffer_pool = buffer_pool,
         .texture_pool = texture_pool,
@@ -1577,6 +1642,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .mesh_hash = mesh_hash,
         .mesh_pool = mesh_pool,
         .skybox_mesh = undefined,
+        .quad_index_buffer = undefined,
+        .quad_vertex_buffer = undefined,
         .main_light = undefined,
         .point_lights_buffers = undefined,
         .point_lights_count = [D3D12State.num_buffered_frames]u32{ 0, 0 },
@@ -1614,6 +1681,51 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const mesh = mesh_loader.loadObjMeshFromFile(allocator, "content/meshes/cube.obj", &meshes_indices, &meshes_vertices) catch unreachable;
 
         d3d12_state.skybox_mesh = d3d12_state.uploadMeshData("skybox", mesh, meshes_vertices.items, meshes_indices.items) catch unreachable;
+    }
+
+    // Upload quad
+    {
+        const crosshair_size: f32 = 32;
+        const crosshair_half_size: f32 = crosshair_size / 2;
+        const screen_center_x: f32 = @as(f32, @floatFromInt(d3d12_state.gctx.viewport_width)) / 2;
+        const screen_center_y: f32 = @as(f32, @floatFromInt(d3d12_state.gctx.viewport_height)) / 2;
+        const top = screen_center_y - crosshair_half_size;
+        const bottom = screen_center_y + crosshair_half_size;
+        const left = screen_center_x - crosshair_half_size;
+        const right = screen_center_x + crosshair_half_size;
+
+        var quad_indices = [_]UIIndexType{ 0, 1, 2, 0, 3, 1 };
+        var quad_vertices = [_]UIVertex{
+            .{ .position = [2]f32{ left, top }, .uv = [2]f32 { 0.0, 1.0 } }, // top-left,
+            .{ .position = [2]f32{ right, bottom }, .uv = [2]f32 { 1.0, 0.0 } }, // bottom-right,
+            .{ .position = [2]f32{ left, bottom }, .uv = [2]f32 { 0.0, 0.0 } }, // bottom-left,
+            .{ .position = [2]f32{ right, top }, .uv = [2]f32 { 1.0, 1.0 } }, // top-right,
+        };
+
+        // Create a vertex buffer.
+        d3d12_state.quad_vertex_buffer = d3d12_state.createBuffer(.{
+            .size = quad_vertices.len * @sizeOf(UIVertex),
+            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+            .name = L("UI Vertex Buffer"),
+            .persistent = true,
+            .has_cbv = false,
+            .has_srv = true,
+            .has_uav = false,
+        }) catch unreachable;
+
+        // Create an index buffer.
+        d3d12_state.quad_index_buffer = d3d12_state.createBuffer(.{
+            .size = quad_indices.len * @sizeOf(UIIndexType),
+            .state = .{ .INDEX_BUFFER = true },
+            .name = L("UI Index Buffer"),
+            .persistent = false,
+            .has_cbv = false,
+            .has_srv = false,
+            .has_uav = false,
+        }) catch unreachable;
+
+        _ = d3d12_state.scheduleUploadDataToBuffer(UIVertex, d3d12_state.quad_vertex_buffer, 0, &quad_vertices);
+        _ = d3d12_state.scheduleUploadDataToBuffer(UIIndexType, d3d12_state.quad_index_buffer, 0, &quad_indices);
     }
 
     // Generate IBL textures from HDRI
@@ -1989,6 +2101,69 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, tonemapping_profiler_index, gctx.frame_index);
+
+    // UI
+    const ui_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "UI");
+    zpix.beginEvent(gctx.cmdlist, "UI");
+    {
+        const back_buffer = gctx.getBackBuffer();
+
+        gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
+        gctx.flushResourceBarriers();
+
+        gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+            .TopLeftX = 0.0,
+            .TopLeftY = 0.0,
+            .Width = @floatFromInt(gctx.viewport_width),
+            .Height = @floatFromInt(gctx.viewport_height),
+            .MinDepth = 0.0,
+            .MaxDepth = 1.0,
+        }});
+
+        gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+            .left = 0,
+            .top = 0,
+            .right = @as(c_long, @intCast(gctx.viewport_width)),
+            .bottom = @as(c_long, @intCast(gctx.viewport_height)),
+        }});
+        gctx.cmdlist.OMSetRenderTargets(
+            1,
+            &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
+            w32.TRUE,
+            null,
+        );
+
+        const pipeline_info = state.getPipeline(IdLocal.init("ui"));
+        gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+        const index_buffer = state.lookupBuffer(state.quad_index_buffer);
+        const index_buffer_resource = gctx.lookupResource(index_buffer.?.resource);
+        gctx.cmdlist.IASetIndexBuffer(&.{
+            .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+            .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
+            .Format = if (@sizeOf(UIIndexType) == 2) .R16_UINT else .R32_UINT,
+        });
+
+        const vertex_buffer = state.lookupBuffer(state.quad_vertex_buffer);
+
+        var z_screen_to_clip = zm.identity();
+        z_screen_to_clip[0] = zm.f32x4(2.0 / @as(f32, @floatFromInt(gctx.viewport_width)), 0.0, 0.0, 0.0);
+        z_screen_to_clip[1] = zm.f32x4(0.0, 2.0 / -@as(f32, @floatFromInt(gctx.viewport_height)), 0.0, 0.0);
+        z_screen_to_clip[2] = zm.f32x4(0.0, 0.0, 0.5, 0.0);
+        z_screen_to_clip[3] = zm.f32x4(-1.0, 1.0, 0.5, 1.0);
+        const mem = gctx.allocateUploadMemory(UIUniforms, 1);
+        mem.cpu_slice[0].screen_to_clip = z_screen_to_clip;
+        mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].texture_index = state.crosshair_texture_persistent_descriptor.index;
+        mem.cpu_slice[0].opacity = 0.5;
+        gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+        gctx.cmdlist.DrawIndexedInstanced(6, 1, 0, 0, 0);
+
+    }
+    zpix.endEvent(gctx.cmdlist);
+    state.gpu_profiler.endProfile(gctx.cmdlist, ui_profiler_index, gctx.frame_index);
 
     zpix.endEvent(gctx.cmdlist); // Event: Render Scene
     state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
