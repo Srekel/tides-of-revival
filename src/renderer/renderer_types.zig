@@ -68,6 +68,13 @@ pub const Vertex = struct {
     color: [3]f32,
 };
 
+pub const UIVertex = struct {
+    position: [2]f32,
+    uv: [2]f32,
+};
+
+pub const UIIndexType = u16;
+
 pub const TextureDesc = struct {
     state: d3d12.RESOURCE_STATES, // TODO: Replace this with non-d3d12 state enum
     name: [*:0]const u16,
