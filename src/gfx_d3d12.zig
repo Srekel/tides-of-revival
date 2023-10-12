@@ -1298,7 +1298,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .pInputElementDescs = null,
             .NumElements = 0,
         };
-        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.RTVFormats[0] = post_process_rt.format;
         pso_desc.NumRenderTargets = 1;
         pso_desc.DepthStencilState.DepthEnable = 0;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
