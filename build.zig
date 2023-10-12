@@ -239,6 +239,11 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/skybox.hlsl", "psSkybox", "skybox.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
+    dxc_command = makeDxcCmd("src/shaders/depth_based_fog.hlsl", "vsFullscreenTriangle", "depth_based_fog.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/depth_based_fog.hlsl", "psDepthBasedFog", "depth_based_fog.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
     dxc_command = makeDxcCmd("src/shaders/ui.hlsl", "vsUI", "ui.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/ui.hlsl", "psUI", "ui.ps.cso", "ps", "");
