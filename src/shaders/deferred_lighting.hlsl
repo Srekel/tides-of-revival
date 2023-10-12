@@ -19,7 +19,7 @@ SamplerState sam_bilinear_clamp : register(s1);
 [numthreads(8, 8, 1)]
 void csDeferredLighting(uint3 dispatch_id : SV_DispatchThreadID) {
     float width, height;
-    RWTexture2D<float4> hdr_texture = ResourceDescriptorHeap[cbv_render_targets_const.hdr_texture_index];
+    RWTexture2D<float4> hdr_texture = ResourceDescriptorHeap[cbv_render_targets_const.scene_color_texture_index];
     hdr_texture.GetDimensions(width, height);
 
     if (dispatch_id.x > width || dispatch_id.y > height) return;

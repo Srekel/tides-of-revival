@@ -64,7 +64,7 @@ pub const RenderTargetsUniforms = struct {
     gbuffer_1_index: u32,
     gbuffer_2_index: u32,
     depth_texture_index: u32,
-    hdr_texture_index: u32,
+    scene_color_texture_index: u32,
 };
 
 pub const FrameUniforms = struct {
@@ -74,8 +74,19 @@ pub const FrameUniforms = struct {
 };
 
 pub const TonemapperUniforms = struct {
-    hdr_texture_index: u32,
+    scene_color_texture_index: u32,
     bloom_texture_index: u32,
+};
+
+pub const DepthBasedFogUniforms = struct {
+    fog_color: [3]f32,
+    fog_radius: f32,
+    fog_fade_rate: f32,
+    fog_density: f32,
+    scene_color_texture_index: u32,
+    depth_texture_index: u32,
+    gbuffer_0_texture_index: u32,
+    _padding: [3]f32,
 };
 
 pub const DownsampleUniforms = struct {
@@ -278,7 +289,8 @@ pub const D3D12State = struct {
     gbuffer_1: RenderTarget,
     gbuffer_2: RenderTarget,
 
-    hdr_rt: RenderTarget,
+    scene_color_rt: RenderTarget,
+    post_process_rt: RenderTarget,
     downsample_rts: [downsample_rt_count]RenderTarget,
 
     // NOTE(gmodarelli): just a test, these textures should
@@ -1255,8 +1267,13 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk createRenderTarget(&gctx, &desc);
     };
 
-    const hdr_rt = blk: {
+    const scene_color_rt = blk: {
         const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Scene Color"));
+        break :blk createRenderTarget(&gctx, &desc);
+    };
+
+    const post_process_rt = blk: {
+        const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Post Process"));
         break :blk createRenderTarget(&gctx, &desc);
     };
 
@@ -1274,6 +1291,31 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     }
 
     var pipelines = PipelineHashMap.init(allocator);
+
+    const depth_based_fog_pso = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DepthStencilState.DepthEnable = 0;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        const pso_handle = gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/depth_based_fog.vs.cso",
+            "shaders/depth_based_fog.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
+    };
 
     const tonemapping_pipeline = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
@@ -1363,7 +1405,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.RTVFormats[3] = scene_color_rt.format;
         pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
@@ -1392,7 +1434,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.RTVFormats[3] = scene_color_rt.format;
         pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
@@ -1422,7 +1464,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.RTVFormats[3] = scene_color_rt.format;
         pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
@@ -1465,7 +1507,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.RTVFormats[0] = gbuffer_0.format;
         pso_desc.RTVFormats[1] = gbuffer_1.format;
         pso_desc.RTVFormats[2] = gbuffer_2.format;
-        pso_desc.RTVFormats[3] = hdr_rt.format;
+        pso_desc.RTVFormats[3] = scene_color_rt.format;
         pso_desc.NumRenderTargets = 4;
         pso_desc.DSVFormat = depth_rt.format;
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
@@ -1546,6 +1588,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     );
 
     pipelines.put(IdLocal.init("tonemapping"), PipelineInfo{ .pipeline_handle = tonemapping_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("depth_based_fog"), PipelineInfo{ .pipeline_handle = depth_based_fog_pso }) catch unreachable;
     pipelines.put(IdLocal.init("downsample"), PipelineInfo{ .pipeline_handle = downsample_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("upsample_blur"), PipelineInfo{ .pipeline_handle = upsample_blur_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
@@ -1623,7 +1666,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         .gbuffer_0 = gbuffer_0,
         .gbuffer_1 = gbuffer_1,
         .gbuffer_2 = gbuffer_2,
-        .hdr_rt = hdr_rt,
+        .scene_color_rt = scene_color_rt,
+        .post_process_rt = post_process_rt,
         .downsample_rts = undefined,
         .env_texture = undefined,
         .irradiance_texture = undefined,
@@ -1795,7 +1839,7 @@ pub fn beginFrame(state: *D3D12State) void {
     gctx.addTransitionBarrier(state.gbuffer_0.resource_handle, .{ .RENDER_TARGET = true });
     gctx.addTransitionBarrier(state.gbuffer_1.resource_handle, .{ .RENDER_TARGET = true });
     gctx.addTransitionBarrier(state.gbuffer_2.resource_handle, .{ .RENDER_TARGET = true });
-    gctx.addTransitionBarrier(state.hdr_rt.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.addTransitionBarrier(state.scene_color_rt.resource_handle, .{ .RENDER_TARGET = true });
     gctx.addTransitionBarrier(state.depth_rt.resource_handle, .{ .DEPTH_WRITE = true });
     gctx.flushResourceBarriers();
 
@@ -1889,7 +1933,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.addTransitionBarrier(state.gbuffer_1.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
         gctx.addTransitionBarrier(state.gbuffer_2.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
         gctx.addTransitionBarrier(state.depth_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.hdr_rt.resource_handle, .{ .UNORDERED_ACCESS = true });
+        gctx.addTransitionBarrier(state.scene_color_rt.resource_handle, .{ .UNORDERED_ACCESS = true });
         gctx.flushResourceBarriers();
 
         const pipeline_info = state.getPipeline(IdLocal.init("deferred_lighting"));
@@ -1930,17 +1974,83 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             mem.cpu_slice[0].gbuffer_1_index = state.gbuffer_1.srv_persistent_descriptor.index;
             mem.cpu_slice[0].gbuffer_2_index = state.gbuffer_2.srv_persistent_descriptor.index;
             mem.cpu_slice[0].depth_texture_index = state.depth_rt.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].hdr_texture_index = state.hdr_rt.uav_persistent_descriptor.index;
+            mem.cpu_slice[0].scene_color_texture_index = state.scene_color_rt.uav_persistent_descriptor.index;
 
             gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
         }
 
-        const num_groups_x = @divExact(state.hdr_rt.width, 8);
-        const num_groups_y = @divExact(state.hdr_rt.height, 8);
+        const num_groups_x = @divExact(state.scene_color_rt.width, 8);
+        const num_groups_y = @divExact(state.scene_color_rt.height, 8);
         gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, deferred_lighting_profiler_index, gctx.frame_index);
+
+    // Depth-Based Fog
+    const depth_based_fog_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Depth Based Fog");
+    zpix.beginEvent(gctx.cmdlist, "Depth Based Fog");
+    {
+        gctx.addTransitionBarrier(state.post_process_rt.resource_handle, .{ .RENDER_TARGET = true });
+        gctx.addTransitionBarrier(state.gbuffer_0.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.scene_color_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.depth_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.flushResourceBarriers();
+
+        gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+            .TopLeftX = 0.0,
+            .TopLeftY = 0.0,
+            .Width = @floatFromInt(gctx.viewport_width),
+            .Height = @floatFromInt(gctx.viewport_height),
+            .MinDepth = 0.0,
+            .MaxDepth = 1.0,
+        }});
+
+        gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+            .left = 0,
+            .top = 0,
+            .right = @as(c_long, @intCast(gctx.viewport_width)),
+            .bottom = @as(c_long, @intCast(gctx.viewport_height)),
+        }});
+
+        gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+        gctx.cmdlist.OMSetRenderTargets(
+            1,
+            &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.post_process_rt.rtv_dsv_descriptor},
+            w32.TRUE,
+            null,
+        );
+
+        const pipeline_info = state.getPipeline(IdLocal.init("depth_based_fog"));
+        gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+        // Upload per-frame constant data.
+        {
+            const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
+            mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
+            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+            mem.cpu_slice[0].camera_position = camera_position;
+
+            gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+        }
+
+        {
+            const mem = gctx.allocateUploadMemory(DepthBasedFogUniforms, 1);
+            mem.cpu_slice[0].fog_color = [3]f32{ 0.4, 0.4, 0.8 };
+            mem.cpu_slice[0].fog_radius = 150.0;
+            mem.cpu_slice[0].fog_fade_rate = 0.05;
+            mem.cpu_slice[0].fog_density = 1.0;
+            mem.cpu_slice[0].scene_color_texture_index = state.scene_color_rt.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].depth_texture_index = state.depth_rt.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].gbuffer_0_texture_index = state.gbuffer_0.srv_persistent_descriptor.index;
+            mem.cpu_slice[0]._padding = [3]f32{ 42.0, 42.0, 42.0 };
+            gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+        }
+
+        gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+    }
+    zpix.endEvent(gctx.cmdlist);
+    state.gpu_profiler.endProfile(gctx.cmdlist, depth_based_fog_profiler_index, gctx.frame_index);
+
 
     // Bloom
     const bloom_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Bloom");
@@ -1954,7 +2064,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
             for (0..D3D12State.downsample_rt_count) |i| {
                 const target = state.downsample_rts[i];
-                const source = if (i == 0) state.hdr_rt else state.downsample_rts[i - 1];
+                const source = if (i == 0) state.post_process_rt else state.downsample_rts[i - 1];
 
                 gctx.addTransitionBarrier(target.resource_handle, .{ .RENDER_TARGET = true });
                 gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
@@ -2055,7 +2165,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         const back_buffer = gctx.getBackBuffer();
 
         gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
-        gctx.addTransitionBarrier(state.hdr_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+        gctx.addTransitionBarrier(state.post_process_rt.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
         gctx.addTransitionBarrier(state.downsample_rts[0].resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
         gctx.flushResourceBarriers();
 
@@ -2082,6 +2192,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             w32.TRUE,
             null,
         );
+
         gctx.cmdlist.ClearRenderTargetView(
             back_buffer.descriptor_handle,
             &[4]f32{ 0.0, 0.0, 0.0, 0.0 },
@@ -2093,7 +2204,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
         const mem = gctx.allocateUploadMemory(TonemapperUniforms, 1);
-        mem.cpu_slice[0].hdr_texture_index = state.hdr_rt.srv_persistent_descriptor.index;
+        mem.cpu_slice[0].scene_color_texture_index = state.post_process_rt.srv_persistent_descriptor.index;
         mem.cpu_slice[0].bloom_texture_index = state.downsample_rts[0].srv_persistent_descriptor.index;
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
@@ -2288,7 +2399,7 @@ pub fn bindGBuffer(state: *D3D12State) void {
             state.gbuffer_0.rtv_dsv_descriptor,
             state.gbuffer_1.rtv_dsv_descriptor,
             state.gbuffer_2.rtv_dsv_descriptor,
-            state.hdr_rt.rtv_dsv_descriptor,
+            state.scene_color_rt.rtv_dsv_descriptor,
         },
         w32.FALSE,
         &state.depth_rt.rtv_dsv_descriptor,
@@ -2316,8 +2427,8 @@ pub fn bindGBuffer(state: *D3D12State) void {
     );
 
     gctx.cmdlist.ClearRenderTargetView(
-        state.hdr_rt.rtv_dsv_descriptor,
-        &state.hdr_rt.clear_value.u.Color,
+        state.scene_color_rt.rtv_dsv_descriptor,
+        &state.scene_color_rt.clear_value.u.Color,
         0,
         null,
     );
@@ -2352,12 +2463,12 @@ pub fn bindHDRTarget(state: *D3D12State) void {
     var gctx = &state.gctx;
     assert(gctx.is_cmdlist_opened);
 
-    gctx.addTransitionBarrier(state.hdr_rt.resource_handle, .{ .RENDER_TARGET = true });
+    gctx.addTransitionBarrier(state.scene_color_rt.resource_handle, .{ .RENDER_TARGET = true });
     gctx.flushResourceBarriers();
 
     gctx.cmdlist.OMSetRenderTargets(
         1,
-        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.hdr_rt.rtv_dsv_descriptor},
+        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.scene_color_rt.rtv_dsv_descriptor},
         w32.TRUE,
         null,
     );
