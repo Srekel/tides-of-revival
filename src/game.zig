@@ -53,7 +53,7 @@ const SpawnContext = struct {
 
 var giant_ant_prefab: ecsu.Entity = undefined;
 var bow_prefab: ecsu.Entity = undefined;
-var medium_house_prefab: ecsu.Entity = undefined;
+var player_prefab: ecsu.Entity = undefined;
 
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
@@ -147,10 +147,11 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    medium_house_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    player_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/characters/player/player.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
     _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -577,20 +578,14 @@ pub fn run() void {
     // // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_ent = ecsu_world.newEntity();
+    const player_ent = prefab_manager.instantiatePrefab(&ecsu_world, player_prefab);
     player_ent.setName("player");
     player_ent.set(player_pos);
-    player_ent.set(fd.Rotation{});
-    player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
     player_ent.set(fd.Velocity{});
     player_ent.set(fd.Dynamic{});
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
-    player_ent.set(fd.CIStaticMesh{
-        .id = IdLocal.id64("cylinder"),
-        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-    });
     player_ent.set(fd.WorldLoader{
         .range = 2,
         .physics = true,
