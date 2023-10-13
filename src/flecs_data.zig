@@ -327,6 +327,11 @@ pub const Velocity = struct {
 // ██║ ╚═╝ ██║███████╗███████║██║  ██║
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
+pub const SurfaceType = enum {
+    @"opaque",
+    mask,
+};
+
 pub const PBRMaterial = struct {
     base_color: ColorRGB,
     metallic: f32,
@@ -337,6 +342,8 @@ pub const PBRMaterial = struct {
     normal: TextureHandle,
     arm: TextureHandle,
     emissive: TextureHandle,
+    surface_type: SurfaceType,
+
 
     pub fn init() PBRMaterial {
         return .{
@@ -349,6 +356,7 @@ pub const PBRMaterial = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
+            .surface_type = .@"opaque",
         };
     }
 
@@ -363,6 +371,7 @@ pub const PBRMaterial = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
+            .surface_type = .@"opaque",
         };
     }
 };

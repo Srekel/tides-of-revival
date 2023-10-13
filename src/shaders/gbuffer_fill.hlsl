@@ -101,10 +101,14 @@ GBufferTargets psGBufferFill(InstancedVertexOut input) {
     if (has_valid_texture(material.albedo_texture_index))
     {
         Texture2D albedo_texture = ResourceDescriptorHeap[material.albedo_texture_index];
-        float3 albedo_sample = albedo_texture.Sample(sam_aniso_wrap, input.uv).rgb;
+        float4 albedo_sample = albedo_texture.Sample(sam_aniso_wrap, input.uv);
         albedo_sample.rgb = degamma(albedo_sample.rgb);
         albedo.rgb *= albedo_sample.rgb;
-        albedo.a = 1.0;
+        albedo.a *= albedo_sample.a;
+
+#if defined(PSO__ALPHA_CLIPPED)
+        clip(albedo.a - 0.5);
+#endif
     }
     else
     {

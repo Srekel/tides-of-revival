@@ -214,6 +214,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     state.instance_materials.clearRetainingCapacity();
     state.draw_calls.clearRetainingCapacity();
     state.draw_calls_info.clearRetainingCapacity();
+    const invalid_texture_index = std.math.maxInt(u32);
 
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
     while (entity_iter_mesh.next()) |comps| {
@@ -239,7 +240,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .sub_mesh_index = undefined,
             };
 
-            const invalid_texture_index = std.math.maxInt(u32);
             for (0..mesh.sub_mesh_count) |sub_mesh_index| {
                 draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
                 state.draw_calls_info.append(draw_call_info) catch unreachable;
@@ -361,7 +361,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Static Mesh Renderer System");
 
     if (state.draw_calls.items.len > 0) {
-        const pipeline_info = state.gfx.getPipeline(IdLocal.init("gbuffer_fill"));
+        const pipeline_info = state.gfx.getPipeline(IdLocal.init("gbuffer_fill_opaque"));
         state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
         // Upload per-frame constant data.

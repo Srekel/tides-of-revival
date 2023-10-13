@@ -214,6 +214,12 @@ pub const PrefabManager = struct {
             pbr_material.normal_intensity = 1.0;
             pbr_material.emissive_strength = 1.0;
 
+            if (material.alpha_mode == .mask) {
+                pbr_material.surface_type = .mask;
+            } else {
+                pbr_material.surface_type = .@"opaque";
+            }
+
             if (material.pbr_metallic_roughness.base_color_texture.texture) |texture| {
                 if (texture.image) |image| {
                     if (image.*.uri) |uri| {

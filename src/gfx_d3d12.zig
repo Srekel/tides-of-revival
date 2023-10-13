@@ -1396,7 +1396,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
-    const gbuffer_fill_pso = blk: {
+    const gbuffer_fill_opaque_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
             .pInputElementDescs = null,
@@ -1416,7 +1416,36 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             arena,
             &pso_desc,
             "shaders/gbuffer_fill.vs.cso",
-            "shaders/gbuffer_fill.ps.cso",
+            "shaders/gbuffer_fill_opaque.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Instanced PSO"));
+
+        break :blk pso_handle;
+    };
+
+    const gbuffer_fill_masked_pso = blk: {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = gbuffer_0.format;
+        pso_desc.RTVFormats[1] = gbuffer_1.format;
+        pso_desc.RTVFormats[2] = gbuffer_2.format;
+        pso_desc.RTVFormats[3] = scene_color_rt.format;
+        pso_desc.NumRenderTargets = 4;
+        pso_desc.DSVFormat = depth_rt.format;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+        pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
+
+        const pso_handle = gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/gbuffer_fill.vs.cso",
+            "shaders/gbuffer_fill_masked.ps.cso",
         );
 
         // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
@@ -1591,7 +1620,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("depth_based_fog"), PipelineInfo{ .pipeline_handle = depth_based_fog_pso }) catch unreachable;
     pipelines.put(IdLocal.init("downsample"), PipelineInfo{ .pipeline_handle = downsample_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("upsample_blur"), PipelineInfo{ .pipeline_handle = upsample_blur_pipeline }) catch unreachable;
-    pipelines.put(IdLocal.init("gbuffer_fill"), PipelineInfo{ .pipeline_handle = gbuffer_fill_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("gbuffer_fill_opaque"), PipelineInfo{ .pipeline_handle = gbuffer_fill_opaque_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("gbuffer_fill_masked"), PipelineInfo{ .pipeline_handle = gbuffer_fill_masked_pso }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;
