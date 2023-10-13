@@ -33,7 +33,7 @@ pub const PrefabManager = struct {
         self.prefab_hash_map.deinit();
     }
 
-    pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: *ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator) !ecsu.Entity {
+    pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: *ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator, args: struct { lods_count: u32 = 1, is_dynamic: bool = false }) !ecsu.Entity {
         const path_id = IdLocal.init(path);
         var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
@@ -51,15 +51,7 @@ pub const PrefabManager = struct {
         defer arena_state.deinit();
         const arena = arena_state.allocator();
 
-        var prefab = world.newPrefab(path);
-        prefab.setOverride(fd.Position.init(0, 0, 0));
-        prefab.setOverride(fd.Rotation{});
-        prefab.setOverride(fd.Scale.createScalar(1));
-        prefab.setOverride(fd.Transform{});
-        prefab.setOverride(fd.Forward{});
-        prefab.setOverride(fd.Dynamic{});
-        self.parseNode(scene.nodes.?[0], prefab, world, gfxstate, arena);
-
+        var prefab = self.parseNode(scene.nodes.?[0], null, world, gfxstate, arena, args.lods_count, args.is_dynamic);
         self.prefab_hash_map.put(path_id, prefab) catch unreachable;
 
         return prefab;
@@ -81,19 +73,18 @@ pub const PrefabManager = struct {
         return entity;
     }
 
-    fn parseNode(
-        self: *@This(),
-        node: *zcgltf.Node,
-        parent_entity: ecsu.Entity,
-        world: *ecsu.World,
-        gfxstate: *gfx.D3D12State,
-        arena: std.mem.Allocator,
-    ) void {
-        // Set parent
+    fn parseNode(self: *@This(), node: *zcgltf.Node, parent_entity: ?ecsu.Entity, world: *ecsu.World, gfxstate: *gfx.D3D12State, arena: std.mem.Allocator, lods_count: u32, is_dynamic: bool) ecsu.Entity {
         var entity = world.newPrefab(node.name);
-        entity.addPair(ecs.ChildOf, parent_entity);
-        entity.setOverride(fd.Forward{});
-        entity.setOverride(fd.Dynamic{});
+
+        // Set parent
+        if (parent_entity) |parent| {
+            entity.addPair(ecs.ChildOf, parent);
+            entity.setOverride(fd.Forward{});
+        }
+
+        if (is_dynamic) {
+            entity.setOverride(fd.Dynamic{});
+        }
 
         // Set position, rotation and scale
         var position = fd.Position.init(0, 0, 0);
@@ -155,6 +146,48 @@ pub const PrefabManager = struct {
                     const primitive = &node.mesh.?.primitives[primitive_index];
                     mesh.sub_meshes[primitive_index] = mesh_loader.parseMeshPrimitive(primitive, &indices, &vertices, arena) catch unreachable;
                     static_mesh_component.material_handles[primitive_index] = self.parsePrimitiveMaterial(primitive, gfxstate, arena);
+
+                    // Generate LODs
+                    if (lods_count > 1) {
+                        assert(lods_count <= rt.lod_count_max);
+                        var all_lods_indices = std.ArrayList(rt.IndexType).init(arena);
+
+                        for (1..lods_count) |lod_index| {
+                            var sub_mesh = &mesh.sub_meshes[primitive_index];
+                            sub_mesh.lod_count += 1;
+
+                            const threshold: f32 = 1.0 - @as(f32, @floatFromInt(lod_index)) / @as(f32, @floatFromInt(rt.lod_count_max));
+                            const target_index_count: usize = @as(usize, @intFromFloat(@as(f32, @floatFromInt(indices.items.len)) * threshold));
+                            const target_error: f32 = 1e-2;
+
+                            var lod_indices = std.ArrayList(rt.IndexType).init(arena);
+                            lod_indices.resize(indices.items.len) catch unreachable;
+                            var lod_error: f32 = 0.0;
+                            var lod_indices_count = zmesh.opt.simplifySloppy(
+                                rt.Vertex,
+                                lod_indices.items,
+                                indices.items,
+                                indices.items.len,
+                                vertices.items,
+                                vertices.items.len,
+                                target_index_count,
+                                target_error,
+                                &lod_error,
+                            );
+                            lod_indices.resize(lod_indices_count) catch unreachable;
+
+                            sub_mesh.lods[lod_index] = .{
+                                .index_offset = sub_mesh.lods[lod_index - 1].index_offset + sub_mesh.lods[lod_index - 1].index_count,
+                                .index_count = @as(u32, @intCast(lod_indices_count)),
+                                .vertex_offset = sub_mesh.lods[0].vertex_offset,
+                                .vertex_count = sub_mesh.lods[0].vertex_count,
+                            };
+
+                            all_lods_indices.appendSlice(lod_indices.items) catch unreachable;
+                        }
+
+                        indices.appendSlice(all_lods_indices.items) catch unreachable;
+                    }
                 }
 
                 // Update mesh bounding box (encapsulates all sub-meshes bounding boxes)
@@ -183,8 +216,10 @@ pub const PrefabManager = struct {
         }
 
         for (0..node.children_count) |i| {
-            self.parseNode(node.children.?[i], entity, world, gfxstate, arena);
+            _ = self.parseNode(node.children.?[i], entity, world, gfxstate, arena, lods_count, is_dynamic);
         }
+
+        return entity;
     }
 
     fn parsePrimitiveMaterial(
