@@ -21,7 +21,7 @@ struct Vertex {
     float3 normal;
     float2 uv;
     float4 tangent;
-    float3 color;
+    float4 color;
 };
 
 struct DrawConst {
@@ -58,12 +58,12 @@ struct InstancedVertexOut {
     float2 uv : TEXCOORD1;
     float3 normal : NORMAL;
     float3 tangent : TANGENT;
-    float3 color : COLOR;
+    float4 color : COLOR;
     uint instanceID: SV_InstanceID;
 };
 
 [RootSignature(ROOT_SIGNATURE)]
-InstancedVertexOut vsInstanced(uint vertex_id : SV_VertexID, uint instanceID : SV_InstanceID) {
+InstancedVertexOut vsGBufferFill(uint vertex_id : SV_VertexID, uint instanceID : SV_InstanceID) {
     InstancedVertexOut output = (InstancedVertexOut)0;
     output.instanceID = instanceID;
 
@@ -96,7 +96,7 @@ InstancedVertexOut vsInstanced(uint vertex_id : SV_VertexID, uint instanceID : S
 #if defined(PSO__INSTANCED)
 
 [RootSignature(ROOT_SIGNATURE)]
-GBufferTargets psInstanced(InstancedVertexOut input) {
+GBufferTargets psGBufferFill(InstancedVertexOut input) {
     ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
     uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
     InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
@@ -117,7 +117,7 @@ GBufferTargets psInstanced(InstancedVertexOut input) {
     else
     {
         // NOTE(gmodarelli): This is temporary. Some meshes come with vertex colors
-        albedo.rgb *= degamma(input.color);
+        albedo.rgb *= degamma(input.color.rgb);
     }
 
     // Roughness, Metallic and Occlusion
@@ -175,7 +175,7 @@ GBufferTargets psFrustumDebug(InstancedVertexOut input) {
     InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
 
     // Albedo
-    float4 albedo = float4(degamma(input.color), 1.0);
+    float4 albedo = float4(degamma(input.color.rgb), 1.0);
 
     // Roughness, Metallic and Occlusion
     float roughness = material.roughness;

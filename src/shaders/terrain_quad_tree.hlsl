@@ -22,7 +22,7 @@ struct Vertex {
     float3 normal;
     float2 uv;
     float4 tangent;
-    float3 color;
+    float4 color;
 };
 
 struct DrawConst {

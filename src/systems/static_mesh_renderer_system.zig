@@ -361,7 +361,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Static Mesh Renderer System");
 
     if (state.draw_calls.items.len > 0) {
-        const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
+        const pipeline_info = state.gfx.getPipeline(IdLocal.init("gbuffer_fill"));
         state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
         // Upload per-frame constant data.

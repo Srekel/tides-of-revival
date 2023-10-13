@@ -1396,7 +1396,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
-    const instanced_pipeline = blk: {
+    const gbuffer_fill_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
             .pInputElementDescs = null,
@@ -1415,8 +1415,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/instanced.vs.cso",
-            "shaders/instanced.ps.cso",
+            "shaders/gbuffer_fill.vs.cso",
+            "shaders/gbuffer_fill.ps.cso",
         );
 
         // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
@@ -1591,7 +1591,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("depth_based_fog"), PipelineInfo{ .pipeline_handle = depth_based_fog_pso }) catch unreachable;
     pipelines.put(IdLocal.init("downsample"), PipelineInfo{ .pipeline_handle = downsample_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("upsample_blur"), PipelineInfo{ .pipeline_handle = upsample_blur_pipeline }) catch unreachable;
-    pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("gbuffer_fill"), PipelineInfo{ .pipeline_handle = gbuffer_fill_pso }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;

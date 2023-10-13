@@ -140,7 +140,7 @@ fn appendShapeMesh(
             .normal = z_mesh.normals.?[i],
             .uv = [2]f32{ 0.0, 0.0 },
             .tangent = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
-            .color = [3]f32{ 1.0, 1.0, 1.0 },
+            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
         }) catch unreachable;
     }
 
@@ -511,7 +511,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Procedural System");
 
     if (state.draw_calls.items.len > 0) {
-        const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
+        const pipeline_info = state.gfx.getPipeline(IdLocal.init("gbuffer_fill"));
         state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
         // Upload per-frame constant data.
