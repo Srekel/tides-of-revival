@@ -3,15 +3,13 @@
 
 #include "constants.hlsli"
 
-// TMP
-#define MAX_LIGHTS 32
-
-static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
-
-#define per_object_space   space0
-#define per_material_space space1
-#define per_pass_space     space2
-#define per_frame_space    space3
+struct Vertex {
+    float3 position;
+    float3 normal;
+    float2 uv;
+    float4 tangent;
+    float4 color;
+};
 
 struct DirectionalLight {
     float3 direction;
@@ -25,7 +23,6 @@ struct PointLight {
     float3 color;
     float intensity;
 };
-
 
 struct FrameConst {
     float4x4 view_projection;

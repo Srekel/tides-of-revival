@@ -16,14 +16,6 @@ SamplerState sam_aniso_wrap : register(s1);
 SamplerState sam_linear_clamp : register(s2);
 SamplerState sam_linear_wrap : register(s3);
 
-struct Vertex {
-    float3 position;
-    float3 normal;
-    float2 uv;
-    float4 tangent;
-    float4 color;
-};
-
 struct DrawConst {
     uint start_instance_location;
     int vertex_offset;

@@ -1,13 +1,6 @@
+#include "common.hlsli"
 #include "random.hlsli"
 #include "pbr.hlsli"
-
-struct Vertex {
-    float3 position;
-    float3 normal;
-    float2 uv;
-    float4 tangent;
-    float3 color;
-};
 
 struct Const {
     float4x4 object_to_clip;
