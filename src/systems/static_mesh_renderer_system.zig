@@ -19,6 +19,7 @@ const input = @import("../input.zig");
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
+const ztracy = @import("ztracy");
 
 const DrawUniforms = struct {
     start_instance_location: u32,
@@ -192,7 +193,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .ecsu_world = ecsu_world,
         .sys = sys,
         .gfx = gfxstate,
-        .instance_transform_buffers = .{  masked_instance_transform_buffers, opaque_instance_transform_buffers },
+        .instance_transform_buffers = .{ masked_instance_transform_buffers, opaque_instance_transform_buffers },
         .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
         .draw_calls = draw_calls,
         .draw_calls_info = draw_calls_info,
@@ -227,6 +228,9 @@ pub fn destroy(state: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Static Mesh Renderer", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
     defer ecs.iter_fini(iter.iter);
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
@@ -268,6 +272,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const invalid_texture_index = std.math.maxInt(u32);
 
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
+    const loop1 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Culling and Batching", 0x00_ff_ff_00);
     while (entity_iter_mesh.next()) |comps| {
         var maybe_mesh = state.gfx.lookupMesh(comps.mesh.mesh_handle);
 
@@ -371,9 +376,11 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             }
         }
     }
+    loop1.End();
 
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Static Mesh Renderer System");
 
+    const loop2 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Rendering", 0x00_ff_ff_00);
     for (0..max_entity_types) |entity_type_index| {
         var start_instance_location: u32 = 0;
         var current_draw_call: gfx.DrawCall = undefined;
@@ -423,7 +430,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }
 
         if (state.draw_calls[entity_type_index].items.len > 0) {
-
             const pipeline_info = state.gfx.getPipeline(IdLocal.init(if (entity_type_index == masked_entities_index) "gbuffer_fill_masked" else "gbuffer_fill_opaque"));
             state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
@@ -480,6 +486,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             }
         }
     }
+    loop2.End();
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
 }

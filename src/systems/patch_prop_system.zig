@@ -9,6 +9,7 @@ const IdLocal = @import("../variant.zig").IdLocal;
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const tides_math = @import("../core/math.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
+const ztracy = @import("ztracy");
 
 const WorldLoaderData = struct {
     ent: ecs.entity_t = 0,
@@ -34,6 +35,9 @@ const SystemState = struct {
     loaders: [1]WorldLoaderData = .{.{}},
     requester_id: world_patch_manager.RequesterId,
     comp_query_loader: ecsu.Query,
+    medium_house_prefab: ecsu.Entity,
+    fir_tree_prefab: ecsu.Entity,
+    cube_prefab: ecsu.Entity,
 };
 
 pub fn create(
@@ -50,6 +54,11 @@ pub fn create(
 
     var system = allocator.create(SystemState) catch unreachable;
     var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+
+    const medium_house_prefab = prefab_manager.getPrefabByPath("content/prefabs/buildings/medium_house/medium_house.gltf").?;
+    const fir_tree_prefab = prefab_manager.getPrefabByPath("content/prefabs/environment/fir/fir.gltf").?;
+    const cube_prefab = prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cube.gltf").?;
+
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
@@ -59,6 +68,9 @@ pub fn create(
         .comp_query_loader = comp_query_loader,
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("props")),
         .patches = std.ArrayList(Patch).initCapacity(allocator, 32 * 32) catch unreachable,
+        .medium_house_prefab = medium_house_prefab,
+        .fir_tree_prefab = fir_tree_prefab,
+        .cube_prefab = cube_prefab,
     };
 
     // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
@@ -194,9 +206,9 @@ fn updateLoaders(system: *SystemState) void {
 var added_spawn = false;
 
 fn updatePatches(system: *SystemState) void {
-    const medium_house_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/buildings/medium_house/medium_house.gltf").?;
-    const fir_tree_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/environment/fir/fir.gltf").?;
-    const cube_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cube.gltf").?;
+    const trazy_zone = ztracy.ZoneNC(@src(), "Updating Patches", 0x00_ff_00_ff);
+    defer trazy_zone.End();
+
     for (system.patches.items) |*patch| {
         if (patch.loaded) {
             continue;
@@ -236,26 +248,26 @@ fn updatePatches(system: *SystemState) void {
                 zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
 
                 if (prop.id.hash == house_id.hash) {
-                    var house_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, medium_house_prefab);
+                    var house_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, system.medium_house_prefab);
                     house_ent.set(prop_transform);
                     house_ent.set(prop_pos);
                     house_ent.set(prop_rot);
                     house_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(house_ent.id) catch unreachable;
                 } else if (prop.id.hash == tree_id.hash) {
-                    var fir_tree_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, fir_tree_prefab);
+                    var fir_tree_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, system.fir_tree_prefab);
                     fir_tree_ent.set(prop_transform);
                     fir_tree_ent.set(prop_pos);
                     fir_tree_ent.set(prop_rot);
                     fir_tree_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(fir_tree_ent.id) catch unreachable;
                 } else if (prop.id.hash == wall_id.hash) {
-                    var fir_tree_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, cube_prefab);
-                    fir_tree_ent.set(prop_transform);
-                    fir_tree_ent.set(prop_pos);
-                    fir_tree_ent.set(prop_rot);
-                    fir_tree_ent.set(fd.Scale.createScalar(prop_scale));
-                    patch.entities.append(fir_tree_ent.id) catch unreachable;
+                    var wall_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, system.cube_prefab);
+                    wall_ent.set(prop_transform);
+                    wall_ent.set(prop_pos);
+                    wall_ent.set(prop_rot);
+                    wall_ent.set(fd.Scale.createScalar(prop_scale));
+                    patch.entities.append(wall_ent.id) catch unreachable;
                 } else {
                     var prop_ent = system.ecsu_world.newEntity();
                     prop_ent.set(prop_transform);

@@ -145,17 +145,17 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    player_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/characters/player/player.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/environment/fir/fir.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    player_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/characters/player/player.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{}) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/environment/fir/fir.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{}) catch unreachable;
 
     // Load prefab primitives
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cube.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_sphere.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cylinder.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cube.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_sphere.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cylinder.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -542,7 +542,6 @@ pub fn run() void {
     // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
     const bow_ent = prefab_manager.instantiatePrefab(&ecsu_world, bow_prefab);
-    bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.ProjectileWeapon{});
 
@@ -557,7 +556,6 @@ pub fn run() void {
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
     const player_ent = prefab_manager.instantiatePrefab(&ecsu_world, player_prefab);
-    player_ent.setName("player");
     player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
@@ -693,6 +691,9 @@ pub fn run() void {
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
+        defer trazy_zone.End();
+
         const window_status = window.update(&gfx_state) catch unreachable;
         if (window_status == .no_windows) {
             break;
