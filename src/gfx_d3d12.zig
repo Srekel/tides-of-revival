@@ -706,7 +706,6 @@ pub const D3D12State = struct {
             }
             self.gctx.addTransitionBarrier(prefiltered_env_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
             self.gctx.flushResourceBarriers();
-
         }
         zpix.endEvent(self.gctx.cmdlist);
 
@@ -1282,7 +1281,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const divisor = std.math.pow(u32, 2, @as(u32, @intCast(i)) + 1);
         const width = @divFloor(gctx.viewport_width, divisor);
         const height = @divFloor(gctx.viewport_height, divisor);
-        std.log.debug("{d} -> {d}: ({d}x{d})", .{i, divisor, width, height});
+        std.log.debug("{d} -> {d}: ({d}x{d})", .{ i, divisor, width, height });
 
         downsample_rts[i] = blk: {
             const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, width, height, true, false, L("Scene Color Downsampled"));
@@ -1440,6 +1439,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
         pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
+        pso_desc.RasterizerState.CullMode = .NONE;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
@@ -1739,10 +1739,10 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
         var quad_indices = [_]UIIndexType{ 0, 1, 2, 0, 3, 1 };
         var quad_vertices = [_]UIVertex{
-            .{ .position = [2]f32{ left, top }, .uv = [2]f32 { 0.0, 1.0 } }, // top-left,
-            .{ .position = [2]f32{ right, bottom }, .uv = [2]f32 { 1.0, 0.0 } }, // bottom-right,
-            .{ .position = [2]f32{ left, bottom }, .uv = [2]f32 { 0.0, 0.0 } }, // bottom-left,
-            .{ .position = [2]f32{ right, top }, .uv = [2]f32 { 1.0, 1.0 } }, // top-right,
+            .{ .position = [2]f32{ left, top }, .uv = [2]f32{ 0.0, 1.0 } }, // top-left,
+            .{ .position = [2]f32{ right, bottom }, .uv = [2]f32{ 1.0, 0.0 } }, // bottom-right,
+            .{ .position = [2]f32{ left, bottom }, .uv = [2]f32{ 0.0, 0.0 } }, // bottom-left,
+            .{ .position = [2]f32{ right, top }, .uv = [2]f32{ 1.0, 1.0 } }, // top-right,
         };
 
         // Create a vertex buffer.
@@ -1866,7 +1866,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
     var skybox_mesh = state.lookupMesh(state.skybox_mesh);
     if (skybox_mesh) |mesh| {
-
         const skybox_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Skybox");
         zpix.beginEvent(gctx.cmdlist, "Skybox");
         {
@@ -2049,7 +2048,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, depth_based_fog_profiler_index, gctx.frame_index);
-
 
     // Bloom
     const bloom_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Bloom");
@@ -2270,7 +2268,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         gctx.cmdlist.DrawIndexedInstanced(6, 1, 0, 0, 0);
-
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, ui_profiler_index, gctx.frame_index);
