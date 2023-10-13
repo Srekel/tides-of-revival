@@ -220,15 +220,11 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/upsample_blur.hlsl", "psUpsampleBlur", "upsample_blur.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "vsGBufferFill", "gbuffer_fill.vs.cso", "vs", "/DPSO__INSTANCED");
+    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "vsGBufferFill", "gbuffer_fill.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_opaque.ps.cso", "ps", "/DPSO__INSTANCED");
+    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_opaque.ps.cso", "ps", "PSO__OPAQUE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_masked.ps.cso", "ps", "/DPSO__INSTANCED /DPSO__ALPHA_CLIPPED");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "vsGBufferFill", "frustum_debug.vs.cso", "vs", "/DPSO__FRUSTUM_DEBUG");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psFrustumDebug", "frustum_debug.ps.cso", "ps", "/DPSO__FRUSTUM_DEBUG");
+    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_masked.ps.cso", "ps", "PSO__MASKED");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "vsTerrainQuadTree", "terrain_quad_tree.vs.cso", "vs", "");
@@ -260,21 +256,21 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateEnvTexture", "generate_env_texture.vs.cso", "vs", "/DPSO__GENERATE_ENV_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateEnvTexture", "generate_env_texture.vs.cso", "vs", "PSO__GENERATE_ENV_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateEnvTexture", "generate_env_texture.ps.cso", "ps", "/DPSO__GENERATE_ENV_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateEnvTexture", "generate_env_texture.ps.cso", "ps", "PSO__GENERATE_ENV_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsSampleEnvTexture", "sample_env_texture.vs.cso", "vs", "/DPSO__SAMPLE_ENV_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsSampleEnvTexture", "sample_env_texture.vs.cso", "vs", "PSO__SAMPLE_ENV_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psSampleEnvTexture", "sample_env_texture.ps.cso", "ps", "/DPSO__SAMPLE_ENV_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psSampleEnvTexture", "sample_env_texture.ps.cso", "ps", "PSO__SAMPLE_ENV_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateIrradianceTexture", "generate_irradiance_texture.vs.cso", "vs", "/DPSO__GENERATE_IRRADIANCE_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateIrradianceTexture", "generate_irradiance_texture.vs.cso", "vs", "PSO__GENERATE_IRRADIANCE_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateIrradianceTexture", "generate_irradiance_texture.ps.cso", "ps", "/DPSO__GENERATE_IRRADIANCE_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateIrradianceTexture", "generate_irradiance_texture.ps.cso", "ps", "PSO__GENERATE_IRRADIANCE_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.vs.cso", "vs", "/DPSO__GENERATE_PREFILTERED_ENV_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.vs.cso", "vs", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.ps.cso", "ps", "/DPSO__GENERATE_PREFILTERED_ENV_TEXTURE");
+    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.ps.cso", "ps", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
     dxc_command = makeDxcCmd("src/shaders/imgui.hlsl", "vsImGui", "imgui.vs.cso", "vs", "");
@@ -290,7 +286,7 @@ fn makeDxcCmd(
     comptime entry_point: []const u8,
     comptime output_filename: []const u8,
     comptime profile: []const u8,
-    comptime defines: []const u8,
+    comptime define: []const u8,
 ) [9][]const u8 {
     const shader_ver = "6_6";
     const shader_dir = thisDir() ++ "/src/shaders/compiled/";
@@ -300,8 +296,7 @@ fn makeDxcCmd(
         "/E " ++ entry_point,
         "/Fo " ++ shader_dir ++ output_filename,
         "/T " ++ profile ++ "_" ++ shader_ver,
-        defines,
-        // if (define.len == 0) "" else "/D " ++ define,
+        if (define.len == 0) "" else "/D " ++ define,
         "/WX",
         "/Ges",
         "/O3",

@@ -66,17 +66,10 @@ InstancedVertexOut vsGBufferFill(uint vertex_id : SV_VertexID, uint instanceID :
     uint instance_index = instanceID + cbv_draw_const.start_instance_location;
     InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
 
-#if defined(PSO__FRUSTUM_DEBUG)
-    const float4x4 object_to_clip = mul(instance.bounding_sphere_matrix, cbv_frame_const.view_projection);
-    output.position = mul(float4(vertex.position, 1.0), instance.bounding_sphere_matrix).xyz;
-    output.normal = mul(vertex.normal, (float3x3)instance.bounding_sphere_matrix);
-    output.tangent = mul(vertex.tangent.xyz, (float3x3)instance.bounding_sphere_matrix);
-#else
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.view_projection);
     output.position = mul(float4(vertex.position, 1.0), instance.object_to_world).xyz;
     output.normal = mul(vertex.normal, (float3x3)instance.object_to_world);
     output.tangent = mul(vertex.tangent.xyz, (float3x3)instance.object_to_world);
-#endif
 
     output.position_vs = mul(float4(vertex.position, 1.0), object_to_clip);
     output.uv = vertex.uv;
@@ -84,8 +77,6 @@ InstancedVertexOut vsGBufferFill(uint vertex_id : SV_VertexID, uint instanceID :
 
     return output;
 }
-
-#if defined(PSO__INSTANCED)
 
 [RootSignature(ROOT_SIGNATURE)]
 GBufferTargets psGBufferFill(InstancedVertexOut input) {
@@ -104,9 +95,9 @@ GBufferTargets psGBufferFill(InstancedVertexOut input) {
         float4 albedo_sample = albedo_texture.Sample(sam_aniso_wrap, input.uv);
         albedo_sample.rgb = degamma(albedo_sample.rgb);
         albedo.rgb *= albedo_sample.rgb;
-        albedo.a *= albedo_sample.a;
+        albedo.a = albedo_sample.a;
 
-#if defined(PSO__ALPHA_CLIPPED)
+#if defined(PSO__MASKED)
         clip(albedo.a - 0.5);
 #endif
     }
@@ -158,37 +149,3 @@ GBufferTargets psGBufferFill(InstancedVertexOut input) {
     gbuffer.scene_color = float4(emissive, 0.0);
     return gbuffer;
 }
-
-#elif defined(PSO__FRUSTUM_DEBUG)
-
-[RootSignature(ROOT_SIGNATURE)]
-GBufferTargets psFrustumDebug(InstancedVertexOut input) {
-    uint instance_index = input.instanceID + cbv_draw_const.start_instance_location;
-    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_transform_buffer_index];
-    InstanceTransform instance = instance_transform_buffer.Load<InstanceTransform>(instance_index * sizeof(InstanceTransform));
-
-    ByteAddressBuffer instance_material_buffer = ResourceDescriptorHeap[cbv_draw_const.instance_material_buffer_index];
-    InstanceMaterial material = instance_material_buffer.Load<InstanceMaterial>(instance_index * sizeof(InstanceMaterial));
-
-    // Albedo
-    float4 albedo = float4(degamma(input.color.rgb), 1.0);
-
-    // Roughness, Metallic and Occlusion
-    float roughness = material.roughness;
-    float metallic = material.metallic;
-    float occlusion = 1.0f;
-
-    // Normal
-    float3 normal = input.normal;
-
-    // Emission
-    float emission = 0.0f;
-
-    GBufferTargets gbuffer;
-    gbuffer.albedo = albedo;
-    gbuffer.normal = float4(packNormal(normal), 0.0);
-    gbuffer.material = float4(roughness, metallic, 0.0, occlusion);
-    gbuffer.scene_color = float4(0.0, 0.0, 0.0, 0.0);
-    return gbuffer;
-}
-#endif
