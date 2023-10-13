@@ -195,6 +195,8 @@ var added_spawn = false;
 
 fn updatePatches(system: *SystemState) void {
     const medium_house_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/buildings/medium_house/medium_house.gltf").?;
+    const fir_tree_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/environment/fir/fir.gltf").?;
+    const cube_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cube.gltf").?;
     for (system.patches.items) |*patch| {
         if (patch.loaded) {
             continue;
@@ -240,6 +242,20 @@ fn updatePatches(system: *SystemState) void {
                     house_ent.set(prop_rot);
                     house_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(house_ent.id) catch unreachable;
+                } else if (prop.id.hash == tree_id.hash) {
+                    var fir_tree_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, fir_tree_prefab);
+                    fir_tree_ent.set(prop_transform);
+                    fir_tree_ent.set(prop_pos);
+                    fir_tree_ent.set(prop_rot);
+                    fir_tree_ent.set(fd.Scale.createScalar(prop_scale));
+                    patch.entities.append(fir_tree_ent.id) catch unreachable;
+                } else if (prop.id.hash == wall_id.hash) {
+                    var fir_tree_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, cube_prefab);
+                    fir_tree_ent.set(prop_transform);
+                    fir_tree_ent.set(prop_pos);
+                    fir_tree_ent.set(prop_rot);
+                    fir_tree_ent.set(fd.Scale.createScalar(prop_scale));
+                    patch.entities.append(fir_tree_ent.id) catch unreachable;
                 } else {
                     var prop_ent = system.ecsu_world.newEntity();
                     prop_ent.set(prop_transform);
@@ -251,10 +267,6 @@ fn updatePatches(system: *SystemState) void {
                         // // var light_viz_ent = system.ecsu_world.newEntity();
                         // // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
                         // // light_viz_ent.set(fd.Scale.createScalar(1));
-                        // // light_viz_ent.set(fd.CIStaticMesh{
-                        // //     .id = IdLocal.id64("sphere"),
-                        // //     .basecolor_roughness = city_params.center_color,
-                        // // });
 
                         // if (!added_spawn) {
                         //     added_spawn = true;
@@ -265,18 +277,6 @@ fn updatePatches(system: *SystemState) void {
                         //     spawn_ent.addPair(fr.Hometown, prop_ent);
                         //     // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
                         // }
-                    } else {
-                        prop_ent.set(fd.CIStaticMesh{
-                            .id = blk: {
-                                if (prop.id.hash == tree_id.hash) {
-                                    break :blk IdLocal.id64("pine");
-                                } else if (prop.id.hash == wall_id.hash) {
-                                    break :blk IdLocal.id64("long_house");
-                                }
-                                unreachable;
-                            },
-                            .material = fd.PBRMaterial.initNoTexture(.{ .r = 0.6, .g = 0.6, .b = 0.1 }, 1.0, 0.0),
-                        });
                     }
                     patch.entities.append(prop_ent.id) catch unreachable;
                 }

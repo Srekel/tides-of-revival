@@ -218,6 +218,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     });
 
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
+    const cylinder_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
     while (entity_iter_proj.next()) |comps| {
         const velocity = body_interface.getLinearVelocity(comps.body.body_id);
         const velocity_z = zm.loadArr3(velocity);
@@ -248,18 +249,13 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         // trail
         const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
-        var fx_ent = system.ecsu_world.newEntity();
-        // proj_ent.setName("arrow");
+        var fx_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, cylinder_prefab);
         fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
         fx_ent.set(fd.Rotation{});
         fx_ent.set(fd.Scale.createScalar(1));
         fx_ent.set(fd.Transform.init(0, 0, 0));
         fx_ent.set(fd.Forward{});
         fx_ent.set(fd.Dynamic{});
-        fx_ent.set(fd.CIStaticMesh{
-            .id = IdLocal.id64("cylinder"),
-            .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 0.0 }, 0.8, 0.0),
-        });
 
         const tli_fx = config.events.TimelineInstanceData{
             .ent = fx_ent.id,

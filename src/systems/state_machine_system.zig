@@ -11,6 +11,7 @@ const BlobArray = @import("../blob_array.zig").BlobArray;
 const input = @import("../input.zig");
 const zaudio = @import("zaudio");
 const zphy = @import("zphysics");
+const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
 const StateCameraFPS = @import("../fsm/camera/state_camera_fps.zig");
@@ -34,6 +35,7 @@ const SystemState = struct {
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     audio_engine: *zaudio.Engine,
+    prefab_manager: *PrefabManager,
 };
 
 pub fn create(
@@ -43,6 +45,7 @@ pub fn create(
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     audio_engine: *zaudio.Engine,
+    prefab_manager: *PrefabManager,
 ) !*SystemState {
     var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
@@ -61,6 +64,7 @@ pub fn create(
         .frame_data = frame_data,
         .physics_world = physics_world,
         .audio_engine = audio_engine,
+        .prefab_manager = prefab_manager,
     };
 
     ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
@@ -78,6 +82,7 @@ fn initStateData(system: *SystemState) void {
     const sm_ctx = fsm.StateCreateContext{
         .allocator = system.allocator,
         .ecsu_world = system.ecsu_world,
+        .prefab_manager = system.prefab_manager,
     };
 
     const player_sm = blk: {

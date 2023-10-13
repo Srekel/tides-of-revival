@@ -27,8 +27,6 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Transform);
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
-    ecs.COMPONENT(ecs_world, CIStaticMesh);
-    ecs.COMPONENT(ecs_world, StaticMesh);
     ecs.COMPONENT(ecs_world, StaticMeshComponent);
     ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
@@ -367,16 +365,6 @@ pub const PBRMaterial = struct {
             .emissive = TextureHandle.nil,
         };
     }
-};
-
-pub const CIStaticMesh = struct {
-    id: u64,
-    material: PBRMaterial,
-};
-
-pub const StaticMesh = struct {
-    mesh_handle: MeshHandle,
-    material: PBRMaterial,
 };
 
 pub const StaticMeshComponent = struct {

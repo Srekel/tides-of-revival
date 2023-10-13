@@ -11,6 +11,7 @@ const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 const zphy = @import("zphysics");
+const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 
 fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const movement_pitch = input_state.get(config.input_look_pitch).number;
@@ -20,7 +21,7 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     rot.fromZM(rot_new);
 }
 
-fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData) void {
+fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_manager: *PrefabManager) void {
     // TODO: No, interaction shouldn't be in camera.. :)
     if (!input_state.just_pressed(config.input_interact)) {
         return;
@@ -47,15 +48,12 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
         var post_transform = fd.Transform.initFromPosition(post_pos);
         post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
 
-        const post_ent = ecsu_world.newEntity();
+        const cylinder_prefab = prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
+        const post_ent = prefab_manager.instantiatePrefab(&ecsu_world, cylinder_prefab);
         post_ent.set(post_pos);
         post_ent.set(fd.Rotation{});
         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
         post_ent.set(post_transform);
-        post_ent.set(fd.CIStaticMesh{
-            .id = IdLocal.id64("cylinder"),
-            .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-        });
 
         // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
         // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);

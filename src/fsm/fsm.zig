@@ -7,6 +7,7 @@ const zm = @import("zmath");
 const input = @import("../input.zig");
 const zaudio = @import("zaudio");
 const zphy = @import("zphysics");
+const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 
 pub const TriggerEvent = struct {
     id: IdLocal,
@@ -88,6 +89,7 @@ pub const State = struct {
 pub const StateCreateContext = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    prefab_manager: *PrefabManager,
 };
 
 pub const StateFuncContext = struct {

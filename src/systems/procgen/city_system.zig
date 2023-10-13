@@ -13,6 +13,7 @@ const config = @import("../../config.zig");
 const util = @import("../../util.zig");
 const IdLocal = @import("../../variant.zig").IdLocal;
 const AssetManager = @import("../../core/asset_manager.zig").AssetManager;
+const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
@@ -20,6 +21,7 @@ const SystemState = struct {
     physics_world: *zphy.PhysicsSystem,
     sys: ecs.entity_t,
     asset_manager: *AssetManager = undefined,
+    prefab_manager: *PrefabManager,
 
     gfx: *gfx.D3D12State,
     query_city: ecsu.Query,
@@ -47,6 +49,7 @@ pub fn create(
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     asset_manager: *AssetManager,
+    prefab_manager: *PrefabManager
 ) !*SystemState {
     var query_builder_city = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_city
@@ -86,6 +89,7 @@ pub fn create(
         .physics_world = physics_world,
         .sys = sys,
         .asset_manager = asset_manager,
+        .prefab_manager = prefab_manager,
         .gfx = gfxstate,
         .query_city = query_city,
         .query_camp = query_camp,
@@ -109,6 +113,7 @@ pub fn createEntities(state: *SystemState) void {
     var buf_reader = std.io.fixedBufferStream(cities_data);
     var in_stream = buf_reader.reader();
     var buf: [1024]u8 = undefined;
+    const sphere_prefab = state.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
     while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
         var comma_curr: usize = 0;
         var comma_next: usize = std.mem.indexOfScalar(u8, line, ","[0]).?;
@@ -131,13 +136,9 @@ pub fn createEntities(state: *SystemState) void {
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
         _ = rot_y;
 
-        var city_ent = ecsu_world.newEntity();
+        var city_ent = state.prefab_manager.instantiatePrefab(&ecsu_world, sphere_prefab);
         city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
         city_ent.set(fd.Scale.createScalar(10));
-        city_ent.set(fd.CIStaticMesh{
-            .id = IdLocal.id64("sphere"),
-            .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-        });
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
 
         var light_ent = state.ecsu_world.newEntity();
@@ -151,10 +152,6 @@ pub fn createEntities(state: *SystemState) void {
         // var light_viz_ent = ecsu_world.newEntity();
         // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
         // light_viz_ent.set(fd.Scale.createScalar(1));
-        // light_viz_ent.set(fd.CIStaticMesh{
-        //     .id = IdLocal.id64("sphere"),
-        //     .basecolor_roughness = city_params.center_color,
-        // });
 
         if (!added_spawn) {
             added_spawn = true;
@@ -298,10 +295,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
     //         caravan_ent.set(fd.Dynamic{});
-    //         caravan_ent.set(fd.CIStaticMesh{
-    //             .id = IdLocal.id64("cylinder"),
-    //             .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
-    //         });
     //         caravan_ent.set(fd.CompCaravan{
     //             .start_pos = pos.elemsConst().*,
     //             .end_pos = next_city_pos,
@@ -352,10 +345,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
     //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
     //         caravan_ent.set(fd.Dynamic{});
-    //         caravan_ent.set(fd.CIStaticMesh{
-    //             .id = IdLocal.id64("cylinder"),
-    //             .basecolor_roughness = .{ .r = 0.2, .g = 0.2, .b = 1.0, .roughness = 0.2 },
-    //         });
     //         caravan_ent.set(fd.CompCaravan{
     //             .start_pos = pos.elemsConst().*,
     //             .end_pos = target_pos,
