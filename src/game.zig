@@ -556,6 +556,7 @@ pub fn run() void {
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
     const player_ent = prefab_manager.instantiatePrefab(&ecsu_world, player_prefab);
+    player_ent.setName("main_player");
     player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});

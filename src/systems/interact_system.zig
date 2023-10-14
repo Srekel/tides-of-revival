@@ -107,7 +107,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             continue;
         }
 
-        const player_ent_id = ecs.lookup(ecs_world, "player");
+        const player_ent_id = ecs.lookup(ecs_world, "main_player");
         if (player_ent_id != 0) {
             const camera_ent = ecsu.Entity.init(ecs_world, ecs.lookup_child(ecs_world, player_ent_id, "playercamera"));
             if (camera_ent.isValid() and camera_ent.isAlive()) {
