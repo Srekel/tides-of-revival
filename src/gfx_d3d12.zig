@@ -837,6 +837,7 @@ pub const D3D12State = struct {
             self.gctx.addTransitionBarrier(resource, textureDesc.state);
 
             const t = Texture{
+                .resource_handle = resource,
                 .resource = self.gctx.lookupResource(resource).?,
                 .persistent_descriptor = srv_allocation,
             };
@@ -920,8 +921,12 @@ pub const D3D12State = struct {
             var texture = self.lookupTexture(handle);
 
             if (texture) |t| {
-                if (t.resource != null) {
-                    _ = t.resource.?.Release();
+                if (t.resource_handle) |resource_handle| {
+                    self.gctx.destroyResource(resource_handle);
+                    t.resource_handle = null;
+                    t.resource = null;
+                } else if (t.resource) |resource| {
+                    _ = resource.*.Release();
                     t.resource = null;
                 }
             }
@@ -1122,6 +1127,7 @@ pub const D3D12State = struct {
         );
 
         const texture = Texture{
+            .resource_handle = resource,
             .resource = self.gctx.lookupResource(resource).?,
             .persistent_descriptor = srv_allocation,
         };
