@@ -150,7 +150,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         fsm: *fd.FSM,
     });
 
-    const player_ent = ecs.lookup(ctx.ecsu_world.world, "player");
+    const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
