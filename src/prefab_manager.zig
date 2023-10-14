@@ -33,7 +33,7 @@ pub const PrefabManager = struct {
         self.prefab_hash_map.deinit();
     }
 
-    pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: *ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator) !ecsu.Entity {
+    pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: *ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator, args: struct { is_dynamic: bool = false }) !ecsu.Entity {
         const path_id = IdLocal.init(path);
         var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
@@ -51,15 +51,7 @@ pub const PrefabManager = struct {
         defer arena_state.deinit();
         const arena = arena_state.allocator();
 
-        var prefab = world.newPrefab(path);
-        prefab.setOverride(fd.Position.init(0, 0, 0));
-        prefab.setOverride(fd.Rotation{});
-        prefab.setOverride(fd.Scale.createScalar(1));
-        prefab.setOverride(fd.Transform{});
-        prefab.setOverride(fd.Forward{});
-        prefab.setOverride(fd.Dynamic{});
-        self.parseNode(scene.nodes.?[0], prefab, world, gfxstate, arena);
-
+        var prefab = self.parseNode(scene.nodes.?[0], null, world, gfxstate, arena, args.is_dynamic);
         self.prefab_hash_map.put(path_id, prefab) catch unreachable;
 
         return prefab;
@@ -81,19 +73,18 @@ pub const PrefabManager = struct {
         return entity;
     }
 
-    fn parseNode(
-        self: *@This(),
-        node: *zcgltf.Node,
-        parent_entity: ecsu.Entity,
-        world: *ecsu.World,
-        gfxstate: *gfx.D3D12State,
-        arena: std.mem.Allocator,
-    ) void {
-        // Set parent
+    fn parseNode(self: *@This(), node: *zcgltf.Node, parent_entity: ?ecsu.Entity, world: *ecsu.World, gfxstate: *gfx.D3D12State, arena: std.mem.Allocator, is_dynamic: bool) ecsu.Entity {
         var entity = world.newPrefab(node.name);
-        entity.addPair(ecs.ChildOf, parent_entity);
-        entity.setOverride(fd.Forward{});
-        entity.setOverride(fd.Dynamic{});
+
+        // Set parent
+        if (parent_entity) |parent| {
+            entity.addPair(ecs.ChildOf, parent);
+            entity.setOverride(fd.Forward{});
+        }
+
+        if (is_dynamic) {
+            entity.setOverride(fd.Dynamic{});
+        }
 
         // Set position, rotation and scale
         var position = fd.Position.init(0, 0, 0);
@@ -183,8 +174,10 @@ pub const PrefabManager = struct {
         }
 
         for (0..node.children_count) |i| {
-            self.parseNode(node.children.?[i], entity, world, gfxstate, arena);
+            _ = self.parseNode(node.children.?[i], entity, world, gfxstate, arena, is_dynamic);
         }
+
+        return entity;
     }
 
     fn parsePrimitiveMaterial(
@@ -213,6 +206,12 @@ pub const PrefabManager = struct {
             pbr_material.roughness = material.pbr_metallic_roughness.roughness_factor;
             pbr_material.normal_intensity = 1.0;
             pbr_material.emissive_strength = 1.0;
+
+            if (material.alpha_mode == .mask) {
+                pbr_material.surface_type = .mask;
+            } else {
+                pbr_material.surface_type = .@"opaque";
+            }
 
             if (material.pbr_metallic_roughness.base_color_texture.texture) |texture| {
                 if (texture.image) |image| {

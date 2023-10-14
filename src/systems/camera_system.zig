@@ -11,6 +11,7 @@ const fd = @import("../flecs_data.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const input = @import("../input.zig");
 const config = @import("../config.zig");
+const ztracy = @import("ztracy");
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
@@ -90,6 +91,9 @@ pub fn destroy(state: *SystemState) void {
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Camera Update", 0x00_ff_00_ff);
+    defer trazy_zone.End();
+
     defer ecs.iter_fini(iter.iter);
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateCameraSwitch(state);

@@ -19,6 +19,7 @@ const input = @import("../input.zig");
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
+const ztracy = @import("ztracy");
 
 const DrawUniforms = struct {
     start_instance_location: u32,
@@ -51,9 +52,13 @@ const DrawCallInfo = struct {
     sub_mesh_index: u32,
 };
 
-const max_instances = 1000000;
+const max_instances = 500000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
+
+const masked_entities_index: u32 = 0;
+const opaque_entities_index: u32 = 1;
+const max_entity_types: u32 = 2;
 
 const SystemState = struct {
     allocator: std.mem.Allocator,
@@ -62,12 +67,15 @@ const SystemState = struct {
 
     gfx: *gfx.D3D12State,
 
-    instance_transform_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
-    instance_material_buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
-    instance_transforms: std.ArrayList(InstanceTransform),
-    instance_materials: std.ArrayList(InstanceMaterial),
-    draw_calls: std.ArrayList(gfx.DrawCall),
-    draw_calls_info: std.ArrayList(DrawCallInfo),
+    instance_transform_buffers: [max_entity_types][gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
+    instance_material_buffers: [max_entity_types][gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
+
+    instance_transforms: [max_entity_types]std.ArrayList(InstanceTransform),
+    instance_materials: [max_entity_types]std.ArrayList(InstanceMaterial),
+
+    draw_calls: [max_entity_types]std.ArrayList(gfx.DrawCall),
+    draw_calls_info: [max_entity_types]std.ArrayList(DrawCallInfo),
+
     gpu_frame_profiler_index: u64 = undefined,
 
     query_camera: ecsu.Query,
@@ -82,14 +90,13 @@ const SystemState = struct {
 };
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: *ecsu.World, _: *input.FrameData) !*SystemState {
-    // Create instance buffers.
-    const instance_transform_buffers = blk: {
+    const opaque_instance_transform_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceTransform),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Instance Transform Buffer"),
+                .name = L("Instance Transform Buffer: Opaque"),
                 .persistent = true,
                 .has_cbv = false,
                 .has_srv = true,
@@ -102,13 +109,32 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk buffers;
     };
 
-    const instance_material_buffers = blk: {
+    const masked_instance_transform_buffers = blk: {
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
+        for (buffers, 0..) |_, buffer_index| {
+            const bufferDesc = gfx.BufferDesc{
+                .size = max_instances * @sizeOf(InstanceTransform),
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("Instance Transform Buffer: Masked"),
+                .persistent = true,
+                .has_cbv = false,
+                .has_srv = true,
+                .has_uav = false,
+            };
+
+            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
+        }
+
+        break :blk buffers;
+    };
+
+    const opaque_instance_material_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
             const bufferDesc = gfx.BufferDesc{
                 .size = max_instances * @sizeOf(InstanceMaterial),
                 .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Instance Material Buffer"),
+                .name = L("Instance Material Buffer: Opaque"),
                 .persistent = true,
                 .has_cbv = false,
                 .has_srv = true,
@@ -121,10 +147,30 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(gfx.DrawCall).init(allocator);
-    var draw_calls_info = std.ArrayList(DrawCallInfo).init(allocator);
-    var instance_transforms = std.ArrayList(InstanceTransform).init(allocator);
-    var instance_materials = std.ArrayList(InstanceMaterial).init(allocator);
+    const masked_instance_material_buffers = blk: {
+        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
+        for (buffers, 0..) |_, buffer_index| {
+            const bufferDesc = gfx.BufferDesc{
+                .size = max_instances * @sizeOf(InstanceMaterial),
+                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                .name = L("Instance Material Buffer: Masked"),
+                .persistent = true,
+                .has_cbv = false,
+                .has_srv = true,
+                .has_uav = false,
+            };
+
+            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
+        }
+
+        break :blk buffers;
+    };
+
+    var draw_calls = [max_entity_types]std.ArrayList(gfx.DrawCall){ std.ArrayList(gfx.DrawCall).init(allocator), std.ArrayList(gfx.DrawCall).init(allocator) };
+    var draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
+
+    var instance_transforms = [max_entity_types]std.ArrayList(InstanceTransform){ std.ArrayList(InstanceTransform).init(allocator), std.ArrayList(InstanceTransform).init(allocator) };
+    var instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
 
     var state = allocator.create(SystemState) catch unreachable;
     var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
@@ -147,8 +193,8 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .ecsu_world = ecsu_world,
         .sys = sys,
         .gfx = gfxstate,
-        .instance_transform_buffers = instance_transform_buffers,
-        .instance_material_buffers = instance_material_buffers,
+        .instance_transform_buffers = .{ masked_instance_transform_buffers, opaque_instance_transform_buffers },
+        .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
         .draw_calls = draw_calls,
         .draw_calls_info = draw_calls_info,
         .instance_transforms = instance_transforms,
@@ -163,10 +209,14 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 pub fn destroy(state: *SystemState) void {
     state.query_camera.deinit();
     state.query_mesh.deinit();
-    state.instance_transforms.deinit();
-    state.instance_materials.deinit();
-    state.draw_calls.deinit();
-    state.draw_calls_info.deinit();
+    state.instance_transforms[opaque_entities_index].deinit();
+    state.instance_transforms[masked_entities_index].deinit();
+    state.instance_materials[opaque_entities_index].deinit();
+    state.instance_materials[masked_entities_index].deinit();
+    state.draw_calls[opaque_entities_index].deinit();
+    state.draw_calls[masked_entities_index].deinit();
+    state.draw_calls_info[opaque_entities_index].deinit();
+    state.draw_calls_info[masked_entities_index].deinit();
     state.allocator.destroy(state);
 }
 
@@ -178,6 +228,9 @@ pub fn destroy(state: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Static Mesh Renderer", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
     defer ecs.iter_fini(iter.iter);
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
@@ -210,12 +263,16 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     });
 
     // Reset transforms, materials and draw calls array list
-    state.instance_transforms.clearRetainingCapacity();
-    state.instance_materials.clearRetainingCapacity();
-    state.draw_calls.clearRetainingCapacity();
-    state.draw_calls_info.clearRetainingCapacity();
+    for (0..max_entity_types) |entity_type_index| {
+        state.instance_transforms[entity_type_index].clearRetainingCapacity();
+        state.instance_materials[entity_type_index].clearRetainingCapacity();
+        state.draw_calls[entity_type_index].clearRetainingCapacity();
+        state.draw_calls_info[entity_type_index].clearRetainingCapacity();
+    }
+    const invalid_texture_index = std.math.maxInt(u32);
 
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
+    const loop1 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Culling and Batching", 0x00_ff_ff_00);
     while (entity_iter_mesh.next()) |comps| {
         var maybe_mesh = state.gfx.lookupMesh(comps.mesh.mesh_handle);
 
@@ -239,15 +296,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .sub_mesh_index = undefined,
             };
 
-            const invalid_texture_index = std.math.maxInt(u32);
             for (0..mesh.sub_mesh_count) |sub_mesh_index| {
                 draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
-                state.draw_calls_info.append(draw_call_info) catch unreachable;
-
-                state.instance_transforms.append(.{
-                    .object_to_world = zm.transpose(z_world),
-                    .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
-                }) catch unreachable;
 
                 var maybe_material = state.gfx.lookUpMaterial(comps.mesh.material_handles[sub_mesh_index]);
                 if (maybe_material) |material| {
@@ -283,7 +333,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                         }
                     };
 
-                    state.instance_materials.append(.{
+                    const entity_type_index = if (material.surface_type == .@"opaque") opaque_entities_index else masked_entities_index;
+
+                    state.instance_materials[entity_type_index].append(.{
                         .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
                         .roughness = material.roughness,
                         .metallic = material.metallic,
@@ -294,8 +346,22 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                         .normal_texture_index = normal,
                         .arm_texture_index = arm,
                     }) catch unreachable;
+
+                    state.draw_calls_info[entity_type_index].append(draw_call_info) catch unreachable;
+
+                    state.instance_transforms[entity_type_index].append(.{
+                        .object_to_world = zm.transpose(z_world),
+                        .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
+                    }) catch unreachable;
                 } else {
-                    state.instance_materials.append(.{
+                    state.draw_calls_info[opaque_entities_index].append(draw_call_info) catch unreachable;
+
+                    state.instance_transforms[opaque_entities_index].append(.{
+                        .object_to_world = zm.transpose(z_world),
+                        .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
+                    }) catch unreachable;
+
+                    state.instance_materials[opaque_entities_index].append(.{
                         .albedo_color = [4]f32{ 1.0, 0.0, 1.0, 1.0 },
                         .roughness = 1.0,
                         .metallic = 0.0,
@@ -310,112 +376,117 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             }
         }
     }
-
-    var start_instance_location: u32 = 0;
-    var current_draw_call: gfx.DrawCall = undefined;
-
-    for (state.draw_calls_info.items, 0..) |draw_call_info, i| {
-        if (i == 0) {
-            current_draw_call = .{
-                .mesh_handle = draw_call_info.mesh_handle,
-                .sub_mesh_index = draw_call_info.sub_mesh_index,
-                .lod_index = draw_call_info.lod_index,
-                .instance_count = 1,
-                .start_instance_location = start_instance_location,
-            };
-
-            start_instance_location += 1;
-
-            if (i == state.draw_calls_info.items.len - 1) {
-                state.draw_calls.append(current_draw_call) catch unreachable;
-            }
-            continue;
-        }
-
-        if (isSameMeshHandle(current_draw_call.mesh_handle, draw_call_info.mesh_handle) and current_draw_call.lod_index == draw_call_info.lod_index and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index) {
-            current_draw_call.instance_count += 1;
-            start_instance_location += 1;
-
-            if (i == state.draw_calls_info.items.len - 1) {
-                state.draw_calls.append(current_draw_call) catch unreachable;
-            }
-        } else {
-            state.draw_calls.append(current_draw_call) catch unreachable;
-
-            current_draw_call = .{
-                .mesh_handle = draw_call_info.mesh_handle,
-                .sub_mesh_index = draw_call_info.sub_mesh_index,
-                .lod_index = draw_call_info.lod_index,
-                .instance_count = 1,
-                .start_instance_location = start_instance_location,
-            };
-
-            start_instance_location += 1;
-
-            if (i == state.draw_calls_info.items.len - 1) {
-                state.draw_calls.append(current_draw_call) catch unreachable;
-            }
-        }
-    }
+    loop1.End();
 
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Static Mesh Renderer System");
 
-    if (state.draw_calls.items.len > 0) {
-        const pipeline_info = state.gfx.getPipeline(IdLocal.init("instanced"));
-        state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+    const loop2 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Rendering", 0x00_ff_ff_00);
+    for (0..max_entity_types) |entity_type_index| {
+        var start_instance_location: u32 = 0;
+        var current_draw_call: gfx.DrawCall = undefined;
 
-        // Upload per-frame constant data.
-        const z_view_projection = zm.loadMat(cam.view_projection[0..]);
-        const z_view_projection_inverted = zm.inverse(z_view_projection);
-        {
-            const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
-            mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
-            mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
-            mem.cpu_slice[0].camera_position = camera_position;
+        for (state.draw_calls_info[entity_type_index].items, 0..) |draw_call_info, i| {
+            if (i == 0) {
+                current_draw_call = .{
+                    .mesh_handle = draw_call_info.mesh_handle,
+                    .sub_mesh_index = draw_call_info.sub_mesh_index,
+                    .lod_index = draw_call_info.lod_index,
+                    .instance_count = 1,
+                    .start_instance_location = start_instance_location,
+                };
 
-            state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+                start_instance_location += 1;
+
+                if (i == state.draw_calls_info[entity_type_index].items.len - 1) {
+                    state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                }
+                continue;
+            }
+
+            if (isSameMeshHandle(current_draw_call.mesh_handle, draw_call_info.mesh_handle) and current_draw_call.lod_index == draw_call_info.lod_index and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index) {
+                current_draw_call.instance_count += 1;
+                start_instance_location += 1;
+
+                if (i == state.draw_calls_info[entity_type_index].items.len - 1) {
+                    state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                }
+            } else {
+                state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+
+                current_draw_call = .{
+                    .mesh_handle = draw_call_info.mesh_handle,
+                    .sub_mesh_index = draw_call_info.sub_mesh_index,
+                    .lod_index = draw_call_info.lod_index,
+                    .instance_count = 1,
+                    .start_instance_location = start_instance_location,
+                };
+
+                start_instance_location += 1;
+
+                if (i == state.draw_calls_info[entity_type_index].items.len - 1) {
+                    state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                }
+            }
         }
 
-        const frame_index = state.gfx.gctx.frame_index;
-        _ = state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[frame_index], 0, state.instance_transforms.items);
-        _ = state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[frame_index], 0, state.instance_materials.items);
+        if (state.draw_calls[entity_type_index].items.len > 0) {
+            const pipeline_info = state.gfx.getPipeline(IdLocal.init(if (entity_type_index == masked_entities_index) "gbuffer_fill_masked" else "gbuffer_fill_opaque"));
+            state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-        const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[frame_index]);
-        const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[frame_index]);
+            // Upload per-frame constant data.
+            const z_view_projection = zm.loadMat(cam.view_projection[0..]);
+            const z_view_projection_inverted = zm.inverse(z_view_projection);
+            {
+                const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+                mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
+                mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
+                mem.cpu_slice[0].camera_position = camera_position;
 
-        for (state.draw_calls.items) |draw_call| {
-            var maybe_mesh = state.gfx.lookupMesh(draw_call.mesh_handle);
+                state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+            }
 
-            if (maybe_mesh) |mesh| {
-                state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-                const index_buffer = state.gfx.lookupBuffer(mesh.index_buffer);
-                const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
-                state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
-                    .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-                    .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
-                    .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
-                });
+            const frame_index = state.gfx.gctx.frame_index;
+            _ = state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[entity_type_index][frame_index], 0, state.instance_transforms[entity_type_index].items);
+            _ = state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[entity_type_index][frame_index], 0, state.instance_materials[entity_type_index].items);
 
-                const vertex_buffer = state.gfx.lookupBuffer(mesh.vertex_buffer);
-                const mesh_lod = mesh.sub_meshes[draw_call.sub_mesh_index].lods[draw_call.lod_index];
-                const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
-                mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-                mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
-                mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-                mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
-                mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
-                state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+            const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[entity_type_index][frame_index]);
+            const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[entity_type_index][frame_index]);
 
-                state.gfx.gctx.cmdlist.DrawIndexedInstanced(
-                    mesh_lod.index_count,
-                    draw_call.instance_count,
-                    mesh_lod.index_offset,
-                    @as(i32, @intCast(mesh_lod.vertex_offset)),
-                    draw_call.start_instance_location,
-                );
+            for (state.draw_calls[entity_type_index].items) |draw_call| {
+                var maybe_mesh = state.gfx.lookupMesh(draw_call.mesh_handle);
+
+                if (maybe_mesh) |mesh| {
+                    state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+                    const index_buffer = state.gfx.lookupBuffer(mesh.index_buffer);
+                    const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
+                    state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
+                        .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
+                        .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
+                        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
+                    });
+
+                    const vertex_buffer = state.gfx.lookupBuffer(mesh.vertex_buffer);
+                    const mesh_lod = mesh.sub_meshes[draw_call.sub_mesh_index].lods[draw_call.lod_index];
+                    const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
+                    mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
+                    mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
+                    mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+                    mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
+                    mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
+                    state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+
+                    state.gfx.gctx.cmdlist.DrawIndexedInstanced(
+                        mesh_lod.index_count,
+                        draw_call.instance_count,
+                        mesh_lod.index_offset,
+                        @as(i32, @intCast(mesh_lod.vertex_offset)),
+                        draw_call.start_instance_location,
+                    );
+                }
             }
         }
     }
+    loop2.End();
 
     state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
 }

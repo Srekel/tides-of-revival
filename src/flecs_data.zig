@@ -27,8 +27,6 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Transform);
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
-    ecs.COMPONENT(ecs_world, CIStaticMesh);
-    ecs.COMPONENT(ecs_world, StaticMesh);
     ecs.COMPONENT(ecs_world, StaticMeshComponent);
     ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
@@ -329,6 +327,11 @@ pub const Velocity = struct {
 // ██║ ╚═╝ ██║███████╗███████║██║  ██║
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
+pub const SurfaceType = enum {
+    @"opaque",
+    mask,
+};
+
 pub const PBRMaterial = struct {
     base_color: ColorRGB,
     metallic: f32,
@@ -339,6 +342,8 @@ pub const PBRMaterial = struct {
     normal: TextureHandle,
     arm: TextureHandle,
     emissive: TextureHandle,
+    surface_type: SurfaceType,
+
 
     pub fn init() PBRMaterial {
         return .{
@@ -351,6 +356,7 @@ pub const PBRMaterial = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
+            .surface_type = .@"opaque",
         };
     }
 
@@ -365,18 +371,9 @@ pub const PBRMaterial = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
+            .surface_type = .@"opaque",
         };
     }
-};
-
-pub const CIStaticMesh = struct {
-    id: u64,
-    material: PBRMaterial,
-};
-
-pub const StaticMesh = struct {
-    mesh_handle: MeshHandle,
-    material: PBRMaterial,
 };
 
 pub const StaticMeshComponent = struct {

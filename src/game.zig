@@ -34,11 +34,9 @@ const interact_system = @import("systems/interact_system.zig");
 const physics_system = @import("systems/physics_system.zig");
 const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
 const patch_prop_system = @import("systems/patch_prop_system.zig");
-const procmesh_system = @import("systems/procedural_mesh_system.zig");
 const static_mesh_renderer_system = @import("systems/static_mesh_renderer_system.zig");
 const state_machine_system = @import("systems/state_machine_system.zig");
 const timeline_system = @import("systems/timeline_system.zig");
-// const gui_system = @import("systems/gui_system.zig");
 
 const SpawnContext = struct {
     ecsu_world: ecsu.World,
@@ -53,7 +51,7 @@ const SpawnContext = struct {
 
 var giant_ant_prefab: ecsu.Entity = undefined;
 var bow_prefab: ecsu.Entity = undefined;
-var medium_house_prefab: ecsu.Entity = undefined;
+var player_prefab: ecsu.Entity = undefined;
 
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
@@ -147,10 +145,17 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    medium_house_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator) catch unreachable;
+    player_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/characters/player/player.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{}) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/environment/fir/fir.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{}) catch unreachable;
+
+    // Load prefab primitives
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cube.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_sphere.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cylinder.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -383,6 +388,7 @@ pub fn run() void {
         &input_frame_data,
         physics_sys.physics_world,
         audio_engine,
+        &prefab_manager,
     );
     defer state_machine_system.destroy(state_machine_sys);
 
@@ -408,6 +414,7 @@ pub fn run() void {
         ecsu_world,
         physics_sys.physics_world,
         &asset_manager,
+        &prefab_manager,
     );
     defer city_system.destroy(city_sys);
 
@@ -428,15 +435,6 @@ pub fn run() void {
         &prefab_manager,
     );
     defer patch_prop_system.destroy(patch_prop_sys);
-
-    var procmesh_sys = try procmesh_system.create(
-        IdLocal.initFormat("procmesh_system_{}", .{0}),
-        std.heap.page_allocator,
-        &gfx_state,
-        &ecsu_world,
-        &input_frame_data,
-    );
-    defer procmesh_system.destroy(procmesh_sys);
 
     var light_sys = try light_system.create(
         IdLocal.initFormat("light_system_{}", .{0}),
@@ -513,25 +511,6 @@ pub fn run() void {
         break :blk null;
     };
 
-    // const entity3 = ecsu_world.newEntity();
-    // entity3.set(fd.Transform.initWithScale(0, 0, 0, 100));
-    // entity3.set(fd.CIStaticMesh{
-    //     .id = IdLocal.id64("sphere"),
-    //     .basecolor_roughness = .{ .r = 1.0, .g = 0.0, .b = 0.0, .roughness = 0.8 },
-    // });
-    // entity3.set(fd.CIPhysicsBody{
-    //     .shape_type = .sphere,
-    //     .mass = 1,
-    //     .sphere = .{ .radius = 10.5 },
-    // });
-
-    // const entity4 = ecsu_world.newEntity();
-    // entity4.set(fd.Transform.initWithScale(512, 0, 512, 100));
-    // entity4.set(fd.CIStaticMesh{
-    //     .id = IdLocal.id64("sphere"),
-    //     .basecolor_roughness = .{ .r = 0.0, .g = 0.0, .b = 1.0, .roughness = 0.8 },
-    // });
-
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     // const player_pos = fd.Position.init(100, 100, 100);
     const debug_camera_ent = ecsu_world.newEntity();
@@ -563,7 +542,6 @@ pub fn run() void {
     // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
     const bow_ent = prefab_manager.instantiatePrefab(&ecsu_world, bow_prefab);
-    bow_ent.setName("bow");
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.ProjectileWeapon{});
 
@@ -577,20 +555,13 @@ pub fn run() void {
     // // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_ent = ecsu_world.newEntity();
-    player_ent.setName("player");
+    const player_ent = prefab_manager.instantiatePrefab(&ecsu_world, player_prefab);
     player_ent.set(player_pos);
-    player_ent.set(fd.Rotation{});
-    player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
     player_ent.set(fd.Velocity{});
     player_ent.set(fd.Dynamic{});
     player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
-    player_ent.set(fd.CIStaticMesh{
-        .id = IdLocal.id64("cylinder"),
-        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-    });
     player_ent.set(fd.WorldLoader{
         .range = 2,
         .physics = true,
@@ -603,10 +574,11 @@ pub fn run() void {
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
-    const player_camera_ent = ecsu_world.newEntity();
+    const sphere_prefab = prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
+    const player_camera_ent = prefab_manager.instantiatePrefab(&ecsu_world, sphere_prefab);
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
-    player_camera_ent.set(fd.Position{ .x = 0, .y = 1.8, .z = 0 });
+    player_camera_ent.set(fd.Position{ .x = 0, .y = 1.7, .z = 0 });
     player_camera_ent.set(fd.Rotation{});
     player_camera_ent.set(fd.Scale.createScalar(1));
     player_camera_ent.set(fd.Transform{});
@@ -621,10 +593,6 @@ pub fn run() void {
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    player_camera_ent.set(fd.CIStaticMesh{
-        .id = IdLocal.id64("sphere"),
-        .material = fd.PBRMaterial.initNoTexture(.{ .r = 1.0, .g = 1.0, .b = 1.0 }, 0.8, 0.0),
-    });
     player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.5, .b = 0.25 },
         .range = 10.0,
@@ -723,6 +691,9 @@ pub fn run() void {
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
+        defer trazy_zone.End();
+
         const window_status = window.update(&gfx_state) catch unreachable;
         if (window_status == .no_windows) {
             break;

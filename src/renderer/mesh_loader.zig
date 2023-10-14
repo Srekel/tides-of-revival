@@ -20,11 +20,13 @@ pub fn parseMeshPrimitive(
     var positions = std.ArrayList([3]f32).init(arena);
     var normals = std.ArrayList([3]f32).init(arena);
     var tangents = std.ArrayList([4]f32).init(arena);
+    var colors = std.ArrayList([4]f32).init(arena);
     var uvs = std.ArrayList([2]f32).init(arena);
     defer indices.deinit();
     defer positions.deinit();
     defer normals.deinit();
     defer tangents.deinit();
+    defer colors.deinit();
     defer uvs.deinit();
 
     // Indices.
@@ -103,6 +105,12 @@ pub fn parseMeshPrimitive(
                 const array: [*]const [4]f32 = @ptrCast(@alignCast(data_addr));
                 const slice = array[0..num_vertices];
                 try tangents.appendSlice(slice);
+            } else if (attrib.type == .color) {
+                assert(accessor.type == .vec4);
+                assert(accessor.component_type == .r_32f);
+                const array: [*]const [4]f32 = @ptrCast(@alignCast(data_addr));
+                const slice = array[0..num_vertices];
+                try colors.appendSlice(slice);
             }
         }
     }
@@ -141,13 +149,14 @@ pub fn parseMeshPrimitive(
 
     try meshes_vertices.ensureTotalCapacity(meshes_vertices.items.len + positions.items.len);
     const has_tangents = if (tangents.items.len == positions.items.len) true else false;
+    const has_colors = if (colors.items.len == positions.items.len) true else false;
     for (positions.items, 0..) |_, index| {
         meshes_vertices.appendAssumeCapacity(.{
             .position = positions.items[index],
             .normal = normals.items[index],
             .uv = uvs.items[index],
             .tangent = if (has_tangents) tangents.items[index] else [4]f32{ 0.0, 0.0, 1.0, 0.0 },
-            .color = [3]f32{ 1.0, 1.0, 1.0 },
+            .color = if (has_colors) colors.items[index] else [4]f32{ 1.0, 1.0, 1.0, 1.0 },
         });
     }
 
@@ -178,7 +187,7 @@ pub fn loadObjMeshFromFile(
     var vertices = std.ArrayList(rt.Vertex).init(arena);
 
     var positions = std.ArrayList([3]f32).init(arena);
-    var colors = std.ArrayList([3]f32).init(arena);
+    var colors = std.ArrayList([4]f32).init(arena);
     var normals = std.ArrayList([3]f32).init(arena);
     var uvs = std.ArrayList([2]f32).init(arena);
 
@@ -251,10 +260,11 @@ pub fn loadObjMeshFromFile(
             position[1] = try std.fmt.parseFloat(f32, it.next().?);
             position[2] = try std.fmt.parseFloat(f32, it.next().?) * -1.0; // NOTE(gmodarelli): Convert to Left Hand coordinate system for DirectX
             try positions.append(position);
-            var color: [3]f32 = undefined;
+            var color: [4]f32 = undefined;
             color[0] = try std.fmt.parseFloat(f32, it.next().?);
             color[1] = try std.fmt.parseFloat(f32, it.next().?);
             color[2] = try std.fmt.parseFloat(f32, it.next().?);
+            color[3] = 1.0;
             try colors.append(color);
         } else if (std.mem.eql(u8, first, "vn")) {
             var normal: [3]f32 = undefined;

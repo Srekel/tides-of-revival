@@ -706,7 +706,6 @@ pub const D3D12State = struct {
             }
             self.gctx.addTransitionBarrier(prefiltered_env_texture.resource, .{ .PIXEL_SHADER_RESOURCE = true });
             self.gctx.flushResourceBarriers();
-
         }
         zpix.endEvent(self.gctx.cmdlist);
 
@@ -1282,7 +1281,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const divisor = std.math.pow(u32, 2, @as(u32, @intCast(i)) + 1);
         const width = @divFloor(gctx.viewport_width, divisor);
         const height = @divFloor(gctx.viewport_height, divisor);
-        std.log.debug("{d} -> {d}: ({d}x{d})", .{i, divisor, width, height});
+        std.log.debug("{d} -> {d}: ({d}x{d})", .{ i, divisor, width, height });
 
         downsample_rts[i] = blk: {
             const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, width, height, true, false, L("Scene Color Downsampled"));
@@ -1396,7 +1395,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
-    const instanced_pipeline = blk: {
+    const gbuffer_fill_opaque_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
             .pInputElementDescs = null,
@@ -1415,8 +1414,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/instanced.vs.cso",
-            "shaders/instanced.ps.cso",
+            "shaders/gbuffer_fill.vs.cso",
+            "shaders/gbuffer_fill_opaque.ps.cso",
         );
 
         // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
@@ -1425,7 +1424,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         break :blk pso_handle;
     };
 
-    const frustum_debug_pipeline = blk: {
+    const gbuffer_fill_masked_pso = blk: {
         var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
         pso_desc.InputLayout = .{
             .pInputElementDescs = null,
@@ -1440,13 +1439,13 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
         pso_desc.PrimitiveTopologyType = .TRIANGLE;
         pso_desc.DepthStencilState.DepthFunc = .GREATER_EQUAL;
-        pso_desc.RasterizerState.FillMode = .WIREFRAME;
+        pso_desc.RasterizerState.CullMode = .NONE;
 
         const pso_handle = gctx.createGraphicsShaderPipeline(
             arena,
             &pso_desc,
-            "shaders/frustum_debug.vs.cso",
-            "shaders/frustum_debug.ps.cso",
+            "shaders/gbuffer_fill.vs.cso",
+            "shaders/gbuffer_fill_masked.ps.cso",
         );
 
         // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
@@ -1591,12 +1590,12 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     pipelines.put(IdLocal.init("depth_based_fog"), PipelineInfo{ .pipeline_handle = depth_based_fog_pso }) catch unreachable;
     pipelines.put(IdLocal.init("downsample"), PipelineInfo{ .pipeline_handle = downsample_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("upsample_blur"), PipelineInfo{ .pipeline_handle = upsample_blur_pipeline }) catch unreachable;
-    pipelines.put(IdLocal.init("instanced"), PipelineInfo{ .pipeline_handle = instanced_pipeline }) catch unreachable;
+    pipelines.put(IdLocal.init("gbuffer_fill_opaque"), PipelineInfo{ .pipeline_handle = gbuffer_fill_opaque_pso }) catch unreachable;
+    pipelines.put(IdLocal.init("gbuffer_fill_masked"), PipelineInfo{ .pipeline_handle = gbuffer_fill_masked_pso }) catch unreachable;
     pipelines.put(IdLocal.init("terrain_quad_tree"), PipelineInfo{ .pipeline_handle = terrain_quad_tree_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("deferred_lighting"), PipelineInfo{ .pipeline_handle = deferred_lighting_pso }) catch unreachable;
     pipelines.put(IdLocal.init("skybox"), PipelineInfo{ .pipeline_handle = skybox_pso }) catch unreachable;
     pipelines.put(IdLocal.init("ui"), PipelineInfo{ .pipeline_handle = ui_pso }) catch unreachable;
-    pipelines.put(IdLocal.init("frustum_debug"), PipelineInfo{ .pipeline_handle = frustum_debug_pipeline }) catch unreachable;
     pipelines.put(IdLocal.init("generate_env_texture"), PipelineInfo{ .pipeline_handle = generate_env_texture_pso }) catch unreachable;
     pipelines.put(IdLocal.init("generate_irradiance_texture"), PipelineInfo{ .pipeline_handle = generate_irradiance_texture_pso }) catch unreachable;
     pipelines.put(IdLocal.init("generate_prefiltered_env_texture"), PipelineInfo{ .pipeline_handle = generate_prefiltered_env_texture_pso }) catch unreachable;
@@ -1740,10 +1739,10 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
         var quad_indices = [_]UIIndexType{ 0, 1, 2, 0, 3, 1 };
         var quad_vertices = [_]UIVertex{
-            .{ .position = [2]f32{ left, top }, .uv = [2]f32 { 0.0, 1.0 } }, // top-left,
-            .{ .position = [2]f32{ right, bottom }, .uv = [2]f32 { 1.0, 0.0 } }, // bottom-right,
-            .{ .position = [2]f32{ left, bottom }, .uv = [2]f32 { 0.0, 0.0 } }, // bottom-left,
-            .{ .position = [2]f32{ right, top }, .uv = [2]f32 { 1.0, 1.0 } }, // top-right,
+            .{ .position = [2]f32{ left, top }, .uv = [2]f32{ 0.0, 1.0 } }, // top-left,
+            .{ .position = [2]f32{ right, bottom }, .uv = [2]f32{ 1.0, 0.0 } }, // bottom-right,
+            .{ .position = [2]f32{ left, bottom }, .uv = [2]f32{ 0.0, 0.0 } }, // bottom-left,
+            .{ .position = [2]f32{ right, top }, .uv = [2]f32{ 1.0, 1.0 } }, // top-right,
         };
 
         // Create a vertex buffer.
@@ -1867,7 +1866,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
     var skybox_mesh = state.lookupMesh(state.skybox_mesh);
     if (skybox_mesh) |mesh| {
-
         const skybox_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Skybox");
         zpix.beginEvent(gctx.cmdlist, "Skybox");
         {
@@ -2050,7 +2048,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, depth_based_fog_profiler_index, gctx.frame_index);
-
 
     // Bloom
     const bloom_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Bloom");
@@ -2271,7 +2268,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         gctx.cmdlist.DrawIndexedInstanced(6, 1, 0, 0, 0);
-
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, ui_profiler_index, gctx.frame_index);
