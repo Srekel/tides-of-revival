@@ -357,6 +357,7 @@ fn createTextureFromPixelBuffer(
     );
 
     return gfx.Texture{
+        .resource_handle = null,
         .resource = resource,
         .persistent_descriptor = srv_allocation,
     };

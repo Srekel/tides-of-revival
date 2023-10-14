@@ -75,6 +75,8 @@ pub const BufferPool = struct {
         for (pool.buffers) |buffer| {
             if (buffer.size > 0) {
                 gctx.destroyResource(buffer.resource);
+                var b = @as(*Buffer, @constCast(&buffer));
+                b.size = 0;
             }
         }
 

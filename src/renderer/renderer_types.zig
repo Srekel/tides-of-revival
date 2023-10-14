@@ -81,6 +81,7 @@ pub const TextureDesc = struct {
 };
 
 pub const Texture = struct {
+    resource_handle: ?zd3d12.ResourceHandle,
     resource: ?*d3d12.IResource,
     persistent_descriptor: zd3d12.PersistentDescriptor,
 };
