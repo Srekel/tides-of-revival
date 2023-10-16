@@ -76,8 +76,7 @@ pub fn update(gfx_state: *gfx.D3D12State) !enum { no_windows, has_windows } {
                     "Window resized to {d}x{d}",
                     .{ window.frame_buffer_size[0], window.frame_buffer_size[1] },
                 );
-
-                _ = gfx_state;
+                gfx_state.resize(@intCast(frame_buffer_size[0]), @intCast(frame_buffer_size[1]));
 
                 // gfx_state.gctx.finishGpuCommands();
 

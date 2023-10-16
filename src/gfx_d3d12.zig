@@ -148,7 +148,6 @@ pub const RenderTargetDesc = struct {
     flags: d3d12.RESOURCE_FLAGS,
     initial_state: d3d12.RESOURCE_STATES,
     clear_value: d3d12.CLEAR_VALUE,
-    // mip_levels: u32,
     srv: bool,
     uav: bool,
     name: [*:0]const u16,
@@ -325,6 +324,92 @@ pub const D3D12State = struct {
     main_light: renderer_types.DirectionalLightGPU,
     point_lights_buffers: [num_buffered_frames]BufferHandle,
     point_lights_count: [num_buffered_frames]u32,
+
+    pub fn resize(self: *D3D12State, width: u32, height: u32) void {
+        var gctx = &self.gctx;
+
+        _ = self.stats_brush.Release();
+        _ = self.stats_text_format.Release();
+
+        gctx.resize(width, height);
+
+        self.stats_brush = blk: {
+            var brush: ?*d2d1.ISolidColorBrush = null;
+            hrPanicOnFail(gctx.d2d.?.context.CreateSolidColorBrush(
+                &.{ .r = 1.0, .g = 0.0, .b = 0.0, .a = 0.5 },
+                null,
+                &brush,
+            ));
+            break :blk brush.?;
+        };
+
+        // Create Direct2D text format which will be needed to display text.
+        self.stats_text_format = blk: {
+            var text_format: ?*dwrite.ITextFormat = null;
+            hrPanicOnFail(gctx.d2d.?.dwrite_factory.CreateTextFormat(
+                L("Verdana"),
+                null,
+                .BOLD,
+                .NORMAL,
+                .NORMAL,
+                12.0,
+                L("en-us"),
+                &text_format,
+            ));
+            break :blk text_format.?;
+        };
+        hrPanicOnFail(self.stats_text_format.SetTextAlignment(.LEADING));
+        hrPanicOnFail(self.stats_text_format.SetParagraphAlignment(.NEAR));
+
+        // TODO:(gmodarelli) Resize all render targets
+        destroyRenderTarget(gctx, self.depth_rt);
+        self.depth_rt = blk: {
+            const desc = RenderTargetDesc.initDepthStencil(.D32_FLOAT, 0.0, 0, gctx.viewport_width, gctx.viewport_height, true, false, L("Depth"));
+            break :blk createRenderTarget(gctx, &desc);
+        };
+
+        destroyRenderTarget(gctx, self.gbuffer_0);
+        self.gbuffer_0 = blk: {
+            const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("Albedo"));
+            break :blk createRenderTarget(gctx, &desc);
+        };
+
+        destroyRenderTarget(gctx, self.gbuffer_1);
+        self.gbuffer_1 = blk: {
+            const desc = RenderTargetDesc.initColor(.R10G10B10A2_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("World Normal"));
+            break :blk createRenderTarget(gctx, &desc);
+        };
+
+        destroyRenderTarget(gctx, self.gbuffer_2);
+        self.gbuffer_2 = blk: {
+            const desc = RenderTargetDesc.initColor(.R8G8B8A8_UNORM, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 1.0 }, gctx.viewport_width, gctx.viewport_height, true, false, L("Material"));
+            break :blk createRenderTarget(gctx, &desc);
+        };
+
+        destroyRenderTarget(gctx, self.scene_color_rt);
+        self.scene_color_rt = blk: {
+            const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Scene Color"));
+            break :blk createRenderTarget(gctx, &desc);
+        };
+
+        destroyRenderTarget(gctx, self.post_process_rt);
+        self.post_process_rt = blk: {
+            const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, gctx.viewport_width, gctx.viewport_height, true, true, L("Post Process"));
+            break :blk createRenderTarget(gctx, &desc);
+        };
+
+        for (0..D3D12State.downsample_rt_count) |i| {
+            destroyRenderTarget(gctx, self.downsample_rts[i]);
+            const divisor = std.math.pow(u32, 2, @as(u32, @intCast(i)) + 1);
+            const w = @divFloor(gctx.viewport_width, divisor);
+            const h = @divFloor(gctx.viewport_height, divisor);
+
+            self.downsample_rts[i] = blk: {
+                const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, w, h, true, false, L("Scene Color Downsampled"));
+                break :blk createRenderTarget(gctx, &desc);
+            };
+        }
+    }
 
     pub fn getPipeline(self: *D3D12State, pipeline_id: IdLocal) ?PipelineInfo {
         return self.pipelines.get(pipeline_id);
@@ -1287,7 +1372,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         const divisor = std.math.pow(u32, 2, @as(u32, @intCast(i)) + 1);
         const width = @divFloor(gctx.viewport_width, divisor);
         const height = @divFloor(gctx.viewport_height, divisor);
-        std.log.debug("{d} -> {d}: ({d}x{d})", .{ i, divisor, width, height });
 
         downsample_rts[i] = blk: {
             const desc = RenderTargetDesc.initColor(.R16G16B16A16_FLOAT, &[4]w32.FLOAT{ 0.0, 0.0, 0.0, 0.0 }, width, height, true, false, L("Scene Color Downsampled"));
@@ -1983,8 +2067,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
         }
 
-        const num_groups_x = @divExact(state.scene_color_rt.width, 8);
-        const num_groups_y = @divExact(state.scene_color_rt.height, 8);
+        const num_groups_x = @divFloor(state.scene_color_rt.width, 8) + 1;
+        const num_groups_y = @divFloor(state.scene_color_rt.height, 8) + 1;
         gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
     }
     zpix.endEvent(gctx.cmdlist);
@@ -2620,4 +2704,8 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
         .height = rt_desc.height,
         .clear_value = rt_desc.clear_value,
     };
+}
+
+fn destroyRenderTarget(gctx: *zd3d12.GraphicsContext, render_target: RenderTarget) void {
+    gctx.destroyResource(render_target.resource_handle);
 }
