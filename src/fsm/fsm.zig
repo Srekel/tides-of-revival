@@ -7,6 +7,8 @@ const zm = @import("zmath");
 const input = @import("../input.zig");
 const zaudio = @import("zaudio");
 const zphy = @import("zphysics");
+const context = @import("../core/context.zig");
+const audio = @import("../audio/audio_manager.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 
 pub const TriggerEvent = struct {
@@ -87,6 +89,7 @@ pub const State = struct {
 };
 
 pub const StateCreateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     prefab_manager: *PrefabManager,
@@ -100,7 +103,7 @@ pub const StateFuncContext = struct {
     physics_world: *zphy.PhysicsSystem,
     blob_array: *BlobArray(16),
     frame_data: *const input.FrameData,
-    audio_engine: *zaudio.Engine,
+    audio_mgr: *audio.AudioManager,
     dt: zm.F32x4,
 };
 

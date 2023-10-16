@@ -1,7 +1,6 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-const zaudio = @import("external/zig-gamedev/libs/zaudio/build.zig");
 const zd3d12 = @import("external/zig-gamedev/libs/zd3d12/build.zig");
 const zflecs = @import("external/zig-gamedev/libs/zflecs/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
@@ -14,6 +13,8 @@ const zpool = @import("external/zig-gamedev/libs/zpool/build.zig");
 const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
 const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
+
+const wwise_zig = @import("external/wwise-zig/build.zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -54,8 +55,6 @@ pub fn build(b: *std.Build) void {
     exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_draw.cpp" }, .flags = &.{""} });
     exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_demo.cpp" }, .flags = &.{""} });
     exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/cimgui.cpp" }, .flags = &.{""} });
-
-    const zaudio_pkg = zaudio.package(b, target, optimize, .{});
 
     const zflecs_pkg = zflecs.package(b, target, optimize, .{});
 
@@ -166,7 +165,6 @@ pub fn build(b: *std.Build) void {
     // is required by DirectX 12 Agility SDK.
     exe.rdynamic = true;
 
-    exe.addModule("zaudio", zaudio_pkg.zaudio);
     exe.addModule("zflecs", zflecs_pkg.zflecs);
     exe.addModule("zglfw", zglfw_pkg.zglfw);
     exe.addModule("zmath", zmath_pkg.zmath);
@@ -176,7 +174,6 @@ pub fn build(b: *std.Build) void {
     exe.addModule("zstbi", zstbi_pkg.zstbi);
     exe.addModule("ztracy", ztracy_pkg.ztracy);
 
-    zaudio_pkg.link(exe);
     zd3d12_pkg.link(exe);
     zflecs_pkg.link(exe);
     zglfw_pkg.link(exe);
@@ -187,6 +184,50 @@ pub fn build(b: *std.Build) void {
     zstbi_pkg.link(exe);
     ztracy_pkg.link(exe);
     zwin32_pkg.link(exe, .{ .d3d12 = true });
+
+    const wwise_package = wwise_zig.package(b, target, optimize, .{
+        .use_communication = true,
+        .use_default_job_worker = true,
+        .use_static_crt = true,
+        .use_spatial_audio = false,
+        .include_file_package_io_blocking = true,
+        .configuration = .profile,
+        .static_plugins = &.{
+            "AkToneSource",
+            "AkParametricEQFX",
+            "AkDelayFX",
+            "AkPeakLimiterFX",
+            "AkRoomVerbFX",
+            "AkStereoDelayFX",
+            "AkSynthOneSource",
+            "AkAudioInputSource",
+            "AkVorbisDecoder",
+        },
+    }) catch unreachable;
+
+    exe.addModule("wwise-zig", wwise_package.module);
+    exe.linkLibrary(wwise_package.c_library);
+    wwise_zig.wwiseLink(exe, wwise_package.options) catch unreachable;
+
+    // const build_soundbanks_step = wwise_zig.addGenerateSoundBanksStep(
+    //     b,
+    //     "../tides-rpg-source-assets/tides-wwise/tides-wwise.wproj",
+    //     .{
+    //         .target = target,
+    //     },
+    // ) catch unreachable;
+    // exe.step.dependOn(&build_soundbanks_step.step);
+
+    const wwise_id_module = wwise_zig.generateWwiseIDModule(
+        b,
+        "content/audio/wwise/Wwise_IDs.h",
+        wwise_package.module,
+        .{
+            // .previous_step = &build_soundbanks_step.step,
+        },
+    );
+
+    exe.addModule("wwise-ids", wwise_id_module);
 
     b.installArtifact(exe);
 

@@ -71,15 +71,15 @@ def main():
         "https://github.com/Srekel/zig-gamedev.git",
         "af01493a51a5e975b8074631cde7b64392b93015",
     )
-    # sync_lib(
-    #     "zig-flecs",
-    #     "https://github.com/Srekel/zig-flecs.git",
-    #     "f06689bbea7d2aea0a50e05e0d171006a948e945",
-    # )
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
         "4bfcf352732fa07026509314eb7f6e05bb5c4f2f",
+    )
+    sync_lib(
+        "wwise-zig",
+        "https://github.com/Cold-Bytes-Games/wwise-zig.git",
+        "e4a2700f9953480dd8d653a148198c6c1fdb867b",
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 

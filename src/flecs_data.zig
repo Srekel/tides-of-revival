@@ -99,8 +99,8 @@ pub const Position = struct {
     pub fn elemsConst(self: *const Position) *const [3]f32 {
         return @as(*const [3]f32, @ptrCast(&self.x));
     }
-    pub fn asZM(self: *const Position) zm.Mat {
-        return zm.loadArr3(self.elemsConst());
+    pub fn asZM(self: *const Position) zm.F32x4 {
+        return zm.loadArr3(self.elemsConst().*);
     }
     pub fn fromZM(self: *Position, pos_z: zm.F32x4) void {
         zm.storeArr3(self.elems(), pos_z);
@@ -343,7 +343,6 @@ pub const PBRMaterial = struct {
     arm: TextureHandle,
     emissive: TextureHandle,
     surface_type: SurfaceType,
-
 
     pub fn init() PBRMaterial {
         return .{

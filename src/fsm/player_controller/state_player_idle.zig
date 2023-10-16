@@ -13,6 +13,9 @@ const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
+const audio = @import("../../audio/audio_manager.zig");
+const AK = @import("wwise-zig");
+const AK_ID = @import("wwise-ids");
 
 pub const NonMovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
@@ -212,16 +215,14 @@ fn update(ctx: fsm.StateFuncContext) void {
         }
         const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
 
-        const pos_before = comps.pos.*;
+        const pos_before = comps.pos.asZM();
         updateMovement(state, comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.frame_data, ctx);
         updateSnapToTerrain(ctx.physics_world, comps.pos);
         // updateDeathFromDarkness(entity_iter.entity(), ctx);
         // updateWinFromArrival(entity_iter.entity(), ctx);
-        const pos_after = comps.pos.*;
-        state.*.amount_moved += @abs(pos_after.x - pos_before.x);
-        state.*.amount_moved += @abs(pos_after.y - pos_before.y);
+        const pos_after = comps.pos.asZM();
+        state.*.amount_moved += zm.length3(pos_after - pos_before)[0];
 
-        // HACK!!!
         // HACK!!!
         if (state.amount_moved < 0) {
             state.amount_moved = 0;
@@ -233,18 +234,7 @@ fn update(ctx: fsm.StateFuncContext) void {
         if (state.amount_moved > 3) {
             state.amount_moved = 0;
 
-            // TODO proper audio resource management
-            // const sfx_paths = [_][:0]const u8{
-            //     "content/audio/material/PM_SDGS_113 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
-            //     "content/audio/material/PM_SDGS_186 Footstep Step Dry Grass Shrubs Pine Needles Meadow .wav",
-            // };
-            // const sfx_path = sfx_paths[state.sfx_footstep_index];
-            // state.sfx_footstep_index = 1 - state.sfx_footstep_index;
-            // const sfx_footstep = ctx.audio_engine.createSoundFromFile(
-            //     sfx_path,
-            //     .{ .flags = .{ .stream = false } },
-            // ) catch unreachable;
-            // sfx_footstep.start() catch unreachable;
+            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.FOOTSTEP, 100, .{}) catch unreachable;
         }
     }
 }

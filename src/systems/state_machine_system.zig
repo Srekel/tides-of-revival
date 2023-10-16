@@ -9,9 +9,12 @@ const fsm = @import("../fsm/fsm.zig");
 const IdLocal = @import("../variant.zig").IdLocal;
 const BlobArray = @import("../blob_array.zig").BlobArray;
 const input = @import("../input.zig");
-const zaudio = @import("zaudio");
 const zphy = @import("zphysics");
+const util = @import("../util.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
+const config = @import("../config.zig");
+const context = @import("../core/context.zig");
+const audio = @import("../audio/audio_manager.zig");
 
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
 const StateCameraFPS = @import("../fsm/camera/state_camera_fps.zig");
@@ -34,40 +37,45 @@ const SystemState = struct {
     instances: std.ArrayList(StateMachineInstance),
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    audio_engine: *zaudio.Engine,
+    audio_mgr: *audio.AudioManager,
     prefab_manager: *PrefabManager,
+};
+
+pub const SystemCtx = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    prefab_manager: *PrefabManager,
+    ecsu_world: ecsu.World,
+    frame_data: *input.FrameData,
+    physics_world: *zphy.PhysicsSystem,
+    audio_mgr: *audio.AudioManager,
 };
 
 pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
-    ecsu_world: ecsu.World,
-    frame_data: *input.FrameData,
-    physics_world: *zphy.PhysicsSystem,
-    audio_engine: *zaudio.Engine,
-    prefab_manager: *PrefabManager,
+    ctx: SystemCtx,
 ) !*SystemState {
-    var query_builder = ecsu.QueryBuilder.init(ecsu_world);
+    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.FSM);
     var query = query_builder.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
-        .ecsu_world = ecsu_world,
+        .ecsu_world = ctx.ecsu_world,
         .flecs_sys = flecs_sys,
         .query = query,
         .state_machines = std.ArrayList(fsm.StateMachine).init(allocator),
         .instances = std.ArrayList(StateMachineInstance).init(allocator),
-        .frame_data = frame_data,
-        .physics_world = physics_world,
-        .audio_engine = audio_engine,
-        .prefab_manager = prefab_manager,
+        .frame_data = ctx.frame_data,
+        .physics_world = ctx.physics_world,
+        .audio_mgr = ctx.audio_mgr,
+        .prefab_manager = ctx.prefab_manager,
     };
 
-    ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
+    ctx.ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
 
     initStateData(system);
     return system;
@@ -79,11 +87,7 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn initStateData(system: *SystemState) void {
-    const sm_ctx = fsm.StateCreateContext{
-        .allocator = system.allocator,
-        .ecsu_world = system.ecsu_world,
-        .prefab_manager = system.prefab_manager,
-    };
+    const sm_ctx = fsm.StateCreateContext.view(system);
 
     const player_sm = blk: {
         var initial_state = StatePlayerIdle.create(sm_ctx);
@@ -192,7 +196,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .transition_events = .{},
                 .ecsu_world = system.ecsu_world,
                 .physics_world = system.physics_world,
-                .audio_engine = system.audio_engine,
+                .audio_mgr = system.audio_mgr,
                 .dt = dt4,
             };
             fsm_state.update(ctx);

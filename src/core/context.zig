@@ -41,3 +41,15 @@ pub const Context = struct {
         return ptr;
     }
 };
+
+pub fn CONTEXTIFY(comptime InnerContextT: type) type {
+    return struct {
+        pub fn view(outerContext: anytype) InnerContextT {
+            var innerContext: InnerContextT = undefined;
+            inline for (std.meta.fields(InnerContextT)) |fld| {
+                @field(innerContext, fld.name) = @field(outerContext, fld.name);
+            }
+            return innerContext;
+        }
+    };
+}

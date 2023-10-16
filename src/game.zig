@@ -2,11 +2,13 @@ const std = @import("std");
 const args = @import("args");
 const ecs = @import("zflecs");
 const ecsu = @import("flecs_util/flecs_util.zig");
-const zaudio = @import("zaudio");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
 const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
+const AK = @import("wwise-zig");
+const AK_ID = @import("wwise-ids");
+const audio = @import("audio/audio_manager.zig");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
 const Variant = @import("variant.zig").Variant;
@@ -52,6 +54,8 @@ const SpawnContext = struct {
 var giant_ant_prefab: ecsu.Entity = undefined;
 var bow_prefab: ecsu.Entity = undefined;
 var player_prefab: ecsu.Entity = undefined;
+
+const DemoGameObjectID: AK.AkGameObjectID = 100;
 
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
@@ -109,17 +113,17 @@ pub fn run() void {
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
 
-    zaudio.init(std.heap.page_allocator);
-    defer zaudio.deinit();
-    const audio_engine = zaudio.Engine.create(null) catch unreachable;
-    defer audio_engine.destroy();
-    // const music = audio_engine.createSoundFromFile(
-    //     "content/audio/music/Winter_Fire_Final.mp3",
-    //     .{ .flags = .{ .stream = true } },
-    // ) catch unreachable;
-    // music.start() catch unreachable;
-    // defer music.destroy();
+    var audio_mgr = audio.AudioManager.create(std.heap.page_allocator) catch unreachable;
+    defer audio_mgr.destroy() catch unreachable;
 
+    AK.SoundEngine.registerGameObjWithName(std.heap.page_allocator, DemoGameObjectID, "Helicopter") catch unreachable;
+    defer AK.SoundEngine.unregisterGameObj(DemoGameObjectID) catch {};
+
+    const bank_id = AK.SoundEngine.loadBankString(std.heap.page_allocator, "Player_SoundBank", .{}) catch unreachable;
+    defer AK.SoundEngine.unloadBankID(bank_id, null, .{}) catch {};
+
+    // ecs.zflecs_init();
+    // defer ecs.zflecs_fini();
     var ecsu_world = ecsu.World.init();
     defer ecsu_world.deinit();
     ecsu_world.progress(0);
@@ -354,12 +358,6 @@ pub fn run() void {
     );
     defer input_system.destroy(input_sys);
 
-    // const HeightmapPatchLoader = struct {
-    //     pub fn load(patch: *world_patch_manager.Patch) void {
-    //         _ = patch;
-    //     }
-    // };
-
     var asset_manager = AssetManager.create(std.heap.page_allocator);
     defer asset_manager.destroy();
 
@@ -375,20 +373,27 @@ pub fn run() void {
     system_context.put(config.world_patch_mgr, world_patch_mgr);
     system_context.put(config.prefab_manager, &prefab_manager);
 
+    var physics_world: *zphy.PhysicsSystem = undefined;
+
+    var gameloop_context = .{
+        .prefab_manager = &prefab_manager,
+        .ecsu_world = ecsu_world,
+        .frame_data = &input_frame_data,
+        .audio_mgr = &audio_mgr,
+        .physics_world = physics_world, // TODO: Optional
+    };
+
     var physics_sys = try physics_system.create(
         IdLocal.init("physics_system"),
         system_context,
     );
     defer physics_system.destroy(physics_sys);
+    gameloop_context.physics_world = physics_sys.physics_world;
 
     var state_machine_sys = try state_machine_system.create(
         IdLocal.init("state_machine_sys"),
         std.heap.page_allocator,
-        ecsu_world,
-        &input_frame_data,
-        physics_sys.physics_world,
-        audio_engine,
-        &prefab_manager,
+        state_machine_system.SystemCtx.view(gameloop_context),
     );
     defer state_machine_system.destroy(state_machine_sys);
 
@@ -708,6 +713,8 @@ pub fn run() void {
     }
 }
 
+var once_per_duration_test: f32 = 0;
+
 fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
@@ -727,6 +734,14 @@ fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
 
     gfx.beginFrame(gfx_state);
 
+    once_per_duration_test += dt_game;
+    if (once_per_duration_test > 1) {
+        // PUT YOUR ONCE-PER-SECOND-ISH STUFF HERE!
+        once_per_duration_test = 0;
+        // _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.FOOTSTEP, DemoGameObjectID, .{}) catch unreachable;
+    }
+
+    AK.SoundEngine.renderAudio(false) catch unreachable;
     ecsu_world.progress(dt_game);
 
     const camera_comps = getActiveCamera(ecsu_world);

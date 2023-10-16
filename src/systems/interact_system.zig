@@ -34,6 +34,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
+    const prefab_manager = ctx.get(config.prefab_manager.hash, PrefabManager);
 
     var query_builder_interactor = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_interactor
@@ -50,7 +51,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .physics_world = physics_world,
         .frame_data = frame_data,
         .event_manager = event_manager,
-        .prefab_manager = ctx.get(config.prefab_manager.hash, PrefabManager),
+        .prefab_manager = prefab_manager,
         .comp_query_interactor = comp_query_interactor,
     };
 
