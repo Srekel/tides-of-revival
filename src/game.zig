@@ -85,16 +85,21 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-        const shape_settings = zphy.BoxShapeSettings.create(.{ 0.25, 0.1, 0.5 }) catch unreachable;
-        defer shape_settings.release();
+        const box_shape_settings = zphy.BoxShapeSettings.create(.{ 0.1, 0.2, 1.3 }) catch unreachable;
+        defer box_shape_settings.release();
 
-        const shape = shape_settings.createShape() catch unreachable;
-        defer shape.release();
+        const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
+            &box_shape_settings.asShapeSettings().*,
+            .{ 1, 0, 0, 0 },
+            .{ 0, 1.7, 0 },
+        ) catch unreachable;
+        const root_shape = root_shape_settings.createShape() catch unreachable;
+        defer root_shape.release();
 
         const body_id = body_interface.createAndAddBody(.{
             .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
             .rotation = .{ 0, 0, 0, 1 },
-            .shape = shape,
+            .shape = root_shape,
             .motion_type = .kinematic,
             .object_layer = config.object_layers.moving,
             .motion_quality = .discrete,
