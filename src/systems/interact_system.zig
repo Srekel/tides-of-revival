@@ -144,7 +144,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         var proj_ent = ecsu.Entity.init(ecs_world, weapon_comp.chambered_projectile);
         if (wielded_use_primary_released) {
             // Shoot arrow
-            weapon_comp.cooldown = world_time + 0.5;
+            weapon_comp.cooldown = world_time + 0.2;
             const charge = weapon_comp.charge;
             weapon_comp.charge = 0;
 
