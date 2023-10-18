@@ -326,6 +326,14 @@ pub const D3D12State = struct {
     point_lights_count: [num_buffered_frames]u32,
 
     pub fn resize(self: *D3D12State, width: u32, height: u32) void {
+        if (width == 0 or height == 0) {
+            return;
+        }
+
+        if (self.gctx.viewport_width == width and self.gctx.viewport_height == height) {
+            return;
+        }
+
         var gctx = &self.gctx;
 
         _ = self.stats_brush.Release();

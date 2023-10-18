@@ -69,37 +69,13 @@ pub fn update(gfx_state: *gfx.D3D12State) !enum { no_windows, has_windows } {
 
             var frame_buffer_size = window.window.getFramebufferSize();
             if (!std.meta.eql(window.frame_buffer_size, frame_buffer_size)) {
-                frame_buffer_size[0] = @max(1, frame_buffer_size[0]);
-                frame_buffer_size[1] = @max(1, frame_buffer_size[1]);
                 window.frame_buffer_size = frame_buffer_size;
                 std.log.info(
                     "Window resized to {d}x{d}",
                     .{ window.frame_buffer_size[0], window.frame_buffer_size[1] },
                 );
+
                 gfx_state.resize(@intCast(frame_buffer_size[0]), @intCast(frame_buffer_size[1]));
-
-                // gfx_state.gctx.finishGpuCommands();
-
-                // for (gfx_state.gctx.swapchain_buffers) |texture| _ = texture.Release();
-
-                // zwin32.hrPanicOnFail(gfx_state.gctx.swap_chain.ResizeBuffers(0, 0, 0, .UNKNOWN, .{}));
-
-                // for (&gfx_state.gctx.swapchain_buffers, 0..) |*texture, i| {
-                //     zwin32.hrPanicOnFail(gfx_state.gctx.swap_chain.GetBuffer(
-                //         @intCast(u32, i),
-                //         &d3d12.IID_IResource,
-                //         @ptrCast(*?*anyopaque, &texture.*),
-                //     ));
-                // }
-
-                // for (gfx_state.gctx.swapchain_buffers, 0..) |texture, i| {
-                //     gfx_state.gctx.device.CreateRenderTargetView(
-                //         texture,
-                //         null,
-                //         .{ .ptr = gfx_state.gctx.rtv_heap_start.ptr +
-                //             i * gfx_state.gctx.device.GetDescriptorHandleIncrementSize(.RTV) },
-                //     );
-                // }
             }
         }
     }
