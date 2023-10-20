@@ -43,11 +43,11 @@ const SystemState = struct {
 
 pub const SystemCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
-    prefab_manager: *PrefabManager,
+    audio_mgr: *audio.AudioManager,
     ecsu_world: ecsu.World,
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    audio_mgr: *audio.AudioManager,
+    prefab_manager: *PrefabManager,
 };
 
 pub fn create(

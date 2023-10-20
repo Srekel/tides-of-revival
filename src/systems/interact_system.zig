@@ -15,6 +15,10 @@ const config = @import("../config.zig");
 const input = @import("../input.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
+const context = @import("../core/context.zig");
+const audio = @import("../audio/audio_manager.zig");
+const AK = @import("wwise-zig");
+const AK_ID = @import("wwise-ids");
 
 const SystemState = struct {
     flecs_sys: ecs.entity_t,
@@ -28,36 +32,42 @@ const SystemState = struct {
     comp_query_interactor: ecsu.Query,
 };
 
-pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
-    const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
-    const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
-    const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
-    const event_manager = ctx.get(config.event_manager.hash, EventManager);
-    const prefab_manager = ctx.get(config.prefab_manager.hash, PrefabManager);
+pub const SystemCtx = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    allocator: std.mem.Allocator,
+    audio_mgr: *audio.AudioManager,
+    ecsu_world: ecsu.World,
+    event_manager: *EventManager,
+    frame_data: *input.FrameData,
+    physics_world: *zphy.PhysicsSystem,
+    prefab_manager: *PrefabManager,
+};
 
-    var query_builder_interactor = ecsu.QueryBuilder.init(ecsu_world);
+pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
+    const allocator = ctx.allocator;
+
+    var query_builder_interactor = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder_interactor
         .with(fd.Interactor)
         .with(fd.Transform);
     const comp_query_interactor = query_builder_interactor.buildQuery();
 
     var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    var flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
-        .ecsu_world = ecsu_world,
-        .physics_world = physics_world,
-        .frame_data = frame_data,
-        .event_manager = event_manager,
-        .prefab_manager = prefab_manager,
+        .ecsu_world = ctx.ecsu_world,
+        .physics_world = ctx.physics_world,
+        .frame_data = ctx.frame_data,
+        .event_manager = ctx.event_manager,
+        .prefab_manager = ctx.prefab_manager,
         .comp_query_interactor = comp_query_interactor,
     };
 
     // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
     // ecsu_world.observer(OnCollideObserverCallback, config.events.onCollisionEvent(ecsu_world.world), system);
-    event_manager.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, system);
+    ctx.event_manager.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, system);
 
     // initStateData(system);
     return system;
@@ -74,6 +84,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     updateInteractors(system, iter.iter.delta_time);
 }
 
+var playingID: AK.AkPlayingID = 0;
+
 fn updateInteractors(system: *SystemState, dt: f32) void {
     _ = dt;
     var entity_iter = system.comp_query_interactor.iterator(struct {
@@ -89,6 +101,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     const wielded_use_secondary_held = system.frame_data.held(config.input_wielded_use_secondary);
     const wielded_use_held = wielded_use_primary_held or wielded_use_secondary_held;
     _ = wielded_use_held;
+    const wielded_use_primary_pressed = system.frame_data.just_pressed(config.input_wielded_use_primary);
     const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
     const arrow_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
@@ -113,9 +126,10 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             const camera_ent = ecsu.Entity.init(ecs_world, ecs.lookup_child(ecs_world, player_ent_id, "playercamera"));
             if (camera_ent.isValid() and camera_ent.isAlive()) {
                 var camera_comp = camera_ent.getMut(fd.Camera).?;
+                const do_zoom = wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0 and weapon_comp.charge > 0.25);
                 const target_fov: f32 =
-                    if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0 and weapon_comp.charge > 0.25))
-                    (0.25 - 0.1 * weapon_comp.charge * weapon_comp.charge)
+                    if (do_zoom)
+                    (0.25 - 0.15 * weapon_comp.charge * weapon_comp.charge)
                 else
                     0.25;
                 camera_comp.fov = std.math.lerp(camera_comp.fov, target_fov * math.pi, 0.3);
@@ -123,16 +137,18 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         }
 
         var item_pos = ecs.get_mut(ecs_world, item_ent_id, fd.Position).?;
-        const target_pos_x: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) 0.1 else 0.25;
-        const target_pos_y: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) -0.12 else 0;
+        const target_pos_x: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) 0.25 else 0.0;
+        const target_pos_y: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) 0 else -0.25;
+        // const target_pos_z: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) 0 else -0.15;
         item_pos.x = std.math.lerp(item_pos.x, target_pos_x, 0.03);
         item_pos.y = std.math.lerp(item_pos.y, target_pos_y, 0.03);
+        // item_pos.z = std.math.lerp(item_pos.z, target_pos_z, 0.03);
 
         var item_rot = ecs.get_mut(ecs_world, item_ent_id, fd.Rotation).?;
         var axis = zm.f32x4s(0);
         var angle: f32 = 0;
         zm.quatToAxisAngle(item_rot.asZM(), &axis, &angle);
-        const target_roll_angle: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) -1.25 else 0;
+        const target_roll_angle: f32 = if (wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0)) -0.1 else -1.25;
         const target_rot_z = zm.quatFromNormAxisAngle(config.ROLL_Z, target_roll_angle);
         const final_rot_z = zm.slerp(item_rot.asZM(), target_rot_z, 0.1);
         item_rot.fromZM(final_rot_z);
@@ -191,6 +207,10 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             body_interface.setLinearVelocity(proj_body_id, velocity);
         } else if (wielded_use_primary_held) {
             // Pull string
+            if (wielded_use_primary_pressed) {
+                playingID = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWPULL, 100, .{}) catch unreachable;
+            }
+
             environment_info.time_multiplier = 0.25;
             var proj_pos = ecs.get_mut(ecs_world, proj_ent.id, fd.Position).?;
 
@@ -198,6 +218,14 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             weapon_comp.charge = zm.mapLinearV(proj_pos.z, -0.4, -0.8, 0, 1);
         } else {
             // Relax string
+            if (playingID != 0) {
+                AK.SoundEngine.executeActionOnPlayingID(
+                    .stop,
+                    playingID,
+                    .{ .transition_duration = 200 },
+                );
+                playingID = 0;
+            }
             var proj_pos = ecs.get_mut(ecs_world, proj_ent.id, fd.Position).?;
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }

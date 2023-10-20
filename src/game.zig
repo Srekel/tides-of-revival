@@ -381,11 +381,13 @@ pub fn run() void {
     var physics_world: *zphy.PhysicsSystem = undefined;
 
     var gameloop_context = .{
-        .prefab_manager = &prefab_manager,
-        .ecsu_world = ecsu_world,
-        .frame_data = &input_frame_data,
+        .allocator = std.heap.page_allocator,
         .audio_mgr = &audio_mgr,
+        .ecsu_world = ecsu_world,
+        .event_manager = &event_manager,
+        .frame_data = &input_frame_data,
         .physics_world = physics_world, // TODO: Optional
+        .prefab_manager = &prefab_manager,
     };
 
     var physics_sys = try physics_system.create(
@@ -407,7 +409,7 @@ pub fn run() void {
 
     var interact_sys = try interact_system.create(
         IdLocal.init("interact_sys"),
-        system_context,
+        interact_system.SystemCtx.view(gameloop_context),
     );
     defer interact_system.destroy(interact_sys);
 
