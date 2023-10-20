@@ -46,6 +46,14 @@ const InstanceMaterial = struct {
     arm_texture_index: u32,
 };
 
+pub const DrawCall = struct {
+    mesh_handle: gfx.MeshHandle,
+    sub_mesh_index: u32,
+    lod_index: u32,
+    instance_count: u32,
+    start_instance_location: u32,
+};
+
 const DrawCallInfo = struct {
     mesh_handle: gfx.MeshHandle,
     lod_index: u32,
@@ -73,7 +81,7 @@ const SystemState = struct {
     instance_transforms: [max_entity_types]std.ArrayList(InstanceTransform),
     instance_materials: [max_entity_types]std.ArrayList(InstanceMaterial),
 
-    draw_calls: [max_entity_types]std.ArrayList(gfx.DrawCall),
+    draw_calls: [max_entity_types]std.ArrayList(DrawCall),
     draw_calls_info: [max_entity_types]std.ArrayList(DrawCallInfo),
 
     gpu_frame_profiler_index: u64 = undefined,
@@ -166,7 +174,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk buffers;
     };
 
-    var draw_calls = [max_entity_types]std.ArrayList(gfx.DrawCall){ std.ArrayList(gfx.DrawCall).init(allocator), std.ArrayList(gfx.DrawCall).init(allocator) };
+    var draw_calls = [max_entity_types]std.ArrayList(DrawCall){ std.ArrayList(DrawCall).init(allocator), std.ArrayList(DrawCall).init(allocator) };
     var draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
 
     var instance_transforms = [max_entity_types]std.ArrayList(InstanceTransform){ std.ArrayList(InstanceTransform).init(allocator), std.ArrayList(InstanceTransform).init(allocator) };
@@ -383,7 +391,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const loop2 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Rendering", 0x00_ff_ff_00);
     for (0..max_entity_types) |entity_type_index| {
         var start_instance_location: u32 = 0;
-        var current_draw_call: gfx.DrawCall = undefined;
+        var current_draw_call: DrawCall = undefined;
 
         for (state.draw_calls_info[entity_type_index].items, 0..) |draw_call_info, i| {
             if (i == 0) {
