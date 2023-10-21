@@ -101,9 +101,10 @@ pub const UpsampleBlurUniforms = struct {
 
 pub const UIUniforms = struct {
     screen_to_clip: zm.Mat,
-    vertex_buffer_index: u32,
+    rect: [4]f32,
     texture_index: u32,
     opacity: f32,
+    _padding: [2]f32,
 };
 
 pub const SceneUniforms = extern struct {
@@ -238,7 +239,6 @@ pub const D3D12State = struct {
     mesh_pool: MeshPool,
     skybox_mesh: MeshHandle,
 
-    quad_vertex_buffer: BufferHandle,
     quad_index_buffer: BufferHandle,
 
     main_light: renderer_types.DirectionalLightGPU,
@@ -1285,35 +1285,9 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         state.skybox_mesh = state.uploadMeshData("skybox", mesh, meshes_vertices.items, meshes_indices.items) catch unreachable;
     }
 
-    // Upload UI quads (only one for crosshair now)
+    // Upload UI quad
     {
-        const crosshair_size: f32 = 32;
-        const crosshair_half_size: f32 = crosshair_size / 2;
-        const screen_center_x: f32 = @as(f32, @floatFromInt(state.gctx.viewport_width)) / 2;
-        const screen_center_y: f32 = @as(f32, @floatFromInt(state.gctx.viewport_height)) / 2;
-        const top = screen_center_y - crosshair_half_size;
-        const bottom = screen_center_y + crosshair_half_size;
-        const left = screen_center_x - crosshair_half_size;
-        const right = screen_center_x + crosshair_half_size;
-
         var quad_indices = [_]UIIndexType{ 0, 1, 2, 0, 3, 1 };
-        var quad_vertices = [_]UIVertex{
-            .{ .position = [2]f32{ left, top }, .uv = [2]f32{ 0.0, 1.0 } }, // top-left,
-            .{ .position = [2]f32{ right, bottom }, .uv = [2]f32{ 1.0, 0.0 } }, // bottom-right,
-            .{ .position = [2]f32{ left, bottom }, .uv = [2]f32{ 0.0, 0.0 } }, // bottom-left,
-            .{ .position = [2]f32{ right, top }, .uv = [2]f32{ 1.0, 1.0 } }, // top-right,
-        };
-
-        // Create a vertex buffer.
-        state.quad_vertex_buffer = state.createBuffer(.{
-            .size = quad_vertices.len * @sizeOf(UIVertex),
-            .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-            .name = L("UI Vertex Buffer"),
-            .persistent = true,
-            .has_cbv = false,
-            .has_srv = true,
-            .has_uav = false,
-        }) catch unreachable;
 
         // Create an index buffer.
         state.quad_index_buffer = state.createBuffer(.{
@@ -1326,7 +1300,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
             .has_uav = false,
         }) catch unreachable;
 
-        _ = state.scheduleUploadDataToBuffer(UIVertex, state.quad_vertex_buffer, 0, &quad_vertices);
         _ = state.scheduleUploadDataToBuffer(UIIndexType, state.quad_index_buffer, 0, &quad_indices);
     }
 
@@ -1812,7 +1785,15 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             .Format = if (@sizeOf(UIIndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
-        const vertex_buffer = state.lookupBuffer(state.quad_vertex_buffer);
+        const crosshair_size: f32 = 32;
+        const crosshair_half_size: f32 = crosshair_size / 2;
+        const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
+        const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+
+        const top = screen_center_y - crosshair_half_size;
+        const bottom = screen_center_y + crosshair_half_size;
+        const left = screen_center_x - crosshair_half_size;
+        const right = screen_center_x + crosshair_half_size;
 
         var z_screen_to_clip = zm.identity();
         z_screen_to_clip[0] = zm.f32x4(2.0 / @as(f32, @floatFromInt(gctx.viewport_width)), 0.0, 0.0, 0.0);
@@ -1821,9 +1802,10 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         z_screen_to_clip[3] = zm.f32x4(-1.0, 1.0, 0.5, 1.0);
         const mem = gctx.allocateUploadMemory(UIUniforms, 1);
         mem.cpu_slice[0].screen_to_clip = z_screen_to_clip;
-        mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].rect = [4]f32{ top, bottom, left, right };
         mem.cpu_slice[0].texture_index = state.crosshair_texture_persistent_descriptor.index;
-        mem.cpu_slice[0].opacity = 0.5;
+        mem.cpu_slice[0].opacity = 0.75;
+        mem.cpu_slice[0]._padding = [2]f32{ 42, 42 };
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
         gctx.cmdlist.DrawIndexedInstanced(6, 1, 0, 0, 0);
