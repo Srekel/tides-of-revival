@@ -1,6 +1,7 @@
 const zm = @import("zmath");
 const zphy = @import("zphysics");
 const IdLocal = @import("variant.zig").IdLocal;
+const AK = @import("wwise-zig");
 
 pub const events = @import("events.zig");
 
@@ -115,3 +116,12 @@ pub const broad_phase_layers = struct {
 pub const radiance_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_radiance.dds";
 pub const irradiance_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_irradiance.dds";
 pub const specular_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_specular.dds";
+
+// ███████╗ ██████╗ ██╗   ██╗███╗   ██╗██████╗
+// ██╔════╝██╔═══██╗██║   ██║████╗  ██║██╔══██╗
+// ███████╗██║   ██║██║   ██║██╔██╗ ██║██║  ██║
+// ╚════██║██║   ██║██║   ██║██║╚██╗██║██║  ██║
+// ███████║╚██████╔╝╚██████╔╝██║ ╚████║██████╔╝
+// ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝
+
+pub const audio_player_oid: AK.AkGameObjectID = 10001;

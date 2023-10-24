@@ -55,8 +55,6 @@ var giant_ant_prefab: ecsu.Entity = undefined;
 var bow_prefab: ecsu.Entity = undefined;
 var player_prefab: ecsu.Entity = undefined;
 
-const DemoGameObjectID: AK.AkGameObjectID = 100;
-
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     var ctx = util.castOpaque(SpawnContext, data);
@@ -121,8 +119,9 @@ pub fn run() void {
     var audio_mgr = audio.AudioManager.create(std.heap.page_allocator) catch unreachable;
     defer audio_mgr.destroy() catch unreachable;
 
-    AK.SoundEngine.registerGameObjWithName(std.heap.page_allocator, DemoGameObjectID, "Helicopter") catch unreachable;
-    defer AK.SoundEngine.unregisterGameObj(DemoGameObjectID) catch {};
+    AK.SoundEngine.registerGameObjWithName(std.heap.page_allocator, config.audio_player_oid, "Player") catch unreachable;
+    defer AK.SoundEngine.unregisterGameObj(config.audio_player_oid) catch {};
+    AK.SoundEngine.setDefaultListeners(&.{config.audio_player_oid}) catch unreachable;
 
     const bank_id = AK.SoundEngine.loadBankString(std.heap.page_allocator, "Player_SoundBank", .{}) catch unreachable;
     defer AK.SoundEngine.unloadBankID(bank_id, null, .{}) catch {};

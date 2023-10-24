@@ -2,7 +2,6 @@ const std = @import("std");
 const AK = @import("wwise-zig");
 
 pub const MaxThreadWorkers = 8;
-pub const ListenerGameObjectID: AK.AkGameObjectID = 1;
 
 pub const AudioManager = struct {
     allocator: std.mem.Allocator,
@@ -113,10 +112,6 @@ pub const AudioManager = struct {
         // Load Init Bank
         self.init_bank_id = try AK.SoundEngine.loadBankString(allocator, "Init.bnk", .{});
 
-        // Init microphone
-        try AK.SoundEngine.registerGameObjWithName(allocator, ListenerGameObjectID, "Listener");
-        try AK.SoundEngine.setDefaultListeners(&.{ListenerGameObjectID});
-
         // Register monitor callback
         try AK.SoundEngine.registerResourceMonitorCallback(resourceMonitorCallback);
 
@@ -128,8 +123,6 @@ pub const AudioManager = struct {
 
     pub fn destroy(self: *AudioManager) !void {
         try AK.SoundEngine.unregisterResourceMonitorCallback(resourceMonitorCallback);
-
-        try AK.SoundEngine.unregisterGameObj(ListenerGameObjectID);
 
         // try AK.SoundEngine.unloadBankID(self.init_bank_id, null, .{});
 

@@ -117,6 +117,9 @@ pub const Forward = struct {
     pub fn elemsConst(self: *const Forward) *const [3]f32 {
         return @as(*const [3]f32, @ptrCast(&self.x));
     }
+    pub fn asZM(self: *const Forward) zm.F32x4 {
+        return zm.loadArr3(self.elemsConst().*);
+    }
 };
 
 pub const Rotation = struct {

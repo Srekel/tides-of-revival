@@ -205,10 +205,12 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
+
+            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWFIRE, config.audio_player_oid, .{}) catch unreachable;
         } else if (wielded_use_primary_held) {
             // Pull string
             if (wielded_use_primary_pressed) {
-                playingID = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWPULL, 100, .{}) catch unreachable;
+                playingID = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWPULL, config.audio_player_oid, .{}) catch unreachable;
             }
 
             environment_info.time_multiplier = 0.25;
@@ -349,6 +351,25 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             ecs.remove(system.ecsu_world.world, ent1, fd.PhysicsBody);
             removed_entities.append(ent1) catch unreachable;
 
+            const oid = 1000 + ent1;
+            AK.SoundEngine.registerGameObj(oid) catch unreachable;
+            defer AK.SoundEngine.unregisterGameObj(oid) catch {};
+            const ak_pos = AK.AkSoundPosition{
+                .position = .{
+                    .x = pos[0],
+                    .y = pos[1],
+                    .z = pos[2],
+                },
+                .orientation_front = .{
+                    .z = 1.0,
+                },
+                .orientation_top = .{
+                    .y = 1.0,
+                },
+            };
+            AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
+            AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
+
             if (ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Health))) {
                 const transform_target = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
                 const transform_proj = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
@@ -399,7 +420,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     }
                     // std.debug.print("lol2 {any}\n", .{ent2.id});
                 }
+                AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
             }
+            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
         }
 
         if (ent2_is_proj) {
@@ -409,6 +432,25 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             body_interface.removeAndDestroyBody(contact.body_id2);
             ecs.remove(system.ecsu_world.world, ent2, fd.PhysicsBody);
             removed_entities.append(ent2) catch unreachable;
+
+            const oid = 1000 + ent1;
+            AK.SoundEngine.registerGameObj(oid) catch unreachable;
+            defer AK.SoundEngine.unregisterGameObj(oid) catch {};
+            const ak_pos = AK.AkSoundPosition{
+                .position = .{
+                    .x = pos[0],
+                    .y = pos[1],
+                    .z = pos[2],
+                },
+                .orientation_front = .{
+                    .z = 1.0,
+                },
+                .orientation_top = .{
+                    .y = 1.0,
+                },
+            };
+            AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
+            AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
             if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Health))) {
                 // var pos_target = ecs.get(system.ecsu_world.world, ent1, fd.Position).?;
@@ -459,7 +501,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     }
                     // std.debug.print("lol1 {any}\n", .{health1.value});
                 }
+                AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
             }
+            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
         }
     }
 }
