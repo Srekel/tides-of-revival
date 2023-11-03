@@ -373,19 +373,15 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             if (ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Health))) {
                 const transform_target = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
                 const transform_proj = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
-                // var transform_proj_mat = transform_proj_comp.matrix;
-                // var transform_proj_mod_pos = transform_proj_mat[9..];
-                // transform_proj_mod_pos[0] = contact_point_world_z[0];
-                // transform_proj_mod_pos[1] = contact_point_world_z[1];
-                // transform_proj_mod_pos[2] = contact_point_world_z[2];
                 const transform_target_z = transform_target.asZM();
-                const transform_proj_z = transform_proj.asZM();
-                // const transform_proj_z = zm.loadMat43(&transform_proj_mat);
-                // const transform_target_z = transform_target.asZM();
-                // const transform_proj_z = transform_proj.asZM();
+                var transform_proj_z = transform_proj.asZM();
+                var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
+                var forward_proj_z = zm.util.getAxisZ(transform_proj_z);
+                translation_proj_z = translation_proj_z + forward_proj_z * zm.splat(zm.F32x4, 0.6);
+                zm.util.setTranslationVec(&transform_proj_z, translation_proj_z);
+
                 const transform_target_inv_z = zm.inverse(transform_target_z);
                 const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
-                // const pos_z2 = contact_point_world_z;
                 const pos_z = zm.util.getTranslationVec(mat_z);
                 const rot_z = zm.matToQuat(mat_z);
                 var pos_proj = ecs.get_mut(system.ecsu_world.world, ent1, fd.Position).?;
@@ -453,21 +449,17 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
             if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Health))) {
-                // var pos_target = ecs.get(system.ecsu_world.world, ent1, fd.Position).?;
-                // _ = pos_target;
                 const transform_target = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
                 const transform_proj = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
-                // var transform_proj_mat = transform_proj_comp.matrix;
-                // var transform_proj_mod_pos = transform_proj_mat[9..];
-                // transform_proj_mod_pos[0] = contact_point_world_z[0];
-                // transform_proj_mod_pos[1] = contact_point_world_z[1];
-                // transform_proj_mod_pos[2] = contact_point_world_z[2];
                 const transform_target_z = transform_target.asZM();
-                const transform_proj_z = transform_proj.asZM();
-                // const transform_proj_z = zm.loadMat43(&transform_proj_mat);
+                var transform_proj_z = transform_proj.asZM();
+                var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
+                var forward_proj_z = zm.util.getAxisZ(transform_proj_z);
+                translation_proj_z = translation_proj_z + forward_proj_z * zm.splat(zm.F32x4, 0.6);
+                zm.util.setTranslationVec(&transform_proj_z, translation_proj_z);
+
                 const transform_target_inv_z = zm.inverse(transform_target_z);
                 const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
-                // const pos_z = contact_point_world_z;
                 const pos_z = zm.util.getTranslationVec(mat_z);
                 const rot_z = zm.matToQuat(mat_z);
                 var pos_proj = ecs.get_mut(system.ecsu_world.world, ent2, fd.Position).?;
