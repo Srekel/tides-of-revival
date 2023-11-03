@@ -122,17 +122,17 @@ pub const AudioManager = struct {
     }
 
     pub fn destroy(self: *AudioManager) !void {
+        // if (AK.Comm != void) {
+        //     AK.Comm.term();
+        // }
+
         try AK.SoundEngine.unregisterResourceMonitorCallback(resourceMonitorCallback);
 
-        // try AK.SoundEngine.unloadBankID(self.init_bank_id, null, .{});
+        try AK.SoundEngine.unloadBankID(self.init_bank_id, null, .{});
 
-        if (AK.Comm != void) {
-            AK.Comm.term();
+        if (AK.SpatialAudio != void) {
+            try AK.SpatialAudio.term();
         }
-
-        // if (AK.SpatialAudio != void) {
-        //     try AK.SpatialAudio.term();
-        // }
 
         if (AK.SoundEngine.isInitialized()) {
             AK.SoundEngine.term();
