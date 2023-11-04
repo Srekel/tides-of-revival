@@ -527,6 +527,8 @@ pub fn run() void {
         break :blk null;
     };
 
+    const DEBUG_CAMERA_ACTIVE = false;
+
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     // const player_pos = fd.Position.init(100, 100, 100);
     const debug_camera_ent = ecsu_world.newEntity();
@@ -540,14 +542,14 @@ pub fn run() void {
         .near = 0.1,
         .far = 10000,
         .window = main_window,
-        .active = true,
+        .active = DEBUG_CAMERA_ACTIVE,
         .class = 0,
     });
     debug_camera_ent.set(fd.WorldLoader{
         .range = 2,
         .props = true,
     });
-    debug_camera_ent.set(fd.Input{ .active = true, .index = 1 });
+    debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
     // // ██████╗  ██████╗ ██╗    ██╗
@@ -583,7 +585,7 @@ pub fn run() void {
         .range = 2,
         .physics = true,
     });
-    player_ent.set(fd.Input{ .active = false, .index = 0 });
+    player_ent.set(fd.Input{ .active = !DEBUG_CAMERA_ACTIVE, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
     // if (player_spawn) |ps| {
     //     player_ent.addPair(fr.Hometown, ps.city_ent);
@@ -605,7 +607,7 @@ pub fn run() void {
         .near = 0.1,
         .far = 10000,
         .window = main_window,
-        .active = false,
+        .active = !DEBUG_CAMERA_ACTIVE,
         .class = 1,
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
