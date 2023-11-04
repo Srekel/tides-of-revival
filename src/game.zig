@@ -9,6 +9,7 @@ const ztracy = @import("ztracy");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const audio = @import("audio/audio_manager.zig");
+const zm = @import("zmath");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
 const Variant = @import("variant.zig").Variant;
@@ -64,13 +65,16 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
     const to_spawn = 1 + @round(ctx.stage / 5);
+    var capsule_rot = [_]f32{ 1, 0, 0, 0 };
+    const capsule_rot_z = zm.quatFromRollPitchYaw(std.math.pi / 2.0, 0, 0);
+    zm.storeArr4(&capsule_rot, capsule_rot_z);
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
         var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, giant_ant_prefab);
         var spawn_pos = [3]f32{
-            root_pos.x + 50 * std.math.sin(ctx.speed * 50) + 5 * std.math.sin(angle),
+            root_pos.x + 50 * std.math.sin(ctx.stage * 50) + 5 * std.math.sin(angle),
             root_pos.y + 20,
-            root_pos.z + 50 * std.math.cos(ctx.speed * 50) + 5 * std.math.cos(angle),
+            root_pos.z + 50 * std.math.cos(ctx.stage * 50) + 5 * std.math.cos(angle),
         };
         ent.set(fd.Position{
             .x = spawn_pos[0],
@@ -83,12 +87,12 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-        const box_shape_settings = zphy.BoxShapeSettings.create(.{ 0.1, 0.2, 1.3 }) catch unreachable;
-        defer box_shape_settings.release();
+        const capsule_shape_settings = zphy.CapsuleShapeSettings.create(1.3, 0.2) catch unreachable;
+        defer capsule_shape_settings.release();
 
         const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
-            &box_shape_settings.asShapeSettings().*,
-            .{ 1, 0, 0, 0 },
+            &capsule_shape_settings.asShapeSettings().*,
+            capsule_rot,
             .{ 0, 1.7, 0 },
         ) catch unreachable;
         const root_shape = root_shape_settings.createShape() catch unreachable;
