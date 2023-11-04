@@ -60,21 +60,22 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
     var ctx = util.castOpaque(SpawnContext, data);
     ctx.stage += 1;
-    ctx.speed += 0.05;
     timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("giantAntSpawn").hash, 0, ctx.speed);
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
-    const to_spawn = 1 + @round(ctx.stage / 5);
     var capsule_rot = [_]f32{ 1, 0, 0, 0 };
     const capsule_rot_z = zm.quatFromRollPitchYaw(std.math.pi / 2.0, 0, 0);
     zm.storeArr4(&capsule_rot, capsule_rot_z);
+
+    const group_angle = std.crypto.random.float(f32) * std.math.pi * 2;
+    const to_spawn = 1 + @divFloor(ctx.stage, 3);
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
-        const angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
+        const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
         var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, giant_ant_prefab);
         var spawn_pos = [3]f32{
-            root_pos.x + 50 * std.math.sin(ctx.stage * 50) + 5 * std.math.sin(angle),
+            root_pos.x + 50 * std.math.sin(group_angle) + 5 * std.math.sin(individual_angle),
             root_pos.y + 20,
-            root_pos.z + 50 * std.math.cos(ctx.stage * 50) + 5 * std.math.cos(angle),
+            root_pos.z + 50 * std.math.cos(group_angle) + 5 * std.math.cos(individual_angle),
         };
         ent.set(fd.Position{
             .x = spawn_pos[0],
