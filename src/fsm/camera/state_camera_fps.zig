@@ -19,6 +19,15 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const rot_in = rot.asZM();
     const rot_new = zm.qmul(rot_in, rot_pitch);
     rot.fromZM(rot_new);
+
+    const rpy = zm.quatToRollPitchYaw(rot_new);
+    const rpy_constrained = .{
+        std.math.clamp(rpy[0], -0.9, 0.9),
+        rpy[1],
+        rpy[2],
+    };
+    const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
+    rot.fromZM(constrained_z);
 }
 
 fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_manager: *PrefabManager) void {
