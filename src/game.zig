@@ -109,6 +109,11 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .user_data = ent.id,
         }, .activate) catch unreachable;
 
+        ent.set(fd.PointLight{
+            .color = .{ .r = 1, .g = 0.25, .b = 0.15 },
+            .range = 3.0,
+            .intensity = 5.0,
+        });
         //  Assign to flecs component
         ent.set(fd.PhysicsBody{ .body_id = body_id });
     }
@@ -494,8 +499,8 @@ pub fn run() void {
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
     sun_light.set(fd.DirectionalLight{
-        .color = .{ .r = 0.5, .g = 0.5, .b = 0.5 },
-        .intensity = 10.0,
+        .color = .{ .r = 0.5, .g = 0.5, .b = 0.8 },
+        .intensity = 0.5,
     });
 
     const player_spawn = blk: {
@@ -613,9 +618,9 @@ pub fn run() void {
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
     player_camera_ent.set(fd.PointLight{
-        .color = .{ .r = 1, .g = 0.5, .b = 0.25 },
-        .range = 10.0,
-        .intensity = 2.0,
+        .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
+        .range = 5.0,
+        .intensity = 1.0,
     });
     bow_ent.childOf(player_camera_ent);
 
@@ -676,6 +681,23 @@ pub fn run() void {
             .loop_behavior = .remove_entity,
         };
         event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
+
+        const tl_despawn = config.events.TimelineTemplateData{
+            .id = IdLocal.init("despawn"),
+            .events = &.{},
+            .curves = &[_]timeline_system.Curve{
+                .{
+                    .id = .{}, // IdLocal.init("scale"),
+                    .points = &[_]timeline_system.CurvePoint{
+                        .{ .time = 0, .value = 1.000 },
+                        .{ .time = 5, .value = 1 },
+                        .{ .time = 10, .value = 0.001 },
+                    },
+                },
+            },
+            .loop_behavior = .remove_entity,
+        };
+        event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_despawn);
     }
     // // ███████╗██╗     ███████╗ ██████╗███████╗
     // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝

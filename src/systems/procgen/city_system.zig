@@ -49,7 +49,7 @@ pub fn create(
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     asset_manager: *AssetManager,
-    prefab_manager: *PrefabManager
+    prefab_manager: *PrefabManager,
 ) !*SystemState {
     var query_builder_city = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_city
@@ -138,7 +138,7 @@ pub fn createEntities(state: *SystemState) void {
 
         var city_ent = state.prefab_manager.instantiatePrefab(&ecsu_world, sphere_prefab);
         city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
-        city_ent.set(fd.Scale.createScalar(10));
+        // city_ent.set(fd.Scale.createScalar(10));
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
 
         var light_ent = state.ecsu_world.newEntity();

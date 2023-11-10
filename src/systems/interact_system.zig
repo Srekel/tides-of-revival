@@ -309,6 +309,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
     var system: *SystemState = @ptrCast(@alignCast(ctx));
     const body_interface = system.physics_world.getBodyInterfaceMut();
     const frame_collisions_data = util.castOpaqueConst(config.events.FrameCollisionsData, event_data);
+    const ecs_world = system.ecsu_world.world;
+    const ecs_proj_id = ecs.id(fd.Projectile);
 
     var arena_state = std.heap.ArenaAllocator.init(system.allocator);
     defer arena_state.deinit();
@@ -337,8 +339,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         const contact_point_world_z = contact_base_offset_z + contact_point1_z;
         _ = contact_point_world_z;
 
-        const ent1_is_proj = ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Projectile));
-        const ent2_is_proj = ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Projectile));
+        const ent1_is_proj = ent1 != 0 and ecs.is_alive(ecs_world, ent1) and ecs.has_id(ecs_world, ent1, ecs_proj_id);
+        const ent2_is_proj = ent2 != 0 and ecs.is_alive(ecs_world, ent2) and ecs.has_id(ecs_world, ent2, ecs_proj_id);
         if (ent1_is_proj and ent2_is_proj) {
             continue;
         }
@@ -348,7 +350,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             const pos = body_interface.getCenterOfMassPosition(contact.body_id1);
             const velocity = body_interface.getLinearVelocity(contact.body_id1);
             body_interface.removeAndDestroyBody(contact.body_id1);
-            ecs.remove(system.ecsu_world.world, ent1, fd.PhysicsBody);
+            ecs.remove(ecs_world, ent1, fd.PhysicsBody);
             removed_entities.append(ent1) catch unreachable;
 
             const oid = 1000 + ent1;
@@ -370,9 +372,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
             AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
-            if (ent2 != 0 and ecs.has_id(system.ecsu_world.world, ent2, ecs.id(fd.Health))) {
-                const transform_target = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
-                const transform_proj = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
+            if (ent2 != 0 and ecs.has_id(ecs_world, ent2, ecs.id(fd.Health))) {
+                const transform_target = ecs.get(ecs_world, ent2, fd.Transform).?;
+                const transform_proj = ecs.get(ecs_world, ent1, fd.Transform).?;
                 const transform_target_z = transform_target.asZM();
                 var transform_proj_z = transform_proj.asZM();
                 var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
@@ -384,17 +386,17 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
                 const pos_z = zm.util.getTranslationVec(mat_z);
                 const rot_z = zm.matToQuat(mat_z);
-                var pos_proj = ecs.get_mut(system.ecsu_world.world, ent1, fd.Position).?;
-                var rot_proj = ecs.get_mut(system.ecsu_world.world, ent1, fd.Rotation).?;
+                var pos_proj = ecs.get_mut(ecs_world, ent1, fd.Position).?;
+                var rot_proj = ecs.get_mut(ecs_world, ent1, fd.Rotation).?;
                 pos_proj.fromZM(pos_z);
                 rot_proj.fromZM(rot_z);
 
-                ecs.add_id(system.ecsu_world.world, ent1, system.ecsu_world.pair(ecs.ChildOf, ent2));
+                ecs.add_id(ecs_world, ent1, system.ecsu_world.pair(ecs.ChildOf, ent2));
 
-                var health2 = ecs.get_mut(system.ecsu_world.world, ent2, fd.Health).?;
+                var health2 = ecs.get_mut(ecs_world, ent2, fd.Health).?;
                 if (health2.value > 0) {
                     const speed = zm.length3(zm.loadArr3(velocity))[0];
-                    const damage = speed;
+                    const damage = speed * 1;
                     health2.value -= damage;
                     if (health2.value <= 0) {
                         body_interface.setMotionType(contact.body_id2, .dynamic, .activate);
@@ -407,7 +409,16 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                             },
                             pos,
                         );
-                        ecs.remove(system.ecsu_world.world, ent2, fd.FSM);
+
+                        ecs.remove(ecs_world, ent2, fd.FSM);
+                        ecs.remove(ecs_world, ent2, fd.PointLight);
+
+                        const tli_despawn = config.events.TimelineInstanceData{
+                            .ent = ent2,
+                            .timeline = IdLocal.init("despawn"),
+                        };
+                        system.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
+
                         removed_entities.append(ent2) catch unreachable;
                         body_interface.addImpulse(
                             contact.body_id2,
@@ -426,7 +437,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             const pos = body_interface.getCenterOfMassPosition(contact.body_id2);
             const velocity = body_interface.getLinearVelocity(contact.body_id2);
             body_interface.removeAndDestroyBody(contact.body_id2);
-            ecs.remove(system.ecsu_world.world, ent2, fd.PhysicsBody);
+            ecs.remove(ecs_world, ent2, fd.PhysicsBody);
             removed_entities.append(ent2) catch unreachable;
 
             const oid = 1000 + ent1;
@@ -448,9 +459,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
             AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
-            if (contact.ent1 != 0 and ecs.has_id(system.ecsu_world.world, ent1, ecs.id(fd.Health))) {
-                const transform_target = ecs.get(system.ecsu_world.world, ent1, fd.Transform).?;
-                const transform_proj = ecs.get(system.ecsu_world.world, ent2, fd.Transform).?;
+            if (contact.ent1 != 0 and ecs.has_id(ecs_world, ent1, ecs.id(fd.Health))) {
+                const transform_target = ecs.get(ecs_world, ent1, fd.Transform).?;
+                const transform_proj = ecs.get(ecs_world, ent2, fd.Transform).?;
                 const transform_target_z = transform_target.asZM();
                 var transform_proj_z = transform_proj.asZM();
                 var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
@@ -462,16 +473,16 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
                 const pos_z = zm.util.getTranslationVec(mat_z);
                 const rot_z = zm.matToQuat(mat_z);
-                var pos_proj = ecs.get_mut(system.ecsu_world.world, ent2, fd.Position).?;
-                var rot_proj = ecs.get_mut(system.ecsu_world.world, ent2, fd.Rotation).?;
+                var pos_proj = ecs.get_mut(ecs_world, ent2, fd.Position).?;
+                var rot_proj = ecs.get_mut(ecs_world, ent2, fd.Rotation).?;
                 pos_proj.fromZM(pos_z);
                 rot_proj.fromZM(rot_z);
-                ecs.add_id(system.ecsu_world.world, ent2, system.ecsu_world.pair(ecs.ChildOf, ent1));
+                ecs.add_id(ecs_world, ent2, system.ecsu_world.pair(ecs.ChildOf, ent1));
 
-                var health1 = ecs.get_mut(system.ecsu_world.world, ent1, fd.Health).?;
+                var health1 = ecs.get_mut(ecs_world, ent1, fd.Health).?;
                 if (health1.value > 0) {
                     const speed = zm.length3(zm.loadArr3(velocity))[0];
-                    const damage = speed;
+                    const damage = speed * 1;
                     health1.value -= damage;
                     if (health1.value <= 0) {
                         body_interface.setMotionType(contact.body_id1, .dynamic, .activate);
@@ -484,7 +495,16 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                             },
                             pos,
                         );
-                        ecs.remove(system.ecsu_world.world, ent1, fd.FSM);
+
+                        ecs.remove(ecs_world, ent1, fd.FSM);
+                        ecs.remove(ecs_world, ent1, fd.PointLight);
+
+                        const tli_despawn = config.events.TimelineInstanceData{
+                            .ent = ent1,
+                            .timeline = IdLocal.init("despawn"),
+                        };
+                        system.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
+
                         removed_entities.append(ent1) catch unreachable;
                         body_interface.addImpulse(
                             contact.body_id1,

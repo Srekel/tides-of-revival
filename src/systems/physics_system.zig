@@ -132,11 +132,14 @@ const ContactListener = extern struct {
         settings: *zphy.ContactSettings,
     ) callconv(.C) void {
         const self = @as(*const ContactListener, @ptrCast(iself));
+        const ent1 = body1.user_data;
+        const ent2 = body2.user_data;
+
         self.system.frame_contacts.append(.{
             .body_id1 = body1.id,
             .body_id2 = body2.id,
-            .ent1 = body1.user_data,
-            .ent2 = body2.user_data,
+            .ent1 = ent1,
+            .ent2 = ent2,
             .manifold = manifold.*,
             .settings = settings.*,
         }) catch unreachable;
