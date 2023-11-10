@@ -230,7 +230,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .comp_query_body = comp_query_body,
         .comp_query_loader = comp_query_loader,
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("physics")),
-        .patches = std.ArrayList(Patch).initCapacity(allocator, 8 * 8) catch unreachable,
+        .patches = std.ArrayList(Patch).initCapacity(allocator, 16 * 16) catch unreachable,
         .indices = undefined,
         .contact_listener = undefined,
         .frame_contacts = std.ArrayList(config.events.CollisionContact).initCapacity(allocator, 8192) catch unreachable,
@@ -359,17 +359,17 @@ fn updateLoaders(system: *SystemState) void {
         var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
 
         const area_old = world_patch_manager.RequestRectangle{
-            .x = loader.pos_old[0] - 64,
-            .z = loader.pos_old[2] - 64,
-            .width = 128,
-            .height = 128,
+            .x = loader.pos_old[0] - 256,
+            .z = loader.pos_old[2] - 256,
+            .width = 512,
+            .height = 512,
         };
 
         const area_new = world_patch_manager.RequestRectangle{
-            .x = pos_new[0] - 64,
-            .z = pos_new[2] - 64,
-            .width = 128,
-            .height = 128,
+            .x = pos_new[0] - 256,
+            .z = pos_new[2] - 256,
+            .width = 512,
+            .height = 512,
         };
 
         const patch_type_id = system.world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));

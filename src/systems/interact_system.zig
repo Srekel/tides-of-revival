@@ -396,7 +396,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 var health2 = ecs.get_mut(ecs_world, ent2, fd.Health).?;
                 if (health2.value > 0) {
                     const speed = zm.length3(zm.loadArr3(velocity))[0];
-                    const damage = speed * 1;
+                    const damage = (speed - 10) * (speed - 10);
+                    std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health2.value -= damage;
                     if (health2.value <= 0) {
                         body_interface.setMotionType(contact.body_id2, .dynamic, .activate);
@@ -482,7 +483,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 var health1 = ecs.get_mut(ecs_world, ent1, fd.Health).?;
                 if (health1.value > 0) {
                     const speed = zm.length3(zm.loadArr3(velocity))[0];
-                    const damage = speed * 1;
+                    const damage = (speed - 10) * (speed - 10);
+                    std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health1.value -= damage;
                     if (health1.value <= 0) {
                         body_interface.setMotionType(contact.body_id1, .dynamic, .activate);

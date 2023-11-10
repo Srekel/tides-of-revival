@@ -68,33 +68,43 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     zm.storeArr4(&capsule_rot, capsule_rot_z);
 
     const group_angle = std.crypto.random.float(f32) * std.math.pi * 2;
-    const to_spawn = 1 + @divFloor(ctx.stage, 3);
+    const to_spawn = 1 + @divFloor(ctx.stage, 1);
+    std.log.info("stage {} to_spawn {}\n", .{ ctx.stage, to_spawn });
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
         var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, giant_ant_prefab);
         var spawn_pos = [3]f32{
-            root_pos.x + 50 * std.math.sin(group_angle) + 5 * std.math.sin(individual_angle),
+            root_pos.x + (100 + to_spawn * 2) * std.math.sin(group_angle) + (5 + to_spawn * 0.5) * std.math.sin(individual_angle),
             root_pos.y + 20,
-            root_pos.z + 50 * std.math.cos(group_angle) + 5 * std.math.cos(individual_angle),
+            root_pos.z + (100 + to_spawn * 2) * std.math.cos(group_angle) + (5 + to_spawn * 0.5) * std.math.cos(individual_angle),
         };
         ent.set(fd.Position{
             .x = spawn_pos[0],
             .y = spawn_pos[1],
             .z = spawn_pos[2],
         });
-        ent.set(fd.Health{ .value = 10 + ctx.stage * 2 });
+
+        const is_boss = std.crypto.random.float(f32) > 0.95;
+        const scale: f32 = if (is_boss) 2.5 else 0.75;
+        ent.set(fd.Scale.createScalar(scale));
+
+        if (is_boss) {
+            ent.set(fd.Health{ .value = 1000 + ctx.stage * 1000 + ctx.stage * ctx.stage * 100 });
+        } else {
+            ent.set(fd.Health{ .value = 5 + ctx.stage * 5 });
+        }
 
         ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("giant_ant") });
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-        const capsule_shape_settings = zphy.CapsuleShapeSettings.create(1.3, 0.2) catch unreachable;
+        const capsule_shape_settings = zphy.CapsuleShapeSettings.create(1.3 * scale, 0.2 * scale) catch unreachable;
         defer capsule_shape_settings.release();
 
         const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
             &capsule_shape_settings.asShapeSettings().*,
             capsule_rot,
-            .{ 0, 1.7, 0 },
+            .{ 0, 1.7 * scale, 0 },
         ) catch unreachable;
         const root_shape = root_shape_settings.createShape() catch unreachable;
         defer root_shape.release();
@@ -109,11 +119,19 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .user_data = ent.id,
         }, .activate) catch unreachable;
 
-        ent.set(fd.PointLight{
-            .color = .{ .r = 1, .g = 0.25, .b = 0.15 },
-            .range = 3.0,
-            .intensity = 5.0,
-        });
+        if (is_boss) {
+            ent.set(fd.PointLight{
+                .color = .{ .r = 1, .g = 0.15, .b = 0.15 },
+                .range = 6.0,
+                .intensity = 10.0,
+            });
+        } else {
+            ent.set(fd.PointLight{
+                .color = .{ .r = 1, .g = 0.45, .b = 0.2 },
+                .range = 3.0,
+                .intensity = 5.0,
+            });
+        }
         //  Assign to flecs component
         ent.set(fd.PhysicsBody{ .body_id = body_id });
     }
@@ -687,11 +705,9 @@ pub fn run() void {
             .events = &.{},
             .curves = &[_]timeline_system.Curve{
                 .{
-                    .id = .{}, // IdLocal.init("scale"),
+                    .id = IdLocal.init("ignore"), // IdLocal.init("scale"),
                     .points = &[_]timeline_system.CurvePoint{
-                        .{ .time = 0, .value = 1.000 },
-                        .{ .time = 5, .value = 1 },
-                        .{ .time = 10, .value = 0.001 },
+                        .{ .time = 15, .value = 1 },
                     },
                 },
             },
