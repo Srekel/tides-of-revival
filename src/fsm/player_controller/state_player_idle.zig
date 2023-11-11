@@ -64,29 +64,37 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
 
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.matFromQuat(rot.asZM());
-    var forward = zm.util.getAxisZ(transform);
+    const forward = zm.util.getAxisZ(transform);
 
     zm.store(fwd.elems()[0..], forward, 3);
 
-    const right = speed * dt * zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
-    forward = speed * dt * forward;
+    const right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
+    // const movement = speed * dt * forward;
 
     var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
 
+    var move_dir = zm.f32x4s(0);
     if (input_state.held(config.input_move_forward)) {
-        cpos += forward;
+        move_dir += forward;
     } else if (input_state.held(config.input_move_backward)) {
-        cpos -= forward;
+        move_dir -= forward;
     }
 
     if (input_state.held(config.input_move_right)) {
-        cpos += right;
+        move_dir += right;
     } else if (input_state.held(config.input_move_left)) {
-        cpos -= right;
+        move_dir -= right;
     }
-    // std.debug.print("yaw{}\n", .{yaw});
 
-    zm.store(pos.elems()[0..], cpos, 3);
+    if (zm.lengthSq3(move_dir)[0] > 0) {
+        move_dir = zm.normalize3(move_dir);
+
+        const movement = move_dir * speed * dt;
+        cpos += movement;
+        // std.debug.print("yaw{}\n", .{yaw});
+
+        zm.store(pos.elems()[0..], cpos, 3);
+    }
 }
 
 fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) void {
@@ -208,6 +216,8 @@ fn update(ctx: fsm.StateFuncContext) void {
         fsm: *fd.FSM,
         // cam: *fd.Camera,
     });
+
+    std.log.info("ply dt: {d:5.4}", .{ctx.dt[0]});
 
     while (entity_iter.next()) |comps| {
         if (!comps.input.active) {
