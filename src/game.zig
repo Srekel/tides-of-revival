@@ -68,15 +68,15 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     zm.storeArr4(&capsule_rot, capsule_rot_z);
 
     const group_angle = std.crypto.random.float(f32) * std.math.pi * 2;
-    const to_spawn = 1 + @divFloor(ctx.stage, 1);
+    const to_spawn = 0 + @divFloor(ctx.stage, 1);
     std.log.info("stage {} to_spawn {}\n", .{ ctx.stage, to_spawn });
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
         var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, giant_ant_prefab);
         var spawn_pos = [3]f32{
-            root_pos.x + (100 + to_spawn * 2) * std.math.sin(group_angle) + (5 + to_spawn * 0.5) * std.math.sin(individual_angle),
+            root_pos.x + (60 + to_spawn * 5) * std.math.sin(group_angle) + (5 + to_spawn * 0.5) * std.math.sin(individual_angle),
             root_pos.y + 20,
-            root_pos.z + (100 + to_spawn * 2) * std.math.cos(group_angle) + (5 + to_spawn * 0.5) * std.math.cos(individual_angle),
+            root_pos.z + (60 + to_spawn * 5) * std.math.cos(group_angle) + (5 + to_spawn * 0.5) * std.math.cos(individual_angle),
         };
         ent.set(fd.Position{
             .x = spawn_pos[0],
@@ -84,12 +84,12 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .z = spawn_pos[2],
         });
 
-        const is_boss = std.crypto.random.float(f32) > 0.95;
+        const is_boss = std.crypto.random.float(f32) > 0.98;
         const scale: f32 = if (is_boss) 2.5 else 0.75;
         ent.set(fd.Scale.createScalar(scale));
 
         if (is_boss) {
-            ent.set(fd.Health{ .value = 1000 + ctx.stage * 1000 + ctx.stage * ctx.stage * 100 });
+            ent.set(fd.Health{ .value = 500 + ctx.stage * 500 + ctx.stage * ctx.stage * 100 });
         } else {
             ent.set(fd.Health{ .value = 5 + ctx.stage * 5 });
         }
@@ -663,7 +663,7 @@ pub fn run() void {
             .id = IdLocal.init("giantAntSpawn"),
             .events = &[_]timeline_system.TimelineEvent{
                 .{
-                    .trigger_time = 10,
+                    .trigger_time = 15,
                     .trigger_id = IdLocal.init("onSpawnAroundPlayer"),
                     .func = spawnGiantAnt,
                     .data = &tl_giant_ant_spawn_ctx,
