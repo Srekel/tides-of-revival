@@ -748,6 +748,8 @@ pub fn run() void {
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
+        gfx.beginFrame(&gfx_state);
+
         const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
         defer trazy_zone.End();
 
@@ -761,6 +763,29 @@ pub fn run() void {
 
         world_patch_mgr.tickOne();
         update(ecsu_world, &gfx_state);
+
+        const camera_comps = getActiveCamera(ecsu_world);
+        if (camera_comps) |comps| {
+            gfx.endFrame(&gfx_state, comps.camera, comps.transform.getPos00());
+        } else {
+            const camera = fd.Camera{
+                .near = 0.01,
+                .far = 100.0,
+                .fov = 1,
+                .view = undefined,
+                .projection = undefined,
+                .view_projection = undefined,
+                .window = undefined,
+                .active = true,
+                .class = 0,
+            };
+
+            const transform = fd.Transform{
+                .matrix = undefined,
+            };
+
+            gfx.endFrame(&gfx_state, &camera, transform.getPos00());
+        }
     }
 }
 
@@ -783,8 +808,6 @@ fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
         environment_info.world_time = world_time;
     }
 
-    gfx.beginFrame(gfx_state);
-
     once_per_duration_test += dt_game;
     if (once_per_duration_test > 1) {
         // PUT YOUR ONCE-PER-SECOND-ISH STUFF HERE!
@@ -794,29 +817,6 @@ fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
 
     AK.SoundEngine.renderAudio(false) catch unreachable;
     ecsu_world.progress(dt_game);
-
-    const camera_comps = getActiveCamera(ecsu_world);
-    if (camera_comps) |comps| {
-        gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
-    } else {
-        const camera = fd.Camera{
-            .near = 0.01,
-            .far = 100.0,
-            .fov = 1,
-            .view = undefined,
-            .projection = undefined,
-            .view_projection = undefined,
-            .window = undefined,
-            .active = true,
-            .class = 0,
-        };
-
-        const transform = fd.Transform{
-            .matrix = undefined,
-        };
-
-        gfx.endFrame(gfx_state, &camera, transform.getPos00());
-    }
 }
 
 fn getActiveCamera(ecsu_world: ecsu.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
