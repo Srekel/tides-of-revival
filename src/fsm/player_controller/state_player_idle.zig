@@ -217,8 +217,6 @@ fn update(ctx: fsm.StateFuncContext) void {
         // cam: *fd.Camera,
     });
 
-    std.log.info("ply dt: {d:5.4}", .{ctx.dt[0]});
-
     while (entity_iter.next()) |comps| {
         if (!comps.input.active) {
             continue;

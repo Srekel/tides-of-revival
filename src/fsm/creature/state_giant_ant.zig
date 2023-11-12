@@ -37,7 +37,7 @@ fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm
     const vec_to_player = player_pos_z - self_pos_z;
     const dir_to_player = zm.normalize3(vec_to_player);
     _ = dir_to_player;
-    self_pos_z += fwd.asZM() * dt * zm.f32x4s(2);
+    self_pos_z += fwd.asZM() * dt * zm.f32x4s(5);
 
     zm.store(pos.elems()[0..], self_pos_z, 3);
 }
@@ -92,7 +92,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
         if (dist_to_player_sq > 1) {
             const skitter = dist_to_player_sq > (15 * 15) and std.math.modf(player_pos.y + pos.y * 0.25).fpart > 0.25;
             const dir_to_player = zm.normalize3(vec_to_player);
-            const skitter_angle_offset: f32 = if (skitter) std.math.modf(player_pos.y + pos.y * 0.25).fpart * 2 - 1 else 0;
+            const skitter_angle_offset: f32 = if (skitter) std.math.modf(player_pos.y + pos.y * 0.25).fpart * 3 - 1.5 else 0;
             const angle_to_player = std.math.atan2(f32, dir_to_player[0], dir_to_player[2]) + skitter_angle_offset;
             const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player + handedness_offset);
 
@@ -157,8 +157,6 @@ fn update(ctx: fsm.StateFuncContext) void {
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
-
-    std.log.info("ant dt: {d:5.4}", .{ctx.dt[0]});
 
     while (entity_iter.next()) |comps| {
         if (entity_iter.entity() == player_ent) {
