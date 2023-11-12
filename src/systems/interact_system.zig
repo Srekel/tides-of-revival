@@ -196,6 +196,13 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             //  Assign to flecs component
             proj_ent.set(fd.PhysicsBody{ .body_id = proj_body_id });
 
+            // Light
+            proj_ent.set(fd.PointLight{
+                .color = .{ .r = 1, .g = 1, .b = 0.5 },
+                .range = 5.0,
+                .intensity = 0.5,
+            });
+
             // Send it flying
             const item_transform = ecs.get(ecs_world, item_ent_id, fd.Transform).?;
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
@@ -353,7 +360,16 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             const velocity = body_interface.getLinearVelocity(contact.body_id1);
             body_interface.removeAndDestroyBody(contact.body_id1);
             ecs.remove(ecs_world, ent1, fd.PhysicsBody);
+            // ecs.remove(ecs_world, ent1, fd.PointLight);
             removed_entities.append(ent1) catch unreachable;
+
+            system.event_manager.triggerEvent(
+                config.events.onAddTimelineInstance_id,
+                &config.events.TimelineInstanceData{
+                    .ent = ent1,
+                    .timeline = IdLocal.init("despawn"),
+                },
+            );
 
             const oid = 1000 + ent1;
             AK.SoundEngine.registerGameObj(oid) catch unreachable;
@@ -441,7 +457,16 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             const velocity = body_interface.getLinearVelocity(contact.body_id2);
             body_interface.removeAndDestroyBody(contact.body_id2);
             ecs.remove(ecs_world, ent2, fd.PhysicsBody);
+            // ecs.remove(ecs_world, ent2, fd.PointLight);
             removed_entities.append(ent2) catch unreachable;
+
+            system.event_manager.triggerEvent(
+                config.events.onAddTimelineInstance_id,
+                &config.events.TimelineInstanceData{
+                    .ent = ent2,
+                    .timeline = IdLocal.init("despawn"),
+                },
+            );
 
             const oid = 1000 + ent1;
             AK.SoundEngine.registerGameObj(oid) catch unreachable;
