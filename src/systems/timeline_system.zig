@@ -205,7 +205,9 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                         instances_to_remove.append(i) catch unreachable;
                     },
                     .remove_entity => {
-                        system.ecsu_world.delete(instance.ent);
+                        if (system.ecsu_world.isAlive(instance.ent)) {
+                            system.ecsu_world.delete(instance.ent);
+                        }
                         instances_to_remove.append(i) catch unreachable;
                     },
                     .loop_from_zero => {

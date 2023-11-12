@@ -276,6 +276,10 @@ pub const World = struct {
         return ecs.get_name(self.world, entity);
     }
 
+    pub fn isAlive(self: World, entity: ecs.entity_t) bool {
+        return ecs.is_alive(self.world, entity);
+    }
+
     /// sets a component on entity. Can be either a pointer to a struct or a struct
     pub fn set(self: *World, entity: ecs.entity_t, ptr_or_struct: anytype) void {
         std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);

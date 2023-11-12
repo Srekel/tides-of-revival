@@ -339,8 +339,10 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         const contact_point_world_z = contact_base_offset_z + contact_point1_z;
         _ = contact_point_world_z;
 
-        const ent1_is_proj = ent1 != 0 and ecs.is_alive(ecs_world, ent1) and ecs.has_id(ecs_world, ent1, ecs_proj_id);
-        const ent2_is_proj = ent2 != 0 and ecs.is_alive(ecs_world, ent2) and ecs.has_id(ecs_world, ent2, ecs_proj_id);
+        const ent1_alive = ent1 != 0 and ecs.is_alive(ecs_world, ent1);
+        const ent2_alive = ent2 != 0 and ecs.is_alive(ecs_world, ent2);
+        const ent1_is_proj = ent1_alive and ecs.has_id(ecs_world, ent1, ecs_proj_id);
+        const ent2_is_proj = ent2_alive and ecs.has_id(ecs_world, ent2, ecs_proj_id);
         if (ent1_is_proj and ent2_is_proj) {
             continue;
         }
@@ -372,7 +374,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
             AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
-            if (ent2 != 0 and ecs.has_id(ecs_world, ent2, ecs.id(fd.Health))) {
+            if (ent2_alive and ecs.has_id(ecs_world, ent2, ecs.id(fd.Health))) {
                 const transform_target = ecs.get(ecs_world, ent2, fd.Transform).?;
                 const transform_proj = ecs.get(ecs_world, ent1, fd.Transform).?;
                 const transform_target_z = transform_target.asZM();
@@ -460,7 +462,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
             AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
-            if (contact.ent1 != 0 and ecs.has_id(ecs_world, ent1, ecs.id(fd.Health))) {
+            if (ent1_alive and ecs.has_id(ecs_world, ent1, ecs.id(fd.Health))) {
                 const transform_target = ecs.get(ecs_world, ent1, fd.Transform).?;
                 const transform_proj = ecs.get(ecs_world, ent2, fd.Transform).?;
                 const transform_target_z = transform_target.asZM();
