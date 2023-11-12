@@ -74,9 +74,9 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
         var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, giant_ant_prefab);
         var spawn_pos = [3]f32{
-            root_pos.x + (60 + to_spawn * 5) * std.math.sin(group_angle) + (5 + to_spawn * 0.5) * std.math.sin(individual_angle),
+            root_pos.x + (60 + to_spawn * 2) * std.math.sin(group_angle) + (5 + to_spawn * 1) * std.math.sin(individual_angle),
             root_pos.y + 20,
-            root_pos.z + (60 + to_spawn * 5) * std.math.cos(group_angle) + (5 + to_spawn * 0.5) * std.math.cos(individual_angle),
+            root_pos.z + (60 + to_spawn * 2) * std.math.cos(group_angle) + (5 + to_spawn * 1) * std.math.cos(individual_angle),
         };
         ent.set(fd.Position{
             .x = spawn_pos[0],
@@ -84,14 +84,14 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .z = spawn_pos[2],
         });
 
-        const is_boss = std.crypto.random.float(f32) > 0.98;
+        const is_boss = ctx.stage > 5 and std.crypto.random.float(f32) > 0.98;
         const scale: f32 = if (is_boss) 2.5 else 0.75;
         ent.set(fd.Scale.createScalar(scale));
 
         if (is_boss) {
-            ent.set(fd.Health{ .value = 500 + ctx.stage * 500 + ctx.stage * ctx.stage * 100 });
+            ent.set(fd.Health{ .value = 2000 + ctx.stage * 500 + ctx.stage * ctx.stage * 100 });
         } else {
-            ent.set(fd.Health{ .value = 5 + ctx.stage * 5 });
+            ent.set(fd.Health{ .value = 2 + ctx.stage * 2 });
         }
 
         ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("giant_ant") });
