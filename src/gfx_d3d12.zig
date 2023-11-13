@@ -122,6 +122,22 @@ pub const SceneUniforms = extern struct {
     padding: f32,
 };
 
+const UITextFormatHashMap = std.AutoHashMap(u32, *dwrite.ITextFormat);
+
+pub const UIRect = struct {
+    left: f32,
+    top: f32,
+    right: f32,
+    bottom: f32,
+};
+
+pub const UILabel = struct {
+    label: []const u8,
+    rect: UIRect,
+    font_size: u32,
+    color: [4]f32,
+};
+
 const ResourceView = struct {
     resource: zd3d12.ResourceHandle,
     view: d3d12.CPU_DESCRIPTOR_HANDLE,
@@ -202,6 +218,9 @@ pub const D3D12State = struct {
     stats: FrameStats,
     stats_brush: *d2d1.ISolidColorBrush,
     stats_text_format: *dwrite.ITextFormat,
+    ui_label_brush: *d2d1.ISolidColorBrush,
+    ui_text_formats_map: UITextFormatHashMap,
+    ui_labels: std.ArrayList(UILabel),
 
     depth_rt: ?RenderTarget,
 
@@ -259,12 +278,18 @@ pub const D3D12State = struct {
         _ = self.stats_brush.Release();
         _ = self.stats_text_format.Release();
 
+        _ = self.ui_label_brush.Release();
+        var iter = self.ui_text_formats_map.keyIterator();
+        while (iter.next()) |key| {
+            _ = self.ui_text_formats_map.get(key.*).?.Release();
+        }
+
         gctx.resize(width, height);
 
         self.stats_brush = blk: {
             var brush: ?*d2d1.ISolidColorBrush = null;
             hrPanicOnFail(gctx.d2d.?.context.CreateSolidColorBrush(
-                &.{ .r = 1.0, .g = 0.0, .b = 0.0, .a = 0.5 },
+                &.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 },
                 null,
                 &brush,
             ));
@@ -288,6 +313,38 @@ pub const D3D12State = struct {
         };
         hrPanicOnFail(self.stats_text_format.SetTextAlignment(.LEADING));
         hrPanicOnFail(self.stats_text_format.SetParagraphAlignment(.NEAR));
+
+        self.ui_label_brush = blk: {
+            var brush: ?*d2d1.ISolidColorBrush = null;
+            hrPanicOnFail(gctx.d2d.?.context.CreateSolidColorBrush(
+                &.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 },
+                null,
+                &brush,
+            ));
+            break :blk brush.?;
+        };
+
+        iter = self.ui_text_formats_map.keyIterator();
+        while (iter.next()) |key| {
+            const text_format = blk: {
+                var text_format: ?*dwrite.ITextFormat = null;
+                hrPanicOnFail(gctx.d2d.?.dwrite_factory.CreateTextFormat(
+                    L("Verdana"),
+                    null,
+                    .BOLD,
+                    .NORMAL,
+                    .NORMAL,
+                    @floatFromInt(key.*),
+                    L("en-us"),
+                    &text_format,
+                ));
+                break :blk text_format.?;
+            };
+            hrPanicOnFail(text_format.SetTextAlignment(.LEADING));
+            hrPanicOnFail(text_format.SetParagraphAlignment(.NEAR));
+
+            self.ui_text_formats_map.put(key.*, text_format) catch unreachable;
+        }
 
         createRenderTargets(self);
     }
@@ -1122,6 +1179,31 @@ pub const D3D12State = struct {
 
         return try self.texture_pool.add(.{ .obj = texture });
     }
+
+    pub fn drawUILabel(self: *D3D12State, label: UILabel) !void {
+        if (!self.ui_text_formats_map.contains(label.font_size)) {
+            const text_format = blk: {
+                var text_format: ?*dwrite.ITextFormat = null;
+                hrPanicOnFail(self.gctx.d2d.?.dwrite_factory.CreateTextFormat(
+                    L("Verdana"),
+                    null,
+                    .BOLD,
+                    .NORMAL,
+                    .NORMAL,
+                    @floatFromInt(label.font_size),
+                    L("en-us"),
+                    &text_format,
+                ));
+                break :blk text_format.?;
+            };
+            hrPanicOnFail(text_format.SetTextAlignment(.LEADING));
+            hrPanicOnFail(text_format.SetParagraphAlignment(.NEAR));
+
+            self.ui_text_formats_map.put(label.font_size, text_format) catch unreachable;
+        }
+
+        self.ui_labels.append(label) catch unreachable;
+    }
 };
 
 pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
@@ -1207,6 +1289,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     state.mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
     state.mesh_hash = MeshHashMap.init(allocator);
     state.pipelines = PipelineHashMap.init(allocator);
+    state.ui_text_formats_map = UITextFormatHashMap.init(allocator);
+    state.ui_labels = std.ArrayList(UILabel).init(allocator);
     state.gpu_profiler = Profiler.init(allocator, &state.gctx) catch unreachable;
     state.stats = FrameStats.init();
 
@@ -1347,6 +1431,14 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     _ = self.stats_brush.Release();
     _ = self.stats_text_format.Release();
+
+    var iter = self.ui_text_formats_map.keyIterator();
+    while (iter.next()) |key| {
+        _ = self.ui_text_formats_map.get(key.*).?.Release();
+    }
+    _ = self.ui_label_brush.Release();
+    self.ui_text_formats_map.deinit();
+    self.ui_labels.deinit();
 
     self.gctx.deinit(allocator);
 
@@ -1817,7 +1909,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     state.gpu_profiler.endProfile(gctx.cmdlist, state.gpu_frame_profiler_index, gctx.frame_index);
     state.gpu_profiler.endFrame(gctx.cmdqueue, gctx.frame_index);
 
-    // GPU Stats Pass
+    // D2D Text Rendering
     {
         const back_buffer = gctx.getBackBuffer();
         gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
@@ -1832,87 +1924,114 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
         gctx.beginDraw2d();
         {
-            const stats = &state.stats;
-            state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
-
-            // FPS and CPU timings
+            // Draw UI Labels
             {
-                var buffer = [_]u8{0} ** 64;
-                const text = std.fmt.bufPrint(
-                    buffer[0..],
-                    "FPS: {d:.1}\nCPU: {d:.3} ms",
-                    .{ stats.fps, stats.average_cpu_time },
-                ) catch unreachable;
+                for (state.ui_labels.items) |label| {
+                    if (state.ui_text_formats_map.get(label.font_size)) |text_format| {
+                        state.ui_label_brush.SetColor(&.{ .r = label.color[0], .g = label.color[1], .b = label.color[2], .a = label.color[3] });
 
-                drawText(
-                    gctx.d2d.?.context,
-                    text,
-                    state.stats_text_format,
-                    &d2d1.RECT_F{
-                        .left = 0.0,
-                        .top = 0.0,
-                        .right = @as(f32, @floatFromInt(gctx.viewport_width)),
-                        .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
-                    },
-                    @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
-                );
+                        drawText(
+                            gctx.d2d.?.context,
+                            label.label,
+                            text_format,
+                            &d2d1.RECT_F{
+                                .left = label.rect.left,
+                                .top = label.rect.top,
+                                .right = label.rect.right,
+                                .bottom = label.rect.bottom,
+                            },
+                            @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                        );
+                    }
+                }
             }
 
-            // GPU timings
-            var i: u32 = 0;
-            var line_height: f32 = 14.0;
-            var vertical_offset: f32 = 36.0;
-            while (i < state.gpu_profiler.num_profiles) : (i += 1) {
-                var frame_profile_data = state.gpu_profiler.profiles.items[i];
-                var buffer = [_]u8{0} ** 64;
-                const text = std.fmt.bufPrint(
-                    buffer[0..],
-                    "{s}: {d:.3} ms",
-                    .{ frame_profile_data.name, frame_profile_data.avg_time },
-                ) catch unreachable;
-
-                drawText(
-                    gctx.d2d.?.context,
-                    text,
-                    state.stats_text_format,
-                    &d2d1.RECT_F{
-                        .left = 0.0,
-                        .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
-                        .right = @as(f32, @floatFromInt(gctx.viewport_width)),
-                        .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
-                    },
-                    @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
-                );
-            }
-
-            // GPU Memory
-            // Collect memory usage stats
-            var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
-            hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
+            // Rendering Stats
             {
-                var buffer = [_]u8{0} ** 256;
-                const text = std.fmt.bufPrint(
-                    buffer[0..],
-                    "GPU Memory: {d}/{d} MB",
-                    .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
-                ) catch unreachable;
+                const stats = &state.stats;
+                state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
 
-                drawText(
-                    gctx.d2d.?.context,
-                    text,
-                    state.stats_text_format,
-                    &d2d1.RECT_F{
-                        .left = 0.0,
-                        .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
-                        .right = @as(f32, @floatFromInt(gctx.viewport_width)),
-                        .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
-                    },
-                    @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
-                );
+                // FPS and CPU timings
+                {
+                    var buffer = [_]u8{0} ** 64;
+                    const text = std.fmt.bufPrint(
+                        buffer[0..],
+                        "FPS: {d:.1}\nCPU: {d:.3} ms",
+                        .{ stats.fps, stats.average_cpu_time },
+                    ) catch unreachable;
+
+                    drawText(
+                        gctx.d2d.?.context,
+                        text,
+                        state.stats_text_format,
+                        &d2d1.RECT_F{
+                            .left = 0.0,
+                            .top = 0.0,
+                            .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                            .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
+                        },
+                        @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                    );
+                }
+
+                // GPU timings
+                var i: u32 = 0;
+                var line_height: f32 = 14.0;
+                var vertical_offset: f32 = 36.0;
+                while (i < state.gpu_profiler.num_profiles) : (i += 1) {
+                    var frame_profile_data = state.gpu_profiler.profiles.items[i];
+                    var buffer = [_]u8{0} ** 64;
+                    const text = std.fmt.bufPrint(
+                        buffer[0..],
+                        "{s}: {d:.3} ms",
+                        .{ frame_profile_data.name, frame_profile_data.avg_time },
+                    ) catch unreachable;
+
+                    drawText(
+                        gctx.d2d.?.context,
+                        text,
+                        state.stats_text_format,
+                        &d2d1.RECT_F{
+                            .left = 0.0,
+                            .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                            .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                            .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
+                        },
+                        @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                    );
+                }
+
+                // GPU Memory
+                // Collect memory usage stats
+                var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
+                hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
+                {
+                    var buffer = [_]u8{0} ** 256;
+                    const text = std.fmt.bufPrint(
+                        buffer[0..],
+                        "GPU Memory: {d}/{d} MB",
+                        .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
+                    ) catch unreachable;
+
+                    drawText(
+                        gctx.d2d.?.context,
+                        text,
+                        state.stats_text_format,
+                        &d2d1.RECT_F{
+                            .left = 0.0,
+                            .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                            .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                            .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
+                        },
+                        @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                    );
+                }
             }
         }
         // End Direct2D rendering and transition back buffer to 'present' state.
         gctx.endDraw2d();
+
+        state.ui_labels.clearRetainingCapacity();
     }
 
     // Prepare the back buffer to be presented to the screen
@@ -2627,4 +2746,14 @@ fn initializeD2DResources(state: *D3D12State) void {
     };
     hrPanicOnFail(state.stats_text_format.SetTextAlignment(.LEADING));
     hrPanicOnFail(state.stats_text_format.SetParagraphAlignment(.NEAR));
+
+    state.ui_label_brush = blk: {
+        var brush: ?*d2d1.ISolidColorBrush = null;
+        hrPanicOnFail(state.gctx.d2d.?.context.CreateSolidColorBrush(
+            &.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 },
+            null,
+            &brush,
+        ));
+        break :blk brush.?;
+    };
 }
