@@ -649,8 +649,10 @@ pub fn run() void {
     //    ██║   ██║██║ ╚═╝ ██║███████╗███████╗██║██║ ╚████║███████╗███████║
     //    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 
+    var tl_giant_ant_spawn_ctx: ?SpawnContext = null;
+
     if (player_spawn != null) {
-        var tl_giant_ant_spawn_ctx = SpawnContext{
+        tl_giant_ant_spawn_ctx = SpawnContext{
             .ecsu_world = ecsu_world,
             .physics_world = physics_sys.physics_world,
             .prefab_manager = &prefab_manager,
@@ -763,6 +765,23 @@ pub fn run() void {
 
         world_patch_mgr.tickOne();
         update(ecsu_world, &gfx_state);
+
+        if (tl_giant_ant_spawn_ctx) |ctx| {
+            var buffer = [_]u8{0} ** 64;
+            const text = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
+
+            gfx_state.drawUILabel(.{
+                .label = text,
+                .font_size = 24,
+                .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+                .rect = .{
+                    .left = 20,
+                    .top = 400,
+                    .bottom = 420,
+                    .right = 600,
+                },
+            }) catch unreachable;
+        }
 
         const camera_comps = getActiveCamera(ecsu_world);
         if (camera_comps) |comps| {
