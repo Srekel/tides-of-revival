@@ -101,10 +101,14 @@ pub const UpsampleBlurUniforms = struct {
 
 pub const UIUniforms = struct {
     screen_to_clip: zm.Mat,
+    ui_transform_buffer_index: u32,
+};
+
+pub const UITransform = struct {
     rect: [4]f32,
+    color: [4]f32,
     texture_index: u32,
-    opacity: f32,
-    _padding: [2]f32,
+    _padding: [3]f32,
 };
 
 pub const SceneUniforms = extern struct {
@@ -209,6 +213,7 @@ pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
     pub const point_lights_count_max: u32 = 1000;
     pub const downsample_rt_count: u32 = 10;
+    const ui_instances_count_max: u32 = 4096;
 
     gctx: zd3d12.GraphicsContext,
     mipgen_rgba16f: zd3d12.MipmapGenerator,
@@ -240,9 +245,14 @@ pub const D3D12State = struct {
     prefiltered_env_texture: ResourceView,
     brdf_integration_texture: TextureHandle,
 
-    // NOTE(gmodarelli): Testing UI rendering with a crosshair
+    // NOTE(gmodarelli): Temporary UI stuff
     crosshair_texture: zd3d12.ResourceHandle,
     crosshair_texture_persistent_descriptor: zd3d12.PersistentDescriptor,
+    logo_texture: zd3d12.ResourceHandle,
+    logo_texture_persistent_descriptor: zd3d12.PersistentDescriptor,
+    splash_screen_duration: f32,
+    splash_screen_fade_out_duration: f32,
+    splash_screen_accumulated_time: f32,
 
     texture_pool: TexturePool,
     texture_hash: TextureHashMap,
@@ -259,6 +269,8 @@ pub const D3D12State = struct {
     skybox_mesh: MeshHandle,
 
     quad_index_buffer: BufferHandle,
+    ui_transform_buffers: [num_buffered_frames]BufferHandle,
+    ui_elements: std.ArrayList(UITransform),
 
     main_light: renderer_types.DirectionalLightGPU,
     point_lights_buffers: [num_buffered_frames]BufferHandle,
@@ -1314,7 +1326,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     createPipelines(&state, arena);
     initializeD2DResources(&state);
 
-    // Load crosshair texture
+    // Load crosshair and logo textures
     {
         state.gctx.beginFrame();
         state.crosshair_texture = state.gctx.createAndUploadTex2dFromFile("content/textures/ui/crosshair085.png", .{}) catch unreachable;
@@ -1331,6 +1343,26 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
 
             break :blk srv_allocation;
         };
+
+        state.logo_texture = state.gctx.createAndUploadTex2dFromFile("content/textures/ui/tor_logo_tmp.png", .{}) catch unreachable;
+        state.logo_texture_persistent_descriptor = blk: {
+            const srv_allocation = state.gctx.allocatePersistentGpuDescriptors(1);
+            state.gctx.device.CreateShaderResourceView(
+                state.gctx.lookupResource(state.logo_texture).?,
+                null,
+                srv_allocation.cpu_handle,
+            );
+
+            state.gctx.addTransitionBarrier(state.logo_texture, .{ .PIXEL_SHADER_RESOURCE = true });
+            state.gctx.flushResourceBarriers();
+
+            break :blk srv_allocation;
+        };
+
+        state.splash_screen_accumulated_time = 0.0;
+        state.splash_screen_duration = 5.0;
+        state.splash_screen_fade_out_duration = 1.0;
+
         state.gctx.endFrame();
         state.gctx.finishGpuCommands();
     }
@@ -1385,6 +1417,27 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         }) catch unreachable;
 
         _ = state.scheduleUploadDataToBuffer(UIIndexType, state.quad_index_buffer, 0, &quad_indices);
+
+        state.ui_transform_buffers = blk: {
+            var buffers: [D3D12State.num_buffered_frames]BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                const bufferDesc = BufferDesc{
+                    .size = D3D12State.ui_instances_count_max * @sizeOf(UITransform),
+                    .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                    .name = L("UI Instance Transform Buffer"),
+                    .persistent = true,
+                    .has_cbv = false,
+                    .has_srv = true,
+                    .has_uav = false,
+                };
+
+                buffers[buffer_index] = state.createBuffer(bufferDesc) catch unreachable;
+            }
+
+            break :blk buffers;
+        };
+
+        state.ui_elements = std.ArrayList(UITransform).init(allocator);
     }
 
     // Generate IBL textures from HDRI
@@ -1439,6 +1492,7 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     _ = self.ui_label_brush.Release();
     self.ui_text_formats_map.deinit();
     self.ui_labels.deinit();
+    self.ui_elements.deinit();
 
     self.gctx.deinit(allocator);
 
@@ -1877,15 +1931,76 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             .Format = if (@sizeOf(UIIndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
-        const crosshair_size: f32 = 32;
-        const crosshair_half_size: f32 = crosshair_size / 2;
-        const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
-        const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+        state.ui_elements.clearRetainingCapacity();
 
-        const top = screen_center_y - crosshair_half_size;
-        const bottom = screen_center_y + crosshair_half_size;
-        const left = screen_center_x - crosshair_half_size;
-        const right = screen_center_x + crosshair_half_size;
+        // Crosshair
+        {
+            const crosshair_size: f32 = 32;
+            const crosshair_half_size: f32 = crosshair_size / 2;
+            const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
+            const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+
+            const top = screen_center_y - crosshair_half_size;
+            const bottom = screen_center_y + crosshair_half_size;
+            const left = screen_center_x - crosshair_half_size;
+            const right = screen_center_x + crosshair_half_size;
+
+            const transform = UITransform{
+                .rect = [4]f32{ top, bottom, left, right },
+                .color = [4]f32{ 1.0, 1.0, 1.0, 0.75 },
+                .texture_index = state.crosshair_texture_persistent_descriptor.index,
+                ._padding = [3]f32{ 42, 42, 42 },
+            };
+
+            state.ui_elements.append(transform) catch unreachable;
+        }
+
+        // Watermark Logo
+        {
+            const logo_size: f32 = 100;
+            const top = 20.0;
+            const bottom = 20.0 + logo_size;
+            const left = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0 - logo_size;
+            const right = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0;
+
+            const transform = UITransform{
+                .rect = [4]f32{ top, bottom, left, right },
+                .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+                .texture_index = state.logo_texture_persistent_descriptor.index,
+                ._padding = [3]f32{ 42, 42, 42 },
+            };
+
+            state.ui_elements.append(transform) catch unreachable;
+        }
+
+        // Splash screen
+        if (state.splash_screen_accumulated_time < state.splash_screen_duration) {
+            state.splash_screen_accumulated_time += state.stats.delta_time;
+            const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
+            const opacity = fade_out_time / state.splash_screen_fade_out_duration;
+
+            const logo_size: f32 = 840;
+            const logo_half_size: f32 = logo_size / 2;
+            const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
+            const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+
+            const top = screen_center_y - logo_half_size;
+            const bottom = screen_center_y + logo_half_size;
+            const left = screen_center_x - logo_half_size;
+            const right = screen_center_x + logo_half_size;
+
+            const transform = UITransform{
+                .rect = [4]f32{ top, bottom, left, right },
+                .color = [4]f32{ 1.0, 0.0, 0.0, opacity },
+                .texture_index = state.logo_texture_persistent_descriptor.index,
+                ._padding = [3]f32{ 42, 42, 42 },
+            };
+
+            state.ui_elements.append(transform) catch unreachable;
+        }
+
+        _ = state.uploadDataToBuffer(UITransform, state.ui_transform_buffers[gctx.frame_index], 0, state.ui_elements.items);
+        const ui_transform_buffer = state.lookupBuffer(state.ui_transform_buffers[gctx.frame_index]);
 
         var z_screen_to_clip = zm.identity();
         z_screen_to_clip[0] = zm.f32x4(2.0 / @as(f32, @floatFromInt(gctx.viewport_width)), 0.0, 0.0, 0.0);
@@ -1894,13 +2009,10 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         z_screen_to_clip[3] = zm.f32x4(-1.0, 1.0, 0.5, 1.0);
         const mem = gctx.allocateUploadMemory(UIUniforms, 1);
         mem.cpu_slice[0].screen_to_clip = z_screen_to_clip;
-        mem.cpu_slice[0].rect = [4]f32{ top, bottom, left, right };
-        mem.cpu_slice[0].texture_index = state.crosshair_texture_persistent_descriptor.index;
-        mem.cpu_slice[0].opacity = 0.75;
-        mem.cpu_slice[0]._padding = [2]f32{ 42, 42 };
+        mem.cpu_slice[0].ui_transform_buffer_index = ui_transform_buffer.?.persistent_descriptor.index;
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-        gctx.cmdlist.DrawIndexedInstanced(6, 1, 0, 0, 0);
+        gctx.cmdlist.DrawIndexedInstanced(6, @as(u32, @intCast(state.ui_elements.items.len)), 0, 0, 0);
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, ui_profiler_index, gctx.frame_index);
@@ -1940,7 +2052,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                                 .right = label.rect.right,
                                 .bottom = label.rect.bottom,
                             },
-                            @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                            @as(*d2d1.IBrush, @ptrCast(state.ui_label_brush)),
                         );
                     }
                 }
@@ -1949,10 +2061,16 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             // Rendering Stats
             {
                 const stats = &state.stats;
-                state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
 
                 // FPS and CPU timings
                 {
+                    state.stats_brush.SetColor(&.{ .r = 0.0, .g = 1.0, .b = 0.0, .a = 1.0 });
+                    if (stats.fps < 60.0) {
+                        state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 0.0, .a = 1.0 });
+                    } else if (stats.fps < 30) {
+                        state.stats_brush.SetColor(&.{ .r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0 });
+                    }
+
                     var buffer = [_]u8{0} ** 64;
                     const text = std.fmt.bufPrint(
                         buffer[0..],
@@ -1965,8 +2083,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                         text,
                         state.stats_text_format,
                         &d2d1.RECT_F{
-                            .left = 0.0,
-                            .top = 0.0,
+                            .left = 10.0,
+                            .top = 10.0,
                             .right = @as(f32, @floatFromInt(gctx.viewport_width)),
                             .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
                         },
@@ -1975,56 +2093,58 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 }
 
                 // GPU timings
-                var i: u32 = 0;
-                var line_height: f32 = 14.0;
-                var vertical_offset: f32 = 36.0;
-                while (i < state.gpu_profiler.num_profiles) : (i += 1) {
-                    var frame_profile_data = state.gpu_profiler.profiles.items[i];
-                    var buffer = [_]u8{0} ** 64;
-                    const text = std.fmt.bufPrint(
-                        buffer[0..],
-                        "{s}: {d:.3} ms",
-                        .{ frame_profile_data.name, frame_profile_data.avg_time },
-                    ) catch unreachable;
+                if (false) {
+                    var i: u32 = 0;
+                    var line_height: f32 = 14.0;
+                    var vertical_offset: f32 = 36.0;
+                    while (i < state.gpu_profiler.num_profiles) : (i += 1) {
+                        var frame_profile_data = state.gpu_profiler.profiles.items[i];
+                        var buffer = [_]u8{0} ** 64;
+                        const text = std.fmt.bufPrint(
+                            buffer[0..],
+                            "{s}: {d:.3} ms",
+                            .{ frame_profile_data.name, frame_profile_data.avg_time },
+                        ) catch unreachable;
 
-                    drawText(
-                        gctx.d2d.?.context,
-                        text,
-                        state.stats_text_format,
-                        &d2d1.RECT_F{
-                            .left = 0.0,
-                            .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
-                            .right = @as(f32, @floatFromInt(gctx.viewport_width)),
-                            .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
-                        },
-                        @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
-                    );
-                }
+                        drawText(
+                            gctx.d2d.?.context,
+                            text,
+                            state.stats_text_format,
+                            &d2d1.RECT_F{
+                                .left = 0.0,
+                                .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                                .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                                .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
+                            },
+                            @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                        );
+                    }
 
-                // GPU Memory
-                // Collect memory usage stats
-                var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
-                hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
-                {
-                    var buffer = [_]u8{0} ** 256;
-                    const text = std.fmt.bufPrint(
-                        buffer[0..],
-                        "GPU Memory: {d}/{d} MB",
-                        .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
-                    ) catch unreachable;
+                    // GPU Memory
+                    // Collect memory usage stats
+                    var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
+                    hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
+                    {
+                        var buffer = [_]u8{0} ** 256;
+                        const text = std.fmt.bufPrint(
+                            buffer[0..],
+                            "GPU Memory: {d}/{d} MB",
+                            .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
+                        ) catch unreachable;
 
-                    drawText(
-                        gctx.d2d.?.context,
-                        text,
-                        state.stats_text_format,
-                        &d2d1.RECT_F{
-                            .left = 0.0,
-                            .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
-                            .right = @as(f32, @floatFromInt(gctx.viewport_width)),
-                            .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
-                        },
-                        @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
-                    );
+                        drawText(
+                            gctx.d2d.?.context,
+                            text,
+                            state.stats_text_format,
+                            &d2d1.RECT_F{
+                                .left = 0.0,
+                                .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                                .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                                .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
+                            },
+                            @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                        );
+                    }
                 }
             }
         }
