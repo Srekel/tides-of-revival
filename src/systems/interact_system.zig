@@ -19,6 +19,7 @@ const context = @import("../core/context.zig");
 const audio = @import("../audio/audio_manager.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
+const gfx_d3d12 = @import("../gfx_d3d12.zig");
 
 const SystemState = struct {
     flecs_sys: ecs.entity_t,
@@ -28,8 +29,10 @@ const SystemState = struct {
     frame_data: *input.FrameData,
     event_manager: *EventManager,
     prefab_manager: *PrefabManager,
+    gfx: *gfx_d3d12.D3D12State,
 
     comp_query_interactor: ecsu.Query,
+    kills: u32,
 };
 
 pub const SystemCtx = struct {
@@ -41,6 +44,7 @@ pub const SystemCtx = struct {
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     prefab_manager: *PrefabManager,
+    gfx: *gfx_d3d12.D3D12State,
 };
 
 pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
@@ -63,6 +67,8 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .event_manager = ctx.event_manager,
         .prefab_manager = ctx.prefab_manager,
         .comp_query_interactor = comp_query_interactor,
+        .gfx = ctx.gfx,
+        .kills = 0,
     };
 
     // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
@@ -82,6 +88,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateInteractors(system, iter.iter.delta_time);
+
+    var buffer = [_]u8{0} ** 64;
+    const text = std.fmt.bufPrint(buffer[0..], "Kills: {d}", .{system.kills}) catch unreachable;
+    system.gfx.drawUILabel(text, 24, [4]f32{ 1.0, 1.0, 1.0, 1.0 }, .{ .left = 20, .top = 440, .bottom = 460, .right = 600 }) catch unreachable;
 }
 
 var playingID: AK.AkPlayingID = 0;
@@ -514,6 +524,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health1.value -= damage;
                     if (health1.value <= 0) {
+                        system.kills += 1;
                         body_interface.setMotionType(contact.body_id1, .dynamic, .activate);
                         body_interface.addImpulseAtPosition(
                             contact.body_id1,

@@ -24,6 +24,7 @@ const zm = @import("zmath");
 const fd = @import("flecs_data.zig");
 const config = @import("config.zig");
 const zstbi = @import("zstbi");
+const util = @import("util.zig");
 
 pub const Profiler = profiler_module.Profiler;
 pub const ProfileData = profiler_module.ProfileData;
@@ -136,7 +137,8 @@ pub const UIRect = struct {
 };
 
 pub const UILabel = struct {
-    label: []const u8,
+    // label: []const u8,
+    label: [128]u8,
     rect: UIRect,
     font_size: u32,
     color: [4]f32,
@@ -1192,8 +1194,9 @@ pub const D3D12State = struct {
         return try self.texture_pool.add(.{ .obj = texture });
     }
 
-    pub fn drawUILabel(self: *D3D12State, label: UILabel) !void {
-        if (!self.ui_text_formats_map.contains(label.font_size)) {
+    // pub fn drawUILabel(self: *D3D12State, label: UILabel) !void {
+    pub fn drawUILabel(self: *D3D12State, text: []const u8, font_size: u32, color: [4]f32, rect: UIRect) !void {
+        if (!self.ui_text_formats_map.contains(font_size)) {
             const text_format = blk: {
                 var text_format: ?*dwrite.ITextFormat = null;
                 hrPanicOnFail(self.gctx.d2d.?.dwrite_factory.CreateTextFormat(
@@ -1202,7 +1205,7 @@ pub const D3D12State = struct {
                     .BOLD,
                     .NORMAL,
                     .NORMAL,
-                    @floatFromInt(label.font_size),
+                    @floatFromInt(font_size),
                     L("en-us"),
                     &text_format,
                 ));
@@ -1211,10 +1214,19 @@ pub const D3D12State = struct {
             hrPanicOnFail(text_format.SetTextAlignment(.LEADING));
             hrPanicOnFail(text_format.SetParagraphAlignment(.NEAR));
 
-            self.ui_text_formats_map.put(label.font_size, text_format) catch unreachable;
+            self.ui_text_formats_map.put(font_size, text_format) catch unreachable;
         }
 
-        self.ui_labels.append(label) catch unreachable;
+        var ui_label = UILabel{
+            .label = undefined,
+            .font_size = font_size,
+            .color = [4]f32{ color[0], color[1], color[2], color[3] },
+            .rect = rect,
+        };
+
+        _ = std.fmt.bufPrint(&ui_label.label, "{s}", .{text}) catch unreachable;
+
+        self.ui_labels.append(ui_label) catch unreachable;
     }
 };
 
@@ -2042,9 +2054,11 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     if (state.ui_text_formats_map.get(label.font_size)) |text_format| {
                         state.ui_label_brush.SetColor(&.{ .r = label.color[0], .g = label.color[1], .b = label.color[2], .a = label.color[3] });
 
+                        const len = std.mem.indexOf(u8, &label.label, "\x00");
+
                         drawText(
                             gctx.d2d.?.context,
-                            label.label,
+                            label.label[0..len.?],
                             text_format,
                             &d2d1.RECT_F{
                                 .left = label.rect.left,
@@ -2150,7 +2164,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         }
         // End Direct2D rendering and transition back buffer to 'present' state.
         gctx.endDraw2d();
-
         state.ui_labels.clearRetainingCapacity();
     }
 
