@@ -137,8 +137,7 @@ pub const UIRect = struct {
 };
 
 pub const UILabel = struct {
-    // label: []const u8,
-    label: [128]u8,
+    label: []const u8,
     rect: UIRect,
     font_size: u32,
     color: [4]f32,
@@ -1197,9 +1196,8 @@ pub const D3D12State = struct {
         return try self.texture_pool.add(.{ .obj = texture });
     }
 
-    // pub fn drawUILabel(self: *D3D12State, label: UILabel) !void {
-    pub fn drawUILabel(self: *D3D12State, text: []const u8, font_size: u32, color: [4]f32, rect: UIRect) !void {
-        if (!self.ui_text_formats_map.contains(font_size)) {
+    pub fn drawUILabel(self: *D3D12State, label: UILabel) !void {
+        if (!self.ui_text_formats_map.contains(label.font_size)) {
             const text_format = blk: {
                 var text_format: ?*dwrite.ITextFormat = null;
                 hrPanicOnFail(self.gctx.d2d.?.dwrite_factory.CreateTextFormat(
@@ -1208,7 +1206,7 @@ pub const D3D12State = struct {
                     .BOLD,
                     .NORMAL,
                     .NORMAL,
-                    @floatFromInt(font_size),
+                    @floatFromInt(label.font_size),
                     L("en-us"),
                     &text_format,
                 ));
@@ -1217,17 +1215,16 @@ pub const D3D12State = struct {
             hrPanicOnFail(text_format.SetTextAlignment(.LEADING));
             hrPanicOnFail(text_format.SetParagraphAlignment(.NEAR));
 
-            self.ui_text_formats_map.put(font_size, text_format) catch unreachable;
+            self.ui_text_formats_map.put(label.font_size, text_format) catch unreachable;
         }
 
         var ui_label = UILabel{
             .label = undefined,
-            .font_size = font_size,
-            .color = [4]f32{ color[0], color[1], color[2], color[3] },
-            .rect = rect,
+            .font_size = label.font_size,
+            .color = [4]f32{ label.color[0], label.color[1], label.color[2], label.color[3] },
+            .rect = label.rect,
         };
-
-        _ = std.fmt.bufPrint(&ui_label.label, "{s}", .{text}) catch unreachable;
+        ui_label.label = self.frame_allocator.dupe(u8, label.label) catch unreachable;
 
         self.ui_labels.append(ui_label) catch unreachable;
     }
@@ -2062,11 +2059,9 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     if (state.ui_text_formats_map.get(label.font_size)) |text_format| {
                         state.ui_label_brush.SetColor(&.{ .r = label.color[0], .g = label.color[1], .b = label.color[2], .a = label.color[3] });
 
-                        const len = std.mem.indexOf(u8, &label.label, "\x00");
-
                         drawText(
                             gctx.d2d.?.context,
-                            label.label[0..len.?],
+                            label.label,
                             text_format,
                             &d2d1.RECT_F{
                                 .left = label.rect.left,

@@ -33,6 +33,7 @@ const SystemState = struct {
 
     comp_query_interactor: ecsu.Query,
     kills: u32,
+    arrows: u32,
 };
 
 pub const SystemCtx = struct {
@@ -69,6 +70,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .comp_query_interactor = comp_query_interactor,
         .gfx = ctx.gfx,
         .kills = 0,
+        .arrows = 0,
     };
 
     // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
@@ -89,9 +91,31 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateInteractors(system, iter.iter.delta_time);
 
-    var buffer = [_]u8{0} ** 64;
-    const text = std.fmt.bufPrint(buffer[0..], "Kills: {d}", .{system.kills}) catch unreachable;
-    system.gfx.drawUILabel(text, 24, [4]f32{ 1.0, 1.0, 1.0, 1.0 }, .{ .left = 20, .top = 440, .bottom = 460, .right = 600 }) catch unreachable;
+    {
+        var ui_label = gfx_d3d12.UILabel{
+            .label = undefined,
+            .font_size = 24,
+            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            .rect = .{ .left = 20, .top = 440, .bottom = 460, .right = 600 },
+        };
+
+        var buffer = [_]u8{0} ** 64;
+        ui_label.label = std.fmt.bufPrint(buffer[0..], "Kills: {d}", .{system.kills}) catch unreachable;
+        system.gfx.drawUILabel(ui_label) catch unreachable;
+    }
+
+    {
+        var ui_label = gfx_d3d12.UILabel{
+            .label = undefined,
+            .font_size = 24,
+            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            .rect = .{ .left = 20, .top = 480, .bottom = 500, .right = 600 },
+        };
+
+        var buffer = [_]u8{0} ** 64;
+        ui_label.label = std.fmt.bufPrint(buffer[0..], "Arrows: {d}", .{system.arrows}) catch unreachable;
+        system.gfx.drawUILabel(ui_label) catch unreachable;
+    }
 }
 
 var playingID: AK.AkPlayingID = 0;
@@ -128,6 +152,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.Projectile{});
             proj_ent.childOf(item_ent_id);
             weapon_comp.chambered_projectile = proj_ent.id;
+            system.arrows += 1;
             continue;
         }
 
@@ -428,6 +453,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health2.value -= damage;
                     if (health2.value <= 0) {
+                        system.kills += 1;
                         body_interface.setMotionType(contact.body_id2, .dynamic, .activate);
                         body_interface.addImpulseAtPosition(
                             contact.body_id2,
