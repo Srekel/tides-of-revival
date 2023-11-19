@@ -169,7 +169,7 @@ pub fn run() void {
     main_window.setInputMode(.cursor, .disabled);
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
-    defer gfx.deinit(&gfx_state, std.heap.page_allocator);
+    defer gfx.deinit(gfx_state, std.heap.page_allocator);
 
     var prefab_manager = pm.PrefabManager.init(&ecsu_world, std.heap.page_allocator);
     defer prefab_manager.deinit();
@@ -181,17 +181,17 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    player_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/characters/player/player.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{}) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/environment/fir/fir.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{}) catch unreachable;
+    player_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/characters/player/player.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{}) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/environment/fir/fir.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{}) catch unreachable;
 
     // Load prefab primitives
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cube.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_sphere.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cylinder.gltf", &ecsu_world, &gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cube.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_sphere.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cylinder.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -415,7 +415,7 @@ pub fn run() void {
         .frame_data = &input_frame_data,
         .physics_world = physics_world, // TODO: Optional
         .prefab_manager = &prefab_manager,
-        .gfx = &gfx_state,
+        .gfx = gfx_state,
     };
 
     var physics_sys = try physics_system.create(
@@ -450,7 +450,7 @@ pub fn run() void {
     var city_sys = try city_system.create(
         IdLocal.init("city_system"),
         std.heap.page_allocator,
-        &gfx_state,
+        gfx_state,
         ecsu_world,
         physics_sys.physics_world,
         &asset_manager,
@@ -461,7 +461,7 @@ pub fn run() void {
     var camera_sys = try camera_system.create(
         IdLocal.init("camera_system"),
         std.heap.page_allocator,
-        &gfx_state,
+        gfx_state,
         ecsu_world,
         &input_frame_data,
     );
@@ -479,7 +479,7 @@ pub fn run() void {
     var light_sys = try light_system.create(
         IdLocal.initFormat("light_system_{}", .{0}),
         std.heap.page_allocator,
-        &gfx_state,
+        gfx_state,
         &ecsu_world,
         &input_frame_data,
     );
@@ -488,7 +488,7 @@ pub fn run() void {
     var static_mesh_renderer_sys = try static_mesh_renderer_system.create(
         IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
         std.heap.page_allocator,
-        &gfx_state,
+        gfx_state,
         &ecsu_world,
         &input_frame_data,
     );
@@ -497,7 +497,7 @@ pub fn run() void {
     var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
         IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
         std.heap.page_allocator,
-        &gfx_state,
+        gfx_state,
         ecsu_world,
         world_patch_mgr,
     );
@@ -506,7 +506,7 @@ pub fn run() void {
     city_system.createEntities(city_sys);
 
     // Make sure systems are initialized and any initial system entities are created.
-    update(ecsu_world, &gfx_state);
+    update(ecsu_world, gfx_state);
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -751,12 +751,12 @@ pub fn run() void {
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
-        gfx.beginFrame(&gfx_state);
+        gfx.beginFrame(gfx_state);
 
         const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
         defer trazy_zone.End();
 
-        const window_status = window.update(&gfx_state) catch unreachable;
+        const window_status = window.update(gfx_state) catch unreachable;
         if (window_status == .no_windows) {
             break;
         }
@@ -765,17 +765,24 @@ pub fn run() void {
         }
 
         world_patch_mgr.tickOne();
-        update(ecsu_world, &gfx_state);
+        update(ecsu_world, gfx_state);
 
         if (tl_giant_ant_spawn_ctx) |ctx| {
+            var ui_label = gfx.UILabel{
+                .label = undefined,
+                .font_size = 24,
+                .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+                .rect = .{ .left = 20, .top = 400, .bottom = 420, .right = 600 },
+            };
+
             var buffer = [_]u8{0} ** 64;
-            const text = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
-            gfx_state.drawUILabel(text, 24, [4]f32{ 1.0, 1.0, 1.0, 1.0 }, .{ .left = 20, .top = 400, .bottom = 420, .right = 600 }) catch unreachable;
+            ui_label.label = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
+            gfx_state.drawUILabel(ui_label) catch unreachable;
         }
 
         const camera_comps = getActiveCamera(ecsu_world);
         if (camera_comps) |comps| {
-            gfx.endFrame(&gfx_state, comps.camera, comps.transform.getPos00());
+            gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
         } else {
             const camera = fd.Camera{
                 .near = 0.01,
@@ -793,7 +800,7 @@ pub fn run() void {
                 .matrix = undefined,
             };
 
-            gfx.endFrame(&gfx_state, &camera, transform.getPos00());
+            gfx.endFrame(gfx_state, &camera, transform.getPos00());
         }
     }
 }

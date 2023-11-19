@@ -222,6 +222,9 @@ pub const D3D12State = struct {
     gpu_profiler: Profiler,
     gpu_frame_profiler_index: u64 = undefined,
 
+    frame_allocator_state: std.heap.ArenaAllocator,
+    frame_allocator: std.mem.Allocator,
+
     stats: FrameStats,
     stats_brush: *d2d1.ISolidColorBrush,
     stats_text_format: *dwrite.ITextFormat,
@@ -1230,7 +1233,7 @@ pub const D3D12State = struct {
     }
 };
 
-pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
+pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
     _ = w32.CoInitializeEx(null, w32.COINIT_APARTMENTTHREADED | w32.COINIT_DISABLE_OLE1DDE);
     _ = w32.SetProcessDPIAware();
 
@@ -1295,7 +1298,10 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    var state: D3D12State = undefined;
+    var state = allocator.create(D3D12State) catch unreachable;
+
+    state.frame_allocator_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    state.frame_allocator = state.frame_allocator_state.allocator();
 
     var hwnd = zglfw.native.getWin32Window(window) catch unreachable;
 
@@ -1334,9 +1340,9 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         state.small_textures_heap_offset = 0;
     }
 
-    createRenderTargets(&state);
-    createPipelines(&state, arena);
-    initializeD2DResources(&state);
+    createRenderTargets(state);
+    createPipelines(state, arena);
+    initializeD2DResources(state);
 
     // Load crosshair and logo textures
     {
@@ -1473,6 +1479,8 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     self.gpu_profiler.deinit();
     self.releaseAllTextures();
+
+    self.frame_allocator_state.deinit();
 
     self.buffer_pool.deinit(allocator, &self.gctx);
     self.texture_pool.deinit();
@@ -2165,6 +2173,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         // End Direct2D rendering and transition back buffer to 'present' state.
         gctx.endDraw2d();
         state.ui_labels.clearRetainingCapacity();
+        _ = state.frame_allocator_state.reset(.retain_capacity);
     }
 
     // Prepare the back buffer to be presented to the screen
