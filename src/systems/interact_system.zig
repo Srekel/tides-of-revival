@@ -48,6 +48,7 @@ const SystemState = struct {
     gfx: *gfx_d3d12.D3D12State,
 
     comp_query_interactor: ecsu.Query,
+    camera_query_interactor: ecsu.Query,
 
     // UI-specific resources
     kills: u32,
@@ -76,6 +77,13 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .with(fd.Transform);
     const comp_query_interactor = query_builder_interactor.buildQuery();
 
+    query_builder_interactor = ecsu.QueryBuilder.init(ctx.ecsu_world);
+    _ = query_builder_interactor
+        .with(fd.Camera)
+        .with(fd.Forward)
+        .with(fd.Transform);
+    const camera_query_interactor = query_builder_interactor.buildQuery();
+
     const texture_path = "content/textures/ui/crosshair085.png";
     const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
     const crosshair_texture = ctx.gfx.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, ctx.allocator) catch unreachable;
@@ -91,6 +99,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .event_manager = ctx.event_manager,
         .prefab_manager = ctx.prefab_manager,
         .comp_query_interactor = comp_query_interactor,
+        .camera_query_interactor = camera_query_interactor,
         .gfx = ctx.gfx,
         .kills = 0,
         .arrows = 0,
@@ -107,6 +116,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
 pub fn destroy(system: *SystemState) void {
     system.comp_query_interactor.deinit();
+    system.camera_query_interactor.deinit();
     system.allocator.destroy(system);
 }
 
@@ -364,27 +374,54 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     }
 }
 
-// fn updateCrosshair(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) void {
 fn updateCrosshair(system: *SystemState) void {
-    // const query = physics_world.getNarrowPhaseQuery();
+    var entity_iter = system.camera_query_interactor.iterator(struct {
+        camera: *fd.Camera,
+        fwd: *fd.Forward,
+        transform: *fd.Transform,
+    });
 
-    // // TODO(gmodarelli): Use camera origin and forward vector for origin and direction
-    // const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
-    // const ray_dir = [_]f32{ 0, -1000, 0, 0 };
+    var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
 
-    // var result = query.castRay(
-    //     .{
-    //         .origin = ray_origin,
-    //         .direction = ray_dir,
-    //     },
-    //     .{
-    //         .broad_phase_layer_filter = @ptrCast(&MovingBroadPhaseLayerFilter{}),
-    //     },
-    // );
+    while (entity_iter.next()) |comps| {
+        var cam = comps.camera;
+        if (!cam.active) {
+            continue;
+        }
 
-    // if (result.has_hit) {
-    //     pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
-    // }
+        if (cam.class != 1) {
+            // HACK
+            continue;
+        }
+
+        const query = system.physics_world.getNarrowPhaseQuery();
+
+        const z_mat = zm.loadMat43(comps.transform.matrix[0..]);
+        var z_pos = zm.util.getTranslationVec(z_mat);
+        const z_fwd = zm.util.getAxisZ(z_mat);
+        z_pos[0] += z_fwd[0] * 0.1;
+        z_pos[1] += z_fwd[1] * 0.1;
+        z_pos[2] += z_fwd[2] * 0.1;
+
+        const ray_distance = 100.0;
+        const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+        const ray_dir = [_]f32{ z_fwd[0] * ray_distance, z_fwd[1] * ray_distance, z_fwd[2] * ray_distance, 0 };
+
+        var result = query.castRay(
+            .{
+                .origin = ray_origin,
+                .direction = ray_dir,
+            },
+            .{
+                .broad_phase_layer_filter = @ptrCast(&MovingBroadPhaseLayerFilter{}),
+            },
+        );
+
+        if (result.has_hit) {
+            crosshair_color = [4]f32{ 1.0, 0.0, 0.0, 1.0 };
+        }
+    }
+
     const crosshair_size: f32 = 32;
     const crosshair_half_size: f32 = crosshair_size / 2;
     const screen_center_x: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_width)) / 2;
@@ -397,7 +434,7 @@ fn updateCrosshair(system: *SystemState) void {
 
     const image = gfx_d3d12.UIImage{
         .rect = [4]f32{ top, bottom, left, right },
-        .color = [4]f32{ 1.0, 1.0, 1.0, 0.75 },
+        .color = crosshair_color,
         .texture = system.crosshair_texture,
     };
 
