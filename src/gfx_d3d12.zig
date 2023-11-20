@@ -255,13 +255,6 @@ pub const D3D12State = struct {
     prefiltered_env_texture: ResourceView,
     brdf_integration_texture: TextureHandle,
 
-    // NOTE(gmodarelli): Temporary UI stuff
-    logo_texture: zd3d12.ResourceHandle,
-    logo_texture_persistent_descriptor: zd3d12.PersistentDescriptor,
-    splash_screen_duration: f32,
-    splash_screen_fade_out_duration: f32,
-    splash_screen_accumulated_time: f32,
-
     texture_pool: TexturePool,
     texture_hash: TextureHashMap,
     small_textures_heap: *d3d12.IHeap,
@@ -1367,33 +1360,6 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
     createPipelines(state, arena);
     initializeD2DResources(state);
 
-    // Load logo textures
-    {
-        state.gctx.beginFrame();
-
-        state.logo_texture = state.gctx.createAndUploadTex2dFromFile("content/textures/ui/tor_logo_tmp.png", .{}) catch unreachable;
-        state.logo_texture_persistent_descriptor = blk: {
-            const srv_allocation = state.gctx.allocatePersistentGpuDescriptors(1);
-            state.gctx.device.CreateShaderResourceView(
-                state.gctx.lookupResource(state.logo_texture).?,
-                null,
-                srv_allocation.cpu_handle,
-            );
-
-            state.gctx.addTransitionBarrier(state.logo_texture, .{ .PIXEL_SHADER_RESOURCE = true });
-            state.gctx.flushResourceBarriers();
-
-            break :blk srv_allocation;
-        };
-
-        state.splash_screen_accumulated_time = 0.0;
-        state.splash_screen_duration = 5.0;
-        state.splash_screen_fade_out_duration = 1.0;
-
-        state.gctx.endFrame();
-        state.gctx.finishGpuCommands();
-    }
-
     // Point lights buffer
     {
         state.point_lights_buffers = blk: {
@@ -1959,50 +1925,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
             .Format = if (@sizeOf(UIIndexType) == 2) .R16_UINT else .R32_UINT,
         });
-
-        // // Watermark Logo
-        // {
-        //     const logo_size: f32 = 100;
-        //     const top = 20.0;
-        //     const bottom = 20.0 + logo_size;
-        //     const left = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0 - logo_size;
-        //     const right = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0;
-
-        //     const image = UIImage{
-        //         .rect = [4]f32{ top, bottom, left, right },
-        //         .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-        //         .texture_index = state.logo_texture_persistent_descriptor.index,
-        //         ._padding = [3]f32{ 42, 42, 42 },
-        //     };
-
-        //     state.drawUIImage(image) catch unreachable;
-        // }
-
-        // // Splash screen
-        // if (state.splash_screen_accumulated_time < state.splash_screen_duration) {
-        //     state.splash_screen_accumulated_time += state.stats.delta_time;
-        //     const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
-        //     const opacity = fade_out_time / state.splash_screen_fade_out_duration;
-
-        //     const logo_size: f32 = 840;
-        //     const logo_half_size: f32 = logo_size / 2;
-        //     const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
-        //     const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
-
-        //     const top = screen_center_y - logo_half_size;
-        //     const bottom = screen_center_y + logo_half_size;
-        //     const left = screen_center_x - logo_half_size;
-        //     const right = screen_center_x + logo_half_size;
-
-        //     const image = UIImage{
-        //         .rect = [4]f32{ top, bottom, left, right },
-        //         .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
-        //         .texture_index = state.logo_texture_persistent_descriptor.index,
-        //         ._padding = [3]f32{ 42, 42, 42 },
-        //     };
-
-        //     state.drawUIImage(image) catch unreachable;
-        // }
 
         _ = state.uploadDataToBuffer(UIImageGPU, state.ui_image_buffers[gctx.frame_index], 0, state.ui_images.items);
         const ui_image_buffer = state.lookupBuffer(state.ui_image_buffers[gctx.frame_index]);
