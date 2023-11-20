@@ -256,8 +256,6 @@ pub const D3D12State = struct {
     brdf_integration_texture: TextureHandle,
 
     // NOTE(gmodarelli): Temporary UI stuff
-    crosshair_texture: zd3d12.ResourceHandle,
-    crosshair_texture_persistent_descriptor: zd3d12.PersistentDescriptor,
     logo_texture: zd3d12.ResourceHandle,
     logo_texture_persistent_descriptor: zd3d12.PersistentDescriptor,
     splash_screen_duration: f32,
@@ -1369,23 +1367,9 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
     createPipelines(state, arena);
     initializeD2DResources(state);
 
-    // Load crosshair and logo textures
+    // Load logo textures
     {
         state.gctx.beginFrame();
-        state.crosshair_texture = state.gctx.createAndUploadTex2dFromFile("content/textures/ui/crosshair085.png", .{}) catch unreachable;
-        state.crosshair_texture_persistent_descriptor = blk: {
-            const srv_allocation = state.gctx.allocatePersistentGpuDescriptors(1);
-            state.gctx.device.CreateShaderResourceView(
-                state.gctx.lookupResource(state.crosshair_texture).?,
-                null,
-                srv_allocation.cpu_handle,
-            );
-
-            state.gctx.addTransitionBarrier(state.crosshair_texture, .{ .PIXEL_SHADER_RESOURCE = true });
-            state.gctx.flushResourceBarriers();
-
-            break :blk srv_allocation;
-        };
 
         state.logo_texture = state.gctx.createAndUploadTex2dFromFile("content/textures/ui/tor_logo_tmp.png", .{}) catch unreachable;
         state.logo_texture_persistent_descriptor = blk: {
