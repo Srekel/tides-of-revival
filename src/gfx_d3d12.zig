@@ -845,6 +845,8 @@ pub const D3D12State = struct {
         self.gctx.flushResourceBarriers();
     }
 
+    // TODO(gmodarelli): Accept arguments to allow callers to ask for mipmaps
+    // NOTE: DDS files come with mipmaps, but PNG files do not
     pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
         const path_id = IdLocal.init(path);
         var existing_texture = self.texture_hash.get(path_id);
@@ -858,12 +860,20 @@ pub const D3D12State = struct {
             should_end_frame = true;
         }
 
-        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = false });
-        var path_u16: [300]u16 = undefined;
-        assert(path.len < path_u16.len - 1);
-        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
-        path_u16[path_len] = 0;
-        _ = self.gctx.lookupResource(resource).?.SetName(@as(w32.LPCWSTR, @ptrCast(&path_u16)));
+        var resource = blk: {
+            const ext = std.fs.path.extension(path);
+
+            var resource: zd3d12.ResourceHandle = undefined;
+            if (std.mem.eql(u8, ext, ".dds")) {
+                resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = false });
+            } else {
+                assert(std.mem.eql(u8, ext, ".png"));
+                resource = try self.gctx.createAndUploadTex2dFromFile(path, .{});
+            }
+
+            _ = self.gctx.lookupResource(resource).?.SetName(textureDesc.name);
+            break :blk resource;
+        };
 
         const texture = blk: {
             const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
