@@ -105,11 +105,17 @@ pub const UIUniforms = struct {
     ui_transform_buffer_index: u32,
 };
 
-pub const UITransform = struct {
+const UIImageGPU = struct {
     rect: [4]f32,
     color: [4]f32,
     texture_index: u32,
     _padding: [3]f32,
+};
+
+pub const UIImage = struct {
+    rect: [4]f32,
+    color: [4]f32,
+    texture: TextureHandle,
 };
 
 pub const SceneUniforms = extern struct {
@@ -273,8 +279,8 @@ pub const D3D12State = struct {
     skybox_mesh: MeshHandle,
 
     quad_index_buffer: BufferHandle,
-    ui_transform_buffers: [num_buffered_frames]BufferHandle,
-    ui_elements: std.ArrayList(UITransform),
+    ui_image_buffers: [num_buffered_frames]BufferHandle,
+    ui_images: std.ArrayList(UIImageGPU),
 
     main_light: renderer_types.DirectionalLightGPU,
     point_lights_buffers: [num_buffered_frames]BufferHandle,
@@ -1206,6 +1212,18 @@ pub const D3D12State = struct {
         return try self.texture_pool.add(.{ .obj = texture });
     }
 
+    pub fn drawUIImage(self: *D3D12State, image: UIImage) !void {
+        const texture = self.lookupTexture(image.texture);
+
+        const image_gpu = UIImageGPU{
+            .rect = [4]f32{ image.rect[0], image.rect[1], image.rect[2], image.rect[3] },
+            .color = [4]f32{ image.color[0], image.color[1], image.color[2], image.color[3] },
+            .texture_index = texture.?.persistent_descriptor.index,
+            ._padding = [3]f32{ 42, 42, 42 },
+        };
+        self.ui_images.append(image_gpu) catch unreachable;
+    }
+
     pub fn drawUILabel(self: *D3D12State, label: UILabel) !void {
         if (!self.ui_text_formats_map.contains(label.font_size)) {
             const text_format = blk: {
@@ -1443,11 +1461,11 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
 
         _ = state.scheduleUploadDataToBuffer(UIIndexType, state.quad_index_buffer, 0, &quad_indices);
 
-        state.ui_transform_buffers = blk: {
+        state.ui_image_buffers = blk: {
             var buffers: [D3D12State.num_buffered_frames]BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 const bufferDesc = BufferDesc{
-                    .size = D3D12State.ui_instances_count_max * @sizeOf(UITransform),
+                    .size = D3D12State.ui_instances_count_max * @sizeOf(UIImageGPU),
                     .state = d3d12.RESOURCE_STATES.GENERIC_READ,
                     .name = L("UI Instance Transform Buffer"),
                     .persistent = true,
@@ -1462,7 +1480,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
             break :blk buffers;
         };
 
-        state.ui_elements = std.ArrayList(UITransform).init(allocator);
+        state.ui_images = std.ArrayList(UIImageGPU).init(allocator);
     }
 
     // Generate IBL textures from HDRI
@@ -1519,7 +1537,7 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     _ = self.ui_label_brush.Release();
     self.ui_text_formats_map.deinit();
     self.ui_labels.deinit();
-    self.ui_elements.deinit();
+    self.ui_images.deinit();
 
     self.gctx.deinit(allocator);
 
@@ -1958,76 +1976,52 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             .Format = if (@sizeOf(UIIndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
-        state.ui_elements.clearRetainingCapacity();
+        // // Watermark Logo
+        // {
+        //     const logo_size: f32 = 100;
+        //     const top = 20.0;
+        //     const bottom = 20.0 + logo_size;
+        //     const left = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0 - logo_size;
+        //     const right = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0;
 
-        // Crosshair
-        {
-            const crosshair_size: f32 = 32;
-            const crosshair_half_size: f32 = crosshair_size / 2;
-            const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
-            const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+        //     const image = UIImage{
+        //         .rect = [4]f32{ top, bottom, left, right },
+        //         .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+        //         .texture_index = state.logo_texture_persistent_descriptor.index,
+        //         ._padding = [3]f32{ 42, 42, 42 },
+        //     };
 
-            const top = screen_center_y - crosshair_half_size;
-            const bottom = screen_center_y + crosshair_half_size;
-            const left = screen_center_x - crosshair_half_size;
-            const right = screen_center_x + crosshair_half_size;
+        //     state.drawUIImage(image) catch unreachable;
+        // }
 
-            const transform = UITransform{
-                .rect = [4]f32{ top, bottom, left, right },
-                .color = [4]f32{ 1.0, 1.0, 1.0, 0.75 },
-                .texture_index = state.crosshair_texture_persistent_descriptor.index,
-                ._padding = [3]f32{ 42, 42, 42 },
-            };
+        // // Splash screen
+        // if (state.splash_screen_accumulated_time < state.splash_screen_duration) {
+        //     state.splash_screen_accumulated_time += state.stats.delta_time;
+        //     const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
+        //     const opacity = fade_out_time / state.splash_screen_fade_out_duration;
 
-            state.ui_elements.append(transform) catch unreachable;
-        }
+        //     const logo_size: f32 = 840;
+        //     const logo_half_size: f32 = logo_size / 2;
+        //     const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
+        //     const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
 
-        // Watermark Logo
-        {
-            const logo_size: f32 = 100;
-            const top = 20.0;
-            const bottom = 20.0 + logo_size;
-            const left = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0 - logo_size;
-            const right = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0;
+        //     const top = screen_center_y - logo_half_size;
+        //     const bottom = screen_center_y + logo_half_size;
+        //     const left = screen_center_x - logo_half_size;
+        //     const right = screen_center_x + logo_half_size;
 
-            const transform = UITransform{
-                .rect = [4]f32{ top, bottom, left, right },
-                .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-                .texture_index = state.logo_texture_persistent_descriptor.index,
-                ._padding = [3]f32{ 42, 42, 42 },
-            };
+        //     const image = UIImage{
+        //         .rect = [4]f32{ top, bottom, left, right },
+        //         .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
+        //         .texture_index = state.logo_texture_persistent_descriptor.index,
+        //         ._padding = [3]f32{ 42, 42, 42 },
+        //     };
 
-            state.ui_elements.append(transform) catch unreachable;
-        }
+        //     state.drawUIImage(image) catch unreachable;
+        // }
 
-        // Splash screen
-        if (state.splash_screen_accumulated_time < state.splash_screen_duration) {
-            state.splash_screen_accumulated_time += state.stats.delta_time;
-            const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
-            const opacity = fade_out_time / state.splash_screen_fade_out_duration;
-
-            const logo_size: f32 = 840;
-            const logo_half_size: f32 = logo_size / 2;
-            const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
-            const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
-
-            const top = screen_center_y - logo_half_size;
-            const bottom = screen_center_y + logo_half_size;
-            const left = screen_center_x - logo_half_size;
-            const right = screen_center_x + logo_half_size;
-
-            const transform = UITransform{
-                .rect = [4]f32{ top, bottom, left, right },
-                .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
-                .texture_index = state.logo_texture_persistent_descriptor.index,
-                ._padding = [3]f32{ 42, 42, 42 },
-            };
-
-            state.ui_elements.append(transform) catch unreachable;
-        }
-
-        _ = state.uploadDataToBuffer(UITransform, state.ui_transform_buffers[gctx.frame_index], 0, state.ui_elements.items);
-        const ui_transform_buffer = state.lookupBuffer(state.ui_transform_buffers[gctx.frame_index]);
+        _ = state.uploadDataToBuffer(UIImageGPU, state.ui_image_buffers[gctx.frame_index], 0, state.ui_images.items);
+        const ui_image_buffer = state.lookupBuffer(state.ui_image_buffers[gctx.frame_index]);
 
         var z_screen_to_clip = zm.identity();
         z_screen_to_clip[0] = zm.f32x4(2.0 / @as(f32, @floatFromInt(gctx.viewport_width)), 0.0, 0.0, 0.0);
@@ -2036,10 +2030,12 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         z_screen_to_clip[3] = zm.f32x4(-1.0, 1.0, 0.5, 1.0);
         const mem = gctx.allocateUploadMemory(UIUniforms, 1);
         mem.cpu_slice[0].screen_to_clip = z_screen_to_clip;
-        mem.cpu_slice[0].ui_transform_buffer_index = ui_transform_buffer.?.persistent_descriptor.index;
+        mem.cpu_slice[0].ui_transform_buffer_index = ui_image_buffer.?.persistent_descriptor.index;
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-        gctx.cmdlist.DrawIndexedInstanced(6, @as(u32, @intCast(state.ui_elements.items.len)), 0, 0, 0);
+        gctx.cmdlist.DrawIndexedInstanced(6, @as(u32, @intCast(state.ui_images.items.len)), 0, 0, 0);
+
+        state.ui_images.clearRetainingCapacity();
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, ui_profiler_index, gctx.frame_index);

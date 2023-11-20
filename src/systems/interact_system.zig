@@ -21,6 +21,22 @@ const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const gfx_d3d12 = @import("../gfx_d3d12.zig");
 
+pub const MovingBroadPhaseLayerFilter = extern struct {
+    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
+    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
+
+    const vtable = zphy.BroadPhaseLayerFilter.VTable{
+        .shouldCollide = shouldCollide,
+    };
+    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
+        _ = self;
+        if (layer == config.broad_phase_layers.moving) {
+            return true;
+        }
+        return false;
+    }
+};
+
 const SystemState = struct {
     flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
@@ -32,8 +48,11 @@ const SystemState = struct {
     gfx: *gfx_d3d12.D3D12State,
 
     comp_query_interactor: ecsu.Query,
+
+    // UI-specific resources
     kills: u32,
     arrows: u32,
+    crosshair_texture: gfx_d3d12.TextureHandle,
 };
 
 pub const SystemCtx = struct {
@@ -57,6 +76,10 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .with(fd.Transform);
     const comp_query_interactor = query_builder_interactor.buildQuery();
 
+    const texture_path = "content/textures/ui/crosshair085.png";
+    const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+    const crosshair_texture = ctx.gfx.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, ctx.allocator) catch unreachable;
+
     var system = allocator.create(SystemState) catch unreachable;
     var flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
@@ -71,6 +94,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .gfx = ctx.gfx,
         .kills = 0,
         .arrows = 0,
+        .crosshair_texture = crosshair_texture,
     };
 
     // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
@@ -90,6 +114,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateInteractors(system, iter.iter.delta_time);
+    updateCrosshair(system);
 
     {
         var ui_label = gfx_d3d12.UILabel{
@@ -337,6 +362,46 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         system.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
     }
+}
+
+// fn updateCrosshair(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) void {
+fn updateCrosshair(system: *SystemState) void {
+    // const query = physics_world.getNarrowPhaseQuery();
+
+    // // TODO(gmodarelli): Use camera origin and forward vector for origin and direction
+    // const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
+    // const ray_dir = [_]f32{ 0, -1000, 0, 0 };
+
+    // var result = query.castRay(
+    //     .{
+    //         .origin = ray_origin,
+    //         .direction = ray_dir,
+    //     },
+    //     .{
+    //         .broad_phase_layer_filter = @ptrCast(&MovingBroadPhaseLayerFilter{}),
+    //     },
+    // );
+
+    // if (result.has_hit) {
+    //     pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+    // }
+    const crosshair_size: f32 = 32;
+    const crosshair_half_size: f32 = crosshair_size / 2;
+    const screen_center_x: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_width)) / 2;
+    const screen_center_y: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_height)) / 2;
+
+    const top = screen_center_y - crosshair_half_size;
+    const bottom = screen_center_y + crosshair_half_size;
+    const left = screen_center_x - crosshair_half_size;
+    const right = screen_center_x + crosshair_half_size;
+
+    const image = gfx_d3d12.UIImage{
+        .rect = [4]f32{ top, bottom, left, right },
+        .color = [4]f32{ 1.0, 1.0, 1.0, 0.75 },
+        .texture = system.crosshair_texture,
+    };
+
+    system.gfx.drawUIImage(image) catch unreachable;
 }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
