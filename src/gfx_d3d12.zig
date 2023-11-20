@@ -2008,7 +2008,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
             const transform = UITransform{
                 .rect = [4]f32{ top, bottom, left, right },
-                .color = [4]f32{ 1.0, 0.0, 0.0, opacity },
+                .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
                 .texture_index = state.logo_texture_persistent_descriptor.index,
                 ._padding = [3]f32{ 42, 42, 42 },
             };
