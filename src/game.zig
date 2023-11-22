@@ -84,15 +84,22 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .z = spawn_pos[2],
         });
 
-        const is_boss = ctx.stage > 5 and std.crypto.random.float(f32) > 0.98;
-        const scale: f32 = if (is_boss) 2.5 else 0.75;
+        const is_boss = ctx.stage > 7 and std.crypto.random.float(f32) > 0.97;
+        const is_big = ctx.stage > 2 and !is_boss and std.crypto.random.float(f32) > 0.9;
+
+        const scale: f32 = if (is_boss) 2.5 else if (is_big) 1.1 else 0.7;
         ent.set(fd.Scale.createScalar(scale));
 
+        const hp = blk: {
         if (is_boss) {
-            ent.set(fd.Health{ .value = 2000 + ctx.stage * 500 + ctx.stage * ctx.stage * 100 });
+                break :blk 100000 + ctx.stage * 1000 + ctx.stage * ctx.stage * 250;
+            } else if (is_big) {
+                break :blk 10000 + ctx.stage * 1000;
         } else {
-            ent.set(fd.Health{ .value = 2 + ctx.stage * 2 });
+                break :blk 1;
         }
+        };
+        ent.set(fd.Health{ .value = hp });
 
         ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("giant_ant") });
 
@@ -120,15 +127,23 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
         }, .activate) catch unreachable;
 
         if (is_boss) {
+            std.log.info("ANT boss hp: {d:5.2}", .{hp});
             ent.set(fd.PointLight{
                 .color = .{ .r = 1, .g = 0.15, .b = 0.15 },
-                .range = 6.0,
-                .intensity = 10.0,
+                .range = 20.0,
+                .intensity = 8.0,
+            });
+        } else if (is_big) {
+            std.log.info("ANT big  hp: {d:5.2}", .{hp});
+            ent.set(fd.PointLight{
+                .color = .{ .r = 1, .g = 0.45, .b = 0.2 },
+                .range = 8.0,
+                .intensity = 6.0,
             });
         } else {
             ent.set(fd.PointLight{
-                .color = .{ .r = 1, .g = 0.45, .b = 0.2 },
-                .range = 3.0,
+                .color = .{ .r = 0.2, .g = 0.2, .b = 0.9 },
+                .range = 6.0,
                 .intensity = 5.0,
             });
         }
