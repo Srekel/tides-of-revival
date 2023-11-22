@@ -44,6 +44,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Interactor);
     ecs.COMPONENT(ecs_world, SpawnPoint);
     ecs.COMPONENT(ecs_world, Health);
+    ecs.COMPONENT(ecs_world, Speed);
     ecs.COMPONENT(ecs_world, Quality);
     ecs.COMPONENT(ecs_world, Effect);
     ecs.COMPONENT(ecs_world, CompCity);
@@ -591,6 +592,10 @@ pub const SpawnPoint = struct {
 // ██║▄▄ ██║██║   ██║██╔══██║██║     ██║   ██║     ╚██╔╝
 // ╚██████╔╝╚██████╔╝██║  ██║███████╗██║   ██║      ██║
 //  ╚══▀▀═╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝   ╚═╝      ╚═╝
+
+pub const Speed = struct {
+    value: f32,
+};
 
 pub const Health = struct {
     value: f32,

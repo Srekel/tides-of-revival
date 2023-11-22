@@ -273,12 +273,16 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
                 .intensity = 0.5,
             });
 
+            // Speed
+            const speed = 30 + charge * 180;
+            proj_ent.set(fd.Speed{ .value = speed });
+
             // Send it flying
             const item_transform = ecs.get(ecs_world, item_ent_id, fd.Transform).?;
             const world_transform_z = zm.loadMat43(&item_transform.matrix);
             const forward_z = zm.util.getAxisZ(world_transform_z);
             const up_z = zm.f32x4(0, 1, 0, 0);
-            const velocity_z = forward_z * zm.f32x4s(30 + charge * 180) + up_z * zm.f32x4s(1 + charge * 4);
+            const velocity_z = forward_z * zm.f32x4s(speed) + up_z * zm.f32x4s(1 + charge * 2);
             var velocity: [3]f32 = undefined;
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
@@ -550,8 +554,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
                 var health2 = ecs.get_mut(ecs_world, ent2, fd.Health).?;
                 if (health2.value > 0) {
-                    const speed = zm.length3(zm.loadArr3(velocity))[0];
-                    const damage = (speed - 10) * (speed - 10);
+                    const speed = ecs.get(ecs_world, ent1, fd.Speed).?.value;
+                    const damage = (speed - 30) * (speed - 30);
                     std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health2.value -= damage;
                     if (health2.value <= 0) {
@@ -647,8 +651,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
                 var health1 = ecs.get_mut(ecs_world, ent1, fd.Health).?;
                 if (health1.value > 0) {
-                    const speed = zm.length3(zm.loadArr3(velocity))[0];
-                    const damage = (speed - 10) * (speed - 10);
+                    const speed = ecs.get(ecs_world, ent2, fd.Speed).?.value;
+                    const damage = (speed - 30) * (speed - 30);
                     std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health1.value -= damage;
                     if (health1.value <= 0) {
