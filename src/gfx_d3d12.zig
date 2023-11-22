@@ -1447,7 +1447,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
         state.logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
 
         state.splash_screen_accumulated_time = 0.0;
-        state.splash_screen_duration = 10.0;
+        state.splash_screen_duration = 5.0;
         state.splash_screen_fade_out_duration = 2.0;
     }
 
