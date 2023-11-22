@@ -250,6 +250,7 @@ pub const D3D12State = struct {
     // NOTE(gmodarelli): Temporary logo resources.
     // TODO(gmodarelli): Move these to a separate system
     logo_texture: TextureHandle,
+    wwise_logo_texture: TextureHandle,
     splash_screen_duration: f32,
     splash_screen_fade_out_duration: f32,
     splash_screen_accumulated_time: f32,
@@ -1451,6 +1452,17 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
         state.splash_screen_fade_out_duration = 2.0;
     }
 
+    // Upload wwise logo
+    {
+        const texture_path = "content/textures/ui/ak_powered_by_wwise_rgb.png";
+        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+        state.wwise_logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
+
+        state.splash_screen_accumulated_time = 0.0;
+        state.splash_screen_duration = 5.0;
+        state.splash_screen_fade_out_duration = 2.0;
+    }
+
     // Generate IBL textures from HDRI
     {
         state.generateIBLTextures("content/textures/env/moonless_golf_2k.hdr", arena) catch unreachable;
@@ -1929,23 +1941,53 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
             const opacity = fade_out_time / state.splash_screen_fade_out_duration;
 
-            const logo_size: f32 = 840;
-            const logo_half_size: f32 = logo_size / 2;
-            const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
-            const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+            {
+                const logo_size: f32 = 840;
+                const logo_half_size: f32 = logo_size / 2;
+                const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
+                const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
 
-            const top = screen_center_y - logo_half_size;
-            const bottom = screen_center_y + logo_half_size;
-            const left = screen_center_x - logo_half_size;
-            const right = screen_center_x + logo_half_size;
+                const top = screen_center_y - logo_half_size;
+                const bottom = screen_center_y + logo_half_size;
+                const left = screen_center_x - logo_half_size;
+                const right = screen_center_x + logo_half_size;
 
-            const image = UIImage{
-                .rect = [4]f32{ top, bottom, left, right },
-                .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
-                .texture = state.logo_texture,
-            };
+                const image = UIImage{
+                    .rect = [4]f32{ top, bottom, left, right },
+                    .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
+                    .texture = state.logo_texture,
+                };
 
-            state.drawUIImage(image) catch unreachable;
+                state.drawUIImage(image) catch unreachable;
+            }
+            {
+                const logo_size: f32 = 340;
+                const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
+                const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
+
+                const top = screen_size_y - logo_size;
+                const bottom = top + logo_size;
+                const left = screen_size_x - logo_size;
+                const right = left + logo_size;
+
+                const image = UIImage{
+                    .rect = [4]f32{ top, bottom, left, right },
+                    .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
+                    .texture = state.wwise_logo_texture,
+                };
+
+                state.drawUIImage(image) catch unreachable;
+
+                var ui_label = UILabel{
+                    .label = undefined,
+                    .font_size = 10,
+                    .color = [4]f32{ 0.75, 0.75, 0.0, 0.75 * opacity },
+                    .rect = .{ .left = 3 * screen_size_x / 4, .top = screen_size_y, .bottom = screen_size_y - 30, .right = screen_size_x },
+                };
+                var buffer = [_]u8{0} ** 128;
+                ui_label.label = std.fmt.bufPrint(buffer[0..], "Powered by Wwise © 2006 - 2023 Audiokinetic Inc. All rights reserved.", .{}) catch unreachable;
+                state.drawUILabel(ui_label) catch unreachable;
+            }
         }
 
         const back_buffer = gctx.getBackBuffer();
