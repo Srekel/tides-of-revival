@@ -247,6 +247,13 @@ pub const D3D12State = struct {
     post_process_rt: ?RenderTarget,
     downsample_rts: [downsample_rt_count]?RenderTarget,
 
+    // NOTE(gmodarelli): Temporary logo resources.
+    // TODO(gmodarelli): Move these to a separate system
+    logo_texture: TextureHandle,
+    splash_screen_duration: f32,
+    splash_screen_fade_out_duration: f32,
+    splash_screen_accumulated_time: f32,
+
     // NOTE(gmodarelli): just a test, these textures should
     // be loaded by a "sky light" component
     // IBL generated from HRDI
@@ -1433,6 +1440,17 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
         state.ui_images = std.ArrayList(UIImageGPU).init(allocator);
     }
 
+    // Upload logo
+    {
+        const texture_path = "content/textures/ui/tor_logo_tmp.png";
+        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+        state.logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
+
+        state.splash_screen_accumulated_time = 0.0;
+        state.splash_screen_duration = 10.0;
+        state.splash_screen_fade_out_duration = 2.0;
+    }
+
     // Generate IBL textures from HDRI
     {
         state.generateIBLTextures("content/textures/env/moonless_golf_2k.hdr", arena) catch unreachable;
@@ -1887,6 +1905,49 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     const ui_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "UI");
     zpix.beginEvent(gctx.cmdlist, "UI");
     {
+
+        // Watermark Logo
+        {
+            const logo_size: f32 = 100;
+            const top = 20.0;
+            const bottom = 20.0 + logo_size;
+            const left = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0 - logo_size;
+            const right = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0;
+
+            const image = UIImage{
+                .rect = [4]f32{ top, bottom, left, right },
+                .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+                .texture = state.logo_texture,
+            };
+
+            state.drawUIImage(image) catch unreachable;
+        }
+
+        // Splash screen
+        if (state.splash_screen_accumulated_time < state.splash_screen_duration) {
+            state.splash_screen_accumulated_time += state.stats.delta_time;
+            const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
+            const opacity = fade_out_time / state.splash_screen_fade_out_duration;
+
+            const logo_size: f32 = 840;
+            const logo_half_size: f32 = logo_size / 2;
+            const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
+            const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+
+            const top = screen_center_y - logo_half_size;
+            const bottom = screen_center_y + logo_half_size;
+            const left = screen_center_x - logo_half_size;
+            const right = screen_center_x + logo_half_size;
+
+            const image = UIImage{
+                .rect = [4]f32{ top, bottom, left, right },
+                .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
+                .texture = state.logo_texture,
+            };
+
+            state.drawUIImage(image) catch unreachable;
+        }
+
         const back_buffer = gctx.getBackBuffer();
 
         gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
