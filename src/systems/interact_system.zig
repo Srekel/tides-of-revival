@@ -19,6 +19,23 @@ const context = @import("../core/context.zig");
 const audio = @import("../audio/audio_manager.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
+const gfx_d3d12 = @import("../gfx_d3d12.zig");
+
+pub const MovingBroadPhaseLayerFilter = extern struct {
+    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
+    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
+
+    const vtable = zphy.BroadPhaseLayerFilter.VTable{
+        .shouldCollide = shouldCollide,
+    };
+    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
+        _ = self;
+        if (layer == config.broad_phase_layers.moving) {
+            return true;
+        }
+        return false;
+    }
+};
 
 const SystemState = struct {
     flecs_sys: ecs.entity_t,
@@ -28,8 +45,15 @@ const SystemState = struct {
     frame_data: *input.FrameData,
     event_manager: *EventManager,
     prefab_manager: *PrefabManager,
+    gfx: *gfx_d3d12.D3D12State,
 
     comp_query_interactor: ecsu.Query,
+    camera_query_interactor: ecsu.Query,
+
+    // UI-specific resources
+    kills: u32,
+    arrows: u32,
+    crosshair_texture: gfx_d3d12.TextureHandle,
 };
 
 pub const SystemCtx = struct {
@@ -41,6 +65,7 @@ pub const SystemCtx = struct {
     frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     prefab_manager: *PrefabManager,
+    gfx: *gfx_d3d12.D3D12State,
 };
 
 pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
@@ -51,6 +76,17 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .with(fd.Interactor)
         .with(fd.Transform);
     const comp_query_interactor = query_builder_interactor.buildQuery();
+
+    query_builder_interactor = ecsu.QueryBuilder.init(ctx.ecsu_world);
+    _ = query_builder_interactor
+        .with(fd.Camera)
+        .with(fd.Forward)
+        .with(fd.Transform);
+    const camera_query_interactor = query_builder_interactor.buildQuery();
+
+    const texture_path = "content/textures/ui/crosshair085.png";
+    const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+    const crosshair_texture = ctx.gfx.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, ctx.allocator) catch unreachable;
 
     var system = allocator.create(SystemState) catch unreachable;
     var flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -63,6 +99,11 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .event_manager = ctx.event_manager,
         .prefab_manager = ctx.prefab_manager,
         .comp_query_interactor = comp_query_interactor,
+        .camera_query_interactor = camera_query_interactor,
+        .gfx = ctx.gfx,
+        .kills = 0,
+        .arrows = 0,
+        .crosshair_texture = crosshair_texture,
     };
 
     // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
@@ -75,6 +116,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
 pub fn destroy(system: *SystemState) void {
     system.comp_query_interactor.deinit();
+    system.camera_query_interactor.deinit();
     system.allocator.destroy(system);
 }
 
@@ -82,6 +124,33 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateInteractors(system, iter.iter.delta_time);
+    updateCrosshair(system);
+
+    {
+        var ui_label = gfx_d3d12.UILabel{
+            .label = undefined,
+            .font_size = 24,
+            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            .rect = .{ .left = 20, .top = 440, .bottom = 460, .right = 600 },
+        };
+
+        var buffer = [_]u8{0} ** 64;
+        ui_label.label = std.fmt.bufPrint(buffer[0..], "Kills: {d}", .{system.kills}) catch unreachable;
+        system.gfx.drawUILabel(ui_label) catch unreachable;
+    }
+
+    {
+        var ui_label = gfx_d3d12.UILabel{
+            .label = undefined,
+            .font_size = 24,
+            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            .rect = .{ .left = 20, .top = 480, .bottom = 500, .right = 600 },
+        };
+
+        var buffer = [_]u8{0} ** 64;
+        ui_label.label = std.fmt.bufPrint(buffer[0..], "Arrows: {d}", .{system.arrows}) catch unreachable;
+        system.gfx.drawUILabel(ui_label) catch unreachable;
+    }
 }
 
 var playingID: AK.AkPlayingID = 0;
@@ -118,6 +187,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.Projectile{});
             proj_ent.childOf(item_ent_id);
             weapon_comp.chambered_projectile = proj_ent.id;
+            system.arrows += 1;
             continue;
         }
 
@@ -304,6 +374,73 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     }
 }
 
+fn updateCrosshair(system: *SystemState) void {
+    var entity_iter = system.camera_query_interactor.iterator(struct {
+        camera: *fd.Camera,
+        fwd: *fd.Forward,
+        transform: *fd.Transform,
+    });
+
+    var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
+
+    while (entity_iter.next()) |comps| {
+        var cam = comps.camera;
+        if (!cam.active) {
+            continue;
+        }
+
+        if (cam.class != 1) {
+            // HACK
+            continue;
+        }
+
+        const query = system.physics_world.getNarrowPhaseQuery();
+
+        const z_mat = zm.loadMat43(comps.transform.matrix[0..]);
+        var z_pos = zm.util.getTranslationVec(z_mat);
+        const z_fwd = zm.util.getAxisZ(z_mat);
+        z_pos[0] += z_fwd[0] * 0.1;
+        z_pos[1] += z_fwd[1] * 0.1;
+        z_pos[2] += z_fwd[2] * 0.1;
+
+        const ray_distance = 100.0;
+        const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+        const ray_dir = [_]f32{ z_fwd[0] * ray_distance, z_fwd[1] * ray_distance, z_fwd[2] * ray_distance, 0 };
+
+        var result = query.castRay(
+            .{
+                .origin = ray_origin,
+                .direction = ray_dir,
+            },
+            .{
+                .broad_phase_layer_filter = @ptrCast(&MovingBroadPhaseLayerFilter{}),
+            },
+        );
+
+        if (result.has_hit) {
+            crosshair_color = [4]f32{ 1.0, 0.0, 0.0, 1.0 };
+        }
+    }
+
+    const crosshair_size: f32 = 32;
+    const crosshair_half_size: f32 = crosshair_size / 2;
+    const screen_center_x: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_width)) / 2;
+    const screen_center_y: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_height)) / 2;
+
+    const top = screen_center_y - crosshair_half_size;
+    const bottom = screen_center_y + crosshair_half_size;
+    const left = screen_center_x - crosshair_half_size;
+    const right = screen_center_x + crosshair_half_size;
+
+    const image = gfx_d3d12.UIImage{
+        .rect = [4]f32{ top, bottom, left, right },
+        .color = crosshair_color,
+        .texture = system.crosshair_texture,
+    };
+
+    system.gfx.drawUIImage(image) catch unreachable;
+}
+
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
 // ██╔════╝██╔══██╗██║     ██║     ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝
 // ██║     ███████║██║     ██║     ██████╔╝███████║██║     █████╔╝ ███████╗
@@ -418,6 +555,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health2.value -= damage;
                     if (health2.value <= 0) {
+                        system.kills += 1;
                         body_interface.setMotionType(contact.body_id2, .dynamic, .activate);
                         body_interface.addImpulseAtPosition(
                             contact.body_id2,
@@ -514,6 +652,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                     health1.value -= damage;
                     if (health1.value <= 0) {
+                        system.kills += 1;
                         body_interface.setMotionType(contact.body_id1, .dynamic, .activate);
                         body_interface.addImpulseAtPosition(
                             contact.body_id1,

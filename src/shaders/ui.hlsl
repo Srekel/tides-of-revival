@@ -17,35 +17,45 @@ static const uint2 quad_vertex_positions[quad_vertex_count] = {
 };
 
 static const float2 quad_vertex_uvs[quad_vertex_count] = {
-    float2(0.0, 1.0),
-    float2(1.0, 0.0),
     float2(0.0, 0.0),
-    float2(1.0, 1.0)
+    float2(1.0, 1.0),
+    float2(0.0, 1.0),
+    float2(1.0, 0.0)
 };
 
 struct Const {
     float4x4 screen_to_clip;
+    uint ui_transform_buffer_index;
+};
+
+struct UITransform {
     float4 rect;
+    float4 color;
     uint texture_index;
-    float opacity;
-    float2 _padding;
+    float3 _padding;
 };
 
 struct VertexOut {
     float4 position_vs : SV_Position;
     float2 uv : TEXCOORD0;
+    uint instanceID: SV_InstanceID;
 };
 
 ConstantBuffer<Const> cbv_const : register(b0);
 SamplerState sam_s0 : register(s0);
 
 [RootSignature(root_signature)]
-VertexOut vsUI(uint vertex_id : SV_VertexID)
+VertexOut vsUI(uint vertex_id : SV_VertexID, uint instanceID : SV_InstanceID)
 {
     VertexOut output = (VertexOut)0;
+    output.instanceID = instanceID;
 
     uint2 quad_vertex_position = quad_vertex_positions[vertex_id];
-    float2 position = float2(cbv_const.rect[quad_vertex_position.x], cbv_const.rect[quad_vertex_position.y]);
+
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[cbv_const.ui_transform_buffer_index];
+    UITransform instance = instance_transform_buffer.Load<UITransform>(instanceID * sizeof(UITransform));
+
+    float2 position = float2(instance.rect[quad_vertex_position.x], instance.rect[quad_vertex_position.y]);
     float2 uv = quad_vertex_uvs[vertex_id];
 
     output.position_vs = mul(cbv_const.screen_to_clip, float4(position, 0.0f, 1.0f));
@@ -57,8 +67,11 @@ VertexOut vsUI(uint vertex_id : SV_VertexID)
 [RootSignature(root_signature)]
 float4 psUI(VertexOut input) : SV_Target
 {
-    Texture2D texture = ResourceDescriptorHeap[cbv_const.texture_index];
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[cbv_const.ui_transform_buffer_index];
+    UITransform instance = instance_transform_buffer.Load<UITransform>(input.instanceID * sizeof(UITransform));
+
+    Texture2D texture = ResourceDescriptorHeap[instance.texture_index];
     float4 color = texture.SampleLevel(sam_s0, input.uv, 0);
-    color.a *= cbv_const.opacity;
+    color *= instance.color;
     return color;
 }

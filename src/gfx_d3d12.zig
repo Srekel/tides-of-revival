@@ -24,6 +24,7 @@ const zm = @import("zmath");
 const fd = @import("flecs_data.zig");
 const config = @import("config.zig");
 const zstbi = @import("zstbi");
+const util = @import("util.zig");
 
 pub const Profiler = profiler_module.Profiler;
 pub const ProfileData = profiler_module.ProfileData;
@@ -101,10 +102,20 @@ pub const UpsampleBlurUniforms = struct {
 
 pub const UIUniforms = struct {
     screen_to_clip: zm.Mat,
+    ui_transform_buffer_index: u32,
+};
+
+const UIImageGPU = struct {
     rect: [4]f32,
+    color: [4]f32,
     texture_index: u32,
-    opacity: f32,
-    _padding: [2]f32,
+    _padding: [3]f32,
+};
+
+pub const UIImage = struct {
+    rect: [4]f32,
+    color: [4]f32,
+    texture: TextureHandle,
 };
 
 pub const SceneUniforms = extern struct {
@@ -209,11 +220,15 @@ pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;
     pub const point_lights_count_max: u32 = 1000;
     pub const downsample_rt_count: u32 = 10;
+    const ui_instances_count_max: u32 = 4096;
 
     gctx: zd3d12.GraphicsContext,
     mipgen_rgba16f: zd3d12.MipmapGenerator,
     gpu_profiler: Profiler,
     gpu_frame_profiler_index: u64 = undefined,
+
+    frame_allocator_state: std.heap.ArenaAllocator,
+    frame_allocator: std.mem.Allocator,
 
     stats: FrameStats,
     stats_brush: *d2d1.ISolidColorBrush,
@@ -232,6 +247,13 @@ pub const D3D12State = struct {
     post_process_rt: ?RenderTarget,
     downsample_rts: [downsample_rt_count]?RenderTarget,
 
+    // NOTE(gmodarelli): Temporary logo resources.
+    // TODO(gmodarelli): Move these to a separate system
+    logo_texture: TextureHandle,
+    splash_screen_duration: f32,
+    splash_screen_fade_out_duration: f32,
+    splash_screen_accumulated_time: f32,
+
     // NOTE(gmodarelli): just a test, these textures should
     // be loaded by a "sky light" component
     // IBL generated from HRDI
@@ -239,10 +261,6 @@ pub const D3D12State = struct {
     irradiance_texture: ResourceView,
     prefiltered_env_texture: ResourceView,
     brdf_integration_texture: TextureHandle,
-
-    // NOTE(gmodarelli): Testing UI rendering with a crosshair
-    crosshair_texture: zd3d12.ResourceHandle,
-    crosshair_texture_persistent_descriptor: zd3d12.PersistentDescriptor,
 
     texture_pool: TexturePool,
     texture_hash: TextureHashMap,
@@ -259,6 +277,8 @@ pub const D3D12State = struct {
     skybox_mesh: MeshHandle,
 
     quad_index_buffer: BufferHandle,
+    ui_image_buffers: [num_buffered_frames]BufferHandle,
+    ui_images: std.ArrayList(UIImageGPU),
 
     main_light: renderer_types.DirectionalLightGPU,
     point_lights_buffers: [num_buffered_frames]BufferHandle,
@@ -829,6 +849,8 @@ pub const D3D12State = struct {
         self.gctx.flushResourceBarriers();
     }
 
+    // TODO(gmodarelli): Accept arguments to allow callers to ask for mipmaps
+    // NOTE: DDS files come with mipmaps, but PNG files do not
     pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
         const path_id = IdLocal.init(path);
         var existing_texture = self.texture_hash.get(path_id);
@@ -842,12 +864,20 @@ pub const D3D12State = struct {
             should_end_frame = true;
         }
 
-        const resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = false });
-        var path_u16: [300]u16 = undefined;
-        assert(path.len < path_u16.len - 1);
-        const path_len = std.unicode.utf8ToUtf16Le(path_u16[0..], path) catch unreachable;
-        path_u16[path_len] = 0;
-        _ = self.gctx.lookupResource(resource).?.SetName(@as(w32.LPCWSTR, @ptrCast(&path_u16)));
+        var resource = blk: {
+            const ext = std.fs.path.extension(path);
+
+            var resource: zd3d12.ResourceHandle = undefined;
+            if (std.mem.eql(u8, ext, ".dds")) {
+                resource = try self.gctx.createAndUploadTex2dFromDdsFile(path, arena, .{ .is_cubemap = false });
+            } else {
+                assert(std.mem.eql(u8, ext, ".png"));
+                resource = try self.gctx.createAndUploadTex2dFromFile(path, .{});
+            }
+
+            _ = self.gctx.lookupResource(resource).?.SetName(textureDesc.name);
+            break :blk resource;
+        };
 
         const texture = blk: {
             const srv_allocation = self.gctx.allocatePersistentGpuDescriptors(1);
@@ -1180,6 +1210,18 @@ pub const D3D12State = struct {
         return try self.texture_pool.add(.{ .obj = texture });
     }
 
+    pub fn drawUIImage(self: *D3D12State, image: UIImage) !void {
+        const texture = self.lookupTexture(image.texture);
+
+        const image_gpu = UIImageGPU{
+            .rect = [4]f32{ image.rect[0], image.rect[1], image.rect[2], image.rect[3] },
+            .color = [4]f32{ image.color[0], image.color[1], image.color[2], image.color[3] },
+            .texture_index = texture.?.persistent_descriptor.index,
+            ._padding = [3]f32{ 42, 42, 42 },
+        };
+        self.ui_images.append(image_gpu) catch unreachable;
+    }
+
     pub fn drawUILabel(self: *D3D12State, label: UILabel) !void {
         if (!self.ui_text_formats_map.contains(label.font_size)) {
             const text_format = blk: {
@@ -1202,11 +1244,19 @@ pub const D3D12State = struct {
             self.ui_text_formats_map.put(label.font_size, text_format) catch unreachable;
         }
 
-        self.ui_labels.append(label) catch unreachable;
+        var ui_label = UILabel{
+            .label = undefined,
+            .font_size = label.font_size,
+            .color = [4]f32{ label.color[0], label.color[1], label.color[2], label.color[3] },
+            .rect = label.rect,
+        };
+        ui_label.label = self.frame_allocator.dupe(u8, label.label) catch unreachable;
+
+        self.ui_labels.append(ui_label) catch unreachable;
     }
 };
 
-pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
+pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
     _ = w32.CoInitializeEx(null, w32.COINIT_APARTMENTTHREADED | w32.COINIT_DISABLE_OLE1DDE);
     _ = w32.SetProcessDPIAware();
 
@@ -1271,7 +1321,10 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    var state: D3D12State = undefined;
+    var state = allocator.create(D3D12State) catch unreachable;
+
+    state.frame_allocator_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    state.frame_allocator = state.frame_allocator_state.allocator();
 
     var hwnd = zglfw.native.getWin32Window(window) catch unreachable;
 
@@ -1310,30 +1363,9 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         state.small_textures_heap_offset = 0;
     }
 
-    createRenderTargets(&state);
-    createPipelines(&state, arena);
-    initializeD2DResources(&state);
-
-    // Load crosshair texture
-    {
-        state.gctx.beginFrame();
-        state.crosshair_texture = state.gctx.createAndUploadTex2dFromFile("content/textures/ui/crosshair085.png", .{}) catch unreachable;
-        state.crosshair_texture_persistent_descriptor = blk: {
-            const srv_allocation = state.gctx.allocatePersistentGpuDescriptors(1);
-            state.gctx.device.CreateShaderResourceView(
-                state.gctx.lookupResource(state.crosshair_texture).?,
-                null,
-                srv_allocation.cpu_handle,
-            );
-
-            state.gctx.addTransitionBarrier(state.crosshair_texture, .{ .PIXEL_SHADER_RESOURCE = true });
-            state.gctx.flushResourceBarriers();
-
-            break :blk srv_allocation;
-        };
-        state.gctx.endFrame();
-        state.gctx.finishGpuCommands();
-    }
+    createRenderTargets(state);
+    createPipelines(state, arena);
+    initializeD2DResources(state);
 
     // Point lights buffer
     {
@@ -1385,6 +1417,38 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !D3D12State {
         }) catch unreachable;
 
         _ = state.scheduleUploadDataToBuffer(UIIndexType, state.quad_index_buffer, 0, &quad_indices);
+
+        state.ui_image_buffers = blk: {
+            var buffers: [D3D12State.num_buffered_frames]BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                const bufferDesc = BufferDesc{
+                    .size = D3D12State.ui_instances_count_max * @sizeOf(UIImageGPU),
+                    .state = d3d12.RESOURCE_STATES.GENERIC_READ,
+                    .name = L("UI Instance Transform Buffer"),
+                    .persistent = true,
+                    .has_cbv = false,
+                    .has_srv = true,
+                    .has_uav = false,
+                };
+
+                buffers[buffer_index] = state.createBuffer(bufferDesc) catch unreachable;
+            }
+
+            break :blk buffers;
+        };
+
+        state.ui_images = std.ArrayList(UIImageGPU).init(allocator);
+    }
+
+    // Upload logo
+    {
+        const texture_path = "content/textures/ui/tor_logo_tmp.png";
+        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+        state.logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
+
+        state.splash_screen_accumulated_time = 0.0;
+        state.splash_screen_duration = 5.0;
+        state.splash_screen_fade_out_duration = 2.0;
     }
 
     // Generate IBL textures from HDRI
@@ -1408,6 +1472,8 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
 
     self.gpu_profiler.deinit();
     self.releaseAllTextures();
+
+    self.frame_allocator_state.deinit();
 
     self.buffer_pool.deinit(allocator, &self.gctx);
     self.texture_pool.deinit();
@@ -1439,6 +1505,7 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     _ = self.ui_label_brush.Release();
     self.ui_text_formats_map.deinit();
     self.ui_labels.deinit();
+    self.ui_images.deinit();
 
     self.gctx.deinit(allocator);
 
@@ -1838,6 +1905,49 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     const ui_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "UI");
     zpix.beginEvent(gctx.cmdlist, "UI");
     {
+
+        // Watermark Logo
+        {
+            const logo_size: f32 = 100;
+            const top = 20.0;
+            const bottom = 20.0 + logo_size;
+            const left = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0 - logo_size;
+            const right = @as(f32, @floatFromInt(gctx.viewport_width)) - 20.0;
+
+            const image = UIImage{
+                .rect = [4]f32{ top, bottom, left, right },
+                .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+                .texture = state.logo_texture,
+            };
+
+            state.drawUIImage(image) catch unreachable;
+        }
+
+        // Splash screen
+        if (state.splash_screen_accumulated_time < state.splash_screen_duration) {
+            state.splash_screen_accumulated_time += state.stats.delta_time;
+            const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
+            const opacity = fade_out_time / state.splash_screen_fade_out_duration;
+
+            const logo_size: f32 = 840;
+            const logo_half_size: f32 = logo_size / 2;
+            const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
+            const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+
+            const top = screen_center_y - logo_half_size;
+            const bottom = screen_center_y + logo_half_size;
+            const left = screen_center_x - logo_half_size;
+            const right = screen_center_x + logo_half_size;
+
+            const image = UIImage{
+                .rect = [4]f32{ top, bottom, left, right },
+                .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
+                .texture = state.logo_texture,
+            };
+
+            state.drawUIImage(image) catch unreachable;
+        }
+
         const back_buffer = gctx.getBackBuffer();
 
         gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
@@ -1877,15 +1987,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             .Format = if (@sizeOf(UIIndexType) == 2) .R16_UINT else .R32_UINT,
         });
 
-        const crosshair_size: f32 = 32;
-        const crosshair_half_size: f32 = crosshair_size / 2;
-        const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
-        const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
-
-        const top = screen_center_y - crosshair_half_size;
-        const bottom = screen_center_y + crosshair_half_size;
-        const left = screen_center_x - crosshair_half_size;
-        const right = screen_center_x + crosshair_half_size;
+        _ = state.uploadDataToBuffer(UIImageGPU, state.ui_image_buffers[gctx.frame_index], 0, state.ui_images.items);
+        const ui_image_buffer = state.lookupBuffer(state.ui_image_buffers[gctx.frame_index]);
 
         var z_screen_to_clip = zm.identity();
         z_screen_to_clip[0] = zm.f32x4(2.0 / @as(f32, @floatFromInt(gctx.viewport_width)), 0.0, 0.0, 0.0);
@@ -1894,13 +1997,12 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
         z_screen_to_clip[3] = zm.f32x4(-1.0, 1.0, 0.5, 1.0);
         const mem = gctx.allocateUploadMemory(UIUniforms, 1);
         mem.cpu_slice[0].screen_to_clip = z_screen_to_clip;
-        mem.cpu_slice[0].rect = [4]f32{ top, bottom, left, right };
-        mem.cpu_slice[0].texture_index = state.crosshair_texture_persistent_descriptor.index;
-        mem.cpu_slice[0].opacity = 0.75;
-        mem.cpu_slice[0]._padding = [2]f32{ 42, 42 };
+        mem.cpu_slice[0].ui_transform_buffer_index = ui_image_buffer.?.persistent_descriptor.index;
         gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-        gctx.cmdlist.DrawIndexedInstanced(6, 1, 0, 0, 0);
+        gctx.cmdlist.DrawIndexedInstanced(6, @as(u32, @intCast(state.ui_images.items.len)), 0, 0, 0);
+
+        state.ui_images.clearRetainingCapacity();
     }
     zpix.endEvent(gctx.cmdlist);
     state.gpu_profiler.endProfile(gctx.cmdlist, ui_profiler_index, gctx.frame_index);
@@ -1940,7 +2042,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                                 .right = label.rect.right,
                                 .bottom = label.rect.bottom,
                             },
-                            @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                            @as(*d2d1.IBrush, @ptrCast(state.ui_label_brush)),
                         );
                     }
                 }
@@ -1949,10 +2051,16 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             // Rendering Stats
             {
                 const stats = &state.stats;
-                state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 });
 
                 // FPS and CPU timings
                 {
+                    state.stats_brush.SetColor(&.{ .r = 0.0, .g = 1.0, .b = 0.0, .a = 1.0 });
+                    if (stats.fps < 60.0) {
+                        state.stats_brush.SetColor(&.{ .r = 1.0, .g = 1.0, .b = 0.0, .a = 1.0 });
+                    } else if (stats.fps < 30) {
+                        state.stats_brush.SetColor(&.{ .r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0 });
+                    }
+
                     var buffer = [_]u8{0} ** 64;
                     const text = std.fmt.bufPrint(
                         buffer[0..],
@@ -1965,8 +2073,8 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                         text,
                         state.stats_text_format,
                         &d2d1.RECT_F{
-                            .left = 0.0,
-                            .top = 0.0,
+                            .left = 10.0,
+                            .top = 10.0,
                             .right = @as(f32, @floatFromInt(gctx.viewport_width)),
                             .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
                         },
@@ -1975,63 +2083,65 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 }
 
                 // GPU timings
-                var i: u32 = 0;
-                var line_height: f32 = 14.0;
-                var vertical_offset: f32 = 36.0;
-                while (i < state.gpu_profiler.num_profiles) : (i += 1) {
-                    var frame_profile_data = state.gpu_profiler.profiles.items[i];
-                    var buffer = [_]u8{0} ** 64;
-                    const text = std.fmt.bufPrint(
-                        buffer[0..],
-                        "{s}: {d:.3} ms",
-                        .{ frame_profile_data.name, frame_profile_data.avg_time },
-                    ) catch unreachable;
+                if (false) {
+                    var i: u32 = 0;
+                    var line_height: f32 = 14.0;
+                    var vertical_offset: f32 = 36.0;
+                    while (i < state.gpu_profiler.num_profiles) : (i += 1) {
+                        var frame_profile_data = state.gpu_profiler.profiles.items[i];
+                        var buffer = [_]u8{0} ** 64;
+                        const text = std.fmt.bufPrint(
+                            buffer[0..],
+                            "{s}: {d:.3} ms",
+                            .{ frame_profile_data.name, frame_profile_data.avg_time },
+                        ) catch unreachable;
 
-                    drawText(
-                        gctx.d2d.?.context,
-                        text,
-                        state.stats_text_format,
-                        &d2d1.RECT_F{
-                            .left = 0.0,
-                            .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
-                            .right = @as(f32, @floatFromInt(gctx.viewport_width)),
-                            .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
-                        },
-                        @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
-                    );
-                }
+                        drawText(
+                            gctx.d2d.?.context,
+                            text,
+                            state.stats_text_format,
+                            &d2d1.RECT_F{
+                                .left = 0.0,
+                                .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                                .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                                .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
+                            },
+                            @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                        );
+                    }
 
-                // GPU Memory
-                // Collect memory usage stats
-                var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
-                hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
-                {
-                    var buffer = [_]u8{0} ** 256;
-                    const text = std.fmt.bufPrint(
-                        buffer[0..],
-                        "GPU Memory: {d}/{d} MB",
-                        .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
-                    ) catch unreachable;
+                    // GPU Memory
+                    // Collect memory usage stats
+                    var video_memory_info: dxgi.QUERY_VIDEO_MEMORY_INFO = undefined;
+                    hrPanicOnFail(gctx.adapter.QueryVideoMemoryInfo(0, .LOCAL, &video_memory_info));
+                    {
+                        var buffer = [_]u8{0} ** 256;
+                        const text = std.fmt.bufPrint(
+                            buffer[0..],
+                            "GPU Memory: {d}/{d} MB",
+                            .{ @divTrunc(video_memory_info.CurrentUsage, 1024 * 1024), @divTrunc(video_memory_info.Budget, 1024 * 1024) },
+                        ) catch unreachable;
 
-                    drawText(
-                        gctx.d2d.?.context,
-                        text,
-                        state.stats_text_format,
-                        &d2d1.RECT_F{
-                            .left = 0.0,
-                            .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
-                            .right = @as(f32, @floatFromInt(gctx.viewport_width)),
-                            .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
-                        },
-                        @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
-                    );
+                        drawText(
+                            gctx.d2d.?.context,
+                            text,
+                            state.stats_text_format,
+                            &d2d1.RECT_F{
+                                .left = 0.0,
+                                .top = @as(f32, @floatFromInt(i)) * line_height + vertical_offset,
+                                .right = @as(f32, @floatFromInt(gctx.viewport_width)),
+                                .bottom = @as(f32, @floatFromInt(gctx.viewport_height)),
+                            },
+                            @as(*d2d1.IBrush, @ptrCast(state.stats_brush)),
+                        );
+                    }
                 }
             }
         }
         // End Direct2D rendering and transition back buffer to 'present' state.
         gctx.endDraw2d();
-
         state.ui_labels.clearRetainingCapacity();
+        _ = state.frame_allocator_state.reset(.retain_capacity);
     }
 
     // Prepare the back buffer to be presented to the screen
