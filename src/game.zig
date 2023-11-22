@@ -124,6 +124,9 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .object_layer = config.object_layers.moving,
             .motion_quality = .discrete,
             .user_data = ent.id,
+            .angular_damping = 0.975,
+            .inertia_multiplier = 100,
+            .friction = 0.8,
         }, .activate) catch unreachable;
 
         if (is_boss) {
