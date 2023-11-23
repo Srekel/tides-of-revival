@@ -135,6 +135,7 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     n = mul(n, TBN);
 
     float3 arm = arm_texture.Sample(sam_linear_wrap, world_space_uv).rgb;
+    arm.rgb = degamma(arm.rgb);
     float roughness = arm.g;
     float metallic = arm.b;
     float occlusion = arm.r;

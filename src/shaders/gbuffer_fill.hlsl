@@ -115,6 +115,7 @@ GBufferTargets psGBufferFill(InstancedVertexOut input) {
     {
         Texture2D arm_texture = ResourceDescriptorHeap[material.arm_texture_index];
         float3 arm = arm_texture.Sample(sam_aniso_wrap, input.uv).rgb;
+        arm.rgb = degamma(arm.rgb);
         roughness = arm.g;
         metallic = arm.b;
         occlusion = arm.r;
