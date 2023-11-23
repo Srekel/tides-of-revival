@@ -72,7 +72,7 @@ InstancedVertexOut vsTerrainQuadTree(uint vertex_id : SV_VertexID, uint instance
     float height = heightmap.SampleLevel(sam_linear_clamp, uv, 0).r;
 
     float3 displaced_position = vertex.position;
-    displaced_position.y = height;
+    displaced_position.y += height;
 
     const float4x4 object_to_clip = mul(instance.object_to_world, cbv_frame_const.view_projection);
     output.position_vs = mul(float4(displaced_position, 1.0), object_to_clip);
