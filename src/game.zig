@@ -216,7 +216,7 @@ pub fn run() void {
 
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(std.heap.page_allocator);
-        itm.ensureUnusedCapacity(18) catch unreachable;
+        itm.ensureUnusedCapacity(32) catch unreachable;
         itm.putAssumeCapacity(config.input_move_left, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_right, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_move_forward, input.TargetValue{ .number = 0 });
@@ -242,6 +242,13 @@ pub fn run() void {
         itm.putAssumeCapacity(config.input_camera_switch, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_camera_freeze_rendering, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(config.input_exit, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_view_mode_lit, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_view_mode_albedo, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_view_mode_world_normal, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_view_mode_metallic, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_view_mode_roughness, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_view_mode_ao, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(config.input_view_mode_depth, input.TargetValue{ .number = 0 });
         break :blk itm;
     };
 
@@ -254,7 +261,7 @@ pub fn run() void {
             .bindings = std.ArrayList(input.Binding).init(std.heap.page_allocator),
             .processors = std.ArrayList(input.Processor).init(std.heap.page_allocator),
         };
-        keyboard_map.bindings.ensureTotalCapacity(18) catch unreachable;
+        keyboard_map.bindings.ensureTotalCapacity(32) catch unreachable;
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_left, .source = input.BindingSource{ .keyboard_key = .a } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_right, .source = input.BindingSource{ .keyboard_key = .d } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_forward, .source = input.BindingSource{ .keyboard_key = .w } });
@@ -270,6 +277,13 @@ pub fn run() void {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_exit, .source = input.BindingSource{ .keyboard_key = .escape } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_view_mode_lit, .source = input.BindingSource{ .keyboard_key = .zero } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_view_mode_albedo, .source = input.BindingSource{ .keyboard_key = .one } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_view_mode_world_normal, .source = input.BindingSource{ .keyboard_key = .two } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_view_mode_metallic, .source = input.BindingSource{ .keyboard_key = .three } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_view_mode_roughness, .source = input.BindingSource{ .keyboard_key = .four } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_view_mode_ao, .source = input.BindingSource{ .keyboard_key = .five } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_view_mode_depth, .source = input.BindingSource{ .keyboard_key = .six } });
 
         //
         // MOUSE
@@ -780,6 +794,34 @@ pub fn run() void {
         }
         if (input_frame_data.just_pressed(config.input_exit)) {
             break;
+        }
+
+        if (input_frame_data.just_pressed(config.input_view_mode_lit)) {
+            gfx_state.setViewMode(.lit);
+        }
+
+        if (input_frame_data.just_pressed(config.input_view_mode_albedo)) {
+            gfx_state.setViewMode(.albedo);
+        }
+
+        if (input_frame_data.just_pressed(config.input_view_mode_world_normal)) {
+            gfx_state.setViewMode(.world_normal);
+        }
+
+        if (input_frame_data.just_pressed(config.input_view_mode_metallic)) {
+            gfx_state.setViewMode(.metallic);
+        }
+
+        if (input_frame_data.just_pressed(config.input_view_mode_roughness)) {
+            gfx_state.setViewMode(.roughness);
+        }
+
+        if (input_frame_data.just_pressed(config.input_view_mode_ao)) {
+            gfx_state.setViewMode(.ao);
+        }
+
+        if (input_frame_data.just_pressed(config.input_view_mode_depth)) {
+            gfx_state.setViewMode(.depth);
         }
 
         world_patch_mgr.tickOne();

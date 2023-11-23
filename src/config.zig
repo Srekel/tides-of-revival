@@ -72,6 +72,14 @@ pub const input_camera_switch = IdLocal.init("camera_switch");
 pub const input_camera_freeze_rendering = IdLocal.init("camera_freeze_rendering");
 pub const input_exit = IdLocal.init("exit");
 
+pub const input_view_mode_lit = IdLocal.init("view_mode_lit");
+pub const input_view_mode_albedo = IdLocal.init("view_mode_albedo");
+pub const input_view_mode_world_normal = IdLocal.init("view_mode_world_normal");
+pub const input_view_mode_metallic = IdLocal.init("view_mode_metallic");
+pub const input_view_mode_roughness = IdLocal.init("view_mode_roughness");
+pub const input_view_mode_ao = IdLocal.init("view_mode_ao");
+pub const input_view_mode_depth = IdLocal.init("view_mode_depth");
+
 //  ██████╗████████╗██╗  ██╗
 // ██╔════╝╚══██╔══╝╚██╗██╔╝
 // ██║        ██║    ╚███╔╝

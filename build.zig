@@ -251,6 +251,11 @@ fn buildShaders(b: *std.build.Builder) *std.build.Step {
     dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "psTonemapping", "tonemapping.ps.cso", "ps", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
 
+    dxc_command = makeDxcCmd("src/shaders/debug_visualization.hlsl", "vsFullscreenTriangle", "debug_visualization.vs.cso", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    dxc_command = makeDxcCmd("src/shaders/debug_visualization.hlsl", "psDebugVisualization", "debug_visualization.ps.cso", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+
     dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "vsFullscreenTriangle", "downsample.vs.cso", "vs", "");
     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
     dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "psDownsample", "downsample.ps.cso", "ps", "");

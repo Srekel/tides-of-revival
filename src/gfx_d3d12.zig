@@ -60,6 +60,16 @@ const MaterialHashMap = std.AutoHashMap(IdLocal, MaterialHandle);
 pub export const D3D12SDKVersion: u32 = 610;
 pub export const D3D12SDKPath: [*:0]const u8 = ".\\d3d12\\";
 
+pub const ViewMode = enum(u32) {
+    lit = 0,
+    albedo = 1,
+    world_normal = 2,
+    metallic = 3,
+    roughness = 4,
+    ao = 5,
+    depth = 6,
+};
+
 pub const RenderTargetsUniforms = struct {
     gbuffer_0_index: u32,
     gbuffer_1_index: u32,
@@ -131,6 +141,10 @@ pub const SceneUniforms = extern struct {
     brdf_integration_texture_index: u32,
     ambient_light_intensity: f32,
     padding: f32,
+};
+
+pub const ViewModeUniforms = extern struct {
+    view_mode: u32,
 };
 
 const UITextFormatHashMap = std.AutoHashMap(u32, *dwrite.ITextFormat);
@@ -223,9 +237,11 @@ pub const D3D12State = struct {
     const ui_instances_count_max: u32 = 4096;
 
     gctx: zd3d12.GraphicsContext,
+    mipgen_rgba8: zd3d12.MipmapGenerator,
     mipgen_rgba16f: zd3d12.MipmapGenerator,
     gpu_profiler: Profiler,
     gpu_frame_profiler_index: u64 = undefined,
+    view_mode: ViewMode = .lit,
 
     frame_allocator_state: std.heap.ArenaAllocator,
     frame_allocator: std.mem.Allocator,
@@ -470,8 +486,6 @@ pub const D3D12State = struct {
     }
 
     pub fn generateIBLTextures(self: *D3D12State, hdri_path: []const u8, arena: std.mem.Allocator) !void {
-        self.mipgen_rgba16f = zd3d12.MipmapGenerator.init(arena, &self.gctx, .R16G16B16A16_FLOAT, "");
-
         self.gctx.beginFrame();
 
         const equirect_texture = blk: {
@@ -759,8 +773,6 @@ pub const D3D12State = struct {
         self.env_texture = env_texture;
         self.irradiance_texture = irradiance_texture;
         self.prefiltered_env_texture = prefiltered_env_texture;
-
-        self.mipgen_rgba16f.deinit(&self.gctx);
     }
 
     fn drawToCubeTexture(
@@ -1255,6 +1267,10 @@ pub const D3D12State = struct {
 
         self.ui_labels.append(ui_label) catch unreachable;
     }
+
+    pub fn setViewMode(self: *D3D12State, view_mode: ViewMode) void {
+        self.view_mode = view_mode;
+    }
 };
 
 pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
@@ -1323,6 +1339,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
     const arena = arena_state.allocator();
 
     var state = allocator.create(D3D12State) catch unreachable;
+    state.view_mode = .lit;
 
     state.frame_allocator_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     state.frame_allocator = state.frame_allocator_state.allocator();
@@ -1330,6 +1347,8 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
     var hwnd = zglfw.native.getWin32Window(window) catch unreachable;
 
     state.gctx = zd3d12.GraphicsContext.init(allocator, @as(w32.HWND, @ptrCast(hwnd)));
+    state.mipgen_rgba16f = zd3d12.MipmapGenerator.init(allocator, &state.gctx, .R16G16B16A16_FLOAT, "");
+    state.mipgen_rgba8 = zd3d12.MipmapGenerator.init(allocator, &state.gctx, .R8G8B8A8_UNORM, "");
 
     // Enable vsync.
     state.gctx.present_flags = .{ .ALLOW_TEARING = false };
@@ -1498,6 +1517,9 @@ pub fn deinit(self: *D3D12State, allocator: std.mem.Allocator) void {
     _ = self.small_textures_heap.Release();
     self.small_textures_heap_offset = 0;
 
+    self.mipgen_rgba8.deinit(&self.gctx);
+    self.mipgen_rgba16f.deinit(&self.gctx);
+
     // Destroy all pipelines
     {
         var it = self.pipelines.valueIterator();
@@ -1626,292 +1648,393 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     const view_projection = zm.loadMat(camera.view_projection[0..]);
     const view_projection_inverted = zm.inverse(view_projection);
 
-    // Deferred Lighting
-    const deferred_lighting_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Deferred Lighting");
-    zpix.beginEvent(gctx.cmdlist, "Deferred Lighting");
-    {
-        gctx.addTransitionBarrier(state.gbuffer_0.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.gbuffer_1.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.gbuffer_2.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.depth_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.scene_color_rt.?.resource_handle, .{ .UNORDERED_ACCESS = true });
-        gctx.flushResourceBarriers();
-
-        const pipeline_info = state.getPipeline(IdLocal.init("deferred_lighting"));
-        gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-        // Upload per-scene constant data.
+    if (state.view_mode == .lit) {
+        // Deferred Lighting
+        const deferred_lighting_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Deferred Lighting");
+        zpix.beginEvent(gctx.cmdlist, "Deferred Lighting");
         {
-            const mem = gctx.allocateUploadMemory(SceneUniforms, 1);
-            mem.cpu_slice[0].main_light_direction = state.main_light.direction;
-            mem.cpu_slice[0].main_light_color = state.main_light.color;
-            mem.cpu_slice[0].main_light_intensity = state.main_light.intensity;
-            mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
-            mem.cpu_slice[0].point_lights_count = point_lights_count;
-            mem.cpu_slice[0].prefiltered_env_texture_max_lods = prefiltered_env_texture_num_mip_levels;
-            mem.cpu_slice[0].env_texture_index = state.env_texture.persistent_descriptor.index;
-            mem.cpu_slice[0].irradiance_texture_index = state.irradiance_texture.persistent_descriptor.index;
-            mem.cpu_slice[0].prefiltered_env_texture_index = state.prefiltered_env_texture.persistent_descriptor.index;
-            mem.cpu_slice[0].brdf_integration_texture_index = brdf_texture.?.persistent_descriptor.index;
-            mem.cpu_slice[0].ambient_light_intensity = 0.2;
-            gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
+            gctx.addTransitionBarrier(state.gbuffer_0.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.gbuffer_1.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.gbuffer_2.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.depth_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.scene_color_rt.?.resource_handle, .{ .UNORDERED_ACCESS = true });
+            gctx.flushResourceBarriers();
+
+            const pipeline_info = state.getPipeline(IdLocal.init("deferred_lighting"));
+            gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+            // Upload per-scene constant data.
+            {
+                const mem = gctx.allocateUploadMemory(SceneUniforms, 1);
+                mem.cpu_slice[0].main_light_direction = state.main_light.direction;
+                mem.cpu_slice[0].main_light_color = state.main_light.color;
+                mem.cpu_slice[0].main_light_intensity = state.main_light.intensity;
+                mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
+                mem.cpu_slice[0].point_lights_count = point_lights_count;
+                mem.cpu_slice[0].prefiltered_env_texture_max_lods = prefiltered_env_texture_num_mip_levels;
+                mem.cpu_slice[0].env_texture_index = state.env_texture.persistent_descriptor.index;
+                mem.cpu_slice[0].irradiance_texture_index = state.irradiance_texture.persistent_descriptor.index;
+                mem.cpu_slice[0].prefiltered_env_texture_index = state.prefiltered_env_texture.persistent_descriptor.index;
+                mem.cpu_slice[0].brdf_integration_texture_index = brdf_texture.?.persistent_descriptor.index;
+                mem.cpu_slice[0].ambient_light_intensity = 0.2;
+                gctx.cmdlist.SetComputeRootConstantBufferView(2, mem.gpu_base);
+            }
+
+            // Upload per-frame constant data.
+            {
+                const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
+                mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
+                mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+                mem.cpu_slice[0].camera_position = camera_position;
+
+                gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
+            }
+
+            // Upload render targets constant data.
+            {
+                const mem = gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
+
+                mem.cpu_slice[0].gbuffer_0_index = state.gbuffer_0.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].gbuffer_1_index = state.gbuffer_1.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].gbuffer_2_index = state.gbuffer_2.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].depth_texture_index = state.depth_rt.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].scene_color_texture_index = state.scene_color_rt.?.uav_persistent_descriptor.index;
+
+                gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
+            }
+
+            const num_groups_x = @divFloor(state.scene_color_rt.?.width, 8) + 1;
+            const num_groups_y = @divFloor(state.scene_color_rt.?.height, 8) + 1;
+            gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
         }
+        zpix.endEvent(gctx.cmdlist);
+        state.gpu_profiler.endProfile(gctx.cmdlist, deferred_lighting_profiler_index, gctx.frame_index);
 
-        // Upload per-frame constant data.
+        // Depth-Based Fog
+        const depth_based_fog_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Depth Based Fog");
+        zpix.beginEvent(gctx.cmdlist, "Depth Based Fog");
         {
-            const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
-            mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
-            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-            mem.cpu_slice[0].camera_position = camera_position;
+            gctx.addTransitionBarrier(state.post_process_rt.?.resource_handle, .{ .RENDER_TARGET = true });
+            gctx.addTransitionBarrier(state.gbuffer_0.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.scene_color_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.depth_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.flushResourceBarriers();
 
-            gctx.cmdlist.SetComputeRootConstantBufferView(1, mem.gpu_base);
+            gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+                .TopLeftX = 0.0,
+                .TopLeftY = 0.0,
+                .Width = @floatFromInt(gctx.viewport_width),
+                .Height = @floatFromInt(gctx.viewport_height),
+                .MinDepth = 0.0,
+                .MaxDepth = 1.0,
+            }});
+
+            gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+                .left = 0,
+                .top = 0,
+                .right = @as(c_long, @intCast(gctx.viewport_width)),
+                .bottom = @as(c_long, @intCast(gctx.viewport_height)),
+            }});
+
+            gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+            gctx.cmdlist.OMSetRenderTargets(
+                1,
+                &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.post_process_rt.?.rtv_dsv_descriptor},
+                w32.TRUE,
+                null,
+            );
+
+            const pipeline_info = state.getPipeline(IdLocal.init("depth_based_fog"));
+            gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+            // Upload per-frame constant data.
+            {
+                const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
+                mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
+                mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+                mem.cpu_slice[0].camera_position = camera_position;
+
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+            }
+
+            {
+                const mem = gctx.allocateUploadMemory(DepthBasedFogUniforms, 1);
+                mem.cpu_slice[0].fog_color = [3]f32{ 0.4, 0.4, 0.8 };
+                mem.cpu_slice[0].fog_radius = 150.0;
+                mem.cpu_slice[0].fog_fade_rate = 0.05;
+                mem.cpu_slice[0].fog_density = 1.0;
+                mem.cpu_slice[0].scene_color_texture_index = state.scene_color_rt.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].depth_texture_index = state.depth_rt.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].gbuffer_0_texture_index = state.gbuffer_0.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0]._padding = [3]f32{ 42.0, 42.0, 42.0 };
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+            }
+
+            gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
         }
+        zpix.endEvent(gctx.cmdlist);
+        state.gpu_profiler.endProfile(gctx.cmdlist, depth_based_fog_profiler_index, gctx.frame_index);
 
-        // Upload render targets constant data.
+        // Bloom
+        const bloom_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Bloom");
+        zpix.beginEvent(gctx.cmdlist, "Bloom");
         {
-            const mem = gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
+            // Downsample
+            zpix.beginEvent(gctx.cmdlist, "Downsample");
+            {
+                const pipeline_info = state.getPipeline(IdLocal.init("downsample"));
+                gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-            mem.cpu_slice[0].gbuffer_0_index = state.gbuffer_0.?.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_1_index = state.gbuffer_1.?.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_2_index = state.gbuffer_2.?.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].depth_texture_index = state.depth_rt.?.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].scene_color_texture_index = state.scene_color_rt.?.uav_persistent_descriptor.index;
+                for (0..D3D12State.downsample_rt_count) |i| {
+                    const target = state.downsample_rts[i].?;
+                    const source = if (i == 0) state.post_process_rt.? else state.downsample_rts[i - 1].?;
 
-            gctx.cmdlist.SetComputeRootConstantBufferView(0, mem.gpu_base);
+                    gctx.addTransitionBarrier(target.resource_handle, .{ .RENDER_TARGET = true });
+                    gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+                    gctx.flushResourceBarriers();
+
+                    gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+                        .TopLeftX = 0.0,
+                        .TopLeftY = 0.0,
+                        .Width = @floatFromInt(target.width),
+                        .Height = @floatFromInt(target.height),
+                        .MinDepth = 0.0,
+                        .MaxDepth = 1.0,
+                    }});
+
+                    gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+                        .left = 0,
+                        .top = 0,
+                        .right = @as(c_long, @intCast(target.width)),
+                        .bottom = @as(c_long, @intCast(target.height)),
+                    }});
+
+                    gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+                    gctx.cmdlist.OMSetRenderTargets(
+                        1,
+                        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.rtv_dsv_descriptor},
+                        w32.TRUE,
+                        null,
+                    );
+
+                    const mem = gctx.allocateUploadMemory(DownsampleUniforms, 1);
+                    mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
+                    mem.cpu_slice[0].mip_level = @intCast(i);
+                    gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+                    gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_descriptor));
+
+                    gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+                }
+            }
+            zpix.endEvent(gctx.cmdlist);
+
+            // Upsample+Blur
+            zpix.beginEvent(gctx.cmdlist, "Upsample and Blur");
+            {
+                const pipeline_info = state.getPipeline(IdLocal.init("upsample_blur"));
+                gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+                var i: u32 = D3D12State.downsample_rt_count - 1;
+                while (i > 0) : (i -= 1) {
+                    const source = state.downsample_rts[i].?;
+                    const target = state.downsample_rts[i - 1].?;
+
+                    gctx.addTransitionBarrier(target.resource_handle, .{ .RENDER_TARGET = true });
+                    gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+                    gctx.flushResourceBarriers();
+
+                    gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+                        .TopLeftX = 0.0,
+                        .TopLeftY = 0.0,
+                        .Width = @floatFromInt(target.width),
+                        .Height = @floatFromInt(target.height),
+                        .MinDepth = 0.0,
+                        .MaxDepth = 1.0,
+                    }});
+
+                    gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+                        .left = 0,
+                        .top = 0,
+                        .right = @as(c_long, @intCast(target.width)),
+                        .bottom = @as(c_long, @intCast(target.height)),
+                    }});
+
+                    gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+                    gctx.cmdlist.OMSetRenderTargets(
+                        1,
+                        &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.rtv_dsv_descriptor},
+                        w32.TRUE,
+                        null,
+                    );
+
+                    const mem = gctx.allocateUploadMemory(UpsampleBlurUniforms, 1);
+                    mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
+                    mem.cpu_slice[0].sample_scale = 1.0;
+                    gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+                    gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_descriptor));
+
+                    gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+                }
+            }
+            zpix.endEvent(gctx.cmdlist);
         }
+        zpix.endEvent(gctx.cmdlist);
+        state.gpu_profiler.endProfile(gctx.cmdlist, bloom_profiler_index, gctx.frame_index);
 
-        const num_groups_x = @divFloor(state.scene_color_rt.?.width, 8) + 1;
-        const num_groups_y = @divFloor(state.scene_color_rt.?.height, 8) + 1;
-        gctx.cmdlist.Dispatch(num_groups_x, num_groups_y, 1);
-    }
-    zpix.endEvent(gctx.cmdlist);
-    state.gpu_profiler.endProfile(gctx.cmdlist, deferred_lighting_profiler_index, gctx.frame_index);
-
-    // Depth-Based Fog
-    const depth_based_fog_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Depth Based Fog");
-    zpix.beginEvent(gctx.cmdlist, "Depth Based Fog");
-    {
-        gctx.addTransitionBarrier(state.post_process_rt.?.resource_handle, .{ .RENDER_TARGET = true });
-        gctx.addTransitionBarrier(state.gbuffer_0.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.scene_color_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.depth_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.flushResourceBarriers();
-
-        gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
-            .TopLeftX = 0.0,
-            .TopLeftY = 0.0,
-            .Width = @floatFromInt(gctx.viewport_width),
-            .Height = @floatFromInt(gctx.viewport_height),
-            .MinDepth = 0.0,
-            .MaxDepth = 1.0,
-        }});
-
-        gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
-            .left = 0,
-            .top = 0,
-            .right = @as(c_long, @intCast(gctx.viewport_width)),
-            .bottom = @as(c_long, @intCast(gctx.viewport_height)),
-        }});
-
-        gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-        gctx.cmdlist.OMSetRenderTargets(
-            1,
-            &[_]d3d12.CPU_DESCRIPTOR_HANDLE{state.post_process_rt.?.rtv_dsv_descriptor},
-            w32.TRUE,
-            null,
-        );
-
-        const pipeline_info = state.getPipeline(IdLocal.init("depth_based_fog"));
-        gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-        // Upload per-frame constant data.
+        // Tonemapping
+        const tonemapping_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Tonemapping");
+        zpix.beginEvent(gctx.cmdlist, "Tonemapping");
         {
-            const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
-            mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
-            mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
-            mem.cpu_slice[0].camera_position = camera_position;
+            const back_buffer = gctx.getBackBuffer();
 
-            gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-        }
+            gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
+            gctx.addTransitionBarrier(state.post_process_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.downsample_rts[0].?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.flushResourceBarriers();
 
-        {
-            const mem = gctx.allocateUploadMemory(DepthBasedFogUniforms, 1);
-            mem.cpu_slice[0].fog_color = [3]f32{ 0.4, 0.4, 0.8 };
-            mem.cpu_slice[0].fog_radius = 150.0;
-            mem.cpu_slice[0].fog_fade_rate = 0.05;
-            mem.cpu_slice[0].fog_density = 1.0;
-            mem.cpu_slice[0].scene_color_texture_index = state.scene_color_rt.?.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].depth_texture_index = state.depth_rt.?.srv_persistent_descriptor.index;
-            mem.cpu_slice[0].gbuffer_0_texture_index = state.gbuffer_0.?.srv_persistent_descriptor.index;
-            mem.cpu_slice[0]._padding = [3]f32{ 42.0, 42.0, 42.0 };
+            gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+                .TopLeftX = 0.0,
+                .TopLeftY = 0.0,
+                .Width = @floatFromInt(gctx.viewport_width),
+                .Height = @floatFromInt(gctx.viewport_height),
+                .MinDepth = 0.0,
+                .MaxDepth = 1.0,
+            }});
+
+            gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+                .left = 0,
+                .top = 0,
+                .right = @as(c_long, @intCast(gctx.viewport_width)),
+                .bottom = @as(c_long, @intCast(gctx.viewport_height)),
+            }});
+
+            gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+            gctx.cmdlist.OMSetRenderTargets(
+                1,
+                &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
+                w32.TRUE,
+                null,
+            );
+
+            gctx.cmdlist.ClearRenderTargetView(
+                back_buffer.descriptor_handle,
+                &[4]f32{ 0.0, 0.0, 0.0, 0.0 },
+                0,
+                null,
+            );
+
+            const pipeline_info = state.getPipeline(IdLocal.init("tonemapping"));
+            gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+
+            const mem = gctx.allocateUploadMemory(TonemapperUniforms, 1);
+            mem.cpu_slice[0].scene_color_texture_index = state.post_process_rt.?.srv_persistent_descriptor.index;
+            mem.cpu_slice[0].bloom_texture_index = state.downsample_rts[0].?.srv_persistent_descriptor.index;
             gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-        }
 
-        gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
-    }
-    zpix.endEvent(gctx.cmdlist);
-    state.gpu_profiler.endProfile(gctx.cmdlist, depth_based_fog_profiler_index, gctx.frame_index);
-
-    // Bloom
-    const bloom_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Bloom");
-    zpix.beginEvent(gctx.cmdlist, "Bloom");
-    {
-        // Downsample
-        zpix.beginEvent(gctx.cmdlist, "Downsample");
-        {
-            const pipeline_info = state.getPipeline(IdLocal.init("downsample"));
-            gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-            for (0..D3D12State.downsample_rt_count) |i| {
-                const target = state.downsample_rts[i].?;
-                const source = if (i == 0) state.post_process_rt.? else state.downsample_rts[i - 1].?;
-
-                gctx.addTransitionBarrier(target.resource_handle, .{ .RENDER_TARGET = true });
-                gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-                gctx.flushResourceBarriers();
-
-                gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
-                    .TopLeftX = 0.0,
-                    .TopLeftY = 0.0,
-                    .Width = @floatFromInt(target.width),
-                    .Height = @floatFromInt(target.height),
-                    .MinDepth = 0.0,
-                    .MaxDepth = 1.0,
-                }});
-
-                gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
-                    .left = 0,
-                    .top = 0,
-                    .right = @as(c_long, @intCast(target.width)),
-                    .bottom = @as(c_long, @intCast(target.height)),
-                }});
-
-                gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-                gctx.cmdlist.OMSetRenderTargets(
-                    1,
-                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.rtv_dsv_descriptor},
-                    w32.TRUE,
-                    null,
-                );
-
-                const mem = gctx.allocateUploadMemory(DownsampleUniforms, 1);
-                mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
-                mem.cpu_slice[0].mip_level = @intCast(i);
-                gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_descriptor));
-
-                gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
-            }
+            gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
         }
         zpix.endEvent(gctx.cmdlist);
-
-        // Upsample+Blur
-        zpix.beginEvent(gctx.cmdlist, "Upsample and Blur");
+        state.gpu_profiler.endProfile(gctx.cmdlist, tonemapping_profiler_index, gctx.frame_index);
+    } else {
+        // Debub Visualization
+        const debug_visualization_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Debug Visualization");
+        zpix.beginEvent(gctx.cmdlist, "Debug Visualization");
         {
-            const pipeline_info = state.getPipeline(IdLocal.init("upsample_blur"));
+            const back_buffer = gctx.getBackBuffer();
+            gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
+            gctx.addTransitionBarrier(state.gbuffer_0.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.gbuffer_1.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.gbuffer_2.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.addTransitionBarrier(state.depth_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
+            gctx.flushResourceBarriers();
+
+            gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
+                .TopLeftX = 0.0,
+                .TopLeftY = 0.0,
+                .Width = @floatFromInt(gctx.viewport_width),
+                .Height = @floatFromInt(gctx.viewport_height),
+                .MinDepth = 0.0,
+                .MaxDepth = 1.0,
+            }});
+
+            gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
+                .left = 0,
+                .top = 0,
+                .right = @as(c_long, @intCast(gctx.viewport_width)),
+                .bottom = @as(c_long, @intCast(gctx.viewport_height)),
+            }});
+
+            gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+            gctx.cmdlist.OMSetRenderTargets(
+                1,
+                &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
+                w32.TRUE,
+                null,
+            );
+
+            gctx.cmdlist.ClearRenderTargetView(
+                back_buffer.descriptor_handle,
+                &[4]f32{ 0.0, 0.0, 0.0, 0.0 },
+                0,
+                null,
+            );
+
+            const pipeline_info = state.getPipeline(IdLocal.init("debug_visualization"));
             gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-            var i: u32 = D3D12State.downsample_rt_count - 1;
-            while (i > 0) : (i -= 1) {
-                const source = state.downsample_rts[i].?;
-                const target = state.downsample_rts[i - 1].?;
-
-                gctx.addTransitionBarrier(target.resource_handle, .{ .RENDER_TARGET = true });
-                gctx.addTransitionBarrier(source.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-                gctx.flushResourceBarriers();
-
-                gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
-                    .TopLeftX = 0.0,
-                    .TopLeftY = 0.0,
-                    .Width = @floatFromInt(target.width),
-                    .Height = @floatFromInt(target.height),
-                    .MinDepth = 0.0,
-                    .MaxDepth = 1.0,
-                }});
-
-                gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
-                    .left = 0,
-                    .top = 0,
-                    .right = @as(c_long, @intCast(target.width)),
-                    .bottom = @as(c_long, @intCast(target.height)),
-                }});
-
-                gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-                gctx.cmdlist.OMSetRenderTargets(
-                    1,
-                    &[_]d3d12.CPU_DESCRIPTOR_HANDLE{target.rtv_dsv_descriptor},
-                    w32.TRUE,
-                    null,
-                );
-
-                const mem = gctx.allocateUploadMemory(UpsampleBlurUniforms, 1);
-                mem.cpu_slice[0].source_resolution = [2]f32{ @floatFromInt(source.width), @floatFromInt(source.height) };
-                mem.cpu_slice[0].sample_scale = 1.0;
-                gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-                gctx.cmdlist.SetGraphicsRootDescriptorTable(1, gctx.copyDescriptorsToGpuHeap(1, source.srv_descriptor));
-
-                gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
+            // Upload per-scene constant data.
+            {
+                const mem = gctx.allocateUploadMemory(SceneUniforms, 1);
+                mem.cpu_slice[0].main_light_direction = state.main_light.direction;
+                mem.cpu_slice[0].main_light_color = state.main_light.color;
+                mem.cpu_slice[0].main_light_intensity = state.main_light.intensity;
+                mem.cpu_slice[0].point_lights_buffer_index = point_lights_buffer.?.persistent_descriptor.index;
+                mem.cpu_slice[0].point_lights_count = point_lights_count;
+                mem.cpu_slice[0].prefiltered_env_texture_max_lods = prefiltered_env_texture_num_mip_levels;
+                mem.cpu_slice[0].env_texture_index = state.env_texture.persistent_descriptor.index;
+                mem.cpu_slice[0].irradiance_texture_index = state.irradiance_texture.persistent_descriptor.index;
+                mem.cpu_slice[0].prefiltered_env_texture_index = state.prefiltered_env_texture.persistent_descriptor.index;
+                mem.cpu_slice[0].brdf_integration_texture_index = brdf_texture.?.persistent_descriptor.index;
+                mem.cpu_slice[0].ambient_light_intensity = 0.2;
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(2, mem.gpu_base);
             }
+
+            // Upload per-frame constant data.
+            {
+                const mem = gctx.allocateUploadMemory(FrameUniforms, 1);
+                mem.cpu_slice[0].view_projection = zm.transpose(view_projection);
+                mem.cpu_slice[0].view_projection_inverted = zm.transpose(view_projection_inverted);
+                mem.cpu_slice[0].camera_position = camera_position;
+
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+            }
+
+            // Upload render targets constant data.
+            {
+                const mem = gctx.allocateUploadMemory(RenderTargetsUniforms, 1);
+
+                mem.cpu_slice[0].gbuffer_0_index = state.gbuffer_0.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].gbuffer_1_index = state.gbuffer_1.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].gbuffer_2_index = state.gbuffer_2.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].depth_texture_index = state.depth_rt.?.srv_persistent_descriptor.index;
+                mem.cpu_slice[0].scene_color_texture_index = state.scene_color_rt.?.uav_persistent_descriptor.index;
+
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+            }
+
+            // Upload draw constant data
+            {
+                const mem = gctx.allocateUploadMemory(ViewModeUniforms, 1);
+
+                mem.cpu_slice[0].view_mode = @intFromEnum(state.view_mode);
+                gctx.cmdlist.SetGraphicsRootConstantBufferView(3, mem.gpu_base);
+            }
+
+            gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
         }
         zpix.endEvent(gctx.cmdlist);
+        state.gpu_profiler.endProfile(gctx.cmdlist, debug_visualization_profiler_index, gctx.frame_index);
     }
-    zpix.endEvent(gctx.cmdlist);
-    state.gpu_profiler.endProfile(gctx.cmdlist, bloom_profiler_index, gctx.frame_index);
-
-    // Tonemapping
-    const tonemapping_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Tonemapping");
-    zpix.beginEvent(gctx.cmdlist, "Tonemapping");
-    {
-        const back_buffer = gctx.getBackBuffer();
-
-        gctx.addTransitionBarrier(back_buffer.resource_handle, .{ .RENDER_TARGET = true });
-        gctx.addTransitionBarrier(state.post_process_rt.?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.addTransitionBarrier(state.downsample_rts[0].?.resource_handle, d3d12.RESOURCE_STATES.ALL_SHADER_RESOURCE);
-        gctx.flushResourceBarriers();
-
-        gctx.cmdlist.RSSetViewports(1, &[_]d3d12.VIEWPORT{.{
-            .TopLeftX = 0.0,
-            .TopLeftY = 0.0,
-            .Width = @floatFromInt(gctx.viewport_width),
-            .Height = @floatFromInt(gctx.viewport_height),
-            .MinDepth = 0.0,
-            .MaxDepth = 1.0,
-        }});
-
-        gctx.cmdlist.RSSetScissorRects(1, &[_]d3d12.RECT{.{
-            .left = 0,
-            .top = 0,
-            .right = @as(c_long, @intCast(gctx.viewport_width)),
-            .bottom = @as(c_long, @intCast(gctx.viewport_height)),
-        }});
-
-        gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-        gctx.cmdlist.OMSetRenderTargets(
-            1,
-            &[_]d3d12.CPU_DESCRIPTOR_HANDLE{back_buffer.descriptor_handle},
-            w32.TRUE,
-            null,
-        );
-
-        gctx.cmdlist.ClearRenderTargetView(
-            back_buffer.descriptor_handle,
-            &[4]f32{ 0.0, 0.0, 0.0, 0.0 },
-            0,
-            null,
-        );
-
-        const pipeline_info = state.getPipeline(IdLocal.init("tonemapping"));
-        gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
-
-        const mem = gctx.allocateUploadMemory(TonemapperUniforms, 1);
-        mem.cpu_slice[0].scene_color_texture_index = state.post_process_rt.?.srv_persistent_descriptor.index;
-        mem.cpu_slice[0].bloom_texture_index = state.downsample_rts[0].?.srv_persistent_descriptor.index;
-        gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-
-        gctx.cmdlist.DrawInstanced(3, 1, 0, 0);
-    }
-    zpix.endEvent(gctx.cmdlist);
-    state.gpu_profiler.endProfile(gctx.cmdlist, tonemapping_profiler_index, gctx.frame_index);
 
     // UI
     const ui_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "UI");
@@ -2103,11 +2226,11 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                         state.stats_brush.SetColor(&.{ .r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0 });
                     }
 
-                    var buffer = [_]u8{0} ** 64;
+                    var buffer = [_]u8{0} ** 128;
                     const text = std.fmt.bufPrint(
                         buffer[0..],
-                        "FPS: {d:.1}\nCPU: {d:.3} ms",
-                        .{ stats.fps, stats.average_cpu_time },
+                        "FPS: {d:.1}\nCPU: {d:.3} ms\nView Mode: {}",
+                        .{ stats.fps, stats.average_cpu_time, state.view_mode },
                     ) catch unreachable;
 
                     drawText(
@@ -2605,6 +2728,31 @@ fn createPipelines(state: *D3D12State, arena: std.mem.Allocator) void {
         // _ = pipeline.?.pso.?.SetName(L("Tonemapping"));
 
         state.pipelines.put(IdLocal.init("tonemapping"), PipelineInfo{ .pipeline_handle = pso_handle }) catch unreachable;
+    }
+
+    {
+        var pso_desc = d3d12.GRAPHICS_PIPELINE_STATE_DESC.initDefault();
+        pso_desc.InputLayout = .{
+            .pInputElementDescs = null,
+            .NumElements = 0,
+        };
+        pso_desc.RTVFormats[0] = .R8G8B8A8_UNORM;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.DepthStencilState.DepthEnable = 0;
+        pso_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0xf;
+        pso_desc.PrimitiveTopologyType = .TRIANGLE;
+
+        const pso_handle = state.gctx.createGraphicsShaderPipeline(
+            arena,
+            &pso_desc,
+            "shaders/debug_visualization.vs.cso",
+            "shaders/debug_visualization.ps.cso",
+        );
+
+        // const pipeline = gctx.pipeline_pool.lookupPipeline(pso_handle);
+        // _ = pipeline.?.pso.?.SetName(L("Tonemapping"));
+
+        state.pipelines.put(IdLocal.init("debug_visualization"), PipelineInfo{ .pipeline_handle = pso_handle }) catch unreachable;
     }
 
     {
