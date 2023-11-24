@@ -1462,7 +1462,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
 
     // Upload logo
     {
-        const texture_path = "content/textures/ui/tor_logo_tmp.png";
+        const texture_path = "content/textures/ui/tides_logo.png";
         const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
         state.logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
 
