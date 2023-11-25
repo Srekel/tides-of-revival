@@ -9,7 +9,8 @@ release = "March_of_the_Ants"
 build = "RC2"
 
 os.chdir("..")
-os.system("zig build -O ReleaseSafe -Dcpu=baseline")
+os.system("zig build -Dtarget=native-native-msvc  -Doptimize=Debug --summary failures")
+# os.system("zig build  -Doptimize=ReleaseSafe  -Dtarget=native-native-msvc -Dcpu=baseline")
 
 dest_path = os.path.join("release_build", f"Tides_of_Revival_{release}_{build}")
 os.makedirs(dest_path, exist_ok=True)
