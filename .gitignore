@@ -16,3 +16,4 @@ content/content.csv
 promotion/
 __pycache__/
 licenses.txt
+release_build/*
