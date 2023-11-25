@@ -1,6 +1,6 @@
 # Tides of Revival
 
-Tides of Revival, or Tides for short, is, put as succinctly as possible, a Massive ImSim. Well, it isn't that _yet_. But that's the ambition. 
+Tides of Revival, or Tides for short, is, put as succinctly as possible, a Massive ImSim. Well, it isn't that _yet_. But that's the ambition.
 
 Here are some bullet points to describe the game:
 
@@ -22,7 +22,9 @@ Towards the end of each hill we will allow ourself the time, energy, and fun, to
 
 On a technical level, we will also allow ourselves a bit of engineering slack and to build up some tech debt, when implementing new experimental, exploratory systems and features. By adding hacky code that's easy to tear down, we aren't needlessly spending time thinking of the perfect architecture before we know what the problem is. In between two hills, we can spend some time looking at existing debts and decide which ones are ripe for paying off.
 
-### List of hills
+For more on the concept of Hills: https://www.youtube.com/watch?v=BD_zbXHgI8E
+
+### List of Hills
 
 These are the currently planned hills. As you can see, it is quite a ways to go until we get anywhere close to our end goal. But hey, one step at a time!
 
@@ -34,4 +36,21 @@ These are the currently planned hills. As you can see, it is quite a ways to go 
 | All Roads Lead to Various Places | ⏲️     | 2025-06 | Protect builders and caravans as they start traveling between villages. See the web of roads grow as you make the lands safer.   |
 | The Revival Begins               | ⏲️     | 2026-02 | Bandits and wild creatures roam the lands. Only by you leading the Revival will villages start to grow and roads improve.        |
 
+## Follow the Development
+
+- Discord: https://discord.gg/rzByav6Y7Z
+- Youtube: https://www.youtube.com/@tides-of-revival
+- Itch.io: https://tides-of-revival.itch.io/tides-of-revival
+- Open World Gamedev Newsletter: https://open-world-gamedev-newsletter.vercel.app/
+- Twitter: 
+  - https://twitter.com/Srekel
+  - https://twitter.com/gmodarelli
+  - https://twitter.com/dryaddn
+- Mastodon:
+  - https://mastodon.gamedev.place/@srekel
+  - https://mastodon.gamedev.place/@gmodarelli
+
+## Join the Development
+
+It's impossible to build a game like Tides without a team. There is an incredible amount of things to do in a lot of different areas and dimensions. We value kindness, diversity, and avoiding stress. Poke me (Anders) on any of my channels if you're interested. :)
 
