@@ -99,14 +99,12 @@ GBufferTargets psTerrainQuadTree(InstancedVertexOut input/*, float3 barycentrics
     {
         Texture2D heightmap = ResourceDescriptorHeap[instance.heightmap_index];
 
-        // NOTE(gmodarelli): We're changing the epsilon value based on the mesh LOD,
-        // otherwise two different neighbouring LODs would have quite different normal values
-        float2 e = float2(cbv_draw_const.heightmap_texel_size * pow(2, instance.lod), 0.0);
+        float2 e = float2(cbv_draw_const.heightmap_texel_size, 0.0);
         float l = heightmap.SampleLevel(sam_linear_clamp, saturate(uv - e.xy), 0).r / cbv_draw_const.terrain_height;
         float r = heightmap.SampleLevel(sam_linear_clamp, saturate(uv + e.xy), 0).r / cbv_draw_const.terrain_height;
         float b = heightmap.SampleLevel(sam_linear_clamp, saturate(uv - e.yx), 0).r / cbv_draw_const.terrain_height;
         float t = heightmap.SampleLevel(sam_linear_clamp, saturate(uv + e.yx), 0).r / cbv_draw_const.terrain_height;
-        normal = normalize(float3(l - r, 2.0 * e.x, b - t));
+        normal = normalize(float3(l - r, 20.0 * e.x, b - t));
 
         // Recalculating the tangent now that the normal has been adjusted.
         float3 tmp = normalize(cross(normal, tangent));
