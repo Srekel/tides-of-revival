@@ -25,6 +25,7 @@ const fd = @import("flecs_data.zig");
 const config = @import("config.zig");
 const zstbi = @import("zstbi");
 const util = @import("util.zig");
+const tides_math = @import("core/math.zig");
 
 pub const Profiler = profiler_module.Profiler;
 pub const ProfileData = profiler_module.ProfileData;
@@ -265,6 +266,7 @@ pub const D3D12State = struct {
 
     // NOTE(gmodarelli): Temporary logo resources.
     // TODO(gmodarelli): Move these to a separate system
+    splash_texture: TextureHandle,
     logo_texture: TextureHandle,
     wwise_logo_texture: TextureHandle,
     end_screen_texture: TextureHandle,
@@ -1484,6 +1486,13 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
         state.wwise_logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
     }
 
+    // Upload title
+    {
+        const texture_path = "content/textures/ui/hill2_splash.png";
+        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+        state.splash_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
+    }
+
     // Upload end screen
     {
         const texture_path = "content/textures/ui/hill2_end_screen.png";
@@ -2075,14 +2084,15 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
 
             const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
             const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
+            const screen_center_x: f32 = screen_size_x / 2;
+            const screen_center_y: f32 = screen_size_y / 2;
+            const logo_size: f32 = 840;
+            const logo_half_size: f32 = logo_size / 2;
+            const offset_y = screen_size_y * 0.1;
             {
-                const logo_size: f32 = 840;
-                const logo_half_size: f32 = logo_size / 2;
-                const screen_center_x: f32 = screen_size_x / 2;
-                const screen_center_y: f32 = screen_size_y / 2;
-
-                const top = screen_center_y - logo_half_size;
-                const bottom = screen_center_y + logo_half_size;
+                // Logo
+                const top = screen_center_y - logo_half_size - offset_y;
+                const bottom = screen_center_y + logo_half_size - offset_y;
                 const left = screen_center_x - logo_half_size;
                 const right = screen_center_x + logo_half_size;
 
@@ -2095,12 +2105,33 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 state.drawUIImage(image) catch unreachable;
             }
             {
-                const logo_size: f32 = 340;
+                // Title
+                const scale_time = std.math.clamp(state.splash_screen_accumulated_time, 0.0, 3);
+                const scale = tides_math.easeInOutQuad(scale_time / 3);
+                const img_size_x: f32 = 768 * scale;
+                const img_size_y: f32 = 192 * scale;
 
-                const top = screen_size_y - logo_size;
-                const bottom = top + logo_size;
-                const left = screen_size_x - logo_size;
-                const right = left + logo_size;
+                const top = screen_center_y + logo_half_size - offset_y * 1.5;
+                const bottom = top + img_size_y;
+                const left = screen_center_x - img_size_x / 2;
+                const right = screen_center_x + img_size_x / 2;
+
+                const image = UIImage{
+                    .rect = [4]f32{ top, bottom, left, right },
+                    .color = [4]f32{ 1.0, 1.0, 1.0, opacity * opacity * opacity },
+                    .texture = state.splash_texture,
+                };
+
+                state.drawUIImage(image) catch unreachable;
+            }
+            {
+                // Wwise
+                const img_size: f32 = 340;
+
+                const top = screen_size_y - img_size;
+                const bottom = top + img_size;
+                const left = screen_size_x - img_size;
+                const right = left + img_size;
 
                 const image = UIImage{
                     .rect = [4]f32{ top, bottom, left, right },
