@@ -1,0 +1,7 @@
+Used	Name	Origin	License
+Y	websocket.zig	https://github.com/karlseguin/websocket.zig	MPL-2.0
+Y	Wwise	https://www.audiokinetic.com/en/products/wwise/	Wwise non-commercial
+Y	wwise-zig	https://github.com/Cold-Bytes-Games/wwise-zig	Apache 2/MIT
+Y	zig-args	https://github.com/MasterQ32/zig-args	MIT
+Y	zig-gamedev	https://github.com/michal-z/zig-gamedev	MIT
+Y	zigimg	https://github.com/zigimg/zigimg	MIT
