@@ -27,6 +27,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    _ = b.option([]const u8, "build_date", "date of the build");
+    const exe_options = b.addOptions();
+    exe.addOptions("build_options", exe_options);
+    exe_options.addOption([]const u8, "build_date", "2023-11-25");
+
     exe.addModule("websocket", b.createModule(.{
         .source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
         .dependencies = &.{},

@@ -2058,6 +2058,10 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
     const ui_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "UI");
     zpix.beginEvent(gctx.cmdlist, "UI");
     {
+        const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
+        const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
+        const screen_center_x: f32 = screen_size_x / 2;
+        const screen_center_y: f32 = screen_size_y / 2;
 
         // Watermark Logo
         {
@@ -2076,16 +2080,26 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             state.drawUIImage(image) catch unreachable;
         }
 
+        // Build
+        {
+            const build_date = @import("build_options").build_date;
+            var ui_label = UILabel{
+                .label = undefined,
+                .font_size = 10,
+                .color = [4]f32{ 0.75, 0.75, 0.6, 0.8 },
+                .rect = .{ .left = 10, .top = screen_size_y, .bottom = screen_size_y - 20, .right = 500 },
+            };
+            var buffer = [_]u8{0} ** 128;
+            ui_label.label = std.fmt.bufPrint(buffer[0..], "Tides of Revival Build: {s}", .{build_date}) catch unreachable;
+            state.drawUILabel(ui_label) catch unreachable;
+        }
+
         // Splash screen
         if (state.splash_screen_accumulated_time < state.splash_screen_duration) {
             state.splash_screen_accumulated_time += state.stats.delta_time;
             const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
             const opacity = fade_out_time / state.splash_screen_fade_out_duration;
 
-            const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
-            const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
-            const screen_center_x: f32 = screen_size_x / 2;
-            const screen_center_y: f32 = screen_size_y / 2;
             const logo_size: f32 = 840;
             const logo_half_size: f32 = logo_size / 2;
             const offset_y = screen_size_y * 0.1;
@@ -2145,7 +2159,7 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                     .label = undefined,
                     .font_size = 10,
                     .color = [4]f32{ 0.75, 0.75, 0.0, 0.75 * opacity },
-                    .rect = .{ .left = 3 * screen_size_x / 4, .top = screen_size_y, .bottom = screen_size_y - 30, .right = screen_size_x },
+                    .rect = .{ .left = 3 * screen_size_x / 4 + 50, .top = screen_size_y, .bottom = screen_size_y - 20, .right = screen_size_x },
                 };
                 var buffer = [_]u8{0} ** 128;
                 ui_label.label = std.fmt.bufPrint(buffer[0..], "Powered by Wwise © 2006 - 2023 Audiokinetic Inc. All rights reserved.", .{}) catch unreachable;
@@ -2161,10 +2175,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             const fade_in_time = std.math.clamp(state.end_screen_fade_in_duration - state.end_screen_accumulated_time, 0.0, state.end_screen_fade_in_duration);
             const opacity = 1 - fade_in_time / state.end_screen_fade_in_duration;
 
-            const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
-            const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
-            const screen_center_x: f32 = screen_size_x / 2;
-            const screen_center_y: f32 = screen_size_y / 2;
             {
                 const logo_size: f32 = 840;
                 const logo_half_size: f32 = logo_size / 2;
