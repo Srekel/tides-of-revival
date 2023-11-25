@@ -13,6 +13,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
+const gfx_d3d12 = @import("../../gfx_d3d12.zig");
 
 pub const NonMovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
@@ -42,7 +43,13 @@ fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm
     zm.store(pos.elems()[0..], self_pos_z, 3);
 }
 
-fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, body: *fd.PhysicsBody, player_pos: *const fd.Position) void {
+fn updateSnapToTerrain(
+    physics_world: *zphy.PhysicsSystem,
+    pos: *fd.Position,
+    body: *fd.PhysicsBody,
+    player_pos: *const fd.Position,
+    gfx: *gfx_d3d12.D3D12State,
+) void {
     const query = physics_world.getNarrowPhaseQuery();
 
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
@@ -113,6 +120,8 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position, bo
                 [3]f32{ 0, 0, 0 },
                 [3]f32{ 0, 0, 0 },
             );
+        } else if (gfx.end_screen_accumulated_time < 0) {
+            gfx.end_screen_accumulated_time = 0;
         }
     } else {
         const body_interface = physics_world.getBodyInterfaceMut();
@@ -144,6 +153,11 @@ fn exit(ctx: fsm.StateFuncContext) void {
 fn update(ctx: fsm.StateFuncContext) void {
     // const self = Util.cast(StateIdle, ctx.data.ptr);
     // _ = self;
+
+    if (ctx.gfx.end_screen_accumulated_time > 0.5) {
+        return;
+    }
+
     const self = Util.castBytes(StateGiantAnt, ctx.state.self);
     var entity_iter = self.query.iterator(struct {
         pos: *fd.Position,
@@ -168,7 +182,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 
         if (body_interface.getMotionType(comps.body.body_id) == .kinematic) {
             updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, player_pos);
-            updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos);
+            updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos, ctx.gfx);
         }
     }
 }

@@ -10,6 +10,7 @@ const zphy = @import("zphysics");
 const context = @import("../core/context.zig");
 const audio = @import("../audio/audio_manager.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
+const gfx_d3d12 = @import("../gfx_d3d12.zig");
 
 pub const TriggerEvent = struct {
     id: IdLocal,
@@ -105,6 +106,7 @@ pub const StateFuncContext = struct {
     frame_data: *const input.FrameData,
     audio_mgr: *audio.AudioManager,
     dt: zm.F32x4,
+    gfx: *gfx_d3d12.D3D12State,
 };
 
 pub const StateFunc = fn (ctx: StateFuncContext) void;

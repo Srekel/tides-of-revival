@@ -267,9 +267,12 @@ pub const D3D12State = struct {
     // TODO(gmodarelli): Move these to a separate system
     logo_texture: TextureHandle,
     wwise_logo_texture: TextureHandle,
+    end_screen_texture: TextureHandle,
     splash_screen_duration: f32,
     splash_screen_fade_out_duration: f32,
     splash_screen_accumulated_time: f32,
+    end_screen_fade_in_duration: f32,
+    end_screen_accumulated_time: f32,
 
     // NOTE(gmodarelli): just a test, these textures should
     // be loaded by a "sky light" component
@@ -1460,15 +1463,18 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
         state.ui_images = std.ArrayList(UIImageGPU).init(allocator);
     }
 
+    // Splash screen timings
+    state.splash_screen_accumulated_time = 0.0;
+    state.splash_screen_duration = 9.0;
+    state.splash_screen_fade_out_duration = 3.0;
+    state.end_screen_accumulated_time = -5.0;
+    state.end_screen_fade_in_duration = 3;
+
     // Upload logo
     {
         const texture_path = "content/textures/ui/tides_logo.png";
         const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
         state.logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
-
-        state.splash_screen_accumulated_time = 0.0;
-        state.splash_screen_duration = 5.0;
-        state.splash_screen_fade_out_duration = 2.0;
     }
 
     // Upload wwise logo
@@ -1476,10 +1482,13 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
         const texture_path = "content/textures/ui/ak_powered_by_wwise_rgb.png";
         const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
         state.wwise_logo_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
+    }
 
-        state.splash_screen_accumulated_time = 0.0;
-        state.splash_screen_duration = 5.0;
-        state.splash_screen_fade_out_duration = 2.0;
+    // Upload end screen
+    {
+        const texture_path = "content/textures/ui/hill2_end_screen.png";
+        const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+        state.end_screen_texture = state.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, arena) catch unreachable;
     }
 
     // Generate IBL textures from HDRI
@@ -2064,11 +2073,13 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             const fade_out_time = std.math.clamp(state.splash_screen_duration - state.splash_screen_accumulated_time, 0.0, state.splash_screen_fade_out_duration);
             const opacity = fade_out_time / state.splash_screen_fade_out_duration;
 
+            const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
+            const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
             {
                 const logo_size: f32 = 840;
                 const logo_half_size: f32 = logo_size / 2;
-                const screen_center_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width)) / 2;
-                const screen_center_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height)) / 2;
+                const screen_center_x: f32 = screen_size_x / 2;
+                const screen_center_y: f32 = screen_size_y / 2;
 
                 const top = screen_center_y - logo_half_size;
                 const bottom = screen_center_y + logo_half_size;
@@ -2085,8 +2096,6 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
             }
             {
                 const logo_size: f32 = 340;
-                const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
-                const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
 
                 const top = screen_size_y - logo_size;
                 const bottom = top + logo_size;
@@ -2110,6 +2119,37 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 var buffer = [_]u8{0} ** 128;
                 ui_label.label = std.fmt.bufPrint(buffer[0..], "Powered by Wwise © 2006 - 2023 Audiokinetic Inc. All rights reserved.", .{}) catch unreachable;
                 state.drawUILabel(ui_label) catch unreachable;
+            }
+        }
+
+        // End screen
+        // temp
+        if (state.end_screen_accumulated_time >= 0) {
+            state.end_screen_accumulated_time += state.stats.delta_time;
+            // state.end_screen_accumulated_time += state.stats.delta_time;
+            const fade_in_time = std.math.clamp(state.end_screen_fade_in_duration - state.end_screen_accumulated_time, 0.0, state.end_screen_fade_in_duration);
+            const opacity = 1 - fade_in_time / state.end_screen_fade_in_duration;
+
+            const screen_size_x: f32 = @as(f32, @floatFromInt(gctx.viewport_width));
+            const screen_size_y: f32 = @as(f32, @floatFromInt(gctx.viewport_height));
+            const screen_center_x: f32 = screen_size_x / 2;
+            const screen_center_y: f32 = screen_size_y / 2;
+            {
+                const logo_size: f32 = 840;
+                const logo_half_size: f32 = logo_size / 2;
+
+                const top = screen_center_y - logo_half_size;
+                const bottom = screen_center_y + logo_half_size;
+                const left = screen_center_x - logo_half_size;
+                const right = screen_center_x + logo_half_size;
+
+                const image = UIImage{
+                    .rect = [4]f32{ top, bottom, left, right },
+                    .color = [4]f32{ 1.0, 1.0, 1.0, opacity },
+                    .texture = state.end_screen_texture,
+                };
+
+                state.drawUIImage(image) catch unreachable;
             }
         }
 

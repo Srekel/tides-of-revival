@@ -123,8 +123,6 @@ pub fn destroy(system: *SystemState) void {
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    updateInteractors(system, iter.iter.delta_time);
-    updateCrosshair(system);
 
     {
         var ui_label = gfx_d3d12.UILabel{
@@ -151,6 +149,12 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         ui_label.label = std.fmt.bufPrint(buffer[0..], "Arrows: {d}", .{system.arrows}) catch unreachable;
         system.gfx.drawUILabel(ui_label) catch unreachable;
     }
+
+    updateCrosshair(system);
+    if (system.gfx.end_screen_accumulated_time > 0) {
+        return;
+    }
+    updateInteractors(system, iter.iter.delta_time);
 }
 
 var playingID: AK.AkPlayingID = 0;

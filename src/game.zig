@@ -50,6 +50,7 @@ const SpawnContext = struct {
     root_ent: ?ecs.entity_t,
     speed: f32 = 1,
     stage: f32 = 0,
+    gfx: *gfx.D3D12State,
 };
 
 var giant_ant_prefab: ecsu.Entity = undefined;
@@ -58,7 +59,12 @@ var player_prefab: ecsu.Entity = undefined;
 
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
+
     var ctx = util.castOpaque(SpawnContext, data);
+    if (ctx.gfx.end_screen_accumulated_time > 0) {
+        return;
+    }
+
     ctx.stage += 1;
     timeline_system.modifyInstanceSpeed(ctx.timeline_system, IdLocal.init("giantAntSpawn").hash, 0, ctx.speed);
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
@@ -91,13 +97,13 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
         ent.set(fd.Scale.createScalar(scale));
 
         const hp = blk: {
-        if (is_boss) {
+            if (is_boss) {
                 break :blk 100000 + ctx.stage * 1000 + ctx.stage * ctx.stage * 250;
             } else if (is_big) {
                 break :blk 10000 + ctx.stage * 1000;
-        } else {
+            } else {
                 break :blk 1;
-        }
+            }
         };
         ent.set(fd.Health{ .value = hp });
 
@@ -692,6 +698,7 @@ pub fn run() void {
             .event_manager = &event_manager,
             .timeline_system = timeline_sys,
             .root_ent = player_spawn.?.city_ent,
+            .gfx = gfx_state,
         };
 
         const tl_giant_ant_spawn = config.events.TimelineTemplateData{
