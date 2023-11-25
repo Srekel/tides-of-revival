@@ -350,8 +350,9 @@ pub fn run() void {
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_look_y, .source = input.BindingSource{ .gamepad_axis = .right_y } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_move_x, .source = input.BindingSource{ .gamepad_axis = .left_x } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_gamepad_move_y, .source = input.BindingSource{ .gamepad_axis = .left_y } });
-        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
-        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .gamepad_button = .right_bumper } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_wielded_use_primary, .source = input.BindingSource{ .gamepad_button = .right_bumper } });
+        // gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_slow, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = config.input_move_fast, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
         gamepad_map.processors.ensureTotalCapacity(16) catch unreachable;
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = config.input_gamepad_look_x,
@@ -402,6 +403,12 @@ pub fn run() void {
             .target_id = config.input_move_backward,
             .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisSplit{ .source_target = config.input_gamepad_move_y, .is_positive = true } },
         });
+
+        // Trigger axis
+        // gamepad_map.processors.appendAssumeCapacity(.{
+        //     .target_id = config.input_wielded_use_primary,
+        //     .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisToBool{ .source_target = config.input_wielded_use_primary } },
+        // });
 
         var layer_on_foot = input.KeyMapLayer{
             .id = IdLocal.init("on_foot"),

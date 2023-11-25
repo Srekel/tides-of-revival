@@ -208,6 +208,19 @@ pub const ProcessorAxisSplit = struct {
     }
 };
 
+pub const ProcessorAxisToBool = struct {
+    source_target: IdLocal,
+
+    pub fn process(self: ProcessorAxisToBool, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
+        _ = targets_prev;
+        var res = targets_curr.get(self.source_target).?;
+        if (res.number > 0.1) {
+            return TargetValue{ .number = 1 };
+        }
+        return TargetValue{ .number = 0 };
+    }
+};
+
 pub const ProcessorClass = union(enum) {
     // axis2d:  remap4ToAxis2D,
     scalar: ProcessorScalar,
@@ -215,6 +228,7 @@ pub const ProcessorClass = union(enum) {
     vector2diff: ProcessorVector2Diff,
     axis_conversion: ProcessorAxisConversion,
     axis_split: ProcessorAxisSplit,
+    axis_to_bool: ProcessorAxisToBool,
 };
 
 pub const Processor = struct {
