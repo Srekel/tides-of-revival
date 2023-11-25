@@ -1502,7 +1502,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
 
     // Generate IBL textures from HDRI
     {
-        state.generateIBLTextures("content/textures/env/moonless_golf_2k.hdr", arena) catch unreachable;
+        state.generateIBLTextures("content/textures/env/dikhololo_night_2k.hdr", arena) catch unreachable;
     }
 
     // BRDF Integration
