@@ -2,7 +2,15 @@
 
 Tides of Revival, or Tides for short, is, put as succinctly as possible, a Massive ImSim. Well, it isn't that _yet_. But that's the ambition.
 
-Here are some bullet points to describe the game:
+<p align="center">
+  <img alt="Tides of Revival Logo" src="docs/tides_logo.png" width="512" />
+  <a href="https://tides-of-revival.itch.io/tides-of-revival" target="blank">
+    <img alt="Available on itch.io" src="https://jessemillar.github.io/available-on-itchio-badge/badge-bw.png" width="512" />
+  </a>
+</p>
+
+
+**Here are some bullet points to describe the game:**
 
 - Single-player RPG set in a huge fantasy world played from an FPS perspective.
 - The world suffers millenia-long cycles, consisting of two so-called "tides": Chaos and Prosperity. You are starting the game just as the Chaos tide is winding down - people are beaten, the world is unknown, monsters are out there, but the chance to kickstart the way to Prosperity is now!
@@ -31,10 +39,26 @@ These are the currently planned hills. As you can see, it is quite a ways to go 
 | Hill Name                        | Status | Release | Description                                                                                                                      |
 | -------------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Death from Darkness              | ✅     | 2023-01 | One brave person must light the way to a village on the other side of the valley. But make sure you stay in the light, or die... |
-| March of the Ants                | 🏃‍♀️     | 2023-11 | Your farmstead is under attack by vicious ants. Use your bow to protect it for as long as possible.                              |
-| A Fort Wasn't Built in a Day     | ⏲️     | 2024-08 | A nice place for a fort has been discovered. Protect it during the months it takes for the builders to finish constructing it.   |
+| March of the Ants                | ✅     | 2023-11 | Your farmstead is under attack by vicious ants. Use your bow to protect it for as long as possible.                              |
+| A Fort Wasn't Built in a Day     | 🏃‍♀️     | 2024-08 | A nice place for a fort has been discovered. Protect it during the months it takes for the builders to finish constructing it.   |
 | All Roads Lead to Various Places | ⏲️     | 2025-06 | Protect builders and caravans as they start traveling between villages. See the web of roads grow as you make the lands safer.   |
 | The Revival Begins               | ⏲️     | 2026-02 | Bandits and wild creatures roam the lands. Only by you leading the Revival will villages start to grow and roads improve.        |
+
+As you can see, the hill that we are currently working on is called **A Fort Wasn't Built in a Day**. Here are the planned technical additions we plan to make during course of its development:
+
+- AI: Goals, actions, sensors
+- Day/night cycle
+- [Flecs](https://www.flecs.dev/flecs/) Explorer improvements
+- [IMGUI](https://github.com/ocornut/imgui)
+- [Jolt](https://jrouwe.github.io/JoltPhysics/) physics debug/viz
+- Modular buildings along splines
+- Pathfinding with [Recast and Detour](https://recastnav.com/)
+- Render architecture
+- Shadows (sun)
+- Simple atmosphere model
+- Terrain stitching
+- [The Debuginator](https://github.com/Srekel/the-debuginator)
+- [The-Forge](https://github.com/ConfettiFX/The-Forge) based renderer
 
 ## Follow the Development
 
