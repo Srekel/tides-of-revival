@@ -4,7 +4,7 @@ Tides of Revival, or Tides for short, is, put as succinctly as possible, a Massi
 
 <p align="center">
   <img alt="Tides of Revival Logo" src="docs/tides_logo.png" width="512" />
-  <a href="https://tides-of-revival.itch.io/tides-of-revival" target="blank">
+  <a href="https://tides-of-revival.itch.io/tides-of-revival" target="_blank">
     <img alt="Available on itch.io" src="https://jessemillar.github.io/available-on-itchio-badge/badge-bw.png" width="512" />
   </a>
 </p>
