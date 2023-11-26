@@ -54,3 +54,4 @@ These are the currently planned hills. As you can see, it is quite a ways to go 
 
 It's impossible to build a game like Tides without a team. There is an incredible amount of things to do in a lot of different areas and dimensions. We value kindness, diversity, and avoiding stress. Poke me (Anders) on any of my channels if you're interested. :)
 
+Only the source is stored on Github. All content is stored on a private SVN for cost and licensing issues. Let us know if you want to try building and running the game and we can help you out!
