@@ -1,5 +1,5 @@
 const std = @import("std");
-const IdLocal = @import("../variant.zig").IdLocal;
+const IdLocal = @import("../core/core.zig").IdLocal;
 
 pub const EventCallback = *const fn (ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void;
 

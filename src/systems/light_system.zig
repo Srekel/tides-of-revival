@@ -11,9 +11,9 @@ const renderer_types = @import("../renderer/renderer_types.zig");
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;
 
-const IdLocal = @import("../variant.zig").IdLocal;
+const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
-const fd = @import("../flecs_data.zig");
+const fd = @import("../config/flecs_data.zig");
 
 const SystemState = struct {
     allocator: std.mem.Allocator,

@@ -1,6 +1,6 @@
 const std = @import("std");
 const g = @import("graph.zig");
-const v = @import("../../variant.zig");
+const v = @import("../../core/core.zig").variant;
 // const g =
 
 pub fn getInputResult(input: *g.NodeInput, context: *g.GraphContext) v.Variant {

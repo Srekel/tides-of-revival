@@ -1,6 +1,6 @@
 const std = @import("std");
 const zglfw = @import("zglfw");
-const IdLocal = @import("variant.zig").IdLocal;
+const IdLocal = @import("core/core.zig").IdLocal;
 
 pub const TargetMap = std.AutoHashMap(IdLocal, TargetValue);
 

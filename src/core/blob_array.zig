@@ -1,6 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
-const Util = @import("util.zig");
+const Util = @import("../util.zig");
 
 /// An array of aligned byte blobs of a fixed (runtime determined size)
 pub fn BlobArray(comptime alignment: u29) type {

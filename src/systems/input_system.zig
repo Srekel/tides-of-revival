@@ -3,8 +3,8 @@ const math = std.math;
 const ecs = @import("zflecs");
 const zm = @import("zmath");
 const ecsu = @import("../flecs_util/flecs_util.zig");
-const fd = @import("../flecs_data.zig");
-const IdLocal = @import("../variant.zig").IdLocal;
+const fd = @import("../config/flecs_data.zig");
+const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
 
 const SystemState = struct {

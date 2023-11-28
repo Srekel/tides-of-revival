@@ -2,8 +2,8 @@ const std = @import("std");
 const zstbi = @import("zstbi");
 
 const g = @import("graph/graph.zig");
-const v = @import("../variant.zig");
-const IdLocal = v.IdLocal;
+const v = @import("../core/core.zig").variant;
+const IdLocal = @import("../core/core.zig").IdLocal;
 
 const graph_city = @import("graph/city.zig");
 const graph_forest = @import("graph/forest.zig");

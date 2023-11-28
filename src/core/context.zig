@@ -1,6 +1,6 @@
 const std = @import("std");
-const v = @import("../variant.zig");
-const IdLocal = v.IdLocal;
+const v = @import("../core/core.zig").variant;
+const IdLocal = @import("../core/core.zig").IdLocal;
 const Variant = v.Variant;
 
 pub const Context = struct {

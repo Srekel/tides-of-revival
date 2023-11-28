@@ -3,10 +3,10 @@ const img = @import("zigimg");
 const znoise = @import("znoise");
 
 const g = @import("graph.zig");
-const lru = @import("../../lru_cache.zig");
-const v = @import("../../variant.zig");
-const config = @import("../../config.zig");
-const IdLocal = v.IdLocal;
+const lru = @import("../../../core/lru_cache.zig");
+const v = @import("../../core/core.zig").variant;
+const config = @import("../../config/config.zig");
+const IdLocal = @import("../../core/core.zig").IdLocal;
 
 const graph_props = @import("props.zig");
 const graph_util = @import("util.zig");

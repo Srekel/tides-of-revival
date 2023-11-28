@@ -2,8 +2,8 @@ const std = @import("std");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
 
-const config = @import("../config.zig");
-const IdLocal = @import("../variant.zig").IdLocal;
+const config = @import("../config/config.zig");
+const IdLocal = @import("../core/core.zig").IdLocal;
 const util = @import("../util.zig");
 
 const world_patch_manager = @import("world_patch_manager.zig");

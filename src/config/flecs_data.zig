@@ -1,16 +1,16 @@
 const std = @import("std");
-const window = @import("window.zig");
 const zglfw = @import("zglfw");
 const zphy = @import("zphysics");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const ecs = @import("zflecs");
-const ecsu = @import("flecs_util/flecs_util.zig");
-const IdLocal = @import("variant.zig").IdLocal;
-const MeshHandle = @import("gfx_d3d12.zig").MeshHandle;
-const TextureHandle = @import("gfx_d3d12.zig").TextureHandle;
-const MaterialHandle = @import("gfx_d3d12.zig").MaterialHandle;
-const rt = @import("renderer/renderer_types.zig");
+const window = @import("../window.zig");
+const ecsu = @import("../flecs_util/flecs_util.zig");
+const IdLocal = @import("../core/core.zig").IdLocal;
+const MeshHandle = @import("../gfx_d3d12.zig").MeshHandle;
+const TextureHandle = @import("../gfx_d3d12.zig").TextureHandle;
+const MaterialHandle = @import("../gfx_d3d12.zig").MaterialHandle;
+const rt = @import("../renderer/renderer_types.zig");
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
     var ecs_world = ecsu_world.world;

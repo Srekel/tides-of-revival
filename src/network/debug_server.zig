@@ -8,7 +8,7 @@ const ws_client = websocket.client;
 const net = std.net;
 const Loop = std.event.Loop;
 
-const IdLocal = @import("../variant.zig").IdLocal;
+const IdLocal = @import("../core/core.zig").IdLocal;
 
 const DebugServerHandlerCallbackFn = *const fn (data: []const u8, allocator: std.mem.Allocator, ctx: *anyopaque) []const u8;
 const DebugServerHandler = struct {

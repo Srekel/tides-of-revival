@@ -1,6 +1,6 @@
 const zm = @import("zmath");
 const zphy = @import("zphysics");
-const IdLocal = @import("variant.zig").IdLocal;
+const IdLocal = @import("../core/core.zig").IdLocal;
 const AK = @import("wwise-zig");
 
 pub const events = @import("events.zig");

@@ -7,7 +7,7 @@ const zm = @import("zmath");
 const zmu = @import("zmathutil");
 const ecs = @import("zflecs");
 
-const config = @import("../config.zig");
+const config = @import("../config/config.zig");
 const gfx = @import("../gfx_d3d12.zig");
 const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
@@ -21,8 +21,8 @@ const dds_loader = zwin32.dds_loader;
 
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
-const fd = @import("../flecs_data.zig");
-const IdLocal = @import("../variant.zig").IdLocal;
+const fd = @import("../config/flecs_data.zig");
+const IdLocal = @import("../core/core.zig").IdLocal;
 const tides_math = @import("../core/math.zig");
 
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;

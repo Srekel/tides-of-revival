@@ -1,7 +1,7 @@
 const zphy = @import("zphysics");
 const ecs = @import("zflecs");
-const IdLocal = @import("variant.zig").IdLocal;
-const timeline_system = @import("systems/timeline_system.zig");
+const IdLocal = @import("../core/core.zig").IdLocal;
+const timeline_system = @import("../systems/timeline_system.zig");
 
 // FrameCollisions
 pub const frame_collisions_id = IdLocal.init("frame_collisions");

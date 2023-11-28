@@ -2,10 +2,10 @@ const std = @import("std");
 const img = @import("zigimg");
 
 const g = @import("graph.zig");
-const lru = @import("../../lru_cache.zig");
-const v = @import("../../variant.zig");
-const config = @import("../../config.zig");
-const IdLocal = v.IdLocal;
+const lru = @import("../../../core/lru_cache.zig");
+const v = @import("../../core/core.zig").variant;
+const config = @import("../../config/config.zig");
+const IdLocal = @import("../../core/core.zig").IdLocal;
 const tides_math = @import("../../core/math.zig");
 
 const graph_util = @import("util.zig");

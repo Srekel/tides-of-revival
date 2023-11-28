@@ -1,5 +1,5 @@
 const ecs = @import("zflecs");
-const ecsu = @import("flecs_util/flecs_util.zig");
+const ecsu = @import("../flecs_util/flecs_util.zig");
 
 pub fn registerRelations(ecsu_world: ecsu.World) void {
     Hometown = ecsu_world.newEntityWithName("HomeTown").id;

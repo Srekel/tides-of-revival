@@ -15,14 +15,14 @@ const dds_loader = zwin32.dds_loader;
 const zglfw = @import("zglfw");
 const profiler_module = @import("renderer/d3d12/profiler.zig");
 const Pool = @import("zpool").Pool;
-const IdLocal = @import("variant.zig").IdLocal;
-const IdLocalContext = @import("variant.zig").IdLocalContext;
+const IdLocal = @import("core/core.zig").IdLocal;
+const IdLocalHashMapContext = @import("core/core.zig").IdLocalHashMapContext;
 const buffer_module = @import("renderer/d3d12/buffer.zig");
 const renderer_types = @import("renderer/renderer_types.zig");
 const mesh_loader = @import("renderer/mesh_loader.zig");
 const zm = @import("zmath");
-const fd = @import("flecs_data.zig");
-const config = @import("config.zig");
+const fd = @import("config/flecs_data.zig");
+const config = @import("config/config.zig");
 const zstbi = @import("zstbi");
 const util = @import("util.zig");
 const tides_math = @import("core/math.zig");
@@ -229,7 +229,7 @@ pub const PipelineInfo = struct {
     pipeline_handle: zd3d12.PipelineHandle,
 };
 
-const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalContext, 80);
+const PipelineHashMap = std.HashMap(IdLocal, PipelineInfo, IdLocalHashMapContext, 80);
 
 pub const D3D12State = struct {
     pub const num_buffered_frames = zd3d12.GraphicsContext.max_num_buffered_frames;

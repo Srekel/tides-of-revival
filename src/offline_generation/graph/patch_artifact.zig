@@ -4,9 +4,9 @@ const zm = @import("zmath");
 const zstbi = @import("zstbi");
 
 const g = @import("graph.zig");
-const lru = @import("../../lru_cache.zig");
-const v = @import("../../variant.zig");
-const IdLocal = v.IdLocal;
+const lru = @import("../../../core/lru_cache.zig");
+const v = @import("../../core/core.zig").variant;
+const IdLocal = @import("../../core/core.zig").IdLocal;
 
 const graph_util = @import("util.zig");
 const graph_heightmap = @import("heightmap.zig");

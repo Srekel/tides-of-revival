@@ -1,7 +1,7 @@
 const std = @import("std");
 const img = @import("zigimg");
 const Pool = @import("zpool").Pool;
-const IdLocal = @import("../variant.zig").IdLocal;
+const IdLocal = @import("../core/core.zig").IdLocal;
 const BucketQueue = @import("../core/bucket_queue.zig").BucketQueue;
 const ref_count = @import("../core/ref_count.zig").RefCountWithId;
 

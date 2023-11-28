@@ -1,15 +1,15 @@
 const std = @import("std");
 const math = std.math;
 const ecs = @import("zflecs");
-const IdLocal = @import("../../variant.zig").IdLocal;
+const IdLocal = @import("../../core/core.zig").IdLocal;
 const Util = @import("../../util.zig");
-const BlobArray = @import("../../blob_array.zig").BlobArray;
+const BlobArray = @import("../../core/blob_array.zig").BlobArray;
 const fsm = @import("../fsm.zig");
 const ecsu = @import("../../flecs_util/flecs_util.zig");
-const fd = @import("../../flecs_data.zig");
+const fd = @import("../../config/flecs_data.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
-const config = @import("../../config.zig");
+const config = @import("../../config/config.zig");
 
 fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const movement_yaw = input_state.get(config.input_look_yaw).number;
@@ -18,21 +18,12 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
     const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
     const rot_in = rot.asZM();
-    const rot_pitch_new = zm.qmul(rot_pitch, rot_in);
-    const rot_new = zm.qmul(
-        rot_pitch_new,
-        rot_yaw,
-    );
-    const rpy = zm.quatToRollPitchYaw(rot_new);
     const rpy_constrained = .{
         std.math.clamp(rpy[0], -0.9, 0.9),
         rpy[1],
         rpy[2],
     };
-    // const rot_new = zm.qmul(zm.loadArr3(rpy_constrained), rot_yaw);
     const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
-
-    rot.fromZM(constrained_z);
 }
 
 fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_state: *const input.FrameData) void {

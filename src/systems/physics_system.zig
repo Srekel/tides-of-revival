@@ -5,11 +5,11 @@ const zm = @import("zmath");
 const zphy = @import("zphysics");
 
 const ecsu = @import("../flecs_util/flecs_util.zig");
-const fd = @import("../flecs_data.zig");
-const IdLocal = @import("../variant.zig").IdLocal;
+const fd = @import("../config/flecs_data.zig");
+const IdLocal = @import("../core/core.zig").IdLocal;
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const tides_math = @import("../core/math.zig");
-const config = @import("../config.zig");
+const config = @import("../config/config.zig");
 const util = @import("../util.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 

@@ -1,11 +1,11 @@
 const std = @import("std");
 
 const Pool = @import("zpool").Pool;
-const IdLocal = @import("../variant.zig").IdLocal;
+const IdLocal = @import("../core/core.zig").IdLocal;
 const BucketQueue = @import("../core/bucket_queue.zig").BucketQueue;
 const AssetManager = @import("../core/asset_manager.zig").AssetManager;
 const util = @import("../util.zig");
-const config = @import("../config.zig");
+const config = @import("../config/config.zig");
 const debug_server = @import("../network/debug_server.zig");
 
 const DEBUG_LOGGING = false;

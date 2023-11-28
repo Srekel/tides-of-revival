@@ -12,12 +12,12 @@ const audio = @import("audio/audio_manager.zig");
 const zm = @import("zmath");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
-const Variant = @import("variant.zig").Variant;
-const IdLocal = @import("variant.zig").IdLocal;
-const config = @import("config.zig");
+const Variant = @import("core/core.zig").Variant;
+const IdLocal = @import("core/core.zig").IdLocal;
+const config = @import("config/config.zig");
 const util = @import("util.zig");
-const fd = @import("flecs_data.zig");
-const fr = @import("flecs_relation.zig");
+const fd = @import("config/flecs_data.zig");
+const fr = @import("config/flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const gfx = @import("gfx_d3d12.zig");
 const pm = @import("prefab_manager.zig");
@@ -764,6 +764,7 @@ pub fn run() void {
         };
         event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_despawn);
     }
+
     // // ███████╗██╗     ███████╗ ██████╗███████╗
     // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝
     // // █████╗  ██║     █████╗  ██║     ███████╗

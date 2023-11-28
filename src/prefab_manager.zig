@@ -5,12 +5,12 @@ const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const zwin32 = @import("zwin32");
 
-const fd = @import("flecs_data.zig");
+const fd = @import("config/flecs_data.zig");
 const gfx = @import("gfx_d3d12.zig");
 const mesh_loader = @import("renderer/mesh_loader.zig");
 const util = @import("util.zig");
 const rt = @import("renderer/renderer_types.zig");
-const IdLocal = @import("variant.zig").IdLocal;
+const IdLocal = @import("core/core.zig").IdLocal;
 
 const assert = std.debug.assert;
 const d3d12 = zwin32.d3d12;

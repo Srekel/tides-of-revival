@@ -1,8 +1,8 @@
 const std = @import("std");
 const ecs = @import("zflecs");
-const fd = @import("flecs_data.zig");
+const fd = @import("config/flecs_data.zig");
 const znoise = @import("znoise");
-const v = @import("variant.zig");
+const v = @import("core/variant.zig");
 const context = @import("core/context.zig");
 
 pub const Context = context.Context;
