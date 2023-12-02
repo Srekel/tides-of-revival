@@ -1,5 +1,7 @@
 const std = @import("std");
 
+pub const ID = IdLocal.init;
+
 pub const IdLocal = struct {
     str: [191]u8 = .{0} ** 191,
     strlen: u8 = 0,
