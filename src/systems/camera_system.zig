@@ -13,7 +13,7 @@ const input = @import("../input.zig");
 const config = @import("../config/config.zig");
 const ztracy = @import("ztracy");
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     sys: ecs.entity_t,

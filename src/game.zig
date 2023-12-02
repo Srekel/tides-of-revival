@@ -12,34 +12,22 @@ const audio = @import("audio/audio_manager.zig");
 const zm = @import("zmath");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
-const Variant = @import("core/core.zig").Variant;
-const IdLocal = @import("core/core.zig").IdLocal;
 const config = @import("config/config.zig");
-const util = @import("util.zig");
 const fd = @import("config/flecs_data.zig");
 const fr = @import("config/flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const gfx = @import("renderer/gfx_d3d12.zig");
+const IdLocal = @import("core/core.zig").IdLocal;
+const input = @import("input.zig");
 const pm = @import("prefab_manager.zig");
+const util = @import("util.zig");
+const Variant = @import("core/core.zig").Variant;
 const window = @import("renderer/window.zig");
 const EventManager = @import("core/event_manager.zig").EventManager;
 
 const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
-
-const light_system = @import("systems/light_system.zig");
-const camera_system = @import("systems/camera_system.zig");
-const city_system = @import("systems/procgen/city_system.zig");
-const input_system = @import("systems/input_system.zig");
-const input = @import("input.zig");
-const interact_system = @import("systems/interact_system.zig");
-const physics_system = @import("systems/physics_system.zig");
-const terrain_quad_tree_system = @import("systems/terrain_quad_tree.zig");
-const patch_prop_system = @import("systems/patch_prop_system.zig");
-const static_mesh_renderer_system = @import("systems/static_mesh_renderer_system.zig");
-const state_machine_system = @import("systems/state_machine_system.zig");
-const timeline_system = @import("systems/timeline_system.zig");
 
 pub fn run() void {
     const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
@@ -91,13 +79,6 @@ pub fn run() void {
     const input_target_defaults = config.input.createDefaultTargetDefaults(std.heap.page_allocator);
     const input_keymap = config.input.createKeyMap(std.heap.page_allocator);
     var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window);
-    var input_sys = try input_system.create(
-        IdLocal.init("input_sys"),
-        std.heap.page_allocator,
-        ecsu_world,
-        &input_frame_data,
-    );
-    defer input_system.destroy(input_sys);
 
     var asset_manager = AssetManager.create(std.heap.page_allocator);
     defer asset_manager.destroy();
@@ -125,94 +106,13 @@ pub fn run() void {
         .physics_world = physics_world, // TODO: Optional
         .prefab_manager = &prefab_manager,
         .gfx = gfx_state,
+        .world_patch_mgr = world_patch_mgr,
+        .gfx_state = gfx_state,
+        .asset_manager = &asset_manager,
     };
-
-    var physics_sys = try physics_system.create(
-        IdLocal.init("physics_system"),
-        system_context,
-    );
-    defer physics_system.destroy(physics_sys);
-    gameloop_context.physics_world = physics_sys.physics_world;
-
-    var state_machine_sys = try state_machine_system.create(
-        IdLocal.init("state_machine_sys"),
-        std.heap.page_allocator,
-        state_machine_system.SystemCtx.view(gameloop_context),
-    );
-    defer state_machine_system.destroy(state_machine_sys);
-
-    system_context.put(config.input_frame_data, &input_frame_data);
-    system_context.putOpaque(config.physics_world, physics_sys.physics_world);
-
-    var interact_sys = try interact_system.create(
-        IdLocal.init("interact_sys"),
-        interact_system.SystemCtx.view(gameloop_context),
-    );
-    defer interact_system.destroy(interact_sys);
-
-    var timeline_sys = try timeline_system.create(
-        IdLocal.init("timeline_sys"),
-        system_context,
-    );
-    defer timeline_system.destroy(timeline_sys);
-
-    var city_sys = try city_system.create(
-        IdLocal.init("city_system"),
-        std.heap.page_allocator,
-        gfx_state,
-        ecsu_world,
-        physics_sys.physics_world,
-        &asset_manager,
-        &prefab_manager,
-    );
-    defer city_system.destroy(city_sys);
-
-    var camera_sys = try camera_system.create(
-        IdLocal.init("camera_system"),
-        std.heap.page_allocator,
-        gfx_state,
-        ecsu_world,
-        &input_frame_data,
-    );
-    defer camera_system.destroy(camera_sys);
-
-    var patch_prop_sys = try patch_prop_system.create(
-        IdLocal.initFormat("patch_prop_system_{}", .{0}),
-        std.heap.page_allocator,
-        ecsu_world,
-        world_patch_mgr,
-        &prefab_manager,
-    );
-    defer patch_prop_system.destroy(patch_prop_sys);
-
-    var light_sys = try light_system.create(
-        IdLocal.initFormat("light_system_{}", .{0}),
-        std.heap.page_allocator,
-        gfx_state,
-        &ecsu_world,
-        &input_frame_data,
-    );
-    defer light_system.destroy(light_sys);
-
-    var static_mesh_renderer_sys = try static_mesh_renderer_system.create(
-        IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
-        std.heap.page_allocator,
-        gfx_state,
-        &ecsu_world,
-        &input_frame_data,
-    );
-    defer static_mesh_renderer_system.destroy(static_mesh_renderer_sys);
-
-    var terrain_quad_tree_sys = try terrain_quad_tree_system.create(
-        IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
-        std.heap.page_allocator,
-        gfx_state,
-        ecsu_world,
-        world_patch_mgr,
-    );
-    defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
-
-    city_system.createEntities(city_sys);
+    config.system.createSystems(&gameloop_context, &system_context);
+    config.system.setupSystems();
+    defer config.system.destroySystems();
 
     // Make sure systems are initialized and any initial system entities are created.
     update(ecsu_world, gfx_state);
@@ -364,10 +264,10 @@ pub fn run() void {
     if (player_spawn != null) {
         tl_giant_ant_spawn_ctx = config.timeline.WaveSpawnContext{
             .ecsu_world = ecsu_world,
-            .physics_world = physics_sys.physics_world,
+            .physics_world = gameloop_context.physics_world,
             .prefab_manager = &prefab_manager,
             .event_manager = &event_manager,
-            .timeline_system = timeline_sys,
+            .timeline_system = config.system.timeline_sys,
             .root_ent = player_spawn.?.city_ent,
             .gfx = gfx_state,
         };

@@ -68,7 +68,7 @@ const masked_entities_index: u32 = 0;
 const opaque_entities_index: u32 = 1;
 const max_entity_types: u32 = 2;
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: *ecsu.World,
     sys: ecs.entity_t,

@@ -12,6 +12,7 @@ const tides_math = @import("../core/math.zig");
 const config = @import("../config/config.zig");
 const util = @import("../util.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
+const context = @import("../core/context.zig");
 
 const patch_side_vertex_count = config.patch_resolution;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
@@ -159,7 +160,7 @@ const Patch = struct {
 
 const IndexType = u32;
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
@@ -177,11 +178,20 @@ const SystemState = struct {
     indices: [indices_per_patch]IndexType,
 };
 
-pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
-    const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
-    const event_manager = ctx.get(config.event_manager.hash, EventManager);
-    const world_patch_mgr = ctx.get(config.world_patch_mgr.hash, world_patch_manager.WorldPatchManager);
+pub const SystemCtx = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    event_manager: *EventManager,
+    physics_world: *zphy.PhysicsSystem,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+};
+
+pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
+    const allocator = ctx.allocator;
+    const ecsu_world = ctx.ecsu_world;
+    const event_manager = ctx.event_manager;
+    const world_patch_mgr = ctx.world_patch_mgr;
 
     var query_builder_body = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_body.with(fd.PhysicsBody)

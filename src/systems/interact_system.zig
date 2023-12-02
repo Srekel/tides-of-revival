@@ -37,7 +37,7 @@ pub const MovingBroadPhaseLayerFilter = extern struct {
     }
 };
 
-const SystemState = struct {
+pub const SystemState = struct {
     flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,

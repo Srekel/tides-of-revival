@@ -6,6 +6,7 @@ const ID = @import("../core/core.zig").ID;
 pub const events = @import("events.zig");
 pub const input = @import("input.zig");
 pub const prefab = @import("prefab.zig");
+pub const system = @import("system.zig");
 pub const timeline = @import("timeline.zig");
 
 pub const UP_Z = zm.f32x4(0, 1, 0, 1);

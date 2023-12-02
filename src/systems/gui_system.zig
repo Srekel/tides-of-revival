@@ -9,7 +9,7 @@ const wgpu = zgpu.wgpu;
 
 const font = "fonts/Roboto-Medium.ttf";
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
 
     gfx: *gfx.GfxState,

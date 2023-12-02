@@ -29,7 +29,7 @@ const StateMachineInstance = struct {
     blob_array: BlobArray(16),
 };
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     flecs_sys: ecs.entity_t,

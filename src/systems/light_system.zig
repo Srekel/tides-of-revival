@@ -15,7 +15,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
 const fd = @import("../config/flecs_data.zig");
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: *ecsu.World,
     sys: ecs.entity_t,

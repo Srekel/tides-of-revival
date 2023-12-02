@@ -160,7 +160,7 @@ const DrawCall = struct {
     start_instance_location: u32,
 };
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,

@@ -15,7 +15,7 @@ const IdLocal = @import("../../core/core.zig").IdLocal;
 const AssetManager = @import("../../core/asset_manager.zig").AssetManager;
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 
-const SystemState = struct {
+pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
