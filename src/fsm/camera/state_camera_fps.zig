@@ -117,13 +117,13 @@ fn update(ctx: fsm.StateFuncContext) void {
             continue;
         }
 
-        updateLook(comps.rot, ctx.frame_data);
+        updateLook(comps.rot, ctx.input_frame_data);
         // updateInteract(
         //     comps.transform,
         //     // comps.fwd,
         //     ctx.physics_world,
         //     ctx.ecsu_world,
-        //     ctx.frame_data,
+        //     ctx.input_frame_data,
         // );
     }
 }

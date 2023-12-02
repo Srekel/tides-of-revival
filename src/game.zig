@@ -441,7 +441,7 @@ pub fn run() void {
         .audio_mgr = &audio_mgr,
         .ecsu_world = ecsu_world,
         .event_manager = &event_manager,
-        .frame_data = &input_frame_data,
+        .input_frame_data = &input_frame_data,
         .physics_world = physics_world, // TODO: Optional
         .prefab_manager = &prefab_manager,
         .gfx = gfx_state,

@@ -107,8 +107,8 @@ fn update(ctx: fsm.StateFuncContext) void {
             // HACK
             continue;
         }
-        updateLook(comps.rot, ctx.frame_data);
-        updateMovement(comps.pos, comps.rot, ctx.dt, ctx.frame_data);
+        updateLook(comps.rot, ctx.input_frame_data);
+        updateMovement(comps.pos, comps.rot, ctx.dt, ctx.input_frame_data);
     }
 }
 

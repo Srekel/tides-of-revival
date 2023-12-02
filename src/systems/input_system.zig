@@ -12,10 +12,10 @@ const SystemState = struct {
     ecsu_world: ecsu.World,
     flecs_sys: ecs.entity_t,
     query: ecsu.Query,
-    frame_data: *input.FrameData,
+    input_frame_data: *input.FrameData,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, frame_data: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
     var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
         .with(fd.Input);
@@ -28,7 +28,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
         .ecsu_world = ecsu_world,
         .flecs_sys = flecs_sys,
         .query = query,
-        .frame_data = frame_data,
+        .input_frame_data = input_frame_data,
     };
 
     // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
@@ -47,7 +47,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // const dt4 = zm.f32x4s(iter.iter.delta_time);
     // _ = system;
-    input.doTheThing(system.allocator, system.frame_data);
+    input.doTheThing(system.allocator, system.input_frame_data);
 
     // var entity_iter = system.query.iterator(struct {
     //     fsm: *fd.FSM,

@@ -259,20 +259,20 @@ pub const KeyMap = struct {
     layer_stack: std.ArrayList(KeyMapLayer),
 };
 
-pub fn doTheThing(allocator: std.mem.Allocator, frame_data: *FrameData) void {
+pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) void {
     var used_inputs = std.AutoHashMap(BindingSource, bool).init(allocator);
-    var targets_prev = &frame_data.targets_double_buffer[frame_data.index_curr];
-    frame_data.index_curr = 1 - frame_data.index_curr;
-    var targets = &frame_data.targets_double_buffer[frame_data.index_curr];
+    var targets_prev = &input_frame_data.targets_double_buffer[input_frame_data.index_curr];
+    input_frame_data.index_curr = 1 - input_frame_data.index_curr;
+    var targets = &input_frame_data.targets_double_buffer[input_frame_data.index_curr];
 
-    var it = frame_data.target_defaults.iterator();
+    var it = input_frame_data.target_defaults.iterator();
     while (it.next()) |kv| {
         targets.putAssumeCapacity(kv.key_ptr.*, kv.value_ptr.*);
     }
 
-    frame_data.targets = targets;
-    var map = frame_data.map;
-    var window = frame_data.window;
+    input_frame_data.targets = targets;
+    var map = input_frame_data.map;
+    var window = input_frame_data.window;
     for (map.layer_stack.items) |layer| {
         if (!layer.active) {
             continue;

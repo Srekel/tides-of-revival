@@ -64,7 +64,7 @@ pub const SystemState = struct {
     allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,
     ecsu_world: ecsu.World,
-    frame_data: *input.FrameData,
+    input_frame_data: *input.FrameData,
 
     timelines: std.ArrayList(Timeline),
 };
@@ -73,7 +73,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
     const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
-    const frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
+    const input_frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_manager = ctx.get(config.event_manager.hash, EventManager);
 
     var system = allocator.create(SystemState) catch unreachable;
@@ -83,7 +83,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .physics_world = physics_world,
-        .frame_data = frame_data,
+        .input_frame_data = input_frame_data,
         .timelines = std.ArrayList(Timeline).initCapacity(allocator, 16) catch unreachable,
     };
 

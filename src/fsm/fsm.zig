@@ -103,7 +103,7 @@ pub const StateFuncContext = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     blob_array: *BlobArray(16),
-    frame_data: *const input.FrameData,
+    input_frame_data: *const input.FrameData,
     audio_mgr: *audio.AudioManager,
     dt: zm.F32x4,
     gfx: *gfx_d3d12.D3D12State,

@@ -22,12 +22,12 @@ const SystemState = struct {
     query_camera: ecsu.Query,
     query_transform: ecsu.Query,
 
-    frame_data: *input.FrameData,
+    input_frame_data: *input.FrameData,
     switch_pressed: bool = false,
     active_index: u32 = 1,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.D3D12State, ecsu_world: ecsu.World, frame_data: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.D3D12State, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
     var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
         .with(fd.Camera)
@@ -76,7 +76,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.
         .gctx = &gfxstate.gctx,
         .query_camera = query_camera,
         .query_transform = query_transform,
-        .frame_data = frame_data,
+        .input_frame_data = input_frame_data,
     };
 
     ecsu_world.observer(ObserverCallback, ecs.OnSet, state);
@@ -208,7 +208,7 @@ fn updateCameraFrustum(state: *SystemState) void {
 }
 
 fn updateCameraSwitch(state: *SystemState) void {
-    if (!state.frame_data.just_pressed(config.input.camera_switch)) {
+    if (!state.input_frame_data.just_pressed(config.input.camera_switch)) {
         return;
     }
 

@@ -42,7 +42,7 @@ const SystemState = struct {
     allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,
     ecsu_world: ecsu.World,
-    frame_data: *input.FrameData,
+    input_frame_data: *input.FrameData,
     event_manager: *EventManager,
     prefab_manager: *PrefabManager,
     gfx: *gfx_d3d12.D3D12State,
@@ -62,7 +62,7 @@ pub const SystemCtx = struct {
     audio_mgr: *audio.AudioManager,
     ecsu_world: ecsu.World,
     event_manager: *EventManager,
-    frame_data: *input.FrameData,
+    input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     prefab_manager: *PrefabManager,
     gfx: *gfx_d3d12.D3D12State,
@@ -95,7 +95,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .allocator = allocator,
         .ecsu_world = ctx.ecsu_world,
         .physics_world = ctx.physics_world,
-        .frame_data = ctx.frame_data,
+        .input_frame_data = ctx.input_frame_data,
         .event_manager = ctx.event_manager,
         .prefab_manager = ctx.prefab_manager,
         .comp_query_interactor = comp_query_interactor,
@@ -170,12 +170,12 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
 
-    const wielded_use_primary_held = system.frame_data.held(config.input.wielded_use_primary);
-    const wielded_use_secondary_held = system.frame_data.held(config.input.wielded_use_secondary);
+    const wielded_use_primary_held = system.input_frame_data.held(config.input.wielded_use_primary);
+    const wielded_use_secondary_held = system.input_frame_data.held(config.input.wielded_use_secondary);
     const wielded_use_held = wielded_use_primary_held or wielded_use_secondary_held;
     _ = wielded_use_held;
-    const wielded_use_primary_pressed = system.frame_data.just_pressed(config.input.wielded_use_primary);
-    const wielded_use_primary_released = system.frame_data.just_released(config.input.wielded_use_primary);
+    const wielded_use_primary_pressed = system.input_frame_data.just_pressed(config.input.wielded_use_primary);
+    const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
     const arrow_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
