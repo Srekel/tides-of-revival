@@ -8,7 +8,7 @@ const zmu = @import("zmathutil");
 const ecs = @import("zflecs");
 
 const config = @import("../config/config.zig");
-const gfx = @import("../gfx_d3d12.zig");
+const gfx = @import("../renderer/gfx_d3d12.zig");
 const zd3d12 = @import("zd3d12");
 const zwin32 = @import("zwin32");
 const w32 = zwin32.w32;

@@ -6,7 +6,7 @@ const zmu = @import("zmathutil");
 const ecs = @import("zflecs");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 
-const gfx = @import("../gfx_d3d12.zig");
+const gfx = @import("../renderer/gfx_d3d12.zig");
 const renderer_types = @import("../renderer/renderer_types.zig");
 const zwin32 = @import("zwin32");
 const d3d12 = zwin32.d3d12;

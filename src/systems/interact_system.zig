@@ -19,7 +19,7 @@ const context = @import("../core/context.zig");
 const audio = @import("../audio/audio_manager.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
-const gfx_d3d12 = @import("../gfx_d3d12.zig");
+const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
 
 pub const MovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());

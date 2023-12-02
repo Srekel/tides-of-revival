@@ -2,7 +2,7 @@ const std = @import("std");
 const pm = @import("../prefab_manager.zig");
 const core = @import("../core/core.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
-const gfx = @import("../gfx_d3d12.zig");
+const gfx = @import("../renderer/gfx_d3d12.zig");
 
 const ID = core.IdLocal.init;
 

@@ -10,7 +10,7 @@ const zphy = @import("zphysics");
 const context = @import("../core/context.zig");
 const audio = @import("../audio/audio_manager.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
-const gfx_d3d12 = @import("../gfx_d3d12.zig");
+const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
 
 pub const TriggerEvent = struct {
     id: IdLocal,

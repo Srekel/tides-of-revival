@@ -19,9 +19,9 @@ const util = @import("util.zig");
 const fd = @import("config/flecs_data.zig");
 const fr = @import("config/flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
-const gfx = @import("gfx_d3d12.zig");
+const gfx = @import("renderer/gfx_d3d12.zig");
 const pm = @import("prefab_manager.zig");
-const window = @import("window.zig");
+const window = @import("renderer/window.zig");
 const EventManager = @import("core/event_manager.zig").EventManager;
 
 const patch_types = @import("worldpatch/patch_types.zig");

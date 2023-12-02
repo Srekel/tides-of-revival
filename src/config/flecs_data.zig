@@ -4,12 +4,12 @@ const zphy = @import("zphysics");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const ecs = @import("zflecs");
-const window = @import("../window.zig");
+const window = @import("../renderer/window.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
-const MeshHandle = @import("../gfx_d3d12.zig").MeshHandle;
-const TextureHandle = @import("../gfx_d3d12.zig").TextureHandle;
-const MaterialHandle = @import("../gfx_d3d12.zig").MaterialHandle;
+const MeshHandle = @import("../renderer/gfx_d3d12.zig").MeshHandle;
+const TextureHandle = @import("../renderer/gfx_d3d12.zig").TextureHandle;
+const MaterialHandle = @import("../renderer/gfx_d3d12.zig").MaterialHandle;
 const rt = @import("../renderer/renderer_types.zig");
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {

@@ -1,6 +1,6 @@
 const std = @import("std");
 const ecs = @import("zflecs");
-const gfx = @import("../../gfx_d3d12.zig");
+const gfx = @import("../../renderer/gfx_d3d12.zig");
 const znoise = @import("znoise");
 const zm = @import("zmath");
 const zphy = @import("zphysics");

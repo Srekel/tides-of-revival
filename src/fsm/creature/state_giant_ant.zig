@@ -13,7 +13,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
-const gfx_d3d12 = @import("../../gfx_d3d12.zig");
+const gfx_d3d12 = @import("../../renderer/gfx_d3d12.zig");
 
 pub const NonMovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());

@@ -3,7 +3,7 @@ const math = std.math;
 const ecs = @import("zflecs");
 const zgpu = @import("zgpu");
 const zm = @import("zmath");
-const gfx_d3d12 = @import("../gfx_d3d12.zig");
+const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
 const zd3d12 = @import("zd3d12");
 
 const ecsu = @import("../flecs_util/flecs_util.zig");

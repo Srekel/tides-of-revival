@@ -6,7 +6,7 @@ const zmesh = @import("zmesh");
 const zwin32 = @import("zwin32");
 
 const fd = @import("config/flecs_data.zig");
-const gfx = @import("gfx_d3d12.zig");
+const gfx = @import("renderer/gfx_d3d12.zig");
 const mesh_loader = @import("renderer/mesh_loader.zig");
 const util = @import("util.zig");
 const rt = @import("renderer/renderer_types.zig");
