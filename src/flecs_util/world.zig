@@ -163,7 +163,7 @@ pub const World = struct {
         _ = ecs.system_init(self.world, &desc);
     }
 
-    pub fn newWrappedRunSystem(self: World, name: [*c]const u8, phase: ecs.id_t, comptime Components: type, comptime action: fn (*ecsu.Iterator(Components)) void, params: SystemParameters) ecs.entity_t {
+    pub fn newWrappedRunSystem(self: World, name: [:0]const u8, phase: ecs.id_t, comptime Components: type, comptime action: fn (*ecsu.Iterator(Components)) void, params: SystemParameters) ecs.entity_t {
         var edesc = std.mem.zeroes(ecs.entity_desc_t);
 
         edesc.id = 0;

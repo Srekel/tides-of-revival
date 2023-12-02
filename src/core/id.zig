@@ -6,14 +6,17 @@ pub const IdLocal = struct {
     hash: u64 = 0,
 
     pub fn init(id: []const u8) IdLocal {
+        std.debug.assert(id.len < 190);
         var res: IdLocal = undefined;
         res.set(id);
+        res.str[id.len] = 0;
         return res;
     }
 
     pub fn initFormat(comptime fmt: []const u8, args: anytype) IdLocal {
         var res: IdLocal = undefined;
         const nameslice = std.fmt.bufPrint(res.str[0..res.str.len], fmt, args) catch unreachable;
+        std.debug.assert(nameslice.len < 190);
         res.strlen = @as(u8, @intCast(nameslice.len));
         res.str[res.strlen] = 0;
         res.hash = std.hash.Wyhash.hash(0, res.str[0..res.strlen]);
@@ -35,12 +38,12 @@ pub const IdLocal = struct {
         self.str[self.strlen] = 0;
     }
 
-    pub fn toString(self: IdLocal) []const u8 {
+    pub fn toString(self: *const IdLocal) []const u8 {
         return self.str[0..self.strlen];
     }
 
-    pub fn toCString(self: IdLocal) [*c]const u8 {
-        return @as([*c]const u8, @ptrCast(self.str[0..self.strlen]));
+    pub fn toCString(self: *const IdLocal) [:0]const u8 {
+        return @ptrCast(self.str[0..self.strlen]);
     }
 
     pub fn debugPrint(self: IdLocal) void {
