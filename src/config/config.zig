@@ -1,11 +1,12 @@
 const zm = @import("zmath");
 const zphy = @import("zphysics");
-const IdLocal = @import("../core/core.zig").IdLocal;
 const AK = @import("wwise-zig");
+const ID = @import("../core/core.zig").ID;
 
 pub const events = @import("events.zig");
-pub const prefab = @import("prefab.zig");
 pub const input = @import("input.zig");
+pub const prefab = @import("prefab.zig");
+pub const timeline = @import("timeline.zig");
 
 pub const UP_Z = zm.f32x4(0, 1, 0, 1);
 pub const FORWARD_Z = zm.f32x4(0, 0, 1, 1);
@@ -43,13 +44,13 @@ pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floo
 // ╚██████╗   ██║   ██╔╝ ██╗
 //  ╚═════╝   ╚═╝   ╚═╝  ╚═╝
 
-pub const allocator = IdLocal.init("allocator");
-pub const event_manager = IdLocal.init("event_manager");
-pub const ecsu_world = IdLocal.init("ecsu_world");
-pub const input_frame_data = IdLocal.init("input_frame_data");
-pub const physics_world = IdLocal.init("physics_world");
-pub const world_patch_mgr = IdLocal.init("world_patch_mgr");
-pub const prefab_manager = IdLocal.init("prefab_manager");
+pub const allocator = ID("allocator");
+pub const event_manager = ID("event_manager");
+pub const ecsu_world = ID("ecsu_world");
+pub const input_frame_data = ID("input_frame_data");
+pub const physics_world = ID("physics_world");
+pub const world_patch_mgr = ID("world_patch_mgr");
+pub const prefab_manager = ID("prefab_manager");
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
 // ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝
