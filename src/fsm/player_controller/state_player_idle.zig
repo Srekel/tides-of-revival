@@ -38,9 +38,9 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     const boosting = state.boost_active_time > environment_info.world_time;
 
     var speed_scalar: f32 = 1.7;
-    if (input_state.held(config.input_move_fast)) {
+    if (input_state.held(config.input.move_fast)) {
         speed_scalar = 6;
-    } else if (input_state.held(config.input_move_slow)) {
+    } else if (input_state.held(config.input.move_slow)) {
         speed_scalar = 0.5;
     }
 
@@ -50,13 +50,13 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     }
 
     if (!boosting) {
-        const yaw = input_state.get(config.input_look_yaw).number;
+        const yaw = input_state.get(config.input.look_yaw).number;
         const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, yaw * 0.0025);
         const rot_in = rot.asZM();
         const rot_new = zm.qmul(rot_in, rot_yaw);
         rot.fromZM(rot_new);
 
-        if (input_state.just_pressed(config.input_interact) and state.boost_next_cooldown < environment_info.world_time) {
+        if (input_state.just_pressed(config.input.interact) and state.boost_next_cooldown < environment_info.world_time) {
             state.boost_next_cooldown = environment_info.world_time + 10;
             state.boost_active_time = environment_info.world_time + 0.2;
         }
@@ -74,15 +74,15 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
 
     var move_dir = zm.f32x4s(0);
-    if (input_state.held(config.input_move_forward)) {
+    if (input_state.held(config.input.move_forward)) {
         move_dir += forward;
-    } else if (input_state.held(config.input_move_backward)) {
+    } else if (input_state.held(config.input.move_backward)) {
         move_dir -= forward;
     }
 
-    if (input_state.held(config.input_move_right)) {
+    if (input_state.held(config.input.move_right)) {
         move_dir += right;
-    } else if (input_state.held(config.input_move_left)) {
+    } else if (input_state.held(config.input.move_left)) {
         move_dir -= right;
     }
 

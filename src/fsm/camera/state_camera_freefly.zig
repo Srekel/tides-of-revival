@@ -12,8 +12,8 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 
 fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
-    const movement_yaw = input_state.get(config.input_look_yaw).number;
-    const movement_pitch = input_state.get(config.input_look_pitch).number;
+    const movement_yaw = input_state.get(config.input.look_yaw).number;
+    const movement_pitch = input_state.get(config.input.look_pitch).number;
 
     const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
     const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
@@ -28,9 +28,9 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
 
 fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 50.0;
-    if (input_state.held(config.input_move_fast)) {
+    if (input_state.held(config.input.move_fast)) {
         speed_scalar *= 50;
-    } else if (input_state.held(config.input_move_slow)) {
+    } else if (input_state.held(config.input.move_slow)) {
         speed_scalar *= 0.1;
     }
     const speed = zm.f32x4s(speed_scalar);
@@ -45,21 +45,21 @@ fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_stat
 
     var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
 
-    if (input_state.held(config.input_move_forward)) {
+    if (input_state.held(config.input.move_forward)) {
         cpos += forward;
-    } else if (input_state.held(config.input_move_backward)) {
+    } else if (input_state.held(config.input.move_backward)) {
         cpos -= forward;
     }
 
-    if (input_state.held(config.input_move_right)) {
+    if (input_state.held(config.input.move_right)) {
         cpos += right;
-    } else if (input_state.held(config.input_move_left)) {
+    } else if (input_state.held(config.input.move_left)) {
         cpos -= right;
     }
 
-    if (input_state.held(config.input_move_up)) {
+    if (input_state.held(config.input.move_up)) {
         cpos += up;
-    } else if (input_state.held(config.input_move_down)) {
+    } else if (input_state.held(config.input.move_down)) {
         cpos -= up;
     }
 

@@ -170,12 +170,12 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
 
-    const wielded_use_primary_held = system.frame_data.held(config.input_wielded_use_primary);
-    const wielded_use_secondary_held = system.frame_data.held(config.input_wielded_use_secondary);
+    const wielded_use_primary_held = system.frame_data.held(config.input.wielded_use_primary);
+    const wielded_use_secondary_held = system.frame_data.held(config.input.wielded_use_secondary);
     const wielded_use_held = wielded_use_primary_held or wielded_use_secondary_held;
     _ = wielded_use_held;
-    const wielded_use_primary_pressed = system.frame_data.just_pressed(config.input_wielded_use_primary);
-    const wielded_use_primary_released = system.frame_data.just_released(config.input_wielded_use_primary);
+    const wielded_use_primary_pressed = system.frame_data.just_pressed(config.input.wielded_use_primary);
+    const wielded_use_primary_released = system.frame_data.just_released(config.input.wielded_use_primary);
     const arrow_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;

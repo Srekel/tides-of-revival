@@ -14,7 +14,7 @@ const zphy = @import("zphysics");
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 
 fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
-    const movement_pitch = input_state.get(config.input_look_pitch).number;
+    const movement_pitch = input_state.get(config.input.look_pitch).number;
     const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
     const rot_in = rot.asZM();
     const rot_new = zm.qmul(rot_in, rot_pitch);
@@ -32,7 +32,7 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
 
 fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_manager: *PrefabManager) void {
     // TODO: No, interaction shouldn't be in camera.. :)
-    if (!input_state.just_pressed(config.input_interact)) {
+    if (!input_state.just_pressed(config.input.interact)) {
         return;
     }
 

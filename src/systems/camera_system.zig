@@ -208,7 +208,7 @@ fn updateCameraFrustum(state: *SystemState) void {
 }
 
 fn updateCameraSwitch(state: *SystemState) void {
-    if (!state.frame_data.just_pressed(config.input_camera_switch)) {
+    if (!state.frame_data.just_pressed(config.input.camera_switch)) {
         return;
     }
 
