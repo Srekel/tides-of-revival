@@ -53,10 +53,6 @@ const SpawnContext = struct {
     gfx: *gfx.D3D12State,
 };
 
-var giant_ant_prefab: ecsu.Entity = undefined;
-var bow_prefab: ecsu.Entity = undefined;
-var player_prefab: ecsu.Entity = undefined;
-
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
 
@@ -78,7 +74,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     std.log.info("stage {} to_spawn {}\n", .{ ctx.stage, to_spawn });
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
-        var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, giant_ant_prefab);
+        var ent = ctx.prefab_manager.instantiatePrefab(&ctx.ecsu_world, config.prefab.giant_ant);
         var spawn_pos = [3]f32{
             root_pos.x + (60 + to_spawn * 2) * std.math.sin(group_angle) + (5 + to_spawn * 1) * std.math.sin(individual_angle),
             root_pos.y + 20,
@@ -189,14 +185,11 @@ pub fn run() void {
 
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
-    const main_window = window.createWindow("Tides of Revival") catch unreachable;
+    const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
     main_window.setInputMode(.cursor, .disabled);
 
     var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(gfx_state, std.heap.page_allocator);
-
-    var prefab_manager = pm.PrefabManager.init(&ecsu_world, std.heap.page_allocator);
-    defer prefab_manager.deinit();
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_state.deinit();
@@ -204,18 +197,9 @@ pub fn run() void {
     zmesh.init(arena);
     defer zmesh.deinit();
 
-    // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    player_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/characters/player/player.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    giant_ant_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/creatures/giant_ant/giant_ant.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    bow_prefab = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/bow.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/props/bow_arrow/arrow.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/buildings/medium_house/medium_house.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{}) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/environment/fir/fir.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{}) catch unreachable;
-
-    // Load prefab primitives
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cube.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_sphere.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
-    _ = prefab_manager.loadPrefabFromGLTF("content/prefabs/primitives/primitive_cylinder.gltf", &ecsu_world, gfx_state, std.heap.page_allocator, .{ .is_dynamic = true }) catch unreachable;
+    var prefab_manager = pm.PrefabManager.init(&ecsu_world, std.heap.page_allocator);
+    defer prefab_manager.deinit();
+    config.prefab.initPrefabs(&prefab_manager, &ecsu_world, std.heap.page_allocator, gfx_state);
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -628,7 +612,7 @@ pub fn run() void {
     // // ██████╔╝╚██████╔╝╚███╔███╔╝
     // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = prefab_manager.instantiatePrefab(&ecsu_world, bow_prefab);
+    const bow_ent = prefab_manager.instantiatePrefab(&ecsu_world, config.prefab.bow);
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.ProjectileWeapon{});
 
@@ -642,7 +626,7 @@ pub fn run() void {
     // // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_ent = prefab_manager.instantiatePrefab(&ecsu_world, player_prefab);
+    const player_ent = prefab_manager.instantiatePrefab(&ecsu_world, config.prefab.player);
     player_ent.setName("main_player");
     player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));

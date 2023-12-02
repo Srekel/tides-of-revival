@@ -4,6 +4,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const AK = @import("wwise-zig");
 
 pub const events = @import("events.zig");
+pub const prefab = @import("prefab.zig");
 
 pub const UP_Z = zm.f32x4(0, 1, 0, 1);
 pub const FORWARD_Z = zm.f32x4(0, 0, 1, 1);
