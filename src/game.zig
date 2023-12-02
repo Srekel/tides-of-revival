@@ -36,6 +36,7 @@ pub fn run() void {
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
 
+    // Audio
     var audio_mgr = audio.AudioManager.create(std.heap.page_allocator) catch unreachable;
     defer audio_mgr.destroy() catch unreachable;
 
@@ -46,6 +47,7 @@ pub fn run() void {
     const bank_id = AK.SoundEngine.loadBankString(std.heap.page_allocator, "Player_SoundBank", .{}) catch unreachable;
     defer AK.SoundEngine.unloadBankID(bank_id, null, .{}) catch {};
 
+    // Flecs
     // ecs.zflecs_init();
     // defer ecs.zflecs_fini();
     var ecsu_world = ecsu.World.init();
@@ -55,6 +57,7 @@ pub fn run() void {
     fd.registerComponents(ecsu_world);
     fr.registerRelations(ecsu_world);
 
+    // GFX
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
@@ -69,6 +72,7 @@ pub fn run() void {
     zmesh.init(arena);
     defer zmesh.deinit();
 
+    // Misc
     var prefab_manager = pm.PrefabManager.init(&ecsu_world, std.heap.page_allocator);
     defer prefab_manager.deinit();
     config.prefab.initPrefabs(&prefab_manager, &ecsu_world, std.heap.page_allocator, gfx_state);
@@ -88,6 +92,14 @@ pub fn run() void {
     defer world_patch_mgr.destroy();
     patch_types.registerPatchTypes(world_patch_mgr);
 
+    // ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
+    // ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██╔════╝
+    // ███████╗ ╚████╔╝ ███████╗   ██║   █████╗  ██╔████╔██║███████╗
+    // ╚════██║  ╚██╔╝  ╚════██║   ██║   ██╔══╝  ██║╚██╔╝██║╚════██║
+    // ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║███████║
+    // ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝
+
+    // TODO: Remove system_context
     var system_context = util.Context.init(std.heap.page_allocator);
     system_context.putConst(config.allocator, &std.heap.page_allocator);
     system_context.put(config.ecsu_world, &ecsu_world);
@@ -320,6 +332,7 @@ pub fn run() void {
             break;
         }
 
+        // TODO: Move to The Debuginator
         if (input_frame_data.just_pressed(config.input.view_mode_lit)) {
             gfx_state.setViewMode(.lit);
         }
