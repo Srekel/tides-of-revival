@@ -4,7 +4,7 @@ const ID = @import("../core/core.zig").ID;
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const zphy = @import("zphysics");
 const EventManager = @import("../core/event_manager.zig").EventManager;
-const pm = @import("../prefab_manager.zig");
+const prefab_manager = @import("../prefab_manager.zig");
 const timeline_system = @import("../systems/timeline_system.zig");
 const ecs = @import("zflecs");
 const gfx = @import("../renderer/gfx_d3d12.zig");
@@ -17,7 +17,7 @@ const zm = @import("zmath");
 pub const WaveSpawnContext = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
-    prefab_mgr: *pm.PrefabManager,
+    prefab_mgr: *prefab_manager.PrefabManager,
     event_mgr: *EventManager,
     timeline_system: *timeline_system.SystemState,
     root_ent: ?ecs.entity_t,

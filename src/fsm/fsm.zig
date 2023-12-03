@@ -5,10 +5,9 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const BlobArray = @import("../core/blob_array.zig").BlobArray;
 const zm = @import("zmath");
 const input = @import("../input.zig");
-const zaudio = @import("zaudio");
 const zphy = @import("zphysics");
 const context = @import("../core/context.zig");
-const audio = @import("../audio/audio_manager.zig");
+const audio_manager = @import("../audio/audio_manager.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
 
@@ -104,7 +103,7 @@ pub const StateFuncContext = struct {
     physics_world: *zphy.PhysicsSystem,
     blob_array: *BlobArray(16),
     input_frame_data: *const input.FrameData,
-    audio_mgr: *audio.AudioManager,
+    audio_mgr: *audio_manager.AudioManager,
     dt: zm.F32x4,
     gfx: *gfx_d3d12.D3D12State,
 };

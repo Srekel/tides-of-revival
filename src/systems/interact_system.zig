@@ -16,7 +16,7 @@ const input = @import("../input.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const context = @import("../core/context.zig");
-const audio = @import("../audio/audio_manager.zig");
+const audio_manager = @import("../audio/audio_manager.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
@@ -58,7 +58,7 @@ pub const SystemState = struct {
 pub const SystemCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
-    audio_mgr: *audio.AudioManager,
+    audio_mgr: *audio_manager.AudioManager,
     ecsu_world: ecsu.World,
     event_mgr: *EventManager,
     input_frame_data: *input.FrameData,

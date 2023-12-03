@@ -14,7 +14,7 @@ const util = @import("../util.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const config = @import("../config/config.zig");
 const context = @import("../core/context.zig");
-const audio = @import("../audio/audio_manager.zig");
+const audio_manager = @import("../audio/audio_manager.zig");
 const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
 
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
@@ -38,14 +38,14 @@ pub const SystemState = struct {
     instances: std.ArrayList(StateMachineInstance),
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    audio_mgr: *audio.AudioManager,
+    audio_mgr: *audio_manager.AudioManager,
     prefab_mgr: *PrefabManager,
     gfx: *gfx_d3d12.D3D12State,
 };
 
 pub const SystemCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
-    audio_mgr: *audio.AudioManager,
+    audio_mgr: *audio_manager.AudioManager,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,

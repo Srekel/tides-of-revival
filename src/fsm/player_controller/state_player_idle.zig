@@ -13,7 +13,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
-const audio = @import("../../audio/audio_manager.zig");
+const audio_manager = @import("../../audio/audio_manager.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 

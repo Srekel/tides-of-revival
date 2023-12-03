@@ -8,7 +8,7 @@ const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
-const audio = @import("audio/audio_manager.zig");
+const audio_manager = @import("audio/audio_manager.zig");
 const zm = @import("zmath");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
@@ -19,7 +19,7 @@ const fsm = @import("fsm/fsm.zig");
 const gfx = @import("renderer/gfx_d3d12.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
 const input = @import("input.zig");
-const pm = @import("prefab_manager.zig");
+const prefab_manager = @import("prefab_manager.zig");
 const util = @import("util.zig");
 const Variant = @import("core/core.zig").Variant;
 const window = @import("renderer/window.zig");
@@ -37,7 +37,7 @@ pub fn run() void {
     defer zstbi.deinit();
 
     // Audio
-    var audio_mgr = audio.AudioManager.create(std.heap.page_allocator) catch unreachable;
+    var audio_mgr = audio_manager.AudioManager.create(std.heap.page_allocator) catch unreachable;
     defer audio_mgr.destroy() catch unreachable;
 
     AK.SoundEngine.registerGameObjWithName(std.heap.page_allocator, config.audio_player_oid, "Player") catch unreachable;
@@ -73,7 +73,7 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // Misc
-    var prefab_mgr = pm.PrefabManager.init(ecsu_world, std.heap.page_allocator);
+    var prefab_mgr = prefab_manager.PrefabManager.init(ecsu_world, std.heap.page_allocator);
     defer prefab_mgr.deinit();
     config.prefab.initPrefabs(&prefab_mgr, ecsu_world, std.heap.page_allocator, gfx_state);
 
