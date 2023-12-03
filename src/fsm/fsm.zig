@@ -93,7 +93,7 @@ pub const StateCreateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
-    prefab_manager: *PrefabManager,
+    prefab_mgr: *PrefabManager,
 };
 
 pub const StateFuncContext = struct {

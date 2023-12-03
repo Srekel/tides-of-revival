@@ -46,12 +46,12 @@ pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floo
 //  ╚═════╝   ╚═╝   ╚═╝  ╚═╝
 
 pub const allocator = ID("allocator");
-pub const event_manager = ID("event_manager");
+pub const event_mgr = ID("event_mgr");
 pub const ecsu_world = ID("ecsu_world");
 pub const input_frame_data = ID("input_frame_data");
 pub const physics_world = ID("physics_world");
 pub const world_patch_mgr = ID("world_patch_mgr");
-pub const prefab_manager = ID("prefab_manager");
+pub const prefab_mgr = ID("prefab_mgr");
 
 // ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
 // ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝

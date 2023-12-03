@@ -68,7 +68,7 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     ) catch unreachable;
 
     const heightmap_asset_id = IdLocal.init(heightmap_path);
-    const heightmap_data = ctx.asset_manager.loadAssetBlocking(heightmap_asset_id, .instant_blocking);
+    const heightmap_data = ctx.asset_mgr.loadAssetBlocking(heightmap_asset_id, .instant_blocking);
     var heightmap_image = zstbi.Image.loadFromMemory(heightmap_data, 1) catch unreachable;
     defer heightmap_image.deinit();
 
@@ -84,7 +84,7 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     ) catch unreachable;
 
     const range_asset_id = IdLocal.init(range_path);
-    const range_data = ctx.asset_manager.loadAssetBlocking(range_asset_id, .instant_blocking);
+    const range_data = ctx.asset_mgr.loadAssetBlocking(range_asset_id, .instant_blocking);
     const range_str_comma = std.mem.indexOfScalar(u8, range_data, ","[0]).?;
     const range_low_str = range_data[0..range_str_comma];
     const range_low = std.fmt.parseFloat(f32, range_low_str) catch unreachable;
@@ -154,7 +154,7 @@ fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Patc
     ) catch unreachable;
 
     const splatmap_asset_id = IdLocal.init(splatmap_path);
-    const splatmap_data = ctx.asset_manager.loadAssetBlocking(splatmap_asset_id, .instant_blocking);
+    const splatmap_data = ctx.asset_mgr.loadAssetBlocking(splatmap_asset_id, .instant_blocking);
     var splatmap_image = zstbi.Image.loadFromMemory(splatmap_data, 1) catch unreachable;
     defer splatmap_image.deinit();
 
@@ -183,7 +183,7 @@ fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTy
     ) catch unreachable;
 
     const props_asset_id = IdLocal.init(props_path);
-    if (!ctx.asset_manager.doesAssetExist(props_asset_id)) {
+    if (!ctx.asset_mgr.doesAssetExist(props_asset_id)) {
         patch.status = .nonexistent;
         return;
     }
@@ -194,7 +194,7 @@ fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTy
         rot: f32,
     };
 
-    const props_data = ctx.asset_manager.loadAssetBlocking(props_asset_id, .instant_blocking);
+    const props_data = ctx.asset_mgr.loadAssetBlocking(props_asset_id, .instant_blocking);
     if (props_data.len == 0) {
         patch.status = .loaded_empty;
         return;

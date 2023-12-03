@@ -31,7 +31,7 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     rot.fromZM(constrained_z);
 }
 
-fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_manager: *PrefabManager) void {
+fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_mgr: *PrefabManager) void {
     // TODO: No, interaction shouldn't be in camera.. :)
     if (!input_state.just_pressed(config.input.interact)) {
         return;
@@ -58,8 +58,8 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
         var post_transform = fd.Transform.initFromPosition(post_pos);
         post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
 
-        const cylinder_prefab = prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
-        const post_ent = prefab_manager.instantiatePrefab(ecsu_world, cylinder_prefab);
+        const cylinder_prefab = prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
+        const post_ent = prefab_mgr.instantiatePrefab(ecsu_world, cylinder_prefab);
         post_ent.set(post_pos);
         post_ent.set(fd.Rotation{});
         post_ent.set(fd.Scale.create(0.05, 2, 0.05));

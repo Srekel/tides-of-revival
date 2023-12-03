@@ -68,8 +68,8 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
         physics_sys.physics_world,
-        gameloop_context.asset_manager,
-        gameloop_context.prefab_manager,
+        gameloop_context.asset_mgr,
+        gameloop_context.prefab_mgr,
     );
 
     camera_sys = try camera_system.create(
@@ -85,7 +85,7 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         std.heap.page_allocator,
         gameloop_context.ecsu_world,
         gameloop_context.world_patch_mgr,
-        gameloop_context.prefab_manager,
+        gameloop_context.prefab_mgr,
     );
 
     light_sys = try light_system.create(

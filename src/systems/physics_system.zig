@@ -165,7 +165,7 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    event_manager: *EventManager,
+    event_mgr: *EventManager,
     sys: ecs.entity_t,
 
     contact_listener: *ContactListener,
@@ -182,7 +182,7 @@ pub const SystemCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
-    event_manager: *EventManager,
+    event_mgr: *EventManager,
     physics_world: *zphy.PhysicsSystem,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
@@ -190,7 +190,7 @@ pub const SystemCtx = struct {
 pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     const allocator = ctx.allocator;
     const ecsu_world = ctx.ecsu_world;
-    const event_manager = ctx.event_manager;
+    const event_mgr = ctx.event_mgr;
     const world_patch_mgr = ctx.world_patch_mgr;
 
     var query_builder_body = ecsu.QueryBuilder.init(ecsu_world);
@@ -244,7 +244,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .indices = undefined,
         .contact_listener = undefined,
         .frame_contacts = std.ArrayList(config.events.CollisionContact).initCapacity(allocator, 8192) catch unreachable,
-        .event_manager = event_manager,
+        .event_mgr = event_mgr,
     };
 
     const contact_listener = allocator.create(ContactListener) catch unreachable;
@@ -293,7 +293,7 @@ fn updateCollisions(system: *SystemState) void {
     const frame_collisions_data = config.events.FrameCollisionsData{
         .contacts = system.frame_contacts.items,
     };
-    system.event_manager.triggerEvent(config.events.frame_collisions_id, &frame_collisions_data);
+    system.event_mgr.triggerEvent(config.events.frame_collisions_id, &frame_collisions_data);
     system.frame_contacts.clearRetainingCapacity();
 }
 

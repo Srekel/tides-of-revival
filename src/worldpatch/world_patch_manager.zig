@@ -208,7 +208,7 @@ pub const PatchType = struct {
 };
 
 pub const PatchTypeContext = struct {
-    asset_manager: *AssetManager,
+    asset_mgr: *AssetManager,
     allocator: std.mem.Allocator,
     world_patch_mgr: *WorldPatchManager,
 };
@@ -273,10 +273,10 @@ pub const WorldPatchManager = struct {
     handle_map_by_lookup: std.AutoHashMap(PatchLookup, PatchHandle) = undefined,
     patch_pool: PatchPool = undefined,
     bucket_queue: PatchQueue = undefined,
-    asset_manager: *AssetManager = undefined,
+    asset_mgr: *AssetManager = undefined,
     debug_server: debug_server.DebugServer = undefined,
 
-    pub fn create(allocator: std.mem.Allocator, asset_manager: *AssetManager) *WorldPatchManager {
+    pub fn create(allocator: std.mem.Allocator, asset_mgr: *AssetManager) *WorldPatchManager {
         var res = allocator.create(WorldPatchManager) catch unreachable;
         res.* = .{
             .allocator = allocator,
@@ -285,7 +285,7 @@ pub const WorldPatchManager = struct {
             .handle_map_by_lookup = std.AutoHashMap(PatchLookup, PatchHandle).init(allocator),
             .patch_pool = PatchPool.initCapacity(allocator, 512) catch unreachable, // temporarily low for testing
             .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
-            .asset_manager = asset_manager,
+            .asset_mgr = asset_mgr,
             .debug_server = debug_server.DebugServer.create(1234, allocator),
         };
 
@@ -405,7 +405,7 @@ pub const WorldPatchManager = struct {
 
         const dependency_ctx = PatchTypeContext{
             .allocator = self.allocator,
-            .asset_manager = self.asset_manager,
+            .asset_mgr = self.asset_mgr,
             .world_patch_mgr = self,
         };
 
@@ -512,7 +512,7 @@ pub const WorldPatchManager = struct {
             const patch_type = self.patch_types.items[patch.patch_type_id];
             const ctx = PatchTypeContext{
                 .allocator = self.allocator,
-                .asset_manager = self.asset_manager,
+                .asset_mgr = self.asset_mgr,
                 .world_patch_mgr = self,
             };
             if (DEBUG_LOGGING) std.log.debug("WPM: Loading {}, Pr{}", .{ patch.lookup, @intFromEnum(patch.highest_prio) });
@@ -526,7 +526,7 @@ pub const WorldPatchManager = struct {
             if (patch_type.dependenciesFn) |dependenciesFn| {
                 const dependency_ctx = PatchTypeContext{
                     .allocator = self.allocator,
-                    .asset_manager = self.asset_manager,
+                    .asset_mgr = self.asset_mgr,
                     .world_patch_mgr = self,
                 };
 
@@ -560,7 +560,7 @@ pub const WorldPatchManager = struct {
             if (patch_type.dependenciesFn) |dependenciesFn| {
                 const dependency_ctx = PatchTypeContext{
                     .allocator = self.allocator,
-                    .asset_manager = self.asset_manager,
+                    .asset_mgr = self.asset_mgr,
                     .world_patch_mgr = self,
                 };
 

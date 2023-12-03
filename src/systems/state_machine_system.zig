@@ -39,7 +39,7 @@ pub const SystemState = struct {
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     audio_mgr: *audio.AudioManager,
-    prefab_manager: *PrefabManager,
+    prefab_mgr: *PrefabManager,
     gfx: *gfx_d3d12.D3D12State,
 };
 
@@ -49,7 +49,7 @@ pub const SystemCtx = struct {
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    prefab_manager: *PrefabManager,
+    prefab_mgr: *PrefabManager,
     gfx: *gfx_d3d12.D3D12State,
 };
 
@@ -75,7 +75,7 @@ pub fn create(
         .input_frame_data = ctx.input_frame_data,
         .physics_world = ctx.physics_world,
         .audio_mgr = ctx.audio_mgr,
-        .prefab_manager = ctx.prefab_manager,
+        .prefab_mgr = ctx.prefab_mgr,
         .gfx = ctx.gfx,
     };
 

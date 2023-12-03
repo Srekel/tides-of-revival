@@ -43,8 +43,8 @@ pub const SystemState = struct {
     physics_world: *zphy.PhysicsSystem,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
-    event_manager: *EventManager,
-    prefab_manager: *PrefabManager,
+    event_mgr: *EventManager,
+    prefab_mgr: *PrefabManager,
     gfx: *gfx_d3d12.D3D12State,
 
     comp_query_interactor: ecsu.Query,
@@ -60,10 +60,10 @@ pub const SystemCtx = struct {
     allocator: std.mem.Allocator,
     audio_mgr: *audio.AudioManager,
     ecsu_world: ecsu.World,
-    event_manager: *EventManager,
+    event_mgr: *EventManager,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    prefab_manager: *PrefabManager,
+    prefab_mgr: *PrefabManager,
     gfx: *gfx_d3d12.D3D12State,
 };
 
@@ -94,8 +94,8 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .ecsu_world = ctx.ecsu_world,
         .physics_world = ctx.physics_world,
         .input_frame_data = ctx.input_frame_data,
-        .event_manager = ctx.event_manager,
-        .prefab_manager = ctx.prefab_manager,
+        .event_mgr = ctx.event_mgr,
+        .prefab_mgr = ctx.prefab_mgr,
         .comp_query_interactor = comp_query_interactor,
         .gfx = ctx.gfx,
         .kills = 0,
@@ -105,7 +105,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
     // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
     // ecsu_world.observer(OnCollideObserverCallback, config.events.onCollisionEvent(ecsu_world.world), system);
-    ctx.event_manager.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, system);
+    ctx.event_mgr.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, system);
 
     // initStateData(system);
     return system;
@@ -172,7 +172,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     _ = wielded_use_held;
     const wielded_use_primary_pressed = system.input_frame_data.just_pressed(config.input.wielded_use_primary);
     const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
-    const arrow_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
+    const arrow_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
 
@@ -181,7 +181,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         if (weapon_comp.chambered_projectile == 0 and weapon_comp.cooldown < world_time) {
             // Load new projectile
-            var proj_ent = system.prefab_manager.instantiatePrefab(system.ecsu_world, arrow_prefab);
+            var proj_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, arrow_prefab);
             proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
             proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
             proj_ent.set(fd.Projectile{});
@@ -330,7 +330,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     });
 
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
-    const cylinder_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
+    const cylinder_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
     while (entity_iter_proj.next()) |comps| {
         const velocity = body_interface.getLinearVelocity(comps.body.body_id);
         const velocity_z = zm.loadArr3(velocity);
@@ -361,7 +361,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         // trail
         const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
-        var fx_ent = system.prefab_manager.instantiatePrefab(system.ecsu_world, cylinder_prefab);
+        var fx_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, cylinder_prefab);
         fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
         fx_ent.set(fd.Rotation{});
         fx_ent.set(fd.Scale.createScalar(1));
@@ -374,7 +374,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             .timeline = IdLocal.init("particle_trail"),
         };
 
-        system.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
+        system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
     }
 }
 
@@ -494,7 +494,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             // ecs.remove(ecs_world, ent1, fd.PointLight);
             removed_entities.append(ent1) catch unreachable;
 
-            system.event_manager.triggerEvent(
+            system.event_mgr.triggerEvent(
                 config.events.onAddTimelineInstance_id,
                 &config.events.TimelineInstanceData{
                     .ent = ent1,
@@ -568,7 +568,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                             .ent = ent2,
                             .timeline = IdLocal.init("despawn"),
                         };
-                        system.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
+                        system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
 
                         removed_entities.append(ent2) catch unreachable;
                         body_interface.addImpulse(
@@ -592,7 +592,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             // ecs.remove(ecs_world, ent2, fd.PointLight);
             removed_entities.append(ent2) catch unreachable;
 
-            system.event_manager.triggerEvent(
+            system.event_mgr.triggerEvent(
                 config.events.onAddTimelineInstance_id,
                 &config.events.TimelineInstanceData{
                     .ent = ent2,
@@ -665,7 +665,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                             .ent = ent1,
                             .timeline = IdLocal.init("despawn"),
                         };
-                        system.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
+                        system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
 
                         removed_entities.append(ent1) catch unreachable;
                         body_interface.addImpulse(

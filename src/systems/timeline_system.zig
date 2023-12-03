@@ -74,7 +74,7 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
     const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
     const input_frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
-    const event_manager = ctx.get(config.event_manager.hash, EventManager);
+    const event_mgr = ctx.get(config.event_mgr.hash, EventManager);
 
     var system = allocator.create(SystemState) catch unreachable;
     var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -87,8 +87,8 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
         .timelines = std.ArrayList(Timeline).initCapacity(allocator, 16) catch unreachable,
     };
 
-    event_manager.registerListener(config.events.onRegisterTimeline_id, onRegisterTimeline, system);
-    event_manager.registerListener(config.events.onAddTimelineInstance_id, onAddTimelineInstance, system);
+    event_mgr.registerListener(config.events.onRegisterTimeline_id, onRegisterTimeline, system);
+    event_mgr.registerListener(config.events.onAddTimelineInstance_id, onAddTimelineInstance, system);
 
     return system;
 }

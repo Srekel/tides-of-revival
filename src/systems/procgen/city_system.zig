@@ -20,8 +20,8 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     sys: ecs.entity_t,
-    asset_manager: *AssetManager = undefined,
-    prefab_manager: *PrefabManager,
+    asset_mgr: *AssetManager = undefined,
+    prefab_mgr: *PrefabManager,
 
     gfx: *gfx.D3D12State,
     query_city: ecsu.Query,
@@ -48,8 +48,8 @@ pub fn create(
     gfxstate: *gfx.D3D12State,
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
-    asset_manager: *AssetManager,
-    prefab_manager: *PrefabManager,
+    asset_mgr: *AssetManager,
+    prefab_mgr: *PrefabManager,
 ) !*SystemState {
     var query_builder_city = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_city
@@ -88,8 +88,8 @@ pub fn create(
         .ecsu_world = ecsu_world,
         .physics_world = physics_world,
         .sys = sys,
-        .asset_manager = asset_manager,
-        .prefab_manager = prefab_manager,
+        .asset_mgr = asset_mgr,
+        .prefab_mgr = prefab_mgr,
         .gfx = gfxstate,
         .query_city = query_city,
         .query_camp = query_camp,
@@ -107,13 +107,13 @@ pub fn createEntities(system: *SystemState) void {
     var added_spawn = false;
 
     // Cities from cities.txt
-    const cities_data = system.asset_manager.loadAssetBlocking(IdLocal.init("content/systems/cities.txt"), .instant_blocking);
+    const cities_data = system.asset_mgr.loadAssetBlocking(IdLocal.init("content/systems/cities.txt"), .instant_blocking);
 
     // var props = std.ArrayList(Prop).initCapacity(ctx.allocator, props_data.len / 30) catch unreachable;
     var buf_reader = std.io.fixedBufferStream(cities_data);
     var in_stream = buf_reader.reader();
     var buf: [1024]u8 = undefined;
-    const sphere_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
+    const sphere_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
     while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
         var comma_curr: usize = 0;
         var comma_next: usize = std.mem.indexOfScalar(u8, line, ","[0]).?;
@@ -136,7 +136,7 @@ pub fn createEntities(system: *SystemState) void {
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
         _ = rot_y;
 
-        var city_ent = system.prefab_manager.instantiatePrefab(ecsu_world, sphere_prefab);
+        var city_ent = system.prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
         city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
         // city_ent.set(fd.Scale.createScalar(10));
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;

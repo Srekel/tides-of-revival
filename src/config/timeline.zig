@@ -17,8 +17,8 @@ const zm = @import("zmath");
 pub const WaveSpawnContext = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
-    prefab_manager: *pm.PrefabManager,
-    event_manager: *EventManager,
+    prefab_mgr: *pm.PrefabManager,
+    event_mgr: *EventManager,
     timeline_system: *timeline_system.SystemState,
     root_ent: ?ecs.entity_t,
     speed: f32 = 1,
@@ -47,7 +47,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     std.log.info("stage {} to_spawn {}\n", .{ ctx.stage, to_spawn });
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
-        var ent = ctx.prefab_manager.instantiatePrefab(ctx.ecsu_world, config.prefab.giant_ant);
+        var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.giant_ant);
         var spawn_pos = [3]f32{
             root_pos.x + (60 + to_spawn * 2) * std.math.sin(group_angle) + (5 + to_spawn * 1) * std.math.sin(individual_angle),
             root_pos.y + 20,
@@ -151,8 +151,8 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
         .timeline = ID("giantAntSpawn"),
     };
 
-    tl_giant_ant_spawn_ctx.event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
-    tl_giant_ant_spawn_ctx.event_manager.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
+    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
+    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
 
     const tl_particle_trail = config.events.TimelineTemplateData{
         .id = ID("particle_trail"),
@@ -170,7 +170,7 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
         },
         .loop_behavior = .remove_entity,
     };
-    tl_giant_ant_spawn_ctx.event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
+    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_particle_trail);
 
     const tl_despawn = config.events.TimelineTemplateData{
         .id = ID("despawn"),
@@ -185,5 +185,5 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
         },
         .loop_behavior = .remove_entity,
     };
-    tl_giant_ant_spawn_ctx.event_manager.triggerEvent(config.events.onRegisterTimeline_id, &tl_despawn);
+    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_despawn);
 }

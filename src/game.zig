@@ -73,12 +73,12 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // Misc
-    var prefab_manager = pm.PrefabManager.init(ecsu_world, std.heap.page_allocator);
-    defer prefab_manager.deinit();
-    config.prefab.initPrefabs(&prefab_manager, ecsu_world, std.heap.page_allocator, gfx_state);
+    var prefab_mgr = pm.PrefabManager.init(ecsu_world, std.heap.page_allocator);
+    defer prefab_mgr.deinit();
+    config.prefab.initPrefabs(&prefab_mgr, ecsu_world, std.heap.page_allocator, gfx_state);
 
-    var event_manager = EventManager.create(std.heap.page_allocator);
-    defer event_manager.destroy();
+    var event_mgr = EventManager.create(std.heap.page_allocator);
+    defer event_mgr.destroy();
 
     // Input
     // Run it once to make sure we don't get huge diff values for cursor etc. the first frame.
@@ -87,10 +87,10 @@ pub fn run() void {
     var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window);
     input.doTheThing(std.heap.page_allocator, &input_frame_data);
 
-    var asset_manager = AssetManager.create(std.heap.page_allocator);
-    defer asset_manager.destroy();
+    var asset_mgr = AssetManager.create(std.heap.page_allocator);
+    defer asset_mgr.destroy();
 
-    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, &asset_manager);
+    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, &asset_mgr);
     world_patch_mgr.debug_server.run();
     defer world_patch_mgr.destroy();
     patch_types.registerPatchTypes(world_patch_mgr);
@@ -106,9 +106,9 @@ pub fn run() void {
     var system_context = util.Context.init(std.heap.page_allocator);
     system_context.putConst(config.allocator, &std.heap.page_allocator);
     system_context.put(config.ecsu_world, &ecsu_world);
-    system_context.put(config.event_manager, &event_manager);
+    system_context.put(config.event_mgr, &event_mgr);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
-    system_context.put(config.prefab_manager, &prefab_manager);
+    system_context.put(config.prefab_mgr, &prefab_mgr);
 
     var physics_world: *zphy.PhysicsSystem = undefined;
 
@@ -116,14 +116,14 @@ pub fn run() void {
         .allocator = std.heap.page_allocator,
         .audio_mgr = &audio_mgr,
         .ecsu_world = ecsu_world,
-        .event_manager = &event_manager,
+        .event_mgr = &event_mgr,
         .input_frame_data = &input_frame_data,
         .physics_world = physics_world, // TODO: Optional
-        .prefab_manager = &prefab_manager,
+        .prefab_mgr = &prefab_mgr,
         .gfx = gfx_state,
         .world_patch_mgr = world_patch_mgr,
         .gfx_state = gfx_state,
-        .asset_manager = &asset_manager,
+        .asset_mgr = &asset_mgr,
     };
     config.system.createSystems(&gameloop_context, &system_context);
     config.system.setupSystems();
@@ -212,7 +212,7 @@ pub fn run() void {
     // // ██████╔╝╚██████╔╝╚███╔███╔╝
     // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = prefab_manager.instantiatePrefab(ecsu_world, config.prefab.bow);
+    const bow_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.bow);
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.ProjectileWeapon{});
 
@@ -226,7 +226,7 @@ pub fn run() void {
     // // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_ent = prefab_manager.instantiatePrefab(ecsu_world, config.prefab.player);
+    const player_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.player);
     player_ent.setName("main_player");
     player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));
@@ -246,8 +246,8 @@ pub fn run() void {
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
-    const sphere_prefab = prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
-    const player_camera_ent = prefab_manager.instantiatePrefab(ecsu_world, sphere_prefab);
+    const sphere_prefab = prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
+    const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.7, .z = 0 });
@@ -288,8 +288,8 @@ pub fn run() void {
         tl_giant_ant_spawn_ctx = config.timeline.WaveSpawnContext{
             .ecsu_world = ecsu_world,
             .physics_world = gameloop_context.physics_world,
-            .prefab_manager = &prefab_manager,
-            .event_manager = &event_manager,
+            .prefab_mgr = &prefab_mgr,
+            .event_mgr = &event_mgr,
             .timeline_system = config.system.timeline_sys,
             .root_ent = player_spawn.?.city_ent,
             .gfx = gfx_state,

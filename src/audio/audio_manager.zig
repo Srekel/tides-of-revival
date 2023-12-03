@@ -18,10 +18,10 @@ pub const AudioManager = struct {
     spatial_audio_settings: if (AK.SpatialAudio != void) AK.SpatialAudio.AkSpatialAudioInitSettings else void = undefined,
 
     pub fn create(allocator: std.mem.Allocator) !AudioManager {
-        var audio_manager: AudioManager = .{ .allocator = allocator };
-        try audio_manager.initDefaultWwiseSettings();
-        try audio_manager.init();
-        return audio_manager;
+        var audio_mgr: AudioManager = .{ .allocator = allocator };
+        try audio_mgr.initDefaultWwiseSettings();
+        try audio_mgr.init();
+        return audio_mgr;
     }
 
     fn initDefaultWwiseSettings(self: *AudioManager) !void {

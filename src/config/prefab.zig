@@ -50,10 +50,10 @@ pub var player: ecsu.Entity = undefined;
 pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
 
-pub fn initPrefabs(prefab_manager: *pm.PrefabManager, ecsu_world: ecsu.World, allocator: std.mem.Allocator, gfx_state: *gfx.D3D12State) void {
+pub fn initPrefabs(prefab_mgr: *pm.PrefabManager, ecsu_world: ecsu.World, allocator: std.mem.Allocator, gfx_state: *gfx.D3D12State) void {
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
     for (prefabs) |prefab| {
-        _ = prefab_manager.loadPrefabFromGLTF(
+        _ = prefab_mgr.loadPrefabFromGLTF(
             prefab.id.toCString(),
             ecsu_world,
             gfx_state,
@@ -62,7 +62,7 @@ pub fn initPrefabs(prefab_manager: *pm.PrefabManager, ecsu_world: ecsu.World, al
         ) catch unreachable;
     }
 
-    player = prefab_manager.getPrefabByPath("content/prefabs/characters/player/player.gltf").?;
-    giant_ant = prefab_manager.getPrefabByPath("content/prefabs/creatures/giant_ant/giant_ant.gltf").?;
-    bow = prefab_manager.getPrefabByPath("content/prefabs/props/bow_arrow/bow.gltf").?;
+    player = prefab_mgr.getPrefabByPath("content/prefabs/characters/player/player.gltf").?;
+    giant_ant = prefab_mgr.getPrefabByPath("content/prefabs/creatures/giant_ant/giant_ant.gltf").?;
+    bow = prefab_mgr.getPrefabByPath("content/prefabs/props/bow_arrow/bow.gltf").?;
 }
