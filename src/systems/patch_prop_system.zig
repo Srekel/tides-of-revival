@@ -248,21 +248,21 @@ fn updatePatches(system: *SystemState) void {
                 zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
 
                 if (prop.id.hash == house_id.hash) {
-                    var house_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, system.medium_house_prefab);
+                    var house_ent = system.prefab_manager.instantiatePrefab(system.ecsu_world, system.medium_house_prefab);
                     house_ent.set(prop_transform);
                     house_ent.set(prop_pos);
                     house_ent.set(prop_rot);
                     house_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(house_ent.id) catch unreachable;
                 } else if (prop.id.hash == tree_id.hash) {
-                    var fir_tree_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, system.fir_tree_prefab);
+                    var fir_tree_ent = system.prefab_manager.instantiatePrefab(system.ecsu_world, system.fir_tree_prefab);
                     fir_tree_ent.set(prop_transform);
                     fir_tree_ent.set(prop_pos);
                     fir_tree_ent.set(prop_rot);
                     fir_tree_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(fir_tree_ent.id) catch unreachable;
                 } else if (prop.id.hash == wall_id.hash) {
-                    var wall_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, system.cube_prefab);
+                    var wall_ent = system.prefab_manager.instantiatePrefab(system.ecsu_world, system.cube_prefab);
                     wall_ent.set(prop_transform);
                     wall_ent.set(prop_pos);
                     wall_ent.set(prop_rot);

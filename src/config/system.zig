@@ -92,7 +92,7 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         IdLocal.initFormat("light_system_{}", .{0}),
         std.heap.page_allocator,
         gameloop_context.gfx_state,
-        &gameloop_context.ecsu_world,
+        gameloop_context.ecsu_world,
         gameloop_context.input_frame_data,
     );
 
@@ -100,7 +100,7 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
         std.heap.page_allocator,
         gameloop_context.gfx_state,
-        &gameloop_context.ecsu_world,
+        gameloop_context.ecsu_world,
         gameloop_context.input_frame_data,
     );
 

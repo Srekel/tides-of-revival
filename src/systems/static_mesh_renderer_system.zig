@@ -71,7 +71,7 @@ const max_entity_types: u32 = 2;
 
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
-    ecsu_world: *ecsu.World,
+    ecsu_world: ecsu.World,
     sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
@@ -97,7 +97,7 @@ pub const SystemState = struct {
     } = .{},
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: *ecsu.World, _: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: ecsu.World, _: *input.FrameData) !*SystemState {
     const opaque_instance_transform_buffers = blk: {
         var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
@@ -185,7 +185,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world.*);
+    var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.StaticMeshComponent);
@@ -235,7 +235,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
-    var cam_ent = util.getActiveCameraEnt(state.ecsu_world.*);
+    var cam_ent = util.getActiveCameraEnt(state.ecsu_world);
     const cam_comps = cam_ent.getComps(struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,

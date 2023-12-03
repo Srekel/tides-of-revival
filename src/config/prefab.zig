@@ -50,7 +50,7 @@ pub var player: ecsu.Entity = undefined;
 pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
 
-pub fn initPrefabs(prefab_manager: *pm.PrefabManager, ecsu_world: *ecsu.World, allocator: std.mem.Allocator, gfx_state: *gfx.D3D12State) void {
+pub fn initPrefabs(prefab_manager: *pm.PrefabManager, ecsu_world: ecsu.World, allocator: std.mem.Allocator, gfx_state: *gfx.D3D12State) void {
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
     for (prefabs) |prefab| {
         _ = prefab_manager.loadPrefabFromGLTF(

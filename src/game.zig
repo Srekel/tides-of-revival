@@ -73,9 +73,9 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // Misc
-    var prefab_manager = pm.PrefabManager.init(&ecsu_world, std.heap.page_allocator);
+    var prefab_manager = pm.PrefabManager.init(ecsu_world, std.heap.page_allocator);
     defer prefab_manager.deinit();
-    config.prefab.initPrefabs(&prefab_manager, &ecsu_world, std.heap.page_allocator, gfx_state);
+    config.prefab.initPrefabs(&prefab_manager, ecsu_world, std.heap.page_allocator, gfx_state);
 
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
@@ -212,7 +212,7 @@ pub fn run() void {
     // // ██████╔╝╚██████╔╝╚███╔███╔╝
     // // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = prefab_manager.instantiatePrefab(&ecsu_world, config.prefab.bow);
+    const bow_ent = prefab_manager.instantiatePrefab(ecsu_world, config.prefab.bow);
     bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     bow_ent.set(fd.ProjectileWeapon{});
 
@@ -226,7 +226,7 @@ pub fn run() void {
     // // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_ent = prefab_manager.instantiatePrefab(&ecsu_world, config.prefab.player);
+    const player_ent = prefab_manager.instantiatePrefab(ecsu_world, config.prefab.player);
     player_ent.setName("main_player");
     player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));
@@ -247,7 +247,7 @@ pub fn run() void {
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
     const sphere_prefab = prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
-    const player_camera_ent = prefab_manager.instantiatePrefab(&ecsu_world, sphere_prefab);
+    const player_camera_ent = prefab_manager.instantiatePrefab(ecsu_world, sphere_prefab);
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.7, .z = 0 });

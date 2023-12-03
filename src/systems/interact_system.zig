@@ -181,7 +181,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         if (weapon_comp.chambered_projectile == 0 and weapon_comp.cooldown < world_time) {
             // Load new projectile
-            var proj_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, arrow_prefab);
+            var proj_ent = system.prefab_manager.instantiatePrefab(system.ecsu_world, arrow_prefab);
             proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
             proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
             proj_ent.set(fd.Projectile{});
@@ -361,7 +361,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         // trail
         const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
-        var fx_ent = system.prefab_manager.instantiatePrefab(&system.ecsu_world, cylinder_prefab);
+        var fx_ent = system.prefab_manager.instantiatePrefab(system.ecsu_world, cylinder_prefab);
         fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
         fx_ent.set(fd.Rotation{});
         fx_ent.set(fd.Scale.createScalar(1));

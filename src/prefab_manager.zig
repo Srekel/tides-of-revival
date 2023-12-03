@@ -22,7 +22,7 @@ pub const PrefabManager = struct {
     prefab_hash_map: PrefabHashMap,
     is_a: ecsu.Entity,
 
-    pub fn init(world: *ecsu.World, allocator: std.mem.Allocator) PrefabManager {
+    pub fn init(world: ecsu.World, allocator: std.mem.Allocator) PrefabManager {
         return PrefabManager{
             .prefab_hash_map = PrefabHashMap.init(allocator),
             .is_a = ecsu.Entity.init(world.world, ecs.IsA),
@@ -33,7 +33,7 @@ pub const PrefabManager = struct {
         self.prefab_hash_map.deinit();
     }
 
-    pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: *ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator, args: struct { is_dynamic: bool = false }) !ecsu.Entity {
+    pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator, args: struct { is_dynamic: bool = false }) !ecsu.Entity {
         const path_id = IdLocal.init(path);
         var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
@@ -67,13 +67,13 @@ pub const PrefabManager = struct {
         return null;
     }
 
-    pub fn instantiatePrefab(self: @This(), world: *ecsu.World, prefab: ecsu.Entity) ecsu.Entity {
+    pub fn instantiatePrefab(self: @This(), world: ecsu.World, prefab: ecsu.Entity) ecsu.Entity {
         const entity = world.newEntity();
         entity.addPair(self.is_a, prefab);
         return entity;
     }
 
-    fn parseNode(self: *@This(), node: *zcgltf.Node, parent_entity: ?ecsu.Entity, world: *ecsu.World, gfxstate: *gfx.D3D12State, arena: std.mem.Allocator, is_dynamic: bool) ecsu.Entity {
+    fn parseNode(self: *@This(), node: *zcgltf.Node, parent_entity: ?ecsu.Entity, world: ecsu.World, gfxstate: *gfx.D3D12State, arena: std.mem.Allocator, is_dynamic: bool) ecsu.Entity {
         var entity = world.newPrefab(node.name);
 
         // Set parent

@@ -136,7 +136,7 @@ pub fn createEntities(state: *SystemState) void {
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
         _ = rot_y;
 
-        var city_ent = state.prefab_manager.instantiatePrefab(&ecsu_world, sphere_prefab);
+        var city_ent = state.prefab_manager.instantiatePrefab(ecsu_world, sphere_prefab);
         city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
         // city_ent.set(fd.Scale.createScalar(10));
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;

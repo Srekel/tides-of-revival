@@ -59,7 +59,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
         post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
 
         const cylinder_prefab = prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
-        const post_ent = prefab_manager.instantiatePrefab(&ecsu_world, cylinder_prefab);
+        const post_ent = prefab_manager.instantiatePrefab(ecsu_world, cylinder_prefab);
         post_ent.set(post_pos);
         post_ent.set(fd.Rotation{});
         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
