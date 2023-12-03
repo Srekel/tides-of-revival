@@ -12,6 +12,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
+const util = @import("../../util.zig");
 
 fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const movement_pitch = input_state.get(config.input.look_pitch).number;
@@ -93,54 +94,32 @@ fn exit(ctx: fsm.StateFuncContext) void {
 }
 
 fn update(ctx: fsm.StateFuncContext) void {
-    // const self = Util.cast(StateIdle, ctx.data.ptr);
-    // _ = self;
-    const self = Util.castBytes(StateCameraFPS, ctx.state.self);
-    var entity_iter = self.query.iterator(struct {
+    // const self = Util.castBytes(StateCameraFPS, ctx.state.self);
+    var cam_ent = util.getActiveCameraEnt(ctx.ecsu_world);
+    // if (cam_ent == null) {}
+    const cam_comps = cam_ent.getComps(struct {
         input: *fd.Input,
         camera: *fd.Camera,
         transform: *fd.Transform,
-        // pos: *fd.Position,
-        // fwd: *fd.Forward,
         rot: *fd.Rotation,
     });
-
-    // std.debug.print("cam.active {any}a\n", .{cam.active});
-    while (entity_iter.next()) |comps| {
-        var cam = comps.camera;
-        if (!cam.active) {
-            continue;
-        }
-
-        if (cam.class != 1) {
-            // HACK
-            continue;
-        }
-
-        updateLook(comps.rot, ctx.input_frame_data);
-        // updateInteract(
-        //     comps.transform,
-        //     // comps.fwd,
-        //     ctx.physics_world,
-        //     ctx.ecsu_world,
-        //     ctx.input_frame_data,
-        // );
+    if (cam_comps.camera.class == 1) {
+        // HACK
+        updateLook(cam_comps.rot, ctx.input_frame_data);
     }
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
-    _ = query_builder
-        .with(fd.Input)
-        .with(fd.Camera)
-        .with(fd.Transform)
-    // .with(fd.Position)
-    // .with(fd.Forward)
-        .with(fd.Rotation);
+    // var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
+    // _ = query_builder
+    //     .with(fd.Input)
+    //     .with(fd.Camera)
+    //     .with(fd.Transform)
+    //     .with(fd.Rotation);
 
-    var query = query_builder.buildQuery();
+    // var query = query_builder.buildQuery();
     var self = ctx.allocator.create(StateCameraFPS) catch unreachable;
-    self.query = query;
+    // self.query = query;
 
     return .{
         .name = IdLocal.init("fps_camera"),

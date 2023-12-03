@@ -10,6 +10,7 @@ const fd = @import("../../config/flecs_data.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
+const util = @import("../../util.zig");
 
 fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const movement_yaw = input_state.get(config.input.look_yaw).number;
@@ -102,46 +103,24 @@ fn exit(ctx: fsm.StateFuncContext) void {
 }
 
 fn update(ctx: fsm.StateFuncContext) void {
-    // const self = Util.cast(StateIdle, ctx.data.ptr);
-    // _ = self;
-    const self = Util.castBytes(StateCameraFreefly, ctx.state.self);
-    var entity_iter = self.query.iterator(struct {
+    // const self = Util.castBytes(StateCameraFreefly, ctx.state.self);
+    var cam_ent = util.getActiveCameraEnt(ctx.ecsu_world);
+    const cam_comps = cam_ent.getComps(struct {
         input: *fd.Input,
         camera: *fd.Camera,
-        pos: *fd.Position,
+        transform: *fd.Transform,
         rot: *fd.Rotation,
-        // fwd: *fd.Forward,
-        // transform: *fd.Transform,
+        pos: *fd.Position,
     });
-
-    while (entity_iter.next()) |comps| {
-        var cam = comps.camera;
-        if (!cam.active) {
-            continue;
-        }
-
-        if (cam.class != 0) {
-            // HACK
-            continue;
-        }
-        updateLook(comps.rot, ctx.input_frame_data);
-        updateMovement(comps.pos, comps.rot, ctx.dt, ctx.input_frame_data);
+    if (cam_comps.camera.class == 0) {
+        // HACK
+        updateLook(cam_comps.rot, ctx.input_frame_data);
+        updateMovement(cam_comps.pos, cam_comps.rot, ctx.dt, ctx.input_frame_data);
     }
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
-    _ = query_builder
-        .with(fd.Input)
-        .with(fd.Camera)
-        .with(fd.Position)
-        .with(fd.Rotation)
-    // .with(fd.Transform)
-    ;
-
-    var query = query_builder.buildQuery();
     var self = ctx.allocator.create(StateCameraFreefly) catch unreachable;
-    self.query = query;
 
     return .{
         .name = IdLocal.init("freefly"),

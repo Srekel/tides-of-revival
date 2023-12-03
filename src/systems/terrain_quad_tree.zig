@@ -29,6 +29,7 @@ const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const mesh_loader = @import("../renderer/mesh_loader.zig");
+const util = @import("../util.zig");
 
 const lod_load_range = 300;
 
@@ -167,8 +168,6 @@ pub const SystemState = struct {
     sys: ecs.entity_t,
 
     gfx: *gfx.D3D12State,
-
-    query_camera: ecsu.Query,
 
     vertex_buffer: gfx.BufferHandle,
     index_buffer: gfx.BufferHandle,
@@ -796,13 +795,6 @@ pub fn create(
     ecsu_world: ecsu.World,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 ) !*SystemState {
-    // Queries
-    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world);
-    _ = query_builder_camera
-        .withReadonly(fd.Camera)
-        .withReadonly(fd.Transform);
-    var query_camera = query_builder_camera.buildQuery();
-
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
     const max_quad_tree_nodes: usize = 85 * 64;
     var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
@@ -963,7 +955,6 @@ pub fn create(
         .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
         .quads_to_render = quads_to_render,
         .quads_to_load = quads_to_load,
-        .query_camera = query_camera,
         .heightmap_patch_type_id = heightmap_patch_type_id,
         .splatmap_patch_type_id = splatmap_patch_type_id,
     };
@@ -972,8 +963,6 @@ pub fn create(
 }
 
 pub fn destroy(state: *SystemState) void {
-    state.query_camera.deinit();
-
     // NOTE(gmodarelli): We need to call this to avoid releasing textures while they are still in use.
     // This was also triggering a Device Removal error.
     // We won't need to do this once we decouple systems from the renderer
@@ -1003,25 +992,14 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    const CameraQueryComps = struct {
+    var cam_ent = util.getActiveCameraEnt(state.ecsu_world);
+    const cam_comps = cam_ent.getComps(struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
-    };
-    var camera_comps: ?CameraQueryComps = blk: {
-        var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
-        while (entity_iter_camera.next()) |comps| {
-            if (comps.cam.active) {
-                ecs.iter_fini(entity_iter_camera.iter);
-                break :blk comps;
-            }
-        }
+    });
 
-        break :blk null;
-    };
-
-    if (camera_comps == null) {
-        return;
-    }
+    const cam = cam_comps.cam;
+    const camera_position = cam_comps.transform.getPos00();
 
     state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain Quad Tree");
 
@@ -1038,8 +1016,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     });
 
     // Upload per-frame constant data.
-    const cam = camera_comps.?.cam;
-    const camera_position = camera_comps.?.transform.getPos00();
     const z_view_projection = zm.loadMat(cam.view_projection[0..]);
     const z_view_projection_inverted = zm.inverse(z_view_projection);
     {

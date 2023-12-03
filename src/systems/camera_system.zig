@@ -235,6 +235,10 @@ fn updateCameraSwitch(state: *SystemState) void {
         comps.input.active = active;
         if (comps.cam) |cam| {
             cam.active = active;
+            if (active) {
+                var environment_info = state.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+                environment_info.active_camera = .{ .world = state.ecsu_world.world, .id = entity_iter.entity() };
+            }
         }
     }
 }

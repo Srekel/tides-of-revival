@@ -48,7 +48,6 @@ pub const SystemState = struct {
     gfx: *gfx_d3d12.D3D12State,
 
     comp_query_interactor: ecsu.Query,
-    camera_query_interactor: ecsu.Query,
 
     // UI-specific resources
     kills: u32,
@@ -82,7 +81,6 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .with(fd.Camera)
         .with(fd.Forward)
         .with(fd.Transform);
-    const camera_query_interactor = query_builder_interactor.buildQuery();
 
     const texture_path = "content/textures/ui/crosshair085.png";
     const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
@@ -99,7 +97,6 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .event_manager = ctx.event_manager,
         .prefab_manager = ctx.prefab_manager,
         .comp_query_interactor = comp_query_interactor,
-        .camera_query_interactor = camera_query_interactor,
         .gfx = ctx.gfx,
         .kills = 0,
         .arrows = 0,
@@ -116,7 +113,6 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
 pub fn destroy(system: *SystemState) void {
     system.comp_query_interactor.deinit();
-    system.camera_query_interactor.deinit();
     system.allocator.destroy(system);
 }
 
@@ -383,28 +379,18 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 }
 
 fn updateCrosshair(system: *SystemState) void {
-    var entity_iter = system.camera_query_interactor.iterator(struct {
+    var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
+
+    var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
+    const cam_comps = cam_ent.getComps(struct {
         camera: *fd.Camera,
         fwd: *fd.Forward,
         transform: *fd.Transform,
     });
-
-    var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
-
-    while (entity_iter.next()) |comps| {
-        var cam = comps.camera;
-        if (!cam.active) {
-            continue;
-        }
-
-        if (cam.class != 1) {
-            // HACK
-            continue;
-        }
-
+    if (cam_comps.camera.class == 1) {
         const query = system.physics_world.getNarrowPhaseQuery();
 
-        const z_mat = zm.loadMat43(comps.transform.matrix[0..]);
+        const z_mat = zm.loadMat43(cam_comps.transform.matrix[0..]);
         var z_pos = zm.util.getTranslationVec(z_mat);
         const z_fwd = zm.util.getAxisZ(z_mat);
         z_pos[0] += z_fwd[0] * 0.1;

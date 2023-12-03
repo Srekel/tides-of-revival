@@ -118,6 +118,14 @@ pub const Entity = struct {
         return null;
     }
 
+    pub fn getComps(self: Entity, comptime T: type) T {
+        var result: T = undefined;
+        inline for (std.meta.fields(T)) |fld| {
+            @field(result, fld.name) = self.getMut(@typeInfo(fld.type).Pointer.child).?;
+        }
+        return result;
+    }
+
     /// removes a component from an Entity
     pub fn remove(self: Entity, id_or_type: anytype) void {
         std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .Type);

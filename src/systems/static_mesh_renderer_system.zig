@@ -20,6 +20,7 @@ const Vertex = @import("../renderer/renderer_types.zig").Vertex;
 const IndexType = @import("../renderer/renderer_types.zig").IndexType;
 const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const ztracy = @import("ztracy");
+const util = @import("../util.zig");
 
 const DrawUniforms = struct {
     start_instance_location: u32,
@@ -86,7 +87,6 @@ pub const SystemState = struct {
 
     gpu_frame_profiler_index: u64 = undefined,
 
-    query_camera: ecsu.Query,
     query_mesh: ecsu.Query,
 
     camera: struct {
@@ -185,15 +185,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
 
     // Queries
-    var query_builder_camera = ecsu.QueryBuilder.init(ecsu_world.*);
-    _ = query_builder_camera
-        .withReadonly(fd.Camera)
-        .withReadonly(fd.Transform);
     var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world.*);
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.StaticMeshComponent);
-    var query_camera = query_builder_camera.buildQuery();
     var query_mesh = query_builder_mesh.buildQuery();
 
     state.* = .{
@@ -207,7 +202,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .draw_calls_info = draw_calls_info,
         .instance_transforms = instance_transforms,
         .instance_materials = instance_materials,
-        .query_camera = query_camera,
         .query_mesh = query_mesh,
     };
 
@@ -215,7 +209,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 }
 
 pub fn destroy(state: *SystemState) void {
-    state.query_camera.deinit();
     state.query_mesh.deinit();
     state.instance_transforms[opaque_entities_index].deinit();
     state.instance_transforms[masked_entities_index].deinit();
@@ -242,28 +235,14 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
-    const CameraQueryComps = struct {
+    var cam_ent = util.getActiveCameraEnt(state.ecsu_world.*);
+    const cam_comps = cam_ent.getComps(struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
-    };
-    var camera_comps: ?CameraQueryComps = blk: {
-        var entity_iter_camera = state.query_camera.iterator(CameraQueryComps);
-        while (entity_iter_camera.next()) |comps| {
-            if (comps.cam.active) {
-                ecs.iter_fini(entity_iter_camera.iter);
-                break :blk comps;
-            }
-        }
+    });
 
-        break :blk null;
-    };
-
-    if (camera_comps == null) {
-        return;
-    }
-
-    const cam = camera_comps.?.cam;
-    const camera_position = camera_comps.?.transform.getPos00();
+    const cam = cam_comps.cam;
+    const camera_position = cam_comps.transform.getPos00();
 
     var entity_iter_mesh = state.query_mesh.iterator(struct {
         transform: *const fd.Transform,

@@ -80,9 +80,12 @@ pub fn run() void {
     var event_manager = EventManager.create(std.heap.page_allocator);
     defer event_manager.destroy();
 
+    // Input
+    // Run it once to make sure we don't get huge diff values for cursor etc. the first frame.
     const input_target_defaults = config.input.createDefaultTargetDefaults(std.heap.page_allocator);
     const input_keymap = config.input.createKeyMap(std.heap.page_allocator);
     var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window);
+    input.doTheThing(std.heap.page_allocator, &input_frame_data);
 
     var asset_manager = AssetManager.create(std.heap.page_allocator);
     defer asset_manager.destroy();
@@ -126,8 +129,13 @@ pub fn run() void {
     config.system.setupSystems();
     defer config.system.destroySystems();
 
-    // Make sure systems are initialized and any initial system entities are created.
-    update(ecsu_world, gfx_state);
+    ecsu_world.setSingleton(fd.EnvironmentInfo{
+        .paused = false,
+        .time_of_day_percent = 0,
+        .sun_height = 0,
+        .world_time = 0,
+        .active_camera = null,
+    });
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
@@ -264,6 +272,9 @@ pub fn run() void {
     });
     bow_ent.childOf(player_camera_ent);
 
+    var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    environment_info.active_camera = player_camera_ent;
+
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
     //    ██║   ██║██╔████╔██║█████╗  ██║     ██║██╔██╗ ██║█████╗  ███████╗
@@ -293,13 +304,6 @@ pub fn run() void {
     // // ██║     ███████╗███████╗╚██████╗███████║
     // // ╚═╝     ╚══════╝╚══════╝ ╚═════╝╚══════╝
 
-    ecsu_world.setSingleton(fd.EnvironmentInfo{
-        .paused = false,
-        .time_of_day_percent = 0,
-        .sun_height = 0,
-        .world_time = 0,
-    });
-
     // Flecs config
     // Delete children when parent is destroyed
     _ = ecsu_world.pair(ecs.OnDeleteTarget, ecs.OnDelete);
@@ -319,90 +323,93 @@ pub fn run() void {
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
-        gfx.beginFrame(gfx_state);
-
-        const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
-        defer trazy_zone.End();
-
-        const window_status = window.update(gfx_state) catch unreachable;
-        if (window_status == .no_windows) {
+        // NOTE: There's no valuable distinction between update_full and update,
+        // but probably not worth looking into deeper until we get a job system.
+        const done = update_full(
+            gameloop_context,
+            &(tl_giant_ant_spawn_ctx.?),
+        );
+        if (done) {
             break;
-        }
-        if (input_frame_data.just_pressed(config.input.exit)) {
-            break;
-        }
-
-        // TODO: Move to The Debuginator
-        if (input_frame_data.just_pressed(config.input.view_mode_lit)) {
-            gfx_state.setViewMode(.lit);
-        }
-
-        if (input_frame_data.just_pressed(config.input.view_mode_albedo)) {
-            gfx_state.setViewMode(.albedo);
-        }
-
-        if (input_frame_data.just_pressed(config.input.view_mode_world_normal)) {
-            gfx_state.setViewMode(.world_normal);
-        }
-
-        if (input_frame_data.just_pressed(config.input.view_mode_metallic)) {
-            gfx_state.setViewMode(.metallic);
-        }
-
-        if (input_frame_data.just_pressed(config.input.view_mode_roughness)) {
-            gfx_state.setViewMode(.roughness);
-        }
-
-        if (input_frame_data.just_pressed(config.input.view_mode_ao)) {
-            gfx_state.setViewMode(.ao);
-        }
-
-        if (input_frame_data.just_pressed(config.input.view_mode_depth)) {
-            gfx_state.setViewMode(.depth);
-        }
-
-        world_patch_mgr.tickOne();
-        update(ecsu_world, gfx_state);
-
-        if (tl_giant_ant_spawn_ctx) |ctx| {
-            var ui_label = gfx.UILabel{
-                .label = undefined,
-                .font_size = 24,
-                .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-                .rect = .{ .left = 20, .top = 400, .bottom = 420, .right = 600 },
-            };
-
-            var buffer = [_]u8{0} ** 64;
-            ui_label.label = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
-            gfx_state.drawUILabel(ui_label) catch unreachable;
-        }
-
-        const camera_comps = getActiveCamera(ecsu_world);
-        if (camera_comps) |comps| {
-            gfx.endFrame(gfx_state, comps.camera, comps.transform.getPos00());
-        } else {
-            const camera = fd.Camera{
-                .near = 0.01,
-                .far = 100.0,
-                .fov = 1,
-                .view = undefined,
-                .projection = undefined,
-                .view_projection = undefined,
-                .window = undefined,
-                .active = true,
-                .class = 0,
-            };
-
-            const transform = fd.Transform{
-                .matrix = undefined,
-            };
-
-            gfx.endFrame(gfx_state, &camera, transform.getPos00());
         }
     }
 }
 
 var once_per_duration_test: f32 = 0;
+
+fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timeline.WaveSpawnContext) bool {
+    var input_frame_data = gameloop_context.input_frame_data;
+    var gfx_state = gameloop_context.gfx_state;
+    var ecsu_world = gameloop_context.ecsu_world;
+    var world_patch_mgr = gameloop_context.world_patch_mgr;
+
+    const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
+    defer trazy_zone.End();
+
+    gfx.beginFrame(gfx_state);
+
+    const window_status = window.update(gfx_state) catch unreachable;
+    if (window_status == .no_windows) {
+        return true;
+    }
+    if (input_frame_data.just_pressed(config.input.exit)) {
+        return true;
+    }
+
+    // TODO: Move to The Debuginator
+    if (input_frame_data.just_pressed(config.input.view_mode_lit)) {
+        gfx_state.setViewMode(.lit);
+    }
+
+    if (input_frame_data.just_pressed(config.input.view_mode_albedo)) {
+        gfx_state.setViewMode(.albedo);
+    }
+
+    if (input_frame_data.just_pressed(config.input.view_mode_world_normal)) {
+        gfx_state.setViewMode(.world_normal);
+    }
+
+    if (input_frame_data.just_pressed(config.input.view_mode_metallic)) {
+        gfx_state.setViewMode(.metallic);
+    }
+
+    if (input_frame_data.just_pressed(config.input.view_mode_roughness)) {
+        gfx_state.setViewMode(.roughness);
+    }
+
+    if (input_frame_data.just_pressed(config.input.view_mode_ao)) {
+        gfx_state.setViewMode(.ao);
+    }
+
+    if (input_frame_data.just_pressed(config.input.view_mode_depth)) {
+        gfx_state.setViewMode(.depth);
+    }
+
+    world_patch_mgr.tickOne();
+    update(ecsu_world, gfx_state);
+
+    if (tl_giant_ant_spawn_ctx) |ctx| {
+        var ui_label = gfx.UILabel{
+            .label = undefined,
+            .font_size = 24,
+            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            .rect = .{ .left = 20, .top = 400, .bottom = 420, .right = 600 },
+        };
+
+        var buffer = [_]u8{0} ** 64;
+        ui_label.label = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
+        gfx_state.drawUILabel(ui_label) catch unreachable;
+    }
+
+    const camera_ent = util.getActiveCameraEnt(ecsu_world);
+    gfx.endFrame(
+        gfx_state,
+        camera_ent.get(fd.Camera).?,
+        camera_ent.get(fd.Transform).?.getPos00(),
+    );
+
+    return false;
+}
 
 fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
     const stats = gfx_state.stats;
@@ -430,29 +437,4 @@ fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
 
     AK.SoundEngine.renderAudio(false) catch unreachable;
     ecsu_world.progress(dt_game);
-}
-
-fn getActiveCamera(ecsu_world: ecsu.World) ?struct { camera: *const fd.Camera, transform: *const fd.Transform } {
-    var builder = ecsu.QueryBuilder.init(ecsu_world);
-    _ = builder
-        .withReadonly(fd.Camera)
-        .withReadonly(fd.Transform);
-
-    var filter = builder.buildFilter();
-    defer filter.deinit();
-
-    const CameraQueryComps = struct {
-        cam: *const fd.Camera,
-        transform: *const fd.Transform,
-    };
-
-    var entity_iter_camera = filter.iterator(CameraQueryComps);
-    while (entity_iter_camera.next()) |comps| {
-        if (comps.cam.active) {
-            ecs.iter_fini(entity_iter_camera.iter);
-            return .{ .camera = comps.cam, .transform = comps.transform };
-        }
-    }
-
-    return null;
 }
