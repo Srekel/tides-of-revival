@@ -936,10 +936,10 @@ pub fn create(
     }
     _ = gfxstate.scheduleUploadDataToBuffer(TerrainLayerTextureIndices, terrain_layers_buffer, 0, terrain_layer_texture_indices.items);
 
-    var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
+    var system = allocator.create(SystemState) catch unreachable;
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
-    state.* = .{
+    system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .world_patch_mgr = world_patch_mgr,
@@ -959,22 +959,22 @@ pub fn create(
         .splatmap_patch_type_id = splatmap_patch_type_id,
     };
 
-    return state;
+    return system;
 }
 
-pub fn destroy(state: *SystemState) void {
+pub fn destroy(system: *SystemState) void {
     // NOTE(gmodarelli): We need to call this to avoid releasing textures while they are still in use.
     // This was also triggering a Device Removal error.
     // We won't need to do this once we decouple systems from the renderer
-    state.gfx.gctx.finishGpuCommands();
+    system.gfx.gctx.finishGpuCommands();
 
-    state.terrain_lod_meshes.deinit();
-    state.instance_data.deinit();
-    state.terrain_quad_tree_nodes.deinit();
-    state.quads_to_render.deinit();
-    state.quads_to_load.deinit();
-    state.draw_calls.deinit();
-    state.allocator.destroy(state);
+    system.terrain_lod_meshes.deinit();
+    system.instance_data.deinit();
+    system.terrain_quad_tree_nodes.deinit();
+    system.quads_to_render.deinit();
+    system.quads_to_load.deinit();
+    system.draw_calls.deinit();
+    system.allocator.destroy(system);
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -986,13 +986,13 @@ pub fn destroy(state: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
-    var arena_state = std.heap.ArenaAllocator.init(state.allocator);
+    var arena_state = std.heap.ArenaAllocator.init(system.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    var cam_ent = util.getActiveCameraEnt(state.ecsu_world);
+    var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
     const cam_comps = cam_ent.getComps(struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
@@ -1001,15 +1001,15 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const cam = cam_comps.cam;
     const camera_position = cam_comps.transform.getPos00();
 
-    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Terrain Quad Tree");
+    system.gpu_frame_profiler_index = system.gfx.gpu_profiler.startProfile(system.gfx.gctx.cmdlist, "Terrain Quad Tree");
 
-    const pipeline_info = state.gfx.getPipeline(IdLocal.init("terrain_quad_tree"));
-    state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+    const pipeline_info = system.gfx.getPipeline(IdLocal.init("terrain_quad_tree"));
+    system.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
-    state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-    const index_buffer = state.gfx.lookupBuffer(state.index_buffer);
-    const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
-    state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
+    system.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+    const index_buffer = system.gfx.lookupBuffer(system.index_buffer);
+    const index_buffer_resource = system.gfx.gctx.lookupResource(index_buffer.?.resource);
+    system.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
         .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
@@ -1019,28 +1019,28 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const z_view_projection = zm.loadMat(cam.view_projection[0..]);
     const z_view_projection_inverted = zm.inverse(z_view_projection);
     {
-        const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+        const mem = system.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
         mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
         mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
         mem.cpu_slice[0].camera_position = camera_position;
 
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+        system.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
     }
 
     // Reset transforms, materials and draw calls array list
-    state.quads_to_render.clearRetainingCapacity();
-    state.quads_to_load.clearRetainingCapacity();
-    state.instance_data.clearRetainingCapacity();
-    state.draw_calls.clearRetainingCapacity();
+    system.quads_to_render.clearRetainingCapacity();
+    system.quads_to_load.clearRetainingCapacity();
+    system.instance_data.clearRetainingCapacity();
+    system.draw_calls.clearRetainingCapacity();
 
     {
         var sector_index: u32 = 0;
         while (sector_index < 64) : (sector_index += 1) {
-            const lod3_node = &state.terrain_quad_tree_nodes.items[sector_index];
+            const lod3_node = &system.terrain_quad_tree_nodes.items[sector_index];
             const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
             collectQuadsToRenderForSector(
-                state,
+                system,
                 camera_point,
                 lod_load_range,
                 lod3_node,
@@ -1053,14 +1053,14 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     {
         // TODO: Batch quads together by mesh lod
         var start_instance_location: u32 = 0;
-        for (state.quads_to_render.items) |quad_index| {
-            const quad = &state.terrain_quad_tree_nodes.items[quad_index];
+        for (system.quads_to_render.items) |quad_index| {
+            const quad = &system.terrain_quad_tree_nodes.items[quad_index];
 
             const object_to_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
             // TODO: Generate from quad.patch_index
-            const heightmap = state.gfx.lookupTexture(quad.heightmap_handle.?);
-            const splatmap = state.gfx.lookupTexture(quad.splatmap_handle.?);
-            state.instance_data.append(.{
+            const heightmap = system.gfx.lookupTexture(quad.heightmap_handle.?);
+            const splatmap = system.gfx.lookupTexture(quad.splatmap_handle.?);
+            system.instance_data.append(.{
                 .object_to_world = zm.transpose(object_to_world),
                 .heightmap_index = heightmap.?.persistent_descriptor.index,
                 .splatmap_index = splatmap.?.persistent_descriptor.index,
@@ -1068,9 +1068,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .padding1 = 42,
             }) catch unreachable;
 
-            const mesh = state.terrain_lod_meshes.items[quad.mesh_lod];
+            const mesh = system.terrain_lod_meshes.items[quad.mesh_lod];
 
-            state.draw_calls.append(.{
+            system.draw_calls.append(.{
                 .index_count = mesh.sub_meshes[0].lods[0].index_count,
                 .instance_count = 1,
                 .index_offset = mesh.sub_meshes[0].lods[0].index_offset,
@@ -1082,18 +1082,18 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }
     }
 
-    const frame_index = state.gfx.gctx.frame_index;
-    if (state.instance_data.items.len > 0) {
-        assert(state.instance_data.items.len < max_instances);
-        _ = state.gfx.uploadDataToBuffer(InstanceData, state.instance_data_buffers[frame_index], 0, state.instance_data.items);
+    const frame_index = system.gfx.gctx.frame_index;
+    if (system.instance_data.items.len > 0) {
+        assert(system.instance_data.items.len < max_instances);
+        _ = system.gfx.uploadDataToBuffer(InstanceData, system.instance_data_buffers[frame_index], 0, system.instance_data.items);
     }
 
-    const vertex_buffer = state.gfx.lookupBuffer(state.vertex_buffer);
-    const instance_data_buffer = state.gfx.lookupBuffer(state.instance_data_buffers[frame_index]);
-    const terrain_layers_buffer = state.gfx.lookupBuffer(state.terrain_layers_buffer);
+    const vertex_buffer = system.gfx.lookupBuffer(system.vertex_buffer);
+    const instance_data_buffer = system.gfx.lookupBuffer(system.instance_data_buffers[frame_index]);
+    const terrain_layers_buffer = system.gfx.lookupBuffer(system.terrain_layers_buffer);
 
-    for (state.draw_calls.items) |draw_call| {
-        const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
+    for (system.draw_calls.items) |draw_call| {
+        const mem = system.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
         mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
         mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
         mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
@@ -1101,9 +1101,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         mem.cpu_slice[0].terrain_layers_buffer_index = terrain_layers_buffer.?.persistent_descriptor.index;
         mem.cpu_slice[0].terrain_height = config.terrain_span;
         mem.cpu_slice[0].heightmap_texel_size = 1.0 / @as(f32, @floatFromInt(config.patch_resolution));
-        state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+        system.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-        state.gfx.gctx.cmdlist.DrawIndexedInstanced(
+        system.gfx.gctx.cmdlist.DrawIndexedInstanced(
             draw_call.index_count,
             draw_call.instance_count,
             draw_call.index_offset,
@@ -1112,22 +1112,22 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         );
     }
 
-    state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
+    system.gfx.gpu_profiler.endProfile(system.gfx.gctx.cmdlist, system.gpu_frame_profiler_index, system.gfx.gctx.frame_index);
 
-    for (state.quads_to_load.items) |quad_index| {
-        var node = &state.terrain_quad_tree_nodes.items[quad_index];
+    for (system.quads_to_load.items) |quad_index| {
+        var node = &system.terrain_quad_tree_nodes.items[quad_index];
         loadHeightAndSplatMaps(
-            state.gfx,
+            system.gfx,
             node,
-            state.world_patch_mgr,
+            system.world_patch_mgr,
             true, // in frame
-            state.heightmap_patch_type_id,
-            state.splatmap_patch_type_id,
+            system.heightmap_patch_type_id,
+            system.splatmap_patch_type_id,
         ) catch unreachable;
     }
 
     // Load high-lod patches near camera
-    if (tides_math.dist3_xz(state.cam_pos_old, camera_position) > 32) {
+    if (tides_math.dist3_xz(system.cam_pos_old, camera_position) > 32) {
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         for (0..3) |lod| {
@@ -1137,8 +1137,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             const area_width = 4 * config.patch_size * @as(f32, @floatFromInt(std.math.pow(usize, 2, lod)));
 
             const area_old = world_patch_manager.RequestRectangle{
-                .x = state.cam_pos_old[0] - area_width,
-                .z = state.cam_pos_old[2] - area_width,
+                .x = system.cam_pos_old[0] - area_width,
+                .z = system.cam_pos_old[2] - area_width,
                 .width = area_width * 2,
                 .height = area_width * 2,
             };
@@ -1151,10 +1151,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             };
 
             const lod_u4 = @as(u4, @intCast(lod));
-            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_old, lod_u4, &lookups_old);
-            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_old, lod_u4, &lookups_old);
-            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.heightmap_patch_type_id, area_new, lod_u4, &lookups_new);
-            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(state.splatmap_patch_type_id, area_new, lod_u4, &lookups_new);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(system.heightmap_patch_type_id, area_old, lod_u4, &lookups_old);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(system.splatmap_patch_type_id, area_old, lod_u4, &lookups_old);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(system.heightmap_patch_type_id, area_new, lod_u4, &lookups_new);
+            world_patch_manager.WorldPatchManager.getLookupsFromRectangle(system.splatmap_patch_type_id, area_new, lod_u4, &lookups_new);
 
             var i_old: u32 = 0;
             blk: while (i_old < lookups_old.items.len) {
@@ -1170,61 +1170,61 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 i_old += 1;
             }
 
-            const rid = state.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
+            const rid = system.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
             // NOTE(Anders): HACK
-            if (state.cam_pos_old[0] != -100000) {
-                state.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
+            if (system.cam_pos_old[0] != -100000) {
+                system.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
             }
 
-            state.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
+            system.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
         }
 
-        state.cam_pos_old = camera_position;
+        system.cam_pos_old = camera_position;
     }
 }
 
 // Algorithm that walks a quad tree and generates a list of quad tree nodes to render
-fn collectQuadsToRenderForSector(state: *SystemState, position: [2]f32, range: f32, node: *QuadTreeNode, node_index: u32, allocator: std.mem.Allocator) !void {
+fn collectQuadsToRenderForSector(system: *SystemState, position: [2]f32, range: f32, node: *QuadTreeNode, node_index: u32, allocator: std.mem.Allocator) !void {
     assert(node_index != invalid_index);
 
     if (node.mesh_lod == 0) {
         return;
     }
 
-    if (node.containedInsideChildren(position, range, &state.terrain_quad_tree_nodes) and node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
+    if (node.containedInsideChildren(position, range, &system.terrain_quad_tree_nodes) and node.areChildrenLoaded(&system.terrain_quad_tree_nodes)) {
         var higher_lod_node_indices: [4]u32 = .{ invalid_index, invalid_index, invalid_index, invalid_index };
         for (node.child_indices, 0..) |node_child_index, i| {
-            var child_node = &state.terrain_quad_tree_nodes.items[node_child_index];
+            var child_node = &system.terrain_quad_tree_nodes.items[node_child_index];
             if (child_node.nearPoint(position, range)) {
-                if (child_node.mesh_lod == 1 and child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
-                    state.quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
-                } else if (child_node.mesh_lod == 1 and !child_node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
-                    state.quads_to_render.append(node_child_index) catch unreachable;
-                    state.quads_to_load.appendSlice(child_node.child_indices[0..4]) catch unreachable;
+                if (child_node.mesh_lod == 1 and child_node.areChildrenLoaded(&system.terrain_quad_tree_nodes)) {
+                    system.quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
+                } else if (child_node.mesh_lod == 1 and !child_node.areChildrenLoaded(&system.terrain_quad_tree_nodes)) {
+                    system.quads_to_render.append(node_child_index) catch unreachable;
+                    system.quads_to_load.appendSlice(child_node.child_indices[0..4]) catch unreachable;
                 } else if (child_node.mesh_lod > 1) {
                     higher_lod_node_indices[i] = node_child_index;
                 }
             } else {
-                state.quads_to_render.append(node_child_index) catch unreachable;
+                system.quads_to_render.append(node_child_index) catch unreachable;
             }
         }
 
         for (higher_lod_node_indices) |higher_lod_node_index| {
             if (higher_lod_node_index != invalid_index) {
-                var child_node = &state.terrain_quad_tree_nodes.items[higher_lod_node_index];
-                collectQuadsToRenderForSector(state, position, range, child_node, higher_lod_node_index, allocator) catch unreachable;
+                var child_node = &system.terrain_quad_tree_nodes.items[higher_lod_node_index];
+                collectQuadsToRenderForSector(system, position, range, child_node, higher_lod_node_index, allocator) catch unreachable;
             } else {
-                // state.quads_to_render.append(node.child_indices[i]) catch unreachable;
+                // system.quads_to_render.append(node.child_indices[i]) catch unreachable;
             }
         }
-    } else if (node.containedInsideChildren(position, range, &state.terrain_quad_tree_nodes) and !node.areChildrenLoaded(&state.terrain_quad_tree_nodes)) {
-        state.quads_to_render.append(node_index) catch unreachable;
-        state.quads_to_load.appendSlice(node.child_indices[0..4]) catch unreachable;
+    } else if (node.containedInsideChildren(position, range, &system.terrain_quad_tree_nodes) and !node.areChildrenLoaded(&system.terrain_quad_tree_nodes)) {
+        system.quads_to_render.append(node_index) catch unreachable;
+        system.quads_to_load.appendSlice(node.child_indices[0..4]) catch unreachable;
     } else {
         if (node.isLoaded()) {
-            state.quads_to_render.append(node_index) catch unreachable;
+            system.quads_to_render.append(node_index) catch unreachable;
         } else {
-            state.quads_to_load.append(node_index) catch unreachable;
+            system.quads_to_load.append(node_index) catch unreachable;
         }
     }
 }

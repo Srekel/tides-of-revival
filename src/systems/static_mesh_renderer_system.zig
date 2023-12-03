@@ -180,9 +180,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     var instance_transforms = [max_entity_types]std.ArrayList(InstanceTransform){ std.ArrayList(InstanceTransform).init(allocator), std.ArrayList(InstanceTransform).init(allocator) };
     var instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
 
-    var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
-    // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = state });
+    var system = allocator.create(SystemState) catch unreachable;
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = system });
 
     // Queries
     var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
@@ -191,7 +191,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .withReadonly(fd.StaticMeshComponent);
     var query_mesh = query_builder_mesh.buildQuery();
 
-    state.* = .{
+    system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .sys = sys,
@@ -205,20 +205,20 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .query_mesh = query_mesh,
     };
 
-    return state;
+    return system;
 }
 
-pub fn destroy(state: *SystemState) void {
-    state.query_mesh.deinit();
-    state.instance_transforms[opaque_entities_index].deinit();
-    state.instance_transforms[masked_entities_index].deinit();
-    state.instance_materials[opaque_entities_index].deinit();
-    state.instance_materials[masked_entities_index].deinit();
-    state.draw_calls[opaque_entities_index].deinit();
-    state.draw_calls[masked_entities_index].deinit();
-    state.draw_calls_info[opaque_entities_index].deinit();
-    state.draw_calls_info[masked_entities_index].deinit();
-    state.allocator.destroy(state);
+pub fn destroy(system: *SystemState) void {
+    system.query_mesh.deinit();
+    system.instance_transforms[opaque_entities_index].deinit();
+    system.instance_transforms[masked_entities_index].deinit();
+    system.instance_materials[opaque_entities_index].deinit();
+    system.instance_materials[masked_entities_index].deinit();
+    system.draw_calls[opaque_entities_index].deinit();
+    system.draw_calls[masked_entities_index].deinit();
+    system.draw_calls_info[opaque_entities_index].deinit();
+    system.draw_calls_info[masked_entities_index].deinit();
+    system.allocator.destroy(system);
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -233,9 +233,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer trazy_zone.End();
 
     defer ecs.iter_fini(iter.iter);
-    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
-    var cam_ent = util.getActiveCameraEnt(state.ecsu_world);
+    var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
     const cam_comps = cam_ent.getComps(struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
@@ -244,24 +244,24 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const cam = cam_comps.cam;
     const camera_position = cam_comps.transform.getPos00();
 
-    var entity_iter_mesh = state.query_mesh.iterator(struct {
+    var entity_iter_mesh = system.query_mesh.iterator(struct {
         transform: *const fd.Transform,
         mesh: *const fd.StaticMeshComponent,
     });
 
     // Reset transforms, materials and draw calls array list
     for (0..max_entity_types) |entity_type_index| {
-        state.instance_transforms[entity_type_index].clearRetainingCapacity();
-        state.instance_materials[entity_type_index].clearRetainingCapacity();
-        state.draw_calls[entity_type_index].clearRetainingCapacity();
-        state.draw_calls_info[entity_type_index].clearRetainingCapacity();
+        system.instance_transforms[entity_type_index].clearRetainingCapacity();
+        system.instance_materials[entity_type_index].clearRetainingCapacity();
+        system.draw_calls[entity_type_index].clearRetainingCapacity();
+        system.draw_calls_info[entity_type_index].clearRetainingCapacity();
     }
     const invalid_texture_index = std.math.maxInt(u32);
 
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
     const loop1 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Culling and Batching", 0x00_ff_ff_00);
     while (entity_iter_mesh.next()) |comps| {
-        var maybe_mesh = state.gfx.lookupMesh(comps.mesh.mesh_handle);
+        var maybe_mesh = system.gfx.lookupMesh(comps.mesh.mesh_handle);
 
         if (maybe_mesh) |mesh| {
             const z_world = zm.loadMat43(comps.transform.matrix[0..]);
@@ -286,10 +286,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             for (0..mesh.sub_mesh_count) |sub_mesh_index| {
                 draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
 
-                var maybe_material = state.gfx.lookUpMaterial(comps.mesh.material_handles[sub_mesh_index]);
+                var maybe_material = system.gfx.lookUpMaterial(comps.mesh.material_handles[sub_mesh_index]);
                 if (maybe_material) |material| {
                     const albedo = blk: {
-                        if (state.gfx.lookupTexture(material.albedo)) |albedo| {
+                        if (system.gfx.lookupTexture(material.albedo)) |albedo| {
                             break :blk albedo.persistent_descriptor.index;
                         } else {
                             break :blk invalid_texture_index;
@@ -297,7 +297,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                     };
 
                     const arm = blk: {
-                        if (state.gfx.lookupTexture(material.arm)) |arm| {
+                        if (system.gfx.lookupTexture(material.arm)) |arm| {
                             break :blk arm.persistent_descriptor.index;
                         } else {
                             break :blk invalid_texture_index;
@@ -305,7 +305,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                     };
 
                     const normal = blk: {
-                        if (state.gfx.lookupTexture(material.normal)) |normal| {
+                        if (system.gfx.lookupTexture(material.normal)) |normal| {
                             break :blk normal.persistent_descriptor.index;
                         } else {
                             break :blk invalid_texture_index;
@@ -313,7 +313,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                     };
 
                     const emissive = blk: {
-                        if (state.gfx.lookupTexture(material.emissive)) |emissive| {
+                        if (system.gfx.lookupTexture(material.emissive)) |emissive| {
                             break :blk emissive.persistent_descriptor.index;
                         } else {
                             break :blk invalid_texture_index;
@@ -322,7 +322,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                     const entity_type_index = if (material.surface_type == .@"opaque") opaque_entities_index else masked_entities_index;
 
-                    state.instance_materials[entity_type_index].append(.{
+                    system.instance_materials[entity_type_index].append(.{
                         .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
                         .roughness = material.roughness,
                         .metallic = material.metallic,
@@ -334,21 +334,21 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                         .arm_texture_index = arm,
                     }) catch unreachable;
 
-                    state.draw_calls_info[entity_type_index].append(draw_call_info) catch unreachable;
+                    system.draw_calls_info[entity_type_index].append(draw_call_info) catch unreachable;
 
-                    state.instance_transforms[entity_type_index].append(.{
+                    system.instance_transforms[entity_type_index].append(.{
                         .object_to_world = zm.transpose(z_world),
                         .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
                     }) catch unreachable;
                 } else {
-                    state.draw_calls_info[opaque_entities_index].append(draw_call_info) catch unreachable;
+                    system.draw_calls_info[opaque_entities_index].append(draw_call_info) catch unreachable;
 
-                    state.instance_transforms[opaque_entities_index].append(.{
+                    system.instance_transforms[opaque_entities_index].append(.{
                         .object_to_world = zm.transpose(z_world),
                         .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
                     }) catch unreachable;
 
-                    state.instance_materials[opaque_entities_index].append(.{
+                    system.instance_materials[opaque_entities_index].append(.{
                         .albedo_color = [4]f32{ 1.0, 0.0, 1.0, 1.0 },
                         .roughness = 1.0,
                         .metallic = 0.0,
@@ -365,14 +365,14 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     }
     loop1.End();
 
-    state.gpu_frame_profiler_index = state.gfx.gpu_profiler.startProfile(state.gfx.gctx.cmdlist, "Static Mesh Renderer System");
+    system.gpu_frame_profiler_index = system.gfx.gpu_profiler.startProfile(system.gfx.gctx.cmdlist, "Static Mesh Renderer System");
 
     const loop2 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Rendering", 0x00_ff_ff_00);
     for (0..max_entity_types) |entity_type_index| {
         var start_instance_location: u32 = 0;
         var current_draw_call: DrawCall = undefined;
 
-        for (state.draw_calls_info[entity_type_index].items, 0..) |draw_call_info, i| {
+        for (system.draw_calls_info[entity_type_index].items, 0..) |draw_call_info, i| {
             if (i == 0) {
                 current_draw_call = .{
                     .mesh_handle = draw_call_info.mesh_handle,
@@ -384,8 +384,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                 start_instance_location += 1;
 
-                if (i == state.draw_calls_info[entity_type_index].items.len - 1) {
-                    state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                if (i == system.draw_calls_info[entity_type_index].items.len - 1) {
+                    system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
                 }
                 continue;
             }
@@ -394,11 +394,11 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 current_draw_call.instance_count += 1;
                 start_instance_location += 1;
 
-                if (i == state.draw_calls_info[entity_type_index].items.len - 1) {
-                    state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                if (i == system.draw_calls_info[entity_type_index].items.len - 1) {
+                    system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
                 }
             } else {
-                state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
 
                 current_draw_call = .{
                     .mesh_handle = draw_call_info.mesh_handle,
@@ -410,59 +410,59 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                 start_instance_location += 1;
 
-                if (i == state.draw_calls_info[entity_type_index].items.len - 1) {
-                    state.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                if (i == system.draw_calls_info[entity_type_index].items.len - 1) {
+                    system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
                 }
             }
         }
 
-        if (state.draw_calls[entity_type_index].items.len > 0) {
-            const pipeline_info = state.gfx.getPipeline(IdLocal.init(if (entity_type_index == masked_entities_index) "gbuffer_fill_masked" else "gbuffer_fill_opaque"));
-            state.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+        if (system.draw_calls[entity_type_index].items.len > 0) {
+            const pipeline_info = system.gfx.getPipeline(IdLocal.init(if (entity_type_index == masked_entities_index) "gbuffer_fill_masked" else "gbuffer_fill_opaque"));
+            system.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
 
             // Upload per-frame constant data.
             const z_view_projection = zm.loadMat(cam.view_projection[0..]);
             const z_view_projection_inverted = zm.inverse(z_view_projection);
             {
-                const mem = state.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
+                const mem = system.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
                 mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
                 mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
                 mem.cpu_slice[0].camera_position = camera_position;
 
-                state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
+                system.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
             }
 
-            const frame_index = state.gfx.gctx.frame_index;
-            _ = state.gfx.uploadDataToBuffer(InstanceTransform, state.instance_transform_buffers[entity_type_index][frame_index], 0, state.instance_transforms[entity_type_index].items);
-            _ = state.gfx.uploadDataToBuffer(InstanceMaterial, state.instance_material_buffers[entity_type_index][frame_index], 0, state.instance_materials[entity_type_index].items);
+            const frame_index = system.gfx.gctx.frame_index;
+            _ = system.gfx.uploadDataToBuffer(InstanceTransform, system.instance_transform_buffers[entity_type_index][frame_index], 0, system.instance_transforms[entity_type_index].items);
+            _ = system.gfx.uploadDataToBuffer(InstanceMaterial, system.instance_material_buffers[entity_type_index][frame_index], 0, system.instance_materials[entity_type_index].items);
 
-            const instance_transform_buffer = state.gfx.lookupBuffer(state.instance_transform_buffers[entity_type_index][frame_index]);
-            const instance_material_buffer = state.gfx.lookupBuffer(state.instance_material_buffers[entity_type_index][frame_index]);
+            const instance_transform_buffer = system.gfx.lookupBuffer(system.instance_transform_buffers[entity_type_index][frame_index]);
+            const instance_material_buffer = system.gfx.lookupBuffer(system.instance_material_buffers[entity_type_index][frame_index]);
 
-            for (state.draw_calls[entity_type_index].items) |draw_call| {
-                var maybe_mesh = state.gfx.lookupMesh(draw_call.mesh_handle);
+            for (system.draw_calls[entity_type_index].items) |draw_call| {
+                var maybe_mesh = system.gfx.lookupMesh(draw_call.mesh_handle);
 
                 if (maybe_mesh) |mesh| {
-                    state.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-                    const index_buffer = state.gfx.lookupBuffer(mesh.index_buffer);
-                    const index_buffer_resource = state.gfx.gctx.lookupResource(index_buffer.?.resource);
-                    state.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
+                    system.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
+                    const index_buffer = system.gfx.lookupBuffer(mesh.index_buffer);
+                    const index_buffer_resource = system.gfx.gctx.lookupResource(index_buffer.?.resource);
+                    system.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
                         .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
                         .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
                         .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
                     });
 
-                    const vertex_buffer = state.gfx.lookupBuffer(mesh.vertex_buffer);
+                    const vertex_buffer = system.gfx.lookupBuffer(mesh.vertex_buffer);
                     const mesh_lod = mesh.sub_meshes[draw_call.sub_mesh_index].lods[draw_call.lod_index];
-                    const mem = state.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
+                    const mem = system.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
                     mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
                     mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
                     mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
                     mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
                     mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
-                    state.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
+                    system.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
 
-                    state.gfx.gctx.cmdlist.DrawIndexedInstanced(
+                    system.gfx.gctx.cmdlist.DrawIndexedInstanced(
                         mesh_lod.index_count,
                         draw_call.instance_count,
                         mesh_lod.index_offset,
@@ -475,7 +475,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     }
     loop2.End();
 
-    state.gfx.gpu_profiler.endProfile(state.gfx.gctx.cmdlist, state.gpu_frame_profiler_index, state.gfx.gctx.frame_index);
+    system.gfx.gpu_profiler.endProfile(system.gfx.gctx.cmdlist, system.gpu_frame_profiler_index, system.gfx.gctx.frame_index);
 }
 
 fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32, lod_count: u32) u32 {

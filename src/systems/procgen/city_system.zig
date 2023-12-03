@@ -81,9 +81,9 @@ pub fn create(
         .with(fd.Transform);
     var query_syncpos = query_builder_syncpos.buildQuery();
 
-    var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
-    state.* = .{
+    var system = allocator.create(SystemState) catch unreachable;
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .physics_world = physics_world,
@@ -97,23 +97,23 @@ pub fn create(
         .query_combat = query_combat,
         .query_syncpos = query_syncpos,
     };
-    return state;
+    return system;
 }
-pub fn createEntities(state: *SystemState) void {
-    var ecsu_world = state.ecsu_world;
-    var city_ents = std.ArrayList(CityEnt).init(state.allocator);
+pub fn createEntities(system: *SystemState) void {
+    var ecsu_world = system.ecsu_world;
+    var city_ents = std.ArrayList(CityEnt).init(system.allocator);
     defer city_ents.deinit();
 
     var added_spawn = false;
 
     // Cities from cities.txt
-    const cities_data = state.asset_manager.loadAssetBlocking(IdLocal.init("content/systems/cities.txt"), .instant_blocking);
+    const cities_data = system.asset_manager.loadAssetBlocking(IdLocal.init("content/systems/cities.txt"), .instant_blocking);
 
     // var props = std.ArrayList(Prop).initCapacity(ctx.allocator, props_data.len / 30) catch unreachable;
     var buf_reader = std.io.fixedBufferStream(cities_data);
     var in_stream = buf_reader.reader();
     var buf: [1024]u8 = undefined;
-    const sphere_prefab = state.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
+    const sphere_prefab = system.prefab_manager.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
     while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
         var comma_curr: usize = 0;
         var comma_next: usize = std.mem.indexOfScalar(u8, line, ","[0]).?;
@@ -136,12 +136,12 @@ pub fn createEntities(state: *SystemState) void {
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
         _ = rot_y;
 
-        var city_ent = state.prefab_manager.instantiatePrefab(ecsu_world, sphere_prefab);
+        var city_ent = system.prefab_manager.instantiatePrefab(ecsu_world, sphere_prefab);
         city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
         // city_ent.set(fd.Scale.createScalar(10));
         city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
 
-        var light_ent = state.ecsu_world.newEntity();
+        var light_ent = system.ecsu_world.newEntity();
         light_ent.set(fd.Transform.initFromPosition(.{ .x = pos_x, .y = pos_y + 5, .z = pos_z }));
         light_ent.set(fd.PointLight{
             .color = .{ .r = 1, .g = 0.5, .b = 0.25 },
@@ -156,7 +156,7 @@ pub fn createEntities(state: *SystemState) void {
         if (!added_spawn) {
             added_spawn = true;
             var spawn_pos = fd.Position.init(pos_x, pos_y + 1, pos_z);
-            var spawn_ent = state.ecsu_world.newEntity();
+            var spawn_ent = system.ecsu_world.newEntity();
             spawn_ent.set(spawn_pos);
             spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
             spawn_ent.addPair(fr.Hometown, city_ent);
@@ -243,27 +243,27 @@ pub fn createEntities(state: *SystemState) void {
     // }
 }
 
-pub fn destroy(state: *SystemState) void {
-    state.query_city.deinit();
-    state.query_camp.deinit();
-    state.query_caravan.deinit();
-    state.query_combat.deinit();
-    state.query_syncpos.deinit();
-    state.allocator.destroy(state);
+pub fn destroy(system: *SystemState) void {
+    system.query_city.deinit();
+    system.query_camp.deinit();
+    system.query_caravan.deinit();
+    system.query_combat.deinit();
+    system.query_syncpos.deinit();
+    system.allocator.destroy(system);
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    _ = state;
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    _ = system;
 
-    // const environment_info = state.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    // const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     // const world_time = environment_info.world_time;
     // var rand1 = std.rand.DefaultPrng.init(@floatToInt(u64, world_time * 100));
     // var rand = rand1.random();
 
     // // CITY
-    // var entity_iter_city = state.query_city.iterator(struct {
+    // var entity_iter_city = system.query_city.iterator(struct {
     //     city: *fd.CompCity,
     //     pos: *fd.Position,
     // });
@@ -277,7 +277,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //             city.next_spawn_time += city.spawn_cooldown;
     //             city.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 3, 10);
     //             const city_index = rand.intRangeAtMost(u32, 0, 1);
-    //             const next_city = flecs.Entity.init(state.ecsu_world.world, city.closest_cities[city_index]);
+    //             const next_city = flecs.Entity.init(system.ecsu_world.world, city.closest_cities[city_index]);
     //             city.curr_target_city = next_city.id;
     //             continue;
     //         }
@@ -285,11 +285,11 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         city.caravan_members_to_spawn -= 1;
     //         city.next_spawn_time += 0.05 + rand.float(f32) * 0.5;
 
-    //         const next_city = flecs.Entity.init(state.ecsu_world.world, city.curr_target_city);
+    //         const next_city = flecs.Entity.init(system.ecsu_world.world, city.curr_target_city);
     //         const next_city_pos = next_city.get(fd.Position).?.*.elemsConst().*;
     //         const distance = math.dist3_xz(next_city_pos, pos.elemsConst().*);
 
-    //         var caravan_ent = state.ecsu_world.newEntity();
+    //         var caravan_ent = system.ecsu_world.newEntity();
     //         caravan_ent.set(fd.Transform{});
     //         caravan_ent.set(pos.*);
     //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
@@ -310,7 +310,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     // }
 
     // // CAMP
-    // var entity_iter_camp = state.query_camp.iterator(struct {
+    // var entity_iter_camp = system.query_camp.iterator(struct {
     //     camp: *fd.CompBanditCamp,
     //     pos: *fd.Position,
     // });
@@ -324,7 +324,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //             camp.next_spawn_time += camp.spawn_cooldown;
     //             camp.caravan_members_to_spawn = rand.intRangeAtMostBiased(i32, 2, 5);
     //             // const campIndex = rand.intRangeAtMost(u32, 0, 1);
-    //             // const next_city = flecs.Entity.init(state.ecsu_world.world, camp.closest_cities[campIndex]);
+    //             // const next_city = flecs.Entity.init(system.ecsu_world.world, camp.closest_cities[campIndex]);
     //             // camp.curr_target_city = next_city.id;
     //             continue;
     //         }
@@ -332,15 +332,15 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         camp.caravan_members_to_spawn -= 1;
     //         camp.next_spawn_time += 0.1 + rand.float(f32) * 1;
 
-    //         const next_city1 = flecs.Entity.init(state.ecsu_world.world, camp.closest_cities[0]);
-    //         const next_city2 = flecs.Entity.init(state.ecsu_world.world, camp.closest_cities[1]);
+    //         const next_city1 = flecs.Entity.init(system.ecsu_world.world, camp.closest_cities[0]);
+    //         const next_city2 = flecs.Entity.init(system.ecsu_world.world, camp.closest_cities[1]);
     //         const z_next_city_pos1 = zm.loadArr3(next_city1.get(fd.Position).?.elemsConst().*);
     //         const z_next_city_pos2 = zm.loadArr3(next_city2.get(fd.Position).?.elemsConst().*);
     //         const z_target_pos = (z_next_city_pos1 + z_next_city_pos2) * zm.f32x4s(0.5);
     //         const target_pos = zm.vecToArr3(z_target_pos);
     //         const distance = math.dist3_xz(target_pos, pos.elemsConst().*);
 
-    //         var caravan_ent = state.ecsu_world.newEntity();
+    //         var caravan_ent = system.ecsu_world.newEntity();
     //         caravan_ent.set(fd.Transform.init(pos.x, pos.y, pos.z));
     //         caravan_ent.set(fd.Scale.create(1, 3, 1));
     //         caravan_ent.set(fd.Rotation.init(0, 0, 0));
@@ -357,7 +357,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     // }
 
     // // CARAVAN
-    // var entity_iter_caravan = state.query_caravan.iterator(struct {
+    // var entity_iter_caravan = system.query_caravan.iterator(struct {
     //     caravan: *fd.CompCaravan,
     //     pos: *fd.Position,
     // });
@@ -368,10 +368,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     //     if (caravan.time_to_arrive < world_time) {
     //         if (caravan.destroy_on_arrival) {
-    //             state.ecsu_world.delete(entity_iter_caravan.entity().id);
+    //             system.ecsu_world.delete(entity_iter_caravan.entity().id);
     //         } else {
     //             // hack :)
-    //             state.ecsu_world.remove(entity_iter_caravan.entity().id, fd.CompBanditCamp);
+    //             system.ecsu_world.remove(entity_iter_caravan.entity().id, fd.CompBanditCamp);
     //         }
     //         continue;
     //     }
@@ -383,13 +383,13 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         caravan.start_pos[2] + percent_done * (caravan.end_pos[2] - caravan.start_pos[2]),
     //     };
 
-    //     new_pos[1] = util.heightAtXZ(new_pos[0], new_pos[2], config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &state.noise);
+    //     new_pos[1] = util.heightAtXZ(new_pos[0], new_pos[2], config.noise_scale_xz, config.noise_scale_y, config.noise_offset_y, &system.noise);
 
     //     pos.elems().* = new_pos;
     // }
 
     // // COMBAT
-    // var entity_iter_combat1 = state.query_combat.iterator(struct {
+    // var entity_iter_combat1 = system.query_combat.iterator(struct {
     //     combat: *fd.CompCombatant,
     //     pos: *fd.Position,
     // });
@@ -398,7 +398,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //     const combat1 = comps1.combat;
     //     const pos1 = comps1.pos;
 
-    //     var entity_iter_combat2 = state.query_combat.iterator(struct {
+    //     var entity_iter_combat2 = system.query_combat.iterator(struct {
     //         combat: *fd.CompCombatant,
     //         pos: *fd.Position,
     //     });
@@ -415,7 +415,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     //         }
 
     //         if (combat1.faction == 1) {
-    //             state.ecsu_world.delete(entity_iter_combat1.entity().id);
+    //             system.ecsu_world.delete(entity_iter_combat1.entity().id);
     //             ecs.iter_fini(entity_iter_combat1.iter);
     //             break :combat_loop;
     //         }
@@ -423,7 +423,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     // }
 
     // LIGHTS
-    // var entity_iter_syncpos = state.query_syncpos.iterator(struct {
+    // var entity_iter_syncpos = system.query_syncpos.iterator(struct {
     //     position: *fd.Position,
     //     transform: *fd.Transform,
     // });

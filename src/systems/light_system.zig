@@ -32,8 +32,8 @@ pub const SystemState = struct {
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: ecsu.World, _: *input.FrameData) !*SystemState {
     var point_lights = std.ArrayList(renderer_types.PointLightGPU).init(allocator);
 
-    var state = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.PreUpdate, fd.NOCOMP, update, .{ .ctx = state });
+    var system = allocator.create(SystemState) catch unreachable;
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.PreUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
     var query_builder_directional_lights = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_directional_lights
@@ -47,7 +47,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .withReadonly(fd.PointLight);
     var query_point_lights = query_builder_point_lights.buildQuery();
 
-    state.* = .{
+    system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .sys = sys,
@@ -57,14 +57,14 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .query_point_lights = query_point_lights,
     };
 
-    return state;
+    return system;
 }
 
-pub fn destroy(state: *SystemState) void {
-    state.query_directional_lights.deinit();
-    state.query_point_lights.deinit();
-    state.point_lights.deinit();
-    state.allocator.destroy(state);
+pub fn destroy(system: *SystemState) void {
+    system.query_directional_lights.deinit();
+    system.query_point_lights.deinit();
+    system.point_lights.deinit();
+    system.allocator.destroy(system);
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -76,9 +76,9 @@ pub fn destroy(state: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
-    var entity_iter_directional_lights = state.query_directional_lights.iterator(struct {
+    var entity_iter_directional_lights = system.query_directional_lights.iterator(struct {
         rotation: *const fd.Rotation,
         light: *const fd.DirectionalLight,
     });
@@ -86,19 +86,19 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     while (entity_iter_directional_lights.next()) |comps| {
         const z_forward = zm.rotate(comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
 
-        state.gfx.main_light = renderer_types.DirectionalLightGPU{
+        system.gfx.main_light = renderer_types.DirectionalLightGPU{
             .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
             .color = [3]f32{ comps.light.color.r, comps.light.color.g, comps.light.color.b },
             .intensity = comps.light.intensity,
         };
     }
 
-    var entity_iter_point_lights = state.query_point_lights.iterator(struct {
+    var entity_iter_point_lights = system.query_point_lights.iterator(struct {
         transform: *const fd.Transform,
         light: *const fd.PointLight,
     });
 
-    state.point_lights.clearRetainingCapacity();
+    system.point_lights.clearRetainingCapacity();
 
     while (entity_iter_point_lights.next()) |comps| {
         // TODO(gmodarelli): Implement frustum culling
@@ -109,12 +109,12 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             .intensity = comps.light.intensity,
         };
 
-        state.point_lights.append(point_light) catch unreachable;
+        system.point_lights.append(point_light) catch unreachable;
     }
 
-    if (state.point_lights.items.len > 0) {
-        const frame_index = state.gfx.gctx.frame_index;
-        _ = state.gfx.uploadDataToBuffer(renderer_types.PointLightGPU, state.gfx.point_lights_buffers[frame_index], 0, state.point_lights.items);
-        state.gfx.point_lights_count[frame_index] = @intCast(state.point_lights.items.len);
+    if (system.point_lights.items.len > 0) {
+        const frame_index = system.gfx.gctx.frame_index;
+        _ = system.gfx.uploadDataToBuffer(renderer_types.PointLightGPU, system.gfx.point_lights_buffers[frame_index], 0, system.point_lights.items);
+        system.gfx.point_lights_count[frame_index] = @intCast(system.point_lights.items.len);
     }
 }

@@ -64,12 +64,12 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.
     //     // system_desc.run = wrapSystemFn(Components, action);
     //     // system_desc.ctx = params.ctx;
     //     // return ecs.system_init(self.world, &system_desc);
-    // var sys = ecs.SYSTEM(ecsu_world, name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
+    // var sys = ecs.SYSTEM(ecsu_world, name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
-    var state = allocator.create(SystemState) catch unreachable;
+    var system = allocator.create(SystemState) catch unreachable;
 
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = state });
-    state.* = .{
+    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .sys = sys,
@@ -79,15 +79,15 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.
         .input_frame_data = input_frame_data,
     };
 
-    ecsu_world.observer(ObserverCallback, ecs.OnSet, state);
+    ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
 
-    return state;
+    return system;
 }
 
-pub fn destroy(state: *SystemState) void {
-    state.query_camera.deinit();
-    state.query_transform.deinit();
-    state.allocator.destroy(state);
+pub fn destroy(system: *SystemState) void {
+    system.query_camera.deinit();
+    system.query_transform.deinit();
+    system.allocator.destroy(system);
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
@@ -95,15 +95,15 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer trazy_zone.End();
 
     defer ecs.iter_fini(iter.iter);
-    var state: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    updateCameraSwitch(state);
-    updateTransformHierarchy(state, iter.iter.delta_time);
-    updateCameraMatrices(state);
-    updateCameraFrustum(state);
+    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    updateCameraSwitch(system);
+    updateTransformHierarchy(system, iter.iter.delta_time);
+    updateCameraMatrices(system);
+    updateCameraFrustum(system);
 }
 
-fn updateTransformHierarchy(state: *SystemState, dt: f32) void {
-    var entity_iter_transform = state.query_transform.iterator(struct {
+fn updateTransformHierarchy(system: *SystemState, dt: f32) void {
+    var entity_iter_transform = system.query_transform.iterator(struct {
         transform: *fd.Transform,
         fwd: ?*fd.Forward,
         vel: ?*fd.Velocity,
@@ -150,12 +150,12 @@ fn updateTransformHierarchy(state: *SystemState, dt: f32) void {
     }
 }
 
-fn updateCameraMatrices(state: *SystemState) void {
-    const gctx = state.gctx;
+fn updateCameraMatrices(system: *SystemState) void {
+    const gctx = system.gctx;
     const framebuffer_width = gctx.viewport_width;
     const framebuffer_height = gctx.viewport_height;
 
-    var entity_iter = state.query_camera.iterator(struct {
+    var entity_iter = system.query_camera.iterator(struct {
         camera: *fd.Camera,
         transform: *fd.Transform,
     });
@@ -190,8 +190,8 @@ fn updateCameraMatrices(state: *SystemState) void {
     }
 }
 
-fn updateCameraFrustum(state: *SystemState) void {
-    var entity_iter = state.query_camera.iterator(struct {
+fn updateCameraFrustum(system: *SystemState) void {
+    var entity_iter = system.query_camera.iterator(struct {
         camera: *fd.Camera,
         transform: *fd.Transform,
     });
@@ -207,14 +207,14 @@ fn updateCameraFrustum(state: *SystemState) void {
     }
 }
 
-fn updateCameraSwitch(state: *SystemState) void {
-    if (!state.input_frame_data.just_pressed(config.input.camera_switch)) {
+fn updateCameraSwitch(system: *SystemState) void {
+    if (!system.input_frame_data.just_pressed(config.input.camera_switch)) {
         return;
     }
 
-    state.active_index = 1 - state.active_index;
+    system.active_index = 1 - system.active_index;
 
-    var builder = ecsu.QueryBuilder.init(state.ecsu_world);
+    var builder = ecsu.QueryBuilder.init(system.ecsu_world);
     _ = builder
         .with(fd.Input)
         .optional(fd.Camera);
@@ -228,7 +228,7 @@ fn updateCameraSwitch(state: *SystemState) void {
     });
     while (entity_iter.next()) |comps| {
         var active = false;
-        if (comps.input.index == state.active_index) {
+        if (comps.input.index == system.active_index) {
             active = true;
         }
 
@@ -236,8 +236,8 @@ fn updateCameraSwitch(state: *SystemState) void {
         if (comps.cam) |cam| {
             cam.active = active;
             if (active) {
-                var environment_info = state.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-                environment_info.active_camera = .{ .world = state.ecsu_world.world, .id = entity_iter.entity() };
+                var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+                environment_info.active_camera = .{ .world = system.ecsu_world.world, .id = entity_iter.entity() };
             }
         }
     }
@@ -252,7 +252,7 @@ const ObserverCallback = struct {
 
 fn onSetCICamera(it: *ecsu.Iterator(ObserverCallback)) void {
     // var observer = @ptrCast(*ecs.observer_t, @alignCast(@alignOf(ecs.observer_t), it.iter.ctx));
-    // var state : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
+    // var system : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
     while (it.next()) |_| {
         const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CICamera), @as(i32, @intCast(it.index))).?;
         var ci = @as(*fd.CICamera, @ptrCast(@alignCast(ci_ptr)));

@@ -26,21 +26,21 @@ pub fn create(allocator: std.mem.Allocator, gfxstate: *gfx.GfxState, window: zgl
     };
 }
 
-pub fn destroy(state: *SystemState) void {
+pub fn destroy(system: *SystemState) void {
+    _ = system;
     zgpu.gui.deinit();
-    _ = state;
 }
 
-pub fn preUpdate(state: *SystemState) void {
+pub fn preUpdate(system: *SystemState) void {
     zgpu.gui.newFrame(
-        state.gctx.swapchain_descriptor.width,
-        state.gctx.swapchain_descriptor.height,
+        system.gctx.swapchain_descriptor.width,
+        system.gctx.swapchain_descriptor.height,
     );
     // c.igShowDemoWindow(null);
 }
 
-pub fn update(state: *SystemState) void {
-    const gctx = state.gctx;
+pub fn update(system: *SystemState) void {
+    const gctx = system.gctx;
     const back_buffer_view = gctx.swapchain.getCurrentTextureView();
     defer back_buffer_view.release();
 
@@ -69,5 +69,5 @@ pub fn update(state: *SystemState) void {
 
         break :commands encoder.finish(null);
     };
-    state.gfx.command_buffers.append(commands) catch unreachable;
+    system.gfx.command_buffers.append(commands) catch unreachable;
 }
