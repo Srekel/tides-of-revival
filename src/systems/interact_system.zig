@@ -455,7 +455,6 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
     const arena = arena_state.allocator();
     var removed_entities = std.ArrayList(ecs.entity_t).initCapacity(arena, 32) catch unreachable;
 
-    // This is in dire need of refactoring...
     for (frame_collisions_data.contacts) |contact| {
         if (!body_interface.isAdded(contact.body_id2)) {
             continue;
@@ -485,199 +484,112 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             continue;
         }
 
-        if (ent1_is_proj) {
-            // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, contact.body_id1});
-            const pos = body_interface.getCenterOfMassPosition(contact.body_id1);
-            const velocity = body_interface.getLinearVelocity(contact.body_id1);
-            body_interface.removeAndDestroyBody(contact.body_id1);
-            ecs.remove(ecs_world, ent1, fd.PhysicsBody);
-            // ecs.remove(ecs_world, ent1, fd.PointLight);
-            removed_entities.append(ent1) catch unreachable;
-
-            system.event_mgr.triggerEvent(
-                config.events.onAddTimelineInstance_id,
-                &config.events.TimelineInstanceData{
-                    .ent = ent1,
-                    .timeline = IdLocal.init("despawn"),
-                },
-            );
-
-            const oid = 1000 + ent1;
-            AK.SoundEngine.registerGameObj(oid) catch unreachable;
-            defer AK.SoundEngine.unregisterGameObj(oid) catch {};
-            const ak_pos = AK.AkSoundPosition{
-                .position = .{
-                    .x = pos[0],
-                    .y = pos[1],
-                    .z = pos[2],
-                },
-                .orientation_front = .{
-                    .z = 1.0,
-                },
-                .orientation_top = .{
-                    .y = 1.0,
-                },
-            };
-            AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
-            AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
-
-            if (ent2_alive and ecs.has_id(ecs_world, ent2, ecs.id(fd.Health))) {
-                const transform_target = ecs.get(ecs_world, ent2, fd.Transform).?;
-                const transform_proj = ecs.get(ecs_world, ent1, fd.Transform).?;
-                const transform_target_z = transform_target.asZM();
-                var transform_proj_z = transform_proj.asZM();
-                var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
-                var forward_proj_z = zm.util.getAxisZ(transform_proj_z);
-                translation_proj_z = translation_proj_z + forward_proj_z * zm.splat(zm.F32x4, 0.6);
-                zm.util.setTranslationVec(&transform_proj_z, translation_proj_z);
-
-                const transform_target_inv_z = zm.inverse(transform_target_z);
-                const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
-                const pos_z = zm.util.getTranslationVec(mat_z);
-                const rot_z = zm.matToQuat(mat_z);
-                var pos_proj = ecs.get_mut(ecs_world, ent1, fd.Position).?;
-                var rot_proj = ecs.get_mut(ecs_world, ent1, fd.Rotation).?;
-                pos_proj.fromZM(pos_z);
-                rot_proj.fromZM(rot_z);
-
-                ecs.add_id(ecs_world, ent1, system.ecsu_world.pair(ecs.ChildOf, ent2));
-
-                var health2 = ecs.get_mut(ecs_world, ent2, fd.Health).?;
-                if (health2.value > 0) {
-                    const speed = ecs.get(ecs_world, ent1, fd.Speed).?.value;
-                    const damage = (speed - 30) * (speed - 30);
-                    std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
-                    health2.value -= damage;
-                    if (health2.value <= 0) {
-                        system.kills += 1;
-                        body_interface.setMotionType(contact.body_id2, .dynamic, .activate);
-                        body_interface.addImpulseAtPosition(
-                            contact.body_id2,
-                            .{
-                                velocity[0] * 10,
-                                velocity[1] * 0,
-                                velocity[2] * 10,
-                            },
-                            pos,
-                        );
-
-                        ecs.remove(ecs_world, ent2, fd.FSM);
-                        ecs.remove(ecs_world, ent2, fd.PointLight);
-
-                        const tli_despawn = config.events.TimelineInstanceData{
-                            .ent = ent2,
-                            .timeline = IdLocal.init("despawn"),
-                        };
-                        system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
-
-                        removed_entities.append(ent2) catch unreachable;
-                        body_interface.addImpulse(
-                            contact.body_id2,
-                            .{ 0, 100, 0 },
-                        );
-                    }
-                    // std.debug.print("lol2 {any}\n", .{ent2.id});
-                }
-                AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
-            }
-            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
+        if (!ent1_is_proj and !ent2_is_proj) {
+            continue;
         }
 
-        if (ent2_is_proj) {
-            // std.debug.print("proj2 {any} body:{any}\n", .{contact.ent2, contact.body_id2});
-            const pos = body_interface.getCenterOfMassPosition(contact.body_id2);
-            const velocity = body_interface.getLinearVelocity(contact.body_id2);
-            body_interface.removeAndDestroyBody(contact.body_id2);
-            ecs.remove(ecs_world, ent2, fd.PhysicsBody);
-            // ecs.remove(ecs_world, ent2, fd.PointLight);
-            removed_entities.append(ent2) catch unreachable;
+        const proj_ent = if (ent1_is_proj) ent1 else ent2;
+        const hit_ent = if (ent1_is_proj) ent2 else ent1;
+        const proj_body = if (ent1_is_proj) contact.body_id1 else contact.body_id2;
+        const hit_body = if (ent1_is_proj) contact.body_id2 else contact.body_id1;
+        // const proj_alive = (ent1_is_proj and ent1_alive) or (ent2_is_proj and ent2_alive);
+        const hit_alive = (ent1_is_proj and ent2_alive) or (ent2_is_proj and ent1_alive);
 
-            system.event_mgr.triggerEvent(
-                config.events.onAddTimelineInstance_id,
-                &config.events.TimelineInstanceData{
-                    .ent = ent2,
-                    .timeline = IdLocal.init("despawn"),
-                },
-            );
+        // std.debug.print("proj1 {any} body:{any}\n", .{contact.ent1, proj_body});
+        const pos = body_interface.getCenterOfMassPosition(proj_body);
+        const velocity = body_interface.getLinearVelocity(proj_body);
+        body_interface.removeAndDestroyBody(proj_body);
+        ecs.remove(ecs_world, proj_ent, fd.PhysicsBody);
+        // ecs.remove(ecs_world, proj_ent, fd.PointLight);
+        removed_entities.append(proj_ent) catch unreachable;
 
-            const oid = 1000 + ent1;
-            AK.SoundEngine.registerGameObj(oid) catch unreachable;
-            defer AK.SoundEngine.unregisterGameObj(oid) catch {};
-            const ak_pos = AK.AkSoundPosition{
-                .position = .{
-                    .x = pos[0],
-                    .y = pos[1],
-                    .z = pos[2],
-                },
-                .orientation_front = .{
-                    .z = 1.0,
-                },
-                .orientation_top = .{
-                    .y = 1.0,
-                },
-            };
-            AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
-            AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
+        system.event_mgr.triggerEvent(
+            config.events.onAddTimelineInstance_id,
+            &config.events.TimelineInstanceData{
+                .ent = proj_ent,
+                .timeline = IdLocal.init("despawn"),
+            },
+        );
 
-            if (ent1_alive and ecs.has_id(ecs_world, ent1, ecs.id(fd.Health))) {
-                const transform_target = ecs.get(ecs_world, ent1, fd.Transform).?;
-                const transform_proj = ecs.get(ecs_world, ent2, fd.Transform).?;
-                const transform_target_z = transform_target.asZM();
-                var transform_proj_z = transform_proj.asZM();
-                var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
-                var forward_proj_z = zm.util.getAxisZ(transform_proj_z);
-                translation_proj_z = translation_proj_z + forward_proj_z * zm.splat(zm.F32x4, 0.6);
-                zm.util.setTranslationVec(&transform_proj_z, translation_proj_z);
+        const oid = 1000 + proj_ent;
+        AK.SoundEngine.registerGameObj(oid) catch unreachable;
+        defer AK.SoundEngine.unregisterGameObj(oid) catch {};
+        const ak_pos = AK.AkSoundPosition{
+            .position = .{
+                .x = pos[0],
+                .y = pos[1],
+                .z = pos[2],
+            },
+            .orientation_front = .{
+                .z = 1.0,
+            },
+            .orientation_top = .{
+                .y = 1.0,
+            },
+        };
+        AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
+        AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
-                const transform_target_inv_z = zm.inverse(transform_target_z);
-                const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
-                const pos_z = zm.util.getTranslationVec(mat_z);
-                const rot_z = zm.matToQuat(mat_z);
-                var pos_proj = ecs.get_mut(ecs_world, ent2, fd.Position).?;
-                var rot_proj = ecs.get_mut(ecs_world, ent2, fd.Rotation).?;
-                pos_proj.fromZM(pos_z);
-                rot_proj.fromZM(rot_z);
-                ecs.add_id(ecs_world, ent2, system.ecsu_world.pair(ecs.ChildOf, ent1));
+        if (hit_alive and ecs.has_id(ecs_world, hit_ent, ecs.id(fd.Health))) {
+            const transform_target = ecs.get(ecs_world, hit_ent, fd.Transform).?;
+            const transform_proj = ecs.get(ecs_world, proj_ent, fd.Transform).?;
+            const transform_target_z = transform_target.asZM();
+            var transform_proj_z = transform_proj.asZM();
+            var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
+            var forward_proj_z = zm.util.getAxisZ(transform_proj_z);
+            translation_proj_z = translation_proj_z + forward_proj_z * zm.splat(zm.F32x4, 0.6);
+            zm.util.setTranslationVec(&transform_proj_z, translation_proj_z);
 
-                var health1 = ecs.get_mut(ecs_world, ent1, fd.Health).?;
-                if (health1.value > 0) {
-                    const speed = ecs.get(ecs_world, ent2, fd.Speed).?.value;
-                    const damage = (speed - 30) * (speed - 30);
-                    std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
-                    health1.value -= damage;
-                    if (health1.value <= 0) {
-                        system.kills += 1;
-                        body_interface.setMotionType(contact.body_id1, .dynamic, .activate);
-                        body_interface.addImpulseAtPosition(
-                            contact.body_id1,
-                            .{
-                                velocity[0] * 10,
-                                velocity[1] * 0,
-                                velocity[2] * 10,
-                            },
-                            pos,
-                        );
+            const transform_target_inv_z = zm.inverse(transform_target_z);
+            const mat_z = zm.mul(transform_proj_z, transform_target_inv_z);
+            const pos_z = zm.util.getTranslationVec(mat_z);
+            const rot_z = zm.matToQuat(mat_z);
+            var pos_proj = ecs.get_mut(ecs_world, proj_ent, fd.Position).?;
+            var rot_proj = ecs.get_mut(ecs_world, proj_ent, fd.Rotation).?;
+            pos_proj.fromZM(pos_z);
+            rot_proj.fromZM(rot_z);
 
-                        ecs.remove(ecs_world, ent1, fd.FSM);
-                        ecs.remove(ecs_world, ent1, fd.PointLight);
+            ecs.add_id(ecs_world, proj_ent, system.ecsu_world.pair(ecs.ChildOf, hit_ent));
 
-                        const tli_despawn = config.events.TimelineInstanceData{
-                            .ent = ent1,
-                            .timeline = IdLocal.init("despawn"),
-                        };
-                        system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
+            var hit_health = ecs.get_mut(ecs_world, hit_ent, fd.Health).?;
+            if (hit_health.value > 0) {
+                const speed = ecs.get(ecs_world, proj_ent, fd.Speed).?.value;
+                const damage = (speed - 30) * (speed - 30);
+                std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
+                hit_health.value -= damage;
+                if (hit_health.value <= 0) {
+                    system.kills += 1;
 
-                        removed_entities.append(ent1) catch unreachable;
-                        body_interface.addImpulse(
-                            contact.body_id1,
-                            .{ 0, 100, 0 },
-                        );
-                    }
-                    // std.debug.print("lol1 {any}\n", .{health1.value});
+                    body_interface.setMotionType(hit_body, .dynamic, .activate);
+                    body_interface.addImpulseAtPosition(
+                        hit_body,
+                        .{
+                            velocity[0] * 10,
+                            velocity[1] * 0,
+                            velocity[2] * 10,
+                        },
+                        pos,
+                    );
+
+                    ecs.remove(ecs_world, hit_ent, fd.FSM);
+                    ecs.remove(ecs_world, hit_ent, fd.PointLight);
+
+                    const tli_despawn = config.events.TimelineInstanceData{
+                        .ent = hit_ent,
+                        .timeline = IdLocal.init("despawn"),
+                    };
+                    system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_despawn);
+
+                    removed_entities.append(hit_ent) catch unreachable;
+                    body_interface.addImpulse(
+                        hit_body,
+                        .{ 0, 100, 0 },
+                    );
                 }
-                AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
+                // std.debug.print("lol2 {any}\n", .{hit_ent.id});
             }
-            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
+            AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
         }
+        _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
     }
 }
