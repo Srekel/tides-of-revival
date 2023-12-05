@@ -16,33 +16,48 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     const movement_yaw = input_state.get(config.input.look_yaw).number;
     const movement_pitch = input_state.get(config.input.look_pitch).number;
 
+    // TODO fix pitch clamp
     const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
     const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
     const rot_in = rot.asZM();
-    const rot_pitch_new = zm.qmul(rot_in, rot_pitch);
-
-    const rpy = zm.quatToRollPitchYaw(rot_pitch_new);
-    const rpy_constrained = .{
-        std.math.clamp(rpy[0], -0.9, 0.9),
-        rpy[1],
-        rpy[2],
-    };
-    const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
     const rot_new = zm.qmul(
-        constrained_z,
+        zm.qmul(rot_pitch, rot_in),
         rot_yaw,
     );
-    // const rpy = zm.quatToRollPitchYaw(rot_new);
-    // const rpy_constrained = .{
-    //     std.math.clamp(rpy[0], -0.9, 0.9),
-    //     rpy[1],
-    //     rpy[2],
-    // };
-    // // const rot_new = zm.qmul(zm.loadArr3(rpy_constrained), rot_yaw);
-    // const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
-
     rot.fromZM(rot_new);
 }
+
+// fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
+//     const movement_yaw = input_state.get(config.input.look_yaw).number;
+//     const movement_pitch = input_state.get(config.input.look_pitch).number;
+
+//     const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
+//     const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
+//     const rot_in = rot.asZM();
+//     const rot_pitch_new = zm.qmul(rot_in, rot_pitch);
+
+//     const rpy = zm.quatToRollPitchYaw(rot_pitch_new);
+//     const rpy_constrained = .{
+//         std.math.clamp(rpy[0], -0.9, 0.9),
+//         rpy[1],
+//         rpy[2],
+//     };
+//     const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
+//     const rot_new = zm.qmul(
+//         constrained_z,
+//         rot_yaw,
+//     );
+//     // const rpy = zm.quatToRollPitchYaw(rot_new);
+//     // const rpy_constrained = .{
+//     //     std.math.clamp(rpy[0], -0.9, 0.9),
+//     //     rpy[1],
+//     //     rpy[2],
+//     // };
+//     // // const rot_new = zm.qmul(zm.loadArr3(rpy_constrained), rot_yaw);
+//     // const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
+
+//     rot.fromZM(rot_new);
+// }
 
 fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
     var speed_scalar: f32 = 50.0;
