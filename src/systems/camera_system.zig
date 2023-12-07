@@ -262,7 +262,6 @@ fn onSetCICamera(it: *ecsu.Iterator(ObserverCallback)) void {
             .far = ci.far,
             .near = ci.near,
             .fov = 0.25 * std.math.pi,
-            .window = ci.window,
             .active = ci.active,
             .class = ci.class,
         });

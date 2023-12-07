@@ -397,7 +397,6 @@ pub const StaticMeshComponent = struct {
 pub const CICamera = struct {
     near: f32,
     far: f32,
-    window: *zglfw.Window,
     active: bool = false,
     class: u32 = 0,
 };
@@ -410,7 +409,6 @@ pub const Camera = struct {
     projection: [16]f32 = undefined,
     view_projection: [16]f32 = undefined,
     frustum_planes: [4][4]f32 = undefined,
-    window: *zglfw.Window,
     active: bool = false,
     class: u32 = 0,
 

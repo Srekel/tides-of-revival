@@ -3,6 +3,7 @@ const zphy = @import("zphysics");
 const AK = @import("wwise-zig");
 const ID = @import("../core/core.zig").ID;
 
+pub const entity = @import("entity.zig");
 pub const events = @import("events.zig");
 pub const input = @import("input.zig");
 pub const prefab = @import("prefab.zig");
