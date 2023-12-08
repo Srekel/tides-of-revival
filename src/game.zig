@@ -61,9 +61,9 @@ pub fn run() void {
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
-    main_window.setInputMode(.cursor, .disabled);
+    main_window.window.setInputMode(.cursor, .disabled);
 
-    var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
+    var gfx_state = gfx.init(std.heap.page_allocator, main_window.window) catch unreachable;
     defer gfx.deinit(gfx_state, std.heap.page_allocator);
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -84,7 +84,7 @@ pub fn run() void {
     // Run it once to make sure we don't get huge diff values for cursor etc. the first frame.
     const input_target_defaults = config.input.createDefaultTargetDefaults(std.heap.page_allocator);
     const input_keymap = config.input.createKeyMap(std.heap.page_allocator);
-    var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window);
+    var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window.window);
     input.doTheThing(std.heap.page_allocator, &input_frame_data);
 
     var asset_mgr = AssetManager.create(std.heap.page_allocator);
@@ -249,7 +249,7 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
 
     gfx.beginFrame(gfx_state);
 
-    const window_status = window.update(gfx_state) catch unreachable;
+    const window_status = window.update() catch unreachable;
     if (window_status == .no_windows) {
         return true;
     }
