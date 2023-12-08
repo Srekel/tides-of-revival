@@ -56,7 +56,7 @@ pub fn destroyWindow(window_to_destroy: *zglfw.Window) void {
     window_to_destroy.destroy();
 }
 
-pub fn update(gfx_state: *gfx.D3D12State) !enum { no_windows, has_windows } {
+pub fn update(gfx_state: ?*gfx.D3D12State) !enum { no_windows, has_windows } {
     var check_windows = true;
     while (check_windows) {
         check_windows = false;
@@ -75,7 +75,9 @@ pub fn update(gfx_state: *gfx.D3D12State) !enum { no_windows, has_windows } {
                     .{ window.frame_buffer_size[0], window.frame_buffer_size[1] },
                 );
 
-                gfx_state.resize(@intCast(frame_buffer_size[0]), @intCast(frame_buffer_size[1]));
+                if (gfx_state) |state| {
+                    state.resize(@intCast(frame_buffer_size[0]), @intCast(frame_buffer_size[1]));
+                }
             }
         }
     }

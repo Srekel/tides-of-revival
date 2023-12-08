@@ -45,13 +45,58 @@ pub fn build(b: *std.Build) void {
         .dependencies = &.{},
     }));
 
-    // Linking ImGUI
     const abi = (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.abi;
     exe.linkLibC();
     if (abi != .msvc)
         exe.linkLibCpp();
-    exe.linkSystemLibraryName("imm32");
 
+    // Linking Tides Renderer
+    {
+        const tides_renderer_base_path = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer";
+        // TODO(gmodarelli): Check if OS is windows and if target is debug
+        const tides_renderer_output_path = tides_renderer_base_path ++ "/PC Visual Studio 2019/x64/Debug";
+
+        exe.addLibraryPath(.{ .path = tides_renderer_output_path });
+        exe.linkSystemLibrary("TidesRenderer");
+
+        // Install DLLs
+        var install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/TidesRenderer.dll" }, "bin/TidesRenderer.dll");
+        exe.step.dependOn(&install_file.step);
+        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/WinPixEventRunTime.dll" }, "bin/WinPixEventRunTime.dll");
+        exe.step.dependOn(&install_file.step);
+        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/amd_ags_x64.dll" }, "bin/amd_ags_x64.dll");
+        exe.step.dependOn(&install_file.step);
+        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/dxcompiler.dll" }, "bin/dxcompiler.dll");
+        exe.step.dependOn(&install_file.step);
+        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/VkLayer_khronos_validation.dll" }, "bin/VkLayer_khronos_validation.dll");
+        exe.step.dependOn(&install_file.step);
+
+        // Install Configuration Files
+        install_file = b.addInstallFile(.{ .path = tides_renderer_base_path ++ "/src/GPUCfg/gpu.cfg" }, "bin/GPUCfg/gpu.cfg");
+        exe.step.dependOn(&install_file.step);
+        install_file = b.addInstallFile(.{ .path = tides_renderer_base_path ++ "/src/GPUCfg/gpu.data" }, "bin/GPUCfg/gpu.data");
+        exe.step.dependOn(&install_file.step);
+        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/VkLayer_khronos_validation.json" }, "bin/VkLayer_khronos_validation.json");
+        exe.step.dependOn(&install_file.step);
+
+        // Install Content
+        var install_content_step = b.addInstallDirectory(.{
+            .source_dir = .{ .path = tides_renderer_output_path ++ "/content/compiled_shaders" },
+            .install_dir = .{ .custom = "" },
+            .install_subdir = "bin/content/compiled_shaders",
+        });
+        exe.step.dependOn(&install_content_step.step);
+
+        install_content_step = b.addInstallDirectory(.{
+            .source_dir = .{ .path = tides_renderer_base_path ++ "/resources/textures/default" },
+            .install_dir = .{ .custom = "" },
+            .install_subdir = "bin/content/textures/default",
+        });
+        exe.step.dependOn(&install_content_step.step);
+    }
+
+    // Linking ImGUI
+    exe.linkSystemLibraryName("imm32");
     exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs" });
     exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui" });
     exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui.cpp" }, .flags = &.{""} });

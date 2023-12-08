@@ -2,11 +2,13 @@ const std = @import("std");
 const args = @import("args");
 const offline = @import("offline_generation/main.zig");
 const game = @import("game.zig");
+const zforgetest = @import("zforgetest.zig");
 
 pub fn main() void {
     const options = args.parseForCurrentProcess(struct {
         // This declares long options for double hyphen
         offlinegen: bool = false,
+        zforgetest: bool = false,
         // output: ?[]const u8 = null,
         // @"with-offset": bool = false,
         // @"with-hexdump": bool = false,
@@ -28,6 +30,8 @@ pub fn main() void {
 
     if (options.options.offlinegen) {
         offline.generate(std.heap.c_allocator);
+    } else if (options.options.zforgetest) {
+        zforgetest.run();
     } else {
         game.run();
     }
