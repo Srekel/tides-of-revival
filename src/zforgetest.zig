@@ -11,7 +11,7 @@ pub fn run() void {
     // GFX
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
-    const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
+    const main_window = window.createWindow("Tides of Revival: Z-Forge Wasn't Built In A Day") catch unreachable;
     main_window.setInputMode(.cursor, .disabled);
 
     // Initialize Tides Renderer
