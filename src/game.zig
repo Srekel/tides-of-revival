@@ -173,7 +173,8 @@ pub fn run() void {
     };
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    config.entity.init(player_pos, &prefab_mgr, ecsu_world);
+    // config.entity.init(player_pos, &prefab_mgr, ecsu_world);
+    config.entity.init(player_pos, ecsu_world);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝

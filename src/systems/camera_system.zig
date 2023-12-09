@@ -18,7 +18,7 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     sys: ecs.entity_t,
 
-    gctx: *zd3d12.GraphicsContext,
+    // gctx: *zd3d12.GraphicsContext,
     query_camera: ecsu.Query,
     query_transform: ecsu.Query,
 
@@ -27,7 +27,8 @@ pub const SystemState = struct {
     active_index: u32 = 1,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.D3D12State, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
+// pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.D3D12State, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
     var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
         .with(fd.Camera)
@@ -73,7 +74,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .sys = sys,
-        .gctx = &gfxstate.gctx,
+        // .gctx = &gfxstate.gctx,
         .query_camera = query_camera,
         .query_transform = query_transform,
         .input_frame_data = input_frame_data,
@@ -151,9 +152,10 @@ fn updateTransformHierarchy(system: *SystemState, dt: f32) void {
 }
 
 fn updateCameraMatrices(system: *SystemState) void {
-    const gctx = system.gctx;
-    const framebuffer_width = gctx.viewport_width;
-    const framebuffer_height = gctx.viewport_height;
+    // const gctx = system.gctx;
+    // TODO(gmodarelli)
+    const framebuffer_width = 1920;
+    const framebuffer_height = 1080;
 
     var entity_iter = system.query_camera.iterator(struct {
         camera: *fd.Camera,

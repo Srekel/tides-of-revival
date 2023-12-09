@@ -39,8 +39,8 @@ pub const SystemState = struct {
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     audio_mgr: *audio_manager.AudioManager,
-    prefab_mgr: *PrefabManager,
-    gfx: *gfx_d3d12.D3D12State,
+    // prefab_mgr: *PrefabManager,
+    // gfx: *gfx_d3d12.D3D12State,
 };
 
 pub const SystemCtx = struct {
@@ -49,8 +49,8 @@ pub const SystemCtx = struct {
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    prefab_mgr: *PrefabManager,
-    gfx: *gfx_d3d12.D3D12State,
+    // prefab_mgr: *PrefabManager,
+    // gfx: *gfx_d3d12.D3D12State,
 };
 
 pub fn create(
@@ -75,8 +75,8 @@ pub fn create(
         .input_frame_data = ctx.input_frame_data,
         .physics_world = ctx.physics_world,
         .audio_mgr = ctx.audio_mgr,
-        .prefab_mgr = ctx.prefab_mgr,
-        .gfx = ctx.gfx,
+        // .prefab_mgr = ctx.prefab_mgr,
+        // .gfx = ctx.gfx,
     };
 
     ctx.ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
@@ -202,7 +202,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .physics_world = system.physics_world,
                 .audio_mgr = system.audio_mgr,
                 .dt = dt4,
-                .gfx = system.gfx,
+                // .gfx = system.gfx,
             };
             fsm_state.update(ctx);
         }

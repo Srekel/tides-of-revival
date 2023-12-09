@@ -10,7 +10,9 @@ const IdLocal = core.IdLocal;
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
+// TODO(gmodarelli): Enable prefab_manager once it's been updated
+// pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
+pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
     sun_light.set(fd.DirectionalLight{
@@ -25,12 +27,14 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // ██████╔╝╚██████╔╝╚███╔███╔╝
     // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    const bow_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.bow);
-    bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
-    bow_ent.set(fd.ProjectileWeapon{});
+    // TODO(gmodarelli)
+    // const bow_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.bow);
+    // bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
+    // bow_ent.set(fd.ProjectileWeapon{});
 
-    var proj_ent = ecsu_world.newEntity();
-    proj_ent.set(fd.Projectile{});
+    // TODO(gmodarelli)
+    // var proj_ent = ecsu_world.newEntity();
+    // proj_ent.set(fd.Projectile{});
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
@@ -39,7 +43,9 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    const player_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.player);
+    // TODO(gmodarelli)
+    // const player_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.player);
+    const player_ent = ecsu_world.newEntity();
     player_ent.setName("main_player");
     player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));
@@ -57,7 +63,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     //     player_ent.addPair(fr.Hometown, ps.city_ent);
     // }
 
-    player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
+    // player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
     const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
@@ -79,8 +85,10 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
-    const sphere_prefab = prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
-    const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
+    // TODO(gmodarelli)
+    // const sphere_prefab = prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
+    // const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
+    const player_camera_ent = ecsu_world.newEntity();
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.7, .z = 0 });
@@ -102,7 +110,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .range = 5.0,
         .intensity = 1.0,
     });
-    bow_ent.childOf(player_camera_ent);
+    // bow_ent.childOf(player_camera_ent);
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
