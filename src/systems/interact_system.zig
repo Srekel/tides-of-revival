@@ -44,15 +44,15 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     event_mgr: *EventManager,
-    prefab_mgr: *PrefabManager,
-    gfx: *gfx_d3d12.D3D12State,
+    // prefab_mgr: *PrefabManager,
+    // gfx: *gfx_d3d12.D3D12State,
 
     comp_query_interactor: ecsu.Query,
 
     // UI-specific resources
     kills: u32,
     arrows: u32,
-    crosshair_texture: gfx_d3d12.TextureHandle,
+    // crosshair_texture: gfx_d3d12.TextureHandle,
 };
 
 pub const SystemCtx = struct {
@@ -63,8 +63,8 @@ pub const SystemCtx = struct {
     event_mgr: *EventManager,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    prefab_mgr: *PrefabManager,
-    gfx: *gfx_d3d12.D3D12State,
+    // prefab_mgr: *PrefabManager,
+    // gfx: *gfx_d3d12.D3D12State,
 };
 
 pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
@@ -82,9 +82,9 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .with(fd.Forward)
         .with(fd.Transform);
 
-    const texture_path = "content/textures/ui/crosshair085.png";
-    const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
-    const crosshair_texture = ctx.gfx.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, ctx.allocator) catch unreachable;
+    // const texture_path = "content/textures/ui/crosshair085.png";
+    // const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
+    // const crosshair_texture = ctx.gfx.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, ctx.allocator) catch unreachable;
 
     var system = allocator.create(SystemState) catch unreachable;
     var flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -95,12 +95,12 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .physics_world = ctx.physics_world,
         .input_frame_data = ctx.input_frame_data,
         .event_mgr = ctx.event_mgr,
-        .prefab_mgr = ctx.prefab_mgr,
+        // .prefab_mgr = ctx.prefab_mgr,
         .comp_query_interactor = comp_query_interactor,
-        .gfx = ctx.gfx,
+        // .gfx = ctx.gfx,
         .kills = 0,
         .arrows = 0,
-        .crosshair_texture = crosshair_texture,
+        // .crosshair_texture = crosshair_texture,
     };
 
     // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
@@ -120,36 +120,36 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
-    {
-        var ui_label = gfx_d3d12.UILabel{
-            .label = undefined,
-            .font_size = 24,
-            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-            .rect = .{ .left = 20, .top = 440, .bottom = 460, .right = 600 },
-        };
+    // {
+    //     var ui_label = gfx_d3d12.UILabel{
+    //         .label = undefined,
+    //         .font_size = 24,
+    //         .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+    //         .rect = .{ .left = 20, .top = 440, .bottom = 460, .right = 600 },
+    //     };
 
-        var buffer = [_]u8{0} ** 64;
-        ui_label.label = std.fmt.bufPrint(buffer[0..], "Kills: {d}", .{system.kills}) catch unreachable;
-        system.gfx.drawUILabel(ui_label) catch unreachable;
-    }
+    //     var buffer = [_]u8{0} ** 64;
+    //     ui_label.label = std.fmt.bufPrint(buffer[0..], "Kills: {d}", .{system.kills}) catch unreachable;
+    //     system.gfx.drawUILabel(ui_label) catch unreachable;
+    // }
 
-    {
-        var ui_label = gfx_d3d12.UILabel{
-            .label = undefined,
-            .font_size = 24,
-            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-            .rect = .{ .left = 20, .top = 480, .bottom = 500, .right = 600 },
-        };
+    // {
+    //     var ui_label = gfx_d3d12.UILabel{
+    //         .label = undefined,
+    //         .font_size = 24,
+    //         .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+    //         .rect = .{ .left = 20, .top = 480, .bottom = 500, .right = 600 },
+    //     };
 
-        var buffer = [_]u8{0} ** 64;
-        ui_label.label = std.fmt.bufPrint(buffer[0..], "Arrows: {d}", .{system.arrows}) catch unreachable;
-        system.gfx.drawUILabel(ui_label) catch unreachable;
-    }
+    //     var buffer = [_]u8{0} ** 64;
+    //     ui_label.label = std.fmt.bufPrint(buffer[0..], "Arrows: {d}", .{system.arrows}) catch unreachable;
+    //     system.gfx.drawUILabel(ui_label) catch unreachable;
+    // }
 
-    updateCrosshair(system);
-    if (system.gfx.end_screen_accumulated_time > 0) {
-        return;
-    }
+    // // updateCrosshair(system);
+    // if (system.gfx.end_screen_accumulated_time > 0) {
+    //     return;
+    // }
     updateInteractors(system, iter.iter.delta_time);
 }
 
@@ -172,7 +172,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     _ = wielded_use_held;
     const wielded_use_primary_pressed = system.input_frame_data.just_pressed(config.input.wielded_use_primary);
     const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
-    const arrow_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
+    // const arrow_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
 
@@ -181,12 +181,12 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         if (weapon_comp.chambered_projectile == 0 and weapon_comp.cooldown < world_time) {
             // Load new projectile
-            var proj_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, arrow_prefab);
-            proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
-            proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
-            proj_ent.set(fd.Projectile{});
-            proj_ent.childOf(item_ent_id);
-            weapon_comp.chambered_projectile = proj_ent.id;
+            // var proj_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, arrow_prefab);
+            // proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
+            // proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
+            // proj_ent.set(fd.Projectile{});
+            // proj_ent.childOf(item_ent_id);
+            // weapon_comp.chambered_projectile = proj_ent.id;
             system.arrows += 1;
             continue;
         }
@@ -330,7 +330,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     });
 
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
-    const cylinder_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
+    // const cylinder_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
     while (entity_iter_proj.next()) |comps| {
         const velocity = body_interface.getLinearVelocity(comps.body.body_id);
         const velocity_z = zm.loadArr3(velocity);
@@ -360,80 +360,80 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         }
 
         // trail
-        const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
-        var fx_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, cylinder_prefab);
-        fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
-        fx_ent.set(fd.Rotation{});
-        fx_ent.set(fd.Scale.createScalar(1));
-        fx_ent.set(fd.Transform.init(0, 0, 0));
-        fx_ent.set(fd.Forward{});
-        fx_ent.set(fd.Dynamic{});
+        // const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
+        // var fx_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, cylinder_prefab);
+        // fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
+        // fx_ent.set(fd.Rotation{});
+        // fx_ent.set(fd.Scale.createScalar(1));
+        // fx_ent.set(fd.Transform.init(0, 0, 0));
+        // fx_ent.set(fd.Forward{});
+        // fx_ent.set(fd.Dynamic{});
 
-        const tli_fx = config.events.TimelineInstanceData{
-            .ent = fx_ent.id,
-            .timeline = IdLocal.init("particle_trail"),
-        };
+        // const tli_fx = config.events.TimelineInstanceData{
+        //     .ent = fx_ent.id,
+        //     .timeline = IdLocal.init("particle_trail"),
+        // };
 
-        system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
+        // system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
     }
 }
 
-fn updateCrosshair(system: *SystemState) void {
-    var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
-
-    var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
-    const cam_comps = cam_ent.getComps(struct {
-        camera: *fd.Camera,
-        fwd: *fd.Forward,
-        transform: *fd.Transform,
-    });
-    if (cam_comps.camera.class == 1) {
-        const query = system.physics_world.getNarrowPhaseQuery();
-
-        const z_mat = zm.loadMat43(cam_comps.transform.matrix[0..]);
-        var z_pos = zm.util.getTranslationVec(z_mat);
-        const z_fwd = zm.util.getAxisZ(z_mat);
-        z_pos[0] += z_fwd[0] * 0.1;
-        z_pos[1] += z_fwd[1] * 0.1;
-        z_pos[2] += z_fwd[2] * 0.1;
-
-        const ray_distance = 100.0;
-        const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
-        const ray_dir = [_]f32{ z_fwd[0] * ray_distance, z_fwd[1] * ray_distance, z_fwd[2] * ray_distance, 0 };
-
-        var result = query.castRay(
-            .{
-                .origin = ray_origin,
-                .direction = ray_dir,
-            },
-            .{
-                .broad_phase_layer_filter = @ptrCast(&MovingBroadPhaseLayerFilter{}),
-            },
-        );
-
-        if (result.has_hit) {
-            crosshair_color = [4]f32{ 1.0, 0.0, 0.0, 1.0 };
-        }
-    }
-
-    const crosshair_size: f32 = 32;
-    const crosshair_half_size: f32 = crosshair_size / 2;
-    const screen_center_x: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_width)) / 2;
-    const screen_center_y: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_height)) / 2;
-
-    const top = screen_center_y - crosshair_half_size;
-    const bottom = screen_center_y + crosshair_half_size;
-    const left = screen_center_x - crosshair_half_size;
-    const right = screen_center_x + crosshair_half_size;
-
-    const image = gfx_d3d12.UIImage{
-        .rect = [4]f32{ top, bottom, left, right },
-        .color = crosshair_color,
-        .texture = system.crosshair_texture,
-    };
-
-    system.gfx.drawUIImage(image) catch unreachable;
-}
+// fn updateCrosshair(system: *SystemState) void {
+//     var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
+//
+//     var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
+//     const cam_comps = cam_ent.getComps(struct {
+//         camera: *fd.Camera,
+//         fwd: *fd.Forward,
+//         transform: *fd.Transform,
+//     });
+//     if (cam_comps.camera.class == 1) {
+//         const query = system.physics_world.getNarrowPhaseQuery();
+//
+//         const z_mat = zm.loadMat43(cam_comps.transform.matrix[0..]);
+//         var z_pos = zm.util.getTranslationVec(z_mat);
+//         const z_fwd = zm.util.getAxisZ(z_mat);
+//         z_pos[0] += z_fwd[0] * 0.1;
+//         z_pos[1] += z_fwd[1] * 0.1;
+//         z_pos[2] += z_fwd[2] * 0.1;
+//
+//         const ray_distance = 100.0;
+//         const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+//         const ray_dir = [_]f32{ z_fwd[0] * ray_distance, z_fwd[1] * ray_distance, z_fwd[2] * ray_distance, 0 };
+//
+//         var result = query.castRay(
+//             .{
+//                 .origin = ray_origin,
+//                 .direction = ray_dir,
+//             },
+//             .{
+//                 .broad_phase_layer_filter = @ptrCast(&MovingBroadPhaseLayerFilter{}),
+//             },
+//         );
+//
+//         if (result.has_hit) {
+//             crosshair_color = [4]f32{ 1.0, 0.0, 0.0, 1.0 };
+//         }
+//     }
+//
+//     const crosshair_size: f32 = 32;
+//     const crosshair_half_size: f32 = crosshair_size / 2;
+//     const screen_center_x: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_width)) / 2;
+//     const screen_center_y: f32 = @as(f32, @floatFromInt(system.gfx.gctx.viewport_height)) / 2;
+//
+//     const top = screen_center_y - crosshair_half_size;
+//     const bottom = screen_center_y + crosshair_half_size;
+//     const left = screen_center_x - crosshair_half_size;
+//     const right = screen_center_x + crosshair_half_size;
+//
+//     const image = gfx_d3d12.UIImage{
+//         .rect = [4]f32{ top, bottom, left, right },
+//         .color = crosshair_color,
+//         .texture = system.crosshair_texture,
+//     };
+//
+//     system.gfx.drawUIImage(image) catch unreachable;
+// }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
 // ██╔════╝██╔══██╗██║     ██║     ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝

@@ -92,7 +92,7 @@ pub const StateCreateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
-    prefab_mgr: *PrefabManager,
+    // prefab_mgr: *PrefabManager,
 };
 
 pub const StateFuncContext = struct {
@@ -105,7 +105,7 @@ pub const StateFuncContext = struct {
     input_frame_data: *const input.FrameData,
     audio_mgr: *audio_manager.AudioManager,
     dt: zm.F32x4,
-    gfx: *gfx_d3d12.D3D12State,
+    // gfx: *gfx_d3d12.D3D12State,
 };
 
 pub const StateFunc = fn (ctx: StateFuncContext) void;
