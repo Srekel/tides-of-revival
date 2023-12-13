@@ -57,6 +57,16 @@ def main():
     os.chdir(external_dir)
 
     sync_lib(
+        "c2z",
+        "https://github.com/Srekel/c2z.git",
+        "a7d7cefc8a4294429057d09c86277428b4bc6ad3",
+    )
+    sync_lib(
+        "recastnavigation",
+        "https://github.com/recastnavigation/recastnavigation.git",
+        "ddaa361b0893ddc7602a3bd5c20ad2cfd0a8df7c",
+    )
+    sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
         "c7954efb18bb3a98999fa96dc3621162c6630d11",
