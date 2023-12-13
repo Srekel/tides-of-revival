@@ -60,6 +60,22 @@
                 // "showReuseMessage": false,
                 // "revealProblems": "onProblem"
             }
-        }
+        },
+        {
+            "label": "build_c2z",
+            "type": "shell",
+            "command": "zig build",
+            "group": "build2",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/external/c2z/"
+            },
+            "presentation": {
+                "clear": true,
+                // "revealProblems": "onProblem"
+            }
+        },
     ]
 }
