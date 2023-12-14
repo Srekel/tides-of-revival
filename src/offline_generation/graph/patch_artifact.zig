@@ -3,6 +3,7 @@ const img = @import("zigimg");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
 
+const config = @import("../../config/config.zig");
 const g = @import("graph.zig");
 const lru = @import("../../../core/lru_cache.zig");
 const v = @import("../../core/core.zig").variant;
@@ -22,8 +23,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
     const world_width_input = node.getInputByString("World Width");
     const world_width = getInputResult(world_width_input, context).getUInt64();
 
-    const patch_element_byte_size_input = node.getInputByString("Patch Element Byte Size");
-    const patch_element_byte_size = getInputResult(patch_element_byte_size_input, context).getUInt64();
+    const patch_type_input = node.getInputByString("Patch Type");
+    const patch_type = getInputResult(patch_type_input, context).getHash();
 
     const folder_input = node.getInputByString("Artifact Folder");
     const folder = getInputResult(folder_input, context).getStringConst(1);
@@ -120,13 +121,13 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         const range = range_blk: {
                             var max_value: u16 = 0;
                             var min_value: u16 = std.math.maxInt(u16);
-                            _ = switch (patch_element_byte_size) {
-                                1 => {
+                            _ = switch (patch_type) {
+                                config.patch_type_splatmap.hash => {
                                     min_value = 0;
                                     max_value = 255;
                                     break :range_blk .{ .min = min_value, .max = max_value };
                                 },
-                                2 => {
+                                config.patch_type_heightmap.hash => {
                                     // min_value = 0;
                                     // max_value = std.math.maxInt(u16);
                                     // break :range_blk .{ .min = min_value, .max = max_value };
@@ -158,12 +159,12 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                 const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
                                 const world_z = @as(i64, @intCast(hm_patch_z * worst_lod_width + lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride));
                                 const img_i = pixel_x + pixel_z * artifact_patch_width;
-                                _ = switch (patch_element_byte_size) {
-                                    1 => {
+                                _ = switch (patch_type) {
+                                    config.patch_type_splatmap.hash => {
                                         const value = patches.getValueDynamic(world_x, world_z, u8);
                                         image.data[img_i] = value;
                                     },
-                                    2 => {
+                                    config.patch_type_heightmap.hash => {
                                         const value = patches.getValueDynamic(world_x, world_z, u16);
 
                                         // TODO: Do range mapping optionally based on parameter
@@ -201,7 +202,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         // });
                         image.writeToFile(namebufslice, .png) catch unreachable;
 
-                        if (patch_element_byte_size == 2) {
+                        if (patch_type == config.patch_type_heightmap.hash) {
                             const remap_namebufslice = std.fmt.bufPrintZ(
                                 namebuf[0..namebuf.len],
                                 "{s}/{s}_x{}_z{}.txt",
@@ -252,7 +253,7 @@ pub const patchArtifactFunc = g.NodeFuncTemplate{
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patch Width") }}) //
         ++ //
-        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patch Element Byte Size") }}) //
+        ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Patch Type") }}) //
         ++ //
         ([_]g.NodeInputTemplate{.{ .name = IdLocal.init("Artifact Patch Width") }}) //
         ++ //

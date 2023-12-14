@@ -870,8 +870,8 @@ pub fn create(
         .has_uav = false,
     }) catch unreachable;
 
-    const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
-    const splatmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("splatmap"));
+    const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_heightmap);
+    const splatmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_splatmap);
 
     var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
     loadResources(

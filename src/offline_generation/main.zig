@@ -1,6 +1,7 @@
 const std = @import("std");
 const zstbi = @import("zstbi");
 
+const config = @import("../config/config.zig");
 const g = @import("graph/graph.zig");
 const v = @import("../core/core.zig").variant;
 const IdLocal = @import("../core/core.zig").IdLocal;
@@ -223,7 +224,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
 
         node.getInput(IdLocal.init("Patches")).reference = IdLocal.init("heightmapPatches");
         node.getInput(IdLocal.init("Patch Width")).reference = IdLocal.init("heightmapPatchWidth");
-        node.getInput(IdLocal.init("Patch Element Byte Size")).value = v.Variant.createUInt64(2);
+        node.getInput(IdLocal.init("Patch Type")).value = v.Variant.createHash(config.patch_type_heightmap.hash);
         node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
@@ -243,11 +244,11 @@ pub fn generate(allocator: std.mem.Allocator) void {
 
         node.getInput(IdLocal.init("Patches")).reference = IdLocal.init("splatmapPatches");
         node.getInput(IdLocal.init("Patch Width")).reference = IdLocal.init("heightmapPatchWidth");
-        node.getInput(IdLocal.init("Patch Element Byte Size")).value = v.Variant.createUInt64(1);
+        node.getInput(IdLocal.init("Patch Type")).value = v.Variant.createHash(config.patch_type_splatmap.hash);
         node.getInput(IdLocal.init("Artifact Patch Width")).reference = IdLocal.init("artifactPatchWidth");
         node.getInput(IdLocal.init("Seed")).reference = IdLocal.init("seed");
         node.getInput(IdLocal.init("World Width")).reference = IdLocal.init("worldWidth");
-        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed("splatmap", 1);
+        node.getInput(IdLocal.init("Artifact Folder")).value = v.Variant.createStringFixed(config.patch_type_splatmap.toString(), 1);
 
         break :blk node;
     };

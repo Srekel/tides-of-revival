@@ -39,6 +39,10 @@ pub const terrain_min = terrain_height_ocean_floor;
 pub const terrain_max = terrain_height_mountain_top;
 pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floor;
 
+pub const patch_type_heightmap = ID("heightmap");
+pub const patch_type_splatmap = ID("splatmap");
+pub const patch_type_props = ID("props");
+
 //  ██████╗████████╗██╗  ██╗
 // ██╔════╝╚══██╔══╝╚██╗██╔╝
 // ██║        ██║    ╚███╔╝

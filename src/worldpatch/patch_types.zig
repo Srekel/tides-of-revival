@@ -11,18 +11,18 @@ const PatchLookup = world_patch_manager.PatchLookup;
 
 pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManager) void {
     _ = world_patch_mgr.registerPatchType(.{
-        .id = IdLocal.init("heightmap"),
+        .id = config.patch_type_heightmap,
         // .dependenciesFn = heightmapDependencies,
         .loadFn = heightmapLoad,
     });
 
     _ = world_patch_mgr.registerPatchType(.{
-        .id = IdLocal.init("splatmap"),
+        .id = config.patch_type_splatmap,
         .loadFn = splatmapLoad,
     });
 
     _ = world_patch_mgr.registerPatchType(.{
-        .id = IdLocal.init("props"),
+        .id = config.patch_type_props,
         .loadFn = propsLoad,
     });
 }

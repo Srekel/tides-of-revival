@@ -2,6 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 // const builtin = std.builtin;
 // const TypeId = builtin.TypeId;
+pub const IdLocal = @import("id.zig").IdLocal;
 
 pub const Tag = u64;
 pub const Hash = u64;
@@ -117,6 +118,20 @@ pub const Variant = struct {
         };
     }
 
+    pub fn createHash(int: Hash) Variant {
+        return Variant{
+            .value = .{ .hash = int },
+            .tag = 0, // TODO
+        };
+    }
+
+    pub fn createHashFromString(str: []const u8) Variant {
+        return Variant{
+            .value = .{ .hash = IdLocal.init(str).hash },
+            .tag = 0, // TODO
+        };
+    }
+
     pub fn createBool(boolean: bool) Variant {
         return Variant{
             .value = .{ .boolean = boolean },
@@ -187,13 +202,17 @@ pub const Variant = struct {
         const v = self.value;
         const u = v.uint64;
         return u;
-        // return self.value.uint64;
+    }
+
+    pub fn getHash(self: Variant) Hash {
+        const v = self.value;
+        const u = v.hash;
+        return u;
     }
 
     pub fn getBool(self: Variant) bool {
         const v = self.value;
         const u = v.boolean;
         return u;
-        // return self.value.uint64;
     }
 };
