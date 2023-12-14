@@ -51,8 +51,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
     const worst_lod = 3; // inclusive
     const worst_lod_width = best_lod_width * std.math.pow(u32, 2, worst_lod) / precision;
     const worst_lod_patch_count_per_side = (world_width) / worst_lod_width;
-    var lod: u32 = best_lod;
-    while (lod <= worst_lod) : (lod += 1) {
+    for (best_lod..worst_lod + 1) |lod| {
         folderbufslice = std.fmt.bufPrintZ(
             folderbuf[0..folderbuf.len],
             "content/patch/{s}/lod{}",
@@ -60,7 +59,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
         ) catch unreachable;
         std.fs.cwd().makeDir(folderbufslice) catch {};
 
-        const lod_pixel_stride = std.math.pow(u32, 2, lod) / precision;
+        const lod_pixel_stride = std.math.pow(usize, 2, lod) / precision;
         const image_bytes_per_component = 1; // @intCast(u32, patch_element_byte_size);
         // const image_bytes_per_component = @intCast(u32, patch_element_byte_size);
         var image = zstbi.Image{
@@ -74,11 +73,9 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
         };
         // defer image.deinit();
 
-        var hm_patch_z: u32 = 0;
-        while (hm_patch_z < worst_lod_patch_count_per_side) : (hm_patch_z += 1) {
+        for (0..worst_lod_patch_count_per_side) |hm_patch_z| {
             std.debug.print("Patch artifacts: lod{} row {}/{}\n", .{ lod, hm_patch_z, worst_lod_patch_count_per_side });
-            var hm_patch_x: u32 = 0;
-            while (hm_patch_x < worst_lod_patch_count_per_side) : (hm_patch_x += 1) {
+            for (0..worst_lod_patch_count_per_side) |hm_patch_x| {
                 const patches = patch_blk: {
                     const prevNodeOutput = patches_input.source orelse unreachable;
                     const prevNode = prevNodeOutput.node orelse unreachable;
@@ -112,12 +109,10 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
                 // _ = patches;
 
-                const lod_patch_count_per_side = std.math.pow(u32, 2, worst_lod - lod);
+                const lod_patch_count_per_side = std.math.pow(usize, 2, worst_lod - lod);
                 const lod_patch_width = worst_lod_width / lod_patch_count_per_side;
-                var lod_patch_z: u32 = 0;
-                while (lod_patch_z < lod_patch_count_per_side) : (lod_patch_z += 1) {
-                    var lod_patch_x: u32 = 0;
-                    while (lod_patch_x < lod_patch_count_per_side) : (lod_patch_x += 1) {
+                for (0..lod_patch_count_per_side) |lod_patch_z| {
+                    for (0..lod_patch_count_per_side) |lod_patch_x| {
                         const range = range_blk: {
                             var max_value: u16 = 0;
                             var min_value: u16 = std.math.maxInt(u16);
@@ -131,10 +126,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                     // min_value = 0;
                                     // max_value = std.math.maxInt(u16);
                                     // break :range_blk .{ .min = min_value, .max = max_value };
-                                    var pixel_z: u32 = 0;
-                                    while (pixel_z < artifact_patch_width) : (pixel_z += 1) {
-                                        var pixel_x: u32 = 0;
-                                        while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
+                                    for (0..artifact_patch_width) |pixel_z| {
+                                        for (0..artifact_patch_width) |pixel_x| {
                                             const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
                                             const world_z = @as(i64, @intCast(hm_patch_z * worst_lod_width + lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride));
                                             const value = patches.getValueDynamic(world_x, world_z, u16);
@@ -152,10 +145,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         const range_diff = @as(f64, @floatFromInt(range.max - range.min));
                         // const full_range_diff = @floatFromInt(f64, std.math.maxInt(u16));
 
-                        var pixel_z: u32 = 0;
-                        while (pixel_z < artifact_patch_width) : (pixel_z += 1) {
-                            var pixel_x: u32 = 0;
-                            while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
+                        for (0..artifact_patch_width) |pixel_z| {
+                            for (0..artifact_patch_width) |pixel_x| {
                                 const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
                                 const world_z = @as(i64, @intCast(hm_patch_z * worst_lod_width + lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride));
                                 const img_i = pixel_x + pixel_z * artifact_patch_width;
