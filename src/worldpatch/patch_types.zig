@@ -59,7 +59,7 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     var heightmap_namebuf: [256]u8 = undefined;
     const heightmap_path = std.fmt.bufPrintZ(
         heightmap_namebuf[0..heightmap_namebuf.len],
-        "content/patch/heightmap/lod{}/heightmap_x{}_y{}.png",
+        "content/patch/heightmap/lod{}/heightmap_x{}_z{}.png",
         .{
             patch.lookup.lod,
             patch.patch_x,
@@ -75,7 +75,7 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     var range_namebuf: [256]u8 = undefined;
     const range_path = std.fmt.bufPrintZ(
         range_namebuf[0..range_namebuf.len],
-        "content/patch/heightmap/lod{}/heightmap_x{}_y{}.txt",
+        "content/patch/heightmap/lod{}/heightmap_x{}_z{}.txt",
         .{
             patch.lookup.lod,
             patch.patch_x,
@@ -145,7 +145,7 @@ fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Patc
     var splatmap_namebuf: [256]u8 = undefined;
     const splatmap_path = std.fmt.bufPrintZ(
         splatmap_namebuf[0..splatmap_namebuf.len],
-        "content/patch/splatmap/lod{}/splatmap_x{}_y{}.png",
+        "content/patch/splatmap/lod{}/splatmap_x{}_z{}.png",
         .{
             patch.lookup.lod,
             patch.lookup.patch_x,
@@ -174,7 +174,7 @@ fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTy
     var props_namebuf: [256]u8 = undefined;
     const props_path = std.fmt.bufPrintZ(
         props_namebuf[0..props_namebuf.len],
-        "content/patch/props/lod{}/props_x{}_y{}.txt",
+        "content/patch/props/lod{}/props_x{}_z{}.txt",
         .{
             patch.lookup.lod,
             patch.lookup.patch_x,

@@ -26,38 +26,38 @@ pub const HeightmapOutputData = struct {
     patch_width: u64 = undefined,
     count: u64 = undefined,
     count_x: u64 = undefined,
-    count_y: u64 = undefined,
+    count_z: u64 = undefined,
 
-    pub fn getHeight(self: HeightmapOutputData, world_x: anytype, world_y: anytype) HeightmapHeight {
+    pub fn getHeight(self: HeightmapOutputData, world_x: anytype, world_z: anytype) HeightmapHeight {
         const patch_x = @divTrunc(@as(u64, @intCast(world_x)), self.patch_width);
-        const patch_y = @divTrunc(@as(u64, @intCast(world_y)), self.patch_width);
+        const patch_z = @divTrunc(@as(u64, @intCast(world_z)), self.patch_width);
         // const patch_begin_x = @divExact(@intCast(u64, self.patch_positions[0][0]), self.patch_width);
-        // const patch_begin_y = @divExact(@intCast(u64, self.patch_positions[0][1]), self.patch_width);
+        // const patch_begin_z = @divExact(@intCast(u64, self.patch_positions[0][1]), self.patch_width);
         const patch_begin_x = @as(u64, @intCast(self.patch_positions[0][0]));
-        const patch_begin_y = @as(u64, @intCast(self.patch_positions[0][1]));
+        const patch_begin_z = @as(u64, @intCast(self.patch_positions[0][1]));
         const patch_index_x = patch_x - patch_begin_x;
-        const patch_index_y = patch_y - patch_begin_y;
-        const patch = self.patches[patch_index_x + patch_index_y * self.count_x];
+        const patch_index_z = patch_z - patch_begin_z;
+        const patch = self.patches[patch_index_x + patch_index_z * self.count_x];
         const inside_patch_x = @as(u64, @intCast(world_x)) % self.patch_width;
-        const inside_patch_y = @as(u64, @intCast(world_y)) % self.patch_width;
-        return patch[inside_patch_x + inside_patch_y * self.patch_width];
+        const inside_patch_z = @as(u64, @intCast(world_z)) % self.patch_width;
+        return patch[inside_patch_x + inside_patch_z * self.patch_width];
     }
 
-    pub fn getHeightI(self: HeightmapOutputData, world_x: i64, world_y: i64) i32 {
-        return self.getHeight(world_x, world_y);
+    pub fn getHeightI(self: HeightmapOutputData, world_x: i64, world_z: i64) i32 {
+        return self.getHeight(world_x, world_z);
     }
 
-    pub fn getHeightWorld(self: HeightmapOutputData, world_x: anytype, world_y: anytype) f32 {
+    pub fn getHeightWorld(self: HeightmapOutputData, world_x: anytype, world_z: anytype) f32 {
         if (@typeInfo(@TypeOf(world_x)) == .Float) {
             const height = self.getHeight(
                 @as(i32, @intFromFloat(@floor(world_x))),
-                @as(i32, @intFromFloat(@floor(world_y))),
+                @as(i32, @intFromFloat(@floor(world_z))),
             );
             const height_0_1 = @as(f32, @floatFromInt(height)) / @as(f32, @floatFromInt(std.math.maxInt(u16)));
             return config.noise_scale_y * height_0_1;
         }
 
-        const height = self.getHeight(world_x, world_y);
+        const height = self.getHeight(world_x, world_z);
         const height_0_1 = @as(f32, @floatFromInt(height)) / @as(f32, @floatFromInt(std.math.maxInt(u16)));
         return config.noise_scale_y * height_0_1;
     }
@@ -85,12 +85,12 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
     const debug_shape = getInputResult(debug_shape_input, context).getBool();
 
     var world_x: u64 = 0;
-    var world_y: u64 = 0;
+    var world_z: u64 = 0;
     var width: u64 = world_width;
     var height: u64 = world_width;
     if (params.len > 0 and !params[0].value.isUnset()) {
         world_x = params[0].value.getUInt64();
-        world_y = params[1].value.getUInt64();
+        world_z = params[1].value.getUInt64();
         width = params[2].value.getUInt64();
         height = params[3].value.getUInt64();
     }
@@ -113,25 +113,25 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
 
     const patch_x_begin = @divTrunc(world_x, patch_width);
     const patch_x_end = @divTrunc((world_x + width - 1), patch_width) + 1;
-    const patch_y_begin = @divTrunc(world_y, patch_width);
-    const patch_y_end = @divTrunc((world_y + height - 1), patch_width) + 1;
+    const patch_z_begin = @divTrunc(world_z, patch_width);
+    const patch_z_end = @divTrunc((world_z + height - 1), patch_width) + 1;
 
-    std.debug.assert((patch_x_end - patch_x_begin) * (patch_y_end - patch_y_begin) < PATCH_CACHE_SIZE);
+    std.debug.assert((patch_x_end - patch_x_begin) * (patch_z_end - patch_z_begin) < PATCH_CACHE_SIZE);
 
     var output_data = context.frame_allocator.create(HeightmapOutputData) catch unreachable;
     output_data.count = 0;
     output_data.patch_width = patch_width;
     output_data.count_x = patch_x_end - patch_x_begin;
-    output_data.count_y = patch_y_end - patch_y_begin;
+    output_data.count_z = patch_z_end - patch_z_begin;
 
-    var patch_y = patch_y_begin;
-    while (patch_y < patch_y_end) : (patch_y += 1) {
+    var patch_z = patch_z_begin;
+    while (patch_z < patch_z_end) : (patch_z += 1) {
         var patch_x = patch_x_begin;
         while (patch_x < patch_x_end) : (patch_x += 1) {
-            const patch_cache_key = @as(u64, @intCast(patch_x + 10000 * patch_y));
+            const patch_cache_key = @as(u64, @intCast(patch_x + 10000 * patch_z));
             const patch_pos_x = patch_x - patch_x_begin;
-            const patch_pos_y = patch_y - patch_y_begin;
-            output_data.patch_positions[patch_pos_x + patch_pos_y * output_data.count_x] = .{ @as(i64, @intCast(patch_x)), @as(i64, @intCast(patch_y)) };
+            const patch_pos_z = patch_z - patch_z_begin;
+            output_data.patch_positions[patch_pos_x + patch_pos_z * output_data.count_x] = .{ @as(i64, @intCast(patch_x)), @as(i64, @intCast(patch_z)) };
 
             var heightmap: []HeightmapHeight = undefined;
             var evictable_lru_key: ?lru.LRUKey = null;
@@ -140,15 +140,15 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
             if (heightmapOpt != null) {
                 var arrptr = alignedCast([*]HeightmapHeight, heightmapOpt.?.*);
                 // var arrptr = @ptrCast([*]HeightmapHeight, heightmapOpt.?.*);
-                // std.debug.print("Found patch {}, {}\n", .{ patch_x, patch_y });
+                // std.debug.print("Found patch {}, {}\n", .{ patch_x, patch_z });
                 heightmap = arrptr[0..@as(u64, @intCast(patch_size))];
             } else {
                 if (evictable_lru_key != null) {
-                    // std.debug.print("Evicting {} for patch {}, {}\n", .{ evictable_lru_key.?, patch_x, patch_y });
+                    // std.debug.print("Evicting {} for patch {}, {}\n", .{ evictable_lru_key.?, patch_x, patch_z });
                     var arrptr = alignedCast([*]HeightmapHeight, evictable_lru_value);
                     heightmap = arrptr[0..@as(u64, @intCast(patch_size))];
                 } else {
-                    std.debug.print("[HEIGHTMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_y });
+                    std.debug.print("[HEIGHTMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_z });
                     heightmap = node.allocator.?.alloc(HeightmapHeight, @as(u64, @intCast(patch_size))) catch unreachable;
                 }
 
@@ -159,9 +159,9 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         var x: u64 = 0;
                         while (x < patch_width) : (x += 1) {
                             const x_world = patch_x * patch_width + x;
-                            const y_world = patch_y * patch_width + y;
+                            const y_world = patch_z * patch_width + y;
                             const x_world_f: f32 = @floatFromInt(patch_x * patch_width + x);
-                            const y_world_f: f32 = @floatFromInt(patch_y * patch_width + y);
+                            const y_world_f: f32 = @floatFromInt(patch_z * patch_width + y);
                             var value: f32 = 0;
                             if (0 < x_world and x_world < 1000 and 0 < y_world and y_world < 1000) {
                                 value = 0.1;
@@ -195,7 +195,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         var x: u64 = 0;
                         while (x < patch_width) : (x += 1) {
                             var x_world = patch_x * patch_width + x;
-                            var y_world = patch_y * patch_width + y;
+                            var y_world = patch_z * patch_width + y;
                             // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
                             // and then we're converting it to a 16-bit unsigned integer
                             var height_sample: f32 = data.noise.noise2(@as(f32, @floatFromInt(x_world)) * config.noise_scale_xz, @as(f32, @floatFromInt(y_world)) * config.noise_scale_xz) * 0.5 + 0.5;
@@ -236,7 +236,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     std.fs.cwd().makeDir("content/heightmap") catch {};
 
                     var namebuf: [256]u8 = undefined;
-                    const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "content/heightmap/patch_x{}_y{}.pgm", .{ patch_x, patch_y }) catch unreachable;
+                    const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "content/heightmap/patch_x{}_z{}.pgm", .{ patch_x, patch_z }) catch unreachable;
 
                     var pgm_opt: img.AllFormats.PGM.EncoderOptions = .{ .binary = true };
                     const encoder_options = img.AllFormats.ImageEncoderOptions{ .pgm = pgm_opt };

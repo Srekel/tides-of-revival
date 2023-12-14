@@ -114,7 +114,7 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
 
                 const namebufslice = std.fmt.bufPrintZ(
                     namebuf[0..namebuf.len],
-                    "{s}/props_x{}_y{}.txt",
+                    "{s}/props_x{}_z{}.txt",
                     .{
                         folderbufslice,
                         patch_x,

@@ -73,9 +73,9 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
         };
         // defer image.deinit();
 
-        var hm_patch_y: u32 = 0;
-        while (hm_patch_y < worst_lod_patch_count_per_side) : (hm_patch_y += 1) {
-            std.debug.print("Patch artifacts: lod{} row {}/{}\n", .{ lod, hm_patch_y, worst_lod_patch_count_per_side });
+        var hm_patch_z: u32 = 0;
+        while (hm_patch_z < worst_lod_patch_count_per_side) : (hm_patch_z += 1) {
+            std.debug.print("Patch artifacts: lod{} row {}/{}\n", .{ lod, hm_patch_z, worst_lod_patch_count_per_side });
             var hm_patch_x: u32 = 0;
             while (hm_patch_x < worst_lod_patch_count_per_side) : (hm_patch_x += 1) {
                 const patches = patch_blk: {
@@ -87,8 +87,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                             .value = v.Variant.createUInt64(hm_patch_x * worst_lod_width),
                         },
                         .{
-                            .name = IdLocal.init("world_y"),
-                            .value = v.Variant.createUInt64(hm_patch_y * worst_lod_width),
+                            .name = IdLocal.init("world_z"),
+                            .value = v.Variant.createUInt64(hm_patch_z * worst_lod_width),
                         },
                         .{
                             .name = IdLocal.init("width"),
@@ -113,8 +113,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
                 const lod_patch_count_per_side = std.math.pow(u32, 2, worst_lod - lod);
                 const lod_patch_width = worst_lod_width / lod_patch_count_per_side;
-                var lod_patch_y: u32 = 0;
-                while (lod_patch_y < lod_patch_count_per_side) : (lod_patch_y += 1) {
+                var lod_patch_z: u32 = 0;
+                while (lod_patch_z < lod_patch_count_per_side) : (lod_patch_z += 1) {
                     var lod_patch_x: u32 = 0;
                     while (lod_patch_x < lod_patch_count_per_side) : (lod_patch_x += 1) {
                         const range = range_blk: {
@@ -130,13 +130,13 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                     // min_value = 0;
                                     // max_value = std.math.maxInt(u16);
                                     // break :range_blk .{ .min = min_value, .max = max_value };
-                                    var pixel_y: u32 = 0;
-                                    while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
+                                    var pixel_z: u32 = 0;
+                                    while (pixel_z < artifact_patch_width) : (pixel_z += 1) {
                                         var pixel_x: u32 = 0;
                                         while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
                                             const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
-                                            const world_y = @as(i64, @intCast(hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride));
-                                            const value = patches.getValueDynamic(world_x, world_y, u16);
+                                            const world_z = @as(i64, @intCast(hm_patch_z * worst_lod_width + lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride));
+                                            const value = patches.getValueDynamic(world_x, world_z, u16);
                                             min_value = @min(min_value, value);
                                             max_value = @max(max_value, value);
                                         }
@@ -151,20 +151,20 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                         const range_diff = @as(f64, @floatFromInt(range.max - range.min));
                         // const full_range_diff = @floatFromInt(f64, std.math.maxInt(u16));
 
-                        var pixel_y: u32 = 0;
-                        while (pixel_y < artifact_patch_width) : (pixel_y += 1) {
+                        var pixel_z: u32 = 0;
+                        while (pixel_z < artifact_patch_width) : (pixel_z += 1) {
                             var pixel_x: u32 = 0;
                             while (pixel_x < artifact_patch_width) : (pixel_x += 1) {
                                 const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
-                                const world_y = @as(i64, @intCast(hm_patch_y * worst_lod_width + lod_patch_y * lod_patch_width + pixel_y * lod_pixel_stride));
-                                const img_i = pixel_x + pixel_y * artifact_patch_width;
+                                const world_z = @as(i64, @intCast(hm_patch_z * worst_lod_width + lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride));
+                                const img_i = pixel_x + pixel_z * artifact_patch_width;
                                 _ = switch (patch_element_byte_size) {
                                     1 => {
-                                        const value = patches.getValueDynamic(world_x, world_y, u8);
+                                        const value = patches.getValueDynamic(world_x, world_z, u8);
                                         image.data[img_i] = value;
                                     },
                                     2 => {
-                                        const value = patches.getValueDynamic(world_x, world_y, u16);
+                                        const value = patches.getValueDynamic(world_x, world_z, u16);
 
                                         // TODO: Do range mapping optionally based on parameter
                                         if (range_diff == 0) {
@@ -185,31 +185,31 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
 
                         const namebufslice = std.fmt.bufPrintZ(
                             namebuf[0..namebuf.len],
-                            "{s}/{s}_x{}_y{}.png",
+                            "{s}/{s}_x{}_z{}.png",
                             .{
                                 folderbufslice,
                                 folder,
                                 hm_patch_x * lod_patch_count_per_side + lod_patch_x,
-                                hm_patch_y * lod_patch_count_per_side + lod_patch_y,
+                                hm_patch_z * lod_patch_count_per_side + lod_patch_z,
                             },
                         ) catch unreachable;
                         // std.debug.print("Patch artifacts: image{s} hx{} lx{} imx0:{}\n", .{
                         //     namebufslice,
                         //     hm_patch_x,
                         //     lod_patch_x,
-                        //     hm_patch_x * worst_lod_width + lod_patch_y * lod_patch_width + 0 * lod_pixel_stride,
+                        //     hm_patch_x * worst_lod_width + lod_patch_z * lod_patch_width + 0 * lod_pixel_stride,
                         // });
                         image.writeToFile(namebufslice, .png) catch unreachable;
 
                         if (patch_element_byte_size == 2) {
                             const remap_namebufslice = std.fmt.bufPrintZ(
                                 namebuf[0..namebuf.len],
-                                "{s}/{s}_x{}_y{}.txt",
+                                "{s}/{s}_x{}_z{}.txt",
                                 .{
                                     folderbufslice,
                                     folder,
                                     hm_patch_x * lod_patch_count_per_side + lod_patch_x,
-                                    hm_patch_y * lod_patch_count_per_side + lod_patch_y,
+                                    hm_patch_z * lod_patch_count_per_side + lod_patch_z,
                                 },
                             ) catch unreachable;
                             const remap_file = std.fs.cwd().createFile(
