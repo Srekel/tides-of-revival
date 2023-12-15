@@ -204,9 +204,66 @@ pub fn run() void {
     // };
 
     // const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    const player_pos = fd.Position.init(100, 100, 100);
+    const player_pos = fd.Position.init(0, 0, 0);
     // config.entity.init(player_pos, &prefab_mgr, ecsu_world);
     config.entity.init(player_pos, ecsu_world);
+
+    // Testing renderables
+    // ===================
+    {
+        // Testing geometry loading
+        const terrain_patch_3_mesh_handle = renderer.loadMesh("prefabs/environment/terrain/theforge/terrain_patch_3.bin");
+        var heightmap_handle: ?renderer.TextureHandle = null;
+
+        // Ask the World Patch Manager to load all LOD3 for the current world extents
+        const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
+        const rid = world_patch_mgr.registerRequester(IdLocal.init("testing_heightmaps"));
+        const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
+        var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
+        world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
+        // Make sure all LOD3 are resident
+        world_patch_mgr.tickAll();
+
+        // Create terrain instance buffers
+        var transform_data = renderer.Slice{
+            .data = null,
+            .size = 8 * 8 * @sizeOf(zm.Mat),
+        };
+        var transform_buffer = renderer.createBuffer(transform_data, @sizeOf(zm.Mat), "Terrain Patch 3 Transforms");
+        std.log.debug("Created new buffer: {}", .{transform_buffer});
+
+        // Load a single heightmap as a test
+        const lookup = world_patch_manager.PatchLookup{
+            .patch_x = 0,
+            .patch_z = 0,
+            .lod = 3,
+            .patch_type_id = heightmap_patch_type_id,
+        };
+
+        const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
+        if (patch_info.data_opt) |data| {
+            var data_slice = renderer.Slice{
+                .data = @as(*anyopaque, @ptrCast(data)),
+                .size = data.len,
+            };
+            heightmap_handle = renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, "heightmap_x0_y0");
+        }
+
+        const terrain_patch_3_ent = ecsu_world.newEntity();
+        const terrain_patch_3_transform = fd.Transform.initFromPosition(fd.Position.init(0, 0, 0));
+        terrain_patch_3_ent.set(fd.Position.init(0, 0, 0));
+        terrain_patch_3_ent.set(terrain_patch_3_transform);
+
+        var renderable = renderer.Renderable{
+            .id = terrain_patch_3_ent.id,
+            .mesh_handle = terrain_patch_3_mesh_handle,
+            .transform_buffer_index = 0,
+            .heightmap_index = 0,
+            .start_instanceLocation = 0,
+        };
+        renderer.registerRenderable(renderable);
+    }
 
     // // ███████╗██╗     ███████╗ ██████╗███████╗
     // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝
@@ -241,13 +298,6 @@ pub fn run() void {
             break;
         }
     }
-
-    // while (true) {
-    //     const done = update(&system_state);
-    //     if (done) {
-    //         break;
-    //     }
-    // }
 }
 
 fn update_full(gameloop_context: anytype, state: *SystemState) bool {
@@ -286,8 +336,10 @@ fn update_full(gameloop_context: anytype, state: *SystemState) bool {
     const camera_ent = util.getActiveCameraEnt(ecsu_world);
     const camera_component = camera_ent.get(fd.Camera).?;
     var z_view = zm.loadMat(camera_component.view[0..]);
+    var z_proj = zm.loadMat(camera_component.projection[0..]);
     var camera: renderer.Camera = undefined;
     zm.storeMat(&camera.view_matrix, z_view);
+    zm.storeMat(&camera.proj_matrix, z_proj);
 
     renderer.draw(camera);
 
@@ -313,37 +365,3 @@ fn update(ecsu_world: ecsu.World) void {
     AK.SoundEngine.renderAudio(false) catch unreachable;
     ecsu_world.progress(dt_game);
 }
-
-// pub fn update(state: *SystemState) bool {
-//     input.doTheThing(state.allocator, &state.input_frame_data);
-//
-//     const window_status = window.update() catch unreachable;
-//     if (window_status == .no_windows) {
-//         return true;
-//     }
-//
-//     if (state.main_window.frame_buffer_size[0] != state.app_settings.width or state.main_window.frame_buffer_size[1] != state.app_settings.height) {
-//         state.app_settings.width = state.main_window.frame_buffer_size[0];
-//         state.app_settings.height = state.main_window.frame_buffer_size[1];
-//
-//         var reload_desc = renderer.ReloadDesc{
-//             .reload_type = .{ .RESIZE = true },
-//         };
-//         renderer.onUnload(&reload_desc);
-//         if (!renderer.onLoad(&reload_desc)) {
-//             unreachable;
-//         }
-//     }
-//
-//     if (state.input_frame_data.just_pressed(config.input.exit)) {
-//         return true;
-//     }
-//
-//     const view_mat_z = zm.lookAtLh(.{ 0.0, 0.0, -1.0, 1.0 }, .{ 0.0, 0.0, 0.0, 0.0 }, .{ 0.0, 1.0, 0.0, 0.0 });
-//     var camera: renderer.Camera = undefined;
-//     zm.storeMat(&camera.view_matrix, view_mat_z);
-//
-//     renderer.draw(camera);
-//
-//     return false;
-// }

@@ -62,6 +62,8 @@ pub fn build(b: *std.Build) void {
         // Install DLLs
         var install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/TidesRenderer.dll" }, "bin/TidesRenderer.dll");
         exe.step.dependOn(&install_file.step);
+        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/TidesRenderer.pdb" }, "bin/TidesRenderer.pdb");
+        exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/WinPixEventRunTime.dll" }, "bin/WinPixEventRunTime.dll");
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/amd_ags_x64.dll" }, "bin/amd_ags_x64.dll");

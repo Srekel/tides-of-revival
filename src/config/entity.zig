@@ -4,9 +4,11 @@ const config = @import("config.zig");
 const core = @import("../core/core.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("flecs_data.zig");
+const renderer = @import("../renderer/tides_renderer.zig");
 const gfx = @import("../renderer/gfx_d3d12.zig");
 const ID = core.ID;
 const IdLocal = core.IdLocal;
+const zm = @import("zmath");
 
 const DEBUG_CAMERA_ACTIVE = false;
 
@@ -31,6 +33,32 @@ pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
     // const bow_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.bow);
     // bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
     // bow_ent.set(fd.ProjectileWeapon{});
+    // const bow_mesh_handle = renderer.loadMesh("prefabs/props/bow_arrow/theforge/bow.bin");
+    const bow_ent = ecsu_world.newEntity();
+    // TODO(gmodarelli): Move this to the prefab manager
+    {
+        var position = fd.Position{ .x = 0.25, .y = 0, .z = 1 };
+        var rotation = fd.Rotation{};
+        var scale = fd.Scale.createScalar(1);
+        bow_ent.set(position);
+        bow_ent.set(rotation);
+        bow_ent.set(scale);
+        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
+        transform.setPos(position.elems().*);
+        bow_ent.set(transform);
+        bow_ent.set(fd.ProjectileWeapon{});
+        bow_ent.set(fd.Dynamic{});
+        bow_ent.set(fd.Forward{});
+
+        // var renderable = renderer.Renderable{
+        //     .id = bow_ent.id,
+        //     .mesh_handle = bow_mesh_handle,
+        //     .transform = undefined,
+        // };
+        // @memcpy(&renderable.transform, transform.matrix[0..]);
+        // bow_ent.set(renderable);
+        // renderer.registerRenderable(renderable);
+    }
 
     // TODO(gmodarelli)
     // var proj_ent = ecsu_world.newEntity();
@@ -63,10 +91,10 @@ pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
     //     player_ent.addPair(fr.Hometown, ps.city_ent);
     // }
 
-    // player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
+    player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
     const debug_camera_ent = ecsu_world.newEntity();
-    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
