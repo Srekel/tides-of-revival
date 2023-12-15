@@ -11,6 +11,7 @@ const MeshHandle = @import("../renderer/gfx_d3d12.zig").MeshHandle;
 const TextureHandle = @import("../renderer/gfx_d3d12.zig").TextureHandle;
 const MaterialHandle = @import("../renderer/gfx_d3d12.zig").MaterialHandle;
 const rt = @import("../renderer/renderer_types.zig");
+const renderer = @import("../renderer/tides_renderer.zig");
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
     var ecs_world = ecsu_world.world;
@@ -54,6 +55,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, EnvironmentInfo);
     ecs.COMPONENT(ecs_world, ProjectileWeapon);
     ecs.COMPONENT(ecs_world, Projectile);
+    ecs.COMPONENT(ecs_world, renderer.Renderable);
 }
 
 // pub const GameContext = struct {
