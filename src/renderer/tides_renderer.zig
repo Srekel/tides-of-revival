@@ -26,6 +26,11 @@ pub fn exitRenderer() void {
 }
 extern fn TR_exitRenderer() void;
 
+pub fn frameIndex() u32 {
+    return TR_frameIndex();
+}
+extern fn TR_frameIndex() u32;
+
 pub fn onLoad(reload_desc: *ReloadDesc) bool {
     return TR_onLoad(reload_desc);
 }
