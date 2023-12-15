@@ -42,7 +42,7 @@ const TerrainLayerTextureIndices = extern struct {
 // };
 
 const InstanceData = struct {
-    object_to_world: zm.Mat,
+    object_to_world: [16]f32,
     heightmap_index: u32,
     splatmap_index: u32,
     lod: u32,
@@ -50,7 +50,6 @@ const InstanceData = struct {
 };
 
 const max_instances = 1000;
-const max_instances_per_draw_call = 20;
 
 const invalid_index = std.math.maxInt(u32);
 const QuadTreeNode = struct {
@@ -139,10 +138,7 @@ const QuadTreeNode = struct {
 };
 
 const DrawCall = struct {
-    index_count: u32,
-    instance_count: u32,
-    index_offset: u32,
-    vertex_offset: i32,
+    mesh_handle: renderer.MeshHandle,
     start_instance_location: u32,
 };
 
@@ -152,13 +148,9 @@ pub const SystemState = struct {
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     sys: ecs.entity_t,
 
-    // gfx: *gfx.D3D12State,
-
-    // vertex_buffer: gfx.BufferHandle,
-    // index_buffer: gfx.BufferHandle,
     terrain_layers_buffer: renderer.BufferHandle,
     instance_data_buffers: [renderer.buffered_frames_count]renderer.BufferHandle,
-    instance_data: std.ArrayList(InstanceData),
+    instance_data: *[max_instances]InstanceData,
     draw_calls: std.ArrayList(DrawCall),
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
@@ -296,7 +288,7 @@ fn loadHeightAndSplatMaps(
     }
 
     // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
-    // This improves up startup times
+    // This improves startup times
     if (node.heightmap_handle == null) {
         return;
     }
@@ -502,7 +494,6 @@ pub fn create(
     };
 
     var draw_calls = std.ArrayList(DrawCall).init(allocator);
-    var instance_data = std.ArrayList(InstanceData).init(allocator);
 
     var system = allocator.create(SystemState) catch unreachable;
     var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -513,8 +504,8 @@ pub fn create(
         .world_patch_mgr = world_patch_mgr,
         .sys = sys,
         .instance_data_buffers = instance_data_buffers,
+        .instance_data = allocator.create([max_instances]InstanceData) catch unreachable,
         .draw_calls = draw_calls,
-        .instance_data = instance_data,
         .terrain_layers_buffer = terrain_layers_buffer,
         .terrain_lod_meshes = meshes,
         .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
@@ -531,11 +522,11 @@ pub fn destroy(system: *SystemState) void {
     // TODO(gmodarelli): Destroy renderer resources?
 
     system.terrain_lod_meshes.deinit();
-    system.instance_data.deinit();
     system.terrain_quad_tree_nodes.deinit();
     system.quads_to_render.deinit();
     system.quads_to_load.deinit();
     system.draw_calls.deinit();
+    system.allocator.destroy(system.instance_data);
     system.allocator.destroy(system);
 }
 
@@ -566,7 +557,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     // Reset transforms, materials and draw calls array list
     system.quads_to_render.clearRetainingCapacity();
     system.quads_to_load.clearRetainingCapacity();
-    system.instance_data.clearRetainingCapacity();
     system.draw_calls.clearRetainingCapacity();
 
     {
@@ -586,43 +576,44 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }
     }
 
-    // {
-    //     // TODO: Batch quads together by mesh lod
-    //     var start_instance_location: u32 = 0;
-    //     for (system.quads_to_render.items) |quad_index| {
-    //         const quad = &system.terrain_quad_tree_nodes.items[quad_index];
+    var instance_count: u32 = 0;
+    {
+        // TODO: Batch quads together by mesh lod
+        var start_instance_location: u32 = 0;
+        for (system.quads_to_render.items, 0..) |quad_index, instance_index| {
+            const quad = &system.terrain_quad_tree_nodes.items[quad_index];
 
-    //         const object_to_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
-    //         // TODO: Generate from quad.patch_index
-    //         const heightmap = system.gfx.lookupTexture(quad.heightmap_handle.?);
-    //         const splatmap = system.gfx.lookupTexture(quad.splatmap_handle.?);
-    //         system.instance_data.append(.{
-    //             .object_to_world = zm.transpose(object_to_world),
-    //             .heightmap_index = heightmap.?.persistent_descriptor.index,
-    //             .splatmap_index = splatmap.?.persistent_descriptor.index,
-    //             .lod = quad.mesh_lod,
-    //             .padding1 = 42,
-    //         }) catch unreachable;
+            const z_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
+            zm.storeMat(&system.instance_data[instance_index].object_to_world, z_world);
 
-    //         const mesh = system.terrain_lod_meshes.items[quad.mesh_lod];
+            // TODO: Generate from quad.patch_index
+            system.instance_data[instance_index].heightmap_index = renderer.textureBindlessIndex(quad.heightmap_handle.?);
+            system.instance_data[instance_index].splatmap_index = renderer.textureBindlessIndex(quad.splatmap_handle.?);
 
-    //         system.draw_calls.append(.{
-    //             .index_count = mesh.sub_meshes[0].lods[0].index_count,
-    //             .instance_count = 1,
-    //             .index_offset = mesh.sub_meshes[0].lods[0].index_offset,
-    //             .vertex_offset = @as(i32, @intCast(mesh.sub_meshes[0].lods[0].vertex_offset)),
-    //             .start_instance_location = start_instance_location,
-    //         }) catch unreachable;
+            system.instance_data[instance_index].lod = quad.mesh_lod;
+            system.instance_data[instance_index].padding1 = 42;
 
-    //         start_instance_location += 1;
-    //     }
-    // }
+            const mesh_handle = system.terrain_lod_meshes.items[quad.mesh_lod];
 
-    // const frame_index = system.gfx.gctx.frame_index;
-    // if (system.instance_data.items.len > 0) {
-    //     assert(system.instance_data.items.len < max_instances);
-    //     _ = system.gfx.uploadDataToBuffer(InstanceData, system.instance_data_buffers[frame_index], 0, system.instance_data.items);
-    // }
+            system.draw_calls.append(.{
+                .mesh_handle = mesh_handle,
+                .start_instance_location = start_instance_location,
+            }) catch unreachable;
+
+            start_instance_location += 1;
+            instance_count += 1;
+        }
+    }
+
+    const frame_index = renderer.frameIndex();
+    if (instance_count > 0) {
+        assert(instance_count <= max_instances);
+        var data_slice = renderer.Slice{
+            .data = @ptrCast(system.instance_data),
+            .size = instance_count * @sizeOf(InstanceData),
+        };
+        renderer.updateBuffer(data_slice, system.instance_data_buffers[frame_index]);
+    }
 
     // const vertex_buffer = system.gfx.lookupBuffer(system.vertex_buffer);
     // const instance_data_buffer = system.gfx.lookupBuffer(system.instance_data_buffers[frame_index]);

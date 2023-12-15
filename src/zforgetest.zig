@@ -210,60 +210,60 @@ pub fn run() void {
 
     // Testing renderables
     // ===================
-    {
-        // Testing geometry loading
-        const terrain_patch_3_mesh_handle = renderer.loadMesh("prefabs/environment/terrain/theforge/terrain_patch_3.bin");
-        var heightmap_handle: ?renderer.TextureHandle = null;
+    // {
+    //     // Testing geometry loading
+    //     const terrain_patch_3_mesh_handle = renderer.loadMesh("prefabs/environment/terrain/theforge/terrain_patch_3.bin");
+    //     var heightmap_handle: ?renderer.TextureHandle = null;
 
-        // Ask the World Patch Manager to load all LOD3 for the current world extents
-        const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
-        const rid = world_patch_mgr.registerRequester(IdLocal.init("testing_heightmaps"));
-        const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
-        var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
-        world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
-        // Make sure all LOD3 are resident
-        world_patch_mgr.tickAll();
+    //     // Ask the World Patch Manager to load all LOD3 for the current world extents
+    //     const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
+    //     const rid = world_patch_mgr.registerRequester(IdLocal.init("testing_heightmaps"));
+    //     const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
+    //     var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+    //     world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
+    //     world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
+    //     // Make sure all LOD3 are resident
+    //     world_patch_mgr.tickAll();
 
-        // Create terrain instance buffers
-        var transform_data = renderer.Slice{
-            .data = null,
-            .size = 8 * 8 * @sizeOf(zm.Mat),
-        };
-        var transform_buffer = renderer.createBuffer(transform_data, @sizeOf(zm.Mat), "Terrain Patch 3 Transforms");
-        std.log.debug("Created new buffer: {}", .{transform_buffer});
+    //     // Create terrain instance buffers
+    //     var transform_data = renderer.Slice{
+    //         .data = null,
+    //         .size = 8 * 8 * @sizeOf(zm.Mat),
+    //     };
+    //     var transform_buffer = renderer.createBuffer(transform_data, @sizeOf(zm.Mat), "Terrain Patch 3 Transforms");
+    //     std.log.debug("Created new buffer: {}", .{transform_buffer});
 
-        // Load a single heightmap as a test
-        const lookup = world_patch_manager.PatchLookup{
-            .patch_x = 0,
-            .patch_z = 0,
-            .lod = 3,
-            .patch_type_id = heightmap_patch_type_id,
-        };
+    //     // Load a single heightmap as a test
+    //     const lookup = world_patch_manager.PatchLookup{
+    //         .patch_x = 0,
+    //         .patch_z = 0,
+    //         .lod = 3,
+    //         .patch_type_id = heightmap_patch_type_id,
+    //     };
 
-        const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
-        if (patch_info.data_opt) |data| {
-            var data_slice = renderer.Slice{
-                .data = @as(*anyopaque, @ptrCast(data)),
-                .size = data.len,
-            };
-            heightmap_handle = renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, "heightmap_x0_y0");
-        }
+    //     const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
+    //     if (patch_info.data_opt) |data| {
+    //         var data_slice = renderer.Slice{
+    //             .data = @as(*anyopaque, @ptrCast(data)),
+    //             .size = data.len,
+    //         };
+    //         heightmap_handle = renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, "heightmap_x0_y0");
+    //     }
 
-        const terrain_patch_3_ent = ecsu_world.newEntity();
-        const terrain_patch_3_transform = fd.Transform.initFromPosition(fd.Position.init(0, 0, 0));
-        terrain_patch_3_ent.set(fd.Position.init(0, 0, 0));
-        terrain_patch_3_ent.set(terrain_patch_3_transform);
+    //     const terrain_patch_3_ent = ecsu_world.newEntity();
+    //     const terrain_patch_3_transform = fd.Transform.initFromPosition(fd.Position.init(0, 0, 0));
+    //     terrain_patch_3_ent.set(fd.Position.init(0, 0, 0));
+    //     terrain_patch_3_ent.set(terrain_patch_3_transform);
 
-        var renderable = renderer.Renderable{
-            .id = terrain_patch_3_ent.id,
-            .mesh_handle = terrain_patch_3_mesh_handle,
-            .transform_buffer_index = 0,
-            .heightmap_index = 0,
-            .start_instanceLocation = 0,
-        };
-        renderer.registerRenderable(renderable);
-    }
+    //     var renderable = renderer.Renderable{
+    //         .id = terrain_patch_3_ent.id,
+    //         .mesh_handle = terrain_patch_3_mesh_handle,
+    //         .transform_buffer_index = 0,
+    //         .heightmap_index = 0,
+    //         .start_instanceLocation = 0,
+    //     };
+    //     renderer.registerRenderable(renderable);
+    // }
 
     // // ███████╗██╗     ███████╗ ██████╗███████╗
     // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝
