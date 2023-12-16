@@ -223,7 +223,7 @@ fn loadNodeHeightmap(
         var namebuf: [256]u8 = undefined;
         const debug_name = std.fmt.bufPrintZ(
             namebuf[0..namebuf.len],
-            "lod{d}/heightmap_x{d}_y{d}",
+            "lod{d}/heightmap_x{d}_z{d}",
             .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
         ) catch unreachable;
 
@@ -255,7 +255,7 @@ fn loadNodeSplatmap(
         var namebuf: [256]u8 = undefined;
         const debug_name = std.fmt.bufPrintZ(
             namebuf[0..namebuf.len],
-            "lod{d}/splatmap_x{d}_y{d}",
+            "lod{d}/splatmap_x{d}_z{d}",
             .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
         ) catch unreachable;
 
