@@ -507,8 +507,6 @@ pub fn create(
 }
 
 pub fn destroy(system: *SystemState) void {
-    // TODO(gmodarelli): Destroy renderer resources?
-
     system.terrain_lod_meshes.deinit();
     system.terrain_quad_tree_nodes.deinit();
     system.quads_to_render.deinit();
