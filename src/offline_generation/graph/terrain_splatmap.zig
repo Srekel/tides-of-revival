@@ -43,15 +43,15 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     const seed_input = node.getInputByString("Seed");
     const seed = getInputResult(seed_input, context).getUInt64();
 
-    var world_x: u64 = 0;
-    var world_z: u64 = 0;
-    var width: u64 = world_width;
-    var height: u64 = world_width;
+    var world_rect_x: u64 = 0;
+    var world_rect_z: u64 = 0;
+    var world_rect_width: u64 = world_width;
+    var world_rect_height: u64 = world_width;
     if (params.len > 0 and !params[0].value.isUnset()) {
-        world_x = params[0].value.getUInt64();
-        world_z = params[1].value.getUInt64();
-        width = params[2].value.getUInt64();
-        height = params[3].value.getUInt64();
+        world_rect_x = params[0].value.getUInt64();
+        world_rect_z = params[1].value.getUInt64();
+        world_rect_width = params[2].value.getUInt64();
+        world_rect_height = params[3].value.getUInt64();
     }
 
     const PATCH_CACHE_SIZE = 64 * 64;
@@ -70,10 +70,10 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     var data = alignedCast(*SplatmapNodeData, node.data.?);
     var cache = &data.cache;
 
-    const patch_x_begin = @divTrunc(world_x, patch_width);
-    const patch_x_end = @divTrunc((world_x + width - 1), patch_width) + 1;
-    const patch_z_begin = @divTrunc(world_z, patch_width);
-    const patch_z_end = @divTrunc((world_z + height - 1), patch_width) + 1;
+    const patch_x_begin = @divTrunc(world_rect_x, patch_width);
+    const patch_x_end = @divTrunc((world_rect_x + world_rect_width - 1), patch_width) + 1;
+    const patch_z_begin = @divTrunc(world_rect_z, patch_width);
+    const patch_z_end = @divTrunc((world_rect_z + world_rect_height - 1), patch_width) + 1;
 
     var output_data = context.frame_allocator.create(SplatmapOutputData) catch unreachable;
     output_data.count = 0;
@@ -153,12 +153,11 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 while (y < patch_width) : (y += 1) {
                     var x: u64 = 0;
                     while (x < patch_width) : (x += 1) {
-                        var world_sample_x = patch_x * patch_width + x;
-                        var world_sample_z = patch_z * patch_width + y;
-                        var height_sample = heightmap_patches.getHeight(world_sample_x, world_sample_z);
-                        // std.debug.assert(height_sample * 127 < 255);
-                        const chunked_height_sample = @as(SplatmapMaterial, @intCast(height_sample / 16000));
-                        splatmap[x + y * patch_width] = 0 + 1 * chunked_height_sample;
+                        var world_x = patch_x * patch_width + x;
+                        var world_z = patch_z * patch_width + y;
+                        var world_y = heightmap_patches.getHeight(world_x, world_z);
+                        _ = world_y;
+                        splatmap[x + y * patch_width] = 1;
                         // if (height_sample < 1000) {
                         //     splatmap[x + y * patch_width] = 50;
                         // } else {

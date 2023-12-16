@@ -114,8 +114,8 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                 for (0..lod_patch_count_per_side) |lod_patch_z| {
                     for (0..lod_patch_count_per_side) |lod_patch_x| {
                         const range = range_blk: {
-                            var max_value: u16 = 0;
-                            var min_value: u16 = std.math.maxInt(u16);
+                            var max_value: f32 = 0;
+                            var min_value: f32 = std.math.floatMax(f32);
                             _ = switch (patch_type) {
                                 config.patch_type_splatmap.hash => {
                                     min_value = 0;
@@ -123,14 +123,11 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                     break :range_blk .{ .min = min_value, .max = max_value };
                                 },
                                 config.patch_type_heightmap.hash => {
-                                    // min_value = 0;
-                                    // max_value = std.math.maxInt(u16);
-                                    // break :range_blk .{ .min = min_value, .max = max_value };
                                     for (0..artifact_patch_width) |pixel_z| {
                                         for (0..artifact_patch_width) |pixel_x| {
                                             const world_x = @as(i64, @intCast(hm_patch_x * worst_lod_width + lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride));
                                             const world_z = @as(i64, @intCast(hm_patch_z * worst_lod_width + lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride));
-                                            const value = patches.getValueDynamic(world_x, world_z, u16);
+                                            const value = patches.getValueDynamic(world_x, world_z, f32);
                                             min_value = @min(min_value, value);
                                             max_value = @max(max_value, value);
                                         }
@@ -142,8 +139,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                             };
                         };
 
-                        const range_diff = @as(f64, @floatFromInt(range.max - range.min));
-                        // const full_range_diff = @floatFromInt(f64, std.math.maxInt(u16));
+                        const range_diff = range.max - range.min;
 
                         for (0..artifact_patch_width) |pixel_z| {
                             for (0..artifact_patch_width) |pixel_x| {
@@ -156,7 +152,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                         image.data[img_i] = value;
                                     },
                                     config.patch_type_heightmap.hash => {
-                                        const value = patches.getValueDynamic(world_x, world_z, u16);
+                                        const value = patches.getValueDynamic(world_x, world_z, f32);
 
                                         // TODO: Do range mapping optionally based on parameter
                                         if (range_diff == 0) {
@@ -165,8 +161,9 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                             continue;
                                         }
 
-                                        const value_mapped = @as(u8, @intFromFloat((@as(f64, @floatFromInt((value - range.min))) / range_diff) * 255));
-                                        image.data[img_i] = @as(u8, @intCast(value_mapped));
+                                        const value_0_255: f32 = zm.mapLinearV(value, range.min, range.max, 0, 255);
+                                        const value_mapped: u8 = @intFromFloat(value_0_255);
+                                        image.data[img_i] = value_mapped;
                                         // image.data[img_i] = @intCast(u8, value >> 8);
                                         // image.data[img_i + 1] = @intCast(u8, value & 0xFF);
                                     },
