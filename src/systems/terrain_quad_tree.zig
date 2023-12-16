@@ -31,16 +31,6 @@ const TerrainLayerTextureIndices = extern struct {
     padding: u32,
 };
 
-// const DrawUniforms = struct {
-//     start_instance_location: u32,
-//     vertex_offset: i32,
-//     vertex_buffer_index: u32,
-//     instance_data_buffer_index: u32,
-//     terrain_layers_buffer_index: u32,
-//     terrain_height: f32,
-//     heightmap_texel_size: f32,
-// };
-
 const InstanceData = struct {
     object_to_world: [16]f32,
     heightmap_index: u32,
@@ -137,11 +127,6 @@ const QuadTreeNode = struct {
     }
 };
 
-const DrawCall = struct {
-    mesh_handle: renderer.MeshHandle,
-    start_instance_location: u32,
-};
-
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
@@ -151,7 +136,8 @@ pub const SystemState = struct {
     terrain_layers_buffer: renderer.BufferHandle,
     instance_data_buffers: [renderer.buffered_frames_count]renderer.BufferHandle,
     instance_data: *[max_instances]InstanceData,
-    draw_calls: std.ArrayList(DrawCall),
+    draw_calls: std.ArrayList(renderer.DrawCallTerrainInstanced),
+    draw_calls_push_constants: std.ArrayList(renderer.TerrainPushConstants),
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(renderer.MeshHandle),
@@ -493,7 +479,8 @@ pub fn create(
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(DrawCall).init(allocator);
+    var draw_calls = std.ArrayList(renderer.DrawCallTerrainInstanced).init(allocator);
+    var draw_calls_push_constants = std.ArrayList(renderer.TerrainPushConstants).init(allocator);
 
     var system = allocator.create(SystemState) catch unreachable;
     var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -506,6 +493,7 @@ pub fn create(
         .instance_data_buffers = instance_data_buffers,
         .instance_data = allocator.create([max_instances]InstanceData) catch unreachable,
         .draw_calls = draw_calls,
+        .draw_calls_push_constants = draw_calls_push_constants,
         .terrain_layers_buffer = terrain_layers_buffer,
         .terrain_lod_meshes = meshes,
         .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
@@ -526,6 +514,7 @@ pub fn destroy(system: *SystemState) void {
     system.quads_to_render.deinit();
     system.quads_to_load.deinit();
     system.draw_calls.deinit();
+    system.draw_calls_push_constants.deinit();
     system.allocator.destroy(system.instance_data);
     system.allocator.destroy(system);
 }
@@ -551,6 +540,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         transform: *const fd.Transform,
     });
 
+    const frame_index = renderer.frameIndex();
+
     // const cam = cam_comps.cam;
     const camera_position = cam_comps.transform.getPos00();
 
@@ -558,6 +549,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     system.quads_to_render.clearRetainingCapacity();
     system.quads_to_load.clearRetainingCapacity();
     system.draw_calls.clearRetainingCapacity();
+    system.draw_calls_push_constants.clearRetainingCapacity();
 
     {
         var sector_index: u32 = 0;
@@ -583,21 +575,31 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         for (system.quads_to_render.items, 0..) |quad_index, instance_index| {
             const quad = &system.terrain_quad_tree_nodes.items[quad_index];
 
-            const z_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
-            zm.storeMat(&system.instance_data[instance_index].object_to_world, z_world);
+            // Add instance data
+            {
+                const z_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
+                zm.storeMat(&system.instance_data[instance_index].object_to_world, z_world);
 
-            // TODO: Generate from quad.patch_index
-            system.instance_data[instance_index].heightmap_index = renderer.textureBindlessIndex(quad.heightmap_handle.?);
-            system.instance_data[instance_index].splatmap_index = renderer.textureBindlessIndex(quad.splatmap_handle.?);
+                // TODO: Generate from quad.patch_index
+                system.instance_data[instance_index].heightmap_index = renderer.textureBindlessIndex(quad.heightmap_handle.?);
+                system.instance_data[instance_index].splatmap_index = renderer.textureBindlessIndex(quad.splatmap_handle.?);
 
-            system.instance_data[instance_index].lod = quad.mesh_lod;
-            system.instance_data[instance_index].padding1 = 42;
+                system.instance_data[instance_index].lod = quad.mesh_lod;
+                system.instance_data[instance_index].padding1 = 42;
+            }
 
             const mesh_handle = system.terrain_lod_meshes.items[quad.mesh_lod];
 
             system.draw_calls.append(.{
                 .mesh_handle = mesh_handle,
                 .start_instance_location = start_instance_location,
+                .instance_count = 1,
+            }) catch unreachable;
+
+            system.draw_calls_push_constants.append(.{
+                .start_instance_location = start_instance_location,
+                .instance_data_buffer_index = renderer.bufferBindlessIndex(system.instance_data_buffers[frame_index]),
+                .material_buffer_index = renderer.bufferBindlessIndex(system.terrain_layers_buffer),
             }) catch unreachable;
 
             start_instance_location += 1;
@@ -605,7 +607,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }
     }
 
-    const frame_index = renderer.frameIndex();
     if (instance_count > 0) {
         assert(instance_count <= max_instances);
         var data_slice = renderer.Slice{
@@ -615,31 +616,13 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         renderer.updateBuffer(data_slice, system.instance_data_buffers[frame_index]);
     }
 
-    // const vertex_buffer = system.gfx.lookupBuffer(system.vertex_buffer);
-    // const instance_data_buffer = system.gfx.lookupBuffer(system.instance_data_buffers[frame_index]);
-    // const terrain_layers_buffer = system.gfx.lookupBuffer(system.terrain_layers_buffer);
-
-    // for (system.draw_calls.items) |draw_call| {
-    //     const mem = system.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
-    //     mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-    //     mem.cpu_slice[0].vertex_offset = draw_call.vertex_offset;
-    //     mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-    //     mem.cpu_slice[0].instance_data_buffer_index = instance_data_buffer.?.persistent_descriptor.index;
-    //     mem.cpu_slice[0].terrain_layers_buffer_index = terrain_layers_buffer.?.persistent_descriptor.index;
-    //     mem.cpu_slice[0].terrain_height = config.terrain_span;
-    //     mem.cpu_slice[0].heightmap_texel_size = 1.0 / @as(f32, @floatFromInt(config.patch_resolution));
-    //     system.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-
-    //     system.gfx.gctx.cmdlist.DrawIndexedInstanced(
-    //         draw_call.index_count,
-    //         draw_call.instance_count,
-    //         draw_call.index_offset,
-    //         draw_call.vertex_offset,
-    //         draw_call.start_instance_location,
-    //     );
-    // }
-
-    // system.gfx.gpu_profiler.endProfile(system.gfx.gctx.cmdlist, system.gpu_frame_profiler_index, system.gfx.gctx.frame_index);
+    renderer.registerTerrainDrawCalls(.{
+        .data = @ptrCast(system.draw_calls.items),
+        .size = system.draw_calls.items.len * @sizeOf(renderer.DrawCallTerrainInstanced),
+    }, .{
+        .data = @ptrCast(system.draw_calls_push_constants.items),
+        .size = system.draw_calls_push_constants.items.len * @sizeOf(renderer.TerrainPushConstants),
+    });
 
     for (system.quads_to_load.items) |quad_index| {
         var node = &system.terrain_quad_tree_nodes.items[quad_index];

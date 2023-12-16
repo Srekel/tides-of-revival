@@ -108,6 +108,11 @@ pub fn updateBuffer(data: Slice, buffer_handle: BufferHandle) void {
 }
 extern fn TR_updateBuffer(data: Slice, buffer_handle: BufferHandle) void;
 
+pub fn bufferBindlessIndex(buffer_handle: BufferHandle) u32 {
+    return TR_bufferBindlessIndex(buffer_handle);
+}
+extern fn TR_bufferBindlessIndex(buffer_handle: BufferHandle) u32;
+
 pub const TextureHandle = extern struct {
     id: u32,
 };
@@ -126,6 +131,23 @@ pub fn textureBindlessIndex(texture_handle: TextureHandle) u32 {
     return TR_textureBindlessIndex(texture_handle);
 }
 extern fn TR_textureBindlessIndex(texture_handle: TextureHandle) u32;
+
+pub const DrawCallTerrainInstanced = struct {
+    mesh_handle: MeshHandle,
+    start_instance_location: u32,
+    instance_count: u32,
+};
+
+pub const TerrainPushConstants = struct {
+    start_instance_location: u32,
+    instance_data_buffer_index: u32,
+    material_buffer_index: u32,
+};
+
+pub fn registerTerrainDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void {
+    TR_registerTerrainDrawCalls(draw_calls_slice, push_constants_slice);
+}
+extern fn TR_registerTerrainDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void;
 
 // pub const TextureDesc = extern struct {
 //     /// Optional placement (addTexture will place/bind buffer in this memory instead of allocating space)
