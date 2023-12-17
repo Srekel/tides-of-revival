@@ -2,6 +2,7 @@ const std = @import("std");
 const znoise = @import("znoise");
 const img = @import("zigimg");
 
+const config = @import("../../config/config.zig");
 const g = @import("graph.zig");
 const lru = @import("../../core/lru_cache.zig");
 const v = @import("../../core/core.zig").variant;
@@ -156,8 +157,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         var world_x = patch_x * patch_width + x;
                         var world_z = patch_z * patch_width + y;
                         var world_y = heightmap_patches.getHeight(world_x, world_z);
-                        _ = world_y;
-                        splatmap[x + y * patch_width] = 1;
+                        splatmap[x + y * patch_width] = @intFromFloat(4 * world_y / config.terrain_max);
                         // if (height_sample < 1000) {
                         //     splatmap[x + y * patch_width] = 50;
                         // } else {
