@@ -30,4 +30,8 @@
         "**/zig-cache/*": true,
     },
     "explorer.excludeGitIgnore": false,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "editor.formatOnSave": true
 }

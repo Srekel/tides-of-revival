@@ -1,3 +1,4 @@
+const std = @import("std");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
 const AK = @import("wwise-zig");
@@ -42,6 +43,48 @@ pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floo
 pub const patch_type_heightmap = ID("heightmap");
 pub const patch_type_splatmap = ID("splatmap");
 pub const patch_type_props = ID("props");
+
+pub const HeightmapHeader = packed struct {
+    version: u8,
+    bitdepth: u8,
+    height_min: f32,
+    height_max: f32,
+
+    pub fn getEdgeSlices(self_data: []const u8) struct {
+        top: []const u32,
+        bot: []const u32,
+        left: []const u32,
+        right: []const u32,
+    } {
+        const top_start = @sizeOf(HeightmapHeader);
+        const top_end = top_start + patch_resolution * @sizeOf(u32);
+        const bot_start = top_end;
+        const bot_end = bot_start + patch_resolution * @sizeOf(u32);
+        const left_start = bot_end;
+        const left_end = left_start + patch_resolution * @sizeOf(u32);
+        const right_start = left_end;
+        const right_end = right_start + patch_resolution * @sizeOf(u32);
+        const top: []const u32 = @alignCast(std.mem.bytesAsSlice(u32, self_data[top_start..top_end]));
+        const bot: []const u32 = @alignCast(std.mem.bytesAsSlice(u32, self_data[bot_start..bot_end]));
+        const left: []const u32 = @alignCast(std.mem.bytesAsSlice(u32, self_data[left_start..left_end]));
+        const right: []const u32 = @alignCast(std.mem.bytesAsSlice(u32, self_data[right_start..right_end]));
+        return .{
+            .top = top,
+            .bot = bot,
+            .left = left,
+            .right = right,
+        };
+    }
+
+    pub fn getInsides(self_data: []const u8, comptime T: type) []const T {
+        var edges_start: usize = @sizeOf(HeightmapHeader);
+        var edges_end: usize = edges_start + 4 * patch_resolution * @sizeOf(u32);
+        var insides_start: usize = edges_end;
+        var insides_end: usize = insides_start + (patch_resolution - 2) * (patch_resolution - 2) * @sizeOf(T);
+        var insides: []const T = @alignCast(std.mem.bytesAsSlice(T, self_data[insides_start..insides_end]));
+        return insides;
+    }
+};
 
 //  ██████╗████████╗██╗  ██╗
 // ██╔════╝╚══██╔══╝╚██╗██╔╝
