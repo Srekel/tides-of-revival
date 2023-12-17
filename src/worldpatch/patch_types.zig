@@ -59,7 +59,7 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     var heightmap_namebuf: [256]u8 = undefined;
     const heightmap_path = std.fmt.bufPrintZ(
         heightmap_namebuf[0..heightmap_namebuf.len],
-        "content/patch/heightmap/lod{}/heightmap_x{}_z{}.png",
+        "content/patch/heightmap/lod{}/heightmap_x{}_z{}.heightmap",
         .{
             patch.lookup.lod,
             patch.patch_x,
@@ -69,38 +69,71 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
 
     const heightmap_asset_id = IdLocal.init(heightmap_path);
     const heightmap_data = ctx.asset_mgr.loadAssetBlocking(heightmap_asset_id, .instant_blocking);
-    var heightmap_image = zstbi.Image.loadFromMemory(heightmap_data, 1) catch unreachable;
-    defer heightmap_image.deinit();
+    const header = util.castBytes(config.HeightmapHeader, heightmap_data);
+    // const version = header.version;
+    // _ = version;
+    // const bitdepth = header.bitdepth;
+    // _ = bitdepth;
+    // const height_min = header.height_min;
+    // _ = height_min;
+    // const height_max = header.height_max;
+    // _ = height_max;
 
-    var range_namebuf: [256]u8 = undefined;
-    const range_path = std.fmt.bufPrintZ(
-        range_namebuf[0..range_namebuf.len],
-        "content/patch/heightmap/lod{}/heightmap_x{}_z{}.txt",
-        .{
-            patch.lookup.lod,
-            patch.patch_x,
-            patch.patch_z,
-        },
-    ) catch unreachable;
-
-    const range_asset_id = IdLocal.init(range_path);
-    const range_data = ctx.asset_mgr.loadAssetBlocking(range_asset_id, .instant_blocking);
-    const range_str_comma = std.mem.indexOfScalar(u8, range_data, ","[0]).?;
-    const range_low_str = range_data[0..range_str_comma];
-    const range_low = std.fmt.parseFloat(f32, range_low_str) catch unreachable;
-    const range_high_str = range_data[range_str_comma + 1 ..];
-    const range_high = std.fmt.parseFloat(f32, range_high_str) catch unreachable;
-    const diff = range_high - range_low;
-    _ = diff;
-
+    const height_max_mapped_edge: f32 = @floatFromInt(std.math.pow(u32, 2, 30));
     var patch_data: []f32 = ctx.allocator.alloc(f32, config.patch_samples) catch unreachable;
-    for (heightmap_image.data, patch_data) |height_image, *height_patch| {
-        const height_image_0_255 = @as(f32, @floatFromInt(height_image));
-        const height = zm.mapLinearV(height_image_0_255, 0, 255, range_low, range_high);
-        height_patch.* = height;
+
+    // EDGES
+    const edges = config.HeightmapHeader.getEdgeSlices(heightmap_data);
+
+    // Top
+    for (edges.top, 0..) |height_u32, i| {
+        const height_0_32bit: f64 = @floatFromInt(height_u32);
+        const height = zm.mapLinearV(height_0_32bit, 0, height_max_mapped_edge, config.terrain_min, config.terrain_max);
+        patch_data[i] = @floatCast(height);
     }
 
+    // Bot
+    const bot_start = config.patch_resolution * (config.patch_resolution - 1);
+    for (edges.bot, 0..) |height_u32, i| {
+        const height_0_32bit: f64 = @floatFromInt(height_u32);
+        const height = zm.mapLinearV(height_0_32bit, 0, height_max_mapped_edge, config.terrain_min, config.terrain_max);
+        patch_data[bot_start + i] = @floatCast(height);
+    }
+
+    // Left
+    const left_stride = config.patch_resolution;
+    for (edges.left, 0..) |height_u32, i| {
+        const height_0_32bit: f64 = @floatFromInt(height_u32);
+        const height = zm.mapLinearV(height_0_32bit, 0, height_max_mapped_edge, config.terrain_min, config.terrain_max);
+        patch_data[i * left_stride] = @floatCast(height);
+    }
+
+    // Right
+    const right_start = config.patch_resolution - 1;
+    const right_stride = config.patch_resolution;
+    for (edges.right, 0..) |height_u32, i| {
+        const height_0_32bit: f64 = @floatFromInt(height_u32);
+        const height = zm.mapLinearV(height_0_32bit, 0, height_max_mapped_edge, config.terrain_min, config.terrain_max);
+        patch_data[right_start + i * right_stride] = @floatCast(height);
+    }
+
+    // INSIDES
+    switch (header.bitdepth) {
+        8 => {
+            const insides = config.HeightmapHeader.getInsides(heightmap_data, u8);
+            for (0..config.patch_resolution - 2) |patch_z| {
+                for (0..config.patch_resolution - 2) |patch_x| {
+                    const height_0_255: f32 = @floatFromInt(insides[patch_x + patch_z * (config.patch_resolution - 2)]);
+                    const height = zm.mapLinearV(height_0_255, 0, 255, header.height_min, header.height_max);
+                    const patch_index = patch_x + 1 + (patch_z + 1) * config.patch_resolution;
+                    patch_data[patch_index] = height;
+                }
+            }
+        },
+        else => unreachable,
+    }
     patch.data = std.mem.sliceAsBytes(patch_data);
+
     // std.log.debug("loaded patch ({any},{any}) type:{any}, lod:{any}", .{
     //     patch.lookup.patch_x,
     //     patch.lookup.patch_z,
