@@ -100,11 +100,9 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // Misc
-    // TODO(gmodarelli): Replace dependency on gfx_state for prefab_manager
-    // TODO(gmodarelli): Update the prefab manager to use The-Forge resource manager
-    // var prefab_mgr = prefab_manager.PrefabManager.init(ecsu_world, std.heap.page_allocator);
-    // defer prefab_mgr.deinit();
-    // config.prefab.initPrefabs(&prefab_mgr, ecsu_world, std.heap.page_allocator, gfx_state);
+    var prefab_mgr = prefab_manager.PrefabManager.init(ecsu_world, std.heap.page_allocator);
+    defer prefab_mgr.deinit();
+    config.prefab.initPrefabs(&prefab_mgr, ecsu_world);
 
     var event_mgr = EventManager.create(std.heap.page_allocator);
     defer event_mgr.destroy();
@@ -138,7 +136,7 @@ pub fn run() void {
     system_context.put(config.ecsu_world, &ecsu_world);
     system_context.put(config.event_mgr, &event_mgr);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
-    // system_context.put(config.prefab_mgr, &prefab_mgr);
+    system_context.put(config.prefab_mgr, &prefab_mgr);
 
     var physics_world: *zphy.PhysicsSystem = undefined;
 
@@ -149,10 +147,8 @@ pub fn run() void {
         .event_mgr = &event_mgr,
         .input_frame_data = &input_frame_data,
         .physics_world = physics_world, // TODO: Optional
-        // .prefab_mgr = &prefab_mgr,
-        // .gfx = gfx_state,
+        .prefab_mgr = &prefab_mgr,
         .world_patch_mgr = world_patch_mgr,
-        // .gfx_state = gfx_state,
         .asset_mgr = &asset_mgr,
     };
     config.system.createSystems(&gameloop_context, &system_context);
@@ -174,96 +170,37 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-    // TODO(gmodarelli): Enable when the city system has been updated
-    // const player_spawn = blk: {
-    //     var builder = ecsu.QueryBuilder.init(ecsu_world);
-    //     _ = builder
-    //         .with(fd.SpawnPoint)
-    //         .with(fd.Position);
+    const player_spawn = blk: {
+        var builder = ecsu.QueryBuilder.init(ecsu_world);
+        _ = builder
+            .with(fd.SpawnPoint)
+            .with(fd.Position);
 
-    //     var filter = builder.buildFilter();
-    //     defer filter.deinit();
+        var filter = builder.buildFilter();
+        defer filter.deinit();
 
-    //     var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
-    //     while (entity_iter.next()) |comps| {
-    //         const city_ent = ecs.get_target(
-    //             ecsu_world.world,
-    //             entity_iter.entity(),
-    //             fr.Hometown,
-    //             0,
-    //         );
-    //         const spawnpoint_ent = entity_iter.entity();
-    //         ecs.iter_fini(entity_iter.iter);
-    //         break :blk .{
-    //             .pos = comps.pos.*,
-    //             .spawnpoint_ent = spawnpoint_ent,
-    //             .city_ent = city_ent,
-    //         };
-    //     }
-    //     break :blk null;
-    // };
+        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
+        while (entity_iter.next()) |comps| {
+            const city_ent = ecs.get_target(
+                ecsu_world.world,
+                entity_iter.entity(),
+                fr.Hometown,
+                0,
+            );
+            const spawnpoint_ent = entity_iter.entity();
+            ecs.iter_fini(entity_iter.iter);
+            break :blk .{
+                .pos = comps.pos.*,
+                .spawnpoint_ent = spawnpoint_ent,
+                .city_ent = city_ent,
+            };
+        }
+        break :blk null;
+    };
 
-    // const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    const player_pos = fd.Position.init(0, 0, 0);
+    const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     // config.entity.init(player_pos, &prefab_mgr, ecsu_world);
     config.entity.init(player_pos, ecsu_world);
-
-    // Testing renderables
-    // ===================
-    // {
-    //     // Testing geometry loading
-    //     const terrain_patch_3_mesh_handle = renderer.loadMesh("prefabs/environment/terrain/theforge/terrain_patch_3.bin");
-    //     var heightmap_handle: ?renderer.TextureHandle = null;
-
-    //     // Ask the World Patch Manager to load all LOD3 for the current world extents
-    //     const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
-    //     const rid = world_patch_mgr.registerRequester(IdLocal.init("testing_heightmaps"));
-    //     const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
-    //     var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-    //     world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
-    //     world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
-    //     // Make sure all LOD3 are resident
-    //     world_patch_mgr.tickAll();
-
-    //     // Create terrain instance buffers
-    //     var transform_data = renderer.Slice{
-    //         .data = null,
-    //         .size = 8 * 8 * @sizeOf(zm.Mat),
-    //     };
-    //     var transform_buffer = renderer.createBuffer(transform_data, @sizeOf(zm.Mat), "Terrain Patch 3 Transforms");
-    //     std.log.debug("Created new buffer: {}", .{transform_buffer});
-
-    //     // Load a single heightmap as a test
-    //     const lookup = world_patch_manager.PatchLookup{
-    //         .patch_x = 0,
-    //         .patch_z = 0,
-    //         .lod = 3,
-    //         .patch_type_id = heightmap_patch_type_id,
-    //     };
-
-    //     const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
-    //     if (patch_info.data_opt) |data| {
-    //         var data_slice = renderer.Slice{
-    //             .data = @as(*anyopaque, @ptrCast(data)),
-    //             .size = data.len,
-    //         };
-    //         heightmap_handle = renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, "heightmap_x0_y0");
-    //     }
-
-    //     const terrain_patch_3_ent = ecsu_world.newEntity();
-    //     const terrain_patch_3_transform = fd.Transform.initFromPosition(fd.Position.init(0, 0, 0));
-    //     terrain_patch_3_ent.set(fd.Position.init(0, 0, 0));
-    //     terrain_patch_3_ent.set(terrain_patch_3_transform);
-
-    //     var renderable = renderer.Renderable{
-    //         .id = terrain_patch_3_ent.id,
-    //         .mesh_handle = terrain_patch_3_mesh_handle,
-    //         .transform_buffer_index = 0,
-    //         .heightmap_index = 0,
-    //         .start_instanceLocation = 0,
-    //     };
-    //     renderer.registerRenderable(renderable);
-    // }
 
     // // ███████╗██╗     ███████╗ ██████╗███████╗
     // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝

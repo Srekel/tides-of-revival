@@ -75,7 +75,7 @@ pub fn run() void {
     // Misc
     var prefab_mgr = prefab_manager.PrefabManager.init(ecsu_world, std.heap.page_allocator);
     defer prefab_mgr.deinit();
-    config.prefab.initPrefabs(&prefab_mgr, ecsu_world, std.heap.page_allocator, gfx_state);
+    config.prefab.initPrefabs(&prefab_mgr, ecsu_world);
 
     var event_mgr = EventManager.create(std.heap.page_allocator);
     defer event_mgr.destroy();

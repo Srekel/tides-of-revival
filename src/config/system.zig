@@ -64,16 +64,14 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         system_context.*,
     );
 
-    // TODO(gmodarelli): Remove gfx_state dependency from city system
-    // city_sys = try city_system.create(
-    //     ID("city_system"),
-    //     std.heap.page_allocator,
-    //     gameloop_context.gfx_state,
-    //     gameloop_context.ecsu_world,
-    //     physics_sys.physics_world,
-    //     gameloop_context.asset_mgr,
-    //     gameloop_context.prefab_mgr,
-    // );
+    city_sys = try city_system.create(
+        ID("city_system"),
+        std.heap.page_allocator,
+        gameloop_context.ecsu_world,
+        physics_sys.physics_world,
+        gameloop_context.asset_mgr,
+        gameloop_context.prefab_mgr,
+    );
 
     camera_sys = try camera_system.create(
         ID("camera_system"),
@@ -83,14 +81,13 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         gameloop_context.input_frame_data,
     );
 
-    // TODO(gmodarelli): Enable when the prefab manager is updated
-    // patch_prop_sys = try patch_prop_system.create(
-    //     IdLocal.initFormat("patch_prop_system_{}", .{0}),
-    //     std.heap.page_allocator,
-    //     gameloop_context.ecsu_world,
-    //     gameloop_context.world_patch_mgr,
-    //     gameloop_context.prefab_mgr,
-    // );
+    patch_prop_sys = try patch_prop_system.create(
+        IdLocal.initFormat("patch_prop_system_{}", .{0}),
+        std.heap.page_allocator,
+        gameloop_context.ecsu_world,
+        gameloop_context.world_patch_mgr,
+        gameloop_context.prefab_mgr,
+    );
 
     // TODO(gmodarelli): Remove gfx_state dependency from light system
     // light_sys = try light_system.create(
@@ -110,11 +107,9 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     //     gameloop_context.input_frame_data,
     // );
 
-    // TODO(gmodarelli): Remove gfx_state dependency from terrain quad tree system
     terrain_quad_tree_sys = try terrain_quad_tree_system.create(
         IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
         std.heap.page_allocator,
-        // gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
         gameloop_context.world_patch_mgr,
     );
@@ -126,7 +121,7 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
 }
 
 pub fn setupSystems() void {
-    // city_system.createEntities(city_sys);
+    city_system.createEntities(city_sys);
 }
 
 pub fn destroySystems() void {
@@ -135,7 +130,7 @@ pub fn destroySystems() void {
     defer state_machine_system.destroy(state_machine_sys);
     defer interact_system.destroy(interact_sys);
     defer timeline_system.destroy(timeline_sys);
-    // defer city_system.destroy(city_sys);
+    defer city_system.destroy(city_sys);
     defer camera_system.destroy(camera_sys);
     // defer patch_prop_system.destroy(patch_prop_sys);
     // defer light_system.destroy(light_sys);

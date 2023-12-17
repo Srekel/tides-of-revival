@@ -11,37 +11,37 @@ const PrefabConfig = struct {
 };
 const prefabs = [_]PrefabConfig{
     .{
-        .id = ID("content/prefabs/characters/player/player.gltf"),
+        .id = ID("prefabs/characters/player/theforge/player.bin"),
         .is_dynamic = true,
     },
     .{
-        .id = ID("content/prefabs/creatures/giant_ant/giant_ant.gltf"),
+        .id = ID("prefabs/creatures/giant_ant/theforge/giant_ant.bin"),
         .is_dynamic = true,
     },
     .{
-        .id = ID("content/prefabs/props/bow_arrow/bow.gltf"),
+        .id = ID("prefabs/props/bow_arrow/theforge/bow.bin"),
         .is_dynamic = true,
     },
     .{
-        .id = ID("content/prefabs/props/bow_arrow/arrow.gltf"),
+        .id = ID("prefabs/props/bow_arrow/theforge/arrow.bin"),
         .is_dynamic = true,
     },
     .{
-        .id = ID("content/prefabs/buildings/medium_house/medium_house.gltf"),
+        .id = ID("prefabs/buildings/medium_house/theforge/medium_house.bin"),
     },
     .{
-        .id = ID("content/prefabs/environment/fir/fir.gltf"),
+        .id = ID("prefabs/environment/fir/theforge/fir.bin"),
     },
     .{
-        .id = ID("content/prefabs/primitives/primitive_cube.gltf"),
+        .id = ID("prefabs/primitives/theforge/primitive_cube.bin"),
         .is_dynamic = true,
     },
     .{
-        .id = ID("content/prefabs/primitives/primitive_sphere.gltf"),
+        .id = ID("prefabs/primitives/theforge/primitive_sphere.bin"),
         .is_dynamic = true,
     },
     .{
-        .id = ID("content/prefabs/primitives/primitive_cylinder.gltf"),
+        .id = ID("prefabs/primitives/theforge/primitive_cylinder.bin"),
         .is_dynamic = true,
     },
 };
@@ -50,19 +50,17 @@ pub var player: ecsu.Entity = undefined;
 pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
 
-pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, allocator: std.mem.Allocator, gfx_state: *gfx.D3D12State) void {
+pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
     // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
     for (prefabs) |prefab| {
-        _ = prefab_mgr.loadPrefabFromGLTF(
+        _ = prefab_mgr.loadPrefabFromBinary(
             prefab.id.toCString(),
             ecsu_world,
-            gfx_state,
-            allocator,
             .{ .is_dynamic = prefab.is_dynamic },
-        ) catch unreachable;
+        );
     }
 
-    player = prefab_mgr.getPrefabByPath("content/prefabs/characters/player/player.gltf").?;
-    giant_ant = prefab_mgr.getPrefabByPath("content/prefabs/creatures/giant_ant/giant_ant.gltf").?;
-    bow = prefab_mgr.getPrefabByPath("content/prefabs/props/bow_arrow/bow.gltf").?;
+    player = prefab_mgr.getPrefabByPath("prefabs/characters/player/theforge/player.bin").?;
+    giant_ant = prefab_mgr.getPrefabByPath("prefabs/creatures/giant_ant/theforge/giant_ant.bin").?;
+    bow = prefab_mgr.getPrefabByPath("prefabs/props/bow_arrow/theforge/bow.bin").?;
 }

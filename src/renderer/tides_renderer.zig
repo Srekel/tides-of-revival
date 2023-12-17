@@ -79,10 +79,6 @@ extern fn TR_loadMesh(path: [*:0]const u8) MeshHandle;
 pub const Renderable = extern struct {
     id: u64,
     mesh_handle: MeshHandle,
-    // NOTE(gmodarelli): These are here just as a test
-    transform_buffer_index: u32,
-    heightmap_index: u32,
-    start_instanceLocation: u32,
 };
 
 pub fn registerRenderable(renderable: Renderable) void {

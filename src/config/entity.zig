@@ -76,6 +76,9 @@ pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
     const player_ent = ecsu_world.newEntity();
     player_ent.setName("main_player");
     player_ent.set(player_pos);
+    player_ent.set(fd.Rotation.initFromEuler(0, 0, 0));
+    player_ent.set(fd.Scale.createScalar(1));
+    player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
     player_ent.set(fd.Velocity{});
