@@ -121,7 +121,7 @@ fn updateSnapToTerrain(
                 [3]f32{ 0, 0, 0 },
             );
         } else if (gfx.end_screen_accumulated_time < 0) {
-            gfx.end_screen_accumulated_time = 0;
+            // gfx.end_screen_accumulated_time = 0;
         }
     } else {
         const body_interface = physics_world.getBodyInterfaceMut();
