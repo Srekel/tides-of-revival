@@ -58,6 +58,9 @@ pub fn run() void {
     fd.registerComponents(ecsu_world);
     fr.registerRelations(ecsu_world);
 
+    // Frame Stats
+    var stats = renderer.FrameStats.init();
+
     // GFX
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
@@ -143,6 +146,7 @@ pub fn run() void {
         .prefab_mgr = &prefab_mgr,
         .world_patch_mgr = world_patch_mgr,
         .asset_mgr = &asset_mgr,
+        .stats = &stats,
         .app_settings = &app_settings,
         .main_window = main_window,
     };
@@ -264,6 +268,7 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     var world_patch_mgr = gameloop_context.world_patch_mgr;
     var app_settings = gameloop_context.app_settings;
     var main_window = gameloop_context.main_window;
+    var stats = gameloop_context.stats;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
     defer trazy_zone.End();
@@ -327,7 +332,7 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     // }
 
     world_patch_mgr.tickOne();
-    update(ecsu_world);
+    update(ecsu_world, stats.delta_time);
 
     if (tl_giant_ant_spawn_ctx) |ctx| {
         _ = ctx;
@@ -352,16 +357,15 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     zm.storeMat(&camera.view_matrix, z_view);
     zm.storeMat(&camera.proj_matrix, z_proj);
 
+    stats.update();
     renderer.draw(camera);
 
     return false;
 }
 
-fn update(ecsu_world: ecsu.World) void {
+fn update(ecsu_world: ecsu.World, dt: f32) void {
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-    // TODO(gmodarelli): Expose delta time from tides_renderer
-    const dt_actual = 1.0 / 144.0;
-    const dt_game = dt_actual * environment_info.time_multiplier;
+    const dt_game = dt * environment_info.time_multiplier;
     environment_info.time_multiplier = 1;
 
     const flecs_stats = ecs.get_world_info(ecsu_world.world);

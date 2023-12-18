@@ -173,196 +173,48 @@ pub fn registerLitMaskedDrawCalls(draw_calls_slice: Slice, push_constants_slice:
 }
 extern fn TR_registerLitMaskedDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void;
 
-// pub const TextureDesc = extern struct {
-//     /// Optional placement (addTexture will place/bind buffer in this memory instead of allocating space)
-//     placement: *ResourcePlacement, // NOTE(gmodarelli): This requires D3D12-specific data, so I'm gonna ignore it for now
-//     /// Optimized clear value (recommended to use this same value when clearing the rendertarget)
-//     clear_value: ClearValue,
-//     /// Pointer to native texture handle if the texture does not own underlying resource
-//     native_handle: *anyopaque,
-//     /// Debug name used in gpu profile
-//     name: [*:0]const u8,
-//     /// GPU indices to share this texture
-//     shared_node_indices: *u32,
-//     /// Texture creation flags (decides memory allocation strategy, sharing access,...)
-//     flags: TextureCreationFlags,
-//     /// Width
-//     width: u32,
-//     /// Height
-//     height: u32,
-//     /// Depth (Should be 1 if not a mType is not TEXTURE_TYPE_3D)
-//     depth: u32,
-//     /// Texture array size (Should be 1 if texture is not a texture array or cubemap)
-//     array_size: u32,
-//     /// Number of mip levels
-//     mip_levels: u32,
-//     /// Number of multisamples per pixel (currently Textures created with mUsage TEXTURE_USAGE_SAMPLED_IMAGE only support SAMPLE_COUNT_1)
-//     sample_count: SampleCount,
-//     /// The image quality level. The higher the quality, the lower the performance. The valid range is between zero and the value appropriate for mSampleCount
-//     sample_quality: u32,
-//     ///  image format
-//     format: TinyImageFormat,
-//     /// What state will the texture get created in
-//     start_state: ResourceState,
-//     /// Descriptor creation
-//     descriptors: DescriptorType,
-//     /// Number of GPUs to share this texture
-//     shared_node_index_count: u32,
-//     /// GPU which will own this texture
-//     node_index: u32,
-// };
-//
-// pub const ResourcePlacement = extern struct {
-//     heap: u64, // NOTE(gmodarelli): Faking a ptr size so that TextureDesc has the same memory alignment as its CPP counterpart
-//     offset: u64,
-// }
+pub const FrameStats = struct {
+    time: f64,
+    delta_time: f32,
+    fps: f32,
+    average_cpu_time: f32,
+    timer: std.time.Timer,
+    previous_time_ns: u64,
+    fps_refresh_time_ns: u64,
+    frame_counter: u64,
 
-// pub const ClearValue = extern union {
-//     color: extern struct {
-//         r: f32,
-//         g: f32,
-//         b: f32,
-//         a: f32,
-//     },
-//
-//     depth: extern struct {
-//         depth: f32,
-//         stencil: u32,
-//     },
-// };
-//
-// pub const TextureCreationFlags = packed struct(u32) {
-//     /// Texture will allocate its own memory (COMMITTED resource)
-//     OWN_MEMORY_BIT: bool = false, // 0x01
-//     /// Texture will be allocated in memory which can be shared among multiple processes
-//     EXPORT_BIT: bool = false, // 0x02,
-//     /// Texture will be allocated in memory which can be shared among multiple gpus
-//     EXPORT_ADAPTER_BIT: bool = false, // 0x04,
-//     /// Texture will be imported from a handle created in another process
-//     IMPORT_BIT: bool = false, // 0x08,
-//     /// Use ESRAM to store this texture
-//     ESRAM: bool = false, // 0x10,
-//     /// Use on-tile memory to store this texture
-//     ON_TILE: bool = false, // 0x20,
-//     /// Prevent compression meta data from generating (XBox)
-//     NO_COMPRESSION: bool = false, // 0x40,
-//     /// Force 2D instead of automatically determining dimension based on width, height, depth
-//     FORCE_2D: bool = false, // 0x80,
-//     /// Force 3D instead of automatically determining dimension based on width, height, depth
-//     FORCE_3D: bool = false, // 0x100,
-//     /// Display target
-//     ALLOW_DISPLAY_TARGET: bool = false, // 0x200,
-//     /// Create an sRGB texture.
-//     SRGB: bool = false, // 0x400,
-//     /// Create a normal map texture
-//     NORMAL_MAP: bool = false, // 0x800,
-//     /// Fast clear
-//     FAST_CLEAR: bool = false, // 0x1000,
-//     /// Fragment mask
-//     FRAG_MASK: bool = false, // 0x2000,
-//     /// Doubles the amount of array layers of the texture when rendering VR. Also forces the texture to be a 2D Array texture.
-//     VR_MULTIVIEW: bool = false, // 0x4000,
-//     /// Binds the FFR fragment density if this texture is used as a render target.
-//     VR_FOVEATED_RENDERING: bool = false, // 0x8000,
-//     /// Creates resolve attachment for auto resolve (MSAA on tiled architecture - Resolve can be done on tile through render pass)
-//     CREATE_RESOLVE_ATTACHMENT: bool = false, // 0x10000,
-//
-//     __unused: u15 = 0,
-//
-//     /// Default flag (Texture will use default allocation strategy decided by the api specific allocator)
-//     pub const NONE = TextureCreationFlags{};
-// };
-//
-// pub const SampleCount = enum(u32) {
-//     COUNT_1 = 1,
-//     COUNT_2 = 2,
-//     COUNT_4 = 4,
-//     COUNT_8 = 8,
-//     COUNT_16 = 16,
-//     COUNT_COUNT = 5,
-// };
-//
-// pub const ResourceState = packed struct(u32) {
-//     VERTEX_AND_CONSTANT_BUFFER: bool = false, // 0x1,
-//     INDEX_BUFFER: bool = false, // 0x2,
-//     RENDER_TARGET: bool = false, // 0x4,
-//     UNORDERED_ACCESS: bool = false, // 0x8,
-//     DEPTH_WRITE: bool = false, // 0x10,
-//     DEPTH_READ: bool = false, // 0x20,
-//     NON_PIXEL_SHADER_RESOURCE: bool = false, // 0x40,
-//     PIXEL_SHADER_RESOURCE: bool = false, // 0x80,
-//     STREAM_OUT: bool = false, // 0x100,
-//     INDIRECT_ARGUMENT: bool = false, // 0x200,
-//     COPY_DEST: bool = false, // 0x400,
-//     COPY_SOURCE: bool = false, // 0x800,
-//     PRESENT: bool = false, // 0x1000,
-//     COMMON: bool = false, // 0x2000,
-//     ACCELERATION_STRUCTURE_READ: bool = false, // 0x4000,
-//     ACCELERATION_STRUCTURE_WRITE: bool = false, // 0x8000,
-//     SHADING_RATE_SOURCE: bool = false, // 0x10000,
-//     __unused: u15 = 0,
-//
-//     pub const SHADER_RESOURCE = ResourceState{
-//         .NON_PIXEL_SHADER_RESOURCE = true,
-//         .PIXEL_SHADER_RESOURCE = true,
-//     }; // 0x40 | 0x80,
-//
-//     pub const GENERIC_READ = ResourceState{
-//         .VERTEX_AND_CONSTANT_BUFFER = true,
-//         .INDEX_BUFFER = true,
-//         .NON_PIXEL_SHADER_RESOURCE = true,
-//         .PIXEL_SHADER_RESOURCE = true,
-//         .INDIRECT_ARGUMENT = true,
-//         .COPY_SOURCE = true,
-//     }; // (((((0x1 | 0x2) | 0x40) | 0x80) | 0x200) | 0x800),
-// };
-//
-// pub const DescriptorType = packed struct(u32) {
-//     SAMPLER: bool = false, // 0x01,
-//     // SRV Read only texture
-//     TEXTURE: bool = false, // (SAMPLER << 1),
-//     /// UAV Texture
-//     RW_TEXTURE: bool = false, // (TEXTURE << 1),
-//     // SRV Read only buffer
-//     BUFFER: bool = false, // (RW_TEXTURE << 1),
-//     _BUFFER_RAW: bool = false, // (BUFFER << 1)
-//     /// UAV Buffer
-//     RW_BUFFER: bool = false, // (BUFFER << 2),
-//     _RW_BUFFER_RAW: bool = false, // (RW_BUFFER << 1)
-//     /// Uniform buffer
-//     UNIFORM_BUFFER: bool = false, // (RW_BUFFER << 2),
-//     /// Push constant / Root constant
-//     ROOT_CONSTANT: bool = false, // (UNIFORM_BUFFER << 1),
-//     /// IA
-//     VERTEX_BUFFER: bool = false, // (ROOT_CONSTANT << 1),
-//     INDEX_BUFFER: bool = false, // (VERTEX_BUFFER << 1),
-//     INDIRECT_BUFFER: bool = false, // (INDEX_BUFFER << 1),
-//     /// Cubemap SRV
-//     _TEXTURE_CUBE: bool = false, // (INDIRECT_BUFFER << 1),
-//     /// RTV / DSV per mip slice
-//     RENDER_TARGET_MIP_SLICES: bool = false, // (INDIRECT_BUFFER << 2),
-//     /// RTV / DSV per array slice
-//     RENDER_TARGET_ARRAY_SLICES: bool = false, // (RENDER_TARGET_MIP_SLICES << 1),
-//     /// RTV / DSV per depth slice
-//     RENDER_TARGET_DEPTH_SLICES: bool = false, // (RENDER_TARGET_ARRAY_SLICES << 1),
-//     INDIRECT_COMMAND_BUFFER: bool = false, // (RENDER_TARGET_DEPTH_SLICES << 1),
-//     /// Raytracing acceleration structure
-//     ACCELERATION_STRUCTURE: bool = false, // (INDIRECT_COMMAND_BUFFER << 1),
-//
-//     /// Subpass input (descriptor type only available in Vulkan)
-//     INPUT_ATTACHMENT: bool = false, // (ACCELERATION_STRUCTURE << 1),
-//     TEXEL_BUFFER: bool = false, // (INPUT_ATTACHMENT << 1),
-//     RW_TEXEL_BUFFER: bool = false, // (TEXEL_BUFFER << 1),
-//     COMBINED_IMAGE_SAMPLER: bool = false, // (RW_TEXEL_BUFFER << 1),
-//     __unused: u10 = 0,
-//
-//     pub const UNDEFINED = DescriptorType{};
-//
-//     pub const BUFFER_RAW = DescriptorType{ ._BUFFER_RAW = true, .BUFFER = true }; // (BUFFER | (BUFFER << 1))
-//     pub const RW_BUFFER_RAW = DescriptorType{ ._RW_BUFFER_RAW = true, .RW_BUFFER = true }; // (RW_BUFFER | (RW_BUFFER << 1))
-//
-//     pub const TEXTURE_CUBE = DescriptorType{ ._TEXTURE_CUBE = true, .TEXTURE = true }; // (TEXTURE | (INDIRECT_BUFFER << 1)),
-// };
+    pub fn init() FrameStats {
+        return .{
+            .time = 0.0,
+            .delta_time = 0.0,
+            .fps = 0.0,
+            .average_cpu_time = 0.0,
+            .timer = std.time.Timer.start() catch unreachable,
+            .previous_time_ns = 0,
+            .fps_refresh_time_ns = 0,
+            .frame_counter = 0,
+        };
+    }
+
+    pub fn update(self: *FrameStats) void {
+        const now_ns = self.timer.read();
+        self.time = @as(f64, @floatFromInt(now_ns)) / std.time.ns_per_s;
+        self.delta_time = @as(f32, @floatFromInt(now_ns - self.previous_time_ns)) / std.time.ns_per_s;
+        self.previous_time_ns = now_ns;
+
+        if ((now_ns - self.fps_refresh_time_ns) >= std.time.ns_per_s) {
+            const t = @as(f64, @floatFromInt(now_ns - self.fps_refresh_time_ns)) / std.time.ns_per_s;
+            const fps = @as(f64, @floatFromInt(self.frame_counter)) / t;
+            const ms = (1.0 / fps) * 1000.0;
+
+            self.fps = @as(f32, @floatCast(fps));
+            self.average_cpu_time = @as(f32, @floatCast(ms));
+            self.fps_refresh_time_ns = now_ns;
+            self.frame_counter = 0;
+        }
+        self.frame_counter += 1;
+    }
+};
 
 pub const TinyImageFormat = enum(u32) {
     UNDEFINED = 0,
