@@ -55,9 +55,9 @@ pub fn create(
     var system = allocator.create(SystemState) catch unreachable;
     var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
-    const medium_house_prefab = prefab_mgr.getPrefabByPath("prefabs/buildings/medium_house/theforge/medium_house.bin").?;
-    const fir_tree_prefab = prefab_mgr.getPrefabByPath("prefabs/environment/fir/theforge/fir.bin").?;
-    const cube_prefab = prefab_mgr.getPrefabByPath("prefabs/primitives/theforge/primitive_cube.bin").?;
+    const medium_house_prefab = prefab_mgr.getPrefabByPath("medium_house.bin").?;
+    const fir_tree_prefab = prefab_mgr.getPrefabByPath("fir.bin").?;
+    const cube_prefab = prefab_mgr.getPrefabByPath("primitive_cube.bin").?;
 
     system.* = .{
         .flecs_sys = flecs_sys,

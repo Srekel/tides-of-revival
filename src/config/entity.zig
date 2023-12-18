@@ -12,9 +12,7 @@ const zm = @import("zmath");
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-// TODO(gmodarelli): Enable prefab_manager once it's been updated
-// pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
-pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
+pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
     sun_light.set(fd.DirectionalLight{
@@ -29,40 +27,12 @@ pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
     // ██████╔╝╚██████╔╝╚███╔███╔╝
     // ╚═════╝  ╚═════╝  ╚══╝╚══╝
 
-    // TODO(gmodarelli)
-    // const bow_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.bow);
-    // bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
-    // bow_ent.set(fd.ProjectileWeapon{});
-    // const bow_mesh_handle = renderer.loadMesh("prefabs/props/bow_arrow/theforge/bow.bin");
-    const bow_ent = ecsu_world.newEntity();
-    // TODO(gmodarelli): Move this to the prefab manager
-    {
-        var position = fd.Position{ .x = 0.25, .y = 0, .z = 1 };
-        var rotation = fd.Rotation{};
-        var scale = fd.Scale.createScalar(1);
-        bow_ent.set(position);
-        bow_ent.set(rotation);
-        bow_ent.set(scale);
-        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
-        transform.setPos(position.elems().*);
-        bow_ent.set(transform);
-        bow_ent.set(fd.ProjectileWeapon{});
-        bow_ent.set(fd.Dynamic{});
-        bow_ent.set(fd.Forward{});
+    const bow_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.bow);
+    bow_ent.set(fd.Position{ .x = 0.25, .y = 0, .z = 1 });
+    bow_ent.set(fd.ProjectileWeapon{});
 
-        // var renderable = renderer.Renderable{
-        //     .id = bow_ent.id,
-        //     .mesh_handle = bow_mesh_handle,
-        //     .transform = undefined,
-        // };
-        // @memcpy(&renderable.transform, transform.matrix[0..]);
-        // bow_ent.set(renderable);
-        // renderer.registerRenderable(renderable);
-    }
-
-    // TODO(gmodarelli)
-    // var proj_ent = ecsu_world.newEntity();
-    // proj_ent.set(fd.Projectile{});
+    var proj_ent = ecsu_world.newEntity();
+    proj_ent.set(fd.Projectile{});
 
     // ██████╗ ██╗      █████╗ ██╗   ██╗███████╗██████╗
     // ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
@@ -71,13 +41,8 @@ pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
     // ██║     ███████╗██║  ██║   ██║   ███████╗██║  ██║
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-    // TODO(gmodarelli)
-    // const player_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.player);
-    const player_ent = ecsu_world.newEntity();
+    const player_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.player);
     player_ent.setName("main_player");
-    player_ent.set(player_pos);
-    player_ent.set(fd.Rotation.initFromEuler(0, 0, 0));
-    player_ent.set(fd.Scale.createScalar(1));
     player_ent.set(player_pos);
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
@@ -116,10 +81,8 @@ pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
     debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
-    // TODO(gmodarelli)
-    // const sphere_prefab = prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
-    // const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
-    const player_camera_ent = ecsu_world.newEntity();
+    const sphere_prefab = prefab_mgr.getPrefabByPath("primitive_sphere.bin").?;
+    const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.7, .z = 0 });
@@ -141,7 +104,7 @@ pub fn init(player_pos: fd.Position, ecsu_world: ecsu.World) void {
         .range = 5.0,
         .intensity = 1.0,
     });
-    // bow_ent.childOf(player_camera_ent);
+    bow_ent.childOf(player_camera_ent);
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;

@@ -29,7 +29,7 @@ pub const PrefabManager = struct {
         self.prefab_hash_map.deinit();
     }
 
-    pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, world: ecsu.World, args: struct { is_dynamic: bool = false }) ecsu.Entity {
+    pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, world: ecsu.World) ecsu.Entity {
         const path_id = IdLocal.init(path);
         var existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
@@ -39,10 +39,6 @@ pub const PrefabManager = struct {
         const mesh_handle = renderer.loadMesh(path);
         var entity = world.newPrefab(path);
         entity.setOverride(fd.Forward{});
-
-        if (args.is_dynamic) {
-            entity.setOverride(fd.Dynamic{});
-        }
 
         // Set position, rotation and scale
         var position = fd.Position.init(0, 0, 0);
@@ -63,6 +59,10 @@ pub const PrefabManager = struct {
             .mesh_handle = mesh_handle,
         };
         entity.setOverride(renderable);
+
+        var static_mesh_component: fd.StaticMeshComponent = undefined;
+        static_mesh_component.mesh_handle = mesh_handle;
+        entity.setOverride(static_mesh_component);
 
         self.prefab_hash_map.put(path_id, entity) catch unreachable;
         return entity;

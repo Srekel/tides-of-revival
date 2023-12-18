@@ -19,7 +19,6 @@ const context = @import("../core/context.zig");
 const audio_manager = @import("../audio/audio_manager.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
-const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
 
 pub const MovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
@@ -44,8 +43,7 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     event_mgr: *EventManager,
-    // prefab_mgr: *PrefabManager,
-    // gfx: *gfx_d3d12.D3D12State,
+    prefab_mgr: *PrefabManager,
 
     comp_query_interactor: ecsu.Query,
 
@@ -63,8 +61,7 @@ pub const SystemCtx = struct {
     event_mgr: *EventManager,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
-    // prefab_mgr: *PrefabManager,
-    // gfx: *gfx_d3d12.D3D12State,
+    prefab_mgr: *PrefabManager,
 };
 
 pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
@@ -82,6 +79,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .with(fd.Forward)
         .with(fd.Transform);
 
+    // TODO(gmodarelli): Enable when we have a new UI system
     // const texture_path = "content/textures/ui/crosshair085.png";
     // const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
     // const crosshair_texture = ctx.gfx.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, ctx.allocator) catch unreachable;
@@ -95,9 +93,8 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .physics_world = ctx.physics_world,
         .input_frame_data = ctx.input_frame_data,
         .event_mgr = ctx.event_mgr,
-        // .prefab_mgr = ctx.prefab_mgr,
+        .prefab_mgr = ctx.prefab_mgr,
         .comp_query_interactor = comp_query_interactor,
-        // .gfx = ctx.gfx,
         .kills = 0,
         .arrows = 0,
         // .crosshair_texture = crosshair_texture,
@@ -120,6 +117,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
+    // TODO(gmodarelli): Enable when we have a new UI system
     // {
     //     var ui_label = gfx_d3d12.UILabel{
     //         .label = undefined,
@@ -172,7 +170,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     _ = wielded_use_held;
     const wielded_use_primary_pressed = system.input_frame_data.just_pressed(config.input.wielded_use_primary);
     const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
-    // const arrow_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/props/bow_arrow/arrow.gltf").?;
+    const arrow_prefab = system.prefab_mgr.getPrefabByPath("arrow.bin").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
 
@@ -181,12 +179,12 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
 
         if (weapon_comp.chambered_projectile == 0 and weapon_comp.cooldown < world_time) {
             // Load new projectile
-            // var proj_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, arrow_prefab);
-            // proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
-            // proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
-            // proj_ent.set(fd.Projectile{});
-            // proj_ent.childOf(item_ent_id);
-            // weapon_comp.chambered_projectile = proj_ent.id;
+            var proj_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, arrow_prefab);
+            proj_ent.set(fd.Position{ .x = -0.03, .y = 0, .z = -0.5 });
+            proj_ent.set(fd.Transform.initFromPosition(.{ .x = -0.03, .y = 0, .z = -0.5 }));
+            proj_ent.set(fd.Projectile{});
+            proj_ent.childOf(item_ent_id);
+            weapon_comp.chambered_projectile = proj_ent.id;
             system.arrows += 1;
             continue;
         }
@@ -330,7 +328,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     });
 
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
-    // const cylinder_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_cylinder.gltf").?;
+    const cylinder_prefab = system.prefab_mgr.getPrefabByPath("primitive_cylinder.bin").?;
     while (entity_iter_proj.next()) |comps| {
         const velocity = body_interface.getLinearVelocity(comps.body.body_id);
         const velocity_z = zm.loadArr3(velocity);
@@ -360,21 +358,21 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         }
 
         // trail
-        // const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
-        // var fx_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, cylinder_prefab);
-        // fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
-        // fx_ent.set(fd.Rotation{});
-        // fx_ent.set(fd.Scale.createScalar(1));
-        // fx_ent.set(fd.Transform.init(0, 0, 0));
-        // fx_ent.set(fd.Forward{});
-        // fx_ent.set(fd.Dynamic{});
+        const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
+        var fx_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, cylinder_prefab);
+        fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
+        fx_ent.set(fd.Rotation{});
+        fx_ent.set(fd.Scale.createScalar(1));
+        fx_ent.set(fd.Transform.init(0, 0, 0));
+        fx_ent.set(fd.Forward{});
+        fx_ent.set(fd.Dynamic{});
 
-        // const tli_fx = config.events.TimelineInstanceData{
-        //     .ent = fx_ent.id,
-        //     .timeline = IdLocal.init("particle_trail"),
-        // };
+        const tli_fx = config.events.TimelineInstanceData{
+            .ent = fx_ent.id,
+            .timeline = IdLocal.init("particle_trail"),
+        };
 
-        // system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
+        system.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_fx);
     }
 }
 

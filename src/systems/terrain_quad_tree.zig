@@ -136,8 +136,8 @@ pub const SystemState = struct {
     terrain_layers_buffer: renderer.BufferHandle,
     instance_data_buffers: [renderer.buffered_frames_count]renderer.BufferHandle,
     instance_data: *[max_instances]InstanceData,
-    draw_calls: std.ArrayList(renderer.DrawCallTerrainInstanced),
-    draw_calls_push_constants: std.ArrayList(renderer.TerrainPushConstants),
+    draw_calls: std.ArrayList(renderer.DrawCallInstanced),
+    draw_calls_push_constants: std.ArrayList(renderer.DrawCallPushConstants),
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(renderer.MeshHandle),
@@ -429,10 +429,10 @@ pub fn create(
 
     var meshes = std.ArrayList(renderer.MeshHandle).init(allocator);
 
-    loadMesh("prefabs/environment/terrain/theforge/terrain_patch_0.bin", &meshes) catch unreachable;
-    loadMesh("prefabs/environment/terrain/theforge/terrain_patch_1.bin", &meshes) catch unreachable;
-    loadMesh("prefabs/environment/terrain/theforge/terrain_patch_2.bin", &meshes) catch unreachable;
-    loadMesh("prefabs/environment/terrain/theforge/terrain_patch_3.bin", &meshes) catch unreachable;
+    loadMesh("terrain_patch_0.bin", &meshes) catch unreachable;
+    loadMesh("terrain_patch_1.bin", &meshes) catch unreachable;
+    loadMesh("terrain_patch_2.bin", &meshes) catch unreachable;
+    loadMesh("terrain_patch_3.bin", &meshes) catch unreachable;
 
     const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_heightmap);
     const splatmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_splatmap);
@@ -479,8 +479,8 @@ pub fn create(
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(renderer.DrawCallTerrainInstanced).init(allocator);
-    var draw_calls_push_constants = std.ArrayList(renderer.TerrainPushConstants).init(allocator);
+    var draw_calls = std.ArrayList(renderer.DrawCallInstanced).init(allocator);
+    var draw_calls_push_constants = std.ArrayList(renderer.DrawCallPushConstants).init(allocator);
 
     var system = allocator.create(SystemState) catch unreachable;
     var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -590,6 +590,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
             system.draw_calls.append(.{
                 .mesh_handle = mesh_handle,
+                .sub_mesh_index = 0,
                 .start_instance_location = start_instance_location,
                 .instance_count = 1,
             }) catch unreachable;
@@ -597,7 +598,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             system.draw_calls_push_constants.append(.{
                 .start_instance_location = start_instance_location,
                 .instance_data_buffer_index = renderer.bufferBindlessIndex(system.instance_data_buffers[frame_index]),
-                .material_buffer_index = renderer.bufferBindlessIndex(system.terrain_layers_buffer),
+                .instance_material_buffer_index = renderer.bufferBindlessIndex(system.terrain_layers_buffer),
             }) catch unreachable;
 
             start_instance_location += 1;
@@ -616,10 +617,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     renderer.registerTerrainDrawCalls(.{
         .data = @ptrCast(system.draw_calls.items),
-        .size = system.draw_calls.items.len * @sizeOf(renderer.DrawCallTerrainInstanced),
+        .size = system.draw_calls.items.len * @sizeOf(renderer.DrawCallInstanced),
     }, .{
         .data = @ptrCast(system.draw_calls_push_constants.items),
-        .size = system.draw_calls_push_constants.items.len * @sizeOf(renderer.TerrainPushConstants),
+        .size = system.draw_calls_push_constants.items.len * @sizeOf(renderer.DrawCallPushConstants),
     });
 
     for (system.quads_to_load.items) |quad_index| {

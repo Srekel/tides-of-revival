@@ -89,23 +89,19 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         gameloop_context.prefab_mgr,
     );
 
-    // TODO(gmodarelli): Remove gfx_state dependency from light system
-    // light_sys = try light_system.create(
-    //     IdLocal.initFormat("light_system_{}", .{0}),
-    //     std.heap.page_allocator,
-    //     gameloop_context.gfx_state,
-    //     gameloop_context.ecsu_world,
-    //     gameloop_context.input_frame_data,
-    // );
+    light_sys = try light_system.create(
+        IdLocal.initFormat("light_system_{}", .{0}),
+        std.heap.page_allocator,
+        gameloop_context.ecsu_world,
+        gameloop_context.input_frame_data,
+    );
 
-    // TODO(gmodarelli): Remove gfx_state dependency from static mesh renderer
-    // static_mesh_renderer_sys = try static_mesh_renderer_system.create(
-    //     IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
-    //     std.heap.page_allocator,
-    //     gameloop_context.gfx_state,
-    //     gameloop_context.ecsu_world,
-    //     gameloop_context.input_frame_data,
-    // );
+    static_mesh_renderer_sys = try static_mesh_renderer_system.create(
+        IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
+        std.heap.page_allocator,
+        gameloop_context.ecsu_world,
+        gameloop_context.input_frame_data,
+    );
 
     terrain_quad_tree_sys = try terrain_quad_tree_system.create(
         IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
@@ -132,9 +128,9 @@ pub fn destroySystems() void {
     defer timeline_system.destroy(timeline_sys);
     defer city_system.destroy(city_sys);
     defer camera_system.destroy(camera_sys);
-    // defer patch_prop_system.destroy(patch_prop_sys);
-    // defer light_system.destroy(light_sys);
-    // defer static_mesh_renderer_system.destroy(static_mesh_renderer_sys);
+    defer patch_prop_system.destroy(patch_prop_sys);
+    defer light_system.destroy(light_sys);
+    defer static_mesh_renderer_system.destroy(static_mesh_renderer_sys);
     defer terrain_quad_tree_system.destroy(terrain_quad_tree_sys);
     defer renderer_system.destroy(renderer_sys);
 }

@@ -2,65 +2,135 @@ const std = @import("std");
 const prefab_manager = @import("../prefab_manager.zig");
 const core = @import("../core/core.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
-const gfx = @import("../renderer/gfx_d3d12.zig");
-const ID = core.ID;
-
-const PrefabConfig = struct {
-    id: core.IdLocal,
-    is_dynamic: bool = false,
-};
-const prefabs = [_]PrefabConfig{
-    .{
-        .id = ID("prefabs/characters/player/theforge/player.bin"),
-        .is_dynamic = true,
-    },
-    .{
-        .id = ID("prefabs/creatures/giant_ant/theforge/giant_ant.bin"),
-        .is_dynamic = true,
-    },
-    .{
-        .id = ID("prefabs/props/bow_arrow/theforge/bow.bin"),
-        .is_dynamic = true,
-    },
-    .{
-        .id = ID("prefabs/props/bow_arrow/theforge/arrow.bin"),
-        .is_dynamic = true,
-    },
-    .{
-        .id = ID("prefabs/buildings/medium_house/theforge/medium_house.bin"),
-    },
-    .{
-        .id = ID("prefabs/environment/fir/theforge/fir.bin"),
-    },
-    .{
-        .id = ID("prefabs/primitives/theforge/primitive_cube.bin"),
-        .is_dynamic = true,
-    },
-    .{
-        .id = ID("prefabs/primitives/theforge/primitive_sphere.bin"),
-        .is_dynamic = true,
-    },
-    .{
-        .id = ID("prefabs/primitives/theforge/primitive_cylinder.bin"),
-        .is_dynamic = true,
-    },
-};
+const fd = @import("flecs_data.zig");
+const renderer = @import("../renderer/tides_renderer.zig");
 
 pub var player: ecsu.Entity = undefined;
 pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
 
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
-    // TODO(gmodarelli): Add a function to destroy the prefab's GPU resources
-    for (prefabs) |prefab| {
-        _ = prefab_mgr.loadPrefabFromBinary(
-            prefab.id.toCString(),
-            ecsu_world,
-            .{ .is_dynamic = prefab.is_dynamic },
-        );
+    {
+        player = prefab_mgr.loadPrefabFromBinary("player.bin", ecsu_world);
+        player.setOverride(fd.Dynamic{});
+        var static_mesh_component = player.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
+        }
     }
 
-    player = prefab_mgr.getPrefabByPath("prefabs/characters/player/theforge/player.bin").?;
-    giant_ant = prefab_mgr.getPrefabByPath("prefabs/creatures/giant_ant/theforge/giant_ant.bin").?;
-    bow = prefab_mgr.getPrefabByPath("prefabs/props/bow_arrow/theforge/bow.bin").?;
+    {
+        giant_ant = prefab_mgr.loadPrefabFromBinary("giant_ant.bin", ecsu_world);
+        giant_ant.setOverride(fd.Dynamic{});
+        var static_mesh_component = giant_ant.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.init();
+            static_mesh.materials[0].albedo = renderer.loadTexture("giant_ant_albedo.dds");
+            static_mesh.materials[0].arm = renderer.loadTexture("giant_ant_arm.dds");
+            static_mesh.materials[0].normal = renderer.loadTexture("giant_ant_normal.dds");
+        }
+    }
+
+    {
+        var albedo = renderer.loadTexture("bow_arrow_albedo.dds");
+        var arm = renderer.loadTexture("bow_arrow_arm.dds");
+        var normal = renderer.loadTexture("bow_arrow_normal.dds");
+
+        bow = prefab_mgr.loadPrefabFromBinary("bow.bin", ecsu_world);
+        bow.setOverride(fd.Dynamic{});
+        var static_mesh_component = bow.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.init();
+            static_mesh.materials[0].albedo = albedo;
+            static_mesh.materials[0].arm = arm;
+            static_mesh.materials[0].normal = normal;
+        }
+
+        var arrow = prefab_mgr.loadPrefabFromBinary("arrow.bin", ecsu_world);
+        arrow.setOverride(fd.Dynamic{});
+        static_mesh_component = arrow.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.init();
+            static_mesh.materials[0].albedo = albedo;
+            static_mesh.materials[0].arm = arm;
+            static_mesh.materials[0].normal = normal;
+        }
+    }
+
+    {
+        var cube = prefab_mgr.loadPrefabFromBinary("primitive_cube.bin", ecsu_world);
+        cube.setOverride(fd.Dynamic{});
+        var static_mesh_component = cube.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
+        }
+    }
+
+    {
+        var cylinder = prefab_mgr.loadPrefabFromBinary("primitive_cylinder.bin", ecsu_world);
+        cylinder.setOverride(fd.Dynamic{});
+        var static_mesh_component = cylinder.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
+        }
+    }
+
+    {
+        var sphere = prefab_mgr.loadPrefabFromBinary("primitive_sphere.bin", ecsu_world);
+        sphere.setOverride(fd.Dynamic{});
+        var static_mesh_component = sphere.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
+        }
+    }
+
+    {
+        var medium_house = prefab_mgr.loadPrefabFromBinary("medium_house.bin", ecsu_world);
+        var static_mesh_component = medium_house.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 4;
+
+            static_mesh.materials[0] = fd.PBRMaterial.init();
+            static_mesh.materials[0].albedo = renderer.loadTexture("medium_house_roof_albedo.dds");
+            static_mesh.materials[0].arm = renderer.loadTexture("medium_house_roof_arm.dds");
+            static_mesh.materials[0].normal = renderer.loadTexture("medium_house_roof_normal.dds");
+
+            static_mesh.materials[1] = fd.PBRMaterial.init();
+            static_mesh.materials[1].albedo = renderer.loadTexture("medium_house_wood_albedo.dds");
+            static_mesh.materials[1].arm = renderer.loadTexture("medium_house_wood_arm.dds");
+            static_mesh.materials[1].normal = renderer.loadTexture("medium_house_wood_normal.dds");
+
+            static_mesh.materials[2] = fd.PBRMaterial.init();
+            static_mesh.materials[2].albedo = renderer.loadTexture("medium_house_plaster_albedo.dds");
+            static_mesh.materials[2].arm = renderer.loadTexture("medium_house_plaster_arm.dds");
+            static_mesh.materials[2].normal = renderer.loadTexture("medium_house_plaster_normal.dds");
+
+            static_mesh.materials[3] = fd.PBRMaterial.init();
+            static_mesh.materials[3].albedo = renderer.loadTexture("medium_house_stone_albedo.dds");
+            static_mesh.materials[3].arm = renderer.loadTexture("medium_house_stone_arm.dds");
+            static_mesh.materials[3].normal = renderer.loadTexture("medium_house_stone_normal.dds");
+        }
+    }
+
+    {
+        var fir = prefab_mgr.loadPrefabFromBinary("fir.bin", ecsu_world);
+        var static_mesh_component = fir.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 2;
+
+            static_mesh.materials[0] = fd.PBRMaterial.init();
+            static_mesh.materials[0].albedo = renderer.loadTexture("fir_bark.dds");
+
+            static_mesh.materials[1] = fd.PBRMaterial.init();
+            static_mesh.materials[1].albedo = renderer.loadTexture("fir_branch.dds");
+            static_mesh.materials[1].surface_type = .masked;
+        }
+    }
 }

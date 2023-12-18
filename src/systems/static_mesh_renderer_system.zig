@@ -8,31 +8,17 @@ const zmu = @import("zmathutil");
 const ecs = @import("zflecs");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 
-const gfx = @import("../renderer/gfx_d3d12.zig");
-const zwin32 = @import("zwin32");
-const d3d12 = zwin32.d3d12;
+const renderer = @import("../renderer/tides_renderer.zig");
 
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
 
-const Vertex = @import("../renderer/renderer_types.zig").Vertex;
-const IndexType = @import("../renderer/renderer_types.zig").IndexType;
-const Mesh = @import("../renderer/renderer_types.zig").Mesh;
 const ztracy = @import("ztracy");
 const util = @import("../util.zig");
 
-const DrawUniforms = struct {
-    start_instance_location: u32,
-    vertex_offset: i32,
-    vertex_buffer_index: u32,
-    instance_transform_buffer_index: u32,
-    instance_material_buffer_index: u32,
-};
-
-const InstanceTransform = struct {
-    object_to_world: zm.Mat,
-    bounding_sphere_matrix: zm.Mat,
+const InstanceData = struct {
+    object_to_world: [16]f32,
 };
 
 const InstanceMaterial = struct {
@@ -47,21 +33,12 @@ const InstanceMaterial = struct {
     arm_texture_index: u32,
 };
 
-pub const DrawCall = struct {
-    mesh_handle: gfx.MeshHandle,
-    sub_mesh_index: u32,
-    lod_index: u32,
-    instance_count: u32,
-    start_instance_location: u32,
-};
-
 const DrawCallInfo = struct {
-    mesh_handle: gfx.MeshHandle,
-    lod_index: u32,
+    mesh_handle: renderer.MeshHandle,
     sub_mesh_index: u32,
 };
 
-const max_instances = 500000;
+const max_instances = 10000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
 
@@ -74,15 +51,14 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     sys: ecs.entity_t,
 
-    gfx: *gfx.D3D12State,
+    instance_data_buffers: [max_entity_types][renderer.buffered_frames_count]renderer.BufferHandle,
+    instance_material_buffers: [max_entity_types][renderer.buffered_frames_count]renderer.BufferHandle,
 
-    instance_transform_buffers: [max_entity_types][gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
-    instance_material_buffers: [max_entity_types][gfx.D3D12State.num_buffered_frames]gfx.BufferHandle,
-
-    instance_transforms: [max_entity_types]std.ArrayList(InstanceTransform),
+    instance_data: [max_entity_types]std.ArrayList(InstanceData),
     instance_materials: [max_entity_types]std.ArrayList(InstanceMaterial),
 
-    draw_calls: [max_entity_types]std.ArrayList(DrawCall),
+    draw_calls: [max_entity_types]std.ArrayList(renderer.DrawCallInstanced),
+    draw_calls_push_constants: [max_entity_types]std.ArrayList(renderer.DrawCallPushConstants),
     draw_calls_info: [max_entity_types]std.ArrayList(DrawCallInfo),
 
     gpu_frame_profiler_index: u64 = undefined,
@@ -97,87 +73,64 @@ pub const SystemState = struct {
     } = .{},
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: ecsu.World, _: *input.FrameData) !*SystemState {
-    const opaque_instance_transform_buffers = blk: {
-        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, _: *input.FrameData) !*SystemState {
+    const opaque_instance_data_buffers = blk: {
+        var buffers: [renderer.buffered_frames_count]renderer.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
-            const bufferDesc = gfx.BufferDesc{
-                .size = max_instances * @sizeOf(InstanceTransform),
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Instance Transform Buffer: Opaque"),
-                .persistent = true,
-                .has_cbv = false,
-                .has_srv = true,
-                .has_uav = false,
+            const buffer_data = renderer.Slice{
+                .data = null,
+                .size = max_instances * @sizeOf(InstanceData),
             };
-
-            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
+            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceData), "Instance Transform Buffer: Opaque");
         }
 
         break :blk buffers;
     };
 
-    const masked_instance_transform_buffers = blk: {
-        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
+    const masked_instance_data_buffers = blk: {
+        var buffers: [renderer.buffered_frames_count]renderer.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
-            const bufferDesc = gfx.BufferDesc{
-                .size = max_instances * @sizeOf(InstanceTransform),
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Instance Transform Buffer: Masked"),
-                .persistent = true,
-                .has_cbv = false,
-                .has_srv = true,
-                .has_uav = false,
+            const buffer_data = renderer.Slice{
+                .data = null,
+                .size = max_instances * @sizeOf(InstanceData),
             };
-
-            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
+            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceData), "Instance Transform Buffer: Masked");
         }
 
         break :blk buffers;
     };
 
     const opaque_instance_material_buffers = blk: {
-        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
+        var buffers: [renderer.buffered_frames_count]renderer.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
-            const bufferDesc = gfx.BufferDesc{
+            const buffer_data = renderer.Slice{
+                .data = null,
                 .size = max_instances * @sizeOf(InstanceMaterial),
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Instance Material Buffer: Opaque"),
-                .persistent = true,
-                .has_cbv = false,
-                .has_srv = true,
-                .has_uav = false,
             };
-
-            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
+            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceMaterial), "Instance Material Buffer: Opaque");
         }
 
         break :blk buffers;
     };
 
     const masked_instance_material_buffers = blk: {
-        var buffers: [gfx.D3D12State.num_buffered_frames]gfx.BufferHandle = undefined;
+        var buffers: [renderer.buffered_frames_count]renderer.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
-            const bufferDesc = gfx.BufferDesc{
+            const buffer_data = renderer.Slice{
+                .data = null,
                 .size = max_instances * @sizeOf(InstanceMaterial),
-                .state = d3d12.RESOURCE_STATES.GENERIC_READ,
-                .name = L("Instance Material Buffer: Masked"),
-                .persistent = true,
-                .has_cbv = false,
-                .has_srv = true,
-                .has_uav = false,
             };
-
-            buffers[buffer_index] = gfxstate.createBuffer(bufferDesc) catch unreachable;
+            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceMaterial), "Instance Material Buffer: Masked");
         }
 
         break :blk buffers;
     };
 
-    var draw_calls = [max_entity_types]std.ArrayList(DrawCall){ std.ArrayList(DrawCall).init(allocator), std.ArrayList(DrawCall).init(allocator) };
+    var draw_calls = [max_entity_types]std.ArrayList(renderer.DrawCallInstanced){ std.ArrayList(renderer.DrawCallInstanced).init(allocator), std.ArrayList(renderer.DrawCallInstanced).init(allocator) };
+    var draw_calls_push_constants = [max_entity_types]std.ArrayList(renderer.DrawCallPushConstants){ std.ArrayList(renderer.DrawCallPushConstants).init(allocator), std.ArrayList(renderer.DrawCallPushConstants).init(allocator) };
     var draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
 
-    var instance_transforms = [max_entity_types]std.ArrayList(InstanceTransform){ std.ArrayList(InstanceTransform).init(allocator), std.ArrayList(InstanceTransform).init(allocator) };
+    var instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
     var instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
 
     var system = allocator.create(SystemState) catch unreachable;
@@ -195,12 +148,12 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .sys = sys,
-        .gfx = gfxstate,
-        .instance_transform_buffers = .{ masked_instance_transform_buffers, opaque_instance_transform_buffers },
+        .instance_data_buffers = .{ masked_instance_data_buffers, opaque_instance_data_buffers },
         .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
         .draw_calls = draw_calls,
+        .draw_calls_push_constants = draw_calls_push_constants,
         .draw_calls_info = draw_calls_info,
-        .instance_transforms = instance_transforms,
+        .instance_data = instance_data,
         .instance_materials = instance_materials,
         .query_mesh = query_mesh,
     };
@@ -210,12 +163,14 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
 
 pub fn destroy(system: *SystemState) void {
     system.query_mesh.deinit();
-    system.instance_transforms[opaque_entities_index].deinit();
-    system.instance_transforms[masked_entities_index].deinit();
+    system.instance_data[opaque_entities_index].deinit();
+    system.instance_data[masked_entities_index].deinit();
     system.instance_materials[opaque_entities_index].deinit();
     system.instance_materials[masked_entities_index].deinit();
     system.draw_calls[opaque_entities_index].deinit();
     system.draw_calls[masked_entities_index].deinit();
+    system.draw_calls_push_constants[opaque_entities_index].deinit();
+    system.draw_calls_push_constants[masked_entities_index].deinit();
     system.draw_calls_info[opaque_entities_index].deinit();
     system.draw_calls_info[masked_entities_index].deinit();
     system.allocator.destroy(system);
@@ -235,13 +190,15 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
+    const frame_index = renderer.frameIndex();
+
+    // TODO(gmodarelli): We need the camera for frustum culling
     var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
     const cam_comps = cam_ent.getComps(struct {
         cam: *const fd.Camera,
         transform: *const fd.Transform,
     });
-
-    const cam = cam_comps.cam;
+    // const cam = cam_comps.cam;
     const camera_position = cam_comps.transform.getPos00();
 
     var entity_iter_mesh = system.query_mesh.iterator(struct {
@@ -251,133 +208,78 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     // Reset transforms, materials and draw calls array list
     for (0..max_entity_types) |entity_type_index| {
-        system.instance_transforms[entity_type_index].clearRetainingCapacity();
+        system.instance_data[entity_type_index].clearRetainingCapacity();
         system.instance_materials[entity_type_index].clearRetainingCapacity();
         system.draw_calls[entity_type_index].clearRetainingCapacity();
+        system.draw_calls_push_constants[entity_type_index].clearRetainingCapacity();
         system.draw_calls_info[entity_type_index].clearRetainingCapacity();
     }
-    const invalid_texture_index = std.math.maxInt(u32);
 
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
     const loop1 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Culling and Batching", 0x00_ff_ff_00);
     while (entity_iter_mesh.next()) |comps| {
-        var maybe_mesh = system.gfx.lookupMesh(comps.mesh.mesh_handle);
+        const sub_mesh_count = renderer.getSubMeshCount(comps.mesh.mesh_handle);
+        if (sub_mesh_count == 0) continue;
 
-        if (maybe_mesh) |mesh| {
-            const z_world = zm.loadMat43(comps.transform.matrix[0..]);
+        const z_world_position = zm.loadArr3(comps.transform.getPos00());
+        if (zm.lengthSq3(zm.loadArr3(camera_position) - z_world_position)[0] > (max_draw_distance * max_draw_distance)) {
+            continue;
+        }
 
-            const bb_ws = mesh.bounding_box.calculateBoundingBoxCoordinates(z_world);
-            if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
-                continue;
-            }
+        const z_world = zm.loadMat43(comps.transform.matrix[0..]);
+        // TODO(gmodarelli): Store bounding boxes into The-Forge mesh's user data
+        // const bb_ws = mesh.bounding_box.calculateBoundingBoxCoordinates(z_world);
+        // if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
+        //     continue;
+        // }
 
-            // Build bounding sphere matrix for debugging purpouses
-            const z_bb_matrix = zm.mul(zm.scaling(bb_ws.radius, bb_ws.radius, bb_ws.radius), zm.translation(bb_ws.center[0], bb_ws.center[1], bb_ws.center[2]));
+        var draw_call_info = DrawCallInfo{
+            .mesh_handle = comps.mesh.mesh_handle,
+            .sub_mesh_index = undefined,
+        };
 
-            // NOTE(gmodarelli): We're assuming all sub-meshes have the same number of LODs (which makes sense)
-            const lod_index = pickLOD(camera_position, comps.transform.getPos00(), max_draw_distance, mesh.sub_meshes[0].lod_count);
+        for (0..sub_mesh_count) |sub_mesh_index| {
+            draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
 
-            var draw_call_info = DrawCallInfo{
-                .mesh_handle = comps.mesh.mesh_handle,
-                .lod_index = lod_index,
-                .sub_mesh_index = undefined,
-            };
+            const material = comps.mesh.materials[sub_mesh_index];
+            const entity_type_index = if (material.surface_type == .@"opaque") opaque_entities_index else masked_entities_index;
 
-            for (0..mesh.sub_mesh_count) |sub_mesh_index| {
-                draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
+            system.instance_materials[entity_type_index].append(.{
+                .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
+                .roughness = material.roughness,
+                .metallic = material.metallic,
+                .normal_intensity = material.normal_intensity,
+                .emissive_strength = material.emissive_strength,
+                .albedo_texture_index = renderer.textureBindlessIndex(material.albedo),
+                .emissive_texture_index = std.math.maxInt(u32), // renderer.textureBindlessIndex(material.emissive),
+                .normal_texture_index = renderer.textureBindlessIndex(material.normal),
+                .arm_texture_index = renderer.textureBindlessIndex(material.arm),
+            }) catch unreachable;
 
-                var maybe_material = system.gfx.lookUpMaterial(comps.mesh.material_handles[sub_mesh_index]);
-                if (maybe_material) |material| {
-                    const albedo = blk: {
-                        if (system.gfx.lookupTexture(material.albedo)) |albedo| {
-                            break :blk albedo.persistent_descriptor.index;
-                        } else {
-                            break :blk invalid_texture_index;
-                        }
-                    };
+            system.draw_calls_info[entity_type_index].append(draw_call_info) catch unreachable;
 
-                    const arm = blk: {
-                        if (system.gfx.lookupTexture(material.arm)) |arm| {
-                            break :blk arm.persistent_descriptor.index;
-                        } else {
-                            break :blk invalid_texture_index;
-                        }
-                    };
-
-                    const normal = blk: {
-                        if (system.gfx.lookupTexture(material.normal)) |normal| {
-                            break :blk normal.persistent_descriptor.index;
-                        } else {
-                            break :blk invalid_texture_index;
-                        }
-                    };
-
-                    const emissive = blk: {
-                        if (system.gfx.lookupTexture(material.emissive)) |emissive| {
-                            break :blk emissive.persistent_descriptor.index;
-                        } else {
-                            break :blk invalid_texture_index;
-                        }
-                    };
-
-                    const entity_type_index = if (material.surface_type == .@"opaque") opaque_entities_index else masked_entities_index;
-
-                    system.instance_materials[entity_type_index].append(.{
-                        .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
-                        .roughness = material.roughness,
-                        .metallic = material.metallic,
-                        .normal_intensity = material.normal_intensity,
-                        .emissive_strength = material.emissive_strength,
-                        .albedo_texture_index = albedo,
-                        .emissive_texture_index = emissive,
-                        .normal_texture_index = normal,
-                        .arm_texture_index = arm,
-                    }) catch unreachable;
-
-                    system.draw_calls_info[entity_type_index].append(draw_call_info) catch unreachable;
-
-                    system.instance_transforms[entity_type_index].append(.{
-                        .object_to_world = zm.transpose(z_world),
-                        .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
-                    }) catch unreachable;
-                } else {
-                    system.draw_calls_info[opaque_entities_index].append(draw_call_info) catch unreachable;
-
-                    system.instance_transforms[opaque_entities_index].append(.{
-                        .object_to_world = zm.transpose(z_world),
-                        .bounding_sphere_matrix = zm.transpose(z_bb_matrix),
-                    }) catch unreachable;
-
-                    system.instance_materials[opaque_entities_index].append(.{
-                        .albedo_color = [4]f32{ 1.0, 0.0, 1.0, 1.0 },
-                        .roughness = 1.0,
-                        .metallic = 0.0,
-                        .normal_intensity = 1.0,
-                        .emissive_strength = 1.0,
-                        .albedo_texture_index = invalid_texture_index,
-                        .emissive_texture_index = invalid_texture_index,
-                        .normal_texture_index = invalid_texture_index,
-                        .arm_texture_index = invalid_texture_index,
-                    }) catch unreachable;
-                }
-            }
+            var instance_data: InstanceData = undefined;
+            zm.storeMat(&instance_data.object_to_world, z_world);
+            system.instance_data[entity_type_index].append(instance_data) catch unreachable;
         }
     }
     loop1.End();
 
-    system.gpu_frame_profiler_index = system.gfx.gpu_profiler.startProfile(system.gfx.gctx.cmdlist, "Static Mesh Renderer System");
-
     const loop2 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Rendering", 0x00_ff_ff_00);
     for (0..max_entity_types) |entity_type_index| {
         var start_instance_location: u32 = 0;
-        var current_draw_call: DrawCall = undefined;
+        var current_draw_call: renderer.DrawCallInstanced = undefined;
+
+        const instance_data_buffer_index = renderer.bufferBindlessIndex(system.instance_data_buffers[entity_type_index][frame_index]);
+        const instance_material_buffer_index = renderer.bufferBindlessIndex(system.instance_material_buffers[entity_type_index][frame_index]);
+
+        if (system.draw_calls_info[entity_type_index].items.len == 0) continue;
 
         for (system.draw_calls_info[entity_type_index].items, 0..) |draw_call_info, i| {
             if (i == 0) {
                 current_draw_call = .{
                     .mesh_handle = draw_call_info.mesh_handle,
                     .sub_mesh_index = draw_call_info.sub_mesh_index,
-                    .lod_index = draw_call_info.lod_index,
                     .instance_count = 1,
                     .start_instance_location = start_instance_location,
                 };
@@ -386,24 +288,38 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                 if (i == system.draw_calls_info[entity_type_index].items.len - 1) {
                     system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                    system.draw_calls_push_constants[entity_type_index].append(.{
+                        .start_instance_location = current_draw_call.start_instance_location,
+                        .instance_material_buffer_index = instance_material_buffer_index,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                    }) catch unreachable;
                 }
                 continue;
             }
 
-            if (isSameMeshHandle(current_draw_call.mesh_handle, draw_call_info.mesh_handle) and current_draw_call.lod_index == draw_call_info.lod_index and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index) {
+            if (current_draw_call.mesh_handle.id == draw_call_info.mesh_handle.id and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index) {
                 current_draw_call.instance_count += 1;
                 start_instance_location += 1;
 
                 if (i == system.draw_calls_info[entity_type_index].items.len - 1) {
                     system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                    system.draw_calls_push_constants[entity_type_index].append(.{
+                        .start_instance_location = current_draw_call.start_instance_location,
+                        .instance_material_buffer_index = instance_material_buffer_index,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                    }) catch unreachable;
                 }
             } else {
                 system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                system.draw_calls_push_constants[entity_type_index].append(.{
+                    .start_instance_location = current_draw_call.start_instance_location,
+                    .instance_material_buffer_index = instance_material_buffer_index,
+                    .instance_data_buffer_index = instance_data_buffer_index,
+                }) catch unreachable;
 
                 current_draw_call = .{
                     .mesh_handle = draw_call_info.mesh_handle,
                     .sub_mesh_index = draw_call_info.sub_mesh_index,
-                    .lod_index = draw_call_info.lod_index,
                     .instance_count = 1,
                     .start_instance_location = start_instance_location,
                 };
@@ -412,70 +328,47 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
                 if (i == system.draw_calls_info[entity_type_index].items.len - 1) {
                     system.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
+                    system.draw_calls_push_constants[entity_type_index].append(.{
+                        .start_instance_location = current_draw_call.start_instance_location,
+                        .instance_material_buffer_index = instance_material_buffer_index,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                    }) catch unreachable;
                 }
             }
         }
 
-        if (system.draw_calls[entity_type_index].items.len > 0) {
-            const pipeline_info = system.gfx.getPipeline(IdLocal.init(if (entity_type_index == masked_entities_index) "gbuffer_fill_masked" else "gbuffer_fill_opaque"));
-            system.gfx.gctx.setCurrentPipeline(pipeline_info.?.pipeline_handle);
+        var instance_data_slice = renderer.Slice{
+            .data = @ptrCast(system.instance_data[entity_type_index].items),
+            .size = system.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
+        };
+        renderer.updateBuffer(instance_data_slice, system.instance_data_buffers[entity_type_index][frame_index]);
 
-            // Upload per-frame constant data.
-            const z_view_projection = zm.loadMat(cam.view_projection[0..]);
-            const z_view_projection_inverted = zm.inverse(z_view_projection);
-            {
-                const mem = system.gfx.gctx.allocateUploadMemory(gfx.FrameUniforms, 1);
-                mem.cpu_slice[0].view_projection = zm.transpose(z_view_projection);
-                mem.cpu_slice[0].view_projection_inverted = zm.transpose(z_view_projection_inverted);
-                mem.cpu_slice[0].camera_position = camera_position;
+        var instance_material_slice = renderer.Slice{
+            .data = @ptrCast(system.instance_materials[entity_type_index].items),
+            .size = system.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
+        };
+        renderer.updateBuffer(instance_material_slice, system.instance_material_buffers[entity_type_index][frame_index]);
 
-                system.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(1, mem.gpu_base);
-            }
-
-            const frame_index = system.gfx.gctx.frame_index;
-            _ = system.gfx.uploadDataToBuffer(InstanceTransform, system.instance_transform_buffers[entity_type_index][frame_index], 0, system.instance_transforms[entity_type_index].items);
-            _ = system.gfx.uploadDataToBuffer(InstanceMaterial, system.instance_material_buffers[entity_type_index][frame_index], 0, system.instance_materials[entity_type_index].items);
-
-            const instance_transform_buffer = system.gfx.lookupBuffer(system.instance_transform_buffers[entity_type_index][frame_index]);
-            const instance_material_buffer = system.gfx.lookupBuffer(system.instance_material_buffers[entity_type_index][frame_index]);
-
-            for (system.draw_calls[entity_type_index].items) |draw_call| {
-                var maybe_mesh = system.gfx.lookupMesh(draw_call.mesh_handle);
-
-                if (maybe_mesh) |mesh| {
-                    system.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
-                    const index_buffer = system.gfx.lookupBuffer(mesh.index_buffer);
-                    const index_buffer_resource = system.gfx.gctx.lookupResource(index_buffer.?.resource);
-                    system.gfx.gctx.cmdlist.IASetIndexBuffer(&.{
-                        .BufferLocation = index_buffer_resource.?.GetGPUVirtualAddress(),
-                        .SizeInBytes = @as(c_uint, @intCast(index_buffer_resource.?.GetDesc().Width)),
-                        .Format = if (@sizeOf(IndexType) == 2) .R16_UINT else .R32_UINT,
-                    });
-
-                    const vertex_buffer = system.gfx.lookupBuffer(mesh.vertex_buffer);
-                    const mesh_lod = mesh.sub_meshes[draw_call.sub_mesh_index].lods[draw_call.lod_index];
-                    const mem = system.gfx.gctx.allocateUploadMemory(DrawUniforms, 1);
-                    mem.cpu_slice[0].start_instance_location = draw_call.start_instance_location;
-                    mem.cpu_slice[0].vertex_offset = @as(i32, @intCast(mesh_lod.vertex_offset));
-                    mem.cpu_slice[0].vertex_buffer_index = vertex_buffer.?.persistent_descriptor.index;
-                    mem.cpu_slice[0].instance_transform_buffer_index = instance_transform_buffer.?.persistent_descriptor.index;
-                    mem.cpu_slice[0].instance_material_buffer_index = instance_material_buffer.?.persistent_descriptor.index;
-                    system.gfx.gctx.cmdlist.SetGraphicsRootConstantBufferView(0, mem.gpu_base);
-
-                    system.gfx.gctx.cmdlist.DrawIndexedInstanced(
-                        mesh_lod.index_count,
-                        draw_call.instance_count,
-                        mesh_lod.index_offset,
-                        @as(i32, @intCast(mesh_lod.vertex_offset)),
-                        draw_call.start_instance_location,
-                    );
-                }
-            }
+        if (entity_type_index == masked_entities_index) {
+            renderer.registerLitMaskedDrawCalls(.{
+                .data = @ptrCast(system.draw_calls[entity_type_index].items),
+                .size = system.draw_calls[entity_type_index].items.len * @sizeOf(renderer.DrawCallInstanced),
+            }, .{
+                .data = @ptrCast(system.draw_calls_push_constants[entity_type_index].items),
+                .size = system.draw_calls_push_constants[entity_type_index].items.len * @sizeOf(renderer.DrawCallPushConstants),
+            });
+        } else {
+            renderer.registerLitOpaqueDrawCalls(.{
+                .data = @ptrCast(system.draw_calls[entity_type_index].items),
+                .size = system.draw_calls[entity_type_index].items.len * @sizeOf(renderer.DrawCallInstanced),
+            }, .{
+                .data = @ptrCast(system.draw_calls_push_constants[entity_type_index].items),
+                .size = system.draw_calls_push_constants[entity_type_index].items.len * @sizeOf(renderer.DrawCallPushConstants),
+            });
         }
     }
-    loop2.End();
 
-    system.gfx.gpu_profiler.endProfile(system.gfx.gctx.cmdlist, system.gpu_frame_profiler_index, system.gfx.gctx.frame_index);
+    loop2.End();
 }
 
 fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32, lod_count: u32) u32 {
@@ -501,8 +394,4 @@ fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32,
     } else {
         return @min(lod_count - 1, 3);
     }
-}
-
-fn isSameMeshHandle(a: gfx.MeshHandle, b: gfx.MeshHandle) bool {
-    return a.index() == b.index() and a.cycle() == b.cycle();
 }

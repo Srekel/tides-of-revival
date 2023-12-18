@@ -15,6 +15,7 @@ pub const AppSettings = extern struct {
 };
 
 pub const buffered_frames_count: u32 = 2;
+pub const sub_mesh_max_count: u32 = 8;
 
 pub fn initRenderer(app_settings: *AppSettings) i32 {
     return TR_initRenderer(app_settings);
@@ -30,6 +31,11 @@ pub fn frameIndex() u32 {
     return TR_frameIndex();
 }
 extern fn TR_frameIndex() u32;
+
+pub fn requestReload(reload_desc: *const ReloadDesc) bool {
+    return TR_requestReload(reload_desc);
+}
+extern fn TR_requestReload(reload_desc: *const ReloadDesc) bool;
 
 pub fn onLoad(reload_desc: *ReloadDesc) bool {
     return TR_onLoad(reload_desc);
@@ -76,6 +82,11 @@ pub fn loadMesh(path: [:0]const u8) MeshHandle {
 }
 extern fn TR_loadMesh(path: [*:0]const u8) MeshHandle;
 
+pub fn getSubMeshCount(mesh_handle: MeshHandle) u32 {
+    return TR_getSubMeshCount(mesh_handle);
+}
+extern fn TR_getSubMeshCount(mesh_handle: MeshHandle) u32;
+
 pub const Renderable = extern struct {
     id: u64,
     mesh_handle: MeshHandle,
@@ -111,6 +122,12 @@ extern fn TR_bufferBindlessIndex(buffer_handle: BufferHandle) u32;
 
 pub const TextureHandle = extern struct {
     id: u32,
+
+    pub fn invalidTexture() TextureHandle {
+        return .{
+            .id = std.math.maxInt(u32),
+        };
+    }
 };
 
 pub fn loadTexture(path: [:0]const u8) TextureHandle {
@@ -128,22 +145,33 @@ pub fn textureBindlessIndex(texture_handle: TextureHandle) u32 {
 }
 extern fn TR_textureBindlessIndex(texture_handle: TextureHandle) u32;
 
-pub const DrawCallTerrainInstanced = struct {
+pub const DrawCallInstanced = struct {
     mesh_handle: MeshHandle,
+    sub_mesh_index: u32,
     start_instance_location: u32,
     instance_count: u32,
 };
 
-pub const TerrainPushConstants = struct {
+pub const DrawCallPushConstants = struct {
     start_instance_location: u32,
     instance_data_buffer_index: u32,
-    material_buffer_index: u32,
+    instance_material_buffer_index: u32,
 };
 
 pub fn registerTerrainDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void {
     TR_registerTerrainDrawCalls(draw_calls_slice, push_constants_slice);
 }
 extern fn TR_registerTerrainDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void;
+
+pub fn registerLitOpaqueDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void {
+    TR_registerLitOpaqueDrawCalls(draw_calls_slice, push_constants_slice);
+}
+extern fn TR_registerLitOpaqueDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void;
+
+pub fn registerLitMaskedDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void {
+    TR_registerLitMaskedDrawCalls(draw_calls_slice, push_constants_slice);
+}
+extern fn TR_registerLitMaskedDrawCalls(draw_calls_slice: Slice, push_constants_slice: Slice) void;
 
 // pub const TextureDesc = extern struct {
 //     /// Optional placement (addTexture will place/bind buffer in this memory instead of allocating space)
