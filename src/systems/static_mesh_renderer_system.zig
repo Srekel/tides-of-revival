@@ -251,7 +251,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .normal_intensity = material.normal_intensity,
                 .emissive_strength = material.emissive_strength,
                 .albedo_texture_index = renderer.textureBindlessIndex(material.albedo),
-                .emissive_texture_index = std.math.maxInt(u32), // renderer.textureBindlessIndex(material.emissive),
+                .emissive_texture_index = renderer.textureBindlessIndex(material.emissive),
                 .normal_texture_index = renderer.textureBindlessIndex(material.normal),
                 .arm_texture_index = renderer.textureBindlessIndex(material.arm),
             }) catch unreachable;
