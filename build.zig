@@ -15,6 +15,7 @@ const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
 
 const wwise_zig = @import("external/wwise-zig/build.zig");
+const zig_recastnavigation = @import("external/zig-recastnavigation/build.zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -108,6 +109,12 @@ pub fn build(b: *std.Build) void {
         .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
     });
 
+    // Recast
+    const zignav_pkg = zig_recastnavigation.package(b, target, optimize, .{});
+    exe.addModule("zignav", zignav_pkg.zig_recastnavigation);
+    zignav_pkg.link(exe);
+
+    // Install steps
     const dxc_step = buildShaders(b);
     const install_shaders_step = b.addInstallDirectory(.{
         .source_dir = .{ .path = thisDir() ++ "/src/shaders/compiled" },

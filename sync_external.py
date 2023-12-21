@@ -3,6 +3,7 @@ import sys
 import subprocess
 import urllib.request
 
+
 def sync_lib(folder, git_path, commit_sha):
     print()
     print("-" * (2 * 4 + len(folder) + 2))
@@ -13,7 +14,9 @@ def sync_lib(folder, git_path, commit_sha):
         os.system("git clone " + git_path)
     os.chdir(folder)
     os.system("git fetch")
-    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=".", capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=".", capture_output=True, text=True
+    )
     current_hash = result.stdout.strip()
     if current_hash == commit_sha:
         print("Already at commit", commit_sha)
@@ -59,7 +62,7 @@ def main():
     sync_lib(
         "c2z",
         "https://github.com/Srekel/c2z.git",
-        "a7d7cefc8a4294429057d09c86277428b4bc6ad3",
+        "33b02c4732c433378d793f295e0e22c4494f5d31",
     )
     sync_lib(
         "recastnavigation",
