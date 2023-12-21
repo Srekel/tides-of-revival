@@ -73,7 +73,7 @@ pub const SystemState = struct {
     } = .{},
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, _: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World) !*SystemState {
     const opaque_instance_data_buffers = blk: {
         var buffers: [renderer.buffered_frames_count]renderer.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {

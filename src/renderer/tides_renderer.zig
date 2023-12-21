@@ -47,15 +47,48 @@ pub fn onUnload(reload_desc: *ReloadDesc) void {
 }
 extern fn TR_onUnload(reload_desc: *ReloadDesc) void;
 
-pub const Camera = extern struct {
-    view_matrix: [16]f32,
-    proj_matrix: [16]f32,
+pub const HackyLightBuffersIndices = struct {
+    directional_lights_buffer_index: u32,
+    point_lights_buffer_index: u32,
+    directional_lights_count: u32,
+    point_lights_count: u32,
 };
 
-pub fn draw(camera: Camera) void {
-    TR_draw(camera);
+pub const FrameData = extern struct {
+    view_matrix: [16]f32,
+    proj_matrix: [16]f32,
+    position: [3]f32,
+    directional_lights_buffer_index: u32,
+    point_lights_buffer_index: u32,
+    directional_lights_count: u32,
+    point_lights_count: u32,
+};
+
+pub const PointLight = extern struct {
+    position: [3]f32,
+    radius: f32,
+    color: [3]f32,
+    intensity: f32,
+};
+
+pub const DirectionalLight = extern struct {
+    direction: [3]f32,
+    shadow_map: i32,
+    color: [3]f32,
+    intensity: f32,
+    shadow_range: f32,
+    _pad: [2]f32,
+    shadow_map_dimensions: i32,
+    view_proj: [16]f32,
+};
+
+pub const point_lights_count_max: u32 = 1024;
+pub const directional_lights_count_max: u32 = 8;
+
+pub fn draw(frame_data: FrameData) void {
+    TR_draw(frame_data);
 }
-extern fn TR_draw(camera: Camera) void;
+extern fn TR_draw(frame_data: FrameData) void;
 
 pub const ReloadType = packed struct(u32) {
     RESIZE: bool = false, // 0x1

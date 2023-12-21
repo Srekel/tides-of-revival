@@ -136,6 +136,14 @@ pub fn run() void {
 
     var physics_world: *zphy.PhysicsSystem = undefined;
 
+    // HACK(gmodarelli): Passing the current frame buffer indices for lights
+    var lights_buffer_indices = renderer.HackyLightBuffersIndices{
+        .directional_lights_buffer_index = std.math.maxInt(u32),
+        .point_lights_buffer_index = std.math.maxInt(u32),
+        .directional_lights_count = 0,
+        .point_lights_count = 0,
+    };
+
     var gameloop_context = .{
         .allocator = std.heap.page_allocator,
         .audio_mgr = &audio_mgr,
@@ -149,6 +157,7 @@ pub fn run() void {
         .stats = &stats,
         .app_settings = &app_settings,
         .main_window = main_window,
+        .lights_buffer_indices = &lights_buffer_indices,
     };
     config.system.createSystems(&gameloop_context, &system_context);
     config.system.setupSystems();
@@ -269,6 +278,7 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     var app_settings = gameloop_context.app_settings;
     var main_window = gameloop_context.main_window;
     var stats = gameloop_context.stats;
+    var lights_buffer_indices = gameloop_context.lights_buffer_indices;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
     defer trazy_zone.End();
@@ -351,14 +361,21 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
 
     const camera_ent = util.getActiveCameraEnt(ecsu_world);
     const camera_component = camera_ent.get(fd.Camera).?;
+    const camera_transform = camera_ent.get(fd.Transform).?;
     var z_view = zm.loadMat(camera_component.view[0..]);
     var z_proj = zm.loadMat(camera_component.projection[0..]);
-    var camera: renderer.Camera = undefined;
-    zm.storeMat(&camera.view_matrix, z_view);
-    zm.storeMat(&camera.proj_matrix, z_proj);
+
+    var frame_data: renderer.FrameData = undefined;
+    frame_data.position = camera_transform.getPos00();
+    frame_data.directional_lights_buffer_index = lights_buffer_indices.directional_lights_buffer_index;
+    frame_data.point_lights_buffer_index = lights_buffer_indices.point_lights_buffer_index;
+    frame_data.directional_lights_count = lights_buffer_indices.directional_lights_count;
+    frame_data.point_lights_count = lights_buffer_indices.point_lights_count;
+    zm.storeMat(&frame_data.view_matrix, z_view);
+    zm.storeMat(&frame_data.proj_matrix, z_proj);
 
     stats.update();
-    renderer.draw(camera);
+    renderer.draw(frame_data);
 
     return false;
 }

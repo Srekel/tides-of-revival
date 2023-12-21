@@ -16,8 +16,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
     sun_light.set(fd.DirectionalLight{
-        .color = .{ .r = 0.5, .g = 0.5, .b = 0.8 },
-        .intensity = 0.5,
+        .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
+        .intensity = 5.0,
     });
 
     // ██████╗  ██████╗ ██╗    ██╗

@@ -85,16 +85,3 @@ pub const Texture = struct {
     resource: ?*d3d12.IResource,
     persistent_descriptor: zd3d12.PersistentDescriptor,
 };
-
-pub const DirectionalLightGPU = struct {
-    direction: [3]f32,
-    color: [3]f32,
-    intensity: f32,
-};
-
-pub const PointLightGPU = struct {
-    position: [3]f32,
-    range: f32,
-    color: [3]f32,
-    intensity: f32,
-};
