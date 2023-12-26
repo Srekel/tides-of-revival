@@ -4,7 +4,6 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "(Windows) Launch",
             "type": "cppvsdbg",
@@ -23,12 +22,16 @@
             "name": "c2z",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/external/c2z/zig-out/bin/c2z.exe",
+            "program": "../../..//c2z/zig-out/bin/c2z.exe",
             "args": [
-                "${workspaceFolder}/external/recastnavigation/Recast/include/Recast.h"
+                "-output-ast",
+                // "-I../../Detour/include",
+                "DetourTileCache.h",
+                // "RecastAlloc.h",
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/external/zig-recastnavigation/DetourTileCache/include/",
+            // "cwd": "${workspaceFolder}/external/zig-recastnavigation/Recast/include/",
             "environment": [],
             "preLaunchTask": "build_c2z"
         },
