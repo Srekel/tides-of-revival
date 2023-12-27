@@ -22,13 +22,16 @@
             "name": "c2z",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/external/c2z/zig-out/bin/c2z.exe",
+            "program": "../../..//c2z/zig-out/bin/c2z.exe",
             "args": [
                 "-output-ast",
-                "${workspaceFolder}/external/zig-recastnavigation/Recast/include/RecastAssert.h"
+                // "-I../../Detour/include",
+                "DetourTileCache.h",
+                // "RecastAlloc.h",
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/external/zig-recastnavigation/Recast/include",
+            "cwd": "${workspaceFolder}/external/zig-recastnavigation/DetourTileCache/include/",
+            // "cwd": "${workspaceFolder}/external/zig-recastnavigation/Recast/include/",
             "environment": [],
             "preLaunchTask": "build_c2z"
         },
