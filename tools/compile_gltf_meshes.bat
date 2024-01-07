@@ -16,5 +16,6 @@ REM AssetPipelineCmd.exe -pgltf --input ..\..\..\..\..\..\..\..\content\prefabs\
 REM AssetPipelineCmd.exe -pgltf --input ..\..\..\..\..\..\..\..\content\prefabs\props\debug_sphere\ --output ..\..\..\..\..\..\..\..\content\prefabs\props\debug_sphere\theforge
 AssetPipelineCmd.exe -pgltf --input ..\..\..\..\..\..\..\..\..\tides-rpg-source-assets\environment\buildings\exports\medium_house\ --output ..\..\..\..\..\..\..\..\content\meshes
 AssetPipelineCmd.exe -pgltf --input ..\..\..\..\..\..\..\..\..\tides-rpg-source-assets\environment\trees\fir\exports\ --output ..\..\..\..\..\..\..\..\content\meshes
+AssetPipelineCmd.exe -pgltf --input ..\..\..\..\..\..\..\..\..\tides-rpg-source-assets\art_bible\pbr\exports\ --output ..\..\..\..\..\..\..\..\content\meshes
 
 ENDLOCAL

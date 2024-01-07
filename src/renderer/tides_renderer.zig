@@ -7,15 +7,18 @@ pub const Slice = extern struct {
     size: u64,
 };
 
+pub const OutputMode = enum(u32) { SDR = 0, P2020 = 1, COUNT = 2 };
+
 pub const AppSettings = extern struct {
     width: i32,
     height: i32,
     window_native_handle: *anyopaque,
     v_sync_enabled: bool,
+    output_mode: OutputMode,
 };
 
 pub const buffered_frames_count: u32 = 2;
-pub const sub_mesh_max_count: u32 = 8;
+pub const sub_mesh_max_count: u32 = 32;
 
 pub fn initRenderer(app_settings: *AppSettings) i32 {
     return TR_initRenderer(app_settings);

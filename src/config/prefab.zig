@@ -133,4 +133,25 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             static_mesh.materials[1].surface_type = .masked;
         }
     }
+
+    {
+        var sphere_test = prefab_mgr.loadPrefabFromBinary("sphere_test.bin", ecsu_world);
+        var static_mesh_component = sphere_test.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 22;
+
+            for (0..11) |i| {
+                const roughness: f32 = @as(f32, @floatFromInt(i)) / 10.0;
+                static_mesh.materials[i] = fd.PBRMaterial.init();
+                static_mesh.materials[i].base_color = fd.ColorRGB.init(1.0, 0.0, 0.0);
+                static_mesh.materials[i].metallic = 0.0;
+                static_mesh.materials[i].roughness = roughness;
+
+                static_mesh.materials[i + 11] = fd.PBRMaterial.init();
+                static_mesh.materials[i + 11].base_color = fd.ColorRGB.init(1.0, 0.0, 0.0);
+                static_mesh.materials[i + 11].metallic = 1.0;
+                static_mesh.materials[i + 11].roughness = roughness;
+            }
+        }
+    }
 }

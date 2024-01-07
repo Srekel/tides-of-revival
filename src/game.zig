@@ -74,6 +74,7 @@ pub fn run() void {
         .height = 1080,
         .window_native_handle = @as(*anyopaque, @constCast(nativeWindowHandle)),
         .v_sync_enabled = true,
+        .output_mode = .SDR,
     };
     var success = renderer.initRenderer(&app_settings);
     if (success != 0) {
@@ -208,6 +209,14 @@ pub fn run() void {
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     config.entity.init(player_pos, &prefab_mgr, ecsu_world);
+
+    const sphere_test_prefab = prefab_mgr.getPrefabByPath("sphere_test.bin").?;
+    const sphere_test_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
+    var sphere_test_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_test_prefab);
+    sphere_test_ent.set(sphere_test_position);
+    sphere_test_ent.set(fd.Rotation{});
+    sphere_test_ent.set(fd.Scale.createScalar(1.0));
+    sphere_test_ent.set(fd.Transform.initFromPosition(sphere_test_position));
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝

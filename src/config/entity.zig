@@ -14,10 +14,10 @@ const DEBUG_CAMERA_ACTIVE = false;
 
 pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
     const sun_light = ecsu_world.newEntity();
-    sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
+    sun_light.set(fd.Rotation.initFromEulerDegrees(45.0, 45.0, 0.0));
     sun_light.set(fd.DirectionalLight{
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
-        .intensity = 5.0,
+        .intensity = 1.0,
     });
 
     // ██████╗  ██████╗ ██╗    ██╗

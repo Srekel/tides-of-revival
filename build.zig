@@ -52,7 +52,7 @@ pub fn build(b: *std.Build) void {
 
     // Linking Tides Renderer
     {
-        const tides_renderer_base_path = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer";
+        const tides_renderer_base_path = thisDir() ++ "/external/The-Fork/Examples_3/TidesRenderer";
         // TODO(gmodarelli): Check if OS is windows and if target is debug
         const tides_renderer_output_path = tides_renderer_base_path ++ "/PC Visual Studio 2019/x64/Debug";
 
