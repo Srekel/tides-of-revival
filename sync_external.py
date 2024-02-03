@@ -91,6 +91,11 @@ def main():
         "https://github.com/Cold-Bytes-Games/wwise-zig.git",
         "e4a2700f9953480dd8d653a148198c6c1fdb867b",
     )
+    sync_lib(
+        "The-Forge",
+        "https://github.com/gmodarelli/The-Forge.git",
+        "360eabbe583bf05f3a049829aa106e54e004cc8d",
+    )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
     sync_zig_exe("0.12.0-dev.903+7aa85691b")
