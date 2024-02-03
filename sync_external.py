@@ -59,12 +59,12 @@ def main():
     sync_lib(
         "c2z",
         "https://github.com/Srekel/c2z.git",
-        "a7d7cefc8a4294429057d09c86277428b4bc6ad3",
+        "83553c40f26ce6ac9606e678d5fc8a7c3f843185",
     )
     sync_lib(
-        "recastnavigation",
-        "https://github.com/recastnavigation/recastnavigation.git",
-        "ddaa361b0893ddc7602a3bd5c20ad2cfd0a8df7c",
+        "zig-recastnavigation",
+        "https://github.com/Srekel/zig-recastnavigation.git",
+        "86fb9d0a94e71e50095a0f0ed83620a538eee5ec",
     )
     sync_lib(
         "websocket.zig",
