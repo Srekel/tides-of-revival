@@ -143,12 +143,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             for (0..11) |i| {
                 const roughness: f32 = @as(f32, @floatFromInt(i)) / 10.0;
                 static_mesh.materials[i] = fd.PBRMaterial.init();
-                static_mesh.materials[i].base_color = fd.ColorRGB.init(1.0, 0.0, 0.0);
+                static_mesh.materials[i].base_color = fd.ColorRGB.init(1.0, 1.0, 1.0);
                 static_mesh.materials[i].metallic = 0.0;
                 static_mesh.materials[i].roughness = roughness;
 
                 static_mesh.materials[i + 11] = fd.PBRMaterial.init();
-                static_mesh.materials[i + 11].base_color = fd.ColorRGB.init(1.0, 0.0, 0.0);
+                static_mesh.materials[i + 11].base_color = fd.ColorRGB.init(1.0, 1.0, 1.0);
                 static_mesh.materials[i + 11].metallic = 1.0;
                 static_mesh.materials[i + 11].roughness = roughness;
             }
