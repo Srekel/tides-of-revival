@@ -50,35 +50,47 @@ pub fn build(b: *std.Build) void {
     if (abi != .msvc)
         exe.linkLibCpp();
 
-    // Linking Tides Renderer
+    // Building and Linking Tides Renderer
     {
+        const build_step = buildTheForgeRenderer(b);
+
         const tides_renderer_base_path = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer";
         // TODO(gmodarelli): Check if OS is windows and if target is debug
         const tides_renderer_output_path = tides_renderer_base_path ++ "/PC Visual Studio 2019/x64/Debug";
 
         exe.addLibraryPath(.{ .path = tides_renderer_output_path });
         exe.linkSystemLibrary("TidesRenderer");
+        exe.step.dependOn(build_step);
 
         // Install DLLs
         var install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/TidesRenderer.dll" }, "bin/TidesRenderer.dll");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/TidesRenderer.pdb" }, "bin/TidesRenderer.pdb");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/WinPixEventRunTime.dll" }, "bin/WinPixEventRunTime.dll");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/amd_ags_x64.dll" }, "bin/amd_ags_x64.dll");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/dxcompiler.dll" }, "bin/dxcompiler.dll");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/VkLayer_khronos_validation.dll" }, "bin/VkLayer_khronos_validation.dll");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
 
         // Install Configuration Files
         install_file = b.addInstallFile(.{ .path = tides_renderer_base_path ++ "/src/GPUCfg/gpu.cfg" }, "bin/GPUCfg/gpu.cfg");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_base_path ++ "/src/GPUCfg/gpu.data" }, "bin/GPUCfg/gpu.data");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/VkLayer_khronos_validation.json" }, "bin/VkLayer_khronos_validation.json");
+        install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
 
         // Install Content
@@ -87,13 +99,20 @@ pub fn build(b: *std.Build) void {
             .install_dir = .{ .custom = "" },
             .install_subdir = "bin/content/compiled_shaders",
         });
+        install_content_step.step.dependOn(build_step);
         exe.step.dependOn(&install_content_step.step);
+
+        const compile_shaders_step = compileShaders(b);
+        compile_shaders_step.dependOn(build_step);
+        compile_shaders_step.dependOn(&install_content_step.step);
+        exe.step.dependOn(compile_shaders_step);
 
         install_content_step = b.addInstallDirectory(.{
             .source_dir = .{ .path = tides_renderer_base_path ++ "/resources/textures/default" },
             .install_dir = .{ .custom = "" },
             .install_subdir = "bin/content/textures/default",
         });
+        install_content_step.step.dependOn(build_step);
         exe.step.dependOn(&install_content_step.step);
     }
 
@@ -155,21 +174,20 @@ pub fn build(b: *std.Build) void {
         .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
     });
 
-    const dxc_step = buildShaders(b);
-    const install_shaders_step = b.addInstallDirectory(.{
-        .source_dir = .{ .path = thisDir() ++ "/src/shaders/compiled" },
-        .install_dir = .{ .custom = "" },
-        .install_subdir = "bin/shaders",
-    });
-    install_shaders_step.step.dependOn(dxc_step);
-    exe.step.dependOn(&install_shaders_step.step);
+    // const dxc_step = buildShaders(b);
+    // const install_shaders_step = b.addInstallDirectory(.{
+    //     .source_dir = .{ .path = thisDir() ++ "/src/shaders/compiled" },
+    //     .install_dir = .{ .custom = "" },
+    //     .install_subdir = "bin/shaders",
+    // });
+    // install_shaders_step.step.dependOn(dxc_step);
+    // exe.step.dependOn(&install_shaders_step.step);
 
     const install_meshes_step = b.addInstallDirectory(.{
         .source_dir = .{ .path = thisDir() ++ "/content/meshes" },
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/meshes",
     });
-    install_meshes_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_meshes_step.step);
 
     const install_prefabs_step = b.addInstallDirectory(.{
@@ -177,7 +195,6 @@ pub fn build(b: *std.Build) void {
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/prefabs",
     });
-    install_prefabs_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_prefabs_step.step);
 
     // const install_patches_step = b.addInstallDirectory(.{
@@ -185,7 +202,6 @@ pub fn build(b: *std.Build) void {
     //     .install_dir = .{ .custom = "" },
     //     .install_subdir = "bin/content/patch",
     // });
-    // install_patches_step.step.dependOn(dxc_step);
     // exe.step.dependOn(&install_patches_step.step);
 
     const install_textures_step = b.addInstallDirectory(.{
@@ -193,7 +209,6 @@ pub fn build(b: *std.Build) void {
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/textures",
     });
-    install_textures_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_textures_step.step);
 
     const install_fonts_step = b.addInstallDirectory(.{
@@ -201,7 +216,6 @@ pub fn build(b: *std.Build) void {
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/fonts",
     });
-    install_fonts_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_fonts_step.step);
 
     const install_systems_step = b.addInstallDirectory(.{
@@ -209,7 +223,6 @@ pub fn build(b: *std.Build) void {
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/systems",
     });
-    install_systems_step.step.dependOn(dxc_step);
     exe.step.dependOn(&install_systems_step.step);
 
     // This is needed to export symbols from an .exe file.
@@ -292,107 +305,172 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 }
 
-fn buildShaders(b: *std.build.Builder) *std.build.Step {
-    const dxc_step = b.step(
-        "tides-of-revival-dxc",
-        "Build shaders",
+fn buildTheForgeRenderer(b: *std.build.Builder) *std.build.Step {
+    const build_step = b.step(
+        "the-forge-tides-renderer",
+        "Build The-Forge renderer",
     );
 
-    var dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "vsFullscreenTriangle", "tonemapping.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "psTonemapping", "tonemapping.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    const solution_path = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer/PC Visual Studio 2019/TidesRenderer.sln";
+    const command = [2][]const u8{
+        "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/amd64/MSBuild",
+        solution_path,
+    };
 
-    dxc_command = makeDxcCmd("src/shaders/debug_visualization.hlsl", "vsFullscreenTriangle", "debug_visualization.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/debug_visualization.hlsl", "psDebugVisualization", "debug_visualization.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    build_step.dependOn(&b.addSystemCommand(&command).step);
+    return build_step;
+}
 
-    dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "vsFullscreenTriangle", "downsample.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "psDownsample", "downsample.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+fn compileShaders(b: *std.build.Builder) *std.build.Step {
+    const dxc_step = b.step(
+        "compile-shaders",
+        "Compile Shaders",
+    );
 
-    dxc_command = makeDxcCmd("src/shaders/upsample_blur.hlsl", "vsFullscreenTriangle", "upsample_blur.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/upsample_blur.hlsl", "psUpsampleBlur", "upsample_blur.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "vsGBufferFill", "gbuffer_fill.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_opaque.ps.cso", "ps", "PSO__OPAQUE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_masked.ps.cso", "ps", "PSO__MASKED");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "vsTerrainQuadTree", "terrain_quad_tree.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "psTerrainQuadTree", "terrain_quad_tree.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/skybox.hlsl", "vsSkybox", "skybox.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/skybox.hlsl", "psSkybox", "skybox.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/depth_based_fog.hlsl", "vsFullscreenTriangle", "depth_based_fog.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/depth_based_fog.hlsl", "psDepthBasedFog", "depth_based_fog.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/ui.hlsl", "vsUI", "ui.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/ui.hlsl", "psUI", "ui.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/deferred_lighting.hlsl", "csDeferredLighting", "deferred_lighting.cs.cso", "cs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/generate_mipmaps.hlsl", "csGenerateMipmaps", "generate_mipmaps.cs.cso", "cs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateEnvTexture", "generate_env_texture.vs.cso", "vs", "PSO__GENERATE_ENV_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateEnvTexture", "generate_env_texture.ps.cso", "ps", "PSO__GENERATE_ENV_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsSampleEnvTexture", "sample_env_texture.vs.cso", "vs", "PSO__SAMPLE_ENV_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psSampleEnvTexture", "sample_env_texture.ps.cso", "ps", "PSO__SAMPLE_ENV_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateIrradianceTexture", "generate_irradiance_texture.vs.cso", "vs", "PSO__GENERATE_IRRADIANCE_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateIrradianceTexture", "generate_irradiance_texture.ps.cso", "ps", "PSO__GENERATE_IRRADIANCE_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.vs.cso", "vs", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.ps.cso", "ps", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-
-    dxc_command = makeDxcCmd("src/shaders/imgui.hlsl", "vsImGui", "imgui.vs.cso", "vs", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
-    dxc_command = makeDxcCmd("src/shaders/imgui.hlsl", "psImGui", "imgui.ps.cso", "ps", "");
-    dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+    var dxc_cmd = makeDxcCmdTheForge("terrain.vert.hlsl", "main", "terrain.vert", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
+    dxc_cmd = makeDxcCmdTheForge("terrain.frag.hlsl", "main", "terrain.frag", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
+    dxc_cmd = makeDxcCmdTheForge("lit.vert.hlsl", "main", "lit.vert", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
+    dxc_cmd = makeDxcCmdTheForge("lit_opaque.frag.hlsl", "main", "lit_opaque.frag", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
+    dxc_cmd = makeDxcCmdTheForge("lit_masked.frag.hlsl", "main", "lit_masked.frag", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
+    dxc_cmd = makeDxcCmdTheForge("fullscreen.vert.hlsl", "main", "fullscreen.vert", "vs", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
+    dxc_cmd = makeDxcCmdTheForge("deferred_shading.frag.hlsl", "main", "deferred_shading.frag", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
+    dxc_cmd = makeDxcCmdTheForge("tonemapper.frag.hlsl", "main", "tonemapper.frag", "ps", "");
+    dxc_step.dependOn(&b.addSystemCommand(&dxc_cmd).step);
 
     return dxc_step;
 }
 
-fn makeDxcCmd(
-    comptime input_path: []const u8,
+// fn buildShaders(b: *std.build.Builder) *std.build.Step {
+//     const dxc_step = b.step(
+//         "tides-of-revival-dxc",
+//         "Build shaders",
+//     );
+//
+//     var dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "vsFullscreenTriangle", "tonemapping.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/tonemapping.hlsl", "psTonemapping", "tonemapping.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/debug_visualization.hlsl", "vsFullscreenTriangle", "debug_visualization.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/debug_visualization.hlsl", "psDebugVisualization", "debug_visualization.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "vsFullscreenTriangle", "downsample.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/downsample.hlsl", "psDownsample", "downsample.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/upsample_blur.hlsl", "vsFullscreenTriangle", "upsample_blur.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/upsample_blur.hlsl", "psUpsampleBlur", "upsample_blur.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "vsGBufferFill", "gbuffer_fill.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_opaque.ps.cso", "ps", "PSO__OPAQUE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/gbuffer_fill.hlsl", "psGBufferFill", "gbuffer_fill_masked.ps.cso", "ps", "PSO__MASKED");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "vsTerrainQuadTree", "terrain_quad_tree.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/terrain_quad_tree.hlsl", "psTerrainQuadTree", "terrain_quad_tree.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/skybox.hlsl", "vsSkybox", "skybox.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/skybox.hlsl", "psSkybox", "skybox.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/depth_based_fog.hlsl", "vsFullscreenTriangle", "depth_based_fog.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/depth_based_fog.hlsl", "psDepthBasedFog", "depth_based_fog.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/ui.hlsl", "vsUI", "ui.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/ui.hlsl", "psUI", "ui.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/deferred_lighting.hlsl", "csDeferredLighting", "deferred_lighting.cs.cso", "cs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/generate_mipmaps.hlsl", "csGenerateMipmaps", "generate_mipmaps.cs.cso", "cs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/generate_brdf_integration.hlsl", "csGenerateBrdfIntegrationTexture", "generate_brdf_integration_texture.cs.cso", "cs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateEnvTexture", "generate_env_texture.vs.cso", "vs", "PSO__GENERATE_ENV_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateEnvTexture", "generate_env_texture.ps.cso", "ps", "PSO__GENERATE_ENV_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsSampleEnvTexture", "sample_env_texture.vs.cso", "vs", "PSO__SAMPLE_ENV_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psSampleEnvTexture", "sample_env_texture.ps.cso", "ps", "PSO__SAMPLE_ENV_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGenerateIrradianceTexture", "generate_irradiance_texture.vs.cso", "vs", "PSO__GENERATE_IRRADIANCE_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGenerateIrradianceTexture", "generate_irradiance_texture.ps.cso", "ps", "PSO__GENERATE_IRRADIANCE_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "vsGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.vs.cso", "vs", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/hdri.hlsl", "psGeneratePrefilteredEnvTexture", "generate_prefiltered_env_texture.ps.cso", "ps", "PSO__GENERATE_PREFILTERED_ENV_TEXTURE");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     dxc_command = makeDxcCmd("src/shaders/imgui.hlsl", "vsImGui", "imgui.vs.cso", "vs", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//     dxc_command = makeDxcCmd("src/shaders/imgui.hlsl", "psImGui", "imgui.ps.cso", "ps", "");
+//     dxc_step.dependOn(&b.addSystemCommand(&dxc_command).step);
+//
+//     return dxc_step;
+// }
+//
+// fn makeDxcCmd(
+//     comptime input_path: []const u8,
+//     comptime entry_point: []const u8,
+//     comptime output_filename: []const u8,
+//     comptime profile: []const u8,
+//     comptime define: []const u8,
+// ) [9][]const u8 {
+//     const shader_ver = "6_6";
+//     const shader_dir = thisDir() ++ "/src/shaders/compiled/";
+//     return [9][]const u8{
+//         thisDir() ++ "/external/zig-gamedev/libs/zwin32/bin/x64/dxc.exe",
+//         thisDir() ++ "/" ++ input_path,
+//         "/E " ++ entry_point,
+//         "/Fo " ++ shader_dir ++ output_filename,
+//         "/T " ++ profile ++ "_" ++ shader_ver,
+//         if (define.len == 0) "" else "/D " ++ define,
+//         "/WX",
+//         "/Ges",
+//         "/O3",
+//     };
+// }
+
+fn makeDxcCmdTheForge(
+    comptime input_filename: []const u8,
     comptime entry_point: []const u8,
     comptime output_filename: []const u8,
     comptime profile: []const u8,
     comptime define: []const u8,
 ) [9][]const u8 {
     const shader_ver = "6_6";
-    const shader_dir = thisDir() ++ "/src/shaders/compiled/";
+    const input_dir = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer/src/Shaders/HLSL/";
+    const output_dir = thisDir() ++ "/zig-out/bin/content/compiled_shaders/DIRECT3D12/";
     return [9][]const u8{
         thisDir() ++ "/external/zig-gamedev/libs/zwin32/bin/x64/dxc.exe",
-        thisDir() ++ "/" ++ input_path,
+        input_dir ++ input_filename,
         "/E " ++ entry_point,
-        "/Fo " ++ shader_dir ++ output_filename,
+        "/Fo " ++ output_dir ++ output_filename,
         "/T " ++ profile ++ "_" ++ shader_ver,
         if (define.len == 0) "" else "/D " ++ define,
         "/WX",
