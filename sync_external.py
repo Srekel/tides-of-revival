@@ -3,6 +3,7 @@ import sys
 import subprocess
 import urllib.request
 
+
 def sync_lib(folder, git_path, commit_sha):
     print()
     print("-" * (2 * 4 + len(folder) + 2))
@@ -13,22 +14,31 @@ def sync_lib(folder, git_path, commit_sha):
         os.system("git clone " + git_path)
     os.chdir(folder)
     os.system("git fetch")
-    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=".", capture_output=True, text=True)
-    current_hash = result.stdout.strip()
-    if current_hash == commit_sha:
-        print("Already at commit", commit_sha)
+
+    wanted_commit_sha = subprocess.run(
+        ["git", "rev-parse", commit_sha_or_branch_or_tag],
+        cwd=".",
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    current_commit_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=".", capture_output=True, text=True
+    ).stdout.strip()
+    if current_commit_sha == wanted_commit_sha:
+        print("Already at commit", commit_sha_or_branch_or_tag, wanted_commit_sha)
         os.chdir("..")
         return
 
-    print("Current commit:", current_hash)
-    print("Wanted commit: ", commit_sha)
+    print("Current commit:", current_commit_sha)
+    print("Wanted commit: ", commit_sha_or_branch_or_tag, wanted_commit_sha)
     if os.path.exists(os.path.join(".git", "refs", "heads", "main")):
         os.system("git checkout main")
     else:
         os.system("git checkout master")
     os.system("git pull")
     os.system("git submodule update --init --recursive")
-    os.system("git checkout " + commit_sha)
+    os.system("git checkout " + commit_sha_or_branch_or_tag)
 
     os.chdir("..")
 
@@ -79,7 +89,7 @@ def main():
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "0405dbd1d8cdfbb718a04ecb299b9520f86f5497",
+        "main",
     )
     sync_lib(
         "zigimg",
