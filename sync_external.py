@@ -4,7 +4,7 @@ import subprocess
 import urllib.request
 
 
-def sync_lib(folder, git_path, commit_sha):
+def sync_lib(folder, git_path, commit_sha_or_branch_or_tag):
     print()
     print("-" * (2 * 4 + len(folder) + 2))
     print("----", folder, "----")
