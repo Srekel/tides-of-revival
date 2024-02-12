@@ -65,9 +65,10 @@ def run():
     build_c2z()
 
     headers = [
-        os.path.join("zig-recastnavigation", "Recast", "Include", "Recast.h"),
-        os.path.join("zig-recastnavigation", "Recast", "Include", "RecastAlloc.h"),
-        os.path.join("zig-recastnavigation", "Recast", "Include", "RecastAssert.h"),
+        # os.path.join("zig-recastnavigation", "Recast", "Include", "Recast.h"),
+        # os.path.join("zig-recastnavigation", "Recast", "Include", "RecastAlloc.h"),
+        # os.path.join("zig-recastnavigation", "Recast", "Include", "RecastAssert.h"),
+        os.path.join("zig-recastnavigation", "Detour", "Include", "DetourCommon.h"),
     ]
 
     for header in headers:
@@ -78,3 +79,6 @@ def run():
 
 if __name__ == "__main__":
     run()
+
+    print("Done")
+    a = input()
