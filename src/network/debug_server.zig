@@ -23,7 +23,7 @@ pub const DebugServer = struct {
     handlers: std.AutoArrayHashMap(u64, DebugServerHandler),
 
     pub fn create(port: u16, allocator: std.mem.Allocator) DebugServer {
-        var self = DebugServer{
+        const self = DebugServer{
             .active = false,
             .port = port,
             .allocator = allocator,
@@ -42,7 +42,7 @@ pub const DebugServer = struct {
     pub fn run(self: *DebugServer) void {
         @atomicStore(bool, &self.active, true, std.builtin.AtomicOrder.SeqCst);
         const thread_config = .{};
-        var thread_args: ThreadContextDebugServer = .{
+        const thread_args: ThreadContextDebugServer = .{
             .debug_server = self,
         };
         var thread = std.Thread.spawn(thread_config, threadDebugServerListen, .{thread_args}) catch unreachable;

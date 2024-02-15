@@ -48,7 +48,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
         var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.giant_ant);
-        var spawn_pos = [3]f32{
+        const spawn_pos = [3]f32{
             root_pos.x + (60 + to_spawn * 2) * std.math.sin(group_angle) + (5 + to_spawn * 1) * std.math.sin(individual_angle),
             root_pos.y + 20,
             root_pos.z + (60 + to_spawn * 2) * std.math.cos(group_angle) + (5 + to_spawn * 1) * std.math.cos(individual_angle),

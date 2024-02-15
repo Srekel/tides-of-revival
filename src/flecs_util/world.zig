@@ -285,12 +285,12 @@ pub const World = struct {
         std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        var component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
         _ = ecs.set_id(self.world, entity, self.componentId(T), @sizeOf(T), component);
     }
 
     pub fn getMut(self: *World, entity: ecs.entity_t, comptime T: type) *T {
-        var ptr = ecs.get_mut_id(self.world, entity.id, ecsu.meta.componentId(self.world, T));
+        const ptr = ecs.get_mut_id(self.world, entity.id, ecsu.meta.componentId(self.world, T));
         return @ptrCast(@alignCast(ptr.?));
     }
 
@@ -323,21 +323,21 @@ pub const World = struct {
         std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        var component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
         _ = ecs.set_id(self.world, self.componentId(T), self.componentId(T), @sizeOf(T), component);
     }
 
     // TODO: use ecs_get_mut_id optionally based on a bool perhaps or maybe if the passed in type is a pointer?
     pub fn getSingleton(self: World, comptime T: type) ?*const T {
         std.debug.assert(@typeInfo(T) == .Struct);
-        var val = ecs.get_id(self.world, self.componentId(T), self.componentId(T));
+        const val = ecs.get_id(self.world, self.componentId(T), self.componentId(T));
         if (val == null) return null;
         return @as(*const T, @ptrCast(@alignCast(val)));
     }
 
     pub fn getSingletonMut(self: World, comptime T: type) ?*T {
         std.debug.assert(@typeInfo(T) == .Struct);
-        var val = ecs.get_mut_id(self.world, self.componentId(T), self.componentId(T));
+        const val = ecs.get_mut_id(self.world, self.componentId(T), self.componentId(T));
         if (val == null) return null;
         return @as(*T, @ptrCast(@alignCast(val)));
     }

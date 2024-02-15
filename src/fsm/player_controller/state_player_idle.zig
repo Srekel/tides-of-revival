@@ -102,7 +102,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
 
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
-    var result = query.castRay(
+    const result = query.castRay(
         .{
             .origin = ray_origin,
             .direction = ray_dir,
@@ -276,7 +276,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.FSM)
         .without(fd.Camera);
 
-    var query = query_builder.buildQuery();
+    const query = query_builder.buildQuery();
     var self = ctx.allocator.create(StatePlayerIdle) catch unreachable;
     self.query = query;
 

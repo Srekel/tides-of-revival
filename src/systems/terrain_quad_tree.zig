@@ -365,7 +365,7 @@ fn createTextureFromPixelBuffer(
 fn allocateTextureMemory(gfxstate: *gfx.D3D12State, width: u32, height: u32, format: dxgi.FORMAT, mip_count: u32) !*d3d12.IResource {
     assert(gfxstate.gctx.is_cmdlist_opened);
 
-    var heap_desc = gfxstate.small_textures_heap.GetDesc();
+    const heap_desc = gfxstate.small_textures_heap.GetDesc();
     const heap_size = heap_desc.SizeInBytes;
 
     var resource: *d3d12.IResource = undefined;
@@ -486,7 +486,7 @@ fn uploadSubResources(gfxstate: *gfx.D3D12State, resource: *d3d12.IResource, sub
         const upload = gfxstate.gctx.allocateUploadBufferRegion(u8, @as(u32, @intCast(required_size)));
         layout[0].Offset = upload.buffer_offset;
 
-        var subresource = &subresources[subresource_index];
+        const subresource = &subresources[subresource_index];
         var row: u32 = 0;
         const row_size_in_bytes_fixed = row_size_in_bytes[0];
         var cpu_slice_as_bytes = std.mem.sliceAsBytes(upload.cpu_slice);
@@ -742,7 +742,7 @@ fn loadResources(
     {
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
-            var node = &quad_tree_nodes.items[i];
+            const node = &quad_tree_nodes.items[i];
             loadHeightAndSplatMaps(
                 gfxstate,
                 node,
@@ -765,12 +765,12 @@ fn divideQuadTreeNode(
 
     var child_index: u32 = 0;
     while (child_index < 4) : (child_index += 1) {
-        var center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
-        var center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
-        var patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
-        var patch_index_y: u32 = if (child_index < 2) 1 else 0;
+        const center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
+        const center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
+        const patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
+        const patch_index_y: u32 = if (child_index < 2) 1 else 0;
 
-        var child_node = QuadTreeNode{
+        const child_node = QuadTreeNode{
             .center = [2]f32{ center_x, center_y },
             .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
             .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
@@ -798,12 +798,12 @@ pub fn create(
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
     const max_quad_tree_nodes: usize = 85 * 64;
     var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
-    var quads_to_render = std.ArrayList(u32).init(allocator);
-    var quads_to_load = std.ArrayList(u32).init(allocator);
+    const quads_to_render = std.ArrayList(u32).init(allocator);
+    const quads_to_load = std.ArrayList(u32).init(allocator);
 
     // Create initial sectors
     {
-        var patch_half_size = @as(f32, @floatFromInt(config.largest_patch_width)) / 2.0;
+        const patch_half_size = @as(f32, @floatFromInt(config.largest_patch_width)) / 2.0;
         var patch_y: u32 = 0;
         while (patch_y < 8) : (patch_y += 1) {
             var patch_x: u32 = 0;
@@ -827,7 +827,7 @@ pub fn create(
 
         var sector_index: u32 = 0;
         while (sector_index < 64) : (sector_index += 1) {
-            var node = &terrain_quad_tree_nodes.items[sector_index];
+            const node = &terrain_quad_tree_nodes.items[sector_index];
             divideQuadTreeNode(&terrain_quad_tree_nodes, node);
         }
     }
@@ -849,7 +849,7 @@ pub fn create(
     const total_num_indices = @as(u32, @intCast(meshes_indices.items.len));
 
     // Create a vertex buffer.
-    var vertex_buffer = gfxstate.createBuffer(.{
+    const vertex_buffer = gfxstate.createBuffer(.{
         .size = total_num_vertices * @sizeOf(Vertex),
         .state = d3d12.RESOURCE_STATES.GENERIC_READ,
         .name = L("Terrain Quad Tree Vertex Buffer"),
@@ -860,7 +860,7 @@ pub fn create(
     }) catch unreachable;
 
     // Create an index buffer.
-    var index_buffer = gfxstate.createBuffer(.{
+    const index_buffer = gfxstate.createBuffer(.{
         .size = total_num_indices * @sizeOf(IndexType),
         .state = .{ .INDEX_BUFFER = true },
         .name = L("Terrain Quad Tree Index Buffer"),
@@ -884,7 +884,7 @@ pub fn create(
         splatmap_patch_type_id,
     ) catch unreachable;
 
-    var terrain_layers_buffer = gfxstate.createBuffer(.{
+    const terrain_layers_buffer = gfxstate.createBuffer(.{
         .size = terrain_layers.items.len * @sizeOf(TerrainLayerTextureIndices),
         .state = d3d12.RESOURCE_STATES.GENERIC_READ,
         .name = L("Terrain Layers Buffer"),
@@ -914,8 +914,8 @@ pub fn create(
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(DrawCall).init(allocator);
-    var instance_data = std.ArrayList(InstanceData).init(allocator);
+    const draw_calls = std.ArrayList(DrawCall).init(allocator);
+    const instance_data = std.ArrayList(InstanceData).init(allocator);
 
     _ = gfxstate.scheduleUploadDataToBuffer(Vertex, vertex_buffer, 0, meshes_vertices.items);
     _ = gfxstate.scheduleUploadDataToBuffer(IndexType, index_buffer, 0, meshes_indices.items);
@@ -936,8 +936,8 @@ pub fn create(
     }
     _ = gfxstate.scheduleUploadDataToBuffer(TerrainLayerTextureIndices, terrain_layers_buffer, 0, terrain_layer_texture_indices.items);
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
     system.* = .{
         .allocator = allocator,
@@ -1115,7 +1115,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     system.gfx.gpu_profiler.endProfile(system.gfx.gctx.cmdlist, system.gpu_frame_profiler_index, system.gfx.gctx.frame_index);
 
     for (system.quads_to_load.items) |quad_index| {
-        var node = &system.terrain_quad_tree_nodes.items[quad_index];
+        const node = &system.terrain_quad_tree_nodes.items[quad_index];
         loadHeightAndSplatMaps(
             system.gfx,
             node,
@@ -1211,7 +1211,7 @@ fn collectQuadsToRenderForSector(system: *SystemState, position: [2]f32, range: 
 
         for (higher_lod_node_indices) |higher_lod_node_index| {
             if (higher_lod_node_index != invalid_index) {
-                var child_node = &system.terrain_quad_tree_nodes.items[higher_lod_node_index];
+                const child_node = &system.terrain_quad_tree_nodes.items[higher_lod_node_index];
                 collectQuadsToRenderForSector(system, position, range, child_node, higher_lod_node_index, allocator) catch unreachable;
             } else {
                 // system.quads_to_render.append(node.child_indices[i]) catch unreachable;

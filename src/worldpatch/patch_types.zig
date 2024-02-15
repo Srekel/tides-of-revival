@@ -190,8 +190,8 @@ fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Patc
     var splatmap_image = zstbi.Image.loadFromMemory(splatmap_data, 1) catch unreachable;
     defer splatmap_image.deinit();
 
-    var data = ctx.allocator.alloc(u8, splatmap_image.data.len) catch unreachable;
-    std.mem.copy(u8, data, splatmap_image.data);
+    const data = ctx.allocator.alloc(u8, splatmap_image.data.len) catch unreachable;
+    @memcpy(data, splatmap_image.data);
     patch.data = data;
 }
 

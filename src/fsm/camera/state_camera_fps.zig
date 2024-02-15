@@ -44,7 +44,7 @@ fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, 
     const query = physics_world.getNarrowPhaseQuery();
     const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
     const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
-    var result = query.castRay(.{
+    const result = query.castRay(.{
         .origin = ray_origin,
         .direction = ray_dir,
     }, .{});
@@ -118,7 +118,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
     //     .with(fd.Rotation);
 
     // var query = query_builder.buildQuery();
-    var self = ctx.allocator.create(StateCameraFPS) catch unreachable;
+    const self = ctx.allocator.create(StateCameraFPS) catch unreachable;
     // self.query = query;
 
     return .{

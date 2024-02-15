@@ -76,8 +76,8 @@ pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
     const input_frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
     const event_mgr = ctx.get(config.event_mgr.hash, EventManager);
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
@@ -99,7 +99,7 @@ pub fn destroy(system: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateTimelines(system, iter.iter.delta_time);
 }
 
@@ -171,7 +171,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                             const value = std.math.lerp(cp.value, cp_next.value, cp_progress);
 
                             var rotation = ecs.get_mut(system.ecsu_world.world, ent, fd.Rotation).?;
-                            var new_rotation = fd.Rotation.initFromEulerDegrees(0.0, value, 0.0);
+                            const new_rotation = fd.Rotation.initFromEulerDegrees(0.0, value, 0.0);
                             rotation.x = new_rotation.x;
                             rotation.y = new_rotation.y;
                             rotation.z = new_rotation.z;

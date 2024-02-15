@@ -61,7 +61,7 @@ pub const Filter = struct {
         pub fn getOpt(self: @This(), comptime T: type) ?*T {
             const index = self.getTermIndex(T);
             const column_index = self.iter.terms[index].index;
-            var skip_term = ecs.id(T) != ecs.term_id(&self.iter, @intCast(column_index + 1));
+            const skip_term = ecs.id(T) != ecs.term_id(&self.iter, @intCast(column_index + 1));
             if (skip_term) return null;
 
             if (ecsu.columnOpt(&self.iter, T, column_index + 1)) |col| {
@@ -76,7 +76,7 @@ pub const Filter = struct {
             std.debug.assert(ecs.field_is_readonly(&self.iter, @as(i32, @intCast(index + 1))));
 
             const column_index = self.iter.terms[index].index;
-            var skip_term = ecs.id(T) != ecs.term_id(&self.iter, @as(usize, @intCast(column_index + 1)));
+            const skip_term = ecs.id(T) != ecs.term_id(&self.iter, @as(usize, @intCast(column_index + 1)));
             if (skip_term) return null;
 
             if (ecsu.columnOpt(&self.iter, T, column_index + 1)) |col| {
@@ -93,8 +93,8 @@ pub const Filter = struct {
 
         filter_storage.hdr.magic = ecs.filter_t_magic;
         desc.storage = filter_storage;
-        var out_filter = ecs.filter_init(world, desc) catch unreachable;
-        var filter = @This(){
+        const out_filter = ecs.filter_init(world, desc) catch unreachable;
+        const filter = @This(){
             .world = world,
             .filter = out_filter,
         };

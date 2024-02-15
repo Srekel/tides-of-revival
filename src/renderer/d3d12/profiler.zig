@@ -138,7 +138,7 @@ pub const Profiler = struct {
             null,
             @as(*?*anyopaque, @ptrCast(&readback_buffer_mapping)),
         ));
-        var frame_query_data = @as([*]u64, @ptrCast(@alignCast(readback_buffer_mapping)));
+        const frame_query_data = @as([*]u64, @ptrCast(@alignCast(readback_buffer_mapping)));
 
         var i: u64 = 0;
         while (i < self.num_profiles) : (i += 1) {

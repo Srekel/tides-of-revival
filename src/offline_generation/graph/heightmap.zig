@@ -16,7 +16,7 @@ pub const HeightmapHeight = f32;
 pub const HEIGHTMAP_PATCH_QUERY_MAX = 128;
 
 fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
-    var ret = @as(ptr_type, @ptrCast(@alignCast(ptr)));
+    const ret = @as(ptr_type, @ptrCast(@alignCast(ptr)));
     return ret;
 }
 
@@ -134,7 +134,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
             var heightmap: []HeightmapHeight = undefined;
             var evictable_lru_key: ?lru.LRUKey = null;
             var evictable_lru_value: ?lru.LRUValue = null;
-            var heightmapOpt = cache.try_get(patch_cache_key, &evictable_lru_key, &evictable_lru_value);
+            const heightmapOpt = cache.try_get(patch_cache_key, &evictable_lru_key, &evictable_lru_value);
             if (heightmapOpt != null) {
                 var arrptr = alignedCast([*]HeightmapHeight, heightmapOpt.?.*);
                 // var arrptr = @ptrCast([*]HeightmapHeight, heightmapOpt.?.*);
@@ -192,8 +192,8 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     while (y < patch_width) : (y += 1) {
                         var x: u64 = 0;
                         while (x < patch_width) : (x += 1) {
-                            var x_world = patch_x * patch_width + x;
-                            var y_world = patch_z * patch_width + y;
+                            const x_world = patch_x * patch_width + x;
+                            const y_world = patch_z * patch_width + y;
                             // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
                             // and then we're converting it to a 16-bit unsigned integer
                             var height_sample: f32 = data.noise.noise2(
@@ -240,7 +240,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     var namebuf: [256]u8 = undefined;
                     const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "content/heightmap/patch_x{}_z{}.pgm", .{ patch_x, patch_z }) catch unreachable;
 
-                    var pgm_opt: img.AllFormats.PGM.EncoderOptions = .{ .binary = true };
+                    const pgm_opt: img.AllFormats.PGM.EncoderOptions = .{ .binary = true };
                     const encoder_options = img.AllFormats.ImageEncoderOptions{ .pgm = pgm_opt };
                     hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
                 }

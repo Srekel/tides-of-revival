@@ -46,7 +46,7 @@ pub const AssetManager = struct {
 
     pub fn loadAssetBlocking(self: *AssetManager, id: IdLocal, urgency: Urgency) []u8 {
         _ = urgency;
-        var asset_opt = self.assets.getPtr(id.hash);
+        const asset_opt = self.assets.getPtr(id.hash);
         if (asset_opt) |asset| {
             asset.timestamp = std.time.timestamp();
             if (asset.data) |data| {
@@ -70,7 +70,7 @@ pub const AssetManager = struct {
         const contents_snug = self.allocator.alloc(u8, contents.len) catch unreachable;
         std.mem.copy(u8, contents_snug, contents);
         self.allocator.free(contents);
-        var asset = Asset{
+        const asset = Asset{
             .status = .loaded,
             .data = contents_snug,
             .timestamp = std.time.timestamp(),

@@ -46,7 +46,7 @@ pub const AudioManager = struct {
             AK.JobWorkerMgr.getDefaultInitSettings(&self.job_worker_settings);
 
             const max_workers = blk: {
-                var runtime_cpu_count = std.Thread.getCpuCount() catch {
+                const runtime_cpu_count = std.Thread.getCpuCount() catch {
                     break :blk @as(usize, MaxThreadWorkers);
                 };
 

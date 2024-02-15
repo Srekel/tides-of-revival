@@ -30,22 +30,22 @@ pub const SystemState = struct {
 };
 
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12State, ecsu_world: ecsu.World, _: *input.FrameData) !*SystemState {
-    var point_lights = std.ArrayList(renderer_types.PointLightGPU).init(allocator);
+    const point_lights = std.ArrayList(renderer_types.PointLightGPU).init(allocator);
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.PreUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.PreUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
     var query_builder_directional_lights = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_directional_lights
         .withReadonly(fd.Rotation)
         .withReadonly(fd.DirectionalLight);
-    var query_directional_lights = query_builder_directional_lights.buildQuery();
+    const query_directional_lights = query_builder_directional_lights.buildQuery();
 
     var query_builder_point_lights = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_point_lights
         .withReadonly(fd.Transform)
         .withReadonly(fd.PointLight);
-    var query_point_lights = query_builder_point_lights.buildQuery();
+    const query_point_lights = query_builder_point_lights.buildQuery();
 
     system.* = .{
         .allocator = allocator,

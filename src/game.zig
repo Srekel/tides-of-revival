@@ -63,7 +63,7 @@ pub fn run() void {
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
     main_window.setInputMode(.cursor, .disabled);
 
-    var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
+    const gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(gfx_state, std.heap.page_allocator);
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -241,7 +241,7 @@ var once_per_duration_test: f32 = 0;
 fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timeline.WaveSpawnContext) bool {
     var input_frame_data = gameloop_context.input_frame_data;
     var gfx_state = gameloop_context.gfx_state;
-    var ecsu_world = gameloop_context.ecsu_world;
+    const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
