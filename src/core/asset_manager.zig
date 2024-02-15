@@ -57,7 +57,7 @@ pub const AssetManager = struct {
             defer file.close();
             const contents = file.reader().readAllAlloc(self.allocator, 256 * 1024) catch unreachable;
             const contents_snug = self.allocator.alignedAlloc(u8, 32, contents.len) catch unreachable;
-            std.mem.copy(u8, contents_snug, contents);
+            @memcpy(contents_snug, contents);
             self.allocator.free(contents);
             asset.data = contents_snug;
             asset.status = .loaded;
@@ -68,7 +68,7 @@ pub const AssetManager = struct {
         defer file.close();
         const contents = file.reader().readAllAlloc(self.allocator, 256 * 1024) catch unreachable;
         const contents_snug = self.allocator.alloc(u8, contents.len) catch unreachable;
-        std.mem.copy(u8, contents_snug, contents);
+        @memcpy(contents_snug, contents);
         self.allocator.free(contents);
         const asset = Asset{
             .status = .loaded,

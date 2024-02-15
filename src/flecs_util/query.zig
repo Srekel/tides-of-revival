@@ -47,7 +47,7 @@ pub const Query = struct {
     pub fn each(self: *@This(), comptime function: anytype) void {
         // dont allow BoundFn
         std.debug.assert(@typeInfo(@TypeOf(function)) == .Fn);
-        comptime var arg_count = ecsu.meta.argCount(function);
+        const arg_count = comptime ecsu.meta.argCount(function);
 
         if (arg_count == 1) {
             const Components = @typeInfo(@TypeOf(function)).Fn.args[0].arg_type.?;

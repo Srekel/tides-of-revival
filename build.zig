@@ -29,28 +29,28 @@ pub fn build(b: *std.Build) void {
 
     _ = b.option([]const u8, "build_date", "date of the build");
     const exe_options = b.addOptions();
-    exe.addOptions("build_options", exe_options);
+    exe.root_module.addOptions("build_options", exe_options);
     exe_options.addOption([]const u8, "build_date", "2023-11-25");
 
-    exe.addModule("websocket", b.createModule(.{
-        .source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
-        .dependencies = &.{},
+    exe.root_module.addImport("websocket", b.createModule(.{
+        .root_source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
+        .imports = &.{},
     }));
-    exe.addModule("zigimg", b.createModule(.{
-        .source_file = .{ .path = thisDir() ++ "/external/zigimg/zigimg.zig" },
-        .dependencies = &.{},
+    exe.root_module.addImport("zigimg", b.createModule(.{
+        .root_source_file = .{ .path = thisDir() ++ "/external/zigimg/zigimg.zig" },
+        .imports = &.{},
     }));
-    exe.addModule("args", b.createModule(.{
-        .source_file = .{ .path = thisDir() ++ "/external/zig-args/args.zig" },
-        .dependencies = &.{},
+    exe.root_module.addImport("args", b.createModule(.{
+        .root_source_file = .{ .path = thisDir() ++ "/external/zig-args/args.zig" },
+        .imports = &.{},
     }));
 
     // Linking ImGUI
-    const abi = (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.abi;
+    const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
     exe.linkLibC();
     if (abi != .msvc)
         exe.linkLibCpp();
-    exe.linkSystemLibraryName("imm32");
+    exe.linkSystemLibrary("imm32");
 
     exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs" });
     exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui" });
@@ -170,14 +170,14 @@ pub fn build(b: *std.Build) void {
     // is required by DirectX 12 Agility SDK.
     exe.rdynamic = true;
 
-    exe.addModule("zflecs", zflecs_pkg.zflecs);
-    exe.addModule("zglfw", zglfw_pkg.zglfw);
-    exe.addModule("zmath", zmath_pkg.zmath);
-    exe.addModule("zmesh", zmesh_pkg.zmesh);
-    exe.addModule("znoise", znoise_pkg.znoise);
-    exe.addModule("zpool", zpool_pkg.zpool);
-    exe.addModule("zstbi", zstbi_pkg.zstbi);
-    exe.addModule("ztracy", ztracy_pkg.ztracy);
+    exe.root_module.addImport("zflecs", zflecs_pkg.zflecs);
+    exe.root_module.addImport("zglfw", zglfw_pkg.zglfw);
+    exe.root_module.addImport("zmath", zmath_pkg.zmath);
+    exe.root_module.addImport("zmesh", zmesh_pkg.zmesh);
+    exe.root_module.addImport("znoise", znoise_pkg.znoise);
+    exe.root_module.addImport("zpool", zpool_pkg.zpool);
+    exe.root_module.addImport("zstbi", zstbi_pkg.zstbi);
+    exe.root_module.addImport("ztracy", ztracy_pkg.ztracy);
 
     zd3d12_pkg.link(exe);
     zflecs_pkg.link(exe);
@@ -245,7 +245,7 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 }
 
-fn buildShaders(b: *std.build.Builder) *std.build.Step {
+fn buildShaders(b: *std.Build) *std.Build.Step {
     const dxc_step = b.step(
         "tides-of-revival-dxc",
         "Build shaders",

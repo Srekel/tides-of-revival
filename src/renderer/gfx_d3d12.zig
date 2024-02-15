@@ -469,7 +469,7 @@ pub const D3D12State = struct {
         self.gctx.flushResourceBarriers();
 
         const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @as(u32, @intCast(data.len)));
-        std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
+        @memcpy(upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
 
         // NOTE(gmodarelli): Let's have zd3d12 return the aligned size instead
         const alloc_alignment: u64 = 512;
