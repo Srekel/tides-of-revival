@@ -69,41 +69,41 @@ def main():
     sync_lib(
         "c2z",
         "https://github.com/Srekel/c2z.git",
-        "83553c40f26ce6ac9606e678d5fc8a7c3f843185",
+        "8458677542b1cd80c4d4d3a2dbe1e667f1c0ec76",
+    )
+    sync_lib(
+        "websocket.zig",
+        "https://github.com/karlseguin/websocket.zig.git",
+        "328b8cba932d2a39da1ada6efe6001179a9c1aaa",
+    )
+    sync_lib(
+        "wwise-zig",
+        "https://github.com/Cold-Bytes-Games/wwise-zig.git",
+        "37d021495b68cb467f6ae23491182e1c67560373",
+    )
+    sync_lib(
+        "zig-args",
+        "https://github.com/MasterQ32/zig-args.git",
+        "89f18a104d9c13763b90e97d6b4ce133da8a3e2b",
+    )
+    sync_lib(
+        "zig-gamedev",
+        "https://github.com/Srekel/zig-gamedev.git",
+        "b53361bb68fc1fa182117ede98e7c057517155c8",
+    )
+    sync_lib(
+        "zigimg",
+        "https://github.com/zigimg/zigimg.git",
+        "ad6ad042662856f55a4d67499f1c4606c9951031",
     )
     sync_lib(
         "zig-recastnavigation",
         "https://github.com/Srekel/zig-recastnavigation.git",
         "86fb9d0a94e71e50095a0f0ed83620a538eee5ec",
     )
-    sync_lib(
-        "websocket.zig",
-        "https://github.com/karlseguin/websocket.zig.git",
-        "c7954efb18bb3a98999fa96dc3621162c6630d11",
-    )
-    sync_lib(
-        "zig-args",
-        "https://github.com/MasterQ32/zig-args.git",
-        "7989929d055ef7618e60de84cc54644046516fdb",
-    )
-    sync_lib(
-        "zig-gamedev",
-        "https://github.com/Srekel/zig-gamedev.git",
-        "main",
-    )
-    sync_lib(
-        "zigimg",
-        "https://github.com/zigimg/zigimg.git",
-        "4bfcf352732fa07026509314eb7f6e05bb5c4f2f",
-    )
-    sync_lib(
-        "wwise-zig",
-        "https://github.com/Cold-Bytes-Games/wwise-zig.git",
-        "e4a2700f9953480dd8d653a148198c6c1fdb867b",
-    )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
-    sync_zig_exe("0.12.0-dev.903+7aa85691b")
+    sync_zig_exe("0.12.0-dev.2063+804cee3b9")
 
     os.chdir("..")
     print("Done syncing external!")
