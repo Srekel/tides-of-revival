@@ -168,7 +168,7 @@ pub fn funcTemplatePatchArtifact(node: *g.Node, output: *g.NodeOutput, context: 
                                 const bitdepth: u8 = if (range_diff < 2000000) 8 else 16;
                                 const height_max_mapped_inside: f32 = @floatFromInt(std.math.pow(u32, 2, bitdepth) - 1);
                                 const height_max_mapped_edge: f32 = @floatFromInt(std.math.pow(u32, 2, 30));
-                                const target_endian = std.builtin.Endian.Little;
+                                const target_endian = std.builtin.Endian.little;
                                 const int_type_edge = u32;
 
                                 const data_size = data_blk: {

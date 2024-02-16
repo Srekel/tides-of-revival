@@ -70,7 +70,7 @@ pub const Entity = struct {
 
     pub fn setPair(self: Entity, Relation: anytype, comptime object: type, data: Relation) void {
         const pair = self.getWorld().pair(Relation, object);
-        var component = &data;
+        const component = &data;
         _ = ecs.set_id(self.world, self.id, pair, @sizeOf(Relation), component);
     }
 
@@ -79,7 +79,7 @@ pub const Entity = struct {
         std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        var component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
         _ = ecs.set_id(self.world, self.id, ecsu.meta.componentId(self.world, T), @sizeOf(T), component);
     }
 
@@ -88,7 +88,7 @@ pub const Entity = struct {
         std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        var component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
         const id = ecsu.meta.componentId(self.world, T);
         ecs.override_id(self.world, self.id, id);
         _ = ecs.set_id(self.world, self.id, id, @sizeOf(T), component);
@@ -111,7 +111,7 @@ pub const Entity = struct {
     }
 
     pub fn getMut(self: Entity, comptime T: type) ?*T {
-        var ptr = ecs.get_mut_id(self.world, self.id, ecsu.meta.componentId(self.world, T));
+        const ptr = ecs.get_mut_id(self.world, self.id, ecsu.meta.componentId(self.world, T));
         if (ptr) |p| {
             return @ptrCast(@alignCast(p));
         }
@@ -168,7 +168,7 @@ pub const Entity = struct {
     /// prints a json representation of an Entity. Note that world.enable_type_reflection should be true to
     /// get component values as well.
     pub fn printJsonRepresentation(self: Entity) void {
-        var str = ecs.entity_to_json(self.world, self.id, null);
+        const str = ecs.entity_to_json(self.world, self.id, null);
         std.debug.print("{s}\n", .{str});
         ecs.os_api.free_.?(str);
     }

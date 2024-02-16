@@ -64,7 +64,7 @@ pub fn run() void {
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
     main_window.setInputMode(.cursor, .disabled);
 
-    var gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
+    const gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
     defer gfx.deinit(gfx_state, std.heap.page_allocator);
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -115,22 +115,35 @@ pub fn run() void {
     system_context.put(config.event_mgr, &event_mgr);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
     system_context.put(config.prefab_mgr, &prefab_mgr);
+    //
+    const GameloopContext = struct {
+        allocator: std.mem.Allocator,
+        asset_mgr: *AssetManager,
+        audio_mgr: *audio_manager.AudioManager,
+        ecsu_world: ecsu.World,
+        event_mgr: *EventManager,
+        gfx: *gfx.D3D12State,
+        gfx_state: *gfx.D3D12State,
+        input_frame_data: *input.FrameData,
+        physics_world: *zphy.PhysicsSystem,
+        prefab_mgr: *prefab_manager.PrefabManager,
+        world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    };
 
-    var physics_world: *zphy.PhysicsSystem = undefined;
-
-    var gameloop_context = .{
+    var gameloop_context: GameloopContext = .{
         .allocator = std.heap.page_allocator,
         .audio_mgr = &audio_mgr,
         .ecsu_world = ecsu_world,
         .event_mgr = &event_mgr,
         .input_frame_data = &input_frame_data,
-        .physics_world = physics_world, // TODO: Optional
+        .physics_world = undefined,
         .prefab_mgr = &prefab_mgr,
         .gfx = gfx_state,
         .world_patch_mgr = world_patch_mgr,
         .gfx_state = gfx_state,
         .asset_mgr = &asset_mgr,
     };
+
     config.system.createSystems(&gameloop_context, &system_context);
     config.system.setupSystems();
     defer config.system.destroySystems();
@@ -247,7 +260,7 @@ var once_per_duration_test: f32 = 0;
 fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timeline.WaveSpawnContext) bool {
     var input_frame_data = gameloop_context.input_frame_data;
     var gfx_state = gameloop_context.gfx_state;
-    var ecsu_world = gameloop_context.ecsu_world;
+    const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);

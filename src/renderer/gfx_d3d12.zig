@@ -469,7 +469,7 @@ pub const D3D12State = struct {
         self.gctx.flushResourceBarriers();
 
         const upload_buffer_region = self.gctx.allocateUploadBufferRegion(T, @as(u32, @intCast(data.len)));
-        std.mem.copy(T, upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
+        @memcpy(upload_buffer_region.cpu_slice[0..data.len], data[0..data.len]);
 
         // NOTE(gmodarelli): Let's have zd3d12 return the aligned size instead
         const alloc_alignment: u64 = 512;
@@ -709,7 +709,7 @@ pub const D3D12State = struct {
 
         self.gctx.flushResourceBarriers();
 
-        var mesh = self.lookupMesh(self.skybox_mesh).?;
+        const mesh = self.lookupMesh(self.skybox_mesh).?;
 
         self.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);
         const index_buffer = self.lookupBuffer(mesh.index_buffer);
@@ -871,7 +871,7 @@ pub const D3D12State = struct {
     // NOTE: DDS files come with mipmaps, but PNG files do not
     pub fn scheduleLoadTexture(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
         const path_id = IdLocal.init(path);
-        var existing_texture = self.texture_hash.get(path_id);
+        const existing_texture = self.texture_hash.get(path_id);
         if (existing_texture) |texture_handle| {
             return texture_handle;
         }
@@ -882,7 +882,7 @@ pub const D3D12State = struct {
             should_end_frame = true;
         }
 
-        var resource = blk: {
+        const resource = blk: {
             const ext = std.fs.path.extension(path);
 
             var resource: zd3d12.ResourceHandle = undefined;
@@ -928,7 +928,7 @@ pub const D3D12State = struct {
 
     pub fn scheduleLoadTextureCubemap(self: *D3D12State, path: []const u8, textureDesc: TextureDesc, arena: std.mem.Allocator) !TextureHandle {
         const path_id = IdLocal.init(path);
-        var existing_texture = self.texture_hash.get(path_id);
+        const existing_texture = self.texture_hash.get(path_id);
         if (existing_texture) |texture_handle| {
             return texture_handle;
         }
@@ -989,7 +989,7 @@ pub const D3D12State = struct {
     pub fn releaseAllTextures(self: *D3D12State) void {
         var live_handles = self.texture_pool.liveHandles();
         while (live_handles.next()) |handle| {
-            var texture = self.lookupTexture(handle);
+            const texture = self.lookupTexture(handle);
 
             if (texture) |t| {
                 if (t.resource_handle) |resource_handle| {
@@ -1008,7 +1008,7 @@ pub const D3D12State = struct {
 
     pub fn findTextureByName(self: *D3D12State, name: [:0]const u8) ?TextureHandle {
         const name_id = IdLocal.init(name);
-        var texture = self.texture_hash.get(name_id);
+        const texture = self.texture_hash.get(name_id);
         if (texture) |texture_handle| {
             return texture_handle;
         }
@@ -1021,7 +1021,7 @@ pub const D3D12State = struct {
             return null;
         }
 
-        var texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch blk: {
+        const texture: ?*Texture = self.texture_pool.getColumnPtr(handle, .obj) catch blk: {
             std.log.debug("Failed to lookup texture with handle: {any}", .{handle});
             break :blk null;
         };
@@ -1031,7 +1031,7 @@ pub const D3D12State = struct {
 
     pub fn findMaterialByName(self: *D3D12State, name: []const u8) ?MaterialHandle {
         const material_id = IdLocal.init(name);
-        var material = self.material_hash.get(material_id);
+        const material = self.material_hash.get(material_id);
         if (material) |material_handle| {
             return material_handle;
         }
@@ -1040,7 +1040,7 @@ pub const D3D12State = struct {
     }
 
     pub inline fn lookUpMaterial(self: *D3D12State, handle: MaterialHandle) ?*fd.PBRMaterial {
-        var material: ?*fd.PBRMaterial = self.material_pool.getColumnPtr(handle, .obj) catch blk: {
+        const material: ?*fd.PBRMaterial = self.material_pool.getColumnPtr(handle, .obj) catch blk: {
             std.log.debug("Failed to lookup material with handle: {any}", .{handle});
             break :blk null;
         };
@@ -1050,7 +1050,7 @@ pub const D3D12State = struct {
 
     pub fn storeMaterial(self: *D3D12State, name: []const u8, material: fd.PBRMaterial) !MaterialHandle {
         const material_id = IdLocal.init(name);
-        var existing_material = self.material_hash.get(material_id);
+        const existing_material = self.material_hash.get(material_id);
         if (existing_material) |material_handle| {
             return material_handle;
         }
@@ -1062,7 +1062,7 @@ pub const D3D12State = struct {
 
     pub fn findMeshByName(self: *D3D12State, name: []const u8) ?MeshHandle {
         const name_id = IdLocal.init(name);
-        var mesh = self.mesh_hash.get(name_id);
+        const mesh = self.mesh_hash.get(name_id);
         if (mesh) |mesh_handle| {
             return mesh_handle;
         }
@@ -1072,7 +1072,7 @@ pub const D3D12State = struct {
 
     pub fn uploadMeshData(self: *D3D12State, name: []const u8, mesh: Mesh, vertices: []Vertex, indices: []IndexType) !MeshHandle {
         const name_id = IdLocal.init(name);
-        var existing_mesh = self.mesh_hash.get(name_id);
+        const existing_mesh = self.mesh_hash.get(name_id);
         if (existing_mesh) |mesh_handle| {
             return mesh_handle;
         }
@@ -1080,7 +1080,7 @@ pub const D3D12State = struct {
         // NOTE(gmodarelli): For now we create a vertex and an index buffer for every mesh, but in the future these
         // buffer will be backed by one big memory allocation/heap
         // Create a index buffer.
-        var vertex_buffer = self.createBuffer(.{
+        const vertex_buffer = self.createBuffer(.{
             .size = vertices.len * @sizeOf(Vertex),
             .state = d3d12.RESOURCE_STATES.GENERIC_READ,
             .name = L("Vertex Buffer"),
@@ -1091,7 +1091,7 @@ pub const D3D12State = struct {
         }) catch unreachable;
 
         // Create an index buffer.
-        var index_buffer = self.createBuffer(.{
+        const index_buffer = self.createBuffer(.{
             .size = indices.len * @sizeOf(IndexType),
             .state = .{ .INDEX_BUFFER = true },
             .name = L("Index Buffer"),
@@ -1151,7 +1151,7 @@ pub const D3D12State = struct {
     }
 
     pub fn lookupMesh(self: *D3D12State, handle: MeshHandle) ?Mesh {
-        var mesh: ?Mesh = self.mesh_pool.getColumn(handle, .obj) catch blk: {
+        const mesh: ?Mesh = self.mesh_pool.getColumn(handle, .obj) catch blk: {
             std.log.debug("Failed to lookup mesh with handle: {any}", .{handle});
             break :blk null;
         };
@@ -1349,7 +1349,7 @@ pub fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*D3D12State {
     state.frame_allocator_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     state.frame_allocator = state.frame_allocator_state.allocator();
 
-    var hwnd = zglfw.native.getWin32Window(window) catch unreachable;
+    const hwnd = zglfw.native.getWin32Window(window) catch unreachable;
 
     state.gctx = zd3d12.GraphicsContext.init(allocator, @as(w32.HWND, @ptrCast(hwnd)));
     state.mipgen_rgba16f = zd3d12.MipmapGenerator.init(allocator, &state.gctx, .R16G16B16A16_FLOAT, "");
@@ -1607,7 +1607,7 @@ pub fn beginFrame(state: *D3D12State) void {
 pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [3]f32) void {
     var gctx = &state.gctx;
 
-    var skybox_mesh = state.lookupMesh(state.skybox_mesh);
+    const skybox_mesh = state.lookupMesh(state.skybox_mesh);
     if (skybox_mesh) |mesh| {
         const skybox_profiler_index = state.gpu_profiler.startProfile(gctx.cmdlist, "Skybox");
         zpix.beginEvent(gctx.cmdlist, "Skybox");
@@ -2331,10 +2331,10 @@ pub fn endFrame(state: *D3D12State, camera: *const fd.Camera, camera_position: [
                 // GPU timings
                 if (false) {
                     var i: u32 = 0;
-                    var line_height: f32 = 14.0;
-                    var vertical_offset: f32 = 36.0;
+                    const line_height: f32 = 14.0;
+                    const vertical_offset: f32 = 36.0;
                     while (i < state.gpu_profiler.num_profiles) : (i += 1) {
-                        var frame_profile_data = state.gpu_profiler.profiles.items[i];
+                        const frame_profile_data = state.gpu_profiler.profiles.items[i];
                         var buffer = [_]u8{0} ** 64;
                         const text = std.fmt.bufPrint(
                             buffer[0..],
@@ -2681,7 +2681,7 @@ pub fn createRenderTarget(gctx: *zd3d12.GraphicsContext, rt_desc: *const RenderT
         );
     }
 
-    var srv_descriptor = gctx.allocateCpuDescriptors(.CBV_SRV_UAV, 1);
+    const srv_descriptor = gctx.allocateCpuDescriptors(.CBV_SRV_UAV, 1);
     {
         const srv_format = getDepthFormatSRV(rt_desc.format);
         gctx.device.CreateShaderResourceView(

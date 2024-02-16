@@ -55,34 +55,34 @@ pub fn create(
     _ = query_builder_city
         .with(fd.CompCity)
         .with(fd.Position);
-    var query_city = query_builder_city.buildQuery();
+    const query_city = query_builder_city.buildQuery();
 
     var query_builder_camp = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_camp
         .with(fd.CompBanditCamp)
         .with(fd.Position);
-    var query_camp = query_builder_camp.buildQuery();
+    const query_camp = query_builder_camp.buildQuery();
 
     var query_builder_caravan = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_caravan
         .with(fd.CompCaravan)
         .with(fd.Position);
-    var query_caravan = query_builder_caravan.buildQuery();
+    const query_caravan = query_builder_caravan.buildQuery();
 
     var query_builder_combat = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_combat
         .with(fd.CompCombatant)
         .with(fd.Position);
-    var query_combat = query_builder_combat.buildQuery();
+    const query_combat = query_builder_combat.buildQuery();
 
     var query_builder_syncpos = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_syncpos
         .with(fd.Position)
         .with(fd.Transform);
-    var query_syncpos = query_builder_syncpos.buildQuery();
+    const query_syncpos = query_builder_syncpos.buildQuery();
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
@@ -100,7 +100,7 @@ pub fn create(
     return system;
 }
 pub fn createEntities(system: *SystemState) void {
-    var ecsu_world = system.ecsu_world;
+    const ecsu_world = system.ecsu_world;
     var city_ents = std.ArrayList(CityEnt).init(system.allocator);
     defer city_ents.deinit();
 
@@ -155,7 +155,7 @@ pub fn createEntities(system: *SystemState) void {
 
         if (!added_spawn) {
             added_spawn = true;
-            var spawn_pos = fd.Position.init(pos_x, pos_y + 1, pos_z);
+            const spawn_pos = fd.Position.init(pos_x, pos_y + 1, pos_z);
             var spawn_ent = system.ecsu_world.newEntity();
             spawn_ent.set(spawn_pos);
             spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
@@ -254,7 +254,7 @@ pub fn destroy(system: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     _ = system;
 
     // const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;

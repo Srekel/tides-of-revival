@@ -1,0 +1,9 @@
+.{
+    .name = "Tides of Revival",
+    .version = "0.3.0-alpha",
+    .paths = .{""},
+    .dependencies = .{
+        .system_sdk = .{ .path = "external/zig-gamedev/libs/system-sdk" },
+        .@"wwise-zig" = .{ .path = "external/wwise-zig" },
+    },
+}

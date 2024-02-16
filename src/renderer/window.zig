@@ -67,7 +67,7 @@ pub fn update(gfx_state: *gfx.D3D12State) !enum { no_windows, has_windows } {
                 break;
             }
 
-            var frame_buffer_size = window.window.getFramebufferSize();
+            const frame_buffer_size = window.window.getFramebufferSize();
             if (!std.meta.eql(window.frame_buffer_size, frame_buffer_size)) {
                 window.frame_buffer_size = frame_buffer_size;
                 std.log.info(

@@ -13,7 +13,7 @@ const MaterialHandle = @import("../renderer/gfx_d3d12.zig").MaterialHandle;
 const rt = @import("../renderer/renderer_types.zig");
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
-    var ecs_world = ecsu_world.world;
+    const ecs_world = ecsu_world.world;
     ecs.TAG(ecs_world, NOCOMP);
     ecs.TAG(ecs_world, LocalSpace);
     ecs.TAG(ecs_world, WorldSpace);
@@ -220,7 +220,7 @@ pub const Transform = struct {
     }
 
     pub fn initWithQuaternion(quat: [4]f32) Transform {
-        var z_rotation_matrix = zm.matFromQuat(zm.Quat{ quat[0], quat[1], quat[2], quat[3] });
+        const z_rotation_matrix = zm.matFromQuat(zm.Quat{ quat[0], quat[1], quat[2], quat[3] });
         var transform = Transform{};
         zm.storeMat43(&transform.matrix, z_rotation_matrix);
         return transform;

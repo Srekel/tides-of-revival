@@ -105,7 +105,7 @@ pub fn funcTemplateProps(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                 var folderbuf: [256]u8 = undefined;
                 var namebuf: [256]u8 = undefined;
 
-                var folderbufslice = std.fmt.bufPrintZ(
+                const folderbufslice = std.fmt.bufPrintZ(
                     folderbuf[0..folderbuf.len],
                     "content/patch/props/lod{}",
                     .{PROPS_LOD},

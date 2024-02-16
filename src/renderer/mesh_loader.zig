@@ -213,7 +213,7 @@ pub fn loadObjMeshFromFile(
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         var it = std.mem.split(u8, line, " ");
 
-        var first = it.first();
+        const first = it.first();
         if (std.mem.eql(u8, first, "o")) {
             if (inside_object) {
                 try storeMeshLod(
@@ -282,7 +282,7 @@ pub fn loadObjMeshFromFile(
         } else if (std.mem.eql(u8, first, "f")) {
             var triangle_index: u32 = 0;
             while (triangle_index < 3) : (triangle_index += 1) {
-                var vertex_components = it.next().?;
+                const vertex_components = it.next().?;
                 var triangles_iterator = std.mem.split(u8, vertex_components, "/");
 
                 // NOTE(gmodarelli): We're assuming Positions, UV's and Normals are exported with the OBJ file.
@@ -379,12 +379,12 @@ fn storeMeshLod(
             const vertex_1 = vertices.items[indices.items[index + 1]];
             const vertex_2 = vertices.items[indices.items[index + 2]];
 
-            var p0 = zm.loadArr3(vertex_0.position);
-            var p1 = zm.loadArr3(vertex_1.position);
-            var p2 = zm.loadArr3(vertex_2.position);
+            const p0 = zm.loadArr3(vertex_0.position);
+            const p1 = zm.loadArr3(vertex_1.position);
+            const p2 = zm.loadArr3(vertex_2.position);
 
-            var e1 = p1 - p0;
-            var e2 = p2 - p0;
+            const e1 = p1 - p0;
+            const e2 = p2 - p0;
             const x1 = vertex_1.uv[0] - vertex_0.uv[0];
             const x2 = vertex_2.uv[0] - vertex_0.uv[0];
             const y1 = vertex_1.uv[1] - vertex_0.uv[1];
@@ -438,7 +438,7 @@ fn storeMeshLod(
             zm.storeArr3(&new_tangent, zm.normalize3(reject));
             var result = [3]f32{ 0.0, 0.0, 0.0 };
             zm.storeArr3(&result, zm.dot3(zm.cross3(tangent, binormal), normal));
-            var handedness: f32 = if (result[0] > 0.0) 1.0 else -1.0;
+            const handedness: f32 = if (result[0] > 0.0) 1.0 else -1.0;
 
             vertex.tangent[0] = new_tangent[0];
             vertex.tangent[1] = new_tangent[1];

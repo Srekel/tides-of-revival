@@ -213,7 +213,7 @@ pub const ProcessorAxisToBool = struct {
 
     pub fn process(self: ProcessorAxisToBool, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
         _ = targets_prev;
-        var res = targets_curr.get(self.source_target).?;
+        const res = targets_curr.get(self.source_target).?;
         if (res.number > 0.1) {
             return TargetValue{ .number = 1 };
         }
@@ -261,7 +261,7 @@ pub const KeyMap = struct {
 
 pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) void {
     var used_inputs = std.AutoHashMap(BindingSource, bool).init(allocator);
-    var targets_prev = &input_frame_data.targets_double_buffer[input_frame_data.index_curr];
+    const targets_prev = &input_frame_data.targets_double_buffer[input_frame_data.index_curr];
     input_frame_data.index_curr = 1 - input_frame_data.index_curr;
     var targets = &input_frame_data.targets_double_buffer[input_frame_data.index_curr];
 
@@ -271,7 +271,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) vo
     }
 
     input_frame_data.targets = targets;
-    var map = input_frame_data.map;
+    const map = input_frame_data.map;
     var window = input_frame_data.window;
     for (map.layer_stack.items) |layer| {
         if (!layer.active) {

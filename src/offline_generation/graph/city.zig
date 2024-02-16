@@ -408,7 +408,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         var namebuf: [256]u8 = undefined;
         const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "citymap_{}_{}.png", .{ world_width, image_width }) catch unreachable;
 
-        var enc_opt: img.AllFormats.PNG.EncoderOptions = .{};
+        const enc_opt: img.AllFormats.PNG.EncoderOptions = .{};
         const encoder_options = img.AllFormats.ImageEncoderOptions{ .png = enc_opt };
         hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
     }
@@ -418,7 +418,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         var folderbuf: [256]u8 = undefined;
         var namebuf: [256]u8 = undefined;
 
-        var folderbufslice = std.fmt.bufPrintZ(
+        const folderbufslice = std.fmt.bufPrintZ(
             folderbuf[0..folderbuf.len],
             "content/systems",
             .{},
@@ -453,7 +453,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     }
 
     var rand1 = std.rand.DefaultPrng.init(0);
-    var rand = rand1.random();
+    const rand = rand1.random();
     _ = rand;
     if (output.template.?.name.eqlStr("City Props")) {
         const city_id = IdLocal.init("city");

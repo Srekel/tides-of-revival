@@ -9,14 +9,14 @@ const ecsu = @import("flecs_util/flecs_util.zig");
 pub const Context = context.Context;
 
 pub fn sliceOfInstance(comptime T: type, instance: *T) []T {
-    var arrptr: *[1]T = instance;
-    var slice: []T = arrptr;
+    const arrptr: *[1]T = instance;
+    const slice: []T = arrptr;
     return slice;
 }
 
 pub fn sliceOfInstanceConst(comptime T: type, instance: *const T) []const T {
-    var arrptr: *const [1]T = instance;
-    var slice: []const T = arrptr;
+    const arrptr: *const [1]T = instance;
+    const slice: []const T = arrptr;
     return slice;
 }
 

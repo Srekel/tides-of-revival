@@ -42,7 +42,7 @@ pub const BufferPool = struct {
     pub fn init(allocator: std.mem.Allocator) BufferPool {
         return .{
             .buffers = blk: {
-                var buffers = allocator.alloc(
+                const buffers = allocator.alloc(
                     Buffer,
                     max_num_buffers + 1,
                 ) catch unreachable;
@@ -61,7 +61,7 @@ pub const BufferPool = struct {
                 break :blk buffers;
             },
             .generations = blk: {
-                var generations = allocator.alloc(
+                const generations = allocator.alloc(
                     u16,
                     max_num_buffers + 1,
                 ) catch unreachable;
@@ -118,7 +118,7 @@ pub const BufferPool = struct {
     }
 
     pub fn destroyBuffer(pool: *BufferPool, handle: BufferHandle, gctx: *zd3d12.GraphicsContext) void {
-        var buffer = pool.lookupBuffer(handle);
+        const buffer = pool.lookupBuffer(handle);
         if (buffer == null)
             return;
 

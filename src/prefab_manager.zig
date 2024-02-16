@@ -35,7 +35,7 @@ pub const PrefabManager = struct {
 
     pub fn loadPrefabFromGLTF(self: *@This(), path: [:0]const u8, world: ecsu.World, gfxstate: *gfx.D3D12State, allocator: std.mem.Allocator, args: struct { is_dynamic: bool = false }) !ecsu.Entity {
         const path_id = IdLocal.init(path);
-        var existing_prefab = self.prefab_hash_map.get(path_id);
+        const existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
             return prefab;
         }
@@ -51,7 +51,7 @@ pub const PrefabManager = struct {
         defer arena_state.deinit();
         const arena = arena_state.allocator();
 
-        var prefab = self.parseNode(scene.nodes.?[0], null, world, gfxstate, arena, args.is_dynamic);
+        const prefab = self.parseNode(scene.nodes.?[0], null, world, gfxstate, arena, args.is_dynamic);
         self.prefab_hash_map.put(path_id, prefab) catch unreachable;
 
         return prefab;
@@ -59,7 +59,7 @@ pub const PrefabManager = struct {
 
     pub fn getPrefabByPath(self: *@This(), path: []const u8) ?ecsu.Entity {
         const path_id = IdLocal.init(path);
-        var existing_prefab = self.prefab_hash_map.get(path_id);
+        const existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
             return prefab;
         }

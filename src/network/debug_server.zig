@@ -1,7 +1,7 @@
 const std = @import("std");
 const websocket = @import("websocket");
 const Allocator = std.mem.Allocator;
-const Client = websocket.Client;
+const Conn = websocket.Conn;
 const Message = websocket.Message;
 const Handshake = websocket.Handshake;
 const ws_client = websocket.client;
@@ -23,7 +23,7 @@ pub const DebugServer = struct {
     handlers: std.AutoArrayHashMap(u64, DebugServerHandler),
 
     pub fn create(port: u16, allocator: std.mem.Allocator) DebugServer {
-        var self = DebugServer{
+        const self = DebugServer{
             .active = false,
             .port = port,
             .allocator = allocator,
@@ -42,7 +42,7 @@ pub const DebugServer = struct {
     pub fn run(self: *DebugServer) void {
         @atomicStore(bool, &self.active, true, std.builtin.AtomicOrder.SeqCst);
         const thread_config = .{};
-        var thread_args: ThreadContextDebugServer = .{
+        const thread_args: ThreadContextDebugServer = .{
             .debug_server = self,
         };
         var thread = std.Thread.spawn(thread_config, threadDebugServerListen, .{thread_args}) catch unreachable;
@@ -54,7 +54,7 @@ pub const DebugServer = struct {
     }
 
     pub fn listen(self: *DebugServer) !void {
-        const listen_config = websocket.Config{
+        const listen_config = websocket.Config.Server{
             .port = self.port,
             .address = "127.0.0.1",
             .buffer_size = 4096,
@@ -89,13 +89,14 @@ const Handler = struct {
         debug_server: *DebugServer,
     };
 
-    client: *Client,
+    conn: *websocket.Conn,
+    // client: *Client,
     context: *Context,
 
-    pub fn init(h: Handshake, client: *Client, context: *Context) !Handler {
+    pub fn init(h: Handshake, conn: *Conn, context: *Context) !Handler {
         _ = h;
         return Handler{
-            .client = client,
+            .conn = conn,
             .context = context,
         };
     }
@@ -105,7 +106,7 @@ const Handler = struct {
         switch (message.type) {
             .binary => {
                 unreachable;
-                // try self.client.writeBin(data),
+                // try self.conn.writeBin(data),
             },
             .text => {
                 if (std.unicode.utf8ValidateSlice(data)) {
@@ -114,10 +115,10 @@ const Handler = struct {
                     const arena = arena_state.allocator();
 
                     const output = self.context.debug_server.handleMessage(data, arena);
-                    // try self.client.write("hello");
-                    try self.client.write(output);
+                    // try self.conn.write("hello");
+                    try self.conn.write(output);
                 } else {
-                    self.client.close();
+                    self.conn.close();
                 }
             },
             else => unreachable,

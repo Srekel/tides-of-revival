@@ -174,14 +174,14 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
         break :blk buffers;
     };
 
-    var draw_calls = [max_entity_types]std.ArrayList(DrawCall){ std.ArrayList(DrawCall).init(allocator), std.ArrayList(DrawCall).init(allocator) };
-    var draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
+    const draw_calls = [max_entity_types]std.ArrayList(DrawCall){ std.ArrayList(DrawCall).init(allocator), std.ArrayList(DrawCall).init(allocator) };
+    const draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
 
-    var instance_transforms = [max_entity_types]std.ArrayList(InstanceTransform){ std.ArrayList(InstanceTransform).init(allocator), std.ArrayList(InstanceTransform).init(allocator) };
-    var instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
+    const instance_transforms = [max_entity_types]std.ArrayList(InstanceTransform){ std.ArrayList(InstanceTransform).init(allocator), std.ArrayList(InstanceTransform).init(allocator) };
+    const instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = system });
 
     // Queries
@@ -189,7 +189,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx.D3D12S
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.StaticMeshComponent);
-    var query_mesh = query_builder_mesh.buildQuery();
+    const query_mesh = query_builder_mesh.buildQuery();
 
     system.* = .{
         .allocator = allocator,
@@ -261,7 +261,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
     const loop1 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Culling and Batching", 0x00_ff_ff_00);
     while (entity_iter_mesh.next()) |comps| {
-        var maybe_mesh = system.gfx.lookupMesh(comps.mesh.mesh_handle);
+        const maybe_mesh = system.gfx.lookupMesh(comps.mesh.mesh_handle);
 
         if (maybe_mesh) |mesh| {
             const z_world = zm.loadMat43(comps.transform.matrix[0..]);
@@ -286,7 +286,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             for (0..mesh.sub_mesh_count) |sub_mesh_index| {
                 draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
 
-                var maybe_material = system.gfx.lookUpMaterial(comps.mesh.material_handles[sub_mesh_index]);
+                const maybe_material = system.gfx.lookUpMaterial(comps.mesh.material_handles[sub_mesh_index]);
                 if (maybe_material) |material| {
                     const albedo = blk: {
                         if (system.gfx.lookupTexture(material.albedo)) |albedo| {
@@ -440,7 +440,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             const instance_material_buffer = system.gfx.lookupBuffer(system.instance_material_buffers[entity_type_index][frame_index]);
 
             for (system.draw_calls[entity_type_index].items) |draw_call| {
-                var maybe_mesh = system.gfx.lookupMesh(draw_call.mesh_handle);
+                const maybe_mesh = system.gfx.lookupMesh(draw_call.mesh_handle);
 
                 if (maybe_mesh) |mesh| {
                     system.gfx.gctx.cmdlist.IASetPrimitiveTopology(.TRIANGLELIST);

@@ -19,10 +19,10 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
     var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
         .with(fd.Input);
-    var query = query_builder.buildQuery();
+    const query = query_builder.buildQuery();
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
@@ -44,7 +44,7 @@ pub fn destroy(system: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // const dt4 = zm.f32x4s(iter.iter.delta_time);
     // _ = system;
     input.doTheThing(system.allocator, system.input_frame_data);

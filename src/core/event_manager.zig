@@ -28,7 +28,7 @@ pub const EventManager = struct {
 
     pub fn registerListener(self: *EventManager, event_id: IdLocal, callback: EventCallback, ctx: anytype) void {
         if (!self.event_map.contains(event_id.hash)) {
-            var listeners = std.ArrayList(EventListener).initCapacity(self.allocator, 16) catch unreachable;
+            const listeners = std.ArrayList(EventListener).initCapacity(self.allocator, 16) catch unreachable;
             self.event_map.putAssumeCapacity(event_id.hash, listeners);
         }
         var listeners = self.event_map.getPtr(event_id.hash).?;
