@@ -123,21 +123,6 @@ pub fn getSubMeshCount(mesh_handle: MeshHandle) u32 {
 }
 extern fn TR_getSubMeshCount(mesh_handle: MeshHandle) u32;
 
-pub const Renderable = extern struct {
-    id: u64,
-    mesh_handle: MeshHandle,
-};
-
-pub fn registerRenderable(renderable: Renderable) void {
-    TR_registerRenderable(renderable);
-}
-extern fn TR_registerRenderable(renderable: Renderable) void;
-
-pub fn updateRenderable(renderable: Renderable) void {
-    TR_updateRenderable(renderable);
-}
-extern fn TR_updateRenderable(renderable: Renderable) void;
-
 pub const BufferHandle = extern struct {
     id: u32,
 };

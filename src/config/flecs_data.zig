@@ -51,7 +51,6 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, EnvironmentInfo);
     ecs.COMPONENT(ecs_world, ProjectileWeapon);
     ecs.COMPONENT(ecs_world, Projectile);
-    ecs.COMPONENT(ecs_world, renderer.Renderable);
 }
 
 // pub const GameContext = struct {

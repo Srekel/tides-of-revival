@@ -54,12 +54,6 @@ pub const PrefabManager = struct {
         transform.setScale(scale.elems().*);
         entity.setOverride(transform);
 
-        var renderable = renderer.Renderable{
-            .id = entity.id,
-            .mesh_handle = mesh_handle,
-        };
-        entity.setOverride(renderable);
-
         var static_mesh_component: fd.StaticMeshComponent = undefined;
         static_mesh_component.mesh_handle = mesh_handle;
         entity.setOverride(static_mesh_component);
