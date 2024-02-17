@@ -210,7 +210,7 @@ pub fn run() void {
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     config.entity.init(player_pos, &prefab_mgr, ecsu_world);
 
-    const sphere_test_prefab = prefab_mgr.getPrefabByPath("sphere_test.bin").?;
+    const sphere_test_prefab = prefab_mgr.getPrefabByPath("prefabs/props/debug_sphere/debug_sphere.bin").?;
     const sphere_test_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
     var sphere_test_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_test_prefab);
     sphere_test_ent.set(sphere_test_position);

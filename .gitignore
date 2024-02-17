@@ -17,3 +17,4 @@ promotion/
 __pycache__/
 licenses.txt
 release_build/*
+binaries/

@@ -109,7 +109,7 @@ pub fn createEntities(system: *SystemState) void {
     var buf_reader = std.io.fixedBufferStream(cities_data);
     var in_stream = buf_reader.reader();
     var buf: [1024]u8 = undefined;
-    const sphere_prefab = system.prefab_mgr.getPrefabByPath("primitive_sphere.bin");
+    const sphere_prefab = system.prefab_mgr.getPrefabByPath("prefabs/primitives/primitive_sphere.bin");
     while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
         var comma_curr: usize = 0;
         var comma_next: usize = std.mem.indexOfScalar(u8, line, ","[0]).?;

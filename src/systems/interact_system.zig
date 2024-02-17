@@ -170,7 +170,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     _ = wielded_use_held;
     const wielded_use_primary_pressed = system.input_frame_data.just_pressed(config.input.wielded_use_primary);
     const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
-    const arrow_prefab = system.prefab_mgr.getPrefabByPath("arrow.bin").?;
+    const arrow_prefab = system.prefab_mgr.getPrefabByPath("prefabs/props/bow_arrow/arrow.bin").?;
     while (entity_iter.next()) |comps| {
         var interactor_comp = comps.interactor;
 
@@ -328,7 +328,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     });
 
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
-    const cylinder_prefab = system.prefab_mgr.getPrefabByPath("primitive_cylinder.bin").?;
+    const cylinder_prefab = system.prefab_mgr.getPrefabByPath("prefabs/primitives/primitive_cylinder.bin").?;
     while (entity_iter_proj.next()) |comps| {
         const velocity = body_interface.getLinearVelocity(comps.body.body_id);
         const velocity_z = zm.loadArr3(velocity);

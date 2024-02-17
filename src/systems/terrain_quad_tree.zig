@@ -161,7 +161,7 @@ fn loadTerrainLayer(name: []const u8) !TerrainLayer {
         var namebuf: [256]u8 = undefined;
         const path = std.fmt.bufPrintZ(
             namebuf[0..namebuf.len],
-            "{s}_diff_2k.dds",
+            "prefabs/environment/terrain/{s}_albedo.dds",
             .{name},
         ) catch unreachable;
 
@@ -173,7 +173,7 @@ fn loadTerrainLayer(name: []const u8) !TerrainLayer {
         var namebuf: [256]u8 = undefined;
         const path = std.fmt.bufPrintZ(
             namebuf[0..namebuf.len],
-            "{s}_nor_dx_2k.dds",
+            "prefabs/environment/terrain/{s}_normal.dds",
             .{name},
         ) catch unreachable;
 
@@ -185,7 +185,7 @@ fn loadTerrainLayer(name: []const u8) !TerrainLayer {
         var namebuf: [256]u8 = undefined;
         const path = std.fmt.bufPrintZ(
             namebuf[0..namebuf.len],
-            "{s}_arm_2k.dds",
+            "prefabs/environment/terrain/{s}_arm.dds",
             .{name},
         ) catch unreachable;
 
@@ -300,7 +300,7 @@ fn loadResources(
     {
         const dry_ground = loadTerrainLayer("dry_ground_rocks") catch unreachable;
         const forest_ground = loadTerrainLayer("forest_ground_01") catch unreachable;
-        const rock_ground = loadTerrainLayer("rock_ground") catch unreachable;
+        const rock_ground = loadTerrainLayer("rock_ground_02") catch unreachable;
         const snow = loadTerrainLayer("snow_02") catch unreachable;
 
         // NOTE: There's an implicit dependency on the order of the Splatmap here
@@ -429,10 +429,10 @@ pub fn create(
 
     var meshes = std.ArrayList(renderer.MeshHandle).init(allocator);
 
-    loadMesh("terrain_patch_0.bin", &meshes) catch unreachable;
-    loadMesh("terrain_patch_1.bin", &meshes) catch unreachable;
-    loadMesh("terrain_patch_2.bin", &meshes) catch unreachable;
-    loadMesh("terrain_patch_3.bin", &meshes) catch unreachable;
+    loadMesh("prefabs/environment/terrain/terrain_patch_0.bin", &meshes) catch unreachable;
+    loadMesh("prefabs/environment/terrain/terrain_patch_1.bin", &meshes) catch unreachable;
+    loadMesh("prefabs/environment/terrain/terrain_patch_2.bin", &meshes) catch unreachable;
+    loadMesh("prefabs/environment/terrain/terrain_patch_3.bin", &meshes) catch unreachable;
 
     const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_heightmap);
     const splatmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_splatmap);
