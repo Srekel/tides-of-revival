@@ -9,6 +9,7 @@ def compile_texture(input_path, input_file, format):
     subprocess.run(
         [
             "texconv.exe",
+            "-y",
             "-f",
             format,
             "-o",
