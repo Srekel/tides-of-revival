@@ -1,7 +1,6 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-const zd3d12 = @import("external/zig-gamedev/libs/zd3d12/build.zig");
 const zflecs = @import("external/zig-gamedev/libs/zflecs/build.zig");
 const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
 const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
@@ -13,8 +12,7 @@ const zpool = @import("external/zig-gamedev/libs/zpool/build.zig");
 const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
 const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
-
-const wwise_zig = @import("external/wwise-zig/build.zig");
+const wwise_zig = @import("wwise-zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -29,23 +27,23 @@ pub fn build(b: *std.Build) void {
 
     _ = b.option([]const u8, "build_date", "date of the build");
     const exe_options = b.addOptions();
-    exe.addOptions("build_options", exe_options);
+    exe.root_module.addOptions("build_options", exe_options);
     exe_options.addOption([]const u8, "build_date", "2023-11-25");
 
-    exe.addModule("websocket", b.createModule(.{
-        .source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
-        .dependencies = &.{},
+    exe.root_module.addImport("websocket", b.createModule(.{
+        .root_source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
+        .imports = &.{},
     }));
-    exe.addModule("zigimg", b.createModule(.{
-        .source_file = .{ .path = thisDir() ++ "/external/zigimg/zigimg.zig" },
-        .dependencies = &.{},
+    exe.root_module.addImport("zigimg", b.createModule(.{
+        .root_source_file = .{ .path = thisDir() ++ "/external/zigimg/zigimg.zig" },
+        .imports = &.{},
     }));
-    exe.addModule("args", b.createModule(.{
-        .source_file = .{ .path = thisDir() ++ "/external/zig-args/args.zig" },
-        .dependencies = &.{},
+    exe.root_module.addImport("args", b.createModule(.{
+        .root_source_file = .{ .path = thisDir() ++ "/external/zig-args/args.zig" },
+        .imports = &.{},
     }));
 
-    const abi = (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.abi;
+    const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
     exe.linkLibC();
     if (abi != .msvc)
         exe.linkLibCpp();
@@ -147,16 +145,15 @@ pub fn build(b: *std.Build) void {
     // is required by DirectX 12 Agility SDK.
     exe.rdynamic = true;
 
-    exe.addModule("zflecs", zflecs_pkg.zflecs);
-    exe.addModule("zglfw", zglfw_pkg.zglfw);
-    exe.addModule("zmath", zmath_pkg.zmath);
-    exe.addModule("zmesh", zmesh_pkg.zmesh);
-    exe.addModule("znoise", znoise_pkg.znoise);
-    exe.addModule("zpool", zpool_pkg.zpool);
-    exe.addModule("zstbi", zstbi_pkg.zstbi);
-    exe.addModule("ztracy", ztracy_pkg.ztracy);
+    exe.root_module.addImport("zflecs", zflecs_pkg.zflecs);
+    exe.root_module.addImport("zglfw", zglfw_pkg.zglfw);
+    exe.root_module.addImport("zmath", zmath_pkg.zmath);
+    exe.root_module.addImport("zmesh", zmesh_pkg.zmesh);
+    exe.root_module.addImport("znoise", znoise_pkg.znoise);
+    exe.root_module.addImport("zpool", zpool_pkg.zpool);
+    exe.root_module.addImport("zstbi", zstbi_pkg.zstbi);
+    exe.root_module.addImport("ztracy", ztracy_pkg.ztracy);
 
-    // zd3d12_pkg.link(exe);
     zflecs_pkg.link(exe);
     zglfw_pkg.link(exe);
     zmesh_pkg.link(exe);
@@ -167,14 +164,16 @@ pub fn build(b: *std.Build) void {
     ztracy_pkg.link(exe);
     zwin32_pkg.link(exe, .{ .d3d12 = true });
 
-    const wwise_package = wwise_zig.package(b, target, optimize, .{
+    const wwise_dependency = b.dependency("wwise-zig", .{
+        .target = target,
+        .optimize = optimize,
         .use_communication = true,
         .use_default_job_worker = true,
-        .use_static_crt = true,
         .use_spatial_audio = false,
+        .use_static_crt = true,
         .include_file_package_io_blocking = true,
         .configuration = .profile,
-        .static_plugins = &.{
+        .static_plugins = @as([]const []const u8, &.{
             "AkToneSource",
             "AkParametricEQFX",
             "AkDelayFX",
@@ -184,12 +183,10 @@ pub fn build(b: *std.Build) void {
             "AkSynthOneSource",
             "AkAudioInputSource",
             "AkVorbisDecoder",
-        },
-    }) catch unreachable;
+        }),
+    });
 
-    exe.addModule("wwise-zig", wwise_package.module);
-    exe.linkLibrary(wwise_package.c_library);
-    wwise_zig.wwiseLink(exe, wwise_package.options) catch unreachable;
+    exe.root_module.addImport("wwise-zig", wwise_dependency.module("wwise-zig"));
 
     // const build_soundbanks_step = wwise_zig.addGenerateSoundBanksStep(
     //     b,
@@ -203,13 +200,13 @@ pub fn build(b: *std.Build) void {
     const wwise_id_module = wwise_zig.generateWwiseIDModule(
         b,
         "content/audio/wwise/Wwise_IDs.h",
-        wwise_package.module,
+        wwise_dependency.module("wwise-zig"),
         .{
             // .previous_step = &build_soundbanks_step.step,
         },
     );
 
-    exe.addModule("wwise-ids", wwise_id_module);
+    exe.root_module.addImport("wwise-ids", wwise_id_module);
 
     b.installArtifact(exe);
 
@@ -222,7 +219,7 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 }
 
-fn buildTheForgeRenderer(b: *std.build.Builder) *std.build.Step {
+fn buildTheForgeRenderer(b: *std.Build) *std.Build.Step {
     const build_step = b.step(
         "the-forge-tides-renderer",
         "Build The-Forge renderer",
