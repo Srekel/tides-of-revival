@@ -4,18 +4,19 @@ const config = @import("config.zig");
 const core = @import("../core/core.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("flecs_data.zig");
-const gfx = @import("../renderer/gfx_d3d12.zig");
+const renderer = @import("../renderer/tides_renderer.zig");
 const ID = core.ID;
 const IdLocal = core.IdLocal;
+const zm = @import("zmath");
 
 const DEBUG_CAMERA_ACTIVE = false;
 
 pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
     const sun_light = ecsu_world.newEntity();
-    sun_light.set(fd.Rotation.initFromEulerDegrees(50.0, -30.0, 0.0));
+    sun_light.set(fd.Rotation.initFromEulerDegrees(45.0, 45.0, 0.0));
     sun_light.set(fd.DirectionalLight{
-        .color = .{ .r = 0.5, .g = 0.5, .b = 0.8 },
-        .intensity = 0.5,
+        .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
+        .intensity = 1.0,
     });
 
     // ██████╗  ██████╗ ██╗    ██╗
@@ -60,7 +61,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
 
     const debug_camera_ent = ecsu_world.newEntity();
-    debug_camera_ent.set(fd.Position{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
+    debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
@@ -79,7 +80,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
-    const sphere_prefab = prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
+    const sphere_prefab = prefab_mgr.getPrefab(config.prefab.sphere_id).?;
     const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");

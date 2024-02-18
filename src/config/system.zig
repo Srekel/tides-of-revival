@@ -65,7 +65,6 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     city_sys = try city_system.create(
         ID("city_system"),
         std.heap.page_allocator,
-        gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
         physics_sys.physics_world,
         gameloop_context.asset_mgr,
@@ -75,7 +74,7 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     camera_sys = try camera_system.create(
         ID("camera_system"),
         std.heap.page_allocator,
-        gameloop_context.gfx_state,
+        // gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
         gameloop_context.input_frame_data,
     );
@@ -91,23 +90,19 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     light_sys = try light_system.create(
         IdLocal.initFormat("light_system_{}", .{0}),
         std.heap.page_allocator,
-        gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
-        gameloop_context.input_frame_data,
+        gameloop_context.lights_buffer_indices,
     );
 
     static_mesh_renderer_sys = try static_mesh_renderer_system.create(
         IdLocal.initFormat("static_mesh_renderer_system_{}", .{0}),
         std.heap.page_allocator,
-        gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
-        gameloop_context.input_frame_data,
     );
 
     terrain_quad_tree_sys = try terrain_quad_tree_system.create(
         IdLocal.initFormat("terrain_quad_tree_system{}", .{0}),
         std.heap.page_allocator,
-        gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
         gameloop_context.world_patch_mgr,
     );

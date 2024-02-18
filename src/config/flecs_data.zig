@@ -1,16 +1,13 @@
 const std = @import("std");
-const zglfw = @import("zglfw");
 const zphy = @import("zphysics");
 const zm = @import("zmath");
-const zmesh = @import("zmesh");
 const ecs = @import("zflecs");
 const window = @import("../renderer/window.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
-const MeshHandle = @import("../renderer/gfx_d3d12.zig").MeshHandle;
-const TextureHandle = @import("../renderer/gfx_d3d12.zig").TextureHandle;
-const MaterialHandle = @import("../renderer/gfx_d3d12.zig").MaterialHandle;
-const rt = @import("../renderer/renderer_types.zig");
+const renderer = @import("../renderer/tides_renderer.zig");
+const MeshHandle = renderer.MeshHandle;
+const TextureHandle = renderer.TextureHandle;
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
     const ecs_world = ecsu_world.world;
@@ -333,7 +330,7 @@ pub const Velocity = struct {
 
 pub const SurfaceType = enum {
     @"opaque",
-    mask,
+    masked,
 };
 
 pub const PBRMaterial = struct {
@@ -351,14 +348,14 @@ pub const PBRMaterial = struct {
     pub fn init() PBRMaterial {
         return .{
             .base_color = ColorRGB.init(1, 1, 1),
-            .roughness = 0.5,
+            .roughness = 0.8,
             .metallic = 0,
             .normal_intensity = 1.0,
             .emissive_strength = 1.0,
-            .albedo = TextureHandle.nil,
-            .normal = TextureHandle.nil,
-            .arm = TextureHandle.nil,
-            .emissive = TextureHandle.nil,
+            .albedo = TextureHandle.invalidTexture(),
+            .normal = TextureHandle.invalidTexture(),
+            .arm = TextureHandle.invalidTexture(),
+            .emissive = TextureHandle.invalidTexture(),
             .surface_type = .@"opaque",
         };
     }
@@ -370,10 +367,10 @@ pub const PBRMaterial = struct {
             .metallic = metallic,
             .normal_intensity = 1.0,
             .emissive_strength = 1.0,
-            .albedo = TextureHandle.nil,
-            .normal = TextureHandle.nil,
-            .arm = TextureHandle.nil,
-            .emissive = TextureHandle.nil,
+            .albedo = TextureHandle.invalidTexture(),
+            .normal = TextureHandle.invalidTexture(),
+            .arm = TextureHandle.invalidTexture(),
+            .emissive = TextureHandle.invalidTexture(),
             .surface_type = .@"opaque",
         };
     }
@@ -383,7 +380,7 @@ pub const StaticMeshComponent = struct {
     mesh_handle: MeshHandle,
 
     material_count: u32,
-    material_handles: [rt.sub_mesh_count_max]MaterialHandle,
+    materials: [renderer.sub_mesh_max_count]PBRMaterial,
 };
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗

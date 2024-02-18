@@ -41,6 +41,8 @@ pub const view_mode_roughness = ID("view_mode_roughness");
 pub const view_mode_ao = ID("view_mode_ao");
 pub const view_mode_depth = ID("view_mode_depth");
 
+pub const reload_shaders = ID("reload_shaders");
+
 pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap {
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(allocator);
@@ -77,6 +79,7 @@ pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap
         itm.putAssumeCapacity(view_mode_roughness, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(view_mode_ao, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(view_mode_depth, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(reload_shaders, input.TargetValue{ .number = 0 });
         break :blk itm;
     };
 
@@ -108,7 +111,7 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_secondary, .source = input.BindingSource{ .keyboard_key = .h } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = draw_bounding_spheres, .source = input.BindingSource{ .keyboard_key = .b } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .r } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .x } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = exit, .source = input.BindingSource{ .keyboard_key = .escape } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_lit, .source = input.BindingSource{ .keyboard_key = .zero } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_albedo, .source = input.BindingSource{ .keyboard_key = .one } });
@@ -117,6 +120,7 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_roughness, .source = input.BindingSource{ .keyboard_key = .four } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_ao, .source = input.BindingSource{ .keyboard_key = .five } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_depth, .source = input.BindingSource{ .keyboard_key = .six } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = reload_shaders, .source = input.BindingSource{ .keyboard_key = .r } });
 
         //
         // MOUSE
