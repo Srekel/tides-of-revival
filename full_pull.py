@@ -40,7 +40,9 @@ def task_sync_svn():
 
 
 def task_build_game():
-    Path(os.path.join("zig-out", "bin", "content", "systems")).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join("zig-out", "bin", "content", "systems")).mkdir(
+        parents=True, exist_ok=True
+    )
     # os.system("zig build")
     subprocess.run(
         [
@@ -54,6 +56,7 @@ def task_build_game():
         capture_output=False,
         text=True,
     )
+
 
 def task_nuke_cache():
     if os.path.isdir("zig-cache"):
@@ -93,14 +96,14 @@ def task_sync_world():
             dst_root = os.path.join(dst, os.path.relpath(src_root, src))
             dirs = filecmp.dircmp(src_root, dst_root)
             for item in dirs.right_only:
-                print('Removing ' + item)
+                print("Removing " + item)
                 dst_path = os.path.join(dst_root, item)
                 if os.path.isdir(dst_path):
                     shutil.rmtree(dst_path)
                 else:
                     os.remove(dst_path)
             for item in dirs.left_only:
-                print('Adding ' + item)
+                print("Adding " + item)
                 src_path = os.path.join(src_root, item)
                 if os.path.isdir(src_path):
                     shutil.copytree(src_path, os.path.join(dst_root, item))

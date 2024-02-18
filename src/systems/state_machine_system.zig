@@ -58,10 +58,10 @@ pub fn create(
     var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
     _ = query_builder
         .with(fd.FSM);
-    var query = query_builder.buildQuery();
+    const query = query_builder.buildQuery();
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
         .ecsu_world = ctx.ecsu_world,
@@ -90,7 +90,7 @@ fn initStateData(system: *SystemState) void {
     const sm_ctx = fsm.StateCreateContext.view(system);
 
     const player_sm = blk: {
-        var initial_state = StatePlayerIdle.create(sm_ctx);
+        const initial_state = StatePlayerIdle.create(sm_ctx);
         var states = std.ArrayList(fsm.State).init(system.allocator);
         states.append(initial_state) catch unreachable;
         const sm = fsm.StateMachine.create("player_controller", states, "idle");
@@ -103,13 +103,13 @@ fn initStateData(system: *SystemState) void {
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
         .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
-            var blob_array = BlobArray(16).create(system.allocator, player_sm.max_state_size);
+            const blob_array = BlobArray(16).create(system.allocator, player_sm.max_state_size);
             break :blk blob_array;
         },
     }) catch unreachable;
 
     const debug_camera_sm = blk: {
-        var initial_state = StateCameraFreefly.create(sm_ctx);
+        const initial_state = StateCameraFreefly.create(sm_ctx);
         var states = std.ArrayList(fsm.State).init(system.allocator);
         states.append(initial_state) catch unreachable;
         const sm = fsm.StateMachine.create("debug_camera", states, "freefly");
@@ -122,13 +122,13 @@ fn initStateData(system: *SystemState) void {
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
         .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
-            var blob_array = BlobArray(16).create(system.allocator, debug_camera_sm.max_state_size);
+            const blob_array = BlobArray(16).create(system.allocator, debug_camera_sm.max_state_size);
             break :blk blob_array;
         },
     }) catch unreachable;
 
     const fps_camera_sm = blk: {
-        var initial_state = StateCameraFPS.create(sm_ctx);
+        const initial_state = StateCameraFPS.create(sm_ctx);
         var states = std.ArrayList(fsm.State).init(system.allocator);
         states.append(initial_state) catch unreachable;
         const sm = fsm.StateMachine.create("fps_camera", states, "fps_camera");
@@ -141,13 +141,13 @@ fn initStateData(system: *SystemState) void {
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
         .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
-            var blob_array = BlobArray(16).create(system.allocator, fps_camera_sm.max_state_size);
+            const blob_array = BlobArray(16).create(system.allocator, fps_camera_sm.max_state_size);
             break :blk blob_array;
         },
     }) catch unreachable;
 
     const giant_ant_sm = blk: {
-        var initial_state = StateGiantAnt.create(sm_ctx);
+        const initial_state = StateGiantAnt.create(sm_ctx);
         var states = std.ArrayList(fsm.State).init(system.allocator);
         states.append(initial_state) catch unreachable;
         const sm = fsm.StateMachine.create("giant_ant", states, "giant_ant");
@@ -160,7 +160,7 @@ fn initStateData(system: *SystemState) void {
         .curr_states = std.ArrayList(*fsm.State).init(system.allocator),
         .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
         .blob_array = blk: {
-            var blob_array = BlobArray(16).create(system.allocator, giant_ant_sm.max_state_size);
+            const blob_array = BlobArray(16).create(system.allocator, giant_ant_sm.max_state_size);
             break :blk blob_array;
         },
     }) catch unreachable;
@@ -168,7 +168,7 @@ fn initStateData(system: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     const dt4 = zm.f32x4s(iter.iter.delta_time);
 
     // var entity_iter = system.query.iterator(struct {
@@ -213,11 +213,11 @@ const ObserverCallback = struct {
 };
 
 fn onSetCIFSM(it: *ecsu.Iterator(ObserverCallback)) void {
-    var observer = @as(*ecs.observer_t, @ptrCast(@alignCast(it.iter.ctx)));
-    var system: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
+    const observer = @as(*ecs.observer_t, @ptrCast(@alignCast(it.iter.ctx)));
+    const system: *SystemState = @ptrCast(@alignCast(observer.*.ctx));
     while (it.next()) |_| {
         const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIFSM), @as(i32, @intCast(it.index))).?;
-        var ci = @as(*fd.CIFSM, @ptrCast(@alignCast(ci_ptr)));
+        const ci = @as(*fd.CIFSM, @ptrCast(@alignCast(ci_ptr)));
 
         const smi_i = blk_smi_i: {
             const state_machine = blk_sm: {

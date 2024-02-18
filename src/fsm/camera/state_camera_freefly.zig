@@ -135,7 +135,7 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var self = ctx.allocator.create(StateCameraFreefly) catch unreachable;
+    const self = ctx.allocator.create(StateCameraFreefly) catch unreachable;
 
     return .{
         .name = IdLocal.init("freefly"),

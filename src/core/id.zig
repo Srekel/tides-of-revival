@@ -34,9 +34,9 @@ pub const IdLocal = struct {
             self.*.clear();
             return;
         }
-        self.strlen = @as(u8, @intCast(str.len));
+        self.strlen = @intCast(str.len);
         self.hash = std.hash.Wyhash.hash(0, str[0..self.strlen]);
-        std.mem.copy(u8, self.str[0..self.str.len], str);
+        @memcpy(self.str[0..str.len], str);
         self.str[self.strlen] = 0;
     }
 

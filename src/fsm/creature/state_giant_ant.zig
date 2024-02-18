@@ -56,7 +56,7 @@ fn updateSnapToTerrain(
         .origin = ray_origin,
         .direction = ray_dir,
     };
-    var result = query.castRay(
+    const result = query.castRay(
         ray,
         .{
             .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
@@ -198,7 +198,7 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .with(fd.FSM)
         .without(fd.Input);
 
-    var query = query_builder.buildQuery();
+    const query = query_builder.buildQuery();
     var self = ctx.allocator.create(StateGiantAnt) catch unreachable;
     self.query = query;
 

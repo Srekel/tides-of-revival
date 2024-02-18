@@ -105,7 +105,7 @@ pub const Patch = struct {
     pub fn isRequester(self: Patch, requester_id: RequesterId) bool {
         var i_req: u32 = 0;
         while (i_req < self.request_count) : (i_req += 1) {
-            var requester = &self.requesters[i_req];
+            const requester = &self.requesters[i_req];
             if (requester.requester_id == requester_id) {
                 return true;
             }
@@ -154,7 +154,7 @@ pub const Patch = struct {
 
         var i_req: u32 = 0;
         while (i_req < self.request_count) : (i_req += 1) {
-            var requester = &self.requesters[i_req];
+            const requester = &self.requesters[i_req];
             if (requester.requester_id == requester_id) {
                 self.request_count -= 1;
                 requester.* = self.requesters[self.request_count];
@@ -246,7 +246,7 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
         }
     }
 
-    var output = .{
+    const output = .{
         .buckets = buckets,
         .lods = lods,
         .lods_loaded = lods_loaded,

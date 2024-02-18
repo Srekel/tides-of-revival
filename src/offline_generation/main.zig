@@ -193,7 +193,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
     heightmapOutputValue.reference.set("heightmapPatches");
 
     //
-    var splatmapNode = blk: {
+    const splatmapNode = blk: {
         var node = g.Node{
             .name = IdLocal.init("Splatmap"),
             .template = splatmapNodeTemplate,
@@ -213,7 +213,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
     };
 
     //
-    var heightmapPatchArtifactNode = blk: {
+    const heightmapPatchArtifactNode = blk: {
         var node = g.Node{
             .name = IdLocal.init("Heightmap Patch Artifact"),
             .template = patchArtifactNodeTemplate,
@@ -233,7 +233,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
         break :blk node;
     };
 
-    var splatmapPatchArtifactNode = blk: {
+    const splatmapPatchArtifactNode = blk: {
         var node = g.Node{
             .name = IdLocal.init("Splatmap Patch Artifact"),
             .template = patchArtifactNodeTemplate,
@@ -254,7 +254,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
     };
 
     //
-    var cityNode = blk: {
+    const cityNode = blk: {
         var node = g.Node{
             .name = IdLocal.init("City"),
             .template = cityNodeTemplate,
@@ -271,7 +271,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
     };
 
     const forestNodeTemplate = graph_forest.forestNodeTemplate;
-    var forestNode = blk: {
+    const forestNode = blk: {
         var node = g.Node{
             .name = IdLocal.init("Forest"),
             .template = forestNodeTemplate,
@@ -287,7 +287,7 @@ pub fn generate(allocator: std.mem.Allocator) void {
     };
 
     const propsNodeTemplate = graph_props.propsNodeTemplate;
-    var propsNode = blk: {
+    const propsNode = blk: {
         var node = g.Node{
             .name = IdLocal.init("props"),
             .template = propsNodeTemplate,

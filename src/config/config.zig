@@ -77,11 +77,11 @@ pub const HeightmapHeader = packed struct {
     }
 
     pub fn getInsides(self_data: []const u8, comptime T: type) []const T {
-        var edges_start: usize = @sizeOf(HeightmapHeader);
-        var edges_end: usize = edges_start + 4 * patch_resolution * @sizeOf(u32);
-        var insides_start: usize = edges_end;
-        var insides_end: usize = insides_start + (patch_resolution - 2) * (patch_resolution - 2) * @sizeOf(T);
-        var insides: []const T = @alignCast(std.mem.bytesAsSlice(T, self_data[insides_start..insides_end]));
+        const edges_start: usize = @sizeOf(HeightmapHeader);
+        const edges_end: usize = edges_start + 4 * patch_resolution * @sizeOf(u32);
+        const insides_start: usize = edges_end;
+        const insides_end: usize = insides_start + (patch_resolution - 2) * (patch_resolution - 2) * @sizeOf(T);
+        const insides: []const T = @alignCast(std.mem.bytesAsSlice(T, self_data[insides_start..insides_end]));
         return insides;
     }
 };

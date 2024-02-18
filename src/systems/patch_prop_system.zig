@@ -52,8 +52,8 @@ pub fn create(
         .with(fd.Transform);
     const comp_query_loader = query_builder_loader.buildQuery();
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
     const medium_house_prefab = prefab_mgr.getPrefabByPath("prefabs/buildings/medium_house/medium_house.bin").?;
     const fir_tree_prefab = prefab_mgr.getPrefabByPath("prefabs/environment/fir/fir.bin").?;
@@ -87,7 +87,7 @@ pub fn destroy(system: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateLoaders(system);
     updatePatches(system);
 }
@@ -103,7 +103,7 @@ fn updateLoaders(system: *SystemState) void {
     const arena = arena_state.allocator();
 
     while (entity_iter.next()) |comps| {
-        var loader_comp = comps.WorldLoader;
+        const loader_comp = comps.WorldLoader;
         if (!loader_comp.props) {
             continue;
         }

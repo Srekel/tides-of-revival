@@ -27,7 +27,7 @@ fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
     const ptr_typeinfo = @typeInfo(ptr_type);
     const obj_type = ptr_typeinfo.Pointer.child;
     _ = obj_type;
-    var ret: ptr_type = @ptrCast(@alignCast(ptr));
+    const ret: ptr_type = @ptrCast(@alignCast(ptr));
     return ret;
 }
 
@@ -133,7 +133,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             var splatmap: []SplatmapMaterial = undefined;
             var evictable_lru_key: ?lru.LRUKey = null;
             var evictable_lru_value: ?lru.LRUValue = null;
-            var splatmapOpt = cache.try_get(patch_cache_key, &evictable_lru_key, &evictable_lru_value);
+            const splatmapOpt = cache.try_get(patch_cache_key, &evictable_lru_key, &evictable_lru_value);
             if (splatmapOpt != null) {
                 var arrptr = alignedCast([*]SplatmapMaterial, splatmapOpt.?.*);
                 // var arrptr = @ptrCast([*]SplatmapMaterial, splatmapOpt.?.*);
@@ -154,9 +154,9 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 while (y < patch_width) : (y += 1) {
                     var x: u64 = 0;
                     while (x < patch_width) : (x += 1) {
-                        var world_x = patch_x * patch_width + x;
-                        var world_z = patch_z * patch_width + y;
-                        var world_y = heightmap_patches.getHeight(world_x, world_z);
+                        const world_x = patch_x * patch_width + x;
+                        const world_z = patch_z * patch_width + y;
+                        const world_y = heightmap_patches.getHeight(world_x, world_z);
                         splatmap[x + y * patch_width] = @intFromFloat(4 * world_y / config.terrain_max);
                         // if (height_sample < 1000) {
                         //     splatmap[x + y * patch_width] = 50;
@@ -190,7 +190,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     var namebuf: [256]u8 = undefined;
                     const namebufslice = std.fmt.bufPrint(namebuf[0..namebuf.len], "content/splatmap/patch_x{}_z{}.pgm", .{ patch_x, patch_z }) catch unreachable;
 
-                    var pgm_opt: img.AllFormats.PGM.EncoderOptions = .{ .binary = true };
+                    const pgm_opt: img.AllFormats.PGM.EncoderOptions = .{ .binary = true };
                     const encoder_options = img.AllFormats.ImageEncoderOptions{ .pgm = pgm_opt };
                     hmimg.writeToFilePath(namebufslice, encoder_options) catch unreachable;
                 }

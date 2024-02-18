@@ -230,7 +230,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     physics_world.setGravity(.{ 0, -10.0, 0 });
 
     var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
@@ -310,8 +310,8 @@ fn updateBodies(system: *SystemState) void {
     const jolt_rot_z = zm.quatFromAxisAngle(up_world_z, handedness_offset);
     const body_interface = system.physics_world.getBodyInterfaceMut();
     while (entity_iter.next()) |comps| {
-        var body_comp = comps.body;
-        var body_id = body_comp.body_id;
+        const body_comp = comps.body;
+        const body_id = body_comp.body_id;
 
         if (!body_interface.isAdded(body_id)) {
             continue;
@@ -341,7 +341,7 @@ fn updateLoaders(system: *SystemState) void {
     const arena = arena_state.allocator();
 
     while (entity_iter.next()) |comps| {
-        var loader_comp = comps.WorldLoader;
+        const loader_comp = comps.WorldLoader;
         if (!loader_comp.physics) {
             continue;
         }
@@ -512,7 +512,7 @@ fn updatePatches(system: *SystemState) void {
                 for (0..width) |x| {
                     const index = @as(u32, @intCast(x + z * config.patch_resolution));
                     const height = data[index];
-                    var sample = &samples[x + z * width];
+                    const sample = &samples[x + z * width];
                     sample.* = height;
                     // sample.* = data[0] + @floatFromInt(f32, x + z) * 0.1;
                 }

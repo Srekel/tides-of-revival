@@ -29,7 +29,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
     _ = query_builder
         .with(fd.Camera)
         .with(fd.Transform);
-    var query_camera = query_builder.buildQuery();
+    const query_camera = query_builder.buildQuery();
 
     var query_builder_transform = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder_transform
@@ -46,7 +46,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
     query_builder_transform_parent_term.inout = .In;
     query_builder_transform_parent_term.oper = .Optional;
     query_builder_transform_parent_term.src.flags = ecs.Parent | ecs.Cascade;
-    var query_transform = query_builder_transform.buildQuery();
+    const query_transform = query_builder_transform.buildQuery();
 
     //     var edesc = ecs.system_desc_t{};
     //     edesc.id = 0;
@@ -63,9 +63,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
     //     // return ecs.system_init(self.world, &system_desc);
     // var sys = ecs.SYSTEM(ecsu_world, name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
-    var system = allocator.create(SystemState) catch unreachable;
+    const system = allocator.create(SystemState) catch unreachable;
 
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
@@ -92,7 +92,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer trazy_zone.End();
 
     defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     updateCameraSwitch(system);
     updateTransformHierarchy(system, iter.iter.delta_time);
     updateCameraMatrices(system);
@@ -165,8 +165,8 @@ fn updateCameraMatrices(system: *SystemState) void {
         }
 
         const z_transform = zm.loadMat43(comps.transform.matrix[0..]);
-        var z_forward = zm.util.getAxisZ(z_transform);
-        var z_pos = zm.util.getTranslationVec(z_transform);
+        const z_forward = zm.util.getAxisZ(z_transform);
+        const z_pos = zm.util.getTranslationVec(z_transform);
 
         const z_view = zm.lookToLh(
             z_pos,
@@ -253,7 +253,7 @@ fn onSetCICamera(it: *ecsu.Iterator(ObserverCallback)) void {
     // var system : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
     while (it.next()) |_| {
         const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CICamera), @as(i32, @intCast(it.index))).?;
-        var ci = @as(*fd.CICamera, @ptrCast(@alignCast(ci_ptr)));
+        const ci = @as(*fd.CICamera, @ptrCast(@alignCast(ci_ptr)));
         const ent = ecsu.Entity.init(it.iter.world, it.entity());
         ent.remove(fd.CICamera);
         ent.set(fd.Camera{

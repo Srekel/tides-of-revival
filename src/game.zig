@@ -134,8 +134,20 @@ pub fn run() void {
     system_context.put(config.event_mgr, &event_mgr);
     system_context.put(config.world_patch_mgr, world_patch_mgr);
     system_context.put(config.prefab_mgr, &prefab_mgr);
-
-    var physics_world: *zphy.PhysicsSystem = undefined;
+    //
+    const GameloopContext = struct {
+        allocator: std.mem.Allocator,
+        asset_mgr: *AssetManager,
+        audio_mgr: *audio_manager.AudioManager,
+        ecsu_world: ecsu.World,
+        event_mgr: *EventManager,
+        gfx: *gfx.D3D12State,
+        gfx_state: *gfx.D3D12State,
+        input_frame_data: *input.FrameData,
+        physics_world: *zphy.PhysicsSystem,
+        prefab_mgr: *prefab_manager.PrefabManager,
+        world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    };
 
     // HACK(gmodarelli): Passing the current frame buffer indices for lights
     var lights_buffer_indices = renderer.HackyLightBuffersIndices{
@@ -145,13 +157,13 @@ pub fn run() void {
         .point_lights_count = 0,
     };
 
-    var gameloop_context = .{
+    var gameloop_context: GameloopContext = .{
         .allocator = std.heap.page_allocator,
         .audio_mgr = &audio_mgr,
         .ecsu_world = ecsu_world,
         .event_mgr = &event_mgr,
         .input_frame_data = &input_frame_data,
-        .physics_world = physics_world, // TODO: Optional
+        .physics_world = undefined,
         .prefab_mgr = &prefab_mgr,
         .world_patch_mgr = world_patch_mgr,
         .asset_mgr = &asset_mgr,
@@ -160,6 +172,7 @@ pub fn run() void {
         .main_window = main_window,
         .lights_buffer_indices = &lights_buffer_indices,
     };
+
     config.system.createSystems(&gameloop_context, &system_context);
     config.system.setupSystems();
     defer config.system.destroySystems();
@@ -282,7 +295,7 @@ var once_per_duration_test: f32 = 0;
 
 fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timeline.WaveSpawnContext) bool {
     var input_frame_data = gameloop_context.input_frame_data;
-    var ecsu_world = gameloop_context.ecsu_world;
+    const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
     var app_settings = gameloop_context.app_settings;
     var main_window = gameloop_context.main_window;

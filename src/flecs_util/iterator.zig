@@ -82,7 +82,7 @@ pub fn Iterator(comptime Components: type) type {
         inline fn nextTable(self: *@This()) ?TableColumns {
             if (!self.nextFn(self.iter)) return null;
 
-            var terms = self.iter.terms.?;
+            const terms = self.iter.terms.?;
             var iter: TableColumns = .{ .count = self.iter.count_ };
             var index: usize = 0;
             inline for (@typeInfo(Components).Struct.fields, 0..) |field, i| {
@@ -97,7 +97,7 @@ pub fn Iterator(comptime Components: type) type {
                 const column_index = terms[index].field_index;
                 const raw_term_id = ecs.field_id(self.iter, column_index + 1);
                 const term_id = if (ecs.id_is_pair(raw_term_id)) ecs.pair_first(raw_term_id) else raw_term_id;
-                var skip_term = if (is_optional) ecsu.meta.componentId(self.iter.world, col_type) != term_id else false;
+                const skip_term = if (is_optional) ecsu.meta.componentId(self.iter.world, col_type) != term_id else false;
 
                 // note that an OR is actually a single term!
                 // std.debug.print("---- col_type: {any}, optional: {any}, i: {d}, col_index: {d}, skip_term: {d}\n", .{ col_type, is_optional, i, column_index, skip_term });
