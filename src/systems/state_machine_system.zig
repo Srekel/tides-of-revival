@@ -15,7 +15,6 @@ const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const config = @import("../config/config.zig");
 const context = @import("../core/context.zig");
 const audio_manager = @import("../audio/audio_manager.zig");
-const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
 
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
 const StateCameraFPS = @import("../fsm/camera/state_camera_fps.zig");
@@ -40,7 +39,6 @@ pub const SystemState = struct {
     physics_world: *zphy.PhysicsSystem,
     audio_mgr: *audio_manager.AudioManager,
     // prefab_mgr: *PrefabManager,
-    // gfx: *gfx_d3d12.D3D12State,
 };
 
 pub const SystemCtx = struct {
@@ -50,7 +48,6 @@ pub const SystemCtx = struct {
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     // prefab_mgr: *PrefabManager,
-    // gfx: *gfx_d3d12.D3D12State,
 };
 
 pub fn create(
@@ -76,7 +73,6 @@ pub fn create(
         .physics_world = ctx.physics_world,
         .audio_mgr = ctx.audio_mgr,
         // .prefab_mgr = ctx.prefab_mgr,
-        // .gfx = ctx.gfx,
     };
 
     ctx.ecsu_world.observer(ObserverCallback, ecs.OnSet, system);

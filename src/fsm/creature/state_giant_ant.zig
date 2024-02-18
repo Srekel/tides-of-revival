@@ -13,7 +13,6 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
-const gfx_d3d12 = @import("../../renderer/gfx_d3d12.zig");
 
 pub const NonMovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
@@ -48,7 +47,6 @@ fn updateSnapToTerrain(
     pos: *fd.Position,
     body: *fd.PhysicsBody,
     player_pos: *const fd.Position,
-    // gfx: *gfx_d3d12.D3D12State,
 ) void {
     const query = physics_world.getNarrowPhaseQuery();
 

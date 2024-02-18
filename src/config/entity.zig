@@ -5,7 +5,6 @@ const core = @import("../core/core.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("flecs_data.zig");
 const renderer = @import("../renderer/tides_renderer.zig");
-const gfx = @import("../renderer/gfx_d3d12.zig");
 const ID = core.ID;
 const IdLocal = core.IdLocal;
 const zm = @import("zmath");

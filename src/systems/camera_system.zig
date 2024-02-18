@@ -3,8 +3,6 @@ const math = std.math;
 const ecs = @import("zflecs");
 const zgpu = @import("zgpu");
 const zm = @import("zmath");
-const gfx_d3d12 = @import("../renderer/gfx_d3d12.zig");
-const zd3d12 = @import("zd3d12");
 
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
@@ -18,7 +16,6 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     sys: ecs.entity_t,
 
-    // gctx: *zd3d12.GraphicsContext,
     query_camera: ecsu.Query,
     query_transform: ecsu.Query,
 
@@ -27,7 +24,6 @@ pub const SystemState = struct {
     active_index: u32 = 1,
 };
 
-// pub fn create(name: IdLocal, allocator: std.mem.Allocator, gfxstate: *gfx_d3d12.D3D12State, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
 pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
     var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
