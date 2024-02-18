@@ -31,7 +31,7 @@ pub const PrefabManager = struct {
 
     pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, world: ecsu.World) ecsu.Entity {
         const path_id = IdLocal.init(path);
-        var existing_prefab = self.prefab_hash_map.get(path_id);
+        const existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
             return prefab;
         }
@@ -70,7 +70,7 @@ pub const PrefabManager = struct {
 
     pub fn getPrefabByPath(self: *@This(), path: []const u8) ?ecsu.Entity {
         const path_id = IdLocal.init(path);
-        var existing_prefab = self.prefab_hash_map.get(path_id);
+        const existing_prefab = self.prefab_hash_map.get(path_id);
         if (existing_prefab) |prefab| {
             return prefab;
         }

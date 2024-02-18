@@ -13,7 +13,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     {
         player = prefab_mgr.loadPrefabFromBinary("prefabs/characters/player/player.bin", ecsu_world);
         player.setOverride(fd.Dynamic{});
-        var static_mesh_component = player.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = player.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
@@ -23,7 +23,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     {
         giant_ant = prefab_mgr.loadPrefabFromBinary("prefabs/creatures/giant_ant/giant_ant.bin", ecsu_world);
         giant_ant.setOverride(fd.Dynamic{});
-        var static_mesh_component = giant_ant.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = giant_ant.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = fd.PBRMaterial.init();
@@ -34,9 +34,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var albedo = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_albedo.dds");
-        var arm = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_arm.dds");
-        var normal = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_normal.dds");
+        const albedo = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_albedo.dds");
+        const arm = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_arm.dds");
+        const normal = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_normal.dds");
 
         bow = prefab_mgr.loadPrefabFromBinary("prefabs/props/bow_arrow/bow.bin", ecsu_world);
         bow.setOverride(fd.Dynamic{});
@@ -64,7 +64,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     {
         var cube = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cube.bin", ecsu_world);
         cube.setOverride(fd.Dynamic{});
-        var static_mesh_component = cube.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = cube.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
@@ -74,7 +74,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     {
         var cylinder = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cylinder.bin", ecsu_world);
         cylinder.setOverride(fd.Dynamic{});
-        var static_mesh_component = cylinder.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = cylinder.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
@@ -84,7 +84,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     {
         var sphere = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_sphere.bin", ecsu_world);
         sphere.setOverride(fd.Dynamic{});
-        var static_mesh_component = sphere.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = sphere.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
@@ -93,7 +93,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var medium_house = prefab_mgr.loadPrefabFromBinary("prefabs/buildings/medium_house/medium_house.bin", ecsu_world);
-        var static_mesh_component = medium_house.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = medium_house.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 4;
 
@@ -121,7 +121,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var fir = prefab_mgr.loadPrefabFromBinary("prefabs/environment/fir/fir.bin", ecsu_world);
-        var static_mesh_component = fir.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = fir.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 2;
 
@@ -136,7 +136,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var sphere_test = prefab_mgr.loadPrefabFromBinary("prefabs/props/debug_sphere/debug_sphere.bin", ecsu_world);
-        var static_mesh_component = sphere_test.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = sphere_test.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 22;
 

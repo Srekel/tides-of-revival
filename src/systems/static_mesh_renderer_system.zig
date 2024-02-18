@@ -126,15 +126,15 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
         break :blk buffers;
     };
 
-    var draw_calls = [max_entity_types]std.ArrayList(renderer.DrawCallInstanced){ std.ArrayList(renderer.DrawCallInstanced).init(allocator), std.ArrayList(renderer.DrawCallInstanced).init(allocator) };
-    var draw_calls_push_constants = [max_entity_types]std.ArrayList(renderer.DrawCallPushConstants){ std.ArrayList(renderer.DrawCallPushConstants).init(allocator), std.ArrayList(renderer.DrawCallPushConstants).init(allocator) };
-    var draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
+    const draw_calls = [max_entity_types]std.ArrayList(renderer.DrawCallInstanced){ std.ArrayList(renderer.DrawCallInstanced).init(allocator), std.ArrayList(renderer.DrawCallInstanced).init(allocator) };
+    const draw_calls_push_constants = [max_entity_types]std.ArrayList(renderer.DrawCallPushConstants){ std.ArrayList(renderer.DrawCallPushConstants).init(allocator), std.ArrayList(renderer.DrawCallPushConstants).init(allocator) };
+    const draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
 
-    var instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
-    var instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
+    const instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
+    const instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     // var sys_post = ecsu_world.newWrappedRunSystem(name.toCString(), .post_update, fd.NOCOMP, post_update, .{ .ctx = system });
 
     // Queries
@@ -142,7 +142,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
     _ = query_builder_mesh
         .withReadonly(fd.Transform)
         .withReadonly(fd.StaticMeshComponent);
-    var query_mesh = query_builder_mesh.buildQuery();
+    const query_mesh = query_builder_mesh.buildQuery();
 
     system.* = .{
         .allocator = allocator,
@@ -337,13 +337,13 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             }
         }
 
-        var instance_data_slice = renderer.Slice{
+        const instance_data_slice = renderer.Slice{
             .data = @ptrCast(system.instance_data[entity_type_index].items),
             .size = system.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
         };
         renderer.updateBuffer(instance_data_slice, system.instance_data_buffers[entity_type_index][frame_index]);
 
-        var instance_material_slice = renderer.Slice{
+        const instance_material_slice = renderer.Slice{
             .data = @ptrCast(system.instance_materials[entity_type_index].items),
             .size = system.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
         };

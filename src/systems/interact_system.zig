@@ -84,8 +84,8 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     // const texture_path_u16 = @as([*:0]const u16, @ptrCast(&texture_path));
     // const crosshair_texture = ctx.gfx.scheduleLoadTexture(texture_path, .{ .state = .{ .PIXEL_SHADER_RESOURCE = true }, .name = texture_path_u16 }, ctx.allocator) catch unreachable;
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
@@ -115,7 +115,7 @@ pub fn destroy(system: *SystemState) void {
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
 
     // TODO(gmodarelli): Enable when we have a new UI system
     // {
@@ -160,7 +160,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         transform: *fd.Transform,
     });
 
-    var ecs_world = system.ecsu_world.world;
+    const ecs_world = system.ecsu_world.world;
     var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
 
@@ -172,7 +172,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
     const arrow_prefab = system.prefab_mgr.getPrefabByPath("prefabs/props/bow_arrow/arrow.bin").?;
     while (entity_iter.next()) |comps| {
-        var interactor_comp = comps.interactor;
+        const interactor_comp = comps.interactor;
 
         const item_ent_id = interactor_comp.wielded_item_ent_id;
         var weapon_comp = ecs.get_mut(ecs_world, item_ent_id, fd.ProjectileWeapon).?;
@@ -534,7 +534,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             const transform_target_z = transform_target.asZM();
             var transform_proj_z = transform_proj.asZM();
             var translation_proj_z = zm.util.getTranslationVec(transform_proj_z);
-            var forward_proj_z = zm.util.getAxisZ(transform_proj_z);
+            const forward_proj_z = zm.util.getAxisZ(transform_proj_z);
             translation_proj_z = translation_proj_z + forward_proj_z * zm.splat(zm.F32x4, 0.6);
             zm.util.setTranslationVec(&transform_proj_z, translation_proj_z);
 

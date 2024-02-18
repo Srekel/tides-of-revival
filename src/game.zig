@@ -76,7 +76,7 @@ pub fn run() void {
         .v_sync_enabled = true,
         .output_mode = .SDR,
     };
-    var success = renderer.initRenderer(&app_settings);
+    const success = renderer.initRenderer(&app_settings);
     if (success != 0) {
         std.log.err("Failed to initialize Tides Renderer", .{});
         return;
@@ -141,12 +141,14 @@ pub fn run() void {
         audio_mgr: *audio_manager.AudioManager,
         ecsu_world: ecsu.World,
         event_mgr: *EventManager,
-        gfx: *gfx.D3D12State,
-        gfx_state: *gfx.D3D12State,
         input_frame_data: *input.FrameData,
         physics_world: *zphy.PhysicsSystem,
         prefab_mgr: *prefab_manager.PrefabManager,
         world_patch_mgr: *world_patch_manager.WorldPatchManager,
+        stats: *renderer.FrameStats,
+        app_settings: *renderer.AppSettings,
+        main_window: *window.Window,
+        lights_buffer_indices: *renderer.HackyLightBuffersIndices,
     };
 
     // HACK(gmodarelli): Passing the current frame buffer indices for lights
@@ -298,9 +300,9 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
     var app_settings = gameloop_context.app_settings;
-    var main_window = gameloop_context.main_window;
+    const main_window = gameloop_context.main_window;
     var stats = gameloop_context.stats;
-    var lights_buffer_indices = gameloop_context.lights_buffer_indices;
+    const lights_buffer_indices = gameloop_context.lights_buffer_indices;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
     defer trazy_zone.End();
@@ -384,8 +386,8 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     const camera_ent = util.getActiveCameraEnt(ecsu_world);
     const camera_component = camera_ent.get(fd.Camera).?;
     const camera_transform = camera_ent.get(fd.Transform).?;
-    var z_view = zm.loadMat(camera_component.view[0..]);
-    var z_proj = zm.loadMat(camera_component.projection[0..]);
+    const z_view = zm.loadMat(camera_component.view[0..]);
+    const z_proj = zm.loadMat(camera_component.projection[0..]);
 
     var frame_data: renderer.FrameData = undefined;
     frame_data.position = camera_transform.getPos00();

@@ -215,7 +215,7 @@ fn loadNodeHeightmap(
 
     const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_info.data_opt) |data| {
-        var data_slice = renderer.Slice{
+        const data_slice = renderer.Slice{
             .data = @as(*anyopaque, @ptrCast(data)),
             .size = data.len,
         };
@@ -247,7 +247,7 @@ fn loadNodeSplatmap(
 
     const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
     if (patch_info.data_opt) |data| {
-        var data_slice = renderer.Slice{
+        const data_slice = renderer.Slice{
             .data = @as(*anyopaque, @ptrCast(data)),
             .size = data.len,
         };
@@ -336,7 +336,7 @@ fn loadResources(
     {
         var i: u32 = 0;
         while (i < quad_tree_nodes.items.len) : (i += 1) {
-            var node = &quad_tree_nodes.items[i];
+            const node = &quad_tree_nodes.items[i];
             loadHeightAndSplatMaps(
                 node,
                 world_patch_mgr,
@@ -357,12 +357,12 @@ fn divideQuadTreeNode(
 
     var child_index: u32 = 0;
     while (child_index < 4) : (child_index += 1) {
-        var center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
-        var center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
-        var patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
-        var patch_index_y: u32 = if (child_index < 2) 1 else 0;
+        const center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
+        const center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
+        const patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
+        const patch_index_y: u32 = if (child_index < 2) 1 else 0;
 
-        var child_node = QuadTreeNode{
+        const child_node = QuadTreeNode{
             .center = [2]f32{ center_x, center_y },
             .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
             .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
@@ -389,12 +389,12 @@ pub fn create(
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
     const max_quad_tree_nodes: usize = 85 * 64;
     var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
-    var quads_to_render = std.ArrayList(u32).init(allocator);
-    var quads_to_load = std.ArrayList(u32).init(allocator);
+    const quads_to_render = std.ArrayList(u32).init(allocator);
+    const quads_to_load = std.ArrayList(u32).init(allocator);
 
     // Create initial sectors
     {
-        var patch_half_size = @as(f32, @floatFromInt(config.largest_patch_width)) / 2.0;
+        const patch_half_size = @as(f32, @floatFromInt(config.largest_patch_width)) / 2.0;
         var patch_y: u32 = 0;
         while (patch_y < 8) : (patch_y += 1) {
             var patch_x: u32 = 0;
@@ -418,7 +418,7 @@ pub fn create(
 
         var sector_index: u32 = 0;
         while (sector_index < 64) : (sector_index += 1) {
-            var node = &terrain_quad_tree_nodes.items[sector_index];
+            const node = &terrain_quad_tree_nodes.items[sector_index];
             divideQuadTreeNode(&terrain_quad_tree_nodes, node);
         }
     }
@@ -479,11 +479,11 @@ pub fn create(
         break :blk buffers;
     };
 
-    var draw_calls = std.ArrayList(renderer.DrawCallInstanced).init(allocator);
-    var draw_calls_push_constants = std.ArrayList(renderer.DrawCallPushConstants).init(allocator);
+    const draw_calls = std.ArrayList(renderer.DrawCallInstanced).init(allocator);
+    const draw_calls_push_constants = std.ArrayList(renderer.DrawCallPushConstants).init(allocator);
 
-    var system = allocator.create(SystemState) catch unreachable;
-    var sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const system = allocator.create(SystemState) catch unreachable;
+    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
     system.* = .{
         .allocator = allocator,
@@ -608,7 +608,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     if (instance_count > 0) {
         assert(instance_count <= max_instances);
-        var data_slice = renderer.Slice{
+        const data_slice = renderer.Slice{
             .data = @ptrCast(system.instance_data),
             .size = instance_count * @sizeOf(InstanceData),
         };
@@ -624,7 +624,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     });
 
     for (system.quads_to_load.items) |quad_index| {
-        var node = &system.terrain_quad_tree_nodes.items[quad_index];
+        const node = &system.terrain_quad_tree_nodes.items[quad_index];
         loadHeightAndSplatMaps(
             node,
             system.world_patch_mgr,
@@ -718,7 +718,7 @@ fn collectQuadsToRenderForSector(system: *SystemState, position: [2]f32, range: 
 
         for (higher_lod_node_indices) |higher_lod_node_index| {
             if (higher_lod_node_index != invalid_index) {
-                var child_node = &system.terrain_quad_tree_nodes.items[higher_lod_node_index];
+                const child_node = &system.terrain_quad_tree_nodes.items[higher_lod_node_index];
                 collectQuadsToRenderForSector(system, position, range, child_node, higher_lod_node_index, allocator) catch unreachable;
             } else {
                 // system.quads_to_render.append(node.child_indices[i]) catch unreachable;
