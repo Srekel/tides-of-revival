@@ -6,7 +6,7 @@ def compile_shader(input_filename, output_filename, shader_type):
     subprocess.run(
         [
             "dxc.exe",
-            os.path.join("..", "..", "external", "The-Forge", "Examples_3", "TidesRenderer", "src", "Shaders", "HLSL", input_filename),
+            os.path.join("..", "..", "src", "shaders", "HLSL", input_filename),
             "-Fo",
             os.path.join("..", "..", "zig-out", "bin", "content", "compiled_shaders", "DIRECT3D12", output_filename),
             "-E",
