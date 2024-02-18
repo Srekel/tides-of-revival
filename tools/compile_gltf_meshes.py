@@ -11,11 +11,11 @@ def compile_model(path):
             "AssetPipelineCmd.exe",
             "-pgltf",
             "--input",
-            os.path.join("..", "..", "content", "prefabs", path),
+            os.path.join("..", "..", "..", "content", "prefabs", path),
             "--output",
-            os.path.join("..", "..", output_path),
+            os.path.join("..", "..", "..", output_path),
         ],
-        cwd="./binaries/asset_pipeline",
+        cwd="./tools/binaries/asset_pipeline",
         shell=True,
     )
 

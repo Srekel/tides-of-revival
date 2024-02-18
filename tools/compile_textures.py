@@ -14,10 +14,10 @@ def compile_texture(input_path, input_file, format):
             "-f",
             format,
             "-o",
-            os.path.join("..", "..", output_path),
-            os.path.join("..", "..", "content", input_path, input_file),
+            os.path.join("..", "..", "..", output_path),
+            os.path.join("..", "..", "..", "content", input_path, input_file),
         ],
-        cwd="./binaries/texconv",
+        cwd="./tools/binaries/texconv",
         shell=True,
     )
 

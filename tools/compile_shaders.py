@@ -6,9 +6,9 @@ def compile_shader(input_filename, output_filename, shader_type):
     subprocess.run(
         [
             "dxc.exe",
-            os.path.join("..", "..", "src", "shaders", "HLSL", input_filename),
+            os.path.join("..", "..", "..", "src", "shaders", "HLSL", input_filename),
             "-Fo",
-            os.path.join("..", "..", "zig-out", "bin", "content", "compiled_shaders", "DIRECT3D12", output_filename),
+            os.path.join("..", "..", "..", "zig-out", "bin", "content", "compiled_shaders", "DIRECT3D12", output_filename),
             "-E",
             "main",
             "-T",
@@ -17,7 +17,7 @@ def compile_shader(input_filename, output_filename, shader_type):
             "-Ges",
             "-O3",
         ],
-        cwd="./binaries/dxc",
+        cwd="./tools/binaries/dxc",
         shell=True,
     )
 
