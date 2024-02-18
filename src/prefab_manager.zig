@@ -29,9 +29,8 @@ pub const PrefabManager = struct {
         self.prefab_hash_map.deinit();
     }
 
-    pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, world: ecsu.World) ecsu.Entity {
-        const path_id = IdLocal.init(path);
-        const existing_prefab = self.prefab_hash_map.get(path_id);
+    pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, id: IdLocal, world: ecsu.World) ecsu.Entity {
+        const existing_prefab = self.prefab_hash_map.get(id);
         if (existing_prefab) |prefab| {
             return prefab;
         }
@@ -58,7 +57,7 @@ pub const PrefabManager = struct {
         static_mesh_component.mesh_handle = mesh_handle;
         entity.setOverride(static_mesh_component);
 
-        self.prefab_hash_map.put(path_id, entity) catch unreachable;
+        self.prefab_hash_map.put(id, entity) catch unreachable;
         return entity;
     }
 
@@ -68,9 +67,8 @@ pub const PrefabManager = struct {
         return entity;
     }
 
-    pub fn getPrefabByPath(self: *@This(), path: []const u8) ?ecsu.Entity {
-        const path_id = IdLocal.init(path);
-        const existing_prefab = self.prefab_hash_map.get(path_id);
+    pub fn getPrefab(self: *@This(), id: IdLocal) ?ecsu.Entity {
+        const existing_prefab = self.prefab_hash_map.get(id);
         if (existing_prefab) |prefab| {
             return prefab;
         }

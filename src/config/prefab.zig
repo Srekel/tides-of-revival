@@ -4,14 +4,26 @@ const core = @import("../core/core.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("flecs_data.zig");
 const renderer = @import("../renderer/tides_renderer.zig");
+const ID = @import("../core/core.zig").ID;
 
 pub var player: ecsu.Entity = undefined;
 pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
 
+pub const arrow_id = ID("prefab_arrow");
+pub const bow_id = ID("prefab_bow");
+pub const cube_id = ID("prefab_cube");
+pub const cylinder_id = ID("prefab_cylinder");
+pub const debug_sphere_id = ID("prefab_debug_sphere");
+pub const fir_id = ID("prefab_fir");
+pub const giant_ant_id = ID("prefab_giant_ant");
+pub const medium_house_id = ID("prefab_medium_house");
+pub const player_id = ID("prefab_player");
+pub const sphere_id = ID("prefab_sphere");
+
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
     {
-        player = prefab_mgr.loadPrefabFromBinary("prefabs/characters/player/player.bin", ecsu_world);
+        player = prefab_mgr.loadPrefabFromBinary("prefabs/characters/player/player.bin", player_id, ecsu_world);
         player.setOverride(fd.Dynamic{});
         const static_mesh_component = player.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
@@ -21,7 +33,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        giant_ant = prefab_mgr.loadPrefabFromBinary("prefabs/creatures/giant_ant/giant_ant.bin", ecsu_world);
+        giant_ant = prefab_mgr.loadPrefabFromBinary("prefabs/creatures/giant_ant/giant_ant.bin", giant_ant_id, ecsu_world);
         giant_ant.setOverride(fd.Dynamic{});
         const static_mesh_component = giant_ant.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
@@ -38,7 +50,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const arm = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_arm.dds");
         const normal = renderer.loadTexture("prefabs/props/bow_arrow/bow_arrow_normal.dds");
 
-        bow = prefab_mgr.loadPrefabFromBinary("prefabs/props/bow_arrow/bow.bin", ecsu_world);
+        bow = prefab_mgr.loadPrefabFromBinary("prefabs/props/bow_arrow/bow.bin", bow_id, ecsu_world);
         bow.setOverride(fd.Dynamic{});
         var static_mesh_component = bow.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
@@ -49,7 +61,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             static_mesh.materials[0].normal = normal;
         }
 
-        var arrow = prefab_mgr.loadPrefabFromBinary("prefabs/props/bow_arrow/arrow.bin", ecsu_world);
+        var arrow = prefab_mgr.loadPrefabFromBinary("prefabs/props/bow_arrow/arrow.bin", arrow_id, ecsu_world);
         arrow.setOverride(fd.Dynamic{});
         static_mesh_component = arrow.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
@@ -62,7 +74,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var cube = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cube.bin", ecsu_world);
+        var cube = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cube.bin", cube_id, ecsu_world);
         cube.setOverride(fd.Dynamic{});
         const static_mesh_component = cube.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
@@ -72,7 +84,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var cylinder = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cylinder.bin", ecsu_world);
+        var cylinder = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cylinder.bin", cylinder_id, ecsu_world);
         cylinder.setOverride(fd.Dynamic{});
         const static_mesh_component = cylinder.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
@@ -82,7 +94,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var sphere = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_sphere.bin", ecsu_world);
+        var sphere = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_sphere.bin", sphere_id, ecsu_world);
         sphere.setOverride(fd.Dynamic{});
         const static_mesh_component = sphere.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
@@ -92,7 +104,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var medium_house = prefab_mgr.loadPrefabFromBinary("prefabs/buildings/medium_house/medium_house.bin", ecsu_world);
+        var medium_house = prefab_mgr.loadPrefabFromBinary("prefabs/buildings/medium_house/medium_house.bin", medium_house_id, ecsu_world);
         const static_mesh_component = medium_house.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 4;
@@ -120,7 +132,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var fir = prefab_mgr.loadPrefabFromBinary("prefabs/environment/fir/fir.bin", ecsu_world);
+        var fir = prefab_mgr.loadPrefabFromBinary("prefabs/environment/fir/fir.bin", fir_id, ecsu_world);
         const static_mesh_component = fir.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 2;
@@ -135,7 +147,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var sphere_test = prefab_mgr.loadPrefabFromBinary("prefabs/props/debug_sphere/debug_sphere.bin", ecsu_world);
+        var sphere_test = prefab_mgr.loadPrefabFromBinary("prefabs/props/debug_sphere/debug_sphere.bin", debug_sphere_id, ecsu_world);
         const static_mesh_component = sphere_test.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 22;

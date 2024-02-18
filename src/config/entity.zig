@@ -80,7 +80,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
     debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
-    const sphere_prefab = prefab_mgr.getPrefabByPath("prefabs/primitives/primitive_sphere.bin").?;
+    const sphere_prefab = prefab_mgr.getPrefab(config.prefab.sphere_id).?;
     const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
     player_camera_ent.childOf(player_ent);
     player_camera_ent.setName("playercamera");

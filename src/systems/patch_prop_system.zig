@@ -10,6 +10,7 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const tides_math = @import("../core/math.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const ztracy = @import("ztracy");
+const config = @import("../config/config.zig");
 
 const WorldLoaderData = struct {
     ent: ecs.entity_t = 0,
@@ -55,9 +56,9 @@ pub fn create(
     const system = allocator.create(SystemState) catch unreachable;
     const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
-    const medium_house_prefab = prefab_mgr.getPrefabByPath("prefabs/buildings/medium_house/medium_house.bin").?;
-    const fir_tree_prefab = prefab_mgr.getPrefabByPath("prefabs/environment/fir/fir.bin").?;
-    const cube_prefab = prefab_mgr.getPrefabByPath("prefabs/primitives/primitive_cube.bin").?;
+    const medium_house_prefab = prefab_mgr.getPrefab(config.prefab.medium_house_id).?;
+    const fir_tree_prefab = prefab_mgr.getPrefab(config.prefab.fir_id).?;
+    const cube_prefab = prefab_mgr.getPrefab(config.prefab.cube_id).?;
 
     system.* = .{
         .flecs_sys = flecs_sys,
