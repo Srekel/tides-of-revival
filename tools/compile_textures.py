@@ -1,6 +1,7 @@
 import os
 import subprocess
 import platform
+from distutils.dir_util import copy_tree
 
 def compile_texture(input_path, input_file, format):
     output_path = os.path.join("zig-out", "bin", "content", input_path)
@@ -20,8 +21,15 @@ def compile_texture(input_path, input_file, format):
         shell=True,
     )
 
+def install_textures(textures_path):
+    copy_tree(os.path.join("content", textures_path), os.path.join("zig-out", "bin", "content", textures_path))
+
 if platform.system() == "Windows":
     print("Compiling Textures")
+
+    install_textures(os.path.join("textures", "env"))
+    install_textures(os.path.join("textures", "ui"))
+
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_albedo.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_arm.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_normal.png", "BC5_UNORM")

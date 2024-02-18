@@ -92,15 +92,6 @@ pub fn build(b: *std.Build) void {
         install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/VkLayer_khronos_validation.json" }, "bin/VkLayer_khronos_validation.json");
         install_file.step.dependOn(build_step);
         exe.step.dependOn(&install_file.step);
-
-        // Install Content
-        var install_content_step = b.addInstallDirectory(.{
-            .source_dir = .{ .path = tides_renderer_base_path ++ "/resources/textures/default" },
-            .install_dir = .{ .custom = "" },
-            .install_subdir = "bin/content/textures/default",
-        });
-        install_content_step.step.dependOn(build_step);
-        exe.step.dependOn(&install_content_step.step);
     }
 
     const zflecs_pkg = zflecs.package(b, target, optimize, .{});
