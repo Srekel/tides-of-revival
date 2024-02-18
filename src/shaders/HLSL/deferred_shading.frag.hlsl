@@ -15,7 +15,7 @@ RES(Tex2D(float4), gBuffer1, UPDATE_FREQ_NONE, t4, binding = 7);
 RES(Tex2D(float4), gBuffer2, UPDATE_FREQ_NONE, t5, binding = 8);
 RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t6, binding = 9);
 
-#include "pbr.h"
+#include "pbr.hlsl"
 
 CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
 {

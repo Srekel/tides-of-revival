@@ -94,7 +94,7 @@ def main():
     sync_lib(
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "d712f70f20da1c24f8b7725792911f7c30a04372",
+        "a07be4ce771fdbe46e36fbf2072e097087c475c0",
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 

@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "terrain_resources.h"
+#include "terrain_resources.hlsl"
 
 VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 {

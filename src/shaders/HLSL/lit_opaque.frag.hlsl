@@ -1,8 +1,8 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#include "lit_resources.h"
-#include "utils.h"
+#include "lit_resources.hlsl"
+#include "utils.hlsl"
 
 GBufferOutput PS_MAIN( VSOutput Input) {
     INIT_MAIN;

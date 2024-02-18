@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "lit_resources.h"
+#include "lit_resources.hlsl"
 
 VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 {

@@ -25,6 +25,8 @@ if platform.system() == "Windows":
     os.makedirs(os.path.join("zig-out", "bin", "content", "compiled_shaders", "DIRECT3D12"), exist_ok=True)
 
     print("Compiling HLSL Shaders")
+    compile_shader("skybox.vert.hlsl", "skybox.vert", "vs")
+    compile_shader("skybox.frag.hlsl", "skybox.frag", "ps")
     compile_shader("terrain.vert.hlsl", "terrain.vert", "vs")
     compile_shader("terrain.frag.hlsl", "terrain.frag", "ps")
     compile_shader("lit.vert.hlsl", "lit.vert", "vs")

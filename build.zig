@@ -95,14 +95,6 @@ pub fn build(b: *std.Build) void {
 
         // Install Content
         var install_content_step = b.addInstallDirectory(.{
-            .source_dir = .{ .path = tides_renderer_output_path ++ "/content/compiled_shaders" },
-            .install_dir = .{ .custom = "" },
-            .install_subdir = "bin/content/compiled_shaders",
-        });
-        install_content_step.step.dependOn(build_step);
-        exe.step.dependOn(&install_content_step.step);
-
-        install_content_step = b.addInstallDirectory(.{
             .source_dir = .{ .path = tides_renderer_base_path ++ "/resources/textures/default" },
             .install_dir = .{ .custom = "" },
             .install_subdir = "bin/content/textures/default",
