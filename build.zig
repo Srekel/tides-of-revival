@@ -111,17 +111,6 @@ pub fn build(b: *std.Build) void {
         exe.step.dependOn(&install_content_step.step);
     }
 
-    // Linking ImGUI
-    exe.linkSystemLibraryName("imm32");
-    exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs" });
-    exe.addIncludePath(.{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui" });
-    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui.cpp" }, .flags = &.{""} });
-    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_widgets.cpp" }, .flags = &.{""} });
-    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_tables.cpp" }, .flags = &.{""} });
-    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_draw.cpp" }, .flags = &.{""} });
-    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/imgui_demo.cpp" }, .flags = &.{""} });
-    exe.addCSourceFile(.{ .file = .{ .path = thisDir() ++ "/external/zig-gamedev/libs/common/libs/imgui/cimgui.cpp" }, .flags = &.{""} });
-
     const zflecs_pkg = zflecs.package(b, target, optimize, .{});
 
     const zglfw_pkg = zglfw.package(b, target, optimize, .{});
@@ -150,19 +139,6 @@ pub fn build(b: *std.Build) void {
     const ztracy_pkg = ztracy.package(b, target, optimize, .{ .options = ztracy_options });
 
     const zwin32_pkg = zwin32.package(b, target, optimize, .{});
-
-    const zd3d12_enable_debug_layer = b.option(bool, "zd3d12-enable_debug_layer", "Enable D3D12 Debug Layer") orelse false;
-    const zd3d12_enable_gbv = b.option(bool, "zd3d12-enable_gbv", "Enable D3D12 GPU Based Validation") orelse false;
-    const zd3d12_pkg = zd3d12.package(b, target, optimize, .{
-        .options = .{
-            .enable_debug_layer = zd3d12_enable_debug_layer,
-            .enable_gbv = zd3d12_enable_gbv,
-            .enable_d2d = true,
-            .upload_heap_capacity = 56 * 1024 * 1024,
-        },
-        .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
-    });
-
     const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
     const zpix_pkg = zpix.package(b, target, optimize, .{
         .options = .{ .enable = zpix_enable },
@@ -197,7 +173,7 @@ pub fn build(b: *std.Build) void {
     exe.addModule("zstbi", zstbi_pkg.zstbi);
     exe.addModule("ztracy", ztracy_pkg.ztracy);
 
-    zd3d12_pkg.link(exe);
+    // zd3d12_pkg.link(exe);
     zflecs_pkg.link(exe);
     zglfw_pkg.link(exe);
     zmesh_pkg.link(exe);
