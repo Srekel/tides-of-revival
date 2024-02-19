@@ -35,3 +35,6 @@ if platform.system() == "Windows":
     compile_shader("fullscreen.vert.hlsl", "fullscreen.vert", "vs")
     compile_shader("deferred_shading.frag.hlsl", "deferred_shading.frag", "ps")
     compile_shader("tonemapper.frag.hlsl", "tonemapper.frag", "ps")
+    compile_shader("brdf_integration.comp.hlsl", "brdf_integration.comp", "cs")
+    compile_shader("compute_irradiance_map.comp.hlsl", "compute_irradiance_map.comp", "cs")
+    compile_shader("compute_specular_map.comp.hlsl", "compute_specular_map.comp", "cs")

@@ -109,7 +109,7 @@ PsOut PS_MAIN( VsOut Input) {
     if (baseColor.a > 0)
     {
         float aoWithIntensity = 1.0f;
-        float environmentLightIntensity = 0.1f;
+        float environmentLightIntensity = 0.35f;
         EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness, aoWithIntensity, environmentLightIntensity, Out.Diffuse.rgb, Out.Specular.rgb);
     }
 
