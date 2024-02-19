@@ -34,12 +34,6 @@ STRUCT(VsOut)
     DATA(float2, UV, TEXCOORD0);
 };
 
-STRUCT(PsOut)
-{
-    DATA(float4, Diffuse,  SV_TARGET0);
-    DATA(float4, Specular, SV_TARGET1);
-};
-
 float3 getPositionFromDepth(float depth, float2 uv) {
     float x = uv.x * 2.0f - 1.0f;
     float y = (1.0f - uv.y) * 2.0f - 1.0f;
@@ -48,12 +42,8 @@ float3 getPositionFromDepth(float depth, float2 uv) {
     return positionWS.xyz / positionWS.w;
 }
 
-PsOut PS_MAIN( VsOut Input) {
+float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     INIT_MAIN;
-    PsOut Out;
-
-    Out.Diffuse = float4(0, 0, 0, 1);
-    Out.Specular = float4(0, 0, 0, 1);
 
     float4 baseColor  = SampleLvlTex2D(Get(gBuffer0), Get(bilinearClampSampler), Input.UV, 0);
     float3 N = normalize(SampleLvlTex2D(Get(gBuffer1), Get(bilinearClampSampler), Input.UV, 0).rgb * 2.0f - 1.0f);
@@ -65,6 +55,8 @@ PsOut PS_MAIN( VsOut Input) {
 
     float metalness = armSample.b;
     float roughness = armSample.g;
+
+    float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
     // Point Lights
     uint i;
@@ -84,9 +76,7 @@ PsOut PS_MAIN( VsOut Input) {
         const float  intensity = pointLight.colorAndIntensity.a;
         const float3 radiance = color * intensity * attenuation;
 
-        BRDF(N, V, L, baseColor.rgb, roughness, metalness, Out.Diffuse.rgb, Out.Specular.rgb);
-        Out.Diffuse.rgb *= radiance * NdotL * attenuation;
-        Out.Specular.rgb *= radiance * NdotL * attenuation;
+        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL;
     }
 
     // Directional Lights
@@ -100,18 +90,15 @@ PsOut PS_MAIN( VsOut Input) {
         const float  intensity = directionalLight.colorAndIntensity.a;
         const float3 radiance = color * intensity;
 
-        BRDF(N, V, L, baseColor.rgb, roughness, metalness, Out.Diffuse.rgb, Out.Specular.rgb);
-        Out.Diffuse.rgb *= radiance * NdotL;
-        Out.Specular.rgb *= radiance * NdotL;
+        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL;
     }
 
     // IBL (Environment Light)
     if (baseColor.a > 0)
     {
-        float aoWithIntensity = 1.0f;
         float environmentLightIntensity = 0.35f;
-        EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness, aoWithIntensity, environmentLightIntensity, Out.Diffuse.rgb, Out.Specular.rgb);
+        Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
     }
 
-    RETURN(Out);
+    RETURN(float4(Lo, 1.0f));
 }

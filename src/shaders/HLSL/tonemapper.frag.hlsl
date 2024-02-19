@@ -149,8 +149,7 @@ float3 gamma(float3 color) { return pow(abs(color), 1.0f / GAMMA); }
 
 RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s0, binding = 0);
 
-RES(Tex2D(float4), lightingDiffuse, UPDATE_FREQ_NONE, t0, binding = 1);
-RES(Tex2D(float4), lightingSpecular, UPDATE_FREQ_NONE, t1, binding = 2);
+RES(Tex2D(float4), sceneColor, UPDATE_FREQ_NONE, t0, binding = 1);
 
 STRUCT(VsOut)
 {
@@ -162,10 +161,8 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET {
     INIT_MAIN;
     float4 Out = float4(0, 0, 0, 1);
 
-    float3 diffuse = SampleLvlTex2D(Get(lightingDiffuse), Get(bilinearClampSampler), Input.UV, 0).rgb;
-    float3 specular = SampleLvlTex2D(Get(lightingSpecular), Get(bilinearClampSampler), Input.UV, 0).rgb;
-
-    float3 color = AMDTonemapper(diffuse + specular);
+    float3 color = SampleLvlTex2D(Get(sceneColor), Get(bilinearClampSampler), Input.UV, 0).rgb;
+    color = AMDTonemapper(color);
     Out.rgb = color;
 
     RETURN(Out);
