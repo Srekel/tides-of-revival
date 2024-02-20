@@ -53,7 +53,7 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
     tangentNormal.z = sqrt(1.0 - saturate(dot(tangentNormal.xy, tangentNormal.xy)));
     N = normalize(mul(tangentNormal, TBN));
 
-    float4 armSample = armTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV);
+    float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV), 1.0f / 2.2f);
     float roughness = armSample.g;
     float metallic = armSample.b;
 

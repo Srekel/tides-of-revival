@@ -29,7 +29,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(material.normalTextureIndex)) {
         Texture2D normalTexture = ResourceDescriptorHeap[material.normalTextureIndex];
-        N = UnpackNormals(Input.UV, V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
+        N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
     }
 
     if (isFrontFace) {
@@ -39,10 +39,10 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     float roughness = material.roughness;
     float metallic = material.metallic;
     if (hasValidTexture(material.armTextureIndex)) {
-        Texture2D arm_texture = ResourceDescriptorHeap[material.armTextureIndex];
-        float4 arm_sample = arm_texture.Sample(Get(bilinearRepeatSampler), Input.UV);
-        roughness = arm_sample.g;
-        metallic = arm_sample.b;
+        Texture2D armTexture = ResourceDescriptorHeap[material.armTextureIndex];
+        float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), Input.UV), 1.0f / 2.2f);
+        roughness = armSample.g;
+        metallic = armSample.b;
     }
 
     Out.GBuffer0 = float4(baseColor.rgb, 1.0f);

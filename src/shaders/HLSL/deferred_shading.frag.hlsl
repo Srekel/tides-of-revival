@@ -60,6 +60,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
 
     float metalness = armSample.b;
     float roughness = armSample.g;
+    if (roughness < 0.04) roughness = 0.04;
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 

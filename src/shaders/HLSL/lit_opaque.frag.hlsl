@@ -28,14 +28,14 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(material.normalTextureIndex)) {
         Texture2D normalTexture = ResourceDescriptorHeap[material.normalTextureIndex];
-        N = UnpackNormals(Input.UV, V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
+        N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
     }
 
     float roughness = material.roughness;
     float metallic = material.metallic;
     if (hasValidTexture(material.armTextureIndex)) {
         Texture2D armTexture = ResourceDescriptorHeap[material.armTextureIndex];
-        float4 armSample = armTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
+        float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), Input.UV), 1.0f / 2.2f);
         roughness = armSample.g;
         metallic = armSample.b;
     }
