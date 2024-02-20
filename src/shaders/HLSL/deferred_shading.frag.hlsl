@@ -46,6 +46,11 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     INIT_MAIN;
 
     float4 baseColor  = SampleLvlTex2D(Get(gBuffer0), Get(bilinearClampSampler), Input.UV, 0);
+    if (baseColor.a <= 0)
+    {
+        RETURN(float4(0.0, 0.0, 0.0, 0.0));
+    }
+
     float3 N = normalize(SampleLvlTex2D(Get(gBuffer1), Get(bilinearClampSampler), Input.UV, 0).rgb * 2.0f - 1.0f);
     float3 armSample = SampleLvlTex2D(Get(gBuffer2), Get(bilinearClampSampler), Input.UV, 0).rgb;
     float depth  = SampleLvlTex2D(Get(depthBuffer), Get(bilinearClampSampler), Input.UV, 0).r;
@@ -94,11 +99,8 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     }
 
     // IBL (Environment Light)
-    if (baseColor.a > 0)
-    {
-        float environmentLightIntensity = 0.35f;
-        Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
-    }
+    float environmentLightIntensity = 0.35f;
+    Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
 
     RETURN(float4(Lo, 1.0f));
 }

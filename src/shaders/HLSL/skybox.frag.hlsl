@@ -7,7 +7,7 @@ float4 PS_MAIN( VSOutput Input ) : SV_TARGET0
 {
 	INIT_MAIN;
 	float4 Out;
-    Out = SampleTexCube(Get(skyboxTex), Get(skyboxSampler), Input.pos);
+    Out = SampleTexCube(Get(skyboxMap), Get(bilinearRepeatSampler), Input.pos);
 
     RETURN(Out);
 }

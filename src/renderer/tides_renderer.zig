@@ -65,6 +65,7 @@ pub const FrameData = extern struct {
     point_lights_buffer_index: u32,
     directional_lights_count: u32,
     point_lights_count: u32,
+    skybox_mesh_handle: MeshHandle,
 };
 
 pub const PointLight = extern struct {

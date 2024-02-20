@@ -395,6 +395,9 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     frame_data.point_lights_buffer_index = lights_buffer_indices.point_lights_buffer_index;
     frame_data.directional_lights_count = lights_buffer_indices.directional_lights_count;
     frame_data.point_lights_count = lights_buffer_indices.point_lights_count;
+
+    const static_mesh_component = config.prefab.default_cube.getMut(fd.StaticMeshComponent).?;
+    frame_data.skybox_mesh_handle = static_mesh_component.*.mesh_handle;
     zm.storeMat(&frame_data.view_matrix, z_view);
     zm.storeMat(&frame_data.proj_matrix, z_proj);
 

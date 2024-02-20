@@ -11,11 +11,14 @@ CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
 	DATA(float4,   camPos,            None);
 };
 
-RES(TexCube(float4), skyboxTex, UPDATE_FREQ_NONE, t0, binding = 0);
-RES(SamplerState, skyboxSampler, UPDATE_FREQ_NONE, s0, binding = 1);
+RES(TexCube(float4), skyboxMap, UPDATE_FREQ_NONE, t0, binding = 0);
+RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
 
 STRUCT(VSInput) {
 	DATA(float4, Position, POSITION);
+	DATA(uint, Normal, NORMAL);
+	DATA(uint, Tangent, TANGENT);
+	DATA(uint, UV, TEXCOORD0);
 };
 
 STRUCT(VSOutput) {

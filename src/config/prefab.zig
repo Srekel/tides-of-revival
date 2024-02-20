@@ -9,6 +9,7 @@ const ID = @import("../core/core.zig").ID;
 pub var player: ecsu.Entity = undefined;
 pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
+pub var default_cube: ecsu.Entity = undefined;
 
 pub const arrow_id = ID("prefab_arrow");
 pub const bow_id = ID("prefab_bow");
@@ -74,9 +75,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var cube = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cube.bin", cube_id, ecsu_world);
-        cube.setOverride(fd.Dynamic{});
-        const static_mesh_component = cube.getMut(fd.StaticMeshComponent);
+        default_cube = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cube.bin", cube_id, ecsu_world);
+        default_cube.setOverride(fd.Dynamic{});
+        const static_mesh_component = default_cube.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
