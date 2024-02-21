@@ -10,14 +10,17 @@ pub var player: ecsu.Entity = undefined;
 pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
 pub var default_cube: ecsu.Entity = undefined;
+pub var matball: ecsu.Entity = undefined;
 
 pub const arrow_id = ID("prefab_arrow");
+pub const beech_tree_01_id = ID("beech_tree_02");
 pub const bow_id = ID("prefab_bow");
 pub const cube_id = ID("prefab_cube");
 pub const cylinder_id = ID("prefab_cylinder");
 pub const debug_sphere_id = ID("prefab_debug_sphere");
 pub const fir_id = ID("prefab_fir");
 pub const giant_ant_id = ID("prefab_giant_ant");
+pub const matball_id = ID("prefab_matball");
 pub const medium_house_id = ID("prefab_medium_house");
 pub const player_id = ID("prefab_player");
 pub const sphere_id = ID("prefab_sphere");
@@ -27,6 +30,16 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         player = prefab_mgr.loadPrefabFromBinary("prefabs/characters/player/player.bin", player_id, ecsu_world);
         player.setOverride(fd.Dynamic{});
         const static_mesh_component = player.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
+        }
+    }
+
+    {
+        matball = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/matball.bin", matball_id, ecsu_world);
+        matball.setOverride(fd.Dynamic{});
+        const static_mesh_component = matball.getMut(fd.StaticMeshComponent);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = fd.PBRMaterial.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
@@ -129,6 +142,25 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             static_mesh.materials[3].albedo = renderer.loadTexture("prefabs/buildings/medium_house/medium_house_stone_albedo.dds");
             static_mesh.materials[3].arm = renderer.loadTexture("prefabs/buildings/medium_house/medium_house_stone_arm.dds");
             static_mesh.materials[3].normal = renderer.loadTexture("prefabs/buildings/medium_house/medium_house_stone_normal.dds");
+        }
+    }
+
+    {
+        var beech_tree_01 = prefab_mgr.loadPrefabFromBinary("prefabs/environment/beech/beech_tree_01.bin", beech_tree_01_id, ecsu_world);
+        const static_mesh_component = beech_tree_01.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 2;
+
+            static_mesh.materials[0] = fd.PBRMaterial.init();
+            static_mesh.materials[0].albedo = renderer.loadTexture("prefabs/environment/beech/T_beech_bark_02_BC.dds");
+            static_mesh.materials[0].arm = renderer.loadTexture("prefabs/environment/beech/T_beech_bark_02_ARM.dds");
+            static_mesh.materials[0].normal = renderer.loadTexture("prefabs/environment/beech/T_beech_bark_02_N.dds");
+
+            static_mesh.materials[1] = fd.PBRMaterial.init();
+            static_mesh.materials[1].albedo = renderer.loadTexture("prefabs/environment/beech/T_beech_atlas_BC.dds");
+            static_mesh.materials[1].arm = renderer.loadTexture("prefabs/environment/beech/T_beech_atlas_ARM.dds");
+            static_mesh.materials[1].normal = renderer.loadTexture("prefabs/environment/beech/T_beech_atlas_N.dds");
+            static_mesh.materials[1].surface_type = .masked;
         }
     }
 

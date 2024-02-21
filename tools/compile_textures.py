@@ -30,6 +30,9 @@ if platform.system() == "Windows":
     install_textures(os.path.join("textures", "env"))
     install_textures(os.path.join("textures", "ui"))
 
+    compile_texture(os.path.join("textures", "debug"), "round_aluminum_panel_albedo.png", "BC1_UNORM")
+    compile_texture(os.path.join("textures", "debug"), "round_aluminum_panel_arm.tga", "BC1_UNORM")
+    compile_texture(os.path.join("textures", "debug"), "round_aluminum_panel_normal.png", "BC5_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_albedo.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_arm.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_normal.png", "BC5_UNORM")

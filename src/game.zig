@@ -225,13 +225,21 @@ pub fn run() void {
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     config.entity.init(player_pos, &prefab_mgr, ecsu_world);
 
-    const sphere_test_prefab = prefab_mgr.getPrefab(config.prefab.debug_sphere_id).?;
-    const sphere_test_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
-    var sphere_test_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_test_prefab);
-    sphere_test_ent.set(sphere_test_position);
-    sphere_test_ent.set(fd.Rotation{});
-    sphere_test_ent.set(fd.Scale.createScalar(1.0));
-    sphere_test_ent.set(fd.Transform.initFromPosition(sphere_test_position));
+    const matball_prefab = prefab_mgr.getPrefab(config.prefab.matball_id).?;
+    const matball_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
+    var matball_ent = prefab_mgr.instantiatePrefab(ecsu_world, matball_prefab);
+    const static_mesh_component = matball_ent.getMut(fd.StaticMeshComponent);
+    if (static_mesh_component) |static_mesh| {
+        static_mesh.material_count = 1;
+        static_mesh.materials[0] = fd.PBRMaterial.init();
+        static_mesh.materials[0].albedo = renderer.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
+        static_mesh.materials[0].arm = renderer.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
+        static_mesh.materials[0].normal = renderer.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
+    }
+    matball_ent.set(matball_position);
+    matball_ent.set(fd.Rotation{});
+    matball_ent.set(fd.Scale.createScalar(1.0));
+    matball_ent.set(fd.Transform.initFromPosition(matball_position));
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
