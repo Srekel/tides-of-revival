@@ -1,35 +1,9 @@
 import os
 import subprocess
+import sys
 
-
-def generate(header_filepath):
-    # assume we're at /external
-    external_path = os.getcwd()
-
-    header_filename = os.path.basename(header_filepath)
-    header_folderpath = os.path.dirname(header_filepath)
-    os.chdir(header_folderpath)
-
-    path_to_external = os.path.relpath(external_path, header_folderpath)
-    path_to_c2z = os.path.join(path_to_external, "c2z", "zig-out", "bin", "c2z")
-    # print(path_to_c2z)
-
-    print("-------------------------")
-    print("Generating", header_filename)
-    print(header_folderpath)
-    print("-------------------------")
-    subprocess.run(
-        [
-            path_to_c2z,
-            header_filename,
-        ],
-        cwd=".",
-        capture_output=False,
-        text=True,
-    )
-
-    # Back down to external...
-    os.chdir(external_path)
+sys.path.insert(0, os.path.join("..", "external", "zig-recastnavigation"))
+import generate_bindings_c2z
 
 
 def build_c2z():
@@ -64,15 +38,16 @@ def run():
 
     build_c2z()
 
-    headers = [
-        # os.path.join("zig-recastnavigation", "Recast", "Include", "Recast.h"),
-        # os.path.join("zig-recastnavigation", "Recast", "Include", "RecastAlloc.h"),
-        # os.path.join("zig-recastnavigation", "Recast", "Include", "RecastAssert.h"),
-        os.path.join("zig-recastnavigation", "Detour", "Include", "DetourCommon.h"),
-    ]
-
-    for header in headers:
-        generate(os.path.join(os.getcwd(), header))
+    c2z_exe_path = os.path.abspath(
+        os.path.join(os.getcwd(), "c2z", "zig-out", "bin", "c2z")
+    )
+    project_root_path = os.path.join(os.getcwd(), "zig-recastnavigation")
+    for header in generate_bindings_c2z.get_headers():
+        generate_bindings_c2z.generate(
+            c2z_exe_path,
+            project_root_path,
+            header,
+        )
 
     os.chdir(cwd)
 
@@ -80,5 +55,6 @@ def run():
 if __name__ == "__main__":
     run()
 
-    print("Done")
+    print("")
+    print("Done, press enter!")
     a = input()
