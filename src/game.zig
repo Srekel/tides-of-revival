@@ -4,6 +4,7 @@ const ecs = @import("zflecs");
 const ecsu = @import("flecs_util/flecs_util.zig");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
+const zglfw = @import("zglfw");
 const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
 const AK = @import("wwise-zig");
@@ -17,7 +18,6 @@ const config = @import("config/config.zig");
 const fd = @import("config/flecs_data.zig");
 const fr = @import("config/flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
-const gfx = @import("renderer/gfx_d3d12.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
 const input = @import("input.zig");
 const prefab_manager = @import("prefab_manager.zig");
@@ -25,6 +25,7 @@ const util = @import("util.zig");
 const Variant = @import("core/core.zig").Variant;
 const window = @import("renderer/window.zig");
 const EventManager = @import("core/event_manager.zig").EventManager;
+const renderer = @import("renderer/tides_renderer.zig");
 
 const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
@@ -58,14 +59,38 @@ pub fn run() void {
     fd.registerComponents(ecsu_world);
     fr.registerRelations(ecsu_world);
 
+    // Frame Stats
+    var stats = renderer.FrameStats.init();
+
     // GFX
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
-    main_window.setInputMode(.cursor, .disabled);
+    main_window.window.setInputMode(.cursor, .disabled);
 
-    const gfx_state = gfx.init(std.heap.page_allocator, main_window) catch unreachable;
-    defer gfx.deinit(gfx_state, std.heap.page_allocator);
+    // Initialize Tides Renderer
+    const nativeWindowHandle = zglfw.native.getWin32Window(main_window.window) catch unreachable;
+    var app_settings = renderer.AppSettings{
+        .width = 1920,
+        .height = 1080,
+        .window_native_handle = @as(*anyopaque, @constCast(nativeWindowHandle)),
+        .v_sync_enabled = true,
+        .output_mode = .SDR,
+    };
+    const success = renderer.initRenderer(&app_settings);
+    if (success != 0) {
+        std.log.err("Failed to initialize Tides Renderer", .{});
+        return;
+    }
+    var reload_desc = renderer.ReloadDesc{
+        .reload_type = renderer.ReloadType.ALL,
+    };
+    defer renderer.exitRenderer();
+
+    if (!renderer.onLoad(&reload_desc)) {
+        unreachable;
+    }
+    defer renderer.onUnload(&reload_desc);
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_state.deinit();
@@ -76,7 +101,7 @@ pub fn run() void {
     // Misc
     var prefab_mgr = prefab_manager.PrefabManager.init(ecsu_world, std.heap.page_allocator);
     defer prefab_mgr.deinit();
-    config.prefab.initPrefabs(&prefab_mgr, ecsu_world, std.heap.page_allocator, gfx_state);
+    config.prefab.initPrefabs(&prefab_mgr, ecsu_world);
 
     var event_mgr = EventManager.create(std.heap.page_allocator);
     defer event_mgr.destroy();
@@ -85,7 +110,7 @@ pub fn run() void {
     // Run it once to make sure we don't get huge diff values for cursor etc. the first frame.
     const input_target_defaults = config.input.createDefaultTargetDefaults(std.heap.page_allocator);
     const input_keymap = config.input.createKeyMap(std.heap.page_allocator);
-    var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window);
+    var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window.window);
     input.doTheThing(std.heap.page_allocator, &input_frame_data);
 
     var asset_mgr = AssetManager.create(std.heap.page_allocator);
@@ -122,12 +147,22 @@ pub fn run() void {
         audio_mgr: *audio_manager.AudioManager,
         ecsu_world: ecsu.World,
         event_mgr: *EventManager,
-        gfx: *gfx.D3D12State,
-        gfx_state: *gfx.D3D12State,
         input_frame_data: *input.FrameData,
         physics_world: *zphy.PhysicsSystem,
         prefab_mgr: *prefab_manager.PrefabManager,
         world_patch_mgr: *world_patch_manager.WorldPatchManager,
+        stats: *renderer.FrameStats,
+        app_settings: *renderer.AppSettings,
+        main_window: *window.Window,
+        lights_buffer_indices: *renderer.HackyLightBuffersIndices,
+    };
+
+    // HACK(gmodarelli): Passing the current frame buffer indices for lights
+    var lights_buffer_indices = renderer.HackyLightBuffersIndices{
+        .directional_lights_buffer_index = std.math.maxInt(u32),
+        .point_lights_buffer_index = std.math.maxInt(u32),
+        .directional_lights_count = 0,
+        .point_lights_count = 0,
     };
 
     var gameloop_context: GameloopContext = .{
@@ -138,10 +173,12 @@ pub fn run() void {
         .input_frame_data = &input_frame_data,
         .physics_world = undefined,
         .prefab_mgr = &prefab_mgr,
-        .gfx = gfx_state,
         .world_patch_mgr = world_patch_mgr,
-        .gfx_state = gfx_state,
         .asset_mgr = &asset_mgr,
+        .stats = &stats,
+        .app_settings = &app_settings,
+        .main_window = main_window,
+        .lights_buffer_indices = &lights_buffer_indices,
     };
 
     config.system.createSystems(&gameloop_context, &system_context);
@@ -194,6 +231,14 @@ pub fn run() void {
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     config.entity.init(player_pos, &prefab_mgr, ecsu_world);
 
+    const sphere_test_prefab = prefab_mgr.getPrefab(config.prefab.debug_sphere_id).?;
+    const sphere_test_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
+    var sphere_test_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_test_prefab);
+    sphere_test_ent.set(sphere_test_position);
+    sphere_test_ent.set(fd.Rotation{});
+    sphere_test_ent.set(fd.Scale.createScalar(1.0));
+    sphere_test_ent.set(fd.Transform.initFromPosition(sphere_test_position));
+
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
     //    ██║   ██║██╔████╔██║█████╗  ██║     ██║██╔██╗ ██║█████╗  ███████╗
@@ -211,7 +256,6 @@ pub fn run() void {
             .event_mgr = &event_mgr,
             .timeline_system = config.system.timeline_sys,
             .root_ent = player_spawn.?.city_ent,
-            .gfx = gfx_state,
         };
 
         config.timeline.initTimelines(&tl_giant_ant_spawn_ctx.?);
@@ -259,16 +303,17 @@ var once_per_duration_test: f32 = 0;
 
 fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timeline.WaveSpawnContext) bool {
     var input_frame_data = gameloop_context.input_frame_data;
-    var gfx_state = gameloop_context.gfx_state;
     const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
+    var app_settings = gameloop_context.app_settings;
+    const main_window = gameloop_context.main_window;
+    var stats = gameloop_context.stats;
+    const lights_buffer_indices = gameloop_context.lights_buffer_indices;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
     defer trazy_zone.End();
 
-    gfx.beginFrame(gfx_state);
-
-    const window_status = window.update(gfx_state) catch unreachable;
+    const window_status = window.update() catch unreachable;
     if (window_status == .no_windows) {
         return true;
     }
@@ -276,66 +321,101 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
         return true;
     }
 
-    // TODO: Move to The Debuginator
-    if (input_frame_data.just_pressed(config.input.view_mode_lit)) {
-        gfx_state.setViewMode(.lit);
+    if (input_frame_data.just_pressed(config.input.reload_shaders)) {
+        var reload_desc = renderer.ReloadDesc{
+            .reload_type = .{ .SHADER = true },
+        };
+        _ = renderer.requestReload(&reload_desc);
     }
 
-    if (input_frame_data.just_pressed(config.input.view_mode_albedo)) {
-        gfx_state.setViewMode(.albedo);
+    if (main_window.frame_buffer_size[0] != app_settings.width or main_window.frame_buffer_size[1] != app_settings.height) {
+        app_settings.width = main_window.frame_buffer_size[0];
+        app_settings.height = main_window.frame_buffer_size[1];
+
+        var reload_desc = renderer.ReloadDesc{
+            .reload_type = .{ .RESIZE = true },
+        };
+        renderer.onUnload(&reload_desc);
+        if (!renderer.onLoad(&reload_desc)) {
+            unreachable;
+        }
     }
 
-    if (input_frame_data.just_pressed(config.input.view_mode_world_normal)) {
-        gfx_state.setViewMode(.world_normal);
-    }
+    // TODO(gmodarelli): Add these view modes to tides_renderer
+    // // TODO: Move to The Debuginator
+    // if (input_frame_data.just_pressed(config.input.view_mode_lit)) {
+    //     gfx_state.setViewMode(.lit);
+    // }
 
-    if (input_frame_data.just_pressed(config.input.view_mode_metallic)) {
-        gfx_state.setViewMode(.metallic);
-    }
+    // if (input_frame_data.just_pressed(config.input.view_mode_albedo)) {
+    //     gfx_state.setViewMode(.albedo);
+    // }
 
-    if (input_frame_data.just_pressed(config.input.view_mode_roughness)) {
-        gfx_state.setViewMode(.roughness);
-    }
+    // if (input_frame_data.just_pressed(config.input.view_mode_world_normal)) {
+    //     gfx_state.setViewMode(.world_normal);
+    // }
 
-    if (input_frame_data.just_pressed(config.input.view_mode_ao)) {
-        gfx_state.setViewMode(.ao);
-    }
+    // if (input_frame_data.just_pressed(config.input.view_mode_metallic)) {
+    //     gfx_state.setViewMode(.metallic);
+    // }
 
-    if (input_frame_data.just_pressed(config.input.view_mode_depth)) {
-        gfx_state.setViewMode(.depth);
-    }
+    // if (input_frame_data.just_pressed(config.input.view_mode_roughness)) {
+    //     gfx_state.setViewMode(.roughness);
+    // }
+
+    // if (input_frame_data.just_pressed(config.input.view_mode_ao)) {
+    //     gfx_state.setViewMode(.ao);
+    // }
+
+    // if (input_frame_data.just_pressed(config.input.view_mode_depth)) {
+    //     gfx_state.setViewMode(.depth);
+    // }
 
     world_patch_mgr.tickOne();
-    update(ecsu_world, gfx_state);
+    update(ecsu_world, stats.delta_time);
 
     if (tl_giant_ant_spawn_ctx) |ctx| {
-        var ui_label = gfx.UILabel{
-            .label = undefined,
-            .font_size = 24,
-            .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-            .rect = .{ .left = 20, .top = 400, .bottom = 420, .right = 600 },
-        };
+        _ = ctx;
+        // TODO(gmodarelli): Add UILabel to tides_renderer
+        // var ui_label = gfx.UILabel{
+        //     .label = undefined,
+        //     .font_size = 24,
+        //     .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+        //     .rect = .{ .left = 20, .top = 400, .bottom = 420, .right = 600 },
+        // };
 
-        var buffer = [_]u8{0} ** 64;
-        ui_label.label = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
-        gfx_state.drawUILabel(ui_label) catch unreachable;
+        // var buffer = [_]u8{0} ** 64;
+        // ui_label.label = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
+        // gfx_state.drawUILabel(ui_label) catch unreachable;
     }
 
     const camera_ent = util.getActiveCameraEnt(ecsu_world);
-    gfx.endFrame(
-        gfx_state,
-        camera_ent.get(fd.Camera).?,
-        camera_ent.get(fd.Transform).?.getPos00(),
-    );
+    const camera_component = camera_ent.get(fd.Camera).?;
+    const camera_transform = camera_ent.get(fd.Transform).?;
+    const z_view = zm.loadMat(camera_component.view[0..]);
+    const z_proj = zm.loadMat(camera_component.projection[0..]);
+
+    var frame_data: renderer.FrameData = undefined;
+    frame_data.position = camera_transform.getPos00();
+    frame_data.directional_lights_buffer_index = lights_buffer_indices.directional_lights_buffer_index;
+    frame_data.point_lights_buffer_index = lights_buffer_indices.point_lights_buffer_index;
+    frame_data.directional_lights_count = lights_buffer_indices.directional_lights_count;
+    frame_data.point_lights_count = lights_buffer_indices.point_lights_count;
+
+    const static_mesh_component = config.prefab.default_cube.getMut(fd.StaticMeshComponent).?;
+    frame_data.skybox_mesh_handle = static_mesh_component.*.mesh_handle;
+    zm.storeMat(&frame_data.view_matrix, z_view);
+    zm.storeMat(&frame_data.proj_matrix, z_proj);
+
+    stats.update();
+    renderer.draw(frame_data);
 
     return false;
 }
 
-fn update(ecsu_world: ecsu.World, gfx_state: *gfx.D3D12State) void {
-    const stats = gfx_state.stats;
+fn update(ecsu_world: ecsu.World, dt: f32) void {
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-    const dt_actual: f32 = @floatCast(stats.delta_time);
-    const dt_game = dt_actual * environment_info.time_multiplier;
+    const dt_game = dt * environment_info.time_multiplier;
     environment_info.time_multiplier = 1;
 
     const flecs_stats = ecs.get_world_info(ecsu_world.world);

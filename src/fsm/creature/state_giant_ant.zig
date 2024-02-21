@@ -13,7 +13,6 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
-const gfx_d3d12 = @import("../../renderer/gfx_d3d12.zig");
 
 pub const NonMovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
@@ -48,7 +47,6 @@ fn updateSnapToTerrain(
     pos: *fd.Position,
     body: *fd.PhysicsBody,
     player_pos: *const fd.Position,
-    gfx: *gfx_d3d12.D3D12State,
 ) void {
     const query = physics_world.getNarrowPhaseQuery();
 
@@ -120,9 +118,10 @@ fn updateSnapToTerrain(
                 [3]f32{ 0, 0, 0 },
                 [3]f32{ 0, 0, 0 },
             );
-        } else if (gfx.end_screen_accumulated_time < 0) {
-            // gfx.end_screen_accumulated_time = 0;
         }
+        // } else if (gfx.end_screen_accumulated_time < 0) {
+        //     gfx.end_screen_accumulated_time = 0;
+        // }
     } else {
         const body_interface = physics_world.getBodyInterfaceMut();
         body_interface.setPosition(body.body_id, pos.elems().*, .dont_activate);
@@ -154,9 +153,9 @@ fn update(ctx: fsm.StateFuncContext) void {
     // const self = Util.cast(StateIdle, ctx.data.ptr);
     // _ = self;
 
-    if (ctx.gfx.end_screen_accumulated_time > 0.5) {
-        return;
-    }
+    // if (ctx.gfx.end_screen_accumulated_time > 0.5) {
+    //     return;
+    // }
 
     const self = Util.castBytes(StateGiantAnt, ctx.state.self);
     var entity_iter = self.query.iterator(struct {
@@ -182,7 +181,8 @@ fn update(ctx: fsm.StateFuncContext) void {
 
         if (body_interface.getMotionType(comps.body.body_id) == .kinematic) {
             updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, player_pos);
-            updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos, ctx.gfx);
+            // updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos, ctx.gfx);
+            updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos);
         }
     }
 }

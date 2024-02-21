@@ -1,6 +1,5 @@
 const std = @import("std");
 const ecs = @import("zflecs");
-const gfx = @import("../../renderer/gfx_d3d12.zig");
 const znoise = @import("znoise");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
@@ -23,7 +22,6 @@ pub const SystemState = struct {
     asset_mgr: *AssetManager = undefined,
     prefab_mgr: *PrefabManager,
 
-    gfx: *gfx.D3D12State,
     query_city: ecsu.Query,
     query_camp: ecsu.Query,
     query_caravan: ecsu.Query,
@@ -45,7 +43,6 @@ const CityEnt = struct {
 pub fn create(
     name: IdLocal,
     allocator: std.mem.Allocator,
-    gfxstate: *gfx.D3D12State,
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     asset_mgr: *AssetManager,
@@ -90,7 +87,6 @@ pub fn create(
         .sys = sys,
         .asset_mgr = asset_mgr,
         .prefab_mgr = prefab_mgr,
-        .gfx = gfxstate,
         .query_city = query_city,
         .query_camp = query_camp,
         .query_caravan = query_caravan,
@@ -113,7 +109,7 @@ pub fn createEntities(system: *SystemState) void {
     var buf_reader = std.io.fixedBufferStream(cities_data);
     var in_stream = buf_reader.reader();
     var buf: [1024]u8 = undefined;
-    const sphere_prefab = system.prefab_mgr.getPrefabByPath("content/prefabs/primitives/primitive_sphere.gltf").?;
+    const sphere_prefab = system.prefab_mgr.getPrefab(config.prefab.sphere_id);
     while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
         var comma_curr: usize = 0;
         var comma_next: usize = std.mem.indexOfScalar(u8, line, ","[0]).?;
@@ -136,10 +132,22 @@ pub fn createEntities(system: *SystemState) void {
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
         _ = rot_y;
 
-        var city_ent = system.prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
-        city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
-        // city_ent.set(fd.Scale.createScalar(10));
-        city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
+        if (sphere_prefab) |sphere| {
+            var city_ent = system.prefab_mgr.instantiatePrefab(ecsu_world, sphere);
+            city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
+            // city_ent.set(fd.Scale.createScalar(10));
+            city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
+
+            if (!added_spawn) {
+                added_spawn = true;
+                const spawn_pos = fd.Position.init(pos_x, pos_y + 1, pos_z);
+                var spawn_ent = system.ecsu_world.newEntity();
+                spawn_ent.set(spawn_pos);
+                spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
+                spawn_ent.addPair(fr.Hometown, city_ent);
+                // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
+            }
+        }
 
         var light_ent = system.ecsu_world.newEntity();
         light_ent.set(fd.Transform.initFromPosition(.{ .x = pos_x, .y = pos_y + 5, .z = pos_z }));
@@ -153,15 +161,6 @@ pub fn createEntities(system: *SystemState) void {
         // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));
         // light_viz_ent.set(fd.Scale.createScalar(1));
 
-        if (!added_spawn) {
-            added_spawn = true;
-            const spawn_pos = fd.Position.init(pos_x, pos_y + 1, pos_z);
-            var spawn_ent = system.ecsu_world.newEntity();
-            spawn_ent.set(spawn_pos);
-            spawn_ent.set(fd.SpawnPoint{ .active = true, .id = IdLocal.id64("player") });
-            spawn_ent.addPair(fr.Hometown, city_ent);
-            // spawn_ent.set(fd.Scale.createScalar(city_params.center_scale));
-        }
     }
 
     // Cities

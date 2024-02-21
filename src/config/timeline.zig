@@ -7,7 +7,6 @@ const EventManager = @import("../core/event_manager.zig").EventManager;
 const prefab_manager = @import("../prefab_manager.zig");
 const timeline_system = @import("../systems/timeline_system.zig");
 const ecs = @import("zflecs");
-const gfx = @import("../renderer/gfx_d3d12.zig");
 const core = @import("../core/core.zig");
 const config = @import("config.zig");
 const util = @import("../util.zig");
@@ -23,16 +22,16 @@ pub const WaveSpawnContext = struct {
     root_ent: ?ecs.entity_t,
     speed: f32 = 1,
     stage: f32 = 0,
-    gfx: *gfx.D3D12State,
 };
 
 fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     _ = entity;
 
     var ctx = util.castOpaque(WaveSpawnContext, data);
-    if (ctx.gfx.end_screen_accumulated_time > 0) {
-        return;
-    }
+    // TODO(gmodarelli): Restore game-over state
+    // if (ctx.gfx.end_screen_accumulated_time > 0) {
+    //     return;
+    // }
 
     ctx.stage += 1;
     timeline_system.modifyInstanceSpeed(ctx.timeline_system, ID("giantAntSpawn").hash, 0, ctx.speed);
