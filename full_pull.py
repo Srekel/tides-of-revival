@@ -23,6 +23,16 @@ def do_task(text, task_func, skip_confirm=False):
 # TASKS
 
 
+def task_sync_build_tools():
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    build_tools_path = os.path.join(script_path, "tools", "external", "msvc_BuildTools")
+    if not os.path.isdir(build_tools_path):
+        component_ids = "Microsoft.VisualStudio.Component.VC.CoreBuildTools Microsoft.VisualStudio.Component.VC.CoreIde Microsoft.VisualStudio.Component.VC.Redist.14.Latest Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+        os.system(
+            f"tools/external/vs_BuildTools.exe --installPath {build_tools_path} --add {component_ids}"
+        )
+
+
 def task_sync_git():
     os.system("git pull")
 
@@ -136,6 +146,7 @@ if build == "Full Pull":
     do_task("Pulling Git...", task_sync_git)
     do_task("Syncing external libs and zig.exe...", task_sync_external)
     do_task("You need to copy zig!", task_copy_zig)
+    do_task("Acquiring MSVC BuildTools!", task_sync_build_tools)
     do_task("Syncing SVN...", task_sync_svn)
     do_task("Nuking cache...", task_nuke_cache)
     do_task("Nuking game world...", task_nuke_old_world)
