@@ -129,7 +129,7 @@ pub fn build(b: *std.Build) void {
 
     // Recast
     const zignav_pkg = zig_recastnavigation.package(b, target, optimize, .{});
-    exe.addModule("zignav", zignav_pkg.zig_recastnavigation);
+    exe.root_module.addImport("zignav", zignav_pkg.zig_recastnavigation);
     zignav_pkg.link(exe);
 
     const install_fonts_step = b.addInstallDirectory(.{
