@@ -28,10 +28,16 @@ def task_sync_build_tools():
     build_tools_path = os.path.join(script_path, "tools", "external", "msvc_BuildTools")
     if not os.path.isdir(build_tools_path):
         component_ids = "Microsoft.VisualStudio.Component.VC.CoreBuildTools Microsoft.VisualStudio.Component.VC.CoreIde Microsoft.VisualStudio.Component.VC.Redist.14.Latest Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
-        os.system(
-            f"tools/external/vs_BuildTools.exe --installPath {build_tools_path} --add {component_ids}"
+        subprocess.run(
+            [
+                "tools/binaries/vs_BuildTools.exe",
+                "--installPath",
+                build_tools_path,
+                "--add",
+                component_ids,
+            ],
+            cwd=".",
         )
-
 
 def task_sync_git():
     os.system("git pull")
