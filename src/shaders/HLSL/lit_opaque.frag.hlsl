@@ -33,16 +33,18 @@ GBufferOutput PS_MAIN( VSOutput Input) {
 
     float roughness = material.roughness;
     float metallic = material.metallic;
+    float occlusion = 1.0f;
     if (hasValidTexture(material.armTextureIndex)) {
         Texture2D armTexture = ResourceDescriptorHeap[material.armTextureIndex];
         float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), Input.UV), 1.0f / 2.2f);
+        occlusion = armSample.r;
         roughness = armSample.g;
         metallic = armSample.b;
     }
 
     Out.GBuffer0 = float4(baseColor.rgb, 1.0f);
     Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
-    Out.GBuffer2 = float4(1.0f, roughness, metallic, 1.0f);
+    Out.GBuffer2 = float4(occlusion, roughness, metallic, 1.0f);
 
     RETURN(Out);
 }

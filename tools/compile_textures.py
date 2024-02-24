@@ -1,7 +1,7 @@
 import os
 import subprocess
 import platform
-from distutils.dir_util import copy_tree
+import shutil
 
 def compile_texture(input_path, input_file, format):
     output_path = os.path.join("zig-out", "bin", "content", input_path)
@@ -22,7 +22,11 @@ def compile_texture(input_path, input_file, format):
     )
 
 def install_textures(textures_path):
-    copy_tree(os.path.join("content", textures_path), os.path.join("zig-out", "bin", "content", textures_path))
+    shutil.copytree(
+        os.path.join("content", textures_path), 
+        os.path.join("zig-out", "bin", "content", textures_path), 
+        dirs_exist_ok=True
+    )
 
 if platform.system() == "Windows":
     print("Compiling Textures")
@@ -30,6 +34,9 @@ if platform.system() == "Windows":
     install_textures(os.path.join("textures", "env"))
     install_textures(os.path.join("textures", "ui"))
 
+    compile_texture(os.path.join("textures", "debug"), "round_aluminum_panel_albedo.png", "BC1_UNORM")
+    compile_texture(os.path.join("textures", "debug"), "round_aluminum_panel_arm.tga", "BC1_UNORM")
+    compile_texture(os.path.join("textures", "debug"), "round_aluminum_panel_normal.png", "BC5_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_albedo.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_arm.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "buildings", "medium_house"), "medium_house_plaster_normal.png", "BC5_UNORM")
@@ -46,6 +53,12 @@ if platform.system() == "Windows":
     compile_texture(os.path.join("prefabs", "creatures", "giant_ant"), "giant_ant_arm.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "creatures", "giant_ant"), "giant_ant_emissive.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "creatures", "giant_ant"), "giant_ant_normal.png", "BC5_UNORM")
+    compile_texture(os.path.join("prefabs", "environment", "beech"), "T_beech_atlas_ARM.png", "BC1_UNORM")
+    compile_texture(os.path.join("prefabs", "environment", "beech"), "T_beech_atlas_BC.png", "BC1_UNORM")
+    compile_texture(os.path.join("prefabs", "environment", "beech"), "T_beech_atlas_N.png", "BC1_UNORM")
+    compile_texture(os.path.join("prefabs", "environment", "beech"), "T_beech_bark_02_ARM.png", "BC1_UNORM")
+    compile_texture(os.path.join("prefabs", "environment", "beech"), "T_beech_bark_02_BC.png", "BC1_UNORM")
+    compile_texture(os.path.join("prefabs", "environment", "beech"), "T_beech_bark_02_N.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "environment", "fir"), "fir_bark_albedo.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "environment", "fir"), "fir_branch_albedo.png", "BC1_UNORM")
     compile_texture(os.path.join("prefabs", "environment", "terrain"), "dry_ground_rocks_albedo.png", "BC1_UNORM")
