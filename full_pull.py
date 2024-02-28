@@ -5,9 +5,9 @@ import subprocess
 import sync_external
 import platform
 import filecmp
+import argparse
 
 from pathlib import Path
-
 
 def do_task(text, task_func, skip_confirm=False):
     print("")
@@ -126,29 +126,53 @@ def task_sync_world():
                 else:
                     shutil.copy2(src_path, os.path.join(dst_root, item))
 
+def task_compile_shaders():
+    subprocess.run(
+        [
+            "python",
+            "tools/compile_shaders.py"
+        ],
+        cwd=".",
+        shell=True
+    )
+
+def task_compile_gltf_meshes():
+    subprocess.run(
+        [
+            "python",
+            "tools/compile_gltf_meshes.py"
+        ],
+        cwd=".",
+        shell=True
+    )
+
+def task_compile_textures():
+    subprocess.run(
+        [
+            "python",
+            "tools/compile_textures.py"
+        ],
+        cwd=".",
+        shell=True
+    )
 
 # def task_copy_new_world():
 #     shutil.copytree("content\\patch", "zig-out\\bin\\content\\patch")
 
+parser = argparse.ArgumentParser(prog="full_pull")
 
-build = "Ask"
-has_arg = len(sys.argv) > 1
-if has_arg and sys.argv[1] == "--world-gen":
-    build = "World Gen"
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument("-f", "--full", action="store_true")
+group.add_argument("-g", "--generate-world", action="store_true")
+group.add_argument("-c", "--compile-assets", action="store_true")
 
-if build == "Ask":
-    print("FULL PULL:      <any string> + enter")
-    print("GENERATE WORLD: only enter")
-    choice = input()
-    build = "World Gen"
-    if len(choice) > 0:
-        build = "Full Pull"
+args = parser.parse_args()
 
-print("")
-print("Performing:", build)
-print("")
+if args.full:
+    print("")
+    print("Performing: Full Pull")
+    print("")
 
-if build == "Full Pull":
     do_task("Pulling Git...", task_sync_git)
     do_task("Syncing external libs and zig.exe...", task_sync_external)
     do_task("You need to copy zig!", task_copy_zig)
@@ -159,12 +183,26 @@ if build == "Full Pull":
     do_task("Building game...", task_build_game)
     do_task("Generating game world...", task_generate_new_world)
     do_task("Copying game world...", task_sync_world)
-elif build == "World Gen":
+    do_task("Compiling Shaders...", task_compile_shaders)
+    do_task("Compiling glTF Meshes...", task_compile_gltf_meshes)
+    do_task("Compiling Textures...", task_compile_textures)
+elif args.generate_world:
+    print("")
+    print("Performing: Generate World")
+    print("")
+
     do_task("Building game...", task_build_game, True)
     do_task("Nuking game world...", task_nuke_old_world, True)
     do_task("Generating game world...", task_generate_new_world, True)
     do_task("Copying game world...", task_sync_world, True)
+elif args.compile_assets:
+    print("")
+    print("Performing: Compile Assets")
+    print("")
 
+    do_task("Compiling Shaders...", task_compile_shaders, True)
+    do_task("Compiling glTF Meshes...", task_compile_gltf_meshes, True)
+    do_task("Compiling Textures...", task_compile_textures, True)
 
 print("")
 print("")
@@ -173,6 +211,3 @@ print("############################")
 print("        DONE")
 print("############################")
 print("")
-if not has_arg:
-    print("Press enter...")
-    input()

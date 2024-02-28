@@ -26,6 +26,7 @@ if platform.system() == "Windows":
     compile_model(os.path.join("creatures", "giant_ant"))
     compile_model(os.path.join("environment", "beech"))
     compile_model(os.path.join("environment", "fir"))
+    compile_model(os.path.join("environment", "beech"))
     compile_model(os.path.join("environment", "terrain"))
     compile_model(os.path.join("primitives"))
     compile_model(os.path.join("props", "bow_arrow"))
