@@ -25,6 +25,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
     ecs.COMPONENT(ecs_world, StaticMeshComponent);
+    ecs.COMPONENT(ecs_world, UIImageComponent);
     ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
@@ -374,6 +375,16 @@ pub const PBRMaterial = struct {
             .surface_type = .@"opaque",
         };
     }
+};
+
+pub const UIImageComponent = struct {
+    rect: [4]f32,
+    material: UIMaterial,
+};
+
+pub const UIMaterial = struct {
+    color: [4]f32,
+    texture: TextureHandle,
 };
 
 pub const StaticMeshComponent = struct {

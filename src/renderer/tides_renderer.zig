@@ -57,6 +57,11 @@ pub const HackyLightBuffersIndices = struct {
     point_lights_count: u32,
 };
 
+pub const HackyUIBuffersIndices = struct {
+    ui_instance_buffer_index: u32,
+    ui_instance_count: u32,
+};
+
 pub const FrameData = extern struct {
     view_matrix: [16]f32,
     proj_matrix: [16]f32,
@@ -66,6 +71,8 @@ pub const FrameData = extern struct {
     directional_lights_count: u32,
     point_lights_count: u32,
     skybox_mesh_handle: MeshHandle,
+    ui_instance_buffer_index: u32,
+    ui_instance_count: u32,
 };
 
 pub const PointLight = extern struct {
