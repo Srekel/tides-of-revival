@@ -31,8 +31,13 @@ pub fn main() void {
     FileSystem.fsSetPathForResourceDir(FileSystem.fsGetSystemFileIO(), FileSystem.ResourceMount.RM_CONTENT, FileSystem.ResourceDirectory.RD_MESHES, "content");
     FileSystem.fsSetPathForResourceDir(FileSystem.fsGetSystemFileIO(), FileSystem.ResourceMount.RM_CONTENT, FileSystem.ResourceDirectory.RD_FONTS, "content");
 
-    var renderer_desc: Graphics.RendererDesc = undefined;
-    @memset(&renderer_desc, 0);
+    var renderer_desc = std.mem.zeroes(Graphics.RendererDesc);
+    renderer_desc.mD3D11Supported = false;
+    renderer_desc.mGLESSupported = false;
+    renderer_desc.mShaderTarget = Graphics.ShaderTarget.SHADER_TARGET_6_6;
+    renderer_desc.mDisableReloadServer = true;
+    var renderer: [*c]Graphics.Renderer = null;
+    Graphics.initRenderer("Tides Renderer", &renderer_desc, &renderer);
 
     var is_running = true;
     while (is_running) {
