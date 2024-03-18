@@ -106,6 +106,22 @@ pub fn run() void {
     var event_mgr = EventManager.create(std.heap.page_allocator);
     defer event_mgr.destroy();
 
+    // Watermark Logo
+    {
+        const logo_texture = renderer.loadTexture("textures/ui/tides_logo_ui.dds");
+        const logo_size: f32 = 100;
+        const top = 20.0;
+        const bottom = 20.0 + logo_size;
+        const left = @as(f32, @floatFromInt(app_settings.width)) - 20.0 - logo_size;
+        const right = @as(f32, @floatFromInt(app_settings.width)) - 20.0;
+
+        var logo_ent = ecsu_world.newEntity();
+        logo_ent.set(fd.UIImageComponent{ .rect = [4]f32{ top, bottom, left, right }, .material = .{
+            .color = [4]f32{ 1, 1, 1, 1 },
+            .texture = logo_texture,
+        } });
+    }
+
     // Input
     // Run it once to make sure we don't get huge diff values for cursor etc. the first frame.
     const input_target_defaults = config.input.createDefaultTargetDefaults(std.heap.page_allocator);
@@ -155,6 +171,7 @@ pub fn run() void {
         app_settings: *renderer.AppSettings,
         main_window: *window.Window,
         lights_buffer_indices: *renderer.HackyLightBuffersIndices,
+        ui_buffer_indices: *renderer.HackyUIBuffersIndices,
     };
 
     // HACK(gmodarelli): Passing the current frame buffer indices for lights
@@ -163,6 +180,12 @@ pub fn run() void {
         .point_lights_buffer_index = std.math.maxInt(u32),
         .directional_lights_count = 0,
         .point_lights_count = 0,
+    };
+
+    // HACK(gmodarelli): Passing the current frame UI buffer indices for UI Images
+    var ui_buffer_indices = renderer.HackyUIBuffersIndices{
+        .ui_instance_buffer_index = std.math.maxInt(u32),
+        .ui_instance_count = 0,
     };
 
     var gameloop_context: GameloopContext = .{
@@ -179,6 +202,7 @@ pub fn run() void {
         .app_settings = &app_settings,
         .main_window = main_window,
         .lights_buffer_indices = &lights_buffer_indices,
+        .ui_buffer_indices = &ui_buffer_indices,
     };
 
     config.system.createSystems(&gameloop_context, &system_context);
@@ -317,6 +341,7 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     const main_window = gameloop_context.main_window;
     var stats = gameloop_context.stats;
     const lights_buffer_indices = gameloop_context.lights_buffer_indices;
+    const ui_buffer_indices = gameloop_context.ui_buffer_indices;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
     defer trazy_zone.End();
@@ -409,6 +434,8 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     frame_data.point_lights_buffer_index = lights_buffer_indices.point_lights_buffer_index;
     frame_data.directional_lights_count = lights_buffer_indices.directional_lights_count;
     frame_data.point_lights_count = lights_buffer_indices.point_lights_count;
+    frame_data.ui_instance_buffer_index = ui_buffer_indices.ui_instance_buffer_index;
+    frame_data.ui_instance_count = ui_buffer_indices.ui_instance_count;
 
     const static_mesh_component = config.prefab.default_cube.getMut(fd.StaticMeshComponent).?;
     frame_data.skybox_mesh_handle = static_mesh_component.*.mesh_handle;

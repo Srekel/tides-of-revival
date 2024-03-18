@@ -149,5 +149,8 @@
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "[toml]": {
+        "editor.formatOnSave": false,
+    },
 }

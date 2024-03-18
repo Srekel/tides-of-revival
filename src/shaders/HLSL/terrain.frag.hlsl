@@ -38,11 +38,6 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
         N = normalize(averageN.xzy);
     }
 
-    // Recalculating the tangent now that the normal has been adjusted.
-    float3 B = normalize(cross(Input.Tangent, N));
-    float3 T = normalize(cross(B, N));
-    float3x3 TBN = make_f3x3_rows(T, B, N);
-
     const float3 V = normalize(Get(camPos).xyz - P);
 
     Texture2D splatmap = ResourceDescriptorHeap[Get(instance.splatmapTextureIndex)];
@@ -57,12 +52,7 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
     float2 worldSpaceUV = Input.PositionWS.xz * 0.1f;
     float3 albedo = diffuseTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV).rgb;
-
-    float4 sampleNormal = normalTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV);
-    float3 tangentNormal = float3(0, 0, 0);
-    tangentNormal.xy = sampleNormal.rg * 2.0 - 1.0;
-    tangentNormal.z = sqrt(1.0 - saturate(dot(tangentNormal.xy, tangentNormal.xy)));
-    N = normalize(mul(tangentNormal, TBN));
+    N = UnpackNormals(worldSpaceUV, -V, normalTexture, Get(bilinearRepeatSampler), N, 1.0f);
 
     float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV), 1.0f / 2.2f);
     float roughness = armSample.g;
