@@ -18,10 +18,6 @@ pub fn build(b: *std.Build) void {
     _ = b.option([]const u8, "build_date", "date of the build");
     const exe_options = b.addOptions();
     exe.root_module.addOptions("build_options", exe_options);
-    const tides_renderer_base_path = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer";
-    const tides_renderer_output_path = tides_renderer_base_path ++ "/PC Visual Studio 2019/x64/Debug";
-    exe.linkLibC();
-    exe.addLibraryPath(.{ .path = tides_renderer_output_path });
     exe_options.addOption([]const u8, "build_date", "2023-11-25");
 
     const zforge_pkg = zforge.package(b, target, optimize, .{});
