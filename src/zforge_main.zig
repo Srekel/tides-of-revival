@@ -198,9 +198,85 @@ const RendererContext = struct {
     }
 
     pub fn on_unload(self: *RendererContext, reload_desc: Graphics.ReloadDesc) void {
+        Graphics.wait_queue_idle(self.graphics_queue);
+
         if (reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
             Graphics.remove_swap_chain(self.renderer, self.swap_chain);
         }
+    }
+
+    pub fn draw(self: *RendererContext) void {
+        var swap_chain_image_index: u32 = 0;
+        Graphics.acquire_next_image(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &swap_chain_image_index);
+        const render_target = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
+
+        var elem = self.gpu_cmd_ring.get_next_gpu_cmd_ring_element(true, 1);
+
+        // Stall if CPU is running "data_buffer_count" frames ahead of GPU
+        var fence_status: Graphics.FenceStatus = undefined;
+        Graphics.get_fence_status(self.renderer, elem.?.fence, &fence_status);
+        if (fence_status.bits == Graphics.FenceStatus.FENCE_STATUS_INCOMPLETE.bits) {
+            Graphics.wait_for_fences(self.renderer, 1, &elem.?.fence);
+        }
+
+        Graphics.reset_cmd_pool(self.renderer, elem.?.cmd_pool);
+
+        var cmd = elem.?.cmds[0];
+        Graphics.begin_cmd(cmd);
+
+        {
+            var barrier = std.mem.zeroes(Graphics.RenderTargetBarrier);
+            barrier.pRenderTarget = render_target;
+            barrier.mCurrentState = Graphics.ResourceState.RESOURCE_STATE_PRESENT;
+            barrier.mNewState = Graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET;
+            Graphics.cmd_resource_barrier(cmd, 0, null, 0, null, 1, &barrier);
+        }
+
+        var bind_render_targets: Graphics.BindRenderTargetsDesc = undefined;
+        bind_render_targets.mRenderTargetCount = 1;
+        bind_render_targets.mRenderTargets[0] = std.mem.zeroes(Graphics.BindRenderTargetDesc);
+        bind_render_targets.mRenderTargets[0].pRenderTarget = render_target;
+        bind_render_targets.mRenderTargets[0].mLoadAction = Graphics.LoadActionType.LOAD_ACTION_CLEAR;
+        bind_render_targets.mDepthStencil = std.mem.zeroes(Graphics.BindDepthTargetDesc);
+        Graphics.cmd_bind_render_targets(cmd, &bind_render_targets);
+        Graphics.cmd_set_viewport(cmd, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
+        Graphics.cmd_set_scissor(cmd, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+        {
+            var barrier = std.mem.zeroes(Graphics.RenderTargetBarrier);
+            barrier.pRenderTarget = render_target;
+            barrier.mCurrentState = Graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET;
+            barrier.mNewState = Graphics.ResourceState.RESOURCE_STATE_PRESENT;
+            Graphics.cmd_resource_barrier(cmd, 0, null, 0, null, 1, &barrier);
+        }
+
+        Graphics.end_cmd(cmd);
+
+        var flush_update_desc: ResourceLoader.FlushResourceUpdateDesc = undefined;
+        flush_update_desc.mNodeIndex = 0;
+        ResourceLoader.flushResourceUpdates(&flush_update_desc);
+
+        var wait_semaphores = [2]*Graphics.Semaphore{ flush_update_desc.pOutSubmittedSemaphore, self.image_acquired_semaphore };
+
+        var submit_desc: Graphics.QueueSubmitDesc = undefined;
+        submit_desc.mCmdCount = 1;
+        submit_desc.mSignalSemaphoreCount = 1;
+        submit_desc.mWaitSemaphoreCount = 2;
+        submit_desc.ppCmds = &cmd;
+        submit_desc.ppSignalSemaphores = &elem.?.semaphore;
+        submit_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
+        submit_desc.pSignalFence = elem.?.fence;
+        Graphics.queue_submit(self.graphics_queue, &submit_desc);
+
+        var queue_present_desc: Graphics.QueuePresentDesc = undefined;
+        queue_present_desc.mIndex = @intCast(swap_chain_image_index);
+        queue_present_desc.mWaitSemaphoreCount = 1;
+        queue_present_desc.pSwapChain = self.swap_chain;
+        queue_present_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
+        queue_present_desc.mSubmitDone = true;
+        Graphics.queue_present(self.graphics_queue, &queue_present_desc);
+
+        self.frame_index = (self.frame_index + 1) % RendererContext.data_buffer_count;
     }
 
     fn add_swapchain(self: *RendererContext) bool {
@@ -285,5 +361,7 @@ pub fn main() void {
             renderer_context.on_unload(reload_desc);
             renderer_context.on_load(reload_desc) catch unreachable;
         }
+
+        renderer_context.draw();
     }
 }
