@@ -88,9 +88,12 @@ const StaticSamplers = struct {
 };
 
 const RendererContext = struct {
+    pub const data_buffer_count: u32 = 2;
+
     renderer: [*c]Graphics.Renderer = null,
     window: *window.Window = undefined,
     graphics_queue: [*c]Graphics.Queue = null,
+    gpu_cmd_ring: Graphics.GpuCmdRing = undefined,
     image_acquired_semaphore: [*c]Graphics.Semaphore = null,
     frame_index: u32 = 0,
     samplers: StaticSamplers = undefined,
@@ -122,6 +125,13 @@ const RendererContext = struct {
         queue_desc.mType = Graphics.QueueType.QUEUE_TYPE_GRAPHICS;
         queue_desc.mFlag = Graphics.QueueFlag.QUEUE_FLAG_INIT_MICROPROFILE;
         Graphics.add_queue(renderer_context.renderer, &queue_desc, &renderer_context.graphics_queue);
+
+        var cmd_ring_desc: Graphics.GpuCmdRingDesc = undefined;
+        cmd_ring_desc.queue = renderer_context.graphics_queue;
+        cmd_ring_desc.pool_count = data_buffer_count;
+        cmd_ring_desc.cmd_per_pool_count = 1;
+        cmd_ring_desc.add_sync_primitives = true;
+        renderer_context.gpu_cmd_ring = Graphics.GpuCmdRing.create(renderer_context.renderer, &cmd_ring_desc);
 
         Graphics.add_semaphore(renderer_context.renderer, &renderer_context.image_acquired_semaphore);
 
@@ -172,6 +182,7 @@ const RendererContext = struct {
 
     pub fn exit(self: *RendererContext) void {
         Graphics.remove_queue(self.renderer, self.graphics_queue);
+        self.gpu_cmd_ring.destroy(self.renderer);
         Graphics.remove_semaphore(self.renderer, self.image_acquired_semaphore);
         ResourceLoader.exitResourceLoaderInterface(self.renderer);
         self.samplers.exit(self.renderer);
