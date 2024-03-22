@@ -1,5 +1,6 @@
 const std = @import("std");
 const zforge = @import("zforge");
+const zglfw = @import("zglfw");
 
 const FileSystem = zforge.FileSystem;
 const Graphics = zforge.Graphics;
@@ -88,11 +89,134 @@ const StaticSamplers = struct {
 
 const RendererContext = struct {
     renderer: [*c]Graphics.Renderer = null,
+    window: *window.Window = undefined,
     graphics_queue: [*c]Graphics.Queue = null,
     image_acquired_semaphore: [*c]Graphics.Semaphore = null,
-
-    // Static samplers
+    frame_index: u32 = 0,
     samplers: StaticSamplers = undefined,
+    default_vertex_layout: Graphics.VertexLayout = undefined,
+    swap_chain: [*c]Graphics.SwapChain = null,
+
+    pub const Error = error{
+        NotInitialized,
+        SwapChainNotInitialized,
+    };
+
+    pub fn init(wnd: *window.Window) Error!RendererContext {
+        var renderer_context = RendererContext{};
+
+        renderer_context.window = wnd;
+
+        var renderer_desc = std.mem.zeroes(Graphics.RendererDesc);
+        renderer_desc.mD3D11Supported = false;
+        renderer_desc.mGLESSupported = false;
+        renderer_desc.mShaderTarget = Graphics.ShaderTarget.SHADER_TARGET_6_6;
+        renderer_desc.mDisableReloadServer = true;
+        Graphics.initRenderer("Tides Renderer", &renderer_desc, &renderer_context.renderer);
+        if (renderer_context.renderer == null) {
+            std.log.err("Failed to initialize Z-Forge Renderer", .{});
+            return Error.NotInitialized;
+        }
+
+        var queue_desc = std.mem.zeroes(Graphics.QueueDesc);
+        queue_desc.mType = Graphics.QueueType.QUEUE_TYPE_GRAPHICS;
+        queue_desc.mFlag = Graphics.QueueFlag.QUEUE_FLAG_INIT_MICROPROFILE;
+        Graphics.add_queue(renderer_context.renderer, &queue_desc, &renderer_context.graphics_queue);
+
+        Graphics.add_semaphore(renderer_context.renderer, &renderer_context.image_acquired_semaphore);
+
+        var resource_loader_desc = ResourceLoader.ResourceLoaderDesc{
+            .mBufferSize = 256 * 1024 * 1024,
+            .mBufferCount = 2,
+            .mSingleThreaded = false,
+            .mUseMaterials = false,
+        };
+        ResourceLoader.initResourceLoaderInterface(renderer_context.renderer, &resource_loader_desc);
+
+        renderer_context.samplers = StaticSamplers.init(renderer_context.renderer);
+
+        // TODO(gmodarelli): Figure out how to support different vertex formats.
+        // TODO(gmodarelli): Add support for color
+        renderer_context.default_vertex_layout = std.mem.zeroes(Graphics.VertexLayout);
+        renderer_context.default_vertex_layout.mBindingCount = 4;
+        renderer_context.default_vertex_layout.mAttribCount = 4;
+        renderer_context.default_vertex_layout.mAttribs[0].mSemantic = Graphics.ShaderSemantic.SEMANTIC_POSITION;
+        renderer_context.default_vertex_layout.mAttribs[0].mFormat = Graphics.TinyImageFormat.R32G32B32_SFLOAT;
+        renderer_context.default_vertex_layout.mAttribs[0].mBinding = 0;
+        renderer_context.default_vertex_layout.mAttribs[0].mLocation = 0;
+        renderer_context.default_vertex_layout.mAttribs[0].mOffset = 0;
+        renderer_context.default_vertex_layout.mAttribs[1].mSemantic = Graphics.ShaderSemantic.SEMANTIC_NORMAL;
+        renderer_context.default_vertex_layout.mAttribs[1].mFormat = Graphics.TinyImageFormat.R32_UINT;
+        renderer_context.default_vertex_layout.mAttribs[1].mBinding = 1;
+        renderer_context.default_vertex_layout.mAttribs[1].mLocation = 1;
+        renderer_context.default_vertex_layout.mAttribs[1].mOffset = 0;
+        renderer_context.default_vertex_layout.mAttribs[2].mSemantic = Graphics.ShaderSemantic.SEMANTIC_TANGENT;
+        renderer_context.default_vertex_layout.mAttribs[2].mFormat = Graphics.TinyImageFormat.R32_UINT;
+        renderer_context.default_vertex_layout.mAttribs[2].mBinding = 2;
+        renderer_context.default_vertex_layout.mAttribs[2].mLocation = 2;
+        renderer_context.default_vertex_layout.mAttribs[2].mOffset = 0;
+        renderer_context.default_vertex_layout.mAttribs[3].mSemantic = Graphics.ShaderSemantic.SEMANTIC_TEXCOORD0;
+        renderer_context.default_vertex_layout.mAttribs[3].mFormat = Graphics.TinyImageFormat.R32_UINT;
+        renderer_context.default_vertex_layout.mAttribs[3].mBinding = 3;
+        renderer_context.default_vertex_layout.mAttribs[3].mLocation = 3;
+        renderer_context.default_vertex_layout.mAttribs[3].mOffset = 0;
+        // renderer_context.default_vertex_layout.mAttribs[4].mSemantic = Graphics.ShaderSemantic.SEMANTIC_COLOR;
+        // renderer_context.default_vertex_layout.mAttribs[4].mFormat = Graphics.TinyImageFormat.R8G8B8A8_UNORM;
+        // renderer_context.default_vertex_layout.mAttribs[4].mBinding = 4;
+        // renderer_context.default_vertex_layout.mAttribs[4].mLocation = 4;
+        // renderer_context.default_vertex_layout.mAttribs[4].mOffset = 0;
+
+        renderer_context.frame_index = 0;
+        return renderer_context;
+    }
+
+    pub fn exit(self: *RendererContext) void {
+        Graphics.remove_queue(self.renderer, self.graphics_queue);
+        Graphics.remove_semaphore(self.renderer, self.image_acquired_semaphore);
+        ResourceLoader.exitResourceLoaderInterface(self.renderer);
+        self.samplers.exit(self.renderer);
+        Graphics.exitRenderer(self.renderer);
+    }
+
+    pub fn on_load(self: *RendererContext, reload_desc: Graphics.ReloadDesc) Error!void {
+        if (reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
+            if (!self.add_swapchain()) {
+                return Error.SwapChainNotInitialized;
+            }
+        }
+    }
+
+    pub fn on_unload(self: *RendererContext, reload_desc: Graphics.ReloadDesc) void {
+        if (reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
+            Graphics.remove_swap_chain(self.renderer, self.swap_chain);
+        }
+    }
+
+    fn add_swapchain(self: *RendererContext) bool {
+        const native_handle = zglfw.native.getWin32Window(self.window.window) catch unreachable;
+
+        const window_handle = Graphics.WindowHandle{
+            .type = .WIN32,
+            .window = native_handle,
+        };
+
+        var desc = std.mem.zeroes(Graphics.SwapChainDesc);
+        desc.mWindowHandle = window_handle;
+        desc.mPresentQueueCount = 1;
+        desc.ppPresentQueues = &self.graphics_queue;
+        desc.mWidth = @intCast(self.window.frame_buffer_size[0]);
+        desc.mHeight = @intCast(self.window.frame_buffer_size[1]);
+        desc.mImageCount = Graphics.get_recommended_swapchain_image_count(self.renderer, &window_handle);
+        desc.mColorFormat = Graphics.get_supported_swapchain_format(self.renderer, &desc, Graphics.ColorSpace.COLOR_SPACE_SDR_SRGB);
+        desc.mColorSpace = Graphics.ColorSpace.COLOR_SPACE_SDR_SRGB;
+        desc.mEnableVsync = true;
+        desc.mFlags = Graphics.SwapChainCreationFlags.SWAP_CHAIN_CREATION_FLAG_ENABLE_FOVEATED_RENDERING_VR;
+        Graphics.add_swap_chain(self.renderer, &desc, &self.swap_chain);
+
+        if (self.swap_chain == null) return false;
+
+        return true;
+    }
 };
 
 pub fn main() void {
@@ -101,7 +225,8 @@ pub fn main() void {
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
-    _ = main_window;
+    var window_width = main_window.frame_buffer_size[0];
+    var window_height = main_window.frame_buffer_size[1];
 
     if (!Memory.initMemAlloc("Tides Renderer")) {
         std.log.err("Failed to initialize Z-Forge Memory System", .{});
@@ -127,46 +252,27 @@ pub fn main() void {
     FileSystem.fsSetPathForResourceDir(FileSystem.fsGetSystemFileIO(), FileSystem.ResourceMount.RM_CONTENT, FileSystem.ResourceDirectory.RD_MESHES, "content");
     FileSystem.fsSetPathForResourceDir(FileSystem.fsGetSystemFileIO(), FileSystem.ResourceMount.RM_CONTENT, FileSystem.ResourceDirectory.RD_FONTS, "content");
 
-    var renderer_context = RendererContext{};
+    var renderer_context = RendererContext.init(main_window) catch unreachable;
+    defer renderer_context.exit();
 
-    var renderer_desc = std.mem.zeroes(Graphics.RendererDesc);
-    renderer_desc.mD3D11Supported = false;
-    renderer_desc.mGLESSupported = false;
-    renderer_desc.mShaderTarget = Graphics.ShaderTarget.SHADER_TARGET_6_6;
-    renderer_desc.mDisableReloadServer = true;
-    Graphics.initRenderer("Tides Renderer", &renderer_desc, &renderer_context.renderer);
-    if (renderer_context.renderer == null) {
-        std.log.err("Failed to initialize Z-Forge Renderer", .{});
-        return;
-    }
-    defer Graphics.exitRenderer(renderer_context.renderer);
-
-    var queue_desc = std.mem.zeroes(Graphics.QueueDesc);
-    queue_desc.mType = Graphics.QueueType.QUEUE_TYPE_GRAPHICS;
-    queue_desc.mFlag = Graphics.QueueFlag.QUEUE_FLAG_INIT_MICROPROFILE;
-    Graphics.add_queue(renderer_context.renderer, &queue_desc, &renderer_context.graphics_queue);
-    defer Graphics.remove_queue(renderer_context.renderer, renderer_context.graphics_queue);
-
-    Graphics.add_semaphore(renderer_context.renderer, &renderer_context.image_acquired_semaphore);
-    defer Graphics.remove_semaphore(renderer_context.renderer, renderer_context.image_acquired_semaphore);
-
-    var resource_loader_desc = ResourceLoader.ResourceLoaderDesc{
-        .mBufferSize = 256 * 1024 * 1024,
-        .mBufferCount = 2,
-        .mSingleThreaded = false,
-        .mUseMaterials = false,
-    };
-    ResourceLoader.initResourceLoaderInterface(renderer_context.renderer, &resource_loader_desc);
-    defer ResourceLoader.exitResourceLoaderInterface(renderer_context.renderer);
-
-    renderer_context.samplers = StaticSamplers.init(renderer_context.renderer);
-    defer renderer_context.samplers.exit(renderer_context.renderer);
+    var reload_desc = Graphics.ReloadDesc{ .mType = .{ .RESIZE = true, .SHADER = true, .RENDERTARGET = true } };
+    renderer_context.on_load(reload_desc) catch unreachable;
+    defer renderer_context.on_unload(reload_desc);
 
     var is_running = true;
     while (is_running) {
         const window_status = window.update() catch unreachable;
         if (window_status == .no_windows) {
             is_running = false;
+        }
+
+        if (main_window.frame_buffer_size[0] != window_width or main_window.frame_buffer_size[1] != window_height) {
+            window_width = main_window.frame_buffer_size[0];
+            window_height = main_window.frame_buffer_size[1];
+
+            reload_desc = Graphics.ReloadDesc{ .mType = .{ .RESIZE = true } };
+            renderer_context.on_unload(reload_desc);
+            renderer_context.on_load(reload_desc) catch unreachable;
         }
     }
 }
