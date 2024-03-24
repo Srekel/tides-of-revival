@@ -8,7 +8,8 @@ const zmu = @import("zmathutil");
 const ecs = @import("zflecs");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 
-const renderer = @import("../renderer/tides_renderer.zig");
+const context = @import("../core/context.zig");
+const renderer = @import("../renderer/renderer.zig");
 
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
@@ -49,6 +50,7 @@ const max_entity_types: u32 = 2;
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    renderer: *renderer.Renderer,
     sys: ecs.entity_t,
 
     instance_data_buffers: [max_entity_types][renderer.buffered_frames_count]renderer.BufferHandle,
@@ -73,7 +75,14 @@ pub const SystemState = struct {
     } = .{},
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World) !*SystemState {
+pub const SystemCtx = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    renderer: *renderer.Renderer,
+};
+
+pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     const opaque_instance_data_buffers = blk: {
         var buffers: [renderer.buffered_frames_count]renderer.BufferHandle = undefined;
         for (buffers, 0..) |_, buffer_index| {
@@ -126,6 +135,9 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
         break :blk buffers;
     };
 
+    const allocator = ctx.allocator;
+    const ecsu_world = ctx.ecsu_world;
+
     const draw_calls = [max_entity_types]std.ArrayList(renderer.DrawCallInstanced){ std.ArrayList(renderer.DrawCallInstanced).init(allocator), std.ArrayList(renderer.DrawCallInstanced).init(allocator) };
     const draw_calls_push_constants = [max_entity_types]std.ArrayList(renderer.DrawCallPushConstants){ std.ArrayList(renderer.DrawCallPushConstants).init(allocator), std.ArrayList(renderer.DrawCallPushConstants).init(allocator) };
     const draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
@@ -147,6 +159,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
     system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
+        .renderer = ctx.renderer,
         .sys = sys,
         .instance_data_buffers = .{ masked_instance_data_buffers, opaque_instance_data_buffers },
         .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
@@ -250,10 +263,10 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 .metallic = material.metallic,
                 .normal_intensity = material.normal_intensity,
                 .emissive_strength = material.emissive_strength,
-                .albedo_texture_index = renderer.textureBindlessIndex(material.albedo),
-                .emissive_texture_index = renderer.textureBindlessIndex(material.emissive),
-                .normal_texture_index = renderer.textureBindlessIndex(material.normal),
-                .arm_texture_index = renderer.textureBindlessIndex(material.arm),
+                .albedo_texture_index = system.renderer.getTextureBindlessIndex(material.albedo),
+                .emissive_texture_index = system.renderer.getTextureBindlessIndex(material.emissive),
+                .normal_texture_index = system.renderer.getTextureBindlessIndex(material.normal),
+                .arm_texture_index = system.renderer.getTextureBindlessIndex(material.arm),
             }) catch unreachable;
 
             system.draw_calls_info[entity_type_index].append(draw_call_info) catch unreachable;

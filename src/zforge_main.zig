@@ -238,7 +238,7 @@ const RendererContext = struct {
         graphics.acquire_next_image(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &swap_chain_image_index);
         const render_target = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
 
-        var elem = self.gpu_cmd_ring.get_next_gpu_cmd_ring_element(true, 1).?;
+        var elem = self.gpu_cmd_ring.getNextGpuCmdRingElement(true, 1).?;
 
         // Stall if CPU is running "data_buffer_count" frames ahead of GPU
         var fence_status: graphics.FenceStatus = undefined;

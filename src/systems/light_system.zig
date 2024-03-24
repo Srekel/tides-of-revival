@@ -6,7 +6,7 @@ const zmu = @import("zmathutil");
 const ecs = @import("zflecs");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 
-const renderer = @import("../renderer/tides_renderer.zig");
+const renderer = @import("../renderer/renderer.zig");
 
 const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");

@@ -5,7 +5,7 @@ const ecs = @import("zflecs");
 const window = @import("../renderer/window.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
-const renderer = @import("../renderer/tides_renderer.zig");
+const renderer = @import("../renderer/renderer.zig");
 const MeshHandle = renderer.MeshHandle;
 const TextureHandle = renderer.TextureHandle;
 
@@ -353,10 +353,10 @@ pub const PBRMaterial = struct {
             .metallic = 0,
             .normal_intensity = 1.0,
             .emissive_strength = 1.0,
-            .albedo = TextureHandle.invalidTexture(),
-            .normal = TextureHandle.invalidTexture(),
-            .arm = TextureHandle.invalidTexture(),
-            .emissive = TextureHandle.invalidTexture(),
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
             .surface_type = .@"opaque",
         };
     }
@@ -368,10 +368,10 @@ pub const PBRMaterial = struct {
             .metallic = metallic,
             .normal_intensity = 1.0,
             .emissive_strength = 1.0,
-            .albedo = TextureHandle.invalidTexture(),
-            .normal = TextureHandle.invalidTexture(),
-            .arm = TextureHandle.invalidTexture(),
-            .emissive = TextureHandle.invalidTexture(),
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
             .surface_type = .@"opaque",
         };
     }

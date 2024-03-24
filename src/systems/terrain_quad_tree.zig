@@ -8,7 +8,8 @@ const zmu = @import("zmathutil");
 const ecs = @import("zflecs");
 
 const config = @import("../config/config.zig");
-const renderer = @import("../renderer/tides_renderer.zig");
+const context = @import("../core/context.zig");
+const renderer = @import("../renderer/renderer.zig");
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
@@ -130,6 +131,7 @@ const QuadTreeNode = struct {
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    renderer: *renderer.Renderer,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     sys: ecs.entity_t,
 
@@ -150,242 +152,20 @@ pub const SystemState = struct {
     cam_pos_old: [3]f32 = .{ -100000, 0, -100000 }, // NOTE(Anders): Assumes only one camera
 };
 
-fn loadMesh(path: [:0]const u8, meshes: *std.ArrayList(renderer.MeshHandle)) !void {
-    const mesh_handle = renderer.loadMesh(path);
-    meshes.append(mesh_handle) catch unreachable;
-}
-
-fn loadTerrainLayer(name: []const u8) !TerrainLayer {
-    const diffuse = blk: {
-        // Generate Path
-        var namebuf: [256]u8 = undefined;
-        const path = std.fmt.bufPrintZ(
-            namebuf[0..namebuf.len],
-            "prefabs/environment/terrain/{s}_albedo.dds",
-            .{name},
-        ) catch unreachable;
-
-        break :blk renderer.loadTexture(path);
-    };
-
-    const normal = blk: {
-        // Generate Path
-        var namebuf: [256]u8 = undefined;
-        const path = std.fmt.bufPrintZ(
-            namebuf[0..namebuf.len],
-            "prefabs/environment/terrain/{s}_normal.dds",
-            .{name},
-        ) catch unreachable;
-
-        break :blk renderer.loadTexture(path);
-    };
-
-    const arm = blk: {
-        // Generate Path
-        var namebuf: [256]u8 = undefined;
-        const path = std.fmt.bufPrintZ(
-            namebuf[0..namebuf.len],
-            "prefabs/environment/terrain/{s}_arm.dds",
-            .{name},
-        ) catch unreachable;
-
-        break :blk renderer.loadTexture(path);
-    };
-
-    return .{
-        .diffuse = diffuse,
-        .normal = normal,
-        .arm = arm,
-    };
-}
-
-fn loadNodeHeightmap(
-    node: *QuadTreeNode,
-    world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
-) !void {
-    assert(node.heightmap_handle == null);
-
-    const lookup = world_patch_manager.PatchLookup{
-        .patch_x = @as(u16, @intCast(node.patch_index[0])),
-        .patch_z = @as(u16, @intCast(node.patch_index[1])),
-        .lod = @as(u4, @intCast(node.mesh_lod)),
-        .patch_type_id = heightmap_patch_type_id,
-    };
-
-    const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
-    if (patch_info.data_opt) |data| {
-        const data_slice = renderer.Slice{
-            .data = @as(*anyopaque, @ptrCast(data)),
-            .size = data.len,
-        };
-
-        var namebuf: [256]u8 = undefined;
-        const debug_name = std.fmt.bufPrintZ(
-            namebuf[0..namebuf.len],
-            "lod{d}/heightmap_x{d}_z{d}",
-            .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
-        ) catch unreachable;
-
-        node.heightmap_handle = renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
-    }
-}
-
-fn loadNodeSplatmap(
-    node: *QuadTreeNode,
-    world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
-) !void {
-    assert(node.splatmap_handle == null);
-
-    const lookup = world_patch_manager.PatchLookup{
-        .patch_x = @as(u16, @intCast(node.patch_index[0])),
-        .patch_z = @as(u16, @intCast(node.patch_index[1])),
-        .lod = @as(u4, @intCast(node.mesh_lod)),
-        .patch_type_id = splatmap_patch_type_id,
-    };
-
-    const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
-    if (patch_info.data_opt) |data| {
-        const data_slice = renderer.Slice{
-            .data = @as(*anyopaque, @ptrCast(data)),
-            .size = data.len,
-        };
-
-        var namebuf: [256]u8 = undefined;
-        const debug_name = std.fmt.bufPrintZ(
-            namebuf[0..namebuf.len],
-            "lod{d}/splatmap_x{d}_z{d}",
-            .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
-        ) catch unreachable;
-
-        node.splatmap_handle = renderer.loadTextureFromMemory(65, 65, .R8_UNORM, data_slice, debug_name);
-    }
-}
-
-fn loadHeightAndSplatMaps(
-    node: *QuadTreeNode,
-    world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
-    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
-) !void {
-    if (node.heightmap_handle == null) {
-        loadNodeHeightmap(node, world_patch_mgr, heightmap_patch_type_id) catch unreachable;
-    }
-
-    // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
-    // This improves startup times
-    if (node.heightmap_handle == null) {
-        return;
-    }
-
-    if (node.splatmap_handle == null) {
-        loadNodeSplatmap(node, world_patch_mgr, splatmap_patch_type_id) catch unreachable;
-    }
-}
-
-fn loadResources(
-    allocator: std.mem.Allocator,
-    quad_tree_nodes: *std.ArrayList(QuadTreeNode),
-    terrain_layers: *std.ArrayList(TerrainLayer),
-    world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
-    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
-) !void {
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    // Load terrain layers textures
-    {
-        const dry_ground = loadTerrainLayer("dry_ground_rocks") catch unreachable;
-        const forest_ground = loadTerrainLayer("forest_ground_01") catch unreachable;
-        const rock_ground = loadTerrainLayer("rock_ground_02") catch unreachable;
-        const snow = loadTerrainLayer("snow_02") catch unreachable;
-
-        // NOTE: There's an implicit dependency on the order of the Splatmap here
-        // - 0 dirt
-        // - 1 grass
-        // - 2 rock
-        // - 3 snow
-        terrain_layers.append(dry_ground) catch unreachable;
-        terrain_layers.append(forest_ground) catch unreachable;
-        terrain_layers.append(rock_ground) catch unreachable;
-        terrain_layers.append(snow) catch unreachable;
-    }
-
-    // Ask the World Patch Manager to load all LOD3 for the current world extents
-    const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
-    const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
-    var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
-    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 3, &lookups);
-    world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
-    // Make sure all LOD3 are resident
-    world_patch_mgr.tickAll();
-
-    // Request loading all the other LODs
-    lookups.clearRetainingCapacity();
-    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 2, &lookups);
-    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 2, &lookups);
-    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 1 &lookups);
-    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 1, &lookups);
-    // world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .medium);
-
-    // Load all LOD's heightmaps
-    {
-        var i: u32 = 0;
-        while (i < quad_tree_nodes.items.len) : (i += 1) {
-            const node = &quad_tree_nodes.items[i];
-            loadHeightAndSplatMaps(
-                node,
-                world_patch_mgr,
-                heightmap_patch_type_id,
-                splatmap_patch_type_id,
-            ) catch unreachable;
-        }
-    }
-}
-
-fn divideQuadTreeNode(
-    nodes: *std.ArrayList(QuadTreeNode),
-    node: *QuadTreeNode,
-) void {
-    if (node.mesh_lod == 0) {
-        return;
-    }
-
-    var child_index: u32 = 0;
-    while (child_index < 4) : (child_index += 1) {
-        const center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
-        const center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
-        const patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
-        const patch_index_y: u32 = if (child_index < 2) 1 else 0;
-
-        const child_node = QuadTreeNode{
-            .center = [2]f32{ center_x, center_y },
-            .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
-            .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
-            .mesh_lod = node.mesh_lod - 1,
-            .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
-            .heightmap_handle = null,
-            .splatmap_handle = null,
-        };
-
-        node.child_indices[child_index] = @as(u32, @intCast(nodes.items.len));
-        nodes.appendAssumeCapacity(child_node);
-
-        assert(node.child_indices[child_index] < nodes.items.len);
-        divideQuadTreeNode(nodes, &nodes.items[node.child_indices[child_index]]);
-    }
-}
-
-pub fn create(
-    name: IdLocal,
+pub const SystemCtx = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    renderer: *renderer.Renderer,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
-) !*SystemState {
+};
+
+pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
+    const allocator = ctx.allocator;
+    const ecsu_world = ctx.ecsu_world;
+    const renderer_ctx = ctx.renderer;
+    const world_patch_mgr = ctx.world_patch_mgr;
+
     // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
     const max_quad_tree_nodes: usize = 85 * 64;
     var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
@@ -440,6 +220,7 @@ pub fn create(
     var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
     loadResources(
         allocator,
+        renderer_ctx,
         &terrain_quad_tree_nodes,
         &terrain_layers,
         world_patch_mgr,
@@ -452,9 +233,9 @@ pub fn create(
     while (terrain_layer_index < terrain_layers.items.len) : (terrain_layer_index += 1) {
         const terrain_layer = &terrain_layers.items[terrain_layer_index];
         terrain_layer_texture_indices.appendAssumeCapacity(.{
-            .diffuse_index = renderer.textureBindlessIndex(terrain_layer.diffuse),
-            .normal_index = renderer.textureBindlessIndex(terrain_layer.normal),
-            .arm_index = renderer.textureBindlessIndex(terrain_layer.arm),
+            .diffuse_index = renderer_ctx.getTextureBindlessIndex(terrain_layer.diffuse),
+            .normal_index = renderer_ctx.getTextureBindlessIndex(terrain_layer.normal),
+            .arm_index = renderer_ctx.getTextureBindlessIndex(terrain_layer.arm),
             .padding = 42,
         });
     }
@@ -488,6 +269,7 @@ pub fn create(
     system.* = .{
         .allocator = allocator,
         .ecsu_world = ecsu_world,
+        .renderer = renderer_ctx,
         .world_patch_mgr = world_patch_mgr,
         .sys = sys,
         .instance_data_buffers = instance_data_buffers,
@@ -527,6 +309,7 @@ pub fn destroy(system: *SystemState) void {
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const renderer_ctx = system.renderer;
 
     var arena_state = std.heap.ArenaAllocator.init(system.allocator);
     defer arena_state.deinit();
@@ -579,8 +362,8 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
                 zm.storeMat(&system.instance_data[instance_index].object_to_world, z_world);
 
                 // TODO: Generate from quad.patch_index
-                system.instance_data[instance_index].heightmap_index = renderer.textureBindlessIndex(quad.heightmap_handle.?);
-                system.instance_data[instance_index].splatmap_index = renderer.textureBindlessIndex(quad.splatmap_handle.?);
+                system.instance_data[instance_index].heightmap_index = renderer_ctx.getTextureBindlessIndex(quad.heightmap_handle.?);
+                system.instance_data[instance_index].splatmap_index = renderer_ctx.getTextureBindlessIndex(quad.splatmap_handle.?);
 
                 system.instance_data[instance_index].lod = quad.mesh_lod;
                 system.instance_data[instance_index].padding1 = 42;
@@ -627,6 +410,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         const node = &system.terrain_quad_tree_nodes.items[quad_index];
         loadHeightAndSplatMaps(
             node,
+            renderer_ctx,
             system.world_patch_mgr,
             system.heightmap_patch_type_id,
             system.splatmap_patch_type_id,
@@ -687,6 +471,241 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }
 
         system.cam_pos_old = camera_position;
+    }
+}
+
+fn loadMesh(path: [:0]const u8, meshes: *std.ArrayList(renderer.MeshHandle)) !void {
+    const mesh_handle = renderer.loadMesh(path);
+    meshes.append(mesh_handle) catch unreachable;
+}
+
+fn loadTerrainLayer(renderer_ctx: *renderer.Renderer, name: []const u8) !TerrainLayer {
+    const diffuse = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "prefabs/environment/terrain/{s}_albedo.dds",
+            .{name},
+        ) catch unreachable;
+
+        break :blk renderer_ctx.loadTexture(path);
+    };
+
+    const normal = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "prefabs/environment/terrain/{s}_normal.dds",
+            .{name},
+        ) catch unreachable;
+
+        break :blk renderer_ctx.loadTexture(path);
+    };
+
+    const arm = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "prefabs/environment/terrain/{s}_arm.dds",
+            .{name},
+        ) catch unreachable;
+
+        break :blk renderer_ctx.loadTexture(path);
+    };
+
+    return .{
+        .diffuse = diffuse,
+        .normal = normal,
+        .arm = arm,
+    };
+}
+
+fn loadNodeHeightmap(
+    node: *QuadTreeNode,
+    renderer_ctx: *renderer.Renderer,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
+) !void {
+    assert(node.heightmap_handle == null);
+
+    const lookup = world_patch_manager.PatchLookup{
+        .patch_x = @as(u16, @intCast(node.patch_index[0])),
+        .patch_z = @as(u16, @intCast(node.patch_index[1])),
+        .lod = @as(u4, @intCast(node.mesh_lod)),
+        .patch_type_id = heightmap_patch_type_id,
+    };
+
+    const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
+    if (patch_info.data_opt) |data| {
+        const data_slice = renderer.Slice{
+            .data = @as(*anyopaque, @ptrCast(data)),
+            .size = data.len,
+        };
+
+        var namebuf: [256]u8 = undefined;
+        const debug_name = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "lod{d}/heightmap_x{d}_z{d}",
+            .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
+        ) catch unreachable;
+
+        node.heightmap_handle = renderer_ctx.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
+    }
+}
+
+fn loadNodeSplatmap(
+    node: *QuadTreeNode,
+    renderer_ctx: *renderer.Renderer,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
+) !void {
+    assert(node.splatmap_handle == null);
+
+    const lookup = world_patch_manager.PatchLookup{
+        .patch_x = @as(u16, @intCast(node.patch_index[0])),
+        .patch_z = @as(u16, @intCast(node.patch_index[1])),
+        .lod = @as(u4, @intCast(node.mesh_lod)),
+        .patch_type_id = splatmap_patch_type_id,
+    };
+
+    const patch_info = world_patch_mgr.tryGetPatch(lookup, u8);
+    if (patch_info.data_opt) |data| {
+        const data_slice = renderer.Slice{
+            .data = @as(*anyopaque, @ptrCast(data)),
+            .size = data.len,
+        };
+
+        var namebuf: [256]u8 = undefined;
+        const debug_name = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "lod{d}/splatmap_x{d}_z{d}",
+            .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
+        ) catch unreachable;
+
+        node.splatmap_handle = renderer_ctx.loadTextureFromMemory(65, 65, .R8_UNORM, data_slice, debug_name);
+    }
+}
+
+fn loadHeightAndSplatMaps(
+    node: *QuadTreeNode,
+    renderer_ctx: *renderer.Renderer,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
+    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
+) !void {
+    if (node.heightmap_handle == null) {
+        loadNodeHeightmap(node, renderer_ctx, world_patch_mgr, heightmap_patch_type_id) catch unreachable;
+    }
+
+    // NOTE(gmodarelli): avoid loading the splatmap if we haven't loaded the heightmap
+    // This improves startup times
+    if (node.heightmap_handle == null) {
+        return;
+    }
+
+    if (node.splatmap_handle == null) {
+        loadNodeSplatmap(node, renderer_ctx, world_patch_mgr, splatmap_patch_type_id) catch unreachable;
+    }
+}
+
+fn loadResources(
+    allocator: std.mem.Allocator,
+    renderer_ctx: *renderer.Renderer,
+    quad_tree_nodes: *std.ArrayList(QuadTreeNode),
+    terrain_layers: *std.ArrayList(TerrainLayer),
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
+    splatmap_patch_type_id: world_patch_manager.PatchTypeId,
+) !void {
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    // Load terrain layers textures
+    {
+        const dry_ground = loadTerrainLayer(renderer_ctx, "dry_ground_rocks") catch unreachable;
+        const forest_ground = loadTerrainLayer(renderer_ctx, "forest_ground_01") catch unreachable;
+        const rock_ground = loadTerrainLayer(renderer_ctx, "rock_ground_02") catch unreachable;
+        const snow = loadTerrainLayer(renderer_ctx, "snow_02") catch unreachable;
+
+        // NOTE: There's an implicit dependency on the order of the Splatmap here
+        // - 0 dirt
+        // - 1 grass
+        // - 2 rock
+        // - 3 snow
+        terrain_layers.append(dry_ground) catch unreachable;
+        terrain_layers.append(forest_ground) catch unreachable;
+        terrain_layers.append(rock_ground) catch unreachable;
+        terrain_layers.append(snow) catch unreachable;
+    }
+
+    // Ask the World Patch Manager to load all LOD3 for the current world extents
+    const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
+    const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
+    var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
+    world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 3, &lookups);
+    world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
+    // Make sure all LOD3 are resident
+    world_patch_mgr.tickAll();
+
+    // Request loading all the other LODs
+    lookups.clearRetainingCapacity();
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 2, &lookups);
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 2, &lookups);
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 1 &lookups);
+    // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(splatmap_patch_type_id, area, 1, &lookups);
+    // world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .medium);
+
+    // Load all LOD's heightmaps
+    {
+        var i: u32 = 0;
+        while (i < quad_tree_nodes.items.len) : (i += 1) {
+            const node = &quad_tree_nodes.items[i];
+            loadHeightAndSplatMaps(
+                node,
+                renderer_ctx,
+                world_patch_mgr,
+                heightmap_patch_type_id,
+                splatmap_patch_type_id,
+            ) catch unreachable;
+        }
+    }
+}
+
+fn divideQuadTreeNode(
+    nodes: *std.ArrayList(QuadTreeNode),
+    node: *QuadTreeNode,
+) void {
+    if (node.mesh_lod == 0) {
+        return;
+    }
+
+    var child_index: u32 = 0;
+    while (child_index < 4) : (child_index += 1) {
+        const center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
+        const center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
+        const patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
+        const patch_index_y: u32 = if (child_index < 2) 1 else 0;
+
+        const child_node = QuadTreeNode{
+            .center = [2]f32{ center_x, center_y },
+            .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
+            .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
+            .mesh_lod = node.mesh_lod - 1,
+            .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
+            .heightmap_handle = null,
+            .splatmap_handle = null,
+        };
+
+        node.child_indices[child_index] = @as(u32, @intCast(nodes.items.len));
+        nodes.appendAssumeCapacity(child_node);
+
+        assert(node.child_indices[child_index] < nodes.items.len);
+        divideQuadTreeNode(nodes, &nodes.items[node.child_indices[child_index]]);
     }
 }
 

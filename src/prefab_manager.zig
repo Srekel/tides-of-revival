@@ -6,7 +6,7 @@ const zmesh = @import("zmesh");
 const zwin32 = @import("zwin32");
 
 const fd = @import("config/flecs_data.zig");
-const renderer = @import("renderer/tides_renderer.zig");
+const renderer = @import("renderer/renderer.zig");
 const util = @import("util.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
 
@@ -17,11 +17,13 @@ const PrefabHashMap = std.AutoHashMap(IdLocal, ecsu.Entity);
 pub const PrefabManager = struct {
     prefab_hash_map: PrefabHashMap,
     is_a: ecsu.Entity,
+    rctx: *renderer.Renderer,
 
-    pub fn init(world: ecsu.World, allocator: std.mem.Allocator) PrefabManager {
+    pub fn init(rctx: *renderer.Renderer, world: ecsu.World, allocator: std.mem.Allocator) PrefabManager {
         return PrefabManager{
             .prefab_hash_map = PrefabHashMap.init(allocator),
             .is_a = ecsu.Entity.init(world.world, ecs.IsA),
+            .rctx = rctx,
         };
     }
 
@@ -35,7 +37,7 @@ pub const PrefabManager = struct {
             return prefab;
         }
 
-        const mesh_handle = renderer.loadMesh(path);
+        const mesh_handle = self.rctx.loadMesh(path) catch unreachable;
         var entity = world.newPrefab(path);
         entity.setOverride(fd.Forward{});
 
