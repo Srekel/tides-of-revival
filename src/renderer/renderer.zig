@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const IdLocal = @import("../core/core.zig").IdLocal;
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
 
@@ -30,11 +31,11 @@ pub const Renderer = struct {
     image_acquired_semaphore: [*c]graphics.Semaphore = null,
     frame_index: u32 = 0,
 
-    depth_buffer: [*c]graphics.RenderTarget,
-    gbuffer_0: [*c]graphics.RenderTarget,
-    gbuffer_1: [*c]graphics.RenderTarget,
-    gbuffer_2: [*c]graphics.RenderTarget,
-    scene_color: [*c]graphics.RenderTarget,
+    depth_buffer: [*c]graphics.RenderTarget = null,
+    gbuffer_0: [*c]graphics.RenderTarget = null,
+    gbuffer_1: [*c]graphics.RenderTarget = null,
+    gbuffer_2: [*c]graphics.RenderTarget = null,
+    scene_color: [*c]graphics.RenderTarget = null,
 
     samplers: StaticSamplers = undefined,
     default_vertex_layout: graphics.VertexLayout = undefined,
@@ -43,6 +44,8 @@ pub const Renderer = struct {
     mesh_pool: MeshPool = undefined,
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
+    pso_pool: PSOPool = undefined,
+    pso_map: PSOMap = undefined,
 
     pub const Error = error{
         NotInitialized,
@@ -164,10 +167,20 @@ pub const Renderer = struct {
         self.mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
         self.texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
+        self.pso_pool = PSOPool.initMaxCapacity(allocator) catch unreachable;
+        self.pso_map = PSOMap.init(allocator);
         return self;
     }
 
     pub fn exit(self: *Renderer) void {
+        var shader_handles = self.pso_pool.liveHandles();
+        while (shader_handles.next()) |handle| {
+            const shader = self.pso_pool.getColumn(handle, .shader) catch unreachable;
+            graphics.removeShader(self.renderer, shader);
+        }
+        self.pso_pool.deinit();
+        self.pso_map.deinit();
+
         var buffer_handles = self.buffer_pool.liveHandles();
         while (buffer_handles.next()) |handle| {
             var buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
@@ -209,6 +222,12 @@ pub const Renderer = struct {
             if (!self.addSwapchain()) {
                 return Error.SwapChainNotInitialized;
             }
+
+            self.createRenderTargets();
+        }
+
+        if (reload_desc.mType.SHADER) {
+            self.createPipelines();
         }
 
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
@@ -226,8 +245,13 @@ pub const Renderer = struct {
 
         font.unloadFontSystem(reload_desc.mType);
 
+        if (reload_desc.mType.SHADER) {
+            self.destroyPipelines();
+        }
+
         if (reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
             graphics.removeSwapChain(self.renderer, self.swap_chain);
+            self.destroyRenderTargets();
         }
     }
 
@@ -367,9 +391,7 @@ pub const Renderer = struct {
     }
 
     pub fn loadTexture(self: *Renderer, path: [:0]const u8) TextureHandle {
-        // var texture = std.mem.zeroes(graphics.Texture);
         var texture: [*c]graphics.Texture = null;
-        std.log.debug("Loading texture at path: {s}", .{path});
 
         var desc = std.mem.zeroes(graphics.TextureDesc);
         desc.bBindless = true;
@@ -389,7 +411,6 @@ pub const Renderer = struct {
     }
 
     pub fn loadTextureFromMemory(self: *Renderer, width: u32, height: u32, format: graphics.TinyImageFormat, data_slice: Slice, debug_name: [*:0]const u8) TextureHandle {
-        // var texture = std.mem.zeroes(graphics.Texture);
         var texture: [*c]graphics.Texture = null;
 
         var desc = std.mem.zeroes(graphics.TextureDesc);
@@ -428,13 +449,11 @@ pub const Renderer = struct {
         return @intCast(bindless_index);
     }
 
-    pub fn createBuffer(self: *Renderer, initial_data: Slice, data_stride: u32, debug_name: [:0]const u8) BufferHandle {
-        _ = data_stride;
-        _ = debug_name;
-
+    pub fn createBuffer(self: *Renderer, initial_data: Slice, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
+        load_desc.mDesc.pName = debug_name;
         load_desc.mDesc.bBindless = true;
         load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW;
         load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_SHADER_DEVICE_ADDRESS;
@@ -496,6 +515,493 @@ pub const Renderer = struct {
         if (self.swap_chain == null) return false;
 
         return true;
+    }
+
+    fn createRenderTargets(self: *Renderer) void {
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "Depth Buffer";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field3.depth = 0.0;
+            rt_desc.mClearValue.__struct_field3.stencil = 0;
+            rt_desc.mDepth = 1;
+            rt_desc.mFormat = graphics.TinyImageFormat.D32_SFLOAT;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = @intCast(self.window_width);
+            rt_desc.mHeight = @intCast(self.window_height);
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.depth_buffer);
+        }
+
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "Base Color Buffer";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
+            rt_desc.mDepth = 1;
+            rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = @intCast(self.window_width);
+            rt_desc.mHeight = @intCast(self.window_height);
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_0);
+        }
+
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "World Normals Buffer";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
+            rt_desc.mDepth = 1;
+            rt_desc.mFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = @intCast(self.window_width);
+            rt_desc.mHeight = @intCast(self.window_height);
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_1);
+        }
+
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "Material Buffer";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0 };
+            rt_desc.mDepth = 1;
+            rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = @intCast(self.window_width);
+            rt_desc.mHeight = @intCast(self.window_height);
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_2);
+        }
+
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "Scene Color Buffer";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
+            rt_desc.mDepth = 1;
+            rt_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = @intCast(self.window_width);
+            rt_desc.mHeight = @intCast(self.window_height);
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color);
+        }
+    }
+
+    fn destroyRenderTargets(self: *Renderer) void {
+        graphics.removeRenderTarget(self.renderer, self.depth_buffer);
+        graphics.removeRenderTarget(self.renderer, self.gbuffer_0);
+        graphics.removeRenderTarget(self.renderer, self.gbuffer_1);
+        graphics.removeRenderTarget(self.renderer, self.gbuffer_2);
+        graphics.removeRenderTarget(self.renderer, self.scene_color);
+    }
+
+    fn createPipelines(self: *Renderer) void {
+        var rasterizer_cull_front = std.mem.zeroes(graphics.RasterizerStateDesc);
+        rasterizer_cull_front.mCullMode = graphics.CullMode.CULL_MODE_FRONT;
+
+        var rasterizer_cull_none = std.mem.zeroes(graphics.RasterizerStateDesc);
+        rasterizer_cull_none.mCullMode = graphics.CullMode.CULL_MODE_NONE;
+
+        var depth_gequal = std.mem.zeroes(graphics.DepthStateDesc);
+        depth_gequal.mDepthWrite = true;
+        depth_gequal.mDepthTest = true;
+        depth_gequal.mDepthFunc = graphics.CompareMode.CMP_GEQUAL;
+
+        // Skybox
+        {
+            const id = IdLocal.init("skybox");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "skybox.vert";
+            shader_load_desc.mStages[1].pFileName = "skybox.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{"bilinearRepeatSampler"};
+            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_repeat};
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{self.scene_color.*.mFormat};
+
+            var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
+            blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_DST_ALPHA;
+            blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_DST_ALPHA;
+            blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
+            blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
+            blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
+            blend_state_desc.mIndependentBlend = false;
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Terrain
+        {
+            const id = IdLocal.init("terrain");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "terrain.vert";
+            shader_load_desc.mStages[1].pFileName = "terrain.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.gbuffer_0.*.mFormat,
+                self.gbuffer_1.*.mFormat,
+                self.gbuffer_2.*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Lit Opaque
+        {
+            const id = IdLocal.init("lit_opaque");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "lit.vert";
+            shader_load_desc.mStages[1].pFileName = "lit_opaque.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.gbuffer_0.*.mFormat,
+                self.gbuffer_1.*.mFormat,
+                self.gbuffer_2.*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Lit Masked
+        {
+            const id = IdLocal.init("lit_masked");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "lit.vert";
+            shader_load_desc.mStages[1].pFileName = "lit_opaque.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.gbuffer_0.*.mFormat,
+                self.gbuffer_1.*.mFormat,
+                self.gbuffer_2.*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Deferred
+        {
+            const id = IdLocal.init("deferred");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "fullscreen.vert";
+            shader_load_desc.mStages[1].pFileName = "deferred_shading.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.scene_color.*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Tonemapper
+        {
+            const id = IdLocal.init("tonemapper");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "fullscreen.vert";
+            shader_load_desc.mStages[1].pFileName = "tonemapper.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{"bilinearClampSampler"};
+            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.swap_chain.*.ppRenderTargets[0].*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // UI
+        {
+            const id = IdLocal.init("ui");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "ui.vert";
+            shader_load_desc.mStages[1].pFileName = "ui.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{"bilinearRepeatSampler"};
+            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_repeat};
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.swap_chain.*.ppRenderTargets[0].*.mFormat,
+            };
+
+            var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
+            blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
+            blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
+            blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
+            blend_state_desc.mIndependentBlend = false;
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+    }
+
+    fn destroyPipelines(self: *Renderer) void {
+        self.destroyPipeline(IdLocal.init("skybox"));
+        self.destroyPipeline(IdLocal.init("terrain"));
+        self.destroyPipeline(IdLocal.init("lit_opaque"));
+        self.destroyPipeline(IdLocal.init("lit_masked"));
+        self.destroyPipeline(IdLocal.init("deferred"));
+        self.destroyPipeline(IdLocal.init("tonemapper"));
+        self.destroyPipeline(IdLocal.init("ui"));
+    }
+
+    fn destroyPipeline(self: *Renderer, id: IdLocal) void {
+        const handle = self.pso_map.get(id).?;
+        const shader = self.pso_pool.getColumn(handle, .shader) catch unreachable;
+        const root_signature = self.pso_pool.getColumn(handle, .root_signature) catch unreachable;
+        const pipeline = self.pso_pool.getColumn(handle, .pipeline) catch unreachable;
+        graphics.removePipeline(self.renderer, pipeline);
+        graphics.removeRootSignature(self.renderer, root_signature);
+        graphics.removeShader(self.renderer, shader);
+        self.pso_pool.remove(handle) catch unreachable;
     }
 };
 
@@ -592,6 +1098,10 @@ pub const TextureHandle = TexturePool.Handle;
 
 const BufferPool = Pool(16, 16, graphics.Buffer, struct { buffer: [*c]graphics.Buffer });
 pub const BufferHandle = BufferPool.Handle;
+
+const PSOPool = Pool(16, 16, graphics.Shader, struct { shader: [*c]graphics.Shader, root_signature: [*c]graphics.RootSignature, pipeline: [*c]graphics.Pipeline });
+const PSOHandle = PSOPool.Handle;
+const PSOMap = std.AutoHashMap(IdLocal, PSOHandle);
 
 pub const Slice = extern struct {
     data: ?*const anyopaque,
@@ -743,246 +1253,4 @@ pub const FrameStats = struct {
         }
         self.frame_counter += 1;
     }
-};
-
-pub const TinyImageFormat = enum(u32) {
-    UNDEFINED = 0,
-    R1_UNORM = 1,
-    R2_UNORM = 2,
-    R4_UNORM = 3,
-    R4G4_UNORM = 4,
-    G4R4_UNORM = 5,
-    A8_UNORM = 6,
-    R8_UNORM = 7,
-    R8_SNORM = 8,
-    R8_UINT = 9,
-    R8_SINT = 10,
-    R8_SRGB = 11,
-    B2G3R3_UNORM = 12,
-    R4G4B4A4_UNORM = 13,
-    R4G4B4X4_UNORM = 14,
-    B4G4R4A4_UNORM = 15,
-    B4G4R4X4_UNORM = 16,
-    A4R4G4B4_UNORM = 17,
-    X4R4G4B4_UNORM = 18,
-    A4B4G4R4_UNORM = 19,
-    X4B4G4R4_UNORM = 20,
-    R5G6B5_UNORM = 21,
-    B5G6R5_UNORM = 22,
-    R5G5B5A1_UNORM = 23,
-    B5G5R5A1_UNORM = 24,
-    A1B5G5R5_UNORM = 25,
-    A1R5G5B5_UNORM = 26,
-    R5G5B5X1_UNORM = 27,
-    B5G5R5X1_UNORM = 28,
-    X1R5G5B5_UNORM = 29,
-    X1B5G5R5_UNORM = 30,
-    B2G3R3A8_UNORM = 31,
-    R8G8_UNORM = 32,
-    R8G8_SNORM = 33,
-    G8R8_UNORM = 34,
-    G8R8_SNORM = 35,
-    R8G8_UINT = 36,
-    R8G8_SINT = 37,
-    R8G8_SRGB = 38,
-    R16_UNORM = 39,
-    R16_SNORM = 40,
-    R16_UINT = 41,
-    R16_SINT = 42,
-    R16_SFLOAT = 43,
-    R16_SBFLOAT = 44,
-    R8G8B8_UNORM = 45,
-    R8G8B8_SNORM = 46,
-    R8G8B8_UINT = 47,
-    R8G8B8_SINT = 48,
-    R8G8B8_SRGB = 49,
-    B8G8R8_UNORM = 50,
-    B8G8R8_SNORM = 51,
-    B8G8R8_UINT = 52,
-    B8G8R8_SINT = 53,
-    B8G8R8_SRGB = 54,
-    R8G8B8A8_UNORM = 55,
-    R8G8B8A8_SNORM = 56,
-    R8G8B8A8_UINT = 57,
-    R8G8B8A8_SINT = 58,
-    R8G8B8A8_SRGB = 59,
-    B8G8R8A8_UNORM = 60,
-    B8G8R8A8_SNORM = 61,
-    B8G8R8A8_UINT = 62,
-    B8G8R8A8_SINT = 63,
-    B8G8R8A8_SRGB = 64,
-    R8G8B8X8_UNORM = 65,
-    B8G8R8X8_UNORM = 66,
-    R16G16_UNORM = 67,
-    G16R16_UNORM = 68,
-    R16G16_SNORM = 69,
-    G16R16_SNORM = 70,
-    R16G16_UINT = 71,
-    R16G16_SINT = 72,
-    R16G16_SFLOAT = 73,
-    R16G16_SBFLOAT = 74,
-    R32_UINT = 75,
-    R32_SINT = 76,
-    R32_SFLOAT = 77,
-    A2R10G10B10_UNORM = 78,
-    A2R10G10B10_UINT = 79,
-    A2R10G10B10_SNORM = 80,
-    A2R10G10B10_SINT = 81,
-    A2B10G10R10_UNORM = 82,
-    A2B10G10R10_UINT = 83,
-    A2B10G10R10_SNORM = 84,
-    A2B10G10R10_SINT = 85,
-    R10G10B10A2_UNORM = 86,
-    R10G10B10A2_UINT = 87,
-    R10G10B10A2_SNORM = 88,
-    R10G10B10A2_SINT = 89,
-    B10G10R10A2_UNORM = 90,
-    B10G10R10A2_UINT = 91,
-    B10G10R10A2_SNORM = 92,
-    B10G10R10A2_SINT = 93,
-    B10G11R11_UFLOAT = 94,
-    E5B9G9R9_UFLOAT = 95,
-    R16G16B16_UNORM = 96,
-    R16G16B16_SNORM = 97,
-    R16G16B16_UINT = 98,
-    R16G16B16_SINT = 99,
-    R16G16B16_SFLOAT = 100,
-    R16G16B16_SBFLOAT = 101,
-    R16G16B16A16_UNORM = 102,
-    R16G16B16A16_SNORM = 103,
-    R16G16B16A16_UINT = 104,
-    R16G16B16A16_SINT = 105,
-    R16G16B16A16_SFLOAT = 106,
-    R16G16B16A16_SBFLOAT = 107,
-    R32G32_UINT = 108,
-    R32G32_SINT = 109,
-    R32G32_SFLOAT = 110,
-    R32G32B32_UINT = 111,
-    R32G32B32_SINT = 112,
-    R32G32B32_SFLOAT = 113,
-    R32G32B32A32_UINT = 114,
-    R32G32B32A32_SINT = 115,
-    R32G32B32A32_SFLOAT = 116,
-    R64_UINT = 117,
-    R64_SINT = 118,
-    R64_SFLOAT = 119,
-    R64G64_UINT = 120,
-    R64G64_SINT = 121,
-    R64G64_SFLOAT = 122,
-    R64G64B64_UINT = 123,
-    R64G64B64_SINT = 124,
-    R64G64B64_SFLOAT = 125,
-    R64G64B64A64_UINT = 126,
-    R64G64B64A64_SINT = 127,
-    R64G64B64A64_SFLOAT = 128,
-    D16_UNORM = 129,
-    X8_D24_UNORM = 130,
-    D32_SFLOAT = 131,
-    S8_UINT = 132,
-    D16_UNORM_S8_UINT = 133,
-    D24_UNORM_S8_UINT = 134,
-    D32_SFLOAT_S8_UINT = 135,
-    DXBC1_RGB_UNORM = 136,
-    DXBC1_RGB_SRGB = 137,
-    DXBC1_RGBA_UNORM = 138,
-    DXBC1_RGBA_SRGB = 139,
-    DXBC2_UNORM = 140,
-    DXBC2_SRGB = 141,
-    DXBC3_UNORM = 142,
-    DXBC3_SRGB = 143,
-    DXBC4_UNORM = 144,
-    DXBC4_SNORM = 145,
-    DXBC5_UNORM = 146,
-    DXBC5_SNORM = 147,
-    DXBC6H_UFLOAT = 148,
-    DXBC6H_SFLOAT = 149,
-    DXBC7_UNORM = 150,
-    DXBC7_SRGB = 151,
-    PVRTC1_2BPP_UNORM = 152,
-    PVRTC1_4BPP_UNORM = 153,
-    PVRTC2_2BPP_UNORM = 154,
-    PVRTC2_4BPP_UNORM = 155,
-    PVRTC1_2BPP_SRGB = 156,
-    PVRTC1_4BPP_SRGB = 157,
-    PVRTC2_2BPP_SRGB = 158,
-    PVRTC2_4BPP_SRGB = 159,
-    ETC2_R8G8B8_UNORM = 160,
-    ETC2_R8G8B8_SRGB = 161,
-    ETC2_R8G8B8A1_UNORM = 162,
-    ETC2_R8G8B8A1_SRGB = 163,
-    ETC2_R8G8B8A8_UNORM = 164,
-    ETC2_R8G8B8A8_SRGB = 165,
-    ETC2_EAC_R11_UNORM = 166,
-    ETC2_EAC_R11_SNORM = 167,
-    ETC2_EAC_R11G11_UNORM = 168,
-    ETC2_EAC_R11G11_SNORM = 169,
-    ASTC_4x4_UNORM = 170,
-    ASTC_4x4_SRGB = 171,
-    ASTC_5x4_UNORM = 172,
-    ASTC_5x4_SRGB = 173,
-    ASTC_5x5_UNORM = 174,
-    ASTC_5x5_SRGB = 175,
-    ASTC_6x5_UNORM = 176,
-    ASTC_6x5_SRGB = 177,
-    ASTC_6x6_UNORM = 178,
-    ASTC_6x6_SRGB = 179,
-    ASTC_8x5_UNORM = 180,
-    ASTC_8x5_SRGB = 181,
-    ASTC_8x6_UNORM = 182,
-    ASTC_8x6_SRGB = 183,
-    ASTC_8x8_UNORM = 184,
-    ASTC_8x8_SRGB = 185,
-    ASTC_10x5_UNORM = 186,
-    ASTC_10x5_SRGB = 187,
-    ASTC_10x6_UNORM = 188,
-    ASTC_10x6_SRGB = 189,
-    ASTC_10x8_UNORM = 190,
-    ASTC_10x8_SRGB = 191,
-    ASTC_10x10_UNORM = 192,
-    ASTC_10x10_SRGB = 193,
-    ASTC_12x10_UNORM = 194,
-    ASTC_12x10_SRGB = 195,
-    ASTC_12x12_UNORM = 196,
-    ASTC_12x12_SRGB = 197,
-    CLUT_P4 = 198,
-    CLUT_P4A4 = 199,
-    CLUT_P8 = 200,
-    CLUT_P8A8 = 201,
-    R4G4B4A4_UNORM_PACK16 = 202,
-    B4G4R4A4_UNORM_PACK16 = 203,
-    R5G6B5_UNORM_PACK16 = 204,
-    B5G6R5_UNORM_PACK16 = 205,
-    R5G5B5A1_UNORM_PACK16 = 206,
-    B5G5R5A1_UNORM_PACK16 = 207,
-    A1R5G5B5_UNORM_PACK16 = 208,
-    G16B16G16R16_422_UNORM = 209,
-    B16G16R16G16_422_UNORM = 210,
-    R12X4G12X4B12X4A12X4_UNORM_4PACK16 = 211,
-    G12X4B12X4G12X4R12X4_422_UNORM_4PACK16 = 212,
-    B12X4G12X4R12X4G12X4_422_UNORM_4PACK16 = 213,
-    R10X6G10X6B10X6A10X6_UNORM_4PACK16 = 214,
-    G10X6B10X6G10X6R10X6_422_UNORM_4PACK16 = 215,
-    B10X6G10X6R10X6G10X6_422_UNORM_4PACK16 = 216,
-    G8B8G8R8_422_UNORM = 217,
-    B8G8R8G8_422_UNORM = 218,
-    G8_B8_R8_3PLANE_420_UNORM = 219,
-    G8_B8R8_2PLANE_420_UNORM = 220,
-    G8_B8_R8_3PLANE_422_UNORM = 221,
-    G8_B8R8_2PLANE_422_UNORM = 222,
-    G8_B8_R8_3PLANE_444_UNORM = 223,
-    G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16 = 224,
-    G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16 = 225,
-    G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16 = 226,
-    G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 = 227,
-    G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16 = 228,
-    G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16 = 229,
-    G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16 = 230,
-    G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16 = 231,
-    G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16 = 232,
-    G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16 = 233,
-    G16_B16_R16_3PLANE_420_UNORM = 234,
-    G16_B16_R16_3PLANE_422_UNORM = 235,
-    G16_B16_R16_3PLANE_444_UNORM = 236,
-    G16_B16R16_2PLANE_420_UNORM = 237,
-    G16_B16R16_2PLANE_422_UNORM = 238,
 };
