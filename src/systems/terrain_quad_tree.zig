@@ -244,7 +244,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .data = @ptrCast(terrain_layer_texture_indices.items),
         .size = terrain_layer_texture_indices.items.len * @sizeOf(TerrainLayerTextureIndices),
     };
-    const terrain_layers_buffer = renderer.createBuffer(transform_layer_data, @sizeOf(TerrainLayerTextureIndices), "Terrain Layers Buffer");
+    const terrain_layers_buffer = renderer.createBindlessBuffer(transform_layer_data, @sizeOf(TerrainLayerTextureIndices), "Terrain Layers Buffer");
 
     // Create instance buffers.
     const instance_data_buffers = blk: {
@@ -254,7 +254,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
                 .data = null,
                 .size = max_instances * @sizeOf(InstanceData),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceData), "Terrain Quad Tree Instance Data Buffer");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(InstanceData), "Terrain Quad Tree Instance Data Buffer");
         }
 
         break :blk buffers;

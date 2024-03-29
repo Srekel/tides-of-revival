@@ -90,7 +90,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
                 .data = null,
                 .size = max_instances * @sizeOf(InstanceData),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceData), "Instance Transform Buffer: Opaque");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(InstanceData), "Instance Transform Buffer: Opaque");
         }
 
         break :blk buffers;
@@ -103,7 +103,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
                 .data = null,
                 .size = max_instances * @sizeOf(InstanceData),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceData), "Instance Transform Buffer: Masked");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(InstanceData), "Instance Transform Buffer: Masked");
         }
 
         break :blk buffers;
@@ -116,7 +116,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
                 .data = null,
                 .size = max_instances * @sizeOf(InstanceMaterial),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceMaterial), "Instance Material Buffer: Opaque");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(InstanceMaterial), "Instance Material Buffer: Opaque");
         }
 
         break :blk buffers;
@@ -129,7 +129,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
                 .data = null,
                 .size = max_instances * @sizeOf(InstanceMaterial),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(InstanceMaterial), "Instance Material Buffer: Masked");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(InstanceMaterial), "Instance Material Buffer: Masked");
         }
 
         break :blk buffers;

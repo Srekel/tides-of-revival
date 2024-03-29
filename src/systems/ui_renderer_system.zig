@@ -35,7 +35,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
                 .data = null,
                 .size = max_instances * @sizeOf(UIInstanceData),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(UIInstanceData), "UI Instance Buffer");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(UIInstanceData), "UI Instance Buffer");
         }
 
         break :blk buffers;

@@ -53,7 +53,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
                 .data = null,
                 .size = renderer.directional_lights_count_max * @sizeOf(renderer.DirectionalLight),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(renderer.DirectionalLight), "Directional Lights Buffer");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(renderer.DirectionalLight), "Directional Lights Buffer");
         }
 
         break :blk buffers;
@@ -66,7 +66,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
                 .data = null,
                 .size = renderer.point_lights_count_max * @sizeOf(renderer.PointLight),
             };
-            buffers[buffer_index] = renderer.createBuffer(buffer_data, @sizeOf(renderer.PointLight), "Point Lights Buffer");
+            buffers[buffer_index] = renderer.createBindlessBuffer(buffer_data, @sizeOf(renderer.PointLight), "Point Lights Buffer");
         }
 
         break :blk buffers;
