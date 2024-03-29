@@ -25,7 +25,7 @@ pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) 
 pub const CameraUniformFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
-    camera_position: [3]f32,
+    camera_position: [4]f32,
     directional_lights_buffer_index: u32,
     point_lights_buffer_index: u32,
     directional_lights_count: u32,

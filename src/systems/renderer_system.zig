@@ -93,13 +93,14 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const camera_ent = util.getActiveCameraEnt(system.ecsu_world);
     const camera_component = camera_ent.get(fd.Camera).?;
     const camera_transform = camera_ent.get(fd.Transform).?;
+    const camera_position = camera_transform.getPos00();
     const z_view = zm.loadMat(camera_component.view[0..]);
     const z_proj = zm.loadMat(camera_component.projection[0..]);
     const z_proj_view = zm.mul(z_proj, z_view);
 
     zm.storeMat(&system.uniform_frame_data.projection_view, z_proj_view);
     zm.storeMat(&system.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
-    system.uniform_frame_data.camera_position = camera_transform.getPos00();
+    system.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
 
     rctx.draw();
 }

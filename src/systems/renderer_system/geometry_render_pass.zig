@@ -245,9 +245,9 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
     const z_proj_view = zm.mul(z_view, z_proj);
 
-    zm.storeMat(&self.camera_uniform_data.projection_view, zm.transpose(z_proj_view));
-    zm.storeMat(&self.camera_uniform_data.projection_view_inverted, zm.transpose(zm.inverse(z_proj_view)));
-    self.camera_uniform_data.camera_position = camera_position;
+    zm.storeMat(&self.camera_uniform_data.projection_view, z_proj_view);
+    zm.storeMat(&self.camera_uniform_data.projection_view_inverted, zm.inverse(z_proj_view));
+    self.camera_uniform_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
 
     const data = renderer.Slice{
         .data = @ptrCast(&self.camera_uniform_data),
