@@ -22,16 +22,6 @@ pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
-pub const CameraUniformFrameData = struct {
-    projection_view: [16]f32,
-    projection_view_inverted: [16]f32,
-    camera_position: [4]f32,
-    directional_lights_buffer_index: u32,
-    point_lights_buffer_index: u32,
-    directional_lights_count: u32,
-    point_lights_count: u32,
-};
-
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
 
@@ -67,6 +57,11 @@ pub const Renderer = struct {
     render_gbuffer_pass_render_fn: renderPassRenderFn = null,
     render_gbuffer_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_gbuffer_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
+    render_deferred_shading_pass_user_data: ?*anyopaque = null,
+    render_deferred_shading_pass_render_fn: renderPassRenderFn = null,
+    render_deferred_shading_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_deferred_shading_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     pub const Error = error{
         NotInitialized,
@@ -251,17 +246,19 @@ pub const Renderer = struct {
             }
 
             self.createRenderTargets();
-
-            if (self.render_gbuffer_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
-            }
         }
 
         if (reload_desc.mType.SHADER) {
             self.createPipelines();
+        }
 
+        if (reload_desc.mType.SHADER or reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
             if (self.render_gbuffer_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
                 prepare_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
+            }
+
+            if (self.render_deferred_shading_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+                prepare_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
             }
         }
 
@@ -282,20 +279,31 @@ pub const Renderer = struct {
 
         if (reload_desc.mType.SHADER) {
             self.destroyPipelines();
-
-            if (self.render_gbuffer_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                unload_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
-            }
         }
 
         if (reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
             graphics.removeSwapChain(self.renderer, self.swap_chain);
             self.destroyRenderTargets();
+        }
 
+        if (reload_desc.mType.SHADER or reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
             if (self.render_gbuffer_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                unload_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
+                if (self.render_gbuffer_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
+            if (self.render_deferred_shading_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_deferred_shading_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
             }
         }
+    }
+
+    pub fn requestReload(self: *Renderer, reload_desc: graphics.ReloadDesc) void {
+        self.onUnload(reload_desc);
+        self.onLoad(reload_desc) catch unreachable;
     }
 
     pub fn draw(self: *Renderer) void {
@@ -350,17 +358,43 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
+        }
 
-            var output_barriers = [_]graphics.RenderTargetBarrier{
+        // Deferred Shading Pass
+        {
+            var input_barriers = [_]graphics.RenderTargetBarrier{
+                graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
             };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&output_barriers));
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
+            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+            bind_render_targets_desc.mRenderTargetCount = 1;
+            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
+            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.scene_color;
+            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+
+            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
+            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+            if (self.render_deferred_shading_pass_render_fn) |render_fn| {
+                render_fn(cmd_list, self.render_deferred_shading_pass_user_data.?);
+            }
+
+            graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // Call render passes
+        // TODO(gmodarelli): Add tonemapper
+        var input_barriers = [_]graphics.RenderTargetBarrier{
+            graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+        };
+        graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
         const render_target = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
 
         {
@@ -491,16 +525,13 @@ pub const Renderer = struct {
         return mesh.geometry.*.bitfield_1.mDrawArgCount;
     }
 
-    pub fn loadTexture(self: *Renderer, path: [:0]const u8) TextureHandle {
+    pub fn createTexture(self: *Renderer, desc: graphics.TextureDesc) TextureHandle {
         var texture: [*c]graphics.Texture = null;
 
-        var desc = std.mem.zeroes(graphics.TextureDesc);
-        desc.bBindless = true;
         var load_desc = std.mem.zeroes(resource_loader.TextureLoadDesc);
         load_desc.__union_field1 = std.mem.zeroes(resource_loader.TextureLoadDesc.__Union0);
         load_desc.__union_field1.__struct_field1 = std.mem.zeroes(resource_loader.TextureLoadDesc.__Union0.__Struct0);
-        load_desc.pFileName = path;
-        load_desc.__union_field1.__struct_field1.pDesc = &desc;
+        load_desc.__union_field1.__struct_field1.pDesc = @constCast(&desc);
         load_desc.ppTexture = @ptrCast(&texture);
 
         var token: resource_loader.SyncToken = 0;
@@ -509,6 +540,30 @@ pub const Renderer = struct {
 
         const handle: TextureHandle = self.texture_pool.add(.{ .texture = texture }) catch unreachable;
         return handle;
+    }
+
+    pub fn loadTextureWithDesc(self: *Renderer, desc: graphics.TextureDesc, path: [:0]const u8) TextureHandle {
+        var texture: [*c]graphics.Texture = null;
+
+        var load_desc = std.mem.zeroes(resource_loader.TextureLoadDesc);
+        load_desc.__union_field1 = std.mem.zeroes(resource_loader.TextureLoadDesc.__Union0);
+        load_desc.__union_field1.__struct_field1 = std.mem.zeroes(resource_loader.TextureLoadDesc.__Union0.__Struct0);
+        load_desc.pFileName = path;
+        load_desc.__union_field1.__struct_field1.pDesc = @constCast(&desc);
+        load_desc.ppTexture = @ptrCast(&texture);
+
+        var token: resource_loader.SyncToken = 0;
+        resource_loader.addResource__Overload2(&load_desc, &token);
+        resource_loader.waitForToken(&token);
+
+        const handle: TextureHandle = self.texture_pool.add(.{ .texture = texture }) catch unreachable;
+        return handle;
+    }
+
+    pub fn loadTexture(self: *Renderer, path: [:0]const u8) TextureHandle {
+        var desc = std.mem.zeroes(graphics.TextureDesc);
+        desc.bBindless = true;
+        return self.loadTextureWithDesc(desc, path);
     }
 
     pub fn loadTextureFromMemory(self: *Renderer, width: u32, height: u32, format: graphics.TinyImageFormat, data_slice: Slice, debug_name: [*:0]const u8) TextureHandle {
@@ -542,6 +597,11 @@ pub const Renderer = struct {
 
         const handle: TextureHandle = self.texture_pool.add(.{ .texture = texture }) catch unreachable;
         return handle;
+    }
+
+    pub fn getTexture(self: *Renderer, handle: TextureHandle) [*]graphics.Texture {
+        const texture = self.texture_pool.getColumn(handle, .texture) catch unreachable;
+        return texture;
     }
 
     pub fn getTextureBindlessIndex(self: *Renderer, handle: TextureHandle) u32 {
@@ -1119,6 +1179,105 @@ pub const Renderer = struct {
             const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
             self.pso_map.put(id, handle) catch unreachable;
         }
+
+        // IBL Pipelines
+        {
+            // BRDF Integration
+            {
+                const id = IdLocal.init("brdf_integration");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+                shader_load_desc.mStages[0].pFileName = "brdf_integration.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.skybox};
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Compute Irradiance Map
+            {
+                const id = IdLocal.init("compute_irradiance_map");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+                shader_load_desc.mStages[0].pFileName = "compute_irradiance_map.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.skybox};
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Compute Specular Map
+            {
+                const id = IdLocal.init("compute_specular_map");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+                shader_load_desc.mStages[0].pFileName = "compute_specular_map.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.skybox};
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+        }
     }
 
     fn destroyPipelines(self: *Renderer) void {
@@ -1129,6 +1288,9 @@ pub const Renderer = struct {
         self.destroyPipeline(IdLocal.init("deferred"));
         self.destroyPipeline(IdLocal.init("tonemapper"));
         self.destroyPipeline(IdLocal.init("ui"));
+        self.destroyPipeline(IdLocal.init("brdf_integration"));
+        self.destroyPipeline(IdLocal.init("compute_irradiance_map"));
+        self.destroyPipeline(IdLocal.init("compute_specular_map"));
     }
 
     fn destroyPipeline(self: *Renderer, id: IdLocal) void {
@@ -1149,6 +1311,7 @@ const StaticSamplers = struct {
     point_repeat: [*c]graphics.Sampler = null,
     point_clamp_to_edge: [*c]graphics.Sampler = null,
     point_clamp_to_border: [*c]graphics.Sampler = null,
+    skybox: [*c]graphics.Sampler = null,
 
     pub fn init(renderer: [*c]graphics.Renderer) StaticSamplers {
         var static_samplers = std.mem.zeroes(StaticSamplers);
@@ -1208,6 +1371,18 @@ const StaticSamplers = struct {
             graphics.addSampler(renderer, &desc, &static_samplers.point_clamp_to_border);
         }
 
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+            desc.mMaxAnisotropy = 16.0;
+            graphics.addSampler(renderer, &desc, &static_samplers.skybox);
+        }
+
         return static_samplers;
     }
 
@@ -1217,6 +1392,7 @@ const StaticSamplers = struct {
         graphics.removeSampler(renderer, self.point_repeat);
         graphics.removeSampler(renderer, self.point_clamp_to_edge);
         graphics.removeSampler(renderer, self.point_clamp_to_border);
+        graphics.removeSampler(renderer, self.skybox);
     }
 };
 
@@ -1246,74 +1422,7 @@ pub const Slice = extern struct {
     size: u64,
 };
 
-pub const buffered_frames_count: u32 = 2;
 pub const sub_mesh_max_count: u32 = 32;
-
-pub fn frameIndex() u32 {
-    return TR_frameIndex();
-}
-extern fn TR_frameIndex() u32;
-
-pub fn requestReload(reload_desc: *const ReloadDesc) bool {
-    return TR_requestReload(reload_desc);
-}
-extern fn TR_requestReload(reload_desc: *const ReloadDesc) bool;
-
-pub fn onLoad(reload_desc: *ReloadDesc) bool {
-    return TR_onLoad(reload_desc);
-}
-extern fn TR_onLoad(reload_desc: *ReloadDesc) bool;
-
-pub fn onUnload(reload_desc: *ReloadDesc) void {
-    TR_onUnload(reload_desc);
-}
-extern fn TR_onUnload(reload_desc: *ReloadDesc) void;
-
-pub const HackyLightBuffersIndices = struct {
-    directional_lights_buffer_index: u32,
-    point_lights_buffer_index: u32,
-    directional_lights_count: u32,
-    point_lights_count: u32,
-};
-
-pub const HackyUIBuffersIndices = struct {
-    ui_instance_buffer_index: u32,
-    ui_instance_count: u32,
-};
-
-pub const FrameData = extern struct {
-    view_matrix: [16]f32,
-    proj_matrix: [16]f32,
-    position: [3]f32,
-    directional_lights_buffer_index: u32,
-    point_lights_buffer_index: u32,
-    directional_lights_count: u32,
-    point_lights_count: u32,
-    skybox_mesh_handle: MeshHandle,
-    ui_instance_buffer_index: u32,
-    ui_instance_count: u32,
-};
-
-pub const PointLight = extern struct {
-    position: [3]f32,
-    radius: f32,
-    color: [3]f32,
-    intensity: f32,
-};
-
-pub const DirectionalLight = extern struct {
-    direction: [3]f32,
-    shadow_map: i32,
-    color: [3]f32,
-    intensity: f32,
-    shadow_range: f32,
-    _pad: [2]f32,
-    shadow_map_dimensions: i32,
-    view_proj: [16]f32,
-};
-
-pub const point_lights_count_max: u32 = 1024;
-pub const directional_lights_count_max: u32 = 8;
 
 pub const FrameStats = struct {
     time: f64,

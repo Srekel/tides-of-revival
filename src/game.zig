@@ -5,6 +5,7 @@ const ecsu = @import("flecs_util/flecs_util.zig");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
 const zglfw = @import("zglfw");
+const graphics = @import("zforge").graphics;
 const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
 const AK = @import("wwise-zig");
@@ -148,22 +149,6 @@ pub fn run() void {
         world_patch_mgr: *world_patch_manager.WorldPatchManager,
         stats: *renderer.FrameStats,
         main_window: *window.Window,
-        lights_buffer_indices: *renderer.HackyLightBuffersIndices,
-        ui_buffer_indices: *renderer.HackyUIBuffersIndices,
-    };
-
-    // HACK(gmodarelli): Passing the current frame buffer indices for lights
-    var lights_buffer_indices = renderer.HackyLightBuffersIndices{
-        .directional_lights_buffer_index = std.math.maxInt(u32),
-        .point_lights_buffer_index = std.math.maxInt(u32),
-        .directional_lights_count = 0,
-        .point_lights_count = 0,
-    };
-
-    // HACK(gmodarelli): Passing the current frame UI buffer indices for UI Images
-    var ui_buffer_indices = renderer.HackyUIBuffersIndices{
-        .ui_instance_buffer_index = std.math.maxInt(u32),
-        .ui_instance_count = 0,
     };
 
     var gameloop_context: GameloopContext = .{
@@ -179,8 +164,6 @@ pub fn run() void {
         .stats = &stats,
         .renderer = &renderer_ctx,
         .main_window = main_window,
-        .lights_buffer_indices = &lights_buffer_indices,
-        .ui_buffer_indices = &ui_buffer_indices,
     };
 
     config.system.createSystems(&gameloop_context, &system_context);
@@ -231,7 +214,7 @@ pub fn run() void {
     };
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    config.entity.init(player_pos, &prefab_mgr, ecsu_world);
+    config.entity.init(player_pos, &prefab_mgr, ecsu_world, &renderer_ctx);
 
     const matball_prefab = prefab_mgr.getPrefab(config.prefab.matball_id).?;
     const matball_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
@@ -318,8 +301,6 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     const main_window = gameloop_context.main_window;
     const renderer_ctx = gameloop_context.renderer;
     var stats = gameloop_context.stats;
-    const lights_buffer_indices = gameloop_context.lights_buffer_indices;
-    const ui_buffer_indices = gameloop_context.ui_buffer_indices;
 
     const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
     defer trazy_zone.End();
@@ -333,21 +314,20 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     }
 
     if (input_frame_data.just_pressed(config.input.reload_shaders)) {
-        var reload_desc = renderer.ReloadDesc{
+        const reload_desc = graphics.ReloadDesc{
             .mType = .{ .SHADER = true },
         };
-        _ = renderer.requestReload(&reload_desc);
+        renderer_ctx.requestReload(reload_desc);
     }
 
     if (main_window.frame_buffer_size[0] != renderer_ctx.window_width or main_window.frame_buffer_size[1] != renderer_ctx.window_height) {
         renderer_ctx.window_width = main_window.frame_buffer_size[0];
         renderer_ctx.window_height = main_window.frame_buffer_size[1];
 
-        const reload_desc = renderer.ReloadDesc{
+        const reload_desc = graphics.ReloadDesc{
             .mType = .{ .RESIZE = true },
         };
-        renderer_ctx.onUnload(reload_desc);
-        renderer_ctx.onLoad(reload_desc) catch unreachable;
+        renderer_ctx.requestReload(reload_desc);
     }
 
     // TODO(gmodarelli): Add these view modes to tides_renderer
@@ -397,26 +377,6 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
         // ui_label.label = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
         // gfx_state.drawUILabel(ui_label) catch unreachable;
     }
-
-    const camera_ent = util.getActiveCameraEnt(ecsu_world);
-    const camera_component = camera_ent.get(fd.Camera).?;
-    const camera_transform = camera_ent.get(fd.Transform).?;
-    const z_view = zm.loadMat(camera_component.view[0..]);
-    const z_proj = zm.loadMat(camera_component.projection[0..]);
-
-    var frame_data: renderer.FrameData = undefined;
-    frame_data.position = camera_transform.getPos00();
-    frame_data.directional_lights_buffer_index = lights_buffer_indices.directional_lights_buffer_index;
-    frame_data.point_lights_buffer_index = lights_buffer_indices.point_lights_buffer_index;
-    frame_data.directional_lights_count = lights_buffer_indices.directional_lights_count;
-    frame_data.point_lights_count = lights_buffer_indices.point_lights_count;
-    frame_data.ui_instance_buffer_index = ui_buffer_indices.ui_instance_buffer_index;
-    frame_data.ui_instance_count = ui_buffer_indices.ui_instance_count;
-
-    const static_mesh_component = config.prefab.default_cube.getMut(fd.StaticMeshComponent).?;
-    frame_data.skybox_mesh_handle = static_mesh_component.*.mesh_handle;
-    zm.storeMat(&frame_data.view_matrix, z_view);
-    zm.storeMat(&frame_data.proj_matrix, z_proj);
 
     stats.update();
 

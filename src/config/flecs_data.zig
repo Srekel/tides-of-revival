@@ -25,6 +25,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
     ecs.COMPONENT(ecs_world, StaticMeshComponent);
+    ecs.COMPONENT(ecs_world, SkyLightComponent);
     ecs.COMPONENT(ecs_world, UIImageComponent);
     ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
@@ -34,8 +35,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, WorldLoader);
     ecs.COMPONENT(ecs_world, WorldPatch);
     // ecs.COMPONENT(ecs_world, ComponentData);
-    ecs.COMPONENT(ecs_world, DirectionalLight);
-    ecs.COMPONENT(ecs_world, PointLight);
+    ecs.COMPONENT(ecs_world, DirectionalLightComponent);
+    ecs.COMPONENT(ecs_world, PointLightComponent);
     ecs.COMPONENT(ecs_world, CIFSM);
     ecs.COMPONENT(ecs_world, FSM);
     ecs.COMPONENT(ecs_world, Input);
@@ -394,6 +395,18 @@ pub const StaticMeshComponent = struct {
     materials: [renderer.sub_mesh_max_count]PBRMaterial,
 };
 
+// ███████╗██╗  ██╗██╗   ██╗██████╗  ██████╗ ██╗  ██╗
+// ██╔════╝██║ ██╔╝╚██╗ ██╔╝██╔══██╗██╔═══██╗╚██╗██╔╝
+// ███████╗█████╔╝  ╚████╔╝ ██████╔╝██║   ██║ ╚███╔╝
+// ╚════██║██╔═██╗   ╚██╔╝  ██╔══██╗██║   ██║ ██╔██╗
+// ███████║██║  ██╗   ██║   ██████╔╝╚██████╔╝██╔╝ ██╗
+// ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+
+pub const SkyLightComponent = struct {
+    hdri: TextureHandle,
+    intensity: f32,
+};
+
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
 // ██╔════╝██╔══██╗████╗ ████║██╔════╝██╔══██╗██╔══██╗
 // ██║     ███████║██╔████╔██║█████╗  ██████╔╝███████║
@@ -536,12 +549,12 @@ pub const WorldPatch = struct {
 // ███████╗██║╚██████╔╝██║  ██║   ██║
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
-pub const DirectionalLight = struct {
+pub const DirectionalLightComponent = struct {
     color: ColorRGB,
     intensity: f32,
 };
 
-pub const PointLight = struct {
+pub const PointLightComponent = struct {
     color: ColorRGB,
     range: f32,
     intensity: f32,

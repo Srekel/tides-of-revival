@@ -7,17 +7,37 @@ const fd = @import("flecs_data.zig");
 const renderer = @import("../renderer/renderer.zig");
 const ID = core.ID;
 const IdLocal = core.IdLocal;
+const zforge = @import("zforge");
 const zm = @import("zmath");
+const graphics = zforge.graphics;
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
+pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer) void {
+    // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
+    // ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██║████╗  ██║██╔════╝
+    // ██║     ██║██║  ███╗███████║   ██║   ██║██╔██╗ ██║██║  ███╗
+    // ██║     ██║██║   ██║██╔══██║   ██║   ██║██║╚██╗██║██║   ██║
+    // ███████╗██║╚██████╔╝██║  ██║   ██║   ██║██║ ╚████║╚██████╔╝
+    // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
+
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(45.0, 45.0, 0.0));
-    sun_light.set(fd.DirectionalLight{
+    sun_light.set(fd.DirectionalLightComponent{
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
         .intensity = 1.0,
     });
+
+    const sky_light = ecsu_world.newEntity();
+    {
+        var desc = std.mem.zeroes(graphics.TextureDesc);
+        desc.bBindless = false;
+        const hdri = rctx.loadTextureWithDesc(desc, "textures/env/kloofendal_43d_clear_puresky_2k_cube_radiance.dds");
+        sky_light.set(fd.SkyLightComponent{
+            .hdri = hdri,
+            .intensity = 0.35,
+        });
+    }
 
     // ██████╗  ██████╗ ██╗    ██╗
     // ██╔══██╗██╔═══██╗██║    ██║
@@ -98,7 +118,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    player_camera_ent.set(fd.PointLight{
+    player_camera_ent.set(fd.PointLightComponent{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
         .range = 5.0,
         .intensity = 1.0,

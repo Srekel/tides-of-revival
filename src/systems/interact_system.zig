@@ -238,7 +238,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.PhysicsBody{ .body_id = proj_body_id });
 
             // Light
-            proj_ent.set(fd.PointLight{
+            proj_ent.set(fd.PointLightComponent{
                 .color = .{ .r = 1, .g = 1, .b = 0.5 },
                 .range = 5.0,
                 .intensity = 0.5,
@@ -537,7 +537,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     );
 
                     ecs.remove(ecs_world, hit_ent, fd.FSM);
-                    ecs.remove(ecs_world, hit_ent, fd.PointLight);
+                    ecs.remove(ecs_world, hit_ent, fd.PointLightComponent);
 
                     const tli_despawn = config.events.TimelineInstanceData{
                         .ent = hit_ent,

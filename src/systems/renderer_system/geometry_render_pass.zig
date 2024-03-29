@@ -10,9 +10,14 @@ const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const zm = @import("zmath");
 
-const font = zforge.font;
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
+
+pub const UniformFrameData = struct {
+    projection_view: [16]f32,
+    projection_view_inverted: [16]f32,
+    camera_position: [4]f32,
+};
 
 const InstanceData = struct {
     object_to_world: [16]f32,
@@ -62,8 +67,8 @@ pub const GeometryRenderPass = struct {
     renderer: *renderer.Renderer,
     query_static_mesh: ecsu.Query,
 
-    camera_uniform_data: renderer.CameraUniformFrameData,
-    camera_uniform_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    uniform_frame_data: UniformFrameData,
+    uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
 
     instance_data_buffers: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -77,10 +82,10 @@ pub const GeometryRenderPass = struct {
     draw_calls_push_constants: [max_entity_types]std.ArrayList(DrawCallPushConstants),
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *GeometryRenderPass {
-        const camera_uniform_buffers = blk: {
+        const uniform_frame_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(renderer.CameraUniformFrameData);
+                buffers[buffer_index] = rctx.createUniformBuffer(UniformFrameData);
             }
 
             break :blk buffers;
@@ -177,8 +182,8 @@ pub const GeometryRenderPass = struct {
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
-            .camera_uniform_data = std.mem.zeroes(renderer.CameraUniformFrameData),
-            .camera_uniform_buffers = camera_uniform_buffers,
+            .uniform_frame_data = std.mem.zeroes(UniformFrameData),
+            .uniform_frame_buffers = uniform_frame_buffers,
             .descriptor_sets = descriptor_sets,
             .instance_data_buffers = .{ masked_instance_data_buffers, opaque_instance_data_buffers },
             .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
@@ -245,15 +250,15 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
     const z_proj_view = zm.mul(z_view, z_proj);
 
-    zm.storeMat(&self.camera_uniform_data.projection_view, z_proj_view);
-    zm.storeMat(&self.camera_uniform_data.projection_view_inverted, zm.inverse(z_proj_view));
-    self.camera_uniform_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+    zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
+    zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
+    self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
 
     const data = renderer.Slice{
-        .data = @ptrCast(&self.camera_uniform_data),
-        .size = @sizeOf(renderer.CameraUniformFrameData),
+        .data = @ptrCast(&self.uniform_frame_data),
+        .size = @sizeOf(UniformFrameData),
     };
-    self.renderer.updateBuffer(data, renderer.CameraUniformFrameData, self.camera_uniform_buffers[frame_index]);
+    self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
     var entity_iterator = self.query_static_mesh.iterator(struct {
         transform: *const fd.Transform,
@@ -488,7 +493,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     var params: [1]graphics.DescriptorData = undefined;
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.camera_uniform_buffers[i]);
+        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cbFrame";
         params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);

@@ -105,20 +105,20 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
 
         if (is_boss) {
             std.log.info("ANT boss hp: {d:5.2}", .{hp});
-            ent.set(fd.PointLight{
+            ent.set(fd.PointLightComponent{
                 .color = .{ .r = 1, .g = 0.15, .b = 0.15 },
                 .range = 20.0,
                 .intensity = 8.0,
             });
         } else if (is_big) {
             std.log.info("ANT big  hp: {d:5.2}", .{hp});
-            ent.set(fd.PointLight{
+            ent.set(fd.PointLightComponent{
                 .color = .{ .r = 1, .g = 0.45, .b = 0.2 },
                 .range = 8.0,
                 .intensity = 6.0,
             });
         } else {
-            ent.set(fd.PointLight{
+            ent.set(fd.PointLightComponent{
                 .color = .{ .r = 0.2, .g = 0.2, .b = 0.9 },
                 .range = 6.0,
                 .intensity = 5.0,
