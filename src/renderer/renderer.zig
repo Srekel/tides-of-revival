@@ -68,6 +68,11 @@ pub const Renderer = struct {
     render_skybox_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_skybox_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
+    render_tonemap_pass_user_data: ?*anyopaque = null,
+    render_tonemap_pass_render_fn: renderPassRenderFn = null,
+    render_tonemap_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_tonemap_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
     pub const Error = error{
         NotInitialized,
         SwapChainNotInitialized,
@@ -269,6 +274,10 @@ pub const Renderer = struct {
             if (self.render_skybox_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
                 prepare_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
             }
+
+            if (self.render_tonemap_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+                prepare_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
+            }
         }
 
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
@@ -310,6 +319,12 @@ pub const Renderer = struct {
 
             if (self.render_skybox_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_skybox_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
+            if (self.render_tonemap_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_tonemap_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
                 }
             }
@@ -375,7 +390,7 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // Deferred Shading Pass
+        // Deferred Shading and Skybox Passes
         {
             var input_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
@@ -408,72 +423,80 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // TODO(gmodarelli): Add tonemapper
-        var input_barriers = [_]graphics.RenderTargetBarrier{
-            graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-        };
-        graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
-
-        const render_target = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
-
+        // Tonemap
         {
-            var barrier = std.mem.zeroes(graphics.RenderTargetBarrier);
-            barrier.pRenderTarget = render_target;
-            barrier.mCurrentState = graphics.ResourceState.RESOURCE_STATE_PRESENT;
-            barrier.mNewState = graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET;
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, 1, &barrier);
+            var input_barriers = [_]graphics.RenderTargetBarrier{
+                graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+            };
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
+            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+            bind_render_targets_desc.mRenderTargetCount = 1;
+            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
+            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
+            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+
+            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
+            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+            if (self.render_tonemap_pass_render_fn) |render_fn| {
+                render_fn(cmd_list, self.render_tonemap_pass_user_data.?);
+            }
         }
 
-        var bind_render_targets: graphics.BindRenderTargetsDesc = undefined;
-        bind_render_targets.mRenderTargetCount = 1;
-        bind_render_targets.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-        bind_render_targets.mRenderTargets[0].pRenderTarget = render_target;
-        bind_render_targets.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-        bind_render_targets.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
-        graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets);
-        graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
-        graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
-
-        var font_draw_desc = std.mem.zeroes(font.FontDrawDesc);
-        font_draw_desc.pText = "Z-Forge !11!!";
-        font_draw_desc.mFontID = self.roboto_font_id;
-        font_draw_desc.mFontColor = 0xffffffff;
-        font_draw_desc.mFontSize = 64;
-        font.cmdDrawTextWithFont(cmd_list, 100.0, 100.0, &font_draw_desc);
-
+        // UI
         {
-            var barrier = std.mem.zeroes(graphics.RenderTargetBarrier);
-            barrier.pRenderTarget = render_target;
-            barrier.mCurrentState = graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET;
-            barrier.mNewState = graphics.ResourceState.RESOURCE_STATE_PRESENT;
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, 1, &barrier);
+            var font_draw_desc = std.mem.zeroes(font.FontDrawDesc);
+            font_draw_desc.pText = "Z-Forge !11!!";
+            font_draw_desc.mFontID = self.roboto_font_id;
+            font_draw_desc.mFontColor = 0xffffffff;
+            font_draw_desc.mFontSize = 64;
+            font.cmdDrawTextWithFont(cmd_list, 100.0, 100.0, &font_draw_desc);
+
+            graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        graphics.endCmd(cmd_list);
+        // Present
+        {
+            const render_target = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
 
-        var flush_update_desc = std.mem.zeroes(resource_loader.FlushResourceUpdateDesc);
-        flush_update_desc.mNodeIndex = 0;
-        resource_loader.flushResourceUpdates(&flush_update_desc);
+            {
+                var barrier = std.mem.zeroes(graphics.RenderTargetBarrier);
+                barrier.pRenderTarget = render_target;
+                barrier.mCurrentState = graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET;
+                barrier.mNewState = graphics.ResourceState.RESOURCE_STATE_PRESENT;
+                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, 1, &barrier);
+            }
 
-        var wait_semaphores = [2]*graphics.Semaphore{ flush_update_desc.pOutSubmittedSemaphore, self.image_acquired_semaphore };
+            graphics.endCmd(cmd_list);
 
-        var submit_desc: graphics.QueueSubmitDesc = undefined;
-        submit_desc.mCmdCount = 1;
-        submit_desc.mSignalSemaphoreCount = 1;
-        submit_desc.mWaitSemaphoreCount = 2;
-        submit_desc.ppCmds = &cmd_list;
-        submit_desc.ppSignalSemaphores = &elem.semaphore;
-        submit_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
-        submit_desc.pSignalFence = elem.fence;
-        graphics.queueSubmit(self.graphics_queue, &submit_desc);
+            var flush_update_desc = std.mem.zeroes(resource_loader.FlushResourceUpdateDesc);
+            flush_update_desc.mNodeIndex = 0;
+            resource_loader.flushResourceUpdates(&flush_update_desc);
 
-        var queue_present_desc: graphics.QueuePresentDesc = undefined;
-        queue_present_desc.mIndex = @intCast(swap_chain_image_index);
-        queue_present_desc.mWaitSemaphoreCount = 1;
-        queue_present_desc.pSwapChain = self.swap_chain;
-        queue_present_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
-        queue_present_desc.mSubmitDone = true;
-        graphics.queuePresent(self.graphics_queue, &queue_present_desc);
+            var wait_semaphores = [2]*graphics.Semaphore{ flush_update_desc.pOutSubmittedSemaphore, self.image_acquired_semaphore };
+
+            var submit_desc: graphics.QueueSubmitDesc = undefined;
+            submit_desc.mCmdCount = 1;
+            submit_desc.mSignalSemaphoreCount = 1;
+            submit_desc.mWaitSemaphoreCount = 2;
+            submit_desc.ppCmds = &cmd_list;
+            submit_desc.ppSignalSemaphores = &elem.semaphore;
+            submit_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
+            submit_desc.pSignalFence = elem.fence;
+            graphics.queueSubmit(self.graphics_queue, &submit_desc);
+
+            var queue_present_desc: graphics.QueuePresentDesc = undefined;
+            queue_present_desc.mIndex = @intCast(swap_chain_image_index);
+            queue_present_desc.mWaitSemaphoreCount = 1;
+            queue_present_desc.pSwapChain = self.swap_chain;
+            queue_present_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
+            queue_present_desc.mSubmitDone = true;
+            graphics.queuePresent(self.graphics_queue, &queue_present_desc);
+        }
 
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
@@ -1004,7 +1027,7 @@ pub const Renderer = struct {
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
             shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
             shader_load_desc.mStages[0].pFileName = "lit.vert";
-            shader_load_desc.mStages[1].pFileName = "lit_opaque.frag";
+            shader_load_desc.mStages[1].pFileName = "lit_masked.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1036,7 +1059,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 

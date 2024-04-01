@@ -15,6 +15,8 @@ const deferred_shading_render_pass = @import("renderer_system/deferred_shading_r
 const DeferredShadingRenderPass = deferred_shading_render_pass.DeferredShadingRenderPass;
 const skybox_render_pass = @import("renderer_system/skybox_render_pass.zig");
 const SkyboxRenderPass = skybox_render_pass.SkyboxRenderPass;
+const tonemap_render_pass = @import("renderer_system/tonemap_render_pass.zig");
+const TonemapRenderPass = tonemap_render_pass.TonemapRenderPass;
 
 const font = zforge.font;
 const graphics = zforge.graphics;
@@ -57,6 +59,12 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     ctx.renderer.render_skybox_pass_prepare_descriptor_sets_fn = skybox_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_skybox_pass_unload_descriptor_sets_fn = skybox_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_skybox_pass_user_data = skybox_pass;
+
+    const tonemap_pass = TonemapRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    ctx.renderer.render_tonemap_pass_render_fn = tonemap_render_pass.renderFn;
+    ctx.renderer.render_tonemap_pass_prepare_descriptor_sets_fn = tonemap_render_pass.prepareDescriptorSetsFn;
+    ctx.renderer.render_tonemap_pass_unload_descriptor_sets_fn = tonemap_render_pass.unloadDescriptorSetsFn;
+    ctx.renderer.render_tonemap_pass_user_data = tonemap_pass;
 
     system.* = .{
         .allocator = ctx.allocator,
