@@ -237,6 +237,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     defer trazy_zone.End();
 
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
+    cullStaticMeshes(self);
 
     const frame_index = self.renderer.frame_index;
 
@@ -259,6 +260,130 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .size = @sizeOf(UniformFrameData),
     };
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+
+    for (0..max_entity_types) |entity_type_index| {
+        const instance_data_slice = renderer.Slice{
+            .data = @ptrCast(self.instance_data[entity_type_index].items),
+            .size = self.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
+        };
+        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[entity_type_index][frame_index]);
+
+        const instance_material_slice = renderer.Slice{
+            .data = @ptrCast(self.instance_materials[entity_type_index].items),
+            .size = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
+        };
+        self.renderer.updateBuffer(instance_material_slice, InstanceMaterial, self.instance_material_buffers[entity_type_index][frame_index]);
+    }
+
+    // Render Lit Masked Objects
+    {
+        const pipeline_id = IdLocal.init("lit_masked");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+        const root_signature = self.renderer.getRootSignature(pipeline_id);
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
+
+        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+
+        for (self.draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
+            const push_constants = &self.draw_calls_push_constants[masked_entities_index].items[i];
+            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+
+            if (mesh.loaded) {
+                const vertex_buffers = [_][*c]graphics.Buffer{
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
+                };
+
+                graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
+                graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                graphics.cmdDrawIndexedInstanced(
+                    cmd_list,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                );
+            }
+        }
+    }
+
+    // Render Lit Objects
+    {
+        const pipeline_id = IdLocal.init("lit");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+        const root_signature = self.renderer.getRootSignature(pipeline_id);
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
+
+        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+
+        for (self.draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
+            const push_constants = &self.draw_calls_push_constants[opaque_entities_index].items[i];
+            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+
+            if (mesh.loaded) {
+                const vertex_buffers = [_][*c]graphics.Buffer{
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
+                };
+
+                graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
+                graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                graphics.cmdDrawIndexedInstanced(
+                    cmd_list,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                );
+            }
+        }
+    }
+}
+
+fn prepareDescriptorSets(user_data: *anyopaque) void {
+    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
+
+    var params: [1]graphics.DescriptorData = undefined;
+
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cbFrame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
+    }
+}
+
+fn unloadDescriptorSets(user_data: *anyopaque) void {
+    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
+
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[masked_entities_index]);
+}
+
+fn cullStaticMeshes(self: *GeometryRenderPass) void {
+    const frame_index = self.renderer.frame_index;
+
+    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct {
+        camera: *const fd.Camera,
+        transform: *const fd.Transform,
+    });
+    const camera_position = camera_comps.transform.getPos00();
 
     var entity_iterator = self.query_static_mesh.iterator(struct {
         transform: *const fd.Transform,
@@ -395,117 +520,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 }
             }
         }
-
-        const instance_data_slice = renderer.Slice{
-            .data = @ptrCast(self.instance_data[entity_type_index].items),
-            .size = self.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
-        };
-        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[entity_type_index][frame_index]);
-
-        const instance_material_slice = renderer.Slice{
-            .data = @ptrCast(self.instance_materials[entity_type_index].items),
-            .size = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
-        };
-        self.renderer.updateBuffer(instance_material_slice, InstanceMaterial, self.instance_material_buffers[entity_type_index][frame_index]);
     }
     loop2.End();
-
-    // Render Lit Masked Objects
-    {
-        const pipeline_id = IdLocal.init("lit_masked");
-        const pipeline = self.renderer.getPSO(pipeline_id);
-        const root_signature = self.renderer.getRootSignature(pipeline_id);
-        graphics.cmdBindPipeline(cmd_list, pipeline);
-        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
-
-        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-        std.debug.assert(root_constant_index != std.math.maxInt(u32));
-
-        for (self.draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
-            const push_constants = &self.draw_calls_push_constants[masked_entities_index].items[i];
-            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
-
-            if (mesh.loaded) {
-                const vertex_buffers = [_][*c]graphics.Buffer{
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
-                };
-
-                graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
-                graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
-                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
-                graphics.cmdDrawIndexedInstanced(
-                    cmd_list,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
-                );
-            }
-        }
-    }
-
-    // Render Lit Objects
-    {
-        const pipeline_id = IdLocal.init("lit");
-        const pipeline = self.renderer.getPSO(pipeline_id);
-        const root_signature = self.renderer.getRootSignature(pipeline_id);
-        graphics.cmdBindPipeline(cmd_list, pipeline);
-        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
-
-        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-        std.debug.assert(root_constant_index != std.math.maxInt(u32));
-
-        for (self.draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
-            const push_constants = &self.draw_calls_push_constants[opaque_entities_index].items[i];
-            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
-
-            if (mesh.loaded) {
-                const vertex_buffers = [_][*c]graphics.Buffer{
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
-                };
-
-                graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
-                graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
-                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
-                graphics.cmdDrawIndexedInstanced(
-                    cmd_list,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
-                );
-            }
-        }
-    }
-}
-
-fn prepareDescriptorSets(user_data: *anyopaque) void {
-    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
-
-    var params: [1]graphics.DescriptorData = undefined;
-
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
-
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
-    }
-}
-
-fn unloadDescriptorSets(user_data: *anyopaque) void {
-    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
-
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[masked_entities_index]);
 }
