@@ -1,4 +1,5 @@
 const std = @import("std");
+const prefab = @import("prefab.zig");
 const prefab_manager = @import("../prefab_manager.zig");
 const config = @import("config.zig");
 const core = @import("../core/core.zig");
@@ -30,13 +31,23 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     const sky_light = ecsu_world.newEntity();
     {
+        var sky_light_component = fd.SkyLightComponent{
+            .hdri = renderer.TextureHandle.nil,
+            .intensity = 0.35,
+            .mesh = renderer.MeshHandle.nil,
+        };
+
         var desc = std.mem.zeroes(graphics.TextureDesc);
         desc.bBindless = false;
-        const hdri = rctx.loadTextureWithDesc(desc, "textures/env/kloofendal_43d_clear_puresky_2k_cube_radiance.dds");
-        sky_light.set(fd.SkyLightComponent{
-            .hdri = hdri,
-            .intensity = 0.35,
-        });
+        sky_light_component.hdri = rctx.loadTextureWithDesc(desc, "textures/env/kloofendal_43d_clear_puresky_2k_cube_radiance.dds");
+
+        const cube_prefab = prefab_mgr.getPrefab(prefab.cube_id).?;
+        const static_mesh_component = cube_prefab.getMut(fd.StaticMeshComponent);
+        if (static_mesh_component) |static_mesh| {
+            sky_light_component.mesh = static_mesh.mesh_handle;
+        }
+
+        sky_light.set(sky_light_component);
     }
 
     // ██████╗  ██████╗ ██╗    ██╗

@@ -13,6 +13,8 @@ const geometry_render_pass = @import("renderer_system/geometry_render_pass.zig")
 const GeometryRenderPass = geometry_render_pass.GeometryRenderPass;
 const deferred_shading_render_pass = @import("renderer_system/deferred_shading_render_pass.zig");
 const DeferredShadingRenderPass = deferred_shading_render_pass.DeferredShadingRenderPass;
+const skybox_render_pass = @import("renderer_system/skybox_render_pass.zig");
+const SkyboxRenderPass = skybox_render_pass.SkyboxRenderPass;
 
 const font = zforge.font;
 const graphics = zforge.graphics;
@@ -49,6 +51,12 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     ctx.renderer.render_deferred_shading_pass_prepare_descriptor_sets_fn = deferred_shading_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = deferred_shading_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_user_data = deferred_shading_pass;
+
+    const skybox_pass = SkyboxRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    ctx.renderer.render_skybox_pass_render_fn = skybox_render_pass.renderFn;
+    ctx.renderer.render_skybox_pass_prepare_descriptor_sets_fn = skybox_render_pass.prepareDescriptorSetsFn;
+    ctx.renderer.render_skybox_pass_unload_descriptor_sets_fn = skybox_render_pass.unloadDescriptorSetsFn;
+    ctx.renderer.render_skybox_pass_user_data = skybox_pass;
 
     system.* = .{
         .allocator = ctx.allocator,

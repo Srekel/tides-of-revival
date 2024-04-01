@@ -404,6 +404,7 @@ pub const StaticMeshComponent = struct {
 
 pub const SkyLightComponent = struct {
     hdri: TextureHandle,
+    mesh: MeshHandle,
     intensity: f32,
 };
 

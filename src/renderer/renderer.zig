@@ -63,6 +63,11 @@ pub const Renderer = struct {
     render_deferred_shading_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_deferred_shading_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
+    render_skybox_pass_user_data: ?*anyopaque = null,
+    render_skybox_pass_render_fn: renderPassRenderFn = null,
+    render_skybox_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_skybox_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
     pub const Error = error{
         NotInitialized,
         SwapChainNotInitialized,
@@ -260,6 +265,10 @@ pub const Renderer = struct {
             if (self.render_deferred_shading_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
                 prepare_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
             }
+
+            if (self.render_skybox_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+                prepare_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
+            }
         }
 
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
@@ -295,6 +304,12 @@ pub const Renderer = struct {
 
             if (self.render_deferred_shading_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_deferred_shading_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
+            if (self.render_skybox_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_skybox_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
                 }
             }
@@ -384,6 +399,10 @@ pub const Renderer = struct {
 
             if (self.render_deferred_shading_pass_render_fn) |render_fn| {
                 render_fn(cmd_list, self.render_deferred_shading_pass_user_data.?);
+            }
+
+            if (self.render_skybox_pass_render_fn) |render_fn| {
+                render_fn(cmd_list, self.render_skybox_pass_user_data.?);
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
