@@ -9,6 +9,10 @@ const renderer = @import("../renderer/renderer.zig");
 const zforge = @import("zforge");
 const util = @import("../util.zig");
 const zm = @import("zmath");
+const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
+
+const terrain_render_pass = @import("renderer_system/terrain_render_pass.zig");
+const TerrainRenderPass = terrain_render_pass.TerrainRenderPass;
 const geometry_render_pass = @import("renderer_system/geometry_render_pass.zig");
 const GeometryRenderPass = geometry_render_pass.GeometryRenderPass;
 const deferred_shading_render_pass = @import("renderer_system/deferred_shading_render_pass.zig");
@@ -27,8 +31,11 @@ pub const SystemState = struct {
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
     sys: ecs.entity_t,
+    terrain_render_pass: *TerrainRenderPass,
     geometry_render_pass: *GeometryRenderPass,
     deferred_shading_render_pass: *DeferredShadingRenderPass,
+    skybox_render_pass: *SkyboxRenderPass,
+    tonemap_render_pass: *TonemapRenderPass,
 };
 
 pub const SystemCtx = struct {
@@ -36,6 +43,7 @@ pub const SystemCtx = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
 pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
@@ -47,6 +55,12 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     ctx.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = geometry_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_unload_descriptor_sets_fn = geometry_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_user_data = geometry_pass;
+
+    const terrain_pass = TerrainRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
+    ctx.renderer.render_terrain_pass_render_fn = terrain_render_pass.renderFn;
+    ctx.renderer.render_terrain_pass_prepare_descriptor_sets_fn = terrain_render_pass.prepareDescriptorSetsFn;
+    ctx.renderer.render_terrain_pass_unload_descriptor_sets_fn = terrain_render_pass.unloadDescriptorSetsFn;
+    ctx.renderer.render_terrain_pass_user_data = terrain_pass;
 
     const deferred_shading_pass = DeferredShadingRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_deferred_shading_pass_render_fn = deferred_shading_render_pass.renderFn;
@@ -70,8 +84,11 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .allocator = ctx.allocator,
         .ecsu_world = ctx.ecsu_world,
         .renderer = ctx.renderer,
+        .terrain_render_pass = terrain_pass,
         .geometry_render_pass = geometry_pass,
         .deferred_shading_render_pass = deferred_shading_pass,
+        .skybox_render_pass = skybox_pass,
+        .tonemap_render_pass = tonemap_pass,
         .sys = sys,
     };
 
@@ -79,6 +96,12 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 }
 
 pub fn destroy(system: *SystemState) void {
+    system.terrain_render_pass.destroy();
+    system.renderer.render_terrain_pass_render_fn = null;
+    system.renderer.render_terrain_pass_prepare_descriptor_sets_fn = null;
+    system.renderer.render_terrain_pass_unload_descriptor_sets_fn = null;
+    system.renderer.render_terrain_pass_user_data = null;
+
     system.geometry_render_pass.destroy();
     system.renderer.render_gbuffer_pass_render_fn = null;
     system.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = null;
@@ -90,6 +113,18 @@ pub fn destroy(system: *SystemState) void {
     system.renderer.render_deferred_shading_pass_prepare_descriptor_sets_fn = null;
     system.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = null;
     system.renderer.render_deferred_shading_pass_user_data = null;
+
+    system.skybox_render_pass.destroy();
+    system.renderer.render_skybox_pass_render_fn = null;
+    system.renderer.render_skybox_pass_prepare_descriptor_sets_fn = null;
+    system.renderer.render_skybox_pass_unload_descriptor_sets_fn = null;
+    system.renderer.render_skybox_pass_user_data = null;
+
+    system.tonemap_render_pass.destroy();
+    system.renderer.render_tonemap_pass_render_fn = null;
+    system.renderer.render_tonemap_pass_prepare_descriptor_sets_fn = null;
+    system.renderer.render_tonemap_pass_unload_descriptor_sets_fn = null;
+    system.renderer.render_tonemap_pass_user_data = null;
 
     system.allocator.destroy(system);
 }

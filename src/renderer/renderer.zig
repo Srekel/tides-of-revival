@@ -53,6 +53,11 @@ pub const Renderer = struct {
     pso_pool: PSOPool = undefined,
     pso_map: PSOMap = undefined,
 
+    render_terrain_pass_user_data: ?*anyopaque = null,
+    render_terrain_pass_render_fn: renderPassRenderFn = null,
+    render_terrain_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_terrain_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
     render_gbuffer_pass_user_data: ?*anyopaque = null,
     render_gbuffer_pass_render_fn: renderPassRenderFn = null,
     render_gbuffer_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
@@ -263,6 +268,10 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER or reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
+            if (self.render_terrain_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+                prepare_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
+            }
+
             if (self.render_gbuffer_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
                 prepare_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
             }
@@ -305,6 +314,12 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER or reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
+            if (self.render_terrain_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_terrain_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
             if (self.render_gbuffer_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_gbuffer_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
@@ -382,6 +397,10 @@ pub const Renderer = struct {
 
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+            if (self.render_terrain_pass_render_fn) |render_fn| {
+                render_fn(cmd_list, self.render_terrain_pass_user_data.?);
+            }
 
             if (self.render_gbuffer_pass_render_fn) |render_fn| {
                 render_fn(cmd_list, self.render_gbuffer_pass_user_data.?);

@@ -266,6 +266,15 @@ pub const DeferredShadingRenderPass = struct {
     }
 
     pub fn destroy(self: *DeferredShadingRenderPass) void {
+        graphics.removeDescriptorSet(self.renderer.renderer, self.brdf_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.irradiance_descriptor_set);
+        for (self.specular_descriptor_sets) |descriptor_set| {
+            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
+        }
+        for (self.deferred_descriptor_sets) |descriptor_set| {
+            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
+        }
+
         self.query_directional_lights.deinit();
         self.query_point_lights.deinit();
         self.query_sky_lights.deinit();

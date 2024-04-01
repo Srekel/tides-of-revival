@@ -48,6 +48,11 @@ pub const TonemapRenderPass = struct {
 
         return pass;
     }
+
+    pub fn destroy(self: *TonemapRenderPass) void {
+        graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_set);
+        self.allocator.destroy(self);
+    }
 };
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗

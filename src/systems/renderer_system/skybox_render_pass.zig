@@ -76,6 +76,16 @@ pub const SkyboxRenderPass = struct {
 
         return pass;
     }
+
+    pub fn destroy(self: *SkyboxRenderPass) void {
+        self.query_sky_lights.deinit();
+
+        for (self.descriptor_sets) |descriptor_set| {
+            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
+        }
+
+        self.allocator.destroy(self);
+    }
 };
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗
