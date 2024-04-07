@@ -627,8 +627,6 @@ fn loadNodeHeightmap(
             .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
         ) catch unreachable;
 
-        std.log.debug("loading heightmap: {s}", .{debug_name});
-
         node.heightmap_handle = rctx.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
     }
 }
@@ -661,8 +659,6 @@ fn loadNodeSplatmap(
             "lod{d}/splatmap_x{d}_z{d}",
             .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
         ) catch unreachable;
-
-        std.log.debug("loading splatmap: {s}", .{debug_name});
 
         node.splatmap_handle = rctx.loadTextureFromMemory(65, 65, .R8_UNORM, data_slice, debug_name);
     }
