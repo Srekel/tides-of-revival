@@ -176,6 +176,7 @@ pub fn run() void {
         .sun_height = 0,
         .world_time = 0,
         .active_camera = null,
+        .sky_light = null,
     });
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗

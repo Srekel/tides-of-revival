@@ -29,8 +29,6 @@ pub const SkyboxRenderPass = struct {
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     descriptor_sets: [2][*c]graphics.DescriptorSet,
 
-    query_sky_lights: ecsu.Query,
-
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *SkyboxRenderPass {
         const uniform_frame_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
@@ -55,11 +53,6 @@ pub const SkyboxRenderPass = struct {
             graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_sets[1]));
         }
 
-        var query_builder_sky_lights = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_sky_lights
-            .withReadonly(fd.SkyLightComponent);
-        const query_sky_lights = query_builder_sky_lights.buildQuery();
-
         const pass = allocator.create(SkyboxRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
@@ -69,7 +62,6 @@ pub const SkyboxRenderPass = struct {
             .descriptor_sets = descriptor_sets,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .query_sky_lights = query_sky_lights,
         };
 
         prepareDescriptorSets(@ptrCast(pass));
@@ -78,8 +70,6 @@ pub const SkyboxRenderPass = struct {
     }
 
     pub fn destroy(self: *SkyboxRenderPass) void {
-        self.query_sky_lights.deinit();
-
         for (self.descriptor_sets) |descriptor_set| {
             graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
         }
@@ -131,17 +121,17 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     };
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
-    var entity_iter_sky_lights = self.query_sky_lights.iterator(struct {
-        sky_light: *const fd.SkyLightComponent,
-    });
+    const sky_light_entity = util.getSkyLight(self.ecsu_world);
+    if (sky_light_entity) |sky_light| {
+        const sky_light_comps = sky_light.getComps(struct {
+            sky_light: *const fd.SkyLightComponent,
+        });
 
-    // NOTE(gmodarelli): I'm assuming only 1 skylight for the moment
-    if (entity_iter_sky_lights.next()) |comps| {
         if (self.needs_to_udate_descriptors) {
             prepareDescriptorSets(@ptrCast(self));
         }
 
-        const mesh = self.renderer.getMesh(comps.sky_light.mesh);
+        const mesh = self.renderer.getMesh(sky_light_comps.sky_light.mesh);
 
         const pipeline_id = IdLocal.init("skybox");
         const pipeline = self.renderer.getPSO(pipeline_id);
@@ -173,15 +163,13 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *SkyboxRenderPass = @ptrCast(@alignCast(user_data));
 
-    var entity_iter_sky_lights = self.query_sky_lights.iterator(struct {
-        sky_light: *const fd.SkyLightComponent,
-    });
+    const sky_light_entity = util.getSkyLight(self.ecsu_world);
+    if (sky_light_entity) |sky_light| {
+        const sky_light_comps = sky_light.getComps(struct {
+            sky_light: *const fd.SkyLightComponent,
+        });
 
-    var hdri_texture: [*c]graphics.Texture = null;
-
-    // NOTE(gmodarelli): I'm assuming only 1 skylight for the moment
-    if (entity_iter_sky_lights.next()) |comps| {
-        hdri_texture = self.renderer.getTexture(comps.sky_light.hdri);
+        var hdri_texture = self.renderer.getTexture(sky_light_comps.sky_light.hdri);
         self.needs_to_udate_descriptors = false;
 
         var params: [1]graphics.DescriptorData = undefined;

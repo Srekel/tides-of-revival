@@ -414,11 +414,15 @@ pub const Renderer = struct {
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
             if (self.render_terrain_pass_render_fn) |render_fn| {
-                render_fn(cmd_list, self.render_terrain_pass_user_data.?);
+                if (self.render_terrain_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
             }
 
             if (self.render_gbuffer_pass_render_fn) |render_fn| {
-                render_fn(cmd_list, self.render_gbuffer_pass_user_data.?);
+                if (self.render_gbuffer_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
@@ -447,11 +451,15 @@ pub const Renderer = struct {
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
             if (self.render_deferred_shading_pass_render_fn) |render_fn| {
-                render_fn(cmd_list, self.render_deferred_shading_pass_user_data.?);
+                if (self.render_deferred_shading_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
             }
 
             if (self.render_skybox_pass_render_fn) |render_fn| {
-                render_fn(cmd_list, self.render_skybox_pass_user_data.?);
+                if (self.render_skybox_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
@@ -477,11 +485,15 @@ pub const Renderer = struct {
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
             if (self.render_tonemap_pass_render_fn) |render_fn| {
-                render_fn(cmd_list, self.render_tonemap_pass_user_data.?);
+                if (self.render_tonemap_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
             }
 
             if (self.render_ui_pass_render_fn) |render_fn| {
-                render_fn(cmd_list, self.render_ui_pass_user_data.?);
+                if (self.render_ui_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
             }
         }
 

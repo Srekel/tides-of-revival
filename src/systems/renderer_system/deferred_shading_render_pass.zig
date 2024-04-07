@@ -78,7 +78,6 @@ pub const DeferredShadingRenderPass = struct {
 
     query_directional_lights: ecsu.Query,
     query_point_lights: ecsu.Query,
-    query_sky_lights: ecsu.Query,
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *DeferredShadingRenderPass {
         const point_lights = std.ArrayList(PointLight).init(allocator);
@@ -231,11 +230,6 @@ pub const DeferredShadingRenderPass = struct {
             .withReadonly(fd.PointLightComponent);
         const query_point_lights = query_builder_point_lights.buildQuery();
 
-        var query_builder_sky_lights = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_sky_lights
-            .withReadonly(fd.SkyLightComponent);
-        const query_sky_lights = query_builder_sky_lights.buildQuery();
-
         const pass = allocator.create(DeferredShadingRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
@@ -257,7 +251,6 @@ pub const DeferredShadingRenderPass = struct {
             .point_lights_buffers = point_lights_buffers,
             .query_directional_lights = query_directional_lights,
             .query_point_lights = query_point_lights,
-            .query_sky_lights = query_sky_lights,
         };
 
         prepareDescriptorSets(@ptrCast(pass));
@@ -277,7 +270,6 @@ pub const DeferredShadingRenderPass = struct {
 
         self.query_directional_lights.deinit();
         self.query_point_lights.deinit();
-        self.query_sky_lights.deinit();
         self.point_lights.deinit();
         self.directional_lights.deinit();
         self.allocator.destroy(self);
@@ -303,17 +295,17 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     const frame_index = self.renderer.frame_index;
 
-    var entity_iter_sky_lights = self.query_sky_lights.iterator(struct {
-        sky_light: *const fd.SkyLightComponent,
-    });
+    const sky_light_entity = util.getSkyLight(self.ecsu_world);
+    if (sky_light_entity) |sky_light| {
+        const sky_light_comps = sky_light.getComps(struct {
+            sky_light: *const fd.SkyLightComponent,
+        });
 
-    // NOTE(gmodarelli): I'm assuming only 1 skylight for the moment
-    if (entity_iter_sky_lights.next()) |comps| {
         if (self.needs_to_compute_ibl_maps) {
             const new_trazy_zone = ztracy.ZoneNC(@src(), "Compute IBL Maps", 0x00_ff_ff_00);
             defer new_trazy_zone.End();
 
-            var hdir_texture = self.renderer.getTexture(comps.sky_light.hdri);
+            var hdir_texture = self.renderer.getTexture(sky_light_comps.sky_light.hdri);
             var brdf_lut_texture = self.renderer.getTexture(self.brdf_lut_texture);
             var irradiance_texture = self.renderer.getTexture(self.irradiance_texture);
             var specular_texture = self.renderer.getTexture(self.specular_texture);

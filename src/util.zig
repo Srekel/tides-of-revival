@@ -72,6 +72,15 @@ pub fn getActiveCameraEnt(ecsu_world: ecsu.World) ecsu.Entity {
     return environment_info.?.active_camera.?;
 }
 
+pub fn getSkyLight(ecsu_world: ecsu.World) ?ecsu.Entity {
+    const environment_info = ecsu_world.getSingleton(fd.EnvironmentInfo);
+    if (environment_info) |info| {
+        return info.sky_light;
+    }
+
+    return null;
+}
+
 // pub fn applyTransformRecursively(
 //     ent: flecs.Entity,
 //     parent_pos: fd.WorldPosition,
