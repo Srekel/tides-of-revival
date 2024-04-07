@@ -1274,7 +1274,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
             const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
