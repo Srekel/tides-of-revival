@@ -97,7 +97,7 @@ pub fn run() void {
         const top = 20.0;
         const bottom = 20.0 + logo_size;
         const left = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0 - logo_size;
-        const right = @as(f32, @floatFromInt(main_window.frame_buffer_size[1])) - 20.0;
+        const right = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0;
 
         var logo_ent = ecsu_world.newEntity();
         logo_ent.set(fd.UIImageComponent{ .rect = [4]f32{ top, bottom, left, right }, .material = .{

@@ -13,12 +13,6 @@ const zm = @import("zmath");
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
-const UniformFrameData = struct {
-    projection_view: [16]f32,
-    projection_view_inverted: [16]f32,
-    camera_position: [4]f32,
-};
-
 pub const TonemapRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,

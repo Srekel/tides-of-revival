@@ -78,6 +78,11 @@ pub const Renderer = struct {
     render_tonemap_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_tonemap_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
+    render_ui_pass_user_data: ?*anyopaque = null,
+    render_ui_pass_render_fn: renderPassRenderFn = null,
+    render_ui_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_ui_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
     pub const Error = error{
         NotInitialized,
         SwapChainNotInitialized,
@@ -287,6 +292,10 @@ pub const Renderer = struct {
             if (self.render_tonemap_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
                 prepare_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
             }
+
+            if (self.render_ui_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+                prepare_descriptor_sets_fn(self.render_ui_pass_user_data.?);
+            }
         }
 
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
@@ -340,6 +349,12 @@ pub const Renderer = struct {
 
             if (self.render_tonemap_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_tonemap_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
+            if (self.render_ui_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_ui_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
                 }
             }
@@ -463,6 +478,10 @@ pub const Renderer = struct {
 
             if (self.render_tonemap_pass_render_fn) |render_fn| {
                 render_fn(cmd_list, self.render_tonemap_pass_user_data.?);
+            }
+
+            if (self.render_ui_pass_render_fn) |render_fn| {
+                render_fn(cmd_list, self.render_ui_pass_user_data.?);
             }
         }
 
@@ -691,6 +710,27 @@ pub const Renderer = struct {
         if (initial_data.data) |data| {
             load_desc.pData = data;
         }
+        load_desc.ppBuffer = &buffer;
+
+        var token: resource_loader.SyncToken = 0;
+        resource_loader.addResource(@ptrCast(&load_desc), &token);
+        resource_loader.waitForToken(&token);
+
+        const handle: BufferHandle = self.buffer_pool.add(.{ .buffer = buffer }) catch unreachable;
+        return handle;
+    }
+
+    pub fn createIndexBuffer(self: *Renderer, initial_data: Slice, index_size: u32, debug_name: [:0]const u8) BufferHandle {
+        var buffer: [*c]graphics.Buffer = null;
+
+        var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
+        load_desc.mDesc.pName = debug_name;
+        load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_INDEX_BUFFER;
+        load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_NONE;
+        load_desc.mDesc.mMemoryUsage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
+        load_desc.mDesc.mElementCount = @intCast(initial_data.size / index_size);
+        load_desc.mDesc.mSize = initial_data.size;
+        load_desc.pData = initial_data.data.?;
         load_desc.ppBuffer = &buffer;
 
         var token: resource_loader.SyncToken = 0;
