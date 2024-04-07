@@ -457,7 +457,7 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // Tonemap
+        // Tonemap & UI Images
         {
             var input_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
@@ -483,18 +483,6 @@ pub const Renderer = struct {
             if (self.render_ui_pass_render_fn) |render_fn| {
                 render_fn(cmd_list, self.render_ui_pass_user_data.?);
             }
-        }
-
-        // UI
-        {
-            var font_draw_desc = std.mem.zeroes(font.FontDrawDesc);
-            font_draw_desc.pText = "Z-Forge !11!!";
-            font_draw_desc.mFontID = self.roboto_font_id;
-            font_draw_desc.mFontColor = 0xffffffff;
-            font_draw_desc.mFontSize = 64;
-            font.cmdDrawTextWithFont(cmd_list, 100.0, 100.0, &font_draw_desc);
-
-            graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
         // Present
