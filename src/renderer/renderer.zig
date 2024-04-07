@@ -118,7 +118,7 @@ pub const Renderer = struct {
 
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_DEBUG, file_system.ResourceDirectory.RD_LOG, "");
 
-        // log.initLog("Tides Renderer", log.LogLevel.eALL);
+        log.initLog("Tides Renderer", log.LogLevel.eALL);
 
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_GPU_CONFIG, "GPUCfg");
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_SHADER_BINARIES, "content/compiled_shaders");
@@ -255,7 +255,7 @@ pub const Renderer = struct {
         graphics.exitRenderer(self.renderer);
 
         font.platformExitFontSystem();
-        // log.exitLog();
+        log.exitLog();
         file_system.exitFileSystem();
     }
 
