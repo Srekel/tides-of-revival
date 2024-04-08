@@ -7,7 +7,7 @@ const zm = @import("zmath");
 const input = @import("../input.zig");
 const zphy = @import("zphysics");
 const context = @import("../core/context.zig");
-const audio_manager = @import("../audio/audio_manager.zig");
+const audio_manager = @import("../audio/audio_manager_mock.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 
 pub const TriggerEvent = struct {

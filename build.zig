@@ -12,8 +12,8 @@ const zpool = @import("external/zig-gamedev/libs/zpool/build.zig");
 const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
 const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
 const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
-const wwise_zig = @import("wwise-zig");
 const zig_recastnavigation = @import("external/zig-recastnavigation/build.zig");
+// const wwise_zig = @import("wwise-zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -169,30 +169,29 @@ pub fn build(b: *std.Build) void {
     zstbi_pkg.link(exe);
     ztracy_pkg.link(exe);
     zwin32_pkg.link(exe, .{ .d3d12 = true });
+    // const wwise_dependency = b.dependency("wwise-zig", .{
+    //     .target = target,
+    //     .optimize = optimize,
+    //     .use_communication = true,
+    //     .use_default_job_worker = true,
+    //     .use_spatial_audio = false,
+    //     .use_static_crt = true,
+    //     .include_file_package_io_blocking = true,
+    //     .configuration = .profile,
+    //     .static_plugins = @as([]const []const u8, &.{
+    //         // "AkToneSource",
+    //         // "AkParametricEQFX",
+    //         // "AkDelayFX",
+    //         // "AkPeakLimiterFX",
+    //         // "AkRoomVerbFX",
+    //         // "AkStereoDelayFX",
+    //         // "AkSynthOneSource",
+    //         // "AkAudioInputSource",
+    //         // "AkVorbisDecoder",
+    //     }),
+    // });
 
-    const wwise_dependency = b.dependency("wwise-zig", .{
-        .target = target,
-        .optimize = optimize,
-        .use_communication = true,
-        .use_default_job_worker = true,
-        .use_spatial_audio = false,
-        .use_static_crt = true,
-        .include_file_package_io_blocking = true,
-        .configuration = .profile,
-        .static_plugins = @as([]const []const u8, &.{
-            "AkToneSource",
-            "AkParametricEQFX",
-            "AkDelayFX",
-            "AkPeakLimiterFX",
-            "AkRoomVerbFX",
-            "AkStereoDelayFX",
-            "AkSynthOneSource",
-            "AkAudioInputSource",
-            "AkVorbisDecoder",
-        }),
-    });
-
-    exe.root_module.addImport("wwise-zig", wwise_dependency.module("wwise-zig"));
+    // exe.root_module.addImport("wwise-zig", wwise_dependency.module("wwise-zig"));
 
     // const build_soundbanks_step = wwise_zig.addGenerateSoundBanksStep(
     //     b,
@@ -203,16 +202,16 @@ pub fn build(b: *std.Build) void {
     // ) catch unreachable;
     // exe.step.dependOn(&build_soundbanks_step.step);
 
-    const wwise_id_module = wwise_zig.generateWwiseIDModule(
-        b,
-        "content/audio/wwise/Wwise_IDs.h",
-        wwise_dependency.module("wwise-zig"),
-        .{
-            // .previous_step = &build_soundbanks_step.step,
-        },
-    );
+    // const wwise_id_module = wwise_zig.generateWwiseIDModule(
+    //     b,
+    //     "content/audio/wwise/Wwise_IDs.h",
+    //     wwise_dependency.module("wwise-zig"),
+    //     .{
+    //         // .previous_step = &build_soundbanks_step.step,
+    //     },
+    // );
 
-    exe.root_module.addImport("wwise-ids", wwise_id_module);
+    // exe.root_module.addImport("wwise-ids", wwise_id_module);
 
     b.installArtifact(exe);
 

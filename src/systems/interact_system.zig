@@ -16,7 +16,7 @@ const input = @import("../input.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const context = @import("../core/context.zig");
-const audio_manager = @import("../audio/audio_manager.zig");
+const audio_manager = @import("../audio/audio_manager_mock.zig");
 const renderer = @import("../renderer/tides_renderer.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
@@ -121,7 +121,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     updateInteractors(system, iter.iter.delta_time);
 }
 
-var playingID: AK.AkPlayingID = 0;
+// var playingID: AK.AkPlayingID = 0;
 
 fn updateInteractors(system: *SystemState, dt: f32) void {
     _ = dt;
@@ -254,11 +254,11 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             zm.storeArr3(&velocity, velocity_z);
             body_interface.setLinearVelocity(proj_body_id, velocity);
 
-            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWFIRE, config.audio_player_oid, .{}) catch unreachable;
+            // _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWFIRE, config.audio_player_oid, .{}) catch unreachable;
         } else if (wielded_use_primary_held) {
             // Pull string
             if (wielded_use_primary_pressed) {
-                playingID = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWPULL, config.audio_player_oid, .{}) catch unreachable;
+                // playingID = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWPULL, config.audio_player_oid, .{}) catch unreachable;
             }
 
             environment_info.time_multiplier = 0.25;
@@ -268,14 +268,14 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             weapon_comp.charge = zm.mapLinearV(proj_pos.z, -0.4, -0.8, 0, 1);
         } else {
             // Relax string
-            if (playingID != 0) {
-                AK.SoundEngine.executeActionOnPlayingID(
-                    .stop,
-                    playingID,
-                    .{ .transition_duration = 200 },
-                );
-                playingID = 0;
-            }
+            // if (playingID != 0) {
+            //     AK.SoundEngine.executeActionOnPlayingID(
+            //         .stop,
+            //         playingID,
+            //         .{ .transition_duration = 200 },
+            //     );
+            //     playingID = 0;
+            // }
             var proj_pos = ecs.get_mut(ecs_world, proj_ent.id, fd.Position).?;
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
@@ -474,24 +474,24 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             },
         );
 
-        const oid = 1000 + proj_ent;
-        AK.SoundEngine.registerGameObj(oid) catch unreachable;
-        defer AK.SoundEngine.unregisterGameObj(oid) catch {};
-        const ak_pos = AK.AkSoundPosition{
-            .position = .{
-                .x = pos[0],
-                .y = pos[1],
-                .z = pos[2],
-            },
-            .orientation_front = .{
-                .z = 1.0,
-            },
-            .orientation_top = .{
-                .y = 1.0,
-            },
-        };
-        AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
-        AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
+        // const oid = 1000 + proj_ent;
+        // AK.SoundEngine.registerGameObj(oid) catch unreachable;
+        // defer AK.SoundEngine.unregisterGameObj(oid) catch {};
+        // const ak_pos = AK.AkSoundPosition{
+        //     .position = .{
+        //         .x = pos[0],
+        //         .y = pos[1],
+        //         .z = pos[2],
+        //     },
+        //     .orientation_front = .{
+        //         .z = 1.0,
+        //     },
+        //     .orientation_top = .{
+        //         .y = 1.0,
+        //     },
+        // };
+        // AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
+        // AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
         if (hit_alive and ecs.has_id(ecs_world, hit_ent, ecs.id(fd.Health))) {
             const transform_target = ecs.get(ecs_world, hit_ent, fd.Transform).?;
@@ -549,8 +549,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 }
                 // std.debug.print("lol2 {any}\n", .{hit_ent.id});
             }
-            AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
+        //     AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
         }
-        _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
+        // _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
     }
 }

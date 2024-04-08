@@ -9,7 +9,7 @@ const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
-const audio_manager = @import("audio/audio_manager.zig");
+const audio_manager = @import("audio/audio_manager_mock.zig");
 const zm = @import("zmath");
 const zignav = @import("zignav");
 
@@ -42,12 +42,12 @@ pub fn run() void {
     var audio_mgr = audio_manager.AudioManager.create(std.heap.page_allocator) catch unreachable;
     defer audio_mgr.destroy() catch unreachable;
 
-    AK.SoundEngine.registerGameObjWithName(std.heap.page_allocator, config.audio_player_oid, "Player") catch unreachable;
-    defer AK.SoundEngine.unregisterGameObj(config.audio_player_oid) catch {};
-    AK.SoundEngine.setDefaultListeners(&.{config.audio_player_oid}) catch unreachable;
+    // AK.SoundEngine.registerGameObjWithName(std.heap.page_allocator, config.audio_player_oid, "Player") catch unreachable;
+    // defer AK.SoundEngine.unregisterGameObj(config.audio_player_oid) catch {};
+    // AK.SoundEngine.setDefaultListeners(&.{config.audio_player_oid}) catch unreachable;
 
-    const bank_id = AK.SoundEngine.loadBankString(std.heap.page_allocator, "Player_SoundBank", .{}) catch unreachable;
-    defer AK.SoundEngine.unloadBankID(bank_id, null, .{}) catch {};
+    // const bank_id = AK.SoundEngine.loadBankString(std.heap.page_allocator, "Player_SoundBank", .{}) catch unreachable;
+    // defer AK.SoundEngine.unloadBankID(bank_id, null, .{}) catch {};
 
     // Flecs
     // ecs.zflecs_init();
@@ -470,6 +470,6 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
         // _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.FOOTSTEP, DemoGameObjectID, .{}) catch unreachable;
     }
 
-    AK.SoundEngine.renderAudio(false) catch unreachable;
+    // AK.SoundEngine.renderAudio(false) catch unreachable;
     ecsu_world.progress(dt_game);
 }

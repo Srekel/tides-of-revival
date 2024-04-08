@@ -13,7 +13,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
-const audio_manager = @import("../../audio/audio_manager.zig");
+const audio_manager = @import("../../audio/audio_manager_mock.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 
@@ -239,30 +239,30 @@ fn update(ctx: fsm.StateFuncContext) void {
             state.sfx_footstep_index = 0;
         }
 
-        if (state.amount_moved > 3) {
-            state.amount_moved = 0;
+        // if (state.amount_moved > 3) {
+        //     state.amount_moved = 0;
 
-            _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.FOOTSTEP, config.audio_player_oid, .{}) catch unreachable;
-        }
+        //     _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.FOOTSTEP, config.audio_player_oid, .{}) catch unreachable;
+        // }
 
-        var fwd_xz_z = comps.fwd.asZM();
-        fwd_xz_z[1] = 0;
-        fwd_xz_z = zm.normalize3(fwd_xz_z);
-        const ak_pos = AK.AkSoundPosition{
-            .position = .{
-                .x = comps.pos.x,
-                .y = comps.pos.y,
-                .z = comps.pos.z,
-            },
-            .orientation_front = .{
-                .x = fwd_xz_z[0],
-                .z = fwd_xz_z[2],
-            },
-            .orientation_top = .{
-                .y = 1.0,
-            },
-        };
-        AK.SoundEngine.setPosition(config.audio_player_oid, ak_pos, .{}) catch unreachable;
+        // var fwd_xz_z = comps.fwd.asZM();
+        // fwd_xz_z[1] = 0;
+        // fwd_xz_z = zm.normalize3(fwd_xz_z);
+        // const ak_pos = AK.AkSoundPosition{
+        //     .position = .{
+        //         .x = comps.pos.x,
+        //         .y = comps.pos.y,
+        //         .z = comps.pos.z,
+        //     },
+        //     .orientation_front = .{
+        //         .x = fwd_xz_z[0],
+        //         .z = fwd_xz_z[2],
+        //     },
+        //     .orientation_top = .{
+        //         .y = 1.0,
+        //     },
+        // };
+        // AK.SoundEngine.setPosition(config.audio_player_oid, ak_pos, .{}) catch unreachable;
     }
 }
 

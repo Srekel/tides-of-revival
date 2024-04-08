@@ -2,6 +2,7 @@ const std = @import("std");
 const AK = @import("wwise-zig");
 
 pub const MaxThreadWorkers = 8;
+pub const GameObjectID = u64;
 
 pub const AudioManager = struct {
     allocator: std.mem.Allocator,
