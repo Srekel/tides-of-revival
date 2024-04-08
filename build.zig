@@ -187,8 +187,7 @@ fn buildTheForgeRenderer(b: *std.Build) *std.Build.Step {
 
     const solution_path = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer/PC Visual Studio 2019/TidesRenderer.sln";
     const command = [2][]const u8{
-        // "./tools/external/msvc_BuildTools/MSBuild/Current/Bin/amd64/MSBuild",
-        "C:/msvc_BuildTools/MSBuild/Current/Bin/amd64/MSBuild",
+        "./tools/external/msvc_BuildTools/MSBuild/Current/Bin/amd64/MSBuild",
         solution_path,
     };
 
