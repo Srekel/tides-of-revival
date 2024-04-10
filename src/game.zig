@@ -6,12 +6,12 @@ const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
 const zglfw = @import("zglfw");
 const zstbi = @import("zstbi");
-const ztracy = @import("ztracy");
-const AK = @import("wwise-zig");
-const AK_ID = @import("wwise-ids");
+// const ztracy = @import("ztracy");
+// const AK = @import("wwise-zig");
+// const AK_ID = @import("wwise-ids");
 const audio_manager = @import("audio/audio_manager_mock.zig");
 const zm = @import("zmath");
-const zignav = @import("zignav");
+// const zignav = @import("zignav");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
 const config = @import("config/config.zig");
@@ -32,8 +32,8 @@ const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
 
 pub fn run() void {
-    const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
-    defer tracy_zone.End();
+    // const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
+    // defer tracy_zone.End();
 
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
@@ -69,7 +69,7 @@ pub fn run() void {
     main_window.window.setInputMode(.cursor, .disabled);
 
     // Initialize Tides Renderer
-    const nativeWindowHandle = zglfw.native.getWin32Window(main_window.window) catch unreachable;
+    const nativeWindowHandle = zglfw.getWin32Window(main_window.window).?;
     var app_settings = renderer.AppSettings{
         .width = 1920,
         .height = 1080,
@@ -138,9 +138,9 @@ pub fn run() void {
     patch_types.registerPatchTypes(world_patch_mgr);
 
     // Recast
-    var nav_ctx: zignav.Recast.rcContext = undefined;
-    nav_ctx.init(false);
-    defer nav_ctx.deinit();
+    // var nav_ctx: zignav.Recast.rcContext = undefined;
+    // nav_ctx.init(false);
+    // defer nav_ctx.deinit();
 
     // ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
     // ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██╔════╝
@@ -343,8 +343,8 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     const lights_buffer_indices = gameloop_context.lights_buffer_indices;
     const ui_buffer_indices = gameloop_context.ui_buffer_indices;
 
-    const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
-    defer trazy_zone.End();
+    // const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
+    // defer trazy_zone.End();
 
     const window_status = window.update() catch unreachable;
     if (window_status == .no_windows) {

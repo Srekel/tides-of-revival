@@ -14,7 +14,7 @@ const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
 
-const ztracy = @import("ztracy");
+// const ztracy = @import("ztracy");
 const util = @import("../util.zig");
 
 const InstanceData = struct {
@@ -184,8 +184,8 @@ pub fn destroy(system: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Static Mesh Renderer", 0x00_ff_ff_00);
-    defer trazy_zone.End();
+    // const trazy_zone = ztracy.ZoneNC(@src(), "Static Mesh Renderer", 0x00_ff_ff_00);
+    // defer trazy_zone.End();
 
     defer ecs.iter_fini(iter.iter);
     var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
@@ -216,7 +216,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     }
 
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
-    const loop1 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Culling and Batching", 0x00_ff_ff_00);
+    // const loop1 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Culling and Batching", 0x00_ff_ff_00);
     while (entity_iter_mesh.next()) |comps| {
         const sub_mesh_count = renderer.getSubMeshCount(comps.mesh.mesh_handle);
         if (sub_mesh_count == 0) continue;
@@ -263,9 +263,9 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
             system.instance_data[entity_type_index].append(instance_data) catch unreachable;
         }
     }
-    loop1.End();
+    // loop1.End();
 
-    const loop2 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Rendering", 0x00_ff_ff_00);
+    // const loop2 = ztracy.ZoneNC(@src(), "Static Mesh Renderer: Rendering", 0x00_ff_ff_00);
     for (0..max_entity_types) |entity_type_index| {
         var start_instance_location: u32 = 0;
         var current_draw_call: renderer.DrawCallInstanced = undefined;
@@ -368,7 +368,7 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }
     }
 
-    loop2.End();
+    // loop2.End();
 }
 
 fn pickLOD(camera_position: [3]f32, entity_position: [3]f32, draw_distance: f32, lod_count: u32) u32 {

@@ -9,7 +9,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const tides_math = @import("../core/math.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
-const ztracy = @import("ztracy");
+// const ztracy = @import("ztracy");
 const config = @import("../config/config.zig");
 
 const WorldLoaderData = struct {
@@ -207,8 +207,8 @@ fn updateLoaders(system: *SystemState) void {
 var added_spawn = false;
 
 fn updatePatches(system: *SystemState) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Updating Patches", 0x00_ff_00_ff);
-    defer trazy_zone.End();
+    // const trazy_zone = ztracy.ZoneNC(@src(), "Updating Patches", 0x00_ff_00_ff);
+    // defer trazy_zone.End();
 
     for (system.patches.items) |*patch| {
         if (patch.loaded) {

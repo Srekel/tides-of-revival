@@ -36,7 +36,7 @@ const CityEnt = struct {
     z: f32,
     nearest: [2]ecs.entity_t = .{ 0, 0 },
     fn dist(self: CityEnt, other: CityEnt) f32 {
-        return std.math.hypot(f32, self.x - other.x, self.z - other.z);
+        return std.math.hypot(self.x - other.x, self.z - other.z);
     }
 };
 
