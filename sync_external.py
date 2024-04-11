@@ -69,7 +69,7 @@ def main():
     sync_lib(
         "c2z",
         "https://github.com/Srekel/c2z.git",
-        "8458677542b1cd80c4d4d3a2dbe1e667f1c0ec76",
+        "49ead61b742cf4339f1418b254c443591f39f946",
     )
     sync_lib(
         "The-Forge",
@@ -79,36 +79,36 @@ def main():
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "328b8cba932d2a39da1ada6efe6001179a9c1aaa",
+        "7d009556a0a82e95db2cf1f66a5fdb057642faba",
     )
     sync_lib(
         "wwise-zig",
         "https://github.com/Cold-Bytes-Games/wwise-zig.git",
-        "37d021495b68cb467f6ae23491182e1c67560373",
+        "4888fd81f3a905c7bb1cc5d91547503dbc0b3e1b",
     )
     sync_lib(
         "zig-args",
         "https://github.com/MasterQ32/zig-args.git",
-        "89f18a104d9c13763b90e97d6b4ce133da8a3e2b",
+        "01d72b9a0128c474aeeb9019edd48605fa6d95f7",
     )
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "b53361bb68fc1fa182117ede98e7c057517155c8",
+        "c1732f48bf287d406b9b69427b428f1157ab8ea7",
     )
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
-        "ad6ad042662856f55a4d67499f1c4606c9951031",
+        "8873f29fc449e1b63400e9f4ad86d3c76204f962",
     )
     sync_lib(
         "zig-recastnavigation",
         "https://github.com/Srekel/zig-recastnavigation.git",
-        "86fb9d0a94e71e50095a0f0ed83620a538eee5ec",
+        "90c440c7117ec405371c6fb2de4a27bbcc93c1ae",
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
-    sync_zig_exe("0.12.0-dev.2063+804cee3b9")
+    sync_zig_exe("0.12.0-dev.3180+83e578a18")
 
     os.chdir("..")
     print("Done syncing external!")

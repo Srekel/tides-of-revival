@@ -1,19 +1,8 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-const zflecs = @import("external/zig-gamedev/libs/zflecs/build.zig");
 const zforge = @import("external/The-Forge/build.zig");
-const zglfw = @import("external/zig-gamedev/libs/zglfw/build.zig");
-const zmath = @import("external/zig-gamedev/libs/zmath/build.zig");
-const zmesh = @import("external/zig-gamedev/libs/zmesh/build.zig");
-const znoise = @import("external/zig-gamedev/libs/znoise/build.zig");
-const zphysics = @import("external/zig-gamedev/libs/zphysics/build.zig");
-const zpix = @import("external/zig-gamedev/libs/zpix/build.zig");
-const zpool = @import("external/zig-gamedev/libs/zpool/build.zig");
-const zstbi = @import("external/zig-gamedev/libs/zstbi/build.zig");
-const ztracy = @import("external/zig-gamedev/libs/ztracy/build.zig");
-const zwin32 = @import("external/zig-gamedev/libs/zwin32/build.zig");
-const wwise_zig = @import("wwise-zig");
+// const wwise_zig = @import("wwise-zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -46,44 +35,56 @@ pub fn build(b: *std.Build) void {
 
     const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
     exe.linkLibC();
-    if (abi != .msvc)
+    if (abi != .msvc) {
         exe.linkLibCpp();
+    }
 
     const zforge_pkg = zforge.package(b, target, optimize, .{});
 
-    const zflecs_pkg = zflecs.package(b, target, optimize, .{});
+    const zflecs = b.dependency("zflecs", .{});
+    exe.linkLibrary(zflecs.artifact("flecs"));
 
-    const zglfw_pkg = zglfw.package(b, target, optimize, .{});
+    const zglfw = b.dependency("zglfw", .{});
 
-    const zmath_pkg = zmath.package(b, target, optimize, .{
-        .options = .{ .enable_cross_platform_determinism = false },
+    const zmath = b.dependency("zmath", .{
+        .enable_cross_platform_determinism = false,
     });
 
-    const zmesh_options = zmesh.Options{ .shape_use_32bit_indices = true };
-    const zmesh_pkg = zmesh.package(b, target, optimize, .{ .options = zmesh_options });
+    const zmesh = b.dependency("zmesh", .{
+        .shape_use_32bit_indices = true,
+    });
 
-    const znoise_pkg = znoise.package(b, target, optimize, .{});
+    const znoise = b.dependency("znoise", .{});
 
-    const zphysics_options = zphysics.Options{
+    const zphysics = b.dependency("zphysics", .{
         .use_double_precision = false,
         .enable_cross_platform_determinism = false,
-    };
-    const zphysics_pkg = zphysics.package(b, target, optimize, .{ .options = zphysics_options });
+    });
 
-    const zpool_pkg = zpool.package(b, target, optimize, .{});
+    const zpool = b.dependency("zpool", .{});
 
-    const zstbi_pkg = zstbi.package(b, target, optimize, .{});
+    const zstbi = b.dependency("zstbi", .{});
 
     const ztracy_enable = b.option(bool, "ztracy-enable", "Enable Tracy profiler") orelse false;
-    const ztracy_options = ztracy.Options{ .enable_ztracy = ztracy_enable };
-    const ztracy_pkg = ztracy.package(b, target, optimize, .{ .options = ztracy_options });
+    _ = ztracy_enable; // autofix
+    // const ztracy = b.dependency("ztracy", .{
+    //     .enable_ztracy = ztracy_enable,
+    //     .enable_fibers = true,
+    // });
 
-    const zwin32_pkg = zwin32.package(b, target, optimize, .{});
+    const zwin32 = b.dependency("zwin32", .{});
+    const zwin32_path = zwin32.path("").getPath(b);
+
     const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
-    const zpix_pkg = zpix.package(b, target, optimize, .{
-        .options = .{ .enable = zpix_enable },
-        .deps = .{ .zwin32 = zwin32_pkg.zwin32 },
+    const zpix = b.dependency("zpix", .{
+        .enable = zpix_enable,
     });
+    _ = zpix; // autofix
+
+    // Recast
+    // const zignav = b.dependency("zignav", .{});
+    // exe.root_module.addImport("zignav", zignav.module("zignav"));
+    // exe.linkLibrary(zignav.artifact("zignav_c_cpp"));
 
     const install_fonts_step = b.addInstallDirectory(.{
         .source_dir = .{ .path = thisDir() ++ "/content/fonts" },
@@ -104,49 +105,54 @@ pub fn build(b: *std.Build) void {
     // is required by DirectX 12 Agility SDK.
     exe.rdynamic = true;
 
-    exe.root_module.addImport("zflecs", zflecs_pkg.zflecs);
-    exe.root_module.addImport("zglfw", zglfw_pkg.zglfw);
-    exe.root_module.addImport("zmath", zmath_pkg.zmath);
-    exe.root_module.addImport("zmesh", zmesh_pkg.zmesh);
-    exe.root_module.addImport("znoise", znoise_pkg.znoise);
-    exe.root_module.addImport("zpool", zpool_pkg.zpool);
-    exe.root_module.addImport("zstbi", zstbi_pkg.zstbi);
-    exe.root_module.addImport("ztracy", ztracy_pkg.ztracy);
+    exe.root_module.addImport("zflecs", zflecs.module("root"));
+    exe.root_module.addImport("zglfw", zglfw.module("root"));
+    exe.root_module.addImport("zmath", zmath.module("root"));
+    exe.root_module.addImport("zmesh", zmesh.module("root"));
+    exe.root_module.addImport("znoise", znoise.module("root"));
+    exe.root_module.addImport("zphysics", zphysics.module("root"));
+    exe.root_module.addImport("zpool", zpool.module("root"));
+    exe.root_module.addImport("zstbi", zstbi.module("root"));
+    // exe.root_module.addImport("ztracy", ztracy.module("root"));
 
     zforge_pkg.link(exe);
-    zflecs_pkg.link(exe);
-    zglfw_pkg.link(exe);
-    zmesh_pkg.link(exe);
-    znoise_pkg.link(exe);
-    zphysics_pkg.link(exe);
-    zpix_pkg.link(exe);
-    zstbi_pkg.link(exe);
-    ztracy_pkg.link(exe);
-    zwin32_pkg.link(exe, .{ .d3d12 = true });
+    exe.linkLibrary(zflecs.artifact("flecs"));
+    exe.linkLibrary(zglfw.artifact("glfw"));
+    exe.linkLibrary(zmesh.artifact("zmesh"));
+    exe.linkLibrary(znoise.artifact("FastNoiseLite"));
+    exe.linkLibrary(zphysics.artifact("joltc"));
+    // exe.linkLibrary(zpix.artifact("pix"));
+    exe.linkLibrary(zstbi.artifact("zstbi"));
+    // exe.linkLibrary(ztracy.artifact("tracy"));
 
-    const wwise_dependency = b.dependency("wwise-zig", .{
-        .target = target,
-        .optimize = optimize,
-        .use_communication = true,
-        .use_default_job_worker = true,
-        .use_spatial_audio = false,
-        .use_static_crt = true,
-        .include_file_package_io_blocking = true,
-        .configuration = .profile,
-        .static_plugins = @as([]const []const u8, &.{
-            "AkToneSource",
-            "AkParametricEQFX",
-            "AkDelayFX",
-            "AkPeakLimiterFX",
-            "AkRoomVerbFX",
-            "AkStereoDelayFX",
-            "AkSynthOneSource",
-            "AkAudioInputSource",
-            "AkVorbisDecoder",
-        }),
-    });
+    @import("zwin32").install_xaudio2(&exe.step, .bin, zwin32_path) catch unreachable;
+    @import("zwin32").install_d3d12(&exe.step, .bin, zwin32_path) catch unreachable;
+    @import("zwin32").install_directml(&exe.step, .bin, zwin32_path) catch unreachable;
+    @import("system_sdk").addLibraryPathsTo(exe);
 
-    exe.root_module.addImport("wwise-zig", wwise_dependency.module("wwise-zig"));
+    // const wwise_dependency = b.dependency("wwise-zig", .{
+    //     .target = target,
+    //     .optimize = optimize,
+    //     .use_communication = true,
+    //     .use_default_job_worker = true,
+    //     .use_spatial_audio = false,
+    //     .use_static_crt = true,
+    //     .include_file_package_io_blocking = true,
+    //     .configuration = .profile,
+    //     .static_plugins = @as([]const []const u8, &.{
+    //         // "AkToneSource",
+    //         // "AkParametricEQFX",
+    //         // "AkDelayFX",
+    //         // "AkPeakLimiterFX",
+    //         // "AkRoomVerbFX",
+    //         // "AkStereoDelayFX",
+    //         // "AkSynthOneSource",
+    //         // "AkAudioInputSource",
+    //         // "AkVorbisDecoder",
+    //     }),
+    // });
+
+    // exe.root_module.addImport("wwise-zig", wwise_dependency.module("wwise-zig"));
 
     // const build_soundbanks_step = wwise_zig.addGenerateSoundBanksStep(
     //     b,
@@ -157,16 +163,16 @@ pub fn build(b: *std.Build) void {
     // ) catch unreachable;
     // exe.step.dependOn(&build_soundbanks_step.step);
 
-    const wwise_id_module = wwise_zig.generateWwiseIDModule(
-        b,
-        "content/audio/wwise/Wwise_IDs.h",
-        wwise_dependency.module("wwise-zig"),
-        .{
-            // .previous_step = &build_soundbanks_step.step,
-        },
-    );
+    // const wwise_id_module = wwise_zig.generateWwiseIDModule(
+    //     b,
+    //     "content/audio/wwise/Wwise_IDs.h",
+    //     wwise_dependency.module("wwise-zig"),
+    //     .{
+    //         // .previous_step = &build_soundbanks_step.step,
+    //     },
+    // );
 
-    exe.root_module.addImport("wwise-ids", wwise_id_module);
+    // exe.root_module.addImport("wwise-ids", wwise_id_module);
 
     b.installArtifact(exe);
 

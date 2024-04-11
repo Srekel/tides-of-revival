@@ -14,7 +14,7 @@ const util = @import("../util.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const config = @import("../config/config.zig");
 const context = @import("../core/context.zig");
-const audio_manager = @import("../audio/audio_manager.zig");
+const audio_manager = @import("../audio/audio_manager_mock.zig");
 
 const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
 const StateCameraFPS = @import("../fsm/camera/state_camera_fps.zig");

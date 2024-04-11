@@ -98,7 +98,7 @@ fn updateSnapToTerrain(
             const skitter = dist_to_player_sq > (15 * 15) and std.math.modf(player_pos.y + pos.y * 0.25).fpart > 0.25;
             const dir_to_player = zm.normalize3(vec_to_player);
             const skitter_angle_offset: f32 = if (skitter) std.math.modf(player_pos.y + pos.y * 0.25).fpart * 3 - 1.5 else 0;
-            const angle_to_player = std.math.atan2(f32, dir_to_player[0], dir_to_player[2]) + skitter_angle_offset;
+            const angle_to_player = std.math.atan2(dir_to_player[0], dir_to_player[2]) + skitter_angle_offset;
             const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player + handedness_offset);
 
             const rot_wanted_z = zm.qmul(rot_towards_player_z, rot_slope_z);

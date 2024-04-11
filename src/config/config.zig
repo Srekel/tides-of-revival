@@ -1,8 +1,8 @@
 const std = @import("std");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
-const AK = @import("wwise-zig");
 const ID = @import("../core/core.zig").ID;
+const audio_manager = @import("../audio/audio_manager_mock.zig");
 
 pub const entity = @import("entity.zig");
 pub const events = @import("events.zig");
@@ -138,4 +138,4 @@ pub const specular_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_spe
 // ███████║╚██████╔╝╚██████╔╝██║ ╚████║██████╔╝
 // ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝
 
-pub const audio_player_oid: AK.AkGameObjectID = 10001;
+pub const audio_player_oid: audio_manager.GameObjectID = 10001;
