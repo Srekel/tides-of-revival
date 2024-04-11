@@ -82,42 +82,70 @@ pub fn build(b: *std.Build) void {
         exe.step.dependOn(&install_file.step);
     }
 
-    const zflecs = b.dependency("zflecs", .{});
+    const zflecs = b.dependency("zflecs", .{
+        .target = target,
+        .optimize = optimize,
+    });
     exe.linkLibrary(zflecs.artifact("flecs"));
 
-    const zglfw = b.dependency("zglfw", .{});
+    const zglfw = b.dependency("zglfw", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
     const zmath = b.dependency("zmath", .{
+        .target = target,
+        .optimize = optimize,
         .enable_cross_platform_determinism = false,
     });
 
     const zmesh = b.dependency("zmesh", .{
+        .target = target,
+        .optimize = optimize,
         .shape_use_32bit_indices = true,
     });
 
-    const znoise = b.dependency("znoise", .{});
+    const znoise = b.dependency("znoise", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
     const zphysics = b.dependency("zphysics", .{
+        .target = target,
+        .optimize = optimize,
         .use_double_precision = false,
         .enable_cross_platform_determinism = false,
     });
 
-    const zpool = b.dependency("zpool", .{});
+    const zpool = b.dependency("zpool", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
-    const zstbi = b.dependency("zstbi", .{});
+    const zstbi = b.dependency("zstbi", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
     const ztracy_enable = b.option(bool, "ztracy-enable", "Enable Tracy profiler") orelse false;
     _ = ztracy_enable; // autofix
     // const ztracy = b.dependency("ztracy", .{
+    // .target = target,
+    // .optimize = optimize,
     //     .enable_ztracy = ztracy_enable,
     //     .enable_fibers = true,
     // });
 
-    const zwin32 = b.dependency("zwin32", .{});
+    const zwin32 = b.dependency("zwin32", .{
+        .target = target,
+        .optimize = optimize,
+    });
     const zwin32_path = zwin32.path("").getPath(b);
 
     const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
     const zpix = b.dependency("zpix", .{
+        .target = target,
+        .optimize = optimize,
         .enable = zpix_enable,
     });
     _ = zpix; // autofix
@@ -152,6 +180,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zmesh", zmesh.module("root"));
     exe.root_module.addImport("znoise", znoise.module("root"));
     exe.root_module.addImport("zphysics", zphysics.module("root"));
+    exe.root_module.addImport("zpix", zpool.module("root"));
     exe.root_module.addImport("zpool", zpool.module("root"));
     exe.root_module.addImport("zstbi", zstbi.module("root"));
     // exe.root_module.addImport("ztracy", ztracy.module("root"));
