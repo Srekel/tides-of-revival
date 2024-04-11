@@ -3,7 +3,7 @@
     .version = "0.3.0-alpha",
     .paths = .{""},
     .dependencies = .{
-        .@"wwise-zig" = .{ .path = "external/wwise-zig" },
+        // .@"wwise-zig" = .{ .path = "external/wwise-zig" },
         .system_sdk = .{ .path = "external/zig-gamedev/libs/system-sdk" },
         .zflecs = .{ .path = "external/zig-gamedev/libs/zflecs" },
         .zignav = .{ .path = "external/zig-recastnavigation" },
