@@ -272,30 +272,28 @@ pub const Renderer = struct {
             self.createPipelines();
         }
 
-        if (reload_desc.mType.SHADER or reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
-            if (self.render_terrain_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
-            }
+        if (self.render_terrain_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
+        }
 
-            if (self.render_gbuffer_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
-            }
+        if (self.render_gbuffer_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
+        }
 
-            if (self.render_deferred_shading_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
-            }
+        if (self.render_deferred_shading_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
+        }
 
-            if (self.render_skybox_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
-            }
+        if (self.render_skybox_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
+        }
 
-            if (self.render_tonemap_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
-            }
+        if (self.render_tonemap_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
+        }
 
-            if (self.render_ui_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(self.render_ui_pass_user_data.?);
-            }
+        if (self.render_ui_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_ui_pass_user_data.?);
         }
 
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
@@ -322,7 +320,7 @@ pub const Renderer = struct {
             self.destroyRenderTargets();
         }
 
-        if (reload_desc.mType.SHADER or reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
+        if (reload_desc.mType.SHADER) {
             if (self.render_terrain_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_terrain_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
