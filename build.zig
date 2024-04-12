@@ -87,13 +87,12 @@ pub fn build(b: *std.Build) void {
     });
 
     const ztracy_enable = b.option(bool, "ztracy-enable", "Enable Tracy profiler") orelse false;
-    _ = ztracy_enable; // autofix
-    // const ztracy = b.dependency("ztracy", .{
-    // .target = target,
-    // .optimize = optimize,
-    //     .enable_ztracy = ztracy_enable,
-    //     .enable_fibers = true,
-    // });
+    const ztracy = b.dependency("ztracy", .{
+        .target = target,
+        .optimize = optimize,
+        .enable_ztracy = ztracy_enable,
+        .enable_fibers = true,
+    });
 
     const zwin32 = b.dependency("zwin32", .{
         .target = target,
@@ -142,7 +141,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zpix", zpool.module("root"));
     exe.root_module.addImport("zpool", zpool.module("root"));
     exe.root_module.addImport("zstbi", zstbi.module("root"));
-    // exe.root_module.addImport("ztracy", ztracy.module("root"));
+    exe.root_module.addImport("ztracy", ztracy.module("root"));
 
     zforge_pkg.link(exe);
     exe.linkLibrary(zflecs.artifact("flecs"));
@@ -150,9 +149,8 @@ pub fn build(b: *std.Build) void {
     exe.linkLibrary(zmesh.artifact("zmesh"));
     exe.linkLibrary(znoise.artifact("FastNoiseLite"));
     exe.linkLibrary(zphysics.artifact("joltc"));
-    // exe.linkLibrary(zpix.artifact("pix"));
     exe.linkLibrary(zstbi.artifact("zstbi"));
-    // exe.linkLibrary(ztracy.artifact("tracy"));
+    exe.linkLibrary(ztracy.artifact("tracy"));
 
     @import("zwin32").install_xaudio2(&exe.step, .bin, zwin32_path) catch unreachable;
     @import("zwin32").install_d3d12(&exe.step, .bin, zwin32_path) catch unreachable;

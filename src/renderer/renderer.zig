@@ -791,7 +791,7 @@ pub const Renderer = struct {
     }
 
     fn addSwapchain(self: *Renderer) bool {
-        const native_handle = zglfw.native.getWin32Window(self.window.window) catch unreachable;
+        const native_handle = zglfw.getWin32Window(self.window.window).?;
 
         const window_handle = graphics.WindowHandle{
             .type = .WIN32,
