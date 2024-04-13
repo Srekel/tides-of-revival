@@ -5,6 +5,7 @@ const ecsu = @import("flecs_util/flecs_util.zig");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
 const zglfw = @import("zglfw");
+const graphics = @import("zforge").graphics;
 const zstbi = @import("zstbi");
 // const ztracy = @import("ztracy");
 // const AK = @import("wwise-zig");
@@ -15,17 +16,18 @@ const zm = @import("zmath");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
 const config = @import("config/config.zig");
+const EventManager = @import("core/event_manager.zig").EventManager;
 const fd = @import("config/flecs_data.zig");
 const fr = @import("config/flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
 const input = @import("input.zig");
 const prefab_manager = @import("prefab_manager.zig");
+
+const renderer = @import("renderer/renderer.zig");
 const util = @import("util.zig");
 const Variant = @import("core/core.zig").Variant;
 const window = @import("renderer/window.zig");
-const EventManager = @import("core/event_manager.zig").EventManager;
-const renderer = @import("renderer/tides_renderer.zig");
 
 const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
@@ -62,35 +64,18 @@ pub fn run() void {
     // Frame Stats
     var stats = renderer.FrameStats.init();
 
-    // GFX
+    // Window
     window.init(std.heap.page_allocator) catch unreachable;
     defer window.deinit();
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
     main_window.window.setInputMode(.cursor, .disabled);
 
-    // Initialize Tides Renderer
-    const nativeWindowHandle = zglfw.getWin32Window(main_window.window).?;
-    var app_settings = renderer.AppSettings{
-        .width = 1920,
-        .height = 1080,
-        .window_native_handle = @as(*anyopaque, @constCast(nativeWindowHandle)),
-        .v_sync_enabled = true,
-        .output_mode = .SDR,
-    };
-    const success = renderer.initRenderer(&app_settings);
-    if (success != 0) {
-        std.log.err("Failed to initialize Tides Renderer", .{});
-        return;
-    }
-    var reload_desc = renderer.ReloadDesc{
-        .reload_type = renderer.ReloadType.ALL,
-    };
-    defer renderer.exitRenderer();
-
-    if (!renderer.onLoad(&reload_desc)) {
-        unreachable;
-    }
-    defer renderer.onUnload(&reload_desc);
+    // Initialize Renderer
+    var renderer_ctx = renderer.Renderer.init(main_window, std.heap.page_allocator) catch unreachable;
+    defer renderer_ctx.exit();
+    const reload_desc = renderer.ReloadDesc{ .mType = .{ .SHADER = true, .RESIZE = true, .RENDERTARGET = true } };
+    renderer_ctx.onLoad(reload_desc) catch unreachable;
+    defer renderer_ctx.onUnload(reload_desc);
 
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_state.deinit();
@@ -99,7 +84,7 @@ pub fn run() void {
     defer zmesh.deinit();
 
     // Misc
-    var prefab_mgr = prefab_manager.PrefabManager.init(ecsu_world, std.heap.page_allocator);
+    var prefab_mgr = prefab_manager.PrefabManager.init(&renderer_ctx, ecsu_world, std.heap.page_allocator);
     defer prefab_mgr.deinit();
     config.prefab.initPrefabs(&prefab_mgr, ecsu_world);
 
@@ -108,15 +93,15 @@ pub fn run() void {
 
     // Watermark Logo
     {
-        const logo_texture = renderer.loadTexture("textures/ui/tides_logo_ui.dds");
+        const logo_texture = renderer_ctx.loadTexture("textures/ui/tides_logo_ui.dds");
         const logo_size: f32 = 100;
         const top = 20.0;
         const bottom = 20.0 + logo_size;
-        const left = @as(f32, @floatFromInt(app_settings.width)) - 20.0 - logo_size;
-        const right = @as(f32, @floatFromInt(app_settings.width)) - 20.0;
+        const left = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0 - logo_size;
+        const right = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0;
 
         var logo_ent = ecsu_world.newEntity();
-        logo_ent.set(fd.UIImageComponent{ .rect = [4]f32{ top, bottom, left, right }, .material = .{
+        logo_ent.set(fd.UIImage{ .rect = [4]f32{ top, bottom, left, right }, .material = .{
             .color = [4]f32{ 1, 1, 1, 1 },
             .texture = logo_texture,
         } });
@@ -166,26 +151,10 @@ pub fn run() void {
         input_frame_data: *input.FrameData,
         physics_world: *zphy.PhysicsSystem,
         prefab_mgr: *prefab_manager.PrefabManager,
+        renderer: *renderer.Renderer,
         world_patch_mgr: *world_patch_manager.WorldPatchManager,
         stats: *renderer.FrameStats,
-        app_settings: *renderer.AppSettings,
         main_window: *window.Window,
-        lights_buffer_indices: *renderer.HackyLightBuffersIndices,
-        ui_buffer_indices: *renderer.HackyUIBuffersIndices,
-    };
-
-    // HACK(gmodarelli): Passing the current frame buffer indices for lights
-    var lights_buffer_indices = renderer.HackyLightBuffersIndices{
-        .directional_lights_buffer_index = std.math.maxInt(u32),
-        .point_lights_buffer_index = std.math.maxInt(u32),
-        .directional_lights_count = 0,
-        .point_lights_count = 0,
-    };
-
-    // HACK(gmodarelli): Passing the current frame UI buffer indices for UI Images
-    var ui_buffer_indices = renderer.HackyUIBuffersIndices{
-        .ui_instance_buffer_index = std.math.maxInt(u32),
-        .ui_instance_count = 0,
     };
 
     var gameloop_context: GameloopContext = .{
@@ -199,10 +168,8 @@ pub fn run() void {
         .world_patch_mgr = world_patch_mgr,
         .asset_mgr = &asset_mgr,
         .stats = &stats,
-        .app_settings = &app_settings,
+        .renderer = &renderer_ctx,
         .main_window = main_window,
-        .lights_buffer_indices = &lights_buffer_indices,
-        .ui_buffer_indices = &ui_buffer_indices,
     };
 
     config.system.createSystems(&gameloop_context, &system_context);
@@ -215,6 +182,7 @@ pub fn run() void {
         .sun_height = 0,
         .world_time = 0,
         .active_camera = null,
+        .sky_light = null,
     });
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
@@ -253,18 +221,18 @@ pub fn run() void {
     };
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    config.entity.init(player_pos, &prefab_mgr, ecsu_world);
+    config.entity.init(player_pos, &prefab_mgr, ecsu_world, &renderer_ctx);
 
     const matball_prefab = prefab_mgr.getPrefab(config.prefab.matball_id).?;
     const matball_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
     var matball_ent = prefab_mgr.instantiatePrefab(ecsu_world, matball_prefab);
-    const static_mesh_component = matball_ent.getMut(fd.StaticMeshComponent);
+    const static_mesh_component = matball_ent.getMut(fd.StaticMesh);
     if (static_mesh_component) |static_mesh| {
         static_mesh.material_count = 1;
         static_mesh.materials[0] = fd.PBRMaterial.init();
-        static_mesh.materials[0].albedo = renderer.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
-        static_mesh.materials[0].arm = renderer.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
-        static_mesh.materials[0].normal = renderer.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
+        static_mesh.materials[0].albedo = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
+        static_mesh.materials[0].arm = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
+        static_mesh.materials[0].normal = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
     }
     matball_ent.set(matball_position);
     matball_ent.set(fd.Rotation{});
@@ -337,11 +305,9 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     var input_frame_data = gameloop_context.input_frame_data;
     const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
-    var app_settings = gameloop_context.app_settings;
     const main_window = gameloop_context.main_window;
+    const renderer_ctx = gameloop_context.renderer;
     var stats = gameloop_context.stats;
-    const lights_buffer_indices = gameloop_context.lights_buffer_indices;
-    const ui_buffer_indices = gameloop_context.ui_buffer_indices;
 
     // const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
     // defer trazy_zone.End();
@@ -355,23 +321,20 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     }
 
     if (input_frame_data.just_pressed(config.input.reload_shaders)) {
-        var reload_desc = renderer.ReloadDesc{
-            .reload_type = .{ .SHADER = true },
+        const reload_desc = graphics.ReloadDesc{
+            .mType = .{ .SHADER = true },
         };
-        _ = renderer.requestReload(&reload_desc);
+        renderer_ctx.requestReload(reload_desc);
     }
 
-    if (main_window.frame_buffer_size[0] != app_settings.width or main_window.frame_buffer_size[1] != app_settings.height) {
-        app_settings.width = main_window.frame_buffer_size[0];
-        app_settings.height = main_window.frame_buffer_size[1];
+    if (main_window.frame_buffer_size[0] != renderer_ctx.window_width or main_window.frame_buffer_size[1] != renderer_ctx.window_height) {
+        renderer_ctx.window_width = main_window.frame_buffer_size[0];
+        renderer_ctx.window_height = main_window.frame_buffer_size[1];
 
-        var reload_desc = renderer.ReloadDesc{
-            .reload_type = .{ .RESIZE = true },
+        const reload_desc = graphics.ReloadDesc{
+            .mType = .{ .RESIZE = true },
         };
-        renderer.onUnload(&reload_desc);
-        if (!renderer.onLoad(&reload_desc)) {
-            unreachable;
-        }
+        renderer_ctx.requestReload(reload_desc);
     }
 
     // TODO(gmodarelli): Add these view modes to tides_renderer
@@ -422,28 +385,7 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
         // gfx_state.drawUILabel(ui_label) catch unreachable;
     }
 
-    const camera_ent = util.getActiveCameraEnt(ecsu_world);
-    const camera_component = camera_ent.get(fd.Camera).?;
-    const camera_transform = camera_ent.get(fd.Transform).?;
-    const z_view = zm.loadMat(camera_component.view[0..]);
-    const z_proj = zm.loadMat(camera_component.projection[0..]);
-
-    var frame_data: renderer.FrameData = undefined;
-    frame_data.position = camera_transform.getPos00();
-    frame_data.directional_lights_buffer_index = lights_buffer_indices.directional_lights_buffer_index;
-    frame_data.point_lights_buffer_index = lights_buffer_indices.point_lights_buffer_index;
-    frame_data.directional_lights_count = lights_buffer_indices.directional_lights_count;
-    frame_data.point_lights_count = lights_buffer_indices.point_lights_count;
-    frame_data.ui_instance_buffer_index = ui_buffer_indices.ui_instance_buffer_index;
-    frame_data.ui_instance_count = ui_buffer_indices.ui_instance_count;
-
-    const static_mesh_component = config.prefab.default_cube.getMut(fd.StaticMeshComponent).?;
-    frame_data.skybox_mesh_handle = static_mesh_component.*.mesh_handle;
-    zm.storeMat(&frame_data.view_matrix, z_view);
-    zm.storeMat(&frame_data.proj_matrix, z_proj);
-
     stats.update();
-    renderer.draw(frame_data);
 
     return false;
 }

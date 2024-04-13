@@ -29,10 +29,6 @@ CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
 	DATA(float4x4, projView, None);
 	DATA(float4x4, projViewInverted, None);
 	DATA(float4, camPos, None);
-	DATA(uint, directionalLightsBufferIndex, None);
-	DATA(uint, pointLightsBufferIndex, None);
-	DATA(uint, directionalLightsCount, None);
-	DATA(uint, pointLightsCount, None);
 };
 
 PUSH_CONSTANT(RootConstant, b0)

@@ -1,6 +1,7 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
+const zforge = @import("external/The-Forge/build.zig");
 // const wwise_zig = @import("wwise-zig");
 
 pub fn build(b: *std.Build) void {
@@ -38,49 +39,7 @@ pub fn build(b: *std.Build) void {
         exe.linkLibCpp();
     }
 
-    // Building and Linking Tides Renderer
-    {
-        const build_step = buildTheForgeRenderer(b);
-
-        const tides_renderer_base_path = thisDir() ++ "/external/The-Forge/Examples_3/TidesRenderer";
-        // TODO(gmodarelli): Check if OS is windows and if target is debug
-        const tides_renderer_output_path = tides_renderer_base_path ++ "/PC Visual Studio 2019/x64/Debug";
-
-        exe.addLibraryPath(.{ .path = tides_renderer_output_path });
-        exe.linkSystemLibrary("TidesRenderer");
-        exe.step.dependOn(build_step);
-
-        // Install DLLs
-        var install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/TidesRenderer.dll" }, "bin/TidesRenderer.dll");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/TidesRenderer.pdb" }, "bin/TidesRenderer.pdb");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/WinPixEventRunTime.dll" }, "bin/WinPixEventRunTime.dll");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/amd_ags_x64.dll" }, "bin/amd_ags_x64.dll");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/dxcompiler.dll" }, "bin/dxcompiler.dll");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/VkLayer_khronos_validation.dll" }, "bin/VkLayer_khronos_validation.dll");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-
-        // Install Configuration Files
-        install_file = b.addInstallFile(.{ .path = tides_renderer_base_path ++ "/src/GPUCfg/gpu.cfg" }, "bin/GPUCfg/gpu.cfg");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-        install_file = b.addInstallFile(.{ .path = tides_renderer_base_path ++ "/src/GPUCfg/gpu.data" }, "bin/GPUCfg/gpu.data");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-        install_file = b.addInstallFile(.{ .path = tides_renderer_output_path ++ "/VkLayer_khronos_validation.json" }, "bin/VkLayer_khronos_validation.json");
-        install_file.step.dependOn(build_step);
-        exe.step.dependOn(&install_file.step);
-    }
+    const zforge_pkg = zforge.package(b, target, optimize, .{});
 
     const zflecs = b.dependency("zflecs", .{
         .target = target,
@@ -128,13 +87,12 @@ pub fn build(b: *std.Build) void {
     });
 
     const ztracy_enable = b.option(bool, "ztracy-enable", "Enable Tracy profiler") orelse false;
-    _ = ztracy_enable; // autofix
-    // const ztracy = b.dependency("ztracy", .{
-    // .target = target,
-    // .optimize = optimize,
-    //     .enable_ztracy = ztracy_enable,
-    //     .enable_fibers = true,
-    // });
+    const ztracy = b.dependency("ztracy", .{
+        .target = target,
+        .optimize = optimize,
+        .enable_ztracy = ztracy_enable,
+        .enable_fibers = true,
+    });
 
     const zwin32 = b.dependency("zwin32", .{
         .target = target,
@@ -183,16 +141,16 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zpix", zpool.module("root"));
     exe.root_module.addImport("zpool", zpool.module("root"));
     exe.root_module.addImport("zstbi", zstbi.module("root"));
-    // exe.root_module.addImport("ztracy", ztracy.module("root"));
+    exe.root_module.addImport("ztracy", ztracy.module("root"));
 
+    zforge_pkg.link(exe);
     exe.linkLibrary(zflecs.artifact("flecs"));
     exe.linkLibrary(zglfw.artifact("glfw"));
     exe.linkLibrary(zmesh.artifact("zmesh"));
     exe.linkLibrary(znoise.artifact("FastNoiseLite"));
     exe.linkLibrary(zphysics.artifact("joltc"));
-    // exe.linkLibrary(zpix.artifact("pix"));
     exe.linkLibrary(zstbi.artifact("zstbi"));
-    // exe.linkLibrary(ztracy.artifact("tracy"));
+    exe.linkLibrary(ztracy.artifact("tracy"));
 
     @import("zwin32").install_xaudio2(&exe.step, .bin, zwin32_path) catch unreachable;
     @import("zwin32").install_d3d12(&exe.step, .bin, zwin32_path) catch unreachable;

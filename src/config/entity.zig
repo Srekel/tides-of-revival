@@ -1,23 +1,54 @@
 const std = @import("std");
+const prefab = @import("prefab.zig");
 const prefab_manager = @import("../prefab_manager.zig");
 const config = @import("config.zig");
 const core = @import("../core/core.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("flecs_data.zig");
-const renderer = @import("../renderer/tides_renderer.zig");
+const renderer = @import("../renderer/renderer.zig");
 const ID = core.ID;
 const IdLocal = core.IdLocal;
+const zforge = @import("zforge");
 const zm = @import("zmath");
+const graphics = zforge.graphics;
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
+pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer) void {
+    // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
+    // ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██║████╗  ██║██╔════╝
+    // ██║     ██║██║  ███╗███████║   ██║   ██║██╔██╗ ██║██║  ███╗
+    // ██║     ██║██║   ██║██╔══██║   ██║   ██║██║╚██╗██║██║   ██║
+    // ███████╗██║╚██████╔╝██║  ██║   ██║   ██║██║ ╚████║╚██████╔╝
+    // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
+
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(45.0, 45.0, 0.0));
     sun_light.set(fd.DirectionalLight{
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
         .intensity = 1.0,
     });
+
+    const sky_light_ent = ecsu_world.newEntity();
+    {
+        var sky_light_component = fd.SkyLight{
+            .hdri = renderer.TextureHandle.nil,
+            .intensity = 0.35,
+            .mesh = renderer.MeshHandle.nil,
+        };
+
+        var desc = std.mem.zeroes(graphics.TextureDesc);
+        desc.bBindless = false;
+        sky_light_component.hdri = rctx.loadTextureWithDesc(desc, "textures/env/kloofendal_43d_clear_puresky_2k_cube_radiance.dds");
+
+        const cube_prefab = prefab_mgr.getPrefab(prefab.cube_id).?;
+        const static_mesh_component = cube_prefab.getMut(fd.StaticMesh);
+        if (static_mesh_component) |static_mesh| {
+            sky_light_component.mesh = static_mesh.mesh_handle;
+        }
+
+        sky_light_ent.set(sky_light_component);
+    }
 
     // ██████╗  ██████╗ ██╗    ██╗
     // ██╔══██╗██╔═══██╗██║    ██║
@@ -107,4 +138,5 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
+    environment_info.sky_light = sky_light_ent;
 }

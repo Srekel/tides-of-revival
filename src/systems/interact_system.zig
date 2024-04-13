@@ -17,7 +17,8 @@ const EventManager = @import("../core/event_manager.zig").EventManager;
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const context = @import("../core/context.zig");
 const audio_manager = @import("../audio/audio_manager_mock.zig");
-const renderer = @import("../renderer/tides_renderer.zig");
+const renderer = @import("../renderer/renderer.zig");
+const window = @import("../renderer/window.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 
@@ -42,11 +43,12 @@ pub const MovingBroadPhaseLayerFilter = extern struct {
 pub const SystemState = struct {
     flecs_sys: ecs.entity_t,
     allocator: std.mem.Allocator,
-    app_settings: *renderer.AppSettings,
     physics_world: *zphy.PhysicsSystem,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     event_mgr: *EventManager,
+    main_window: *window.Window,
+    renderer: *renderer.Renderer,
     prefab_mgr: *PrefabManager,
     comp_query_interactor: ecsu.Query,
     crosshair_entity: ecsu.Entity,
@@ -55,10 +57,11 @@ pub const SystemState = struct {
 pub const SystemCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
-    app_settings: *renderer.AppSettings,
     audio_mgr: *audio_manager.AudioManager,
     ecsu_world: ecsu.World,
     event_mgr: *EventManager,
+    main_window: *window.Window,
+    renderer: *renderer.Renderer,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     prefab_mgr: *PrefabManager,
@@ -79,9 +82,9 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .with(fd.Forward)
         .with(fd.Transform);
 
-    const crosshair_texture = renderer.loadTexture("textures/ui/crosshair085_ui.dds");
+    const crosshair_texture = ctx.renderer.loadTexture("textures/ui/crosshair085_ui.dds");
     var crosshair_ent = ctx.ecsu_world.newEntity();
-    crosshair_ent.set(fd.UIImageComponent{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+    crosshair_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
         .color = [4]f32{ 1, 1, 1, 1 },
         .texture = crosshair_texture,
     } });
@@ -91,11 +94,12 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     system.* = .{
         .flecs_sys = flecs_sys,
         .allocator = allocator,
-        .app_settings = ctx.app_settings,
         .ecsu_world = ctx.ecsu_world,
         .physics_world = ctx.physics_world,
         .input_frame_data = ctx.input_frame_data,
         .event_mgr = ctx.event_mgr,
+        .main_window = ctx.main_window,
+        .renderer = ctx.renderer,
         .prefab_mgr = ctx.prefab_mgr,
         .comp_query_interactor = comp_query_interactor,
         .crosshair_entity = crosshair_ent,
@@ -385,15 +389,15 @@ fn updateCrosshair(system: *SystemState) void {
 
     const crosshair_size: f32 = 32;
     const crosshair_half_size: f32 = crosshair_size / 2;
-    const screen_center_x: f32 = @as(f32, @floatFromInt(system.app_settings.width)) / 2;
-    const screen_center_y: f32 = @as(f32, @floatFromInt(system.app_settings.height)) / 2;
+    const screen_center_x: f32 = @as(f32, @floatFromInt(system.main_window.frame_buffer_size[0])) / 2;
+    const screen_center_y: f32 = @as(f32, @floatFromInt(system.main_window.frame_buffer_size[1])) / 2;
 
     const top = screen_center_y - crosshair_half_size;
     const bottom = screen_center_y + crosshair_half_size;
     const left = screen_center_x - crosshair_half_size;
     const right = screen_center_x + crosshair_half_size;
 
-    const ui_image = system.crosshair_entity.getMut(fd.UIImageComponent).?;
+    const ui_image = system.crosshair_entity.getMut(fd.UIImage).?;
     ui_image.*.rect = [4]f32{ top, bottom, left, right };
     ui_image.*.material.color = crosshair_color;
 }
@@ -549,7 +553,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 }
                 // std.debug.print("lol2 {any}\n", .{hit_ent.id});
             }
-        //     AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
+            //     AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
         }
         // _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
     }

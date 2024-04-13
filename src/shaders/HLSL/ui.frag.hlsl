@@ -10,7 +10,7 @@ float4 PS_MAIN(VSOutput input) : SV_Target
     ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[Get(uiTransformBufferIndex)];
     UITransform instance = instanceTransformBuffer.Load<UITransform>(input.InstanceID * sizeof(UITransform));
 
-    Texture2D texture = ResourceDescriptorHeap[instance.textureIndex];
+    Texture2D texture = ResourceDescriptorHeap[NonUniformResourceIndex(instance.textureIndex)];
     float4 color = texture.SampleLevel(Get(bilinearRepeatSampler), input.UV, 0);
     color *= instance.color;
     RETURN(color);

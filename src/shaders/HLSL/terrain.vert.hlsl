@@ -16,7 +16,7 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 
     float3 displaced_position = Input.Position.xyz;
 
-    Texture2D heightmap = ResourceDescriptorHeap[Get(instance.heightmapTextureIndex)];
+    Texture2D heightmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.heightmapTextureIndex)];
     float height = SampleLvlTex2D(heightmap, Get(bilinearClampSampler), Out.UV, 0).r;
     displaced_position.y += height;
 

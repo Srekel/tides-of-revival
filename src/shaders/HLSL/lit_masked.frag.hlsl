@@ -20,7 +20,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
 
     float3 baseColor = material.baseColor.rgb;
     if (hasValidTexture(material.baseColorTextureIndex)) {
-        Texture2D baseColorTexture = ResourceDescriptorHeap[material.baseColorTextureIndex];
+        Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
         clip(baseColorSample.a - 0.5);
         baseColor *= baseColorSample.rgb;
@@ -28,7 +28,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
 
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(material.normalTextureIndex)) {
-        Texture2D normalTexture = ResourceDescriptorHeap[material.normalTextureIndex];
+        Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
         N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
     }
 
@@ -40,7 +40,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     float metallic = material.metallic;
     float occlusion = 1.0f;
     if (hasValidTexture(material.armTextureIndex)) {
-        Texture2D armTexture = ResourceDescriptorHeap[material.armTextureIndex];
+        Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.armTextureIndex)];
         float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), Input.UV), 1.0f / 2.2f);
         occlusion = armSample.r;
         roughness = armSample.g;
