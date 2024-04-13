@@ -22,7 +22,7 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
         // TODO(gmodarelli): Pass terrainScale in
         float terrainScale = 1.0f / 500.0f;
         float heightScale = 1000.0f;
-        Texture2D heightmap = ResourceDescriptorHeap[Get(instance.heightmapTextureIndex)];
+        Texture2D heightmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.heightmapTextureIndex)];
         float heightC = SampleLvlTex2D(heightmap, Get(bilinearClampSampler), Input.UV, 0).r * terrainScale * 2.0f;
         float heightR = SampleLvlTex2D(heightmap, Get(bilinearClampSampler), saturate(Input.UV + e.xy), 0).r * terrainScale * 2.0f;
         float heightL = SampleLvlTex2D(heightmap, Get(bilinearClampSampler), saturate(Input.UV - e.xy), 0).r * terrainScale * 2.0f;
@@ -40,7 +40,7 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
 
     const float3 V = normalize(Get(camPos).xyz - P);
 
-    Texture2D splatmap = ResourceDescriptorHeap[Get(instance.splatmapTextureIndex)];
+    Texture2D splatmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.splatmapTextureIndex)];
     uint splatmapIndex = uint(SampleLvlTex2D(splatmap, Get(bilinearClampSampler), Input.UV, 0).r * 255);
 
     ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
