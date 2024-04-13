@@ -29,7 +29,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .intensity = 1.0,
     });
 
-    const sky_light = ecsu_world.newEntity();
+    const sky_light_ent = ecsu_world.newEntity();
     {
         var sky_light_component = fd.SkyLight{
             .hdri = renderer.TextureHandle.nil,
@@ -47,7 +47,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
             sky_light_component.mesh = static_mesh.mesh_handle;
         }
 
-        sky_light.set(sky_light_component);
+        sky_light_ent.set(sky_light_component);
     }
 
     // ██████╗  ██████╗ ██╗    ██╗
@@ -138,5 +138,5 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
-    environment_info.sky_light = sky_light;
+    environment_info.sky_light = sky_light_ent;
 }
