@@ -174,7 +174,7 @@ pub const GeometryRenderPass = struct {
         var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_mesh
             .withReadonly(fd.Transform)
-            .withReadonly(fd.StaticMeshComponent);
+            .withReadonly(fd.StaticMesh);
         const query_static_mesh = query_builder_mesh.buildQuery();
 
         const pass = allocator.create(GeometryRenderPass) catch unreachable;
@@ -387,7 +387,7 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
 
     var entity_iterator = self.query_static_mesh.iterator(struct {
         transform: *const fd.Transform,
-        mesh: *const fd.StaticMeshComponent,
+        mesh: *const fd.StaticMesh,
     });
 
     // Reset transforms, materials and draw calls array list

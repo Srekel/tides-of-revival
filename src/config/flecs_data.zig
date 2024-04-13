@@ -24,9 +24,9 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Transform);
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
-    ecs.COMPONENT(ecs_world, StaticMeshComponent);
-    ecs.COMPONENT(ecs_world, SkyLightComponent);
-    ecs.COMPONENT(ecs_world, UIImageComponent);
+    ecs.COMPONENT(ecs_world, StaticMesh);
+    ecs.COMPONENT(ecs_world, SkyLight);
+    ecs.COMPONENT(ecs_world, UIImage);
     ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
@@ -35,8 +35,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, WorldLoader);
     ecs.COMPONENT(ecs_world, WorldPatch);
     // ecs.COMPONENT(ecs_world, ComponentData);
-    ecs.COMPONENT(ecs_world, DirectionalLightComponent);
-    ecs.COMPONENT(ecs_world, PointLightComponent);
+    ecs.COMPONENT(ecs_world, DirectionalLight);
+    ecs.COMPONENT(ecs_world, PointLight);
     ecs.COMPONENT(ecs_world, CIFSM);
     ecs.COMPONENT(ecs_world, FSM);
     ecs.COMPONENT(ecs_world, Input);
@@ -378,7 +378,7 @@ pub const PBRMaterial = struct {
     }
 };
 
-pub const UIImageComponent = struct {
+pub const UIImage = struct {
     rect: [4]f32,
     material: UIMaterial,
 };
@@ -388,7 +388,7 @@ pub const UIMaterial = struct {
     texture: TextureHandle,
 };
 
-pub const StaticMeshComponent = struct {
+pub const StaticMesh = struct {
     mesh_handle: MeshHandle,
 
     material_count: u32,
@@ -402,7 +402,7 @@ pub const StaticMeshComponent = struct {
 // ███████║██║  ██╗   ██║   ██████╔╝╚██████╔╝██╔╝ ██╗
 // ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 
-pub const SkyLightComponent = struct {
+pub const SkyLight = struct {
     hdri: TextureHandle,
     mesh: MeshHandle,
     intensity: f32,
@@ -550,12 +550,12 @@ pub const WorldPatch = struct {
 // ███████╗██║╚██████╔╝██║  ██║   ██║
 // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
-pub const DirectionalLightComponent = struct {
+pub const DirectionalLight = struct {
     color: ColorRGB,
     intensity: f32,
 };
 
-pub const PointLightComponent = struct {
+pub const PointLight = struct {
     color: ColorRGB,
     range: f32,
     intensity: f32,

@@ -86,7 +86,7 @@ pub const UIRenderPass = struct {
         const instance_data = std.ArrayList(UIInstanceData).init(allocator);
 
         var query_builder_ui = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_ui.withReadonly(fd.UIImageComponent);
+        _ = query_builder_ui.withReadonly(fd.UIImage);
         const query_ui_images = query_builder_ui.buildQuery();
 
         const pass = allocator.create(UIRenderPass) catch unreachable;
@@ -151,7 +151,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
     var entity_iter_ui = self.query_ui_images.iterator(struct {
-        ui_image: *const fd.UIImageComponent,
+        ui_image: *const fd.UIImage,
     });
 
     self.instance_data.clearRetainingCapacity();

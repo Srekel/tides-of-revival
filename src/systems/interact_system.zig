@@ -84,7 +84,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
     const crosshair_texture = ctx.renderer.loadTexture("textures/ui/crosshair085_ui.dds");
     var crosshair_ent = ctx.ecsu_world.newEntity();
-    crosshair_ent.set(fd.UIImageComponent{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+    crosshair_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
         .color = [4]f32{ 1, 1, 1, 1 },
         .texture = crosshair_texture,
     } });
@@ -238,7 +238,7 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_ent.set(fd.PhysicsBody{ .body_id = proj_body_id });
 
             // Light
-            proj_ent.set(fd.PointLightComponent{
+            proj_ent.set(fd.PointLight{
                 .color = .{ .r = 1, .g = 1, .b = 0.5 },
                 .range = 5.0,
                 .intensity = 0.5,
@@ -397,7 +397,7 @@ fn updateCrosshair(system: *SystemState) void {
     const left = screen_center_x - crosshair_half_size;
     const right = screen_center_x + crosshair_half_size;
 
-    const ui_image = system.crosshair_entity.getMut(fd.UIImageComponent).?;
+    const ui_image = system.crosshair_entity.getMut(fd.UIImage).?;
     ui_image.*.rect = [4]f32{ top, bottom, left, right };
     ui_image.*.material.color = crosshair_color;
 }
@@ -537,7 +537,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     );
 
                     ecs.remove(ecs_world, hit_ent, fd.FSM);
-                    ecs.remove(ecs_world, hit_ent, fd.PointLightComponent);
+                    ecs.remove(ecs_world, hit_ent, fd.PointLight);
 
                     const tli_despawn = config.events.TimelineInstanceData{
                         .ent = hit_ent,
@@ -553,7 +553,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 }
                 // std.debug.print("lol2 {any}\n", .{hit_ent.id});
             }
-        //     AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
+            //     AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.CREATURE, oid) catch unreachable;
         }
         // _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.PROJECTILEHIT, oid, .{}) catch unreachable;
     }

@@ -124,7 +124,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const sky_light_entity = util.getSkyLight(self.ecsu_world);
     if (sky_light_entity) |sky_light| {
         const sky_light_comps = sky_light.getComps(struct {
-            sky_light: *const fd.SkyLightComponent,
+            sky_light: *const fd.SkyLight,
         });
 
         if (self.needs_to_udate_descriptors) {
@@ -166,7 +166,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     const sky_light_entity = util.getSkyLight(self.ecsu_world);
     if (sky_light_entity) |sky_light| {
         const sky_light_comps = sky_light.getComps(struct {
-            sky_light: *const fd.SkyLightComponent,
+            sky_light: *const fd.SkyLight,
         });
 
         var hdri_texture = self.renderer.getTexture(sky_light_comps.sky_light.hdri);

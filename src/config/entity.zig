@@ -24,14 +24,14 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     const sun_light = ecsu_world.newEntity();
     sun_light.set(fd.Rotation.initFromEulerDegrees(45.0, 45.0, 0.0));
-    sun_light.set(fd.DirectionalLightComponent{
+    sun_light.set(fd.DirectionalLight{
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
         .intensity = 1.0,
     });
 
     const sky_light = ecsu_world.newEntity();
     {
-        var sky_light_component = fd.SkyLightComponent{
+        var sky_light_component = fd.SkyLight{
             .hdri = renderer.TextureHandle.nil,
             .intensity = 0.35,
             .mesh = renderer.MeshHandle.nil,
@@ -42,7 +42,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         sky_light_component.hdri = rctx.loadTextureWithDesc(desc, "textures/env/kloofendal_43d_clear_puresky_2k_cube_radiance.dds");
 
         const cube_prefab = prefab_mgr.getPrefab(prefab.cube_id).?;
-        const static_mesh_component = cube_prefab.getMut(fd.StaticMeshComponent);
+        const static_mesh_component = cube_prefab.getMut(fd.StaticMesh);
         if (static_mesh_component) |static_mesh| {
             sky_light_component.mesh = static_mesh.mesh_handle;
         }
@@ -129,7 +129,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    player_camera_ent.set(fd.PointLightComponent{
+    player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
         .range = 5.0,
         .intensity = 1.0,

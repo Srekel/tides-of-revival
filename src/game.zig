@@ -101,7 +101,7 @@ pub fn run() void {
         const right = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0;
 
         var logo_ent = ecsu_world.newEntity();
-        logo_ent.set(fd.UIImageComponent{ .rect = [4]f32{ top, bottom, left, right }, .material = .{
+        logo_ent.set(fd.UIImage{ .rect = [4]f32{ top, bottom, left, right }, .material = .{
             .color = [4]f32{ 1, 1, 1, 1 },
             .texture = logo_texture,
         } });
@@ -226,7 +226,7 @@ pub fn run() void {
     const matball_prefab = prefab_mgr.getPrefab(config.prefab.matball_id).?;
     const matball_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
     var matball_ent = prefab_mgr.instantiatePrefab(ecsu_world, matball_prefab);
-    const static_mesh_component = matball_ent.getMut(fd.StaticMeshComponent);
+    const static_mesh_component = matball_ent.getMut(fd.StaticMesh);
     if (static_mesh_component) |static_mesh| {
         static_mesh.material_count = 1;
         static_mesh.materials[0] = fd.PBRMaterial.init();

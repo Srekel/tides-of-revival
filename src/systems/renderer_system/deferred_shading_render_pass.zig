@@ -221,13 +221,13 @@ pub const DeferredShadingRenderPass = struct {
         var query_builder_directional_lights = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_directional_lights
             .withReadonly(fd.Rotation)
-            .withReadonly(fd.DirectionalLightComponent);
+            .withReadonly(fd.DirectionalLight);
         const query_directional_lights = query_builder_directional_lights.buildQuery();
 
         var query_builder_point_lights = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_point_lights
             .withReadonly(fd.Transform)
-            .withReadonly(fd.PointLightComponent);
+            .withReadonly(fd.PointLight);
         const query_point_lights = query_builder_point_lights.buildQuery();
 
         const pass = allocator.create(DeferredShadingRenderPass) catch unreachable;
@@ -298,7 +298,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const sky_light_entity = util.getSkyLight(self.ecsu_world);
     if (sky_light_entity) |sky_light| {
         const sky_light_comps = sky_light.getComps(struct {
-            sky_light: *const fd.SkyLightComponent,
+            sky_light: *const fd.SkyLight,
         });
 
         if (self.needs_to_compute_ibl_maps) {
@@ -441,7 +441,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     var entity_iter_directional_lights = self.query_directional_lights.iterator(struct {
         rotation: *const fd.Rotation,
-        light: *const fd.DirectionalLightComponent,
+        light: *const fd.DirectionalLight,
     });
 
     self.directional_lights.clearRetainingCapacity();
@@ -464,7 +464,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     var entity_iter_point_lights = self.query_point_lights.iterator(struct {
         transform: *const fd.Transform,
-        light: *const fd.PointLightComponent,
+        light: *const fd.PointLight,
     });
 
     self.point_lights.clearRetainingCapacity();
