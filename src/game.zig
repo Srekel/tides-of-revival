@@ -12,7 +12,6 @@ const zstbi = @import("zstbi");
 // const AK_ID = @import("wwise-ids");
 const audio_manager = @import("audio/audio_manager_mock.zig");
 const zm = @import("zmath");
-// const zignav = @import("zignav");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
 const config = @import("config/config.zig");
@@ -121,11 +120,6 @@ pub fn run() void {
     world_patch_mgr.debug_server.run();
     defer world_patch_mgr.destroy();
     patch_types.registerPatchTypes(world_patch_mgr);
-
-    // Recast
-    // var nav_ctx: zignav.Recast.rcContext = undefined;
-    // nav_ctx.init(false);
-    // defer nav_ctx.deinit();
 
     // ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
     // ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██╔════╝

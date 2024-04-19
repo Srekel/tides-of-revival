@@ -156,9 +156,9 @@ pub fn build(b: *std.Build) void {
     const zwin32_path = zwin32.path("").getPath(b);
 
     // Recast
-    // const zignav = b.dependency("zignav", .{});
-    // exe.root_module.addImport("zignav", zignav.module("zignav"));
-    // exe.linkLibrary(zignav.artifact("zignav_c_cpp"));
+    const zignav = b.dependency("zignav", .{});
+    exe.root_module.addImport("zignav", zignav.module("zignav"));
+    exe.linkLibrary(zignav.artifact("zignav_c_cpp"));
 
     // TODO: Asset cookify
     const install_fonts_step = b.addInstallDirectory(.{

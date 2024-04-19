@@ -9,6 +9,7 @@ const camera_system = @import("../systems/camera_system.zig");
 const city_system = @import("../systems/procgen/city_system.zig");
 const input_system = @import("../systems/input_system.zig");
 const interact_system = @import("../systems/interact_system.zig");
+const navmesh_system = @import("../systems/navmesh_system.zig");
 const patch_prop_system = @import("../systems/patch_prop_system.zig");
 const physics_system = @import("../systems/physics_system.zig");
 const renderer_system = @import("../systems/renderer_system.zig");
@@ -20,6 +21,7 @@ var camera_sys: *camera_system.SystemState = undefined;
 var city_sys: *city_system.SystemState = undefined;
 var input_sys: *input_system.SystemState = undefined;
 var interact_sys: *interact_system.SystemState = undefined;
+var navmesh_sys: *navmesh_system.SystemState = undefined;
 var patch_prop_sys: *patch_prop_system.SystemState = undefined;
 var physics_sys: *physics_system.SystemState = undefined;
 var renderer_sys: *renderer_system.SystemState = undefined;
@@ -81,6 +83,11 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
         gameloop_context.ecsu_world,
         gameloop_context.world_patch_mgr,
         gameloop_context.prefab_mgr,
+    );
+
+    navmesh_sys = try navmesh_system.create(
+        ID("navmesh_system"),
+        navmesh_system.SystemCtx.view(gameloop_context),
     );
 
     renderer_sys = try renderer_system.create(
