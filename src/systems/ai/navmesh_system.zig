@@ -20,6 +20,7 @@ const DetourNavMesh = zignav.DetourNavMesh;
 const DetourNavMeshBuilder = zignav.DetourNavMeshBuilder;
 const DetourNavMeshQuery = zignav.DetourNavMeshQuery;
 const DetourStatus = zignav.DetourStatus;
+const util = @import("navmesh_system_util.zig");
 
 const IndexType = u32;
 const patch_side_vertex_count = config.patch_resolution;
@@ -48,6 +49,7 @@ pub const SystemState = struct {
     patches: std.ArrayList(Patch),
     indices: [indices_per_patch]IndexType,
     nav_ctx: Recast.rcContext = undefined,
+    nav_mesh: DetourNavMesh.dtNavMesh = undefined,
 };
 
 pub const SystemCtx = struct {
@@ -71,6 +73,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     // Recast
     var nav_ctx: zignav.Recast.rcContext = undefined;
     nav_ctx.init(false);
+    const nav_mesh = DetourNavMesh.dtAllocNavMesh();
 
     var system = allocator.create(SystemState) catch unreachable;
     const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -84,6 +87,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .patches = std.ArrayList(Patch).initCapacity(allocator, 16 * 16) catch unreachable,
         .indices = undefined,
         .nav_ctx = nav_ctx,
+        .nav_mesh = nav_mesh,
     };
 
     system.nav_ctx.init(false);
@@ -91,6 +95,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 }
 
 pub fn destroy(system: *SystemState) void {
+    DetourNavMesh.dtFreeNavMesh(system.nav_mesh);
     system.comp_query_loader.deinit();
     system.patches.deinit();
     system.nav_ctx.deinit();
