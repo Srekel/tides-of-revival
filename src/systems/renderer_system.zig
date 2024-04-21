@@ -55,12 +55,14 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
     const geometry_pass = GeometryRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_gbuffer_pass_render_fn = geometry_render_pass.renderFn;
+    ctx.renderer.render_gbuffer_pass_render_shadow_map_fn = geometry_render_pass.renderShadowMapFn;
     ctx.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = geometry_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_unload_descriptor_sets_fn = geometry_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_user_data = geometry_pass;
 
     const terrain_pass = TerrainRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
     ctx.renderer.render_terrain_pass_render_fn = terrain_render_pass.renderFn;
+    ctx.renderer.render_terrain_pass_render_shadow_map_fn = terrain_render_pass.renderShadowMapFn;
     ctx.renderer.render_terrain_pass_prepare_descriptor_sets_fn = terrain_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_terrain_pass_unload_descriptor_sets_fn = terrain_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_terrain_pass_user_data = terrain_pass;

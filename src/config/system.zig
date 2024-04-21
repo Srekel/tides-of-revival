@@ -72,9 +72,9 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     camera_sys = try camera_system.create(
         ID("camera_system"),
         std.heap.page_allocator,
-        // gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
         gameloop_context.input_frame_data,
+        gameloop_context.renderer,
     );
 
     patch_prop_sys = try patch_prop_system.create(

@@ -151,11 +151,11 @@ pub fn createEntities(system: *SystemState) void {
 
         var light_ent = system.ecsu_world.newEntity();
         light_ent.set(fd.Transform.initFromPosition(.{ .x = pos_x, .y = pos_y + 5, .z = pos_z }));
-        light_ent.set(fd.PointLight{
-            .color = .{ .r = 1, .g = 0.5, .b = 0.25 },
-            .range = 20.0,
-            .intensity = 2.0,
-        });
+        // light_ent.set(fd.PointLight{
+        //     .color = .{ .r = 1, .g = 0.5, .b = 0.25 },
+        //     .range = 20.0,
+        //     .intensity = 2.0,
+        // });
 
         // var light_viz_ent = ecsu_world.newEntity();
         // light_viz_ent.set(fd.Position.init(city_pos.x, city_height + 2 + city_params.light_range * 0.1, city_pos.z));

@@ -21,6 +21,8 @@ const PrecomputedSkyData = struct {
 const UniformFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
+    light_projection_view: [16]f32,
+    light_projection_view_inverted: [16]f32,
     camera_position: [4]f32,
     directional_lights_buffer_index: u32,
     point_lights_buffer_index: u32,
@@ -425,8 +427,25 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
     const z_proj_view = zm.mul(z_view, z_proj);
 
+    const sun_entity = util.getSun(self.ecsu_world);
+    const sun_comps = sun_entity.?.getComps(struct {
+        rotation: *const fd.Rotation,
+    });
+
+    const z_light_forward = zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
+    const z_light_view = zm.lookToLh(
+        zm.f32x4(camera_position[0], camera_position[1], camera_position[2], 1.0),
+        z_light_forward * zm.f32x4s(-1.0),
+        zm.f32x4(0.0, 1.0, 0.0, 0.0),
+    );
+
+    const z_light_proj = zm.orthographicLh(100.0, 100.0, -500.0, 500.0);
+    const z_light_proj_view = zm.mul(z_light_view, z_light_proj);
+
     zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
     zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
+    zm.storeMat(&self.uniform_frame_data.light_projection_view, z_light_proj_view);
+    zm.storeMat(&self.uniform_frame_data.light_projection_view_inverted, zm.inverse(z_light_proj_view));
     self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
     self.uniform_frame_data.directional_lights_buffer_index = self.renderer.getBufferBindlessIndex(self.directional_lights_buffers[frame_index]);
     self.uniform_frame_data.directional_lights_count = @intCast(self.directional_lights.items.len);
@@ -510,7 +529,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *DeferredShadingRenderPass = @ptrCast(@alignCast(user_data));
 
-    var params: [7]graphics.DescriptorData = undefined;
+    var params: [8]graphics.DescriptorData = undefined;
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
         var brdf_lut_texture = self.renderer.getTexture(self.brdf_lut_texture);
@@ -538,7 +557,10 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[6] = std.mem.zeroes(graphics.DescriptorData);
         params[6].pName = "depthBuffer";
         params[6].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer.*.pTexture);
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 7, @ptrCast(&params));
+        params[7] = std.mem.zeroes(graphics.DescriptorData);
+        params[7].pName = "shadowDepthBuffer";
+        params[7].__union_field3.ppTextures = @ptrCast(&self.renderer.shadow_depth_buffer.*.pTexture);
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 8, @ptrCast(&params));
 
         var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);

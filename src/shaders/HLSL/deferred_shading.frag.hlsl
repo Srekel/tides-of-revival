@@ -5,15 +5,17 @@
 
 RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s1, binding = 2);
+RES(SamplerState, pointSampler, UPDATE_FREQ_NONE, s2, binding = 3);
 
-RES(Tex2D(float2), brdfIntegrationMap, UPDATE_FREQ_NONE, t0, binding = 3);
-RES(TexCube(float4), irradianceMap, UPDATE_FREQ_NONE, t1, binding = 4);
-RES(TexCube(float4), specularMap, UPDATE_FREQ_NONE, t2, binding = 5);
+RES(Tex2D(float2), brdfIntegrationMap, UPDATE_FREQ_NONE, t0, binding = 4);
+RES(TexCube(float4), irradianceMap, UPDATE_FREQ_NONE, t1, binding = 5);
+RES(TexCube(float4), specularMap, UPDATE_FREQ_NONE, t2, binding = 6);
 
-RES(Tex2D(float4), gBuffer0, UPDATE_FREQ_NONE, t3, binding = 6);
-RES(Tex2D(float4), gBuffer1, UPDATE_FREQ_NONE, t4, binding = 7);
-RES(Tex2D(float4), gBuffer2, UPDATE_FREQ_NONE, t5, binding = 8);
-RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t6, binding = 9);
+RES(Tex2D(float4), gBuffer0, UPDATE_FREQ_NONE, t3, binding = 7);
+RES(Tex2D(float4), gBuffer1, UPDATE_FREQ_NONE, t4, binding = 8);
+RES(Tex2D(float4), gBuffer2, UPDATE_FREQ_NONE, t5, binding = 9);
+RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t6, binding = 10);
+RES(Tex2D(float), shadowDepthBuffer, UPDATE_FREQ_NONE, t7, binding = 11);
 
 #include "pbr.hlsl"
 
@@ -21,6 +23,8 @@ CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
 {
     DATA(float4x4, projView, None);
     DATA(float4x4, projViewInverted, None);
+    DATA(float4x4, lightProjView, None);
+    DATA(float4x4, lightProjViewInverted, None);
     DATA(float4,   camPos,   None);
     DATA(uint,     directionalLightsBufferIndex, None);
     DATA(uint,     pointLightsBufferIndex, None);
@@ -42,6 +46,49 @@ float3 getPositionFromDepth(float depth, float2 uv) {
     return positionWS.xyz / positionWS.w;
 }
 
+float ShadowTest(float4 Pl, float2 shadowMapDimensions)
+{
+	// homogenous position after perspective divide
+	const float3 projLSpaceCoords = Pl.xyz / Pl.w;
+
+	// light frustum check
+	if (projLSpaceCoords.x < -1.0f || projLSpaceCoords.x > 1.0f ||
+		projLSpaceCoords.y < -1.0f || projLSpaceCoords.y > 1.0f ||
+		projLSpaceCoords.z <  0.0f || projLSpaceCoords.z > 1.0f)
+	{
+		return 1.0f;
+	}
+
+	const float2 texelSize = 1.0f / (shadowMapDimensions);
+
+	// clip space [-1, 1] --> texture space [0, 1]
+	const float2 shadowTexCoords = float2(0.5f, 0.5f) + projLSpaceCoords.xy * float2(0.5f, -0.5f);	// invert Y
+
+	//const float BIAS = pcfTestLightData.depthBias * tan(acos(pcfTestLightData.NdotL));
+	const float BIAS = 0.000001f;
+	const float pxDepthInLSpace = projLSpaceCoords.z;
+
+	float shadow = 0.0f;
+	const int rowHalfSize = 2;
+
+	// PCF
+	for (int x = -rowHalfSize; x <= rowHalfSize; ++x)
+	{
+		for (int y = -rowHalfSize; y <= rowHalfSize; ++y)
+		{
+			float2 texelOffset = float2(x, y) * texelSize;
+			float closestDepthInLSpace = SampleLvlTex2D(Get(shadowDepthBuffer), Get(pointSampler), shadowTexCoords + texelOffset, 0).x;
+
+			// depth check
+			shadow += (pxDepthInLSpace + BIAS < closestDepthInLSpace) ? 1.0f : 0.0f;
+		}
+	}
+
+	shadow /= (rowHalfSize * 2 + 1) * (rowHalfSize * 2 + 1);
+	return 1.0 - shadow;
+}
+
+
 float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     INIT_MAIN;
 
@@ -57,6 +104,9 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
 
     const float3 P = getPositionFromDepth(depth, Input.UV);
     const float3 V = normalize(Get(camPos).xyz - P);
+
+    float4 positionLightSpace = mul(Get(lightProjView), float4(P, 1.0f));
+    float shadow = ShadowTest(positionLightSpace, 2048.0f);
 
     float metalness = armSample.b;
     float roughness = armSample.g;
@@ -96,7 +146,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const float  intensity = directionalLight.colorAndIntensity.a;
         const float3 radiance = color * intensity;
 
-        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL;
+        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadow;
     }
 
     // IBL (Environment Light)
