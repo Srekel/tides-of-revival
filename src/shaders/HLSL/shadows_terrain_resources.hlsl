@@ -39,6 +39,7 @@ STRUCT(VSInput)
 STRUCT(VSOutput)
 {
 	DATA(float4, Position, SV_Position);
+	DATA(float2, UV, TEXCOORD0);
 };
 
 #endif // _SHADOWS_TERRAIN_RESOURCES_H
