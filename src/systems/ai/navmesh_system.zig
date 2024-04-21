@@ -1,18 +1,19 @@
 const std = @import("std");
 const math = std.math;
+const assert = std.debug.assert;
 const ecs = @import("zflecs");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
 
-const ecsu = @import("../flecs_util/flecs_util.zig");
-const fd = @import("../config/flecs_data.zig");
-const IdLocal = @import("../core/core.zig").IdLocal;
-const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
-const tides_math = @import("../core/math.zig");
-const config = @import("../config/config.zig");
-const util = @import("../util.zig");
-const EventManager = @import("../core/event_manager.zig").EventManager;
-const context = @import("../core/context.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
+const fd = @import("../../config/flecs_data.zig");
+const IdLocal = @import("../../core/core.zig").IdLocal;
+const world_patch_manager = @import("../../worldpatch/world_patch_manager.zig");
+const tides_math = @import("../../core/math.zig");
+const config = @import("../../config/config.zig");
+const util = @import("../../util.zig");
+const EventManager = @import("../../core/event_manager.zig").EventManager;
+const context = @import("../../core/context.zig");
 
 const zignav = @import("zignav");
 const Recast = zignav.Recast;
@@ -20,7 +21,7 @@ const DetourNavMesh = zignav.DetourNavMesh;
 const DetourNavMeshBuilder = zignav.DetourNavMeshBuilder;
 const DetourNavMeshQuery = zignav.DetourNavMeshQuery;
 const DetourStatus = zignav.DetourStatus;
-const util = @import("navmesh_system_util.zig");
+// const util = @import("navmesh_system_util.zig");
 
 const IndexType = u32;
 const patch_side_vertex_count = config.patch_resolution;
@@ -49,7 +50,7 @@ pub const SystemState = struct {
     patches: std.ArrayList(Patch),
     indices: [indices_per_patch]IndexType,
     nav_ctx: Recast.rcContext = undefined,
-    nav_mesh: DetourNavMesh.dtNavMesh = undefined,
+    nav_mesh: [*c]DetourNavMesh.dtNavMesh = undefined,
 };
 
 pub const SystemCtx = struct {
@@ -219,6 +220,37 @@ fn updatePatches(system: *SystemState) void {
             // _ = data;
 
             const world_pos = patch.lookup.getWorldPos();
+            // const game_config: util.GameConfig = .{
+            //     .indoors = true,
+            //     .tile_size = 64,
+            //     .offset = .{ world_pos.world_x, 0, world_pos.world_z },
+            // };
+            // const config = recast_util.generateConfig(game_config);
+
+            // const tile_mesh = try buildTileMesh(&nav_ctx, .{ 64, 0, 0 });
+            // defer Recast.rcFreePolyMesh(tile_mesh.poly_mesh);
+            // defer Recast.rcFreePolyMeshDetail(tile_mesh.poly_mesh_detail);
+
+            // const tile = try detour_util.createTileFromPolyMesh(
+            //     tile_mesh.poly_mesh,
+            //     tile_mesh.poly_mesh_detail,
+            //     tile_mesh.config,
+            //     1,
+            //     // @intFromFloat(64 / tile_factor),
+            //     0,
+            // );
+
+            // var tile_ref: DetourNavMesh.dtPolyRef = 0;
+            // const status_tile = nav_mesh.*.addTile(
+            //     tile.data,
+            //     tile.data_size,
+            //     // DetourNavMesh.dtTileFlags.DT_TILE_FREE_DATA.bits,
+            //     0,
+            //     0,
+            //     &tile_ref,
+            // );
+            // assert(DetourStatus._1_dtStatusSucceed_(status_tile));
+
             _ = world_pos; // autofix
             // var vertices: [config.patch_resolution * config.patch_resolution][3]f32 = undefined;
             // var z: u32 = 0;
