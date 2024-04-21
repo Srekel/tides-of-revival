@@ -65,7 +65,7 @@ float ShadowTest(float4 Pl, float2 shadowMapDimensions)
 	const float2 shadowTexCoords = float2(0.5f, 0.5f) + projLSpaceCoords.xy * float2(0.5f, -0.5f);	// invert Y
 
 	//const float BIAS = pcfTestLightData.depthBias * tan(acos(pcfTestLightData.NdotL));
-	const float BIAS = 0.000001f;
+	const float BIAS = 0.0001f;
 	const float pxDepthInLSpace = projLSpaceCoords.z;
 
 	float shadow = 0.0f;
@@ -132,7 +132,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const float  intensity = pointLight.colorAndIntensity.a;
         const float3 radiance = color * intensity * attenuation;
 
-        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL;
+        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadow;
     }
 
     // Directional Lights
@@ -150,7 +150,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     }
 
     // IBL (Environment Light)
-    float environmentLightIntensity = 0.35f;
+    float environmentLightIntensity = 0.15f;
     Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
 
     RETURN(float4(Lo, 1.0f));
