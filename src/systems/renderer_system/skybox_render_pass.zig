@@ -39,31 +39,18 @@ pub const SkyboxRenderPass = struct {
             break :blk buffers;
         };
 
-        var descriptor_sets: [2][*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("skybox"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
-            desc.mMaxSets = 1;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_sets[0]));
-
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_sets[1]));
-        }
-
         const pass = allocator.create(SkyboxRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
             .needs_to_udate_descriptors = true,
-            .descriptor_sets = descriptor_sets,
+            .descriptor_sets = undefined,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
         };
 
+        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -86,6 +73,7 @@ pub const SkyboxRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
@@ -158,6 +146,25 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             );
         }
     }
+}
+
+fn createDescriptorSets(user_data: *anyopaque) void {
+    const self: *SkyboxRenderPass = @ptrCast(@alignCast(user_data));
+
+    var descriptor_sets: [2][*c]graphics.DescriptorSet = undefined;
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("skybox"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
+        desc.mMaxSets = 1;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[0]));
+
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[1]));
+    }
+    self.descriptor_sets = descriptor_sets;
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {

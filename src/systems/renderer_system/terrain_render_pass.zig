@@ -190,16 +190,6 @@ pub const TerrainRenderPass = struct {
             break :blk buffers;
         };
 
-        var shadows_descriptor_set: [*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("shadows_terrain"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&shadows_descriptor_set));
-        }
-
         const uniform_frame_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -209,16 +199,6 @@ pub const TerrainRenderPass = struct {
             break :blk buffers;
         };
 
-        var descriptor_set: [*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("terrain"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_set));
-        }
-
         const pass = allocator.create(TerrainRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
@@ -227,10 +207,10 @@ pub const TerrainRenderPass = struct {
             .world_patch_mgr = world_patch_mgr,
             .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
             .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
-            .shadows_descriptor_set = shadows_descriptor_set,
+            .shadows_descriptor_set = undefined,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .descriptor_set = descriptor_set,
+            .descriptor_set = undefined,
             .instance_data_buffers = instance_data_buffers,
             .instance_data = allocator.create([max_instances]InstanceData) catch unreachable,
             .frame_instance_count = 0,
@@ -244,6 +224,7 @@ pub const TerrainRenderPass = struct {
             .cam_pos_old = .{ -100000, 0, -100000 }, // NOTE(Anders): Assumes only one camera
         };
 
+        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -271,6 +252,7 @@ pub const TerrainRenderPass = struct {
 
 pub const renderFn: renderer.renderPassRenderFn = render;
 pub const renderShadowMapFn: renderer.renderPassRenderShadowMapFn = renderShadowMap;
+pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
@@ -684,6 +666,28 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         self.cam_pos_old = camera_position;
+    }
+}
+
+fn createDescriptorSets(user_data: *anyopaque) void {
+    const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("shadows_terrain"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.shadows_descriptor_set));
+    }
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("terrain"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.descriptor_set));
     }
 }
 

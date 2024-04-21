@@ -20,6 +20,7 @@ pub const ReloadDesc = graphics.ReloadDesc;
 
 pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
 pub const renderPassRenderShadowMapFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
+pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
@@ -58,32 +59,38 @@ pub const Renderer = struct {
     render_terrain_pass_user_data: ?*anyopaque = null,
     render_terrain_pass_render_fn: renderPassRenderFn = null,
     render_terrain_pass_render_shadow_map_fn: renderPassRenderShadowMapFn = null,
+    render_terrain_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_terrain_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_terrain_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_gbuffer_pass_user_data: ?*anyopaque = null,
     render_gbuffer_pass_render_fn: renderPassRenderFn = null,
     render_gbuffer_pass_render_shadow_map_fn: renderPassRenderShadowMapFn = null,
+    render_gbuffer_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_gbuffer_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_gbuffer_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_deferred_shading_pass_user_data: ?*anyopaque = null,
     render_deferred_shading_pass_render_fn: renderPassRenderFn = null,
+    render_deferred_shading_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_deferred_shading_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_deferred_shading_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_skybox_pass_user_data: ?*anyopaque = null,
     render_skybox_pass_render_fn: renderPassRenderFn = null,
+    render_skybox_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_skybox_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_skybox_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_tonemap_pass_user_data: ?*anyopaque = null,
     render_tonemap_pass_render_fn: renderPassRenderFn = null,
+    render_tonemap_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_tonemap_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_tonemap_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_ui_pass_user_data: ?*anyopaque = null,
     render_ui_pass_render_fn: renderPassRenderFn = null,
+    render_ui_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_ui_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_ui_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
@@ -274,6 +281,30 @@ pub const Renderer = struct {
 
         if (reload_desc.mType.SHADER) {
             self.createPipelines();
+
+            if (self.render_terrain_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
+            }
+
+            if (self.render_gbuffer_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
+            }
+
+            if (self.render_deferred_shading_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
+            }
+
+            if (self.render_skybox_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
+            }
+
+            if (self.render_tonemap_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
+            }
+
+            if (self.render_ui_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_ui_pass_user_data.?);
+            }
         }
 
         if (self.render_terrain_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {

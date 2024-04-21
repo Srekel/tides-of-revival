@@ -108,46 +108,6 @@ pub const GeometryRenderPass = struct {
             break :blk buffers;
         };
 
-        const shadows_descriptor_sets = blk: {
-            const root_signature_lit = rctx.getRootSignature(IdLocal.init("shadows_lit"));
-            const root_signature_lit_masked = rctx.getRootSignature(IdLocal.init("shadows_lit_masked"));
-
-            var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-            for (descriptor_sets, 0..) |_, index| {
-                var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-                desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-                desc.mMaxSets = renderer.Renderer.data_buffer_count;
-                if (index == opaque_entities_index) {
-                    desc.pRootSignature = root_signature_lit;
-                } else {
-                    desc.pRootSignature = root_signature_lit_masked;
-                }
-                graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_sets[index]));
-            }
-
-            break :blk descriptor_sets;
-        };
-
-        const descriptor_sets = blk: {
-            const root_signature_lit = rctx.getRootSignature(IdLocal.init("lit"));
-            const root_signature_lit_masked = rctx.getRootSignature(IdLocal.init("lit_masked"));
-
-            var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-            for (descriptor_sets, 0..) |_, index| {
-                var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-                desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-                desc.mMaxSets = renderer.Renderer.data_buffer_count;
-                if (index == opaque_entities_index) {
-                    desc.pRootSignature = root_signature_lit;
-                } else {
-                    desc.pRootSignature = root_signature_lit_masked;
-                }
-                graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_sets[index]));
-            }
-
-            break :blk descriptor_sets;
-        };
-
         const opaque_instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -221,10 +181,10 @@ pub const GeometryRenderPass = struct {
             .renderer = rctx,
             .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
             .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
-            .shadows_descriptor_sets = shadows_descriptor_sets,
+            .shadows_descriptor_sets = undefined,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .descriptor_sets = descriptor_sets,
+            .descriptor_sets = undefined,
             .instance_data_buffers = .{ masked_instance_data_buffers, opaque_instance_data_buffers },
             .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
             .draw_calls = draw_calls,
@@ -235,6 +195,7 @@ pub const GeometryRenderPass = struct {
             .query_static_mesh = query_static_mesh,
         };
 
+        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -274,6 +235,7 @@ pub const GeometryRenderPass = struct {
 
 pub const renderFn: renderer.renderPassRenderFn = render;
 pub const renderShadowMapFn: renderer.renderPassRenderShadowMapFn = renderShadowMap;
+pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
@@ -532,6 +494,52 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             }
         }
     }
+}
+
+fn createDescriptorSets(user_data: *anyopaque) void {
+    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
+
+    const shadows_descriptor_sets = blk: {
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("shadows_lit"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("shadows_lit_masked"));
+
+        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets, 0..) |_, index| {
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = renderer.Renderer.data_buffer_count;
+            if (index == opaque_entities_index) {
+                desc.pRootSignature = root_signature_lit;
+            } else {
+                desc.pRootSignature = root_signature_lit_masked;
+            }
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+        }
+
+        break :blk descriptor_sets;
+    };
+    self.shadows_descriptor_sets = shadows_descriptor_sets;
+
+    const descriptor_sets = blk: {
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_masked"));
+
+        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets, 0..) |_, index| {
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = renderer.Renderer.data_buffer_count;
+            if (index == opaque_entities_index) {
+                desc.pRootSignature = root_signature_lit;
+            } else {
+                desc.pRootSignature = root_signature_lit_masked;
+            }
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+        }
+
+        break :blk descriptor_sets;
+    };
+    self.descriptor_sets = descriptor_sets;
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {
