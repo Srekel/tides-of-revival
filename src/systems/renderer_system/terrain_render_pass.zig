@@ -476,6 +476,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const sun_entity = util.getSun(self.ecsu_world);
     const sun_comps = sun_entity.?.getComps(struct {
         rotation: *const fd.Rotation,
+        light: *const fd.DirectionalLight,
     });
 
     const z_forward = zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
@@ -485,7 +486,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         zm.f32x4(0.0, 1.0, 0.0, 0.0),
     );
 
-    const z_proj = zm.orthographicLh(100.0, 100.0, -500.0, 500.0);
+    const shadow_range = sun_comps.light.shadow_range;
+    const z_proj = zm.orthographicLh(shadow_range, shadow_range, -500.0, 500.0);
     const z_proj_view = zm.mul(z_view, z_proj);
     zm.storeMat(&self.shadows_uniform_frame_data.projection_view, z_proj_view);
 

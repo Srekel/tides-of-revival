@@ -554,6 +554,7 @@ pub const WorldPatch = struct {
 pub const DirectionalLight = struct {
     color: ColorRGB,
     intensity: f32,
+    shadow_range: f32,
 };
 
 pub const PointLight = struct {
