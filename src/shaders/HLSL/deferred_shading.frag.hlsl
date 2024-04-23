@@ -46,6 +46,26 @@ float3 getPositionFromDepth(float depth, float2 uv) {
     return positionWS.xyz / positionWS.w;
 }
 
+
+float ShadowFetch(Texture2D<float> shadowMap, float2 uv, int2 offset, float depth)
+{
+    return step(depth, SampleLvlOffsetTex2D(shadowMap, Get(pointSampler), uv, 0, offset).r);
+}
+
+float ShadowFetchBilinear(Texture2D<float> shadowMap, float2 uv, float2 uvFrac, int2 offset, float depth)
+{
+    float4 s = float4(
+        ShadowFetch(shadowMap, uv, offset + int2(0, 0), depth),
+        ShadowFetch(shadowMap, uv, offset + int2(1, 0), depth),
+        ShadowFetch(shadowMap, uv, offset + int2(0, 1), depth),
+        ShadowFetch(shadowMap, uv, offset + int2(1, 1), depth)
+    );
+
+	float a = lerp(s.x, s.y, uvFrac.x);
+	float b = lerp(s.z, s.w, uvFrac.x);
+	return lerp(a, b, uvFrac.y);
+}
+
 float ShadowTest(float4 Pl, float2 shadowMapDimensions)
 {
 	// homogenous position after perspective divide
@@ -69,22 +89,28 @@ float ShadowTest(float4 Pl, float2 shadowMapDimensions)
 	const float pxDepthInLSpace = projLSpaceCoords.z;
 
 	float shadow = 0.0f;
-	const int rowHalfSize = 2;
+    float2 shadowUVFrac = frac(shadowTexCoords * shadowMapDimensions);
+
+#define USE_PCF
+#ifdef USE_PCF
 
 	// PCF
-	for (int x = -rowHalfSize; x <= rowHalfSize; ++x)
+    const int rowHalfSize = 2;
+	[[unroll]] for (int x = -rowHalfSize; x <= rowHalfSize; ++x)
 	{
-		for (int y = -rowHalfSize; y <= rowHalfSize; ++y)
+		[[unroll]] for (int y = -rowHalfSize; y <= rowHalfSize; ++y)
 		{
-			float2 texelOffset = float2(x, y) * texelSize;
-			float closestDepthInLSpace = SampleLvlTex2D(Get(shadowDepthBuffer), Get(pointSampler), shadowTexCoords + texelOffset, 0).x;
-
-			// depth check
-			shadow += (pxDepthInLSpace + BIAS < closestDepthInLSpace) ? 1.0f : 0.0f;
+            shadow += ShadowFetchBilinear(Get(shadowDepthBuffer), shadowTexCoords, shadowUVFrac, int2(x,y), pxDepthInLSpace);
 		}
 	}
+    shadow /= (rowHalfSize * 2 + 1) * (rowHalfSize * 2 + 1);
 
-	shadow /= (rowHalfSize * 2 + 1) * (rowHalfSize * 2 + 1);
+#else
+
+    shadow += ShadowFetchBilinear(Get(shadowDepthBuffer), shadowTexCoords, shadowUVFrac, int2(0,0), pxDepthInLSpace);
+
+#endif
+	
 	return 1.0 - shadow;
 }
 
