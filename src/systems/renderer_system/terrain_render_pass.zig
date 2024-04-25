@@ -284,62 +284,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     };
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
-    // var arena_state = std.heap.ArenaAllocator.init(self.allocator);
-    // defer arena_state.deinit();
-    // const arena = arena_state.allocator();
-
-    // Reset transforms, materials and draw calls array list
-    // self.quads_to_render.clearRetainingCapacity();
-    // self.quads_to_load.clearRetainingCapacity();
-
-    // {
-    //     var sector_index: u32 = 0;
-    //     while (sector_index < 64) : (sector_index += 1) {
-    //         const lod3_node = &self.terrain_quad_tree_nodes.items[sector_index];
-    //         const camera_point = [2]f32{ camera_position[0], camera_position[2] };
-
-    //         collectQuadsToRenderForSector(
-    //             self,
-    //             camera_point,
-    //             lod_load_range,
-    //             lod3_node,
-    //             sector_index,
-    //             arena,
-    //         ) catch unreachable;
-    //     }
-    // }
-
-    // self.frame_instance_count = 0;
-    // {
-    //     // TODO: Batch quads together by mesh lod
-    //     for (self.quads_to_render.items, 0..) |quad_index, instance_index| {
-    //         const quad = &self.terrain_quad_tree_nodes.items[quad_index];
-
-    //         // Add instance data
-    //         {
-    //             const z_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
-    //             zm.storeMat(&self.instance_data[instance_index].object_to_world, z_world);
-
-    //             // TODO: Generate from quad.patch_index
-    //             self.instance_data[instance_index].heightmap_index = self.renderer.getTextureBindlessIndex(quad.heightmap_handle.?);
-    //             self.instance_data[instance_index].splatmap_index = self.renderer.getTextureBindlessIndex(quad.splatmap_handle.?);
-
-    //             self.instance_data[instance_index].lod = quad.mesh_lod;
-    //             self.instance_data[instance_index].padding1 = 42;
-    //         }
-
-    //         self.frame_instance_count += 1;
-    //     }
-    // }
-
     if (self.frame_instance_count > 0) {
-        // std.debug.assert(self.frame_instance_count <= max_instances);
-        // const data_slice = renderer.Slice{
-        //     .data = @ptrCast(self.instance_data),
-        //     .size = self.frame_instance_count * @sizeOf(InstanceData),
-        // };
-        // self.renderer.updateBuffer(data_slice, InstanceData, self.instance_data_buffers[frame_index]);
-
         const pipeline_id = IdLocal.init("terrain");
         const pipeline = self.renderer.getPSO(pipeline_id);
         const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -389,73 +334,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             start_instance_location += 1;
         }
     }
-
-    // for (self.quads_to_load.items) |quad_index| {
-    //     const node = &self.terrain_quad_tree_nodes.items[quad_index];
-    //     loadHeightAndSplatMaps(
-    //         node,
-    //         self.renderer,
-    //         self.world_patch_mgr,
-    //         self.heightmap_patch_type_id,
-    //         self.splatmap_patch_type_id,
-    //     ) catch unreachable;
-    // }
-
-    // // Load high-lod patches near camera
-    // if (tides_math.dist3_xz(self.cam_pos_old, camera_position) > 32) {
-    //     var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-    //     var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-    //     for (0..3) |lod| {
-    //         lookups_old.clearRetainingCapacity();
-    //         lookups_new.clearRetainingCapacity();
-
-    //         const area_width = 4 * config.patch_size * @as(f32, @floatFromInt(std.math.pow(usize, 2, lod)));
-
-    //         const area_old = world_patch_manager.RequestRectangle{
-    //             .x = self.cam_pos_old[0] - area_width,
-    //             .z = self.cam_pos_old[2] - area_width,
-    //             .width = area_width * 2,
-    //             .height = area_width * 2,
-    //         };
-
-    //         const area_new = world_patch_manager.RequestRectangle{
-    //             .x = camera_position[0] - area_width,
-    //             .z = camera_position[2] - area_width,
-    //             .width = area_width * 2,
-    //             .height = area_width * 2,
-    //         };
-
-    //         const lod_u4 = @as(u4, @intCast(lod));
-    //         world_patch_manager.WorldPatchManager.getLookupsFromRectangle(self.heightmap_patch_type_id, area_old, lod_u4, &lookups_old);
-    //         world_patch_manager.WorldPatchManager.getLookupsFromRectangle(self.splatmap_patch_type_id, area_old, lod_u4, &lookups_old);
-    //         world_patch_manager.WorldPatchManager.getLookupsFromRectangle(self.heightmap_patch_type_id, area_new, lod_u4, &lookups_new);
-    //         world_patch_manager.WorldPatchManager.getLookupsFromRectangle(self.splatmap_patch_type_id, area_new, lod_u4, &lookups_new);
-
-    //         var i_old: u32 = 0;
-    //         blk: while (i_old < lookups_old.items.len) {
-    //             var i_new: u32 = 0;
-    //             while (i_new < lookups_new.items.len) {
-    //                 if (lookups_old.items[i_old].eql(lookups_new.items[i_new])) {
-    //                     _ = lookups_old.swapRemove(i_old);
-    //                     _ = lookups_new.swapRemove(i_new);
-    //                     continue :blk;
-    //                 }
-    //                 i_new += 1;
-    //             }
-    //             i_old += 1;
-    //         }
-
-    //         const rid = self.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
-    //         // NOTE(Anders): HACK
-    //         if (self.cam_pos_old[0] != -100000) {
-    //             self.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
-    //         }
-
-    //         self.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
-    //     }
-
-    //     self.cam_pos_old = camera_position;
-    // }
 }
 
 fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {

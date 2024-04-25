@@ -130,11 +130,11 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
-    // player_camera_ent.set(fd.PointLight{
-    //     .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
-    //     .range = 5.0,
-    //     .intensity = 1.0,
-    // });
+    player_camera_ent.set(fd.PointLight{
+        .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
+        .range = 5.0,
+        .intensity = 1.0,
+    });
     bow_ent.childOf(player_camera_ent);
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
