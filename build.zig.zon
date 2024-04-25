@@ -4,9 +4,9 @@
     .paths = .{""},
     .dependencies = .{
         // .@"wwise-zig" = .{ .path = "external/wwise-zig" },
+        .im3d = .{ .path = "external/zig-im3d" },
         .system_sdk = .{ .path = "external/zig-gamedev/libs/system-sdk" },
         .zflecs = .{ .path = "external/zig-gamedev/libs/zflecs" },
-        .zignav = .{ .path = "external/zig-recastnavigation" },
         .zglfw = .{ .path = "external/zig-gamedev/libs/zglfw" },
         .zmath = .{ .path = "external/zig-gamedev/libs/zmath" },
         .zmesh = .{ .path = "external/zig-gamedev/libs/zmesh" },
@@ -17,5 +17,6 @@
         .zstbi = .{ .path = "external/zig-gamedev/libs/zstbi" },
         .ztracy = .{ .path = "external/zig-gamedev/libs/ztracy" },
         .zwin32 = .{ .path = "external/zig-gamedev/libs/zwin32" },
+        .zignav = .{ .path = "external/zig-recastnavigation" },
     },
 }

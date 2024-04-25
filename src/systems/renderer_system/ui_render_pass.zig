@@ -9,6 +9,7 @@ const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const zm = @import("zmath");
+const im3d = @import("im3d");
 
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
@@ -166,6 +167,13 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             ._padding = [3]u32{ 42, 42, 42 },
         }) catch unreachable;
     }
+
+    im3d.Im3d.EndFrame();
+    const lol1 = im3d.Im3d.GetDrawListCount();
+    _ = lol1; // autofix
+    const lol2 = im3d.Im3d.GetDrawLists();
+    _ = lol2; // autofix
+    // Cool render code goes here
 
     const instance_data_slice = renderer.Slice{
         .data = @ptrCast(self.instance_data.items),
