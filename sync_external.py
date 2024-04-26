@@ -99,7 +99,7 @@ def main():
     sync_lib(
         "zig-im3d",
         "https://github.com/Srekel/zig-im3d.git",
-        "b3b7f6d2b1014646f4e7f9f5c67e556f78f0f15d",
+        "296a35e5f1a51e577d879dd5d1225bbcbdb27234",
     )
     sync_lib(
         "zigimg",

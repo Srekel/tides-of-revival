@@ -328,13 +328,18 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
 
     im3d.Im3d.NewFrame();
 
-    var lolcolor: im3d.Im3d.Color = undefined;
-    lolcolor.init5(1, 0, 1, 1);
     im3d.Im3d.DrawLine(
-        &.{ .x = 0, .y = 0, .z = 0 },
+        &.{ .x = 10, .y = 0, .z = 0 },
         &.{ .x = 100, .y = 100, .z = 100 },
         1.0,
-        lolcolor,
+        im3d.Im3d.Color.init5b(1, 0, 1, 1),
+    );
+
+    im3d.Im3d.DrawLine(
+        &.{ .x = 50, .y = 0, .z = 0 },
+        &.{ .x = 100, .y = 100, .z = 100 },
+        1.0,
+        im3d.Im3d.Color.init5b(1, 0, 0, 0.5),
     );
 
     if (input_frame_data.just_pressed(config.input.reload_shaders)) {
