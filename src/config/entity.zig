@@ -22,11 +22,12 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // ███████╗██║╚██████╔╝██║  ██║   ██║   ██║██║ ╚████║╚██████╔╝
     // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
 
-    const sun_light = ecsu_world.newEntity();
-    sun_light.set(fd.Rotation.initFromEulerDegrees(45.0, 45.0, 0.0));
-    sun_light.set(fd.DirectionalLight{
+    const sun_ent = ecsu_world.newEntity();
+    sun_ent.set(fd.Rotation.initFromEulerDegrees(45.0, 45.0, 0.0));
+    sun_ent.set(fd.DirectionalLight{
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
         .intensity = 1.0,
+        .shadow_range = 30.0,
     });
 
     const sky_light_ent = ecsu_world.newEntity();
@@ -138,5 +139,6 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
+    environment_info.sun = sun_ent;
     environment_info.sky_light = sky_light_ent;
 }

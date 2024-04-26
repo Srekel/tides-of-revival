@@ -21,6 +21,8 @@ const PrecomputedSkyData = struct {
 const UniformFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
+    light_projection_view: [16]f32,
+    light_projection_view_inverted: [16]f32,
     camera_position: [4]f32,
     directional_lights_buffer_index: u32,
     point_lights_buffer_index: u32,
@@ -91,19 +93,6 @@ pub const DeferredShadingRenderPass = struct {
 
             break :blk buffers;
         };
-
-        var deferred_descriptor_sets: [2][*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("deferred"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&deferred_descriptor_sets[0]));
-
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&deferred_descriptor_sets[1]));
-        }
 
         const directional_lights_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
@@ -182,42 +171,6 @@ pub const DeferredShadingRenderPass = struct {
             break :blk rctx.createTexture(desc);
         };
 
-        var brdf_descriptor_set: [*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("brdf_integration"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
-            desc.mMaxSets = 1;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&brdf_descriptor_set));
-        }
-
-        var irradiance_descriptor_set: [*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("compute_irradiance_map"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
-            desc.mMaxSets = 1;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&irradiance_descriptor_set));
-        }
-
-        var specular_descriptor_sets: [2][*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("compute_specular_map"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
-            desc.mMaxSets = 1;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&specular_descriptor_sets[0]));
-
-            const skybox_texture_size: u32 = 1024;
-            const max_sets = std.math.log2(skybox_texture_size) + 1;
-            desc.mMaxSets = max_sets;
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_DRAW;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&specular_descriptor_sets[1]));
-        }
-
         var query_builder_directional_lights = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_directional_lights
             .withReadonly(fd.Rotation)
@@ -239,12 +192,12 @@ pub const DeferredShadingRenderPass = struct {
             .irradiance_texture = irradiance_texture,
             .specular_texture = specular_texture,
             .needs_to_compute_ibl_maps = true,
-            .brdf_descriptor_set = brdf_descriptor_set,
-            .irradiance_descriptor_set = irradiance_descriptor_set,
-            .specular_descriptor_sets = specular_descriptor_sets,
+            .brdf_descriptor_set = undefined,
+            .irradiance_descriptor_set = undefined,
+            .specular_descriptor_sets = undefined,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .deferred_descriptor_sets = deferred_descriptor_sets,
+            .deferred_descriptor_sets = undefined,
             .directional_lights = directional_lights,
             .point_lights = point_lights,
             .directional_lights_buffers = directional_lights_buffers,
@@ -253,6 +206,7 @@ pub const DeferredShadingRenderPass = struct {
             .query_point_lights = query_point_lights,
         };
 
+        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -284,6 +238,7 @@ pub const DeferredShadingRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
@@ -410,6 +365,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 graphics.cmdResourceBarrier(cmd_list, 0, null, output_barrier.len, @constCast(&output_barrier), 0, null);
             }
 
+            createDescriptorSets(@ptrCast(self));
             prepareDescriptorSets(@ptrCast(self));
             self.needs_to_compute_ibl_maps = false;
         }
@@ -425,8 +381,27 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
     const z_proj_view = zm.mul(z_view, z_proj);
 
+    const sun_entity = util.getSun(self.ecsu_world);
+    const sun_comps = sun_entity.?.getComps(struct {
+        rotation: *const fd.Rotation,
+        light: *const fd.DirectionalLight,
+    });
+
+    const z_light_forward = zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
+    const z_light_view = zm.lookToLh(
+        zm.f32x4(camera_position[0], camera_position[1], camera_position[2], 1.0),
+        z_light_forward * zm.f32x4s(-1.0),
+        zm.f32x4(0.0, 1.0, 0.0, 0.0),
+    );
+
+    const shadow_range = sun_comps.light.shadow_range;
+    const z_light_proj = zm.orthographicLh(shadow_range, shadow_range, -500.0, 500.0);
+    const z_light_proj_view = zm.mul(z_light_view, z_light_proj);
+
     zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
     zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
+    zm.storeMat(&self.uniform_frame_data.light_projection_view, z_light_proj_view);
+    zm.storeMat(&self.uniform_frame_data.light_projection_view_inverted, zm.inverse(z_light_proj_view));
     self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
     self.uniform_frame_data.directional_lights_buffer_index = self.renderer.getBufferBindlessIndex(self.directional_lights_buffers[frame_index]);
     self.uniform_frame_data.directional_lights_count = @intCast(self.directional_lights.items.len);
@@ -507,10 +482,67 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 }
 
+fn createDescriptorSets(user_data: *anyopaque) void {
+    const self: *DeferredShadingRenderPass = @ptrCast(@alignCast(user_data));
+
+    var deferred_descriptor_sets: [2][*c]graphics.DescriptorSet = undefined;
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("deferred"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
+        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&deferred_descriptor_sets[0]));
+
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&deferred_descriptor_sets[1]));
+    }
+    self.deferred_descriptor_sets = deferred_descriptor_sets;
+
+    var brdf_descriptor_set: [*c]graphics.DescriptorSet = undefined;
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("brdf_integration"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
+        desc.mMaxSets = 1;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&brdf_descriptor_set));
+    }
+    self.brdf_descriptor_set = brdf_descriptor_set;
+
+    var irradiance_descriptor_set: [*c]graphics.DescriptorSet = undefined;
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("compute_irradiance_map"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
+        desc.mMaxSets = 1;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&irradiance_descriptor_set));
+    }
+    self.irradiance_descriptor_set = irradiance_descriptor_set;
+
+    var specular_descriptor_sets: [2][*c]graphics.DescriptorSet = undefined;
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("compute_specular_map"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
+        desc.mMaxSets = 1;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&specular_descriptor_sets[0]));
+
+        const skybox_texture_size: u32 = 1024;
+        const max_sets = std.math.log2(skybox_texture_size) + 1;
+        desc.mMaxSets = max_sets;
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_DRAW;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&specular_descriptor_sets[1]));
+    }
+    self.specular_descriptor_sets = specular_descriptor_sets;
+}
+
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *DeferredShadingRenderPass = @ptrCast(@alignCast(user_data));
 
-    var params: [7]graphics.DescriptorData = undefined;
+    var params: [8]graphics.DescriptorData = undefined;
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
         var brdf_lut_texture = self.renderer.getTexture(self.brdf_lut_texture);
@@ -538,7 +570,10 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[6] = std.mem.zeroes(graphics.DescriptorData);
         params[6].pName = "depthBuffer";
         params[6].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer.*.pTexture);
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 7, @ptrCast(&params));
+        params[7] = std.mem.zeroes(graphics.DescriptorData);
+        params[7].pName = "shadowDepthBuffer";
+        params[7].__union_field3.ppTextures = @ptrCast(&self.renderer.shadow_depth_buffer.*.pTexture);
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 8, @ptrCast(&params));
 
         var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
