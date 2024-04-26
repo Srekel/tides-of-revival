@@ -19,6 +19,8 @@ const window = @import("window.zig");
 pub const ReloadDesc = graphics.ReloadDesc;
 
 pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
+pub const renderPassRenderShadowMapFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
+pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
@@ -38,6 +40,7 @@ pub const Renderer = struct {
     frame_index: u32 = 0,
 
     depth_buffer: [*c]graphics.RenderTarget = null,
+    shadow_depth_buffer: [*c]graphics.RenderTarget = null,
     gbuffer_0: [*c]graphics.RenderTarget = null,
     gbuffer_1: [*c]graphics.RenderTarget = null,
     gbuffer_2: [*c]graphics.RenderTarget = null,
@@ -56,31 +59,39 @@ pub const Renderer = struct {
 
     render_terrain_pass_user_data: ?*anyopaque = null,
     render_terrain_pass_render_fn: renderPassRenderFn = null,
+    render_terrain_pass_render_shadow_map_fn: renderPassRenderShadowMapFn = null,
+    render_terrain_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_terrain_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_terrain_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_gbuffer_pass_user_data: ?*anyopaque = null,
     render_gbuffer_pass_render_fn: renderPassRenderFn = null,
+    render_gbuffer_pass_render_shadow_map_fn: renderPassRenderShadowMapFn = null,
+    render_gbuffer_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_gbuffer_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_gbuffer_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_deferred_shading_pass_user_data: ?*anyopaque = null,
     render_deferred_shading_pass_render_fn: renderPassRenderFn = null,
+    render_deferred_shading_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_deferred_shading_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_deferred_shading_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_skybox_pass_user_data: ?*anyopaque = null,
     render_skybox_pass_render_fn: renderPassRenderFn = null,
+    render_skybox_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_skybox_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_skybox_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_tonemap_pass_user_data: ?*anyopaque = null,
     render_tonemap_pass_render_fn: renderPassRenderFn = null,
+    render_tonemap_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_tonemap_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_tonemap_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_ui_pass_user_data: ?*anyopaque = null,
     render_ui_pass_render_fn: renderPassRenderFn = null,
+    render_ui_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_ui_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_ui_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
@@ -290,6 +301,30 @@ pub const Renderer = struct {
 
         if (reload_desc.mType.SHADER) {
             self.createPipelines();
+
+            if (self.render_terrain_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
+            }
+
+            if (self.render_gbuffer_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
+            }
+
+            if (self.render_deferred_shading_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
+            }
+
+            if (self.render_skybox_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
+            }
+
+            if (self.render_tonemap_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
+            }
+
+            if (self.render_ui_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_ui_pass_user_data.?);
+            }
         }
 
         if (self.render_terrain_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -412,6 +447,38 @@ pub const Renderer = struct {
         var cmd_list = elem.cmds[0];
         graphics.beginCmd(cmd_list);
 
+        // Shadow Map Pass
+        {
+            var input_barriers = [_]graphics.RenderTargetBarrier{
+                graphics.RenderTargetBarrier.init(self.shadow_depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
+            };
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
+            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+            bind_render_targets_desc.mRenderTargetCount = 0;
+            bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
+            bind_render_targets_desc.mDepthStencil.pDepthStencil = self.shadow_depth_buffer;
+            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, 2048.0, 2048.0, 0.0, 1.0);
+            graphics.cmdSetScissor(cmd_list, 0, 0, 2048, 2048);
+
+            if (self.render_terrain_pass_render_shadow_map_fn) |render_fn| {
+                if (self.render_terrain_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
+            }
+
+            if (self.render_gbuffer_pass_render_shadow_map_fn) |render_fn| {
+                if (self.render_gbuffer_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
+            }
+
+            graphics.cmdBindRenderTargets(cmd_list, null);
+        }
+
         // GBuffer Pass
         {
             var input_barriers = [_]graphics.RenderTargetBarrier{
@@ -464,6 +531,7 @@ pub const Renderer = struct {
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.shadow_depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -903,6 +971,23 @@ pub const Renderer = struct {
 
         {
             var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "Shadow Depth Buffer";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field3.depth = 0.0;
+            rt_desc.mClearValue.__struct_field3.stencil = 0;
+            rt_desc.mDepth = 1;
+            rt_desc.mFormat = graphics.TinyImageFormat.D32_SFLOAT;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = 2048;
+            rt_desc.mHeight = 2048;
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.shadow_depth_buffer);
+        }
+
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
             rt_desc.pName = "Base Color Buffer";
             rt_desc.mArraySize = 1;
             rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
@@ -967,6 +1052,7 @@ pub const Renderer = struct {
     }
 
     fn destroyRenderTargets(self: *Renderer) void {
+        graphics.removeRenderTarget(self.renderer, self.shadow_depth_buffer);
         graphics.removeRenderTarget(self.renderer, self.depth_buffer);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_0);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_1);
@@ -1043,6 +1129,49 @@ pub const Renderer = struct {
             self.pso_map.put(id, handle) catch unreachable;
         }
 
+        // Shadows Terrain
+        {
+            const id = IdLocal.init("shadows_terrain");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "shadows_terrain.vert";
+            shader_load_desc.mStages[1].pFileName = "shadows_terrain.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
         // Terrain
         {
             const id = IdLocal.init("terrain");
@@ -1086,6 +1215,92 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Shadows Lit
+        {
+            const id = IdLocal.init("shadows_lit");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "shadows_lit.vert";
+            shader_load_desc.mStages[1].pFileName = "shadows_lit_opaque.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Shadows Lit Masked
+        {
+            const id = IdLocal.init("shadows_lit_masked");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "shadows_lit.vert";
+            shader_load_desc.mStages[1].pFileName = "shadows_lit_masked.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
@@ -1206,8 +1421,8 @@ pub const Renderer = struct {
             shader_load_desc.mStages[1].pFileName = "deferred_shading.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
-            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler", "pointSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge, self.samplers.point_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);

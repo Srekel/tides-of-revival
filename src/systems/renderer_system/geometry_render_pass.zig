@@ -19,6 +19,10 @@ pub const UniformFrameData = struct {
     camera_position: [4]f32,
 };
 
+pub const ShadowsUniformFrameData = struct {
+    projection_view: [16]f32,
+};
+
 const InstanceData = struct {
     object_to_world: [16]f32,
 };
@@ -67,6 +71,10 @@ pub const GeometryRenderPass = struct {
     renderer: *renderer.Renderer,
     query_static_mesh: ecsu.Query,
 
+    shadows_uniform_frame_data: ShadowsUniformFrameData,
+    shadows_uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    shadows_descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
+
     uniform_frame_data: UniformFrameData,
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
@@ -82,6 +90,15 @@ pub const GeometryRenderPass = struct {
     draw_calls_push_constants: [max_entity_types]std.ArrayList(DrawCallPushConstants),
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *GeometryRenderPass {
+        const shadows_uniform_frame_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(ShadowsUniformFrameData);
+            }
+
+            break :blk buffers;
+        };
+
         const uniform_frame_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -89,26 +106,6 @@ pub const GeometryRenderPass = struct {
             }
 
             break :blk buffers;
-        };
-
-        const descriptor_sets = blk: {
-            const root_signature_lit = rctx.getRootSignature(IdLocal.init("lit"));
-            const root_signature_lit_masked = rctx.getRootSignature(IdLocal.init("lit_masked"));
-
-            var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-            for (descriptor_sets, 0..) |_, index| {
-                var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-                desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-                desc.mMaxSets = renderer.Renderer.data_buffer_count;
-                if (index == opaque_entities_index) {
-                    desc.pRootSignature = root_signature_lit;
-                } else {
-                    desc.pRootSignature = root_signature_lit_masked;
-                }
-                graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_sets[index]));
-            }
-
-            break :blk descriptor_sets;
         };
 
         const opaque_instance_data_buffers = blk: {
@@ -182,9 +179,12 @@ pub const GeometryRenderPass = struct {
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
+            .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
+            .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
+            .shadows_descriptor_sets = undefined,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .descriptor_sets = descriptor_sets,
+            .descriptor_sets = undefined,
             .instance_data_buffers = .{ masked_instance_data_buffers, opaque_instance_data_buffers },
             .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
             .draw_calls = draw_calls,
@@ -195,6 +195,7 @@ pub const GeometryRenderPass = struct {
             .query_static_mesh = query_static_mesh,
         };
 
+        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -204,6 +205,10 @@ pub const GeometryRenderPass = struct {
         self.query_static_mesh.deinit();
 
         for (self.descriptor_sets) |descriptor_set| {
+            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
+        }
+
+        for (self.shadows_descriptor_sets) |descriptor_set| {
             graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
         }
 
@@ -229,6 +234,8 @@ pub const GeometryRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const renderShadowMapFn: renderer.renderPassRenderShadowMapFn = renderShadowMap;
+pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
@@ -237,7 +244,11 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     defer trazy_zone.End();
 
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
-    cullStaticMeshes(self);
+    // HACK(gmodarelli): We're not really culling here but only batching. We need to pass
+    // a view so we can cull and batch from different views (light or camera)
+    // NOTE(gmodarelli): We're skipping this call now because we've already executed it
+    // from the renderShadowMap pass. Once we introduce cull by views, we MUST call this again
+    // cullStaticMeshes(self);
 
     const frame_index = self.renderer.frame_index;
 
@@ -261,19 +272,21 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     };
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
-    for (0..max_entity_types) |entity_type_index| {
-        const instance_data_slice = renderer.Slice{
-            .data = @ptrCast(self.instance_data[entity_type_index].items),
-            .size = self.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
-        };
-        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[entity_type_index][frame_index]);
+    // NOTE(gmodarelli): We're skipping this call now because we've already executed it
+    // from the renderShadowMap pass. Once we introduce cull by views, we MUST call this again
+    // for (0..max_entity_types) |entity_type_index| {
+    //     const instance_data_slice = renderer.Slice{
+    //         .data = @ptrCast(self.instance_data[entity_type_index].items),
+    //         .size = self.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
+    //     };
+    //     self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[entity_type_index][frame_index]);
 
-        const instance_material_slice = renderer.Slice{
-            .data = @ptrCast(self.instance_materials[entity_type_index].items),
-            .size = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
-        };
-        self.renderer.updateBuffer(instance_material_slice, InstanceMaterial, self.instance_material_buffers[entity_type_index][frame_index]);
-    }
+    //     const instance_material_slice = renderer.Slice{
+    //         .data = @ptrCast(self.instance_materials[entity_type_index].items),
+    //         .size = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
+    //     };
+    //     self.renderer.updateBuffer(instance_material_slice, InstanceMaterial, self.instance_material_buffers[entity_type_index][frame_index]);
+    // }
 
     // Render Lit Masked Objects
     {
@@ -352,6 +365,185 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 }
 
+fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Shadow Map: Geometry Render Pass", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
+    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
+    // HACK(gmodarelli): We're not really culling here but only batching. We need to pass
+    // a view so we can cull and batch from different views (light or camera)
+    cullStaticMeshes(self);
+
+    const frame_index = self.renderer.frame_index;
+
+    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct {
+        camera: *const fd.Camera,
+        transform: *const fd.Transform,
+    });
+    const camera_position = camera_comps.transform.getPos00();
+
+    const sun_entity = util.getSun(self.ecsu_world);
+    const sun_comps = sun_entity.?.getComps(struct {
+        rotation: *const fd.Rotation,
+        light: *const fd.DirectionalLight,
+    });
+
+    const z_forward = zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
+    const z_view = zm.lookToLh(
+        zm.f32x4(camera_position[0], camera_position[1], camera_position[2], 1.0),
+        z_forward * zm.f32x4s(-1.0),
+        zm.f32x4(0.0, 1.0, 0.0, 0.0),
+    );
+
+    const shadow_range = sun_comps.light.shadow_range;
+    const z_proj = zm.orthographicLh(shadow_range, shadow_range, -500.0, 500.0);
+    const z_proj_view = zm.mul(z_view, z_proj);
+    zm.storeMat(&self.shadows_uniform_frame_data.projection_view, z_proj_view);
+
+    const data = renderer.Slice{
+        .data = @ptrCast(&self.shadows_uniform_frame_data),
+        .size = @sizeOf(ShadowsUniformFrameData),
+    };
+    self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.shadows_uniform_frame_buffers[frame_index]);
+
+    for (0..max_entity_types) |entity_type_index| {
+        const instance_data_slice = renderer.Slice{
+            .data = @ptrCast(self.instance_data[entity_type_index].items),
+            .size = self.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
+        };
+        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[entity_type_index][frame_index]);
+
+        const instance_material_slice = renderer.Slice{
+            .data = @ptrCast(self.instance_materials[entity_type_index].items),
+            .size = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
+        };
+        self.renderer.updateBuffer(instance_material_slice, InstanceMaterial, self.instance_material_buffers[entity_type_index][frame_index]);
+    }
+
+    // Render Shadows Lit Masked Objects
+    {
+        const pipeline_id = IdLocal.init("shadows_lit_masked");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+        const root_signature = self.renderer.getRootSignature(pipeline_id);
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[masked_entities_index]);
+
+        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+
+        for (self.draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
+            const push_constants = &self.draw_calls_push_constants[masked_entities_index].items[i];
+            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+
+            if (mesh.loaded) {
+                const vertex_buffers = [_][*c]graphics.Buffer{
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
+                };
+
+                graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
+                graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                graphics.cmdDrawIndexedInstanced(
+                    cmd_list,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                );
+            }
+        }
+    }
+
+    // Render Lit Objects
+    {
+        const pipeline_id = IdLocal.init("shadows_lit");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+        const root_signature = self.renderer.getRootSignature(pipeline_id);
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
+
+        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+
+        for (self.draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
+            const push_constants = &self.draw_calls_push_constants[opaque_entities_index].items[i];
+            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+
+            if (mesh.loaded) {
+                const vertex_buffers = [_][*c]graphics.Buffer{
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
+                };
+
+                graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
+                graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                graphics.cmdDrawIndexedInstanced(
+                    cmd_list,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                );
+            }
+        }
+    }
+}
+
+fn createDescriptorSets(user_data: *anyopaque) void {
+    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
+
+    const shadows_descriptor_sets = blk: {
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("shadows_lit"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("shadows_lit_masked"));
+
+        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets, 0..) |_, index| {
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = renderer.Renderer.data_buffer_count;
+            if (index == opaque_entities_index) {
+                desc.pRootSignature = root_signature_lit;
+            } else {
+                desc.pRootSignature = root_signature_lit_masked;
+            }
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+        }
+
+        break :blk descriptor_sets;
+    };
+    self.shadows_descriptor_sets = shadows_descriptor_sets;
+
+    const descriptor_sets = blk: {
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_masked"));
+
+        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets, 0..) |_, index| {
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = renderer.Renderer.data_buffer_count;
+            if (index == opaque_entities_index) {
+                desc.pRootSignature = root_signature_lit;
+            } else {
+                desc.pRootSignature = root_signature_lit_masked;
+            }
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+        }
+
+        break :blk descriptor_sets;
+    };
+    self.descriptor_sets = descriptor_sets;
+}
+
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
 
@@ -366,6 +558,16 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
     }
+
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var shadows_uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cbFrame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&shadows_uniform_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
+    }
 }
 
 fn unloadDescriptorSets(user_data: *anyopaque) void {
@@ -373,6 +575,8 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
 
     graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[opaque_entities_index]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[masked_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[masked_entities_index]);
 }
 
 fn cullStaticMeshes(self: *GeometryRenderPass) void {

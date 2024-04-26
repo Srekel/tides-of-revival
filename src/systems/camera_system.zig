@@ -10,11 +10,13 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const im3d = @import("im3d");
 const input = @import("../input.zig");
 const config = @import("../config/config.zig");
+const renderer = @import("../renderer/renderer.zig");
 // const ztracy = @import("ztracy");
 
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    renderer: *renderer.Renderer,
     sys: ecs.entity_t,
 
     query_camera: ecsu.Query,
@@ -25,7 +27,7 @@ pub const SystemState = struct {
     active_index: u32 = 1,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, input_frame_data: *input.FrameData, rctx: *renderer.Renderer) !*SystemState {
     var query_builder = ecsu.QueryBuilder.init(ecsu_world);
     _ = query_builder
         .with(fd.Camera)
@@ -71,7 +73,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
         .allocator = allocator,
         .ecsu_world = ecsu_world,
         .sys = sys,
-        // .gctx = &gfxstate.gctx,
+        .renderer = rctx,
         .query_camera = query_camera,
         .query_transform = query_transform,
         .input_frame_data = input_frame_data,
@@ -163,11 +165,6 @@ fn updateTransformHierarchy(system: *SystemState, dt: f32) void {
 }
 
 fn updateCameraMatrices(system: *SystemState) void {
-    // const gctx = system.gctx;
-    // TODO(gmodarelli)
-    const framebuffer_width = 1920;
-    const framebuffer_height = 1080;
-
     var entity_iter = system.query_camera.iterator(struct {
         camera: *fd.Camera,
         transform: *fd.Transform,
@@ -192,7 +189,7 @@ fn updateCameraMatrices(system: *SystemState) void {
         const z_projection =
             zm.perspectiveFovLh(
             cam.fov,
-            @as(f32, @floatFromInt(framebuffer_width)) / @as(f32, @floatFromInt(framebuffer_height)),
+            @as(f32, @floatFromInt(system.renderer.window_width)) / @as(f32, @floatFromInt(system.renderer.window_height)),
             comps.camera.far,
             comps.camera.near,
         );

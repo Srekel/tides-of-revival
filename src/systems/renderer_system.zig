@@ -62,36 +62,44 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
     const geometry_pass = GeometryRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_gbuffer_pass_render_fn = geometry_render_pass.renderFn;
+    ctx.renderer.render_gbuffer_pass_render_shadow_map_fn = geometry_render_pass.renderShadowMapFn;
+    ctx.renderer.render_gbuffer_pass_create_descriptor_sets_fn = geometry_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = geometry_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_unload_descriptor_sets_fn = geometry_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_user_data = geometry_pass;
 
     const terrain_pass = TerrainRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
     ctx.renderer.render_terrain_pass_render_fn = terrain_render_pass.renderFn;
+    ctx.renderer.render_terrain_pass_render_shadow_map_fn = terrain_render_pass.renderShadowMapFn;
+    ctx.renderer.render_terrain_pass_create_descriptor_sets_fn = terrain_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_terrain_pass_prepare_descriptor_sets_fn = terrain_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_terrain_pass_unload_descriptor_sets_fn = terrain_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_terrain_pass_user_data = terrain_pass;
 
     const deferred_shading_pass = DeferredShadingRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_deferred_shading_pass_render_fn = deferred_shading_render_pass.renderFn;
+    ctx.renderer.render_deferred_shading_pass_create_descriptor_sets_fn = deferred_shading_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_prepare_descriptor_sets_fn = deferred_shading_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = deferred_shading_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_user_data = deferred_shading_pass;
 
     const skybox_pass = SkyboxRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_skybox_pass_render_fn = skybox_render_pass.renderFn;
+    ctx.renderer.render_skybox_pass_create_descriptor_sets_fn = skybox_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_skybox_pass_prepare_descriptor_sets_fn = skybox_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_skybox_pass_unload_descriptor_sets_fn = skybox_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_skybox_pass_user_data = skybox_pass;
 
     const tonemap_pass = TonemapRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_tonemap_pass_render_fn = tonemap_render_pass.renderFn;
+    ctx.renderer.render_tonemap_pass_create_descriptor_sets_fn = tonemap_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_tonemap_pass_prepare_descriptor_sets_fn = tonemap_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_tonemap_pass_unload_descriptor_sets_fn = tonemap_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_tonemap_pass_user_data = tonemap_pass;
 
     const ui_pass = UIRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_ui_pass_render_fn = ui_render_pass.renderFn;
+    ctx.renderer.render_ui_pass_create_descriptor_sets_fn = ui_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_ui_pass_prepare_descriptor_sets_fn = ui_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_ui_pass_unload_descriptor_sets_fn = ui_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_ui_pass_user_data = ui_pass;
