@@ -7,7 +7,6 @@ const zphy = @import("zphysics");
 const zglfw = @import("zglfw");
 const graphics = @import("zforge").graphics;
 const zstbi = @import("zstbi");
-const im3d = @import("im3d");
 // const ztracy = @import("ztracy");
 // const AK = @import("wwise-zig");
 // const AK_ID = @import("wwise-ids");
@@ -314,33 +313,6 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     if (input_frame_data.just_pressed(config.input.exit)) {
         return true;
     }
-
-    var im3d_app_data = im3d.Im3d.GetAppData();
-    im3d_app_data.m_deltaTime = 0.1;
-    im3d_app_data.m_viewportSize = .{ .x = 1000, .y = 800 };
-    im3d_app_data.m_viewOrigin = .{ .x = 0, .y = 0, .z = 0 };
-    im3d_app_data.m_viewDirection = .{ .x = 0, .y = 0, .z = 1 };
-    im3d_app_data.m_worldUp = .{ .x = 0, .y = 1, .z = 0 };
-    im3d_app_data.m_projOrtho = false;
-    im3d_app_data.m_projScaleY = 1.0;
-    const lol = std.mem.zeroes(im3d.Im3d.Mat4);
-    im3d_app_data.setCullFrustum(&lol, true);
-
-    im3d.Im3d.NewFrame();
-
-    im3d.Im3d.DrawLine(
-        &.{ .x = 10, .y = 0, .z = 0 },
-        &.{ .x = 100, .y = 100, .z = 100 },
-        1.0,
-        im3d.Im3d.Color.init5b(1, 0, 1, 1),
-    );
-
-    im3d.Im3d.DrawLine(
-        &.{ .x = 50, .y = 0, .z = 0 },
-        &.{ .x = 100, .y = 100, .z = 100 },
-        1.0,
-        im3d.Im3d.Color.init5b(1, 0, 0, 0.5),
-    );
 
     if (input_frame_data.just_pressed(config.input.reload_shaders)) {
         const reload_desc = graphics.ReloadDesc{

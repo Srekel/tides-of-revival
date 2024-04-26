@@ -84,6 +84,11 @@ pub const Renderer = struct {
     render_ui_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_ui_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
+    render_im3d_pass_user_data: ?*anyopaque = null,
+    render_im3d_pass_render_fn: renderPassRenderFn = null,
+    render_im3d_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_im3d_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
     pub const Error = error{
         NotInitialized,
         SwapChainNotInitialized,
@@ -311,6 +316,10 @@ pub const Renderer = struct {
             prepare_descriptor_sets_fn(self.render_ui_pass_user_data.?);
         }
 
+        if (self.render_im3d_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_im3d_pass_user_data.?);
+        }
+
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
         font_system_load_desc.mLoadType = reload_desc.mType;
         font_system_load_desc.mColorFormat = @intFromEnum(self.swap_chain.*.ppRenderTargets[0].*.mFormat);
@@ -368,6 +377,12 @@ pub const Renderer = struct {
 
             if (self.render_ui_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_ui_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
+            if (self.render_im3d_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_im3d_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
                 }
             }
@@ -478,7 +493,7 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // Tonemap & UI Images
+        // Tonemap & UI Passes
         {
             var input_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
@@ -499,6 +514,12 @@ pub const Renderer = struct {
 
             if (self.render_tonemap_pass_render_fn) |render_fn| {
                 if (self.render_tonemap_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
+            }
+
+            if (self.render_im3d_pass_render_fn) |render_fn| {
+                if (self.render_im3d_pass_user_data) |user_data| {
                     render_fn(cmd_list, user_data);
                 }
             }
@@ -733,17 +754,50 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createIndexBuffer(self: *Renderer, initial_data: Slice, index_size: u32, debug_name: [:0]const u8) BufferHandle {
+    pub fn createIndexBuffer(self: *Renderer, initial_data: Slice, index_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
+        var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
+        if (cpu_accessible) {
+            memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+        }
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
         load_desc.mDesc.pName = debug_name;
         load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_INDEX_BUFFER;
         load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_NONE;
-        load_desc.mDesc.mMemoryUsage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
+        load_desc.mDesc.mMemoryUsage = memory_usage;
         load_desc.mDesc.mElementCount = @intCast(initial_data.size / index_size);
         load_desc.mDesc.mSize = initial_data.size;
-        load_desc.pData = initial_data.data.?;
+        if (load_desc.pData) |data| {
+            load_desc.pData = data;
+        }
+        load_desc.ppBuffer = &buffer;
+
+        var token: resource_loader.SyncToken = 0;
+        resource_loader.addResource(@ptrCast(&load_desc), &token);
+        resource_loader.waitForToken(&token);
+
+        const handle: BufferHandle = self.buffer_pool.add(.{ .buffer = buffer }) catch unreachable;
+        return handle;
+    }
+
+    pub fn createVertexBuffer(self: *Renderer, initial_data: Slice, vertex_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
+        var buffer: [*c]graphics.Buffer = null;
+
+        var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
+        if (cpu_accessible) {
+            memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+        }
+        var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
+        load_desc.mDesc.pName = debug_name;
+        load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_VERTEX_BUFFER;
+        load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_NONE;
+        load_desc.mDesc.mMemoryUsage = memory_usage;
+        load_desc.mDesc.mElementCount = @intCast(initial_data.size / vertex_size);
+        load_desc.mDesc.mSize = initial_data.size;
+        if (initial_data.data) |data| {
+            load_desc.pData = data;
+        }
         load_desc.ppBuffer = &buffer;
 
         var token: resource_loader.SyncToken = 0;
