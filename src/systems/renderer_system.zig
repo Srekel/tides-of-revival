@@ -4,6 +4,7 @@ const context = @import("../core/context.zig");
 const ecs = @import("zflecs");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
+const im3d = @import("im3d");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const renderer = @import("../renderer/renderer.zig");
 const zforge = @import("zforge");
@@ -23,6 +24,8 @@ const tonemap_render_pass = @import("renderer_system/tonemap_render_pass.zig");
 const TonemapRenderPass = tonemap_render_pass.TonemapRenderPass;
 const ui_render_pass = @import("renderer_system/ui_render_pass.zig");
 const UIRenderPass = ui_render_pass.UIRenderPass;
+const im3d_render_pass = @import("renderer_system/im3d_render_pass.zig");
+const Im3dRenderPass = im3d_render_pass.Im3dRenderPass;
 
 const font = zforge.font;
 const graphics = zforge.graphics;
@@ -32,13 +35,15 @@ pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
-    sys: ecs.entity_t,
+    pre_sys: ecs.entity_t,
+    post_sys: ecs.entity_t,
     terrain_render_pass: *TerrainRenderPass,
     geometry_render_pass: *GeometryRenderPass,
     deferred_shading_render_pass: *DeferredShadingRenderPass,
     skybox_render_pass: *SkyboxRenderPass,
     tonemap_render_pass: *TonemapRenderPass,
     ui_render_pass: *UIRenderPass,
+    im3d_render_pass: *Im3dRenderPass,
 };
 
 pub const SystemCtx = struct {
@@ -50,8 +55,10 @@ pub const SystemCtx = struct {
 };
 
 pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
+    _ = name;
     const system = ctx.allocator.create(SystemState) catch unreachable;
-    const sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.PostUpdate, fd.NOCOMP, update, .{ .ctx = system });
+    const pre_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PreUpdate", ecs.PreUpdate, fd.NOCOMP, preUpdate, .{ .ctx = system });
+    const post_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PostUpdate", ecs.PostUpdate, fd.NOCOMP, postUpdate, .{ .ctx = system });
 
     const geometry_pass = GeometryRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_gbuffer_pass_render_fn = geometry_render_pass.renderFn;
@@ -97,6 +104,12 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     ctx.renderer.render_ui_pass_unload_descriptor_sets_fn = ui_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_ui_pass_user_data = ui_pass;
 
+    const im3d_pass = Im3dRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    ctx.renderer.render_im3d_pass_render_fn = im3d_render_pass.renderFn;
+    ctx.renderer.render_im3d_pass_prepare_descriptor_sets_fn = im3d_render_pass.prepareDescriptorSetsFn;
+    ctx.renderer.render_im3d_pass_unload_descriptor_sets_fn = im3d_render_pass.unloadDescriptorSetsFn;
+    ctx.renderer.render_im3d_pass_user_data = im3d_pass;
+
     system.* = .{
         .allocator = ctx.allocator,
         .ecsu_world = ctx.ecsu_world,
@@ -107,7 +120,9 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .skybox_render_pass = skybox_pass,
         .tonemap_render_pass = tonemap_pass,
         .ui_render_pass = ui_pass,
-        .sys = sys,
+        .im3d_render_pass = im3d_pass,
+        .pre_sys = pre_sys,
+        .post_sys = post_sys,
     };
 
     return system;
@@ -150,6 +165,12 @@ pub fn destroy(system: *SystemState) void {
     system.renderer.render_ui_pass_unload_descriptor_sets_fn = null;
     system.renderer.render_ui_pass_user_data = null;
 
+    system.im3d_render_pass.destroy();
+    system.renderer.render_im3d_pass_render_fn = null;
+    system.renderer.render_im3d_pass_prepare_descriptor_sets_fn = null;
+    system.renderer.render_im3d_pass_unload_descriptor_sets_fn = null;
+    system.renderer.render_im3d_pass_user_data = null;
+
     system.allocator.destroy(system);
 }
 
@@ -160,7 +181,7 @@ pub fn destroy(system: *SystemState) void {
 // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
-fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     var rctx = system.renderer;
@@ -172,6 +193,35 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         const reload_desc = graphics.ReloadDesc{ .mType = .{ .RESIZE = true } };
         rctx.requestReload(reload_desc);
     }
+
+    // TODO(gmodarelli): Get camera for viewOrigin and viewDirection
+    var camera_entity = util.getActiveCameraEnt(system.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct {
+        camera: *const fd.Camera,
+        transform: *const fd.Transform,
+        forward: *const fd.Forward,
+    });
+    const camera_position = camera_comps.transform.getPos00();
+    const camera_forward = camera_comps.forward;
+
+    var im3d_app_data = im3d.Im3d.GetAppData();
+    im3d_app_data.m_deltaTime = iter.iter.delta_time;
+    im3d_app_data.m_viewportSize = .{ .x = @floatFromInt(rctx.window_width), .y = @floatFromInt(rctx.window_height) };
+    im3d_app_data.m_viewOrigin = .{ .x = camera_position[0], .y = camera_position[1], .z = camera_position[2] };
+    im3d_app_data.m_viewDirection = .{ .x = camera_forward.x, .y = camera_forward.y, .z = camera_forward.z };
+    im3d_app_data.m_worldUp = .{ .x = 0, .y = 1, .z = 0 };
+    im3d_app_data.m_projOrtho = false;
+    im3d_app_data.m_projScaleY = std.math.tan(camera_comps.camera.fov * 0.5) * 2.0;
+    // const lol = std.mem.zeroes(im3d.Im3d.Mat4);
+    // im3d_app_data.setCullFrustum(&lol, true);
+
+    im3d.Im3d.NewFrame();
+}
+
+fn postUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    defer ecs.iter_fini(iter.iter);
+    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    var rctx = system.renderer;
 
     rctx.draw();
 }
