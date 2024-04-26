@@ -77,6 +77,18 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zglfw", zglfw.module("root"));
     exe.linkLibrary(zglfw.artifact("glfw"));
 
+    // zgui
+    exe.addLibraryPath(.{ .path = "C:\\Program Files\\odin\\dev-2024-04\\vendor\\directx\\d3d_compiler\\" });
+    const zgui = b.dependency("zgui", .{
+        .target = target,
+        .optimize = optimize,
+        .shared = false,
+        .with_implot = false,
+        .backend = .glfw_dx12,
+    });
+    exe.root_module.addImport("zgui", zgui.module("root"));
+    exe.linkLibrary(zgui.artifact("imgui"));
+
     // zmath
     const zmath = b.dependency("zmath", .{
         .target = target,
