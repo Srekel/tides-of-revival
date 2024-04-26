@@ -195,17 +195,25 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     }
 
     // TODO(gmodarelli): Get camera for viewOrigin and viewDirection
+    var camera_entity = util.getActiveCameraEnt(system.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct {
+        camera: *const fd.Camera,
+        transform: *const fd.Transform,
+        forward: *const fd.Forward,
+    });
+    const camera_position = camera_comps.transform.getPos00();
+    const camera_forward = camera_comps.forward;
 
     var im3d_app_data = im3d.Im3d.GetAppData();
-    im3d_app_data.m_deltaTime = 0.1;
+    im3d_app_data.m_deltaTime = 0.016;
     im3d_app_data.m_viewportSize = .{ .x = @floatFromInt(rctx.window_width), .y = @floatFromInt(rctx.window_height) };
-    im3d_app_data.m_viewOrigin = .{ .x = 0, .y = 0, .z = 0 };
-    im3d_app_data.m_viewDirection = .{ .x = 0, .y = 0, .z = 1 };
+    im3d_app_data.m_viewOrigin = .{ .x = camera_position[0], .y = camera_position[1], .z = camera_position[2] };
+    im3d_app_data.m_viewDirection = .{ .x = camera_forward.x, .y = camera_forward.y, .z = camera_forward.z };
     im3d_app_data.m_worldUp = .{ .x = 0, .y = 1, .z = 0 };
     im3d_app_data.m_projOrtho = false;
-    im3d_app_data.m_projScaleY = 1.0;
-    const lol = std.mem.zeroes(im3d.Im3d.Mat4);
-    im3d_app_data.setCullFrustum(&lol, true);
+    im3d_app_data.m_projScaleY = std.math.tan(camera_comps.camera.fov * 0.5) * 2.0;
+    // const lol = std.mem.zeroes(im3d.Im3d.Mat4);
+    // im3d_app_data.setCullFrustum(&lol, true);
 
     im3d.Im3d.NewFrame();
 }

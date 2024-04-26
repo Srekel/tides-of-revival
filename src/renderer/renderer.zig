@@ -97,6 +97,7 @@ pub const Renderer = struct {
 
     render_im3d_pass_user_data: ?*anyopaque = null,
     render_im3d_pass_render_fn: renderPassRenderFn = null,
+    render_im3d_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_im3d_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_im3d_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
@@ -200,7 +201,7 @@ pub const Renderer = struct {
         self.im3d_vertex_layout.mAttribs[0].mLocation = 0;
         self.im3d_vertex_layout.mAttribs[0].mOffset = 0;
         self.im3d_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.COLOR;
-        self.im3d_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
+        self.im3d_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
         self.im3d_vertex_layout.mAttribs[1].mBinding = 0;
         self.im3d_vertex_layout.mAttribs[1].mLocation = 1;
         self.im3d_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 4;
@@ -324,6 +325,10 @@ pub const Renderer = struct {
 
             if (self.render_ui_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                 create_descriptor_sets_fn(self.render_ui_pass_user_data.?);
+            }
+
+            if (self.render_im3d_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_im3d_pass_user_data.?);
             }
         }
 
@@ -836,7 +841,7 @@ pub const Renderer = struct {
         load_desc.mDesc.mMemoryUsage = memory_usage;
         load_desc.mDesc.mElementCount = @intCast(initial_data.size / index_size);
         load_desc.mDesc.mSize = initial_data.size;
-        if (load_desc.pData) |data| {
+        if (initial_data.data) |data| {
             load_desc.pData = data;
         }
         load_desc.ppBuffer = &buffer;
@@ -1497,7 +1502,7 @@ pub const Renderer = struct {
                 graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
 
                 var render_targets = [_]graphics.TinyImageFormat{
-                    self.scene_color.*.mFormat,
+                    self.swap_chain.*.ppRenderTargets[0].*.mFormat,
                 };
 
                 var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
@@ -1541,7 +1546,7 @@ pub const Renderer = struct {
                 graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
 
                 var render_targets = [_]graphics.TinyImageFormat{
-                    self.scene_color.*.mFormat,
+                    self.swap_chain.*.ppRenderTargets[0].*.mFormat,
                 };
 
                 var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
@@ -1584,7 +1589,7 @@ pub const Renderer = struct {
                 graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
 
                 var render_targets = [_]graphics.TinyImageFormat{
-                    self.scene_color.*.mFormat,
+                    self.swap_chain.*.ppRenderTargets[0].*.mFormat,
                 };
 
                 var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);

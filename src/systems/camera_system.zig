@@ -7,7 +7,6 @@ const zm = @import("zmath");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
-const im3d = @import("im3d");
 const input = @import("../input.zig");
 const config = @import("../config/config.zig");
 const renderer = @import("../renderer/renderer.zig");
@@ -100,20 +99,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     updateTransformHierarchy(system, iter.iter.delta_time);
     updateCameraMatrices(system);
     updateCameraFrustum(system);
-
-    im3d.Im3d.DrawLine(
-        &.{ .x = 10, .y = 0, .z = 0 },
-        &.{ .x = 100, .y = 100, .z = 100 },
-        1.0,
-        im3d.Im3d.Color.init5b(1, 0, 1, 1),
-    );
-
-    im3d.Im3d.DrawLine(
-        &.{ .x = 50, .y = 0, .z = 0 },
-        &.{ .x = 100, .y = 100, .z = 100 },
-        1.0,
-        im3d.Im3d.Color.init5b(1, 0, 0, 0.5),
-    );
 }
 
 fn updateTransformHierarchy(system: *SystemState, dt: f32) void {
