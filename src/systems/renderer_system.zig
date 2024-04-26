@@ -205,7 +205,7 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const camera_forward = camera_comps.forward;
 
     var im3d_app_data = im3d.Im3d.GetAppData();
-    im3d_app_data.m_deltaTime = 0.016;
+    im3d_app_data.m_deltaTime = iter.iter.delta_time;
     im3d_app_data.m_viewportSize = .{ .x = @floatFromInt(rctx.window_width), .y = @floatFromInt(rctx.window_height) };
     im3d_app_data.m_viewOrigin = .{ .x = camera_position[0], .y = camera_position[1], .z = camera_position[2] };
     im3d_app_data.m_viewDirection = .{ .x = camera_forward.x, .y = camera_forward.y, .z = camera_forward.z };
