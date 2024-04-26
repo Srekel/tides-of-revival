@@ -1,3 +1,4 @@
+// Adapted from https://github.com/john-chapman/im3d/blob/master/examples/DirectX11/im3d.hlsl
 #ifndef _IM3D_HLSL
 #define _IM3D_HLSL
 

@@ -1,3 +1,4 @@
+// Adapted from https://github.com/john-chapman/im3d/blob/master/examples/DirectX11/im3d.hlsl
 #define DIRECT3D12
 #define STAGE_FRAG
 
