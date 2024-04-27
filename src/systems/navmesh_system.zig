@@ -1,18 +1,19 @@
 const std = @import("std");
 const math = std.math;
+const assert = std.debug.assert;
 const ecs = @import("zflecs");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
 
-const ecsu = @import("../flecs_util/flecs_util.zig");
-const fd = @import("../config/flecs_data.zig");
-const IdLocal = @import("../core/core.zig").IdLocal;
-const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
-const tides_math = @import("../core/math.zig");
-const config = @import("../config/config.zig");
-const util = @import("../util.zig");
-const EventManager = @import("../core/event_manager.zig").EventManager;
-const context = @import("../core/context.zig");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
+const fd = @import("../../config/flecs_data.zig");
+const IdLocal = @import("../../core/core.zig").IdLocal;
+const world_patch_manager = @import("../../worldpatch/world_patch_manager.zig");
+const tides_math = @import("../../core/math.zig");
+const config = @import("../../config/config.zig");
+const util = @import("../../util.zig");
+const EventManager = @import("../../core/event_manager.zig").EventManager;
+const context = @import("../../core/context.zig");
 
 const zignav = @import("zignav");
 const Recast = zignav.Recast;
@@ -20,6 +21,7 @@ const DetourNavMesh = zignav.DetourNavMesh;
 const DetourNavMeshBuilder = zignav.DetourNavMeshBuilder;
 const DetourNavMeshQuery = zignav.DetourNavMeshQuery;
 const DetourStatus = zignav.DetourStatus;
+// const util = @import("navmesh_system_util.zig");
 
 const IndexType = u32;
 const patch_side_vertex_count = config.patch_resolution;
@@ -33,6 +35,7 @@ const WorldLoaderData = struct {
 
 const Patch = struct {
     lookup: world_patch_manager.PatchLookup,
+    lookup_neighbors: world_patch_manager.PatchLookup[8],
     poly_mesh_opt: ?*Recast.rcPolyMesh,
     poly_mesh_detail_opt: ?*Recast.rcPolyMeshDetail,
 };
@@ -48,6 +51,7 @@ pub const SystemState = struct {
     patches: std.ArrayList(Patch),
     indices: [indices_per_patch]IndexType,
     nav_ctx: Recast.rcContext = undefined,
+    nav_mesh: [*c]DetourNavMesh.dtNavMesh = undefined,
 };
 
 pub const SystemCtx = struct {
@@ -71,6 +75,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     // Recast
     var nav_ctx: zignav.Recast.rcContext = undefined;
     nav_ctx.init(false);
+    const nav_mesh = DetourNavMesh.dtAllocNavMesh();
 
     var system = allocator.create(SystemState) catch unreachable;
     const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
@@ -84,6 +89,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .patches = std.ArrayList(Patch).initCapacity(allocator, 16 * 16) catch unreachable,
         .indices = undefined,
         .nav_ctx = nav_ctx,
+        .nav_mesh = nav_mesh,
     };
 
     system.nav_ctx.init(false);
@@ -91,6 +97,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 }
 
 pub fn destroy(system: *SystemState) void {
+    DetourNavMesh.dtFreeNavMesh(system.nav_mesh);
     system.comp_query_loader.deinit();
     system.patches.deinit();
     system.nav_ctx.deinit();
@@ -192,8 +199,26 @@ fn updateLoaders(system: *SystemState) void {
         system.world_patch_mgr.addLoadRequestFromLookups(system.requester_id, lookups_new.items, .medium);
 
         for (lookups_new.items) |lookup| {
+            var neighbors = lookup ** 8;
+            neighbors[0].patch_x -= 1; // row above
+            neighbors[0].patch_z -= 1;
+            neighbors[1].patch_x += 0;
+            neighbors[1].patch_z -= 1;
+            neighbors[2].patch_x += 1;
+            neighbors[2].patch_z += 0;
+            neighbors[3].patch_x -= 1; // same row, skip same patch
+            neighbors[3].patch_z += 0;
+            neighbors[4].patch_x -= 1;
+            neighbors[4].patch_z += 0;
+            neighbors[5].patch_x -= 1; // row below
+            neighbors[5].patch_z += 1;
+            neighbors[6].patch_x += 0;
+            neighbors[6].patch_z += 1;
+            neighbors[7].patch_x += 1;
+            neighbors[7].patch_z += 1;
             system.patches.appendAssumeCapacity(.{
                 .lookup = lookup,
+                .lookup_neighbors = neighbors,
                 .poly_mesh_opt = null,
                 .poly_mesh_detail_opt = null,
             });
@@ -214,6 +239,38 @@ fn updatePatches(system: *SystemState) void {
             // _ = data;
 
             const world_pos = patch.lookup.getWorldPos();
+
+            // const game_config: util.GameConfig = .{
+            //     .indoors = true,
+            //     .tile_size = 64,
+            //     .offset = .{ world_pos.world_x, 0, world_pos.world_z },
+            // };
+            // const config = recast_util.generateConfig(game_config);
+
+            // const tile_mesh = try buildTileMesh(&nav_ctx, .{ 64, 0, 0 });
+            // defer Recast.rcFreePolyMesh(tile_mesh.poly_mesh);
+            // defer Recast.rcFreePolyMeshDetail(tile_mesh.poly_mesh_detail);
+
+            // const tile = try detour_util.createTileFromPolyMesh(
+            //     tile_mesh.poly_mesh,
+            //     tile_mesh.poly_mesh_detail,
+            //     tile_mesh.config,
+            //     1,
+            //     // @intFromFloat(64 / tile_factor),
+            //     0,
+            // );
+
+            // var tile_ref: DetourNavMesh.dtPolyRef = 0;
+            // const status_tile = nav_mesh.*.addTile(
+            //     tile.data,
+            //     tile.data_size,
+            //     // DetourNavMesh.dtTileFlags.DT_TILE_FREE_DATA.bits,
+            //     0,
+            //     0,
+            //     &tile_ref,
+            // );
+            // assert(DetourStatus._1_dtStatusSucceed_(status_tile));
+
             _ = world_pos; // autofix
             // var vertices: [config.patch_resolution * config.patch_resolution][3]f32 = undefined;
             // var z: u32 = 0;
