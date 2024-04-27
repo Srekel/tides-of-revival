@@ -78,7 +78,6 @@ pub fn build(b: *std.Build) void {
     exe.linkLibrary(zglfw.artifact("glfw"));
 
     // zgui
-    exe.addLibraryPath(.{ .path = "C:\\Program Files\\odin\\dev-2024-04\\vendor\\directx\\d3d_compiler\\" });
     const zgui = b.dependency("zgui", .{
         .target = target,
         .optimize = optimize,

@@ -10,6 +10,7 @@ const renderer = @import("../renderer/renderer.zig");
 const zforge = @import("zforge");
 const util = @import("../util.zig");
 const zm = @import("zmath");
+const zgui = @import("zgui");
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 
 const terrain_render_pass = @import("renderer_system/terrain_render_pass.zig");
@@ -192,6 +193,12 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
         const reload_desc = graphics.ReloadDesc{ .mType = .{ .RESIZE = true } };
         rctx.requestReload(reload_desc);
+    }
+
+    zgui.backend.newFrame(@intCast(rctx.window_width), @intCast(rctx.window_height));
+
+    if (zgui.button("Hello DearImGUI", .{})) {
+        std.log.debug("Clicked on the button", .{});
     }
 
     // TODO(gmodarelli): Get camera for viewOrigin and viewDirection

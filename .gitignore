@@ -16,3 +16,4 @@ __pycache__/
 licenses.txt
 release_build/*
 binaries/
+imgui.ini

@@ -4,7 +4,7 @@
 #include "../FSL/d3d.h"
 #include "../FSL/ShaderUtilities.h.fsl"
 
-CBUFFER(vertexBuffer, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
+CBUFFER(RootConstant, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
 {
     DATA(float4x4, ProjectionMatrix, None);
 };
@@ -12,8 +12,8 @@ CBUFFER(vertexBuffer, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
 struct VS_INPUT
 {
   float2 pos : POSITION;
-  float4 col : COLOR0;
   float2 uv  : TEXCOORD0;
+  float4 col : COLOR0;
 };
 
 struct PS_INPUT
