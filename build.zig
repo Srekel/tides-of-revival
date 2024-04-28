@@ -160,6 +160,11 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zignav", zignav.module("zignav"));
     exe.linkLibrary(zignav.artifact("zignav_c_cpp"));
 
+    // Im3d
+    const im3d = b.dependency("im3d", .{});
+    exe.root_module.addImport("im3d", im3d.module("im3d"));
+    exe.linkLibrary(im3d.artifact("im3d_c_cpp"));
+
     // TODO: Asset cookify
     const install_fonts_step = b.addInstallDirectory(.{
         .source_dir = .{ .path = thisDir() ++ "/content/fonts" },

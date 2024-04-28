@@ -554,6 +554,7 @@ pub const WorldPatch = struct {
 pub const DirectionalLight = struct {
     color: ColorRGB,
     intensity: f32,
+    shadow_range: f32,
 };
 
 pub const PointLight = struct {
@@ -677,6 +678,7 @@ pub const EnvironmentInfo = struct {
     time_of_day_percent: f32,
     sun_height: f32,
     sky_light: ?ecsu.Entity,
+    sun: ?ecsu.Entity,
     // time_of_day_hour: f32,
     // days_in_year: f32,
     // day: f32,

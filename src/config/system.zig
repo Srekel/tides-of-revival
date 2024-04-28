@@ -9,7 +9,7 @@ const camera_system = @import("../systems/camera_system.zig");
 const city_system = @import("../systems/procgen/city_system.zig");
 const input_system = @import("../systems/input_system.zig");
 const interact_system = @import("../systems/interact_system.zig");
-const navmesh_system = @import("../systems/navmesh_system.zig");
+const navmesh_system = @import("../systems/ai/navmesh_system.zig");
 const patch_prop_system = @import("../systems/patch_prop_system.zig");
 const physics_system = @import("../systems/physics_system.zig");
 const renderer_system = @import("../systems/renderer_system.zig");
@@ -72,9 +72,9 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     camera_sys = try camera_system.create(
         ID("camera_system"),
         std.heap.page_allocator,
-        // gameloop_context.gfx_state,
         gameloop_context.ecsu_world,
         gameloop_context.input_frame_data,
+        gameloop_context.renderer,
     );
 
     patch_prop_sys = try patch_prop_system.create(
