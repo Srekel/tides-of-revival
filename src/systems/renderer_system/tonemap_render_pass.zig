@@ -20,24 +20,15 @@ pub const TonemapRenderPass = struct {
     descriptor_set: [*c]graphics.DescriptorSet,
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *TonemapRenderPass {
-        var descriptor_set: [*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("tonemapper"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_set));
-        }
-
         const pass = allocator.create(TonemapRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
-            .descriptor_set = descriptor_set,
+            .descriptor_set = undefined,
         };
 
+        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -57,6 +48,7 @@ pub const TonemapRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
@@ -73,6 +65,17 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     graphics.cmdBindDescriptorSet(cmd_list, 0, self.descriptor_set);
 
     graphics.cmdDraw(cmd_list, 3, 0);
+}
+
+fn createDescriptorSets(user_data: *anyopaque) void {
+    const self: *TonemapRenderPass = @ptrCast(@alignCast(user_data));
+
+    const root_signature = self.renderer.getRootSignature(IdLocal.init("tonemapper"));
+    var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+    desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_NONE;
+    desc.mMaxSets = renderer.Renderer.data_buffer_count;
+    desc.pRootSignature = root_signature;
+    graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.descriptor_set));
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {

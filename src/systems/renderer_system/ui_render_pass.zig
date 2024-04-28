@@ -49,16 +49,6 @@ pub const UIRenderPass = struct {
             break :blk buffers;
         };
 
-        var descriptor_set: [*c]graphics.DescriptorSet = undefined;
-        {
-            const root_signature = rctx.getRootSignature(IdLocal.init("ui"));
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            desc.pRootSignature = root_signature;
-            graphics.addDescriptorSet(rctx.renderer, &desc, @ptrCast(&descriptor_set));
-        }
-
         const index_buffer = blk: {
             const indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
 
@@ -67,7 +57,7 @@ pub const UIRenderPass = struct {
                 .size = 6 * @sizeOf(u16),
             };
 
-            break :blk rctx.createIndexBuffer(buffer_data, @sizeOf(u16), "UI Index Buffer");
+            break :blk rctx.createIndexBuffer(buffer_data, @sizeOf(u16), false, "UI Index Buffer");
         };
 
         const instance_data_buffers = blk: {
@@ -97,12 +87,13 @@ pub const UIRenderPass = struct {
             .index_buffer = index_buffer,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .descriptor_set = descriptor_set,
+            .descriptor_set = undefined,
             .instance_data_buffers = instance_data_buffers,
             .instance_data = instance_data,
             .query_ui_images = query_ui_images,
         };
 
+        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -124,11 +115,12 @@ pub const UIRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
 fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Skybox Render Pass", 0x00_ff_ff_00);
+    const trazy_zone = ztracy.ZoneNC(@src(), "UI Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *UIRenderPass = @ptrCast(@alignCast(user_data));
@@ -182,6 +174,17 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     graphics.cmdBindDescriptorSet(cmd_list, 0, self.descriptor_set);
     graphics.cmdBindIndexBuffer(cmd_list, index_buffer, @intCast(graphics.IndexType.INDEX_TYPE_UINT16.bits), 0);
     graphics.cmdDrawIndexedInstanced(cmd_list, 6, 0, @intCast(self.instance_data.items.len), 0, 0);
+}
+
+fn createDescriptorSets(user_data: *anyopaque) void {
+    const self: *UIRenderPass = @ptrCast(@alignCast(user_data));
+
+    const root_signature = self.renderer.getRootSignature(IdLocal.init("ui"));
+    var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+    desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+    desc.mMaxSets = renderer.Renderer.data_buffer_count;
+    desc.pRootSignature = root_signature;
+    graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.descriptor_set));
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {

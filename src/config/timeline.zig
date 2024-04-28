@@ -124,7 +124,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
                 .intensity = 5.0,
             });
         }
-        //  Assign to flecs component
+        // Assign to flecs component
         ent.set(fd.PhysicsBody{ .body_id = body_id });
     }
 }
