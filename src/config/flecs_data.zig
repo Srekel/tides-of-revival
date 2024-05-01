@@ -392,7 +392,7 @@ pub const StaticMesh = struct {
     mesh_handle: MeshHandle,
 
     material_count: u32,
-    materials: [renderer.sub_mesh_max_count]PBRMaterial,
+    materials: [renderer.sub_mesh_max_count]IdLocal,
 };
 
 // ███████╗██╗  ██╗██╗   ██╗██████╗  ██████╗ ██╗  ██╗

@@ -37,7 +37,7 @@ pub const SystemState = struct {
     requester_id: world_patch_manager.RequesterId,
     comp_query_loader: ecsu.Query,
     medium_house_prefab: ecsu.Entity,
-    fir_tree_prefab: ecsu.Entity,
+    tree_prefab: ecsu.Entity,
     cube_prefab: ecsu.Entity,
 };
 
@@ -57,7 +57,7 @@ pub fn create(
     const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
 
     const medium_house_prefab = prefab_mgr.getPrefab(config.prefab.medium_house_id).?;
-    const fir_tree_prefab = prefab_mgr.getPrefab(config.prefab.fir_id).?;
+    const tree_prefab = prefab_mgr.getPrefab(config.prefab.beech_tree_04_id).?;
     const cube_prefab = prefab_mgr.getPrefab(config.prefab.cube_id).?;
 
     system.* = .{
@@ -70,7 +70,7 @@ pub fn create(
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("props")),
         .patches = std.ArrayList(Patch).initCapacity(allocator, 32 * 32) catch unreachable,
         .medium_house_prefab = medium_house_prefab,
-        .fir_tree_prefab = fir_tree_prefab,
+        .tree_prefab = tree_prefab,
         .cube_prefab = cube_prefab,
     };
 
@@ -256,7 +256,7 @@ fn updatePatches(system: *SystemState) void {
                     house_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(house_ent.id) catch unreachable;
                 } else if (prop.id.hash == tree_id.hash) {
-                    var fir_tree_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.fir_tree_prefab);
+                    var fir_tree_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.tree_prefab);
                     fir_tree_ent.set(prop_transform);
                     fir_tree_ent.set(prop_pos);
                     fir_tree_ent.set(prop_rot);

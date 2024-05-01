@@ -5,6 +5,7 @@ const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
+const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
@@ -26,6 +27,7 @@ pub const ShadowsUniformFrameData = struct {
 const InstanceData = struct {
     object_to_world: [16]f32,
     materials_buffer_offset: u32,
+    _padding: [3]f32,
 };
 
 const InstanceMaterial = struct {
@@ -66,10 +68,13 @@ const masked_entities_index: u32 = 0;
 const opaque_entities_index: u32 = 1;
 const max_entity_types: u32 = 2;
 
+const MaterialBufferOffsetHashmap = std.AutoHashMap(IdLocal, u32);
+
 pub const GeometryRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+    prefab_mgr: *PrefabManager,
     query_static_mesh: ecsu.Query,
 
     shadows_uniform_frame_data: ShadowsUniformFrameData,
@@ -81,16 +86,16 @@ pub const GeometryRenderPass = struct {
     descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
 
     instance_data_buffers: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    instance_material_buffers: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    material_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    material_buffer_offset_hashmap: MaterialBufferOffsetHashmap,
 
     instance_data: [max_entity_types]std.ArrayList(InstanceData),
-    instance_materials: [max_entity_types]std.ArrayList(InstanceMaterial),
 
     draw_calls_info: [max_entity_types]std.ArrayList(DrawCallInfo),
     draw_calls: [max_entity_types]std.ArrayList(DrawCallInstanced),
     draw_calls_push_constants: [max_entity_types]std.ArrayList(DrawCallPushConstants),
 
-    pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *GeometryRenderPass {
+    pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) *GeometryRenderPass {
         const shadows_uniform_frame_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -135,27 +140,39 @@ pub const GeometryRenderPass = struct {
             break :blk buffers;
         };
 
-        const opaque_instance_material_buffers = blk: {
+        var material_buffer_offset_hashmap = MaterialBufferOffsetHashmap.init(allocator);
+        var materials = std.ArrayList(InstanceMaterial).init(allocator);
+        defer materials.deinit();
+
+        var materials_iterator = prefab_mgr.material_hash_map.iterator();
+        while (materials_iterator.next()) |key_value| {
+            const material_id = key_value.key_ptr.*;
+            const material = key_value.value_ptr.*;
+
+            const material_buffer_offset = materials.items.len * @sizeOf(InstanceMaterial);
+            material_buffer_offset_hashmap.put(material_id, @intCast(material_buffer_offset)) catch unreachable;
+
+            materials.append(.{
+                .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
+                .roughness = material.roughness,
+                .metallic = material.metallic,
+                .normal_intensity = material.normal_intensity,
+                .emissive_strength = material.emissive_strength,
+                .albedo_texture_index = rctx.getTextureBindlessIndex(material.albedo),
+                .emissive_texture_index = rctx.getTextureBindlessIndex(material.emissive),
+                .normal_texture_index = rctx.getTextureBindlessIndex(material.normal),
+                .arm_texture_index = rctx.getTextureBindlessIndex(material.arm),
+            }) catch unreachable;
+        }
+
+        const material_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 const buffer_data = renderer.Slice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceMaterial),
+                    .data = @ptrCast(materials.items),
+                    .size = materials.items.len * @sizeOf(InstanceMaterial),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Instance Material Buffer: Opaque");
-            }
-
-            break :blk buffers;
-        };
-
-        const masked_instance_material_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceMaterial),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Instance Material Buffer: Masked");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Materials Buffer");
             }
 
             break :blk buffers;
@@ -166,7 +183,6 @@ pub const GeometryRenderPass = struct {
         const draw_calls_info = [max_entity_types]std.ArrayList(DrawCallInfo){ std.ArrayList(DrawCallInfo).init(allocator), std.ArrayList(DrawCallInfo).init(allocator) };
 
         const instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
-        const instance_materials = [max_entity_types]std.ArrayList(InstanceMaterial){ std.ArrayList(InstanceMaterial).init(allocator), std.ArrayList(InstanceMaterial).init(allocator) };
 
         // Queries
         var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
@@ -180,6 +196,7 @@ pub const GeometryRenderPass = struct {
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
+            .prefab_mgr = prefab_mgr,
             .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
             .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
             .shadows_descriptor_sets = undefined,
@@ -187,12 +204,12 @@ pub const GeometryRenderPass = struct {
             .uniform_frame_buffers = uniform_frame_buffers,
             .descriptor_sets = undefined,
             .instance_data_buffers = .{ masked_instance_data_buffers, opaque_instance_data_buffers },
-            .instance_material_buffers = .{ masked_instance_material_buffers, opaque_instance_material_buffers },
+            .material_buffers = material_buffers,
+            .material_buffer_offset_hashmap = material_buffer_offset_hashmap,
             .draw_calls = draw_calls,
             .draw_calls_push_constants = draw_calls_push_constants,
             .draw_calls_info = draw_calls_info,
             .instance_data = instance_data,
-            .instance_materials = instance_materials,
             .query_static_mesh = query_static_mesh,
         };
 
@@ -215,8 +232,7 @@ pub const GeometryRenderPass = struct {
 
         self.instance_data[opaque_entities_index].deinit();
         self.instance_data[masked_entities_index].deinit();
-        self.instance_materials[opaque_entities_index].deinit();
-        self.instance_materials[masked_entities_index].deinit();
+        self.material_buffer_offset_hashmap.deinit();
         self.draw_calls[opaque_entities_index].deinit();
         self.draw_calls[masked_entities_index].deinit();
         self.draw_calls_push_constants[opaque_entities_index].deinit();
@@ -245,12 +261,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     defer trazy_zone.End();
 
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
-    // HACK(gmodarelli): We're not really culling here but only batching. We need to pass
-    // a view so we can cull and batch from different views (light or camera)
-    // NOTE(gmodarelli): We're skipping this call now because we've already executed it
-    // from the renderShadowMap pass. Once we introduce cull by views, we MUST call this again
-    // cullStaticMeshes(self);
-
     const frame_index = self.renderer.frame_index;
 
     var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
@@ -272,22 +282,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .size = @sizeOf(UniformFrameData),
     };
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
-
-    // NOTE(gmodarelli): We're skipping this call now because we've already executed it
-    // from the renderShadowMap pass. Once we introduce cull by views, we MUST call this again
-    // for (0..max_entity_types) |entity_type_index| {
-    //     const instance_data_slice = renderer.Slice{
-    //         .data = @ptrCast(self.instance_data[entity_type_index].items),
-    //         .size = self.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
-    //     };
-    //     self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[entity_type_index][frame_index]);
-
-    //     const instance_material_slice = renderer.Slice{
-    //         .data = @ptrCast(self.instance_materials[entity_type_index].items),
-    //         .size = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
-    //     };
-    //     self.renderer.updateBuffer(instance_material_slice, InstanceMaterial, self.instance_material_buffers[entity_type_index][frame_index]);
-    // }
 
     // Render Lit Masked Objects
     {
@@ -414,12 +408,6 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .size = self.instance_data[entity_type_index].items.len * @sizeOf(InstanceData),
         };
         self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[entity_type_index][frame_index]);
-
-        const instance_material_slice = renderer.Slice{
-            .data = @ptrCast(self.instance_materials[entity_type_index].items),
-            .size = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial),
-        };
-        self.renderer.updateBuffer(instance_material_slice, InstanceMaterial, self.instance_material_buffers[entity_type_index][frame_index]);
     }
 
     // Render Shadows Lit Masked Objects
@@ -598,7 +586,6 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
     // Reset transforms, materials and draw calls array list
     for (0..max_entity_types) |entity_type_index| {
         self.instance_data[entity_type_index].clearRetainingCapacity();
-        self.instance_materials[entity_type_index].clearRetainingCapacity();
         self.draw_calls[entity_type_index].clearRetainingCapacity();
         self.draw_calls_push_constants[entity_type_index].clearRetainingCapacity();
         self.draw_calls_info[entity_type_index].clearRetainingCapacity();
@@ -630,28 +617,22 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
         for (0..sub_mesh_count) |sub_mesh_index| {
             draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
 
-            const material = comps.mesh.materials[sub_mesh_index];
+            var material_id = comps.mesh.materials[sub_mesh_index];
+            var material = self.prefab_mgr.getMaterial(IdLocal.init("M_default")).?;
+            if (self.prefab_mgr.getMaterial(material_id)) |m| {
+                material = m;
+            } else {
+                material_id = IdLocal.init("M_default");
+            }
+            const material_buffer_offset = self.material_buffer_offset_hashmap.get(material_id).?;
+
             const entity_type_index = if (material.surface_type == .@"opaque") opaque_entities_index else masked_entities_index;
-
-            const material_buffer_offset = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial);
-
-            self.instance_materials[entity_type_index].append(.{
-                .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
-                .roughness = material.roughness,
-                .metallic = material.metallic,
-                .normal_intensity = material.normal_intensity,
-                .emissive_strength = material.emissive_strength,
-                .albedo_texture_index = self.renderer.getTextureBindlessIndex(material.albedo),
-                .emissive_texture_index = self.renderer.getTextureBindlessIndex(material.emissive),
-                .normal_texture_index = self.renderer.getTextureBindlessIndex(material.normal),
-                .arm_texture_index = self.renderer.getTextureBindlessIndex(material.arm),
-            }) catch unreachable;
-
             self.draw_calls_info[entity_type_index].append(draw_call_info) catch unreachable;
 
             var instance_data: InstanceData = undefined;
             zm.storeMat(&instance_data.object_to_world, z_world);
-            instance_data.materials_buffer_offset = @intCast(material_buffer_offset);
+            instance_data.materials_buffer_offset = material_buffer_offset;
+            instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
             self.instance_data[entity_type_index].append(instance_data) catch unreachable;
         }
     }
@@ -663,7 +644,7 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
         var current_draw_call: DrawCallInstanced = undefined;
 
         const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[entity_type_index][frame_index]);
-        const instance_material_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_material_buffers[entity_type_index][frame_index]);
+        const material_buffer_index = self.renderer.getBufferBindlessIndex(self.material_buffers[frame_index]);
 
         if (self.draw_calls_info[entity_type_index].items.len == 0) continue;
 
@@ -682,7 +663,7 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
                     self.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
                     self.draw_calls_push_constants[entity_type_index].append(.{
                         .start_instance_location = current_draw_call.start_instance_location,
-                        .instance_material_buffer_index = instance_material_buffer_index,
+                        .instance_material_buffer_index = material_buffer_index,
                         .instance_data_buffer_index = instance_data_buffer_index,
                     }) catch unreachable;
                 }
@@ -697,7 +678,7 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
                     self.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
                     self.draw_calls_push_constants[entity_type_index].append(.{
                         .start_instance_location = current_draw_call.start_instance_location,
-                        .instance_material_buffer_index = instance_material_buffer_index,
+                        .instance_material_buffer_index = material_buffer_index,
                         .instance_data_buffer_index = instance_data_buffer_index,
                     }) catch unreachable;
                 }
@@ -705,7 +686,7 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
                 self.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
                 self.draw_calls_push_constants[entity_type_index].append(.{
                     .start_instance_location = current_draw_call.start_instance_location,
-                    .instance_material_buffer_index = instance_material_buffer_index,
+                    .instance_material_buffer_index = material_buffer_index,
                     .instance_data_buffer_index = instance_data_buffer_index,
                 }) catch unreachable;
 
@@ -722,7 +703,7 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
                     self.draw_calls[entity_type_index].append(current_draw_call) catch unreachable;
                     self.draw_calls_push_constants[entity_type_index].append(.{
                         .start_instance_location = current_draw_call.start_instance_location,
-                        .instance_material_buffer_index = instance_material_buffer_index,
+                        .instance_material_buffer_index = material_buffer_index,
                         .instance_data_buffer_index = instance_data_buffer_index,
                     }) catch unreachable;
                 }

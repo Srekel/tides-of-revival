@@ -221,14 +221,6 @@ pub fn run() void {
     const matball_prefab = prefab_mgr.getPrefab(config.prefab.matball_id).?;
     const matball_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
     var matball_ent = prefab_mgr.instantiatePrefab(ecsu_world, matball_prefab);
-    const static_mesh_component = matball_ent.getMut(fd.StaticMesh);
-    if (static_mesh_component) |static_mesh| {
-        static_mesh.material_count = 1;
-        static_mesh.materials[0] = fd.PBRMaterial.init();
-        static_mesh.materials[0].albedo = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
-        static_mesh.materials[0].arm = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
-        static_mesh.materials[0].normal = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
-    }
     matball_ent.set(matball_position);
     matball_ent.set(fd.Rotation{});
     matball_ent.set(fd.Scale.createScalar(1.0));
