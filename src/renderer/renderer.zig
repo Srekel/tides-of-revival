@@ -328,7 +328,6 @@ pub const Renderer = struct {
         if (reload_desc.mType.SHADER) {
             self.createPipelines();
 
-            // TODO(gmodarelli): init zgui.backend
             const rtv_format = self.swap_chain.*.ppRenderTargets[0].*.mFormat;
             const pipeline_id = IdLocal.init("imgui");
             const pipeline = self.getPSO(pipeline_id);

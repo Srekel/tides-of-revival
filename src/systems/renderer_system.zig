@@ -197,11 +197,6 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     zgui.backend.newFrame(@intCast(rctx.window_width), @intCast(rctx.window_height));
 
-    if (zgui.button("Hello DearImGUI", .{})) {
-        std.log.debug("Clicked on the button", .{});
-    }
-
-    // TODO(gmodarelli): Get camera for viewOrigin and viewDirection
     var camera_entity = util.getActiveCameraEnt(system.ecsu_world);
     const camera_comps = camera_entity.getComps(struct {
         camera: *const fd.Camera,
