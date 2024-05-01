@@ -7,6 +7,7 @@
 struct InstanceData
 {
 	float4x4 worldMat;
+	uint materialBufferOffset;
 };
 
 struct InstanceMaterial

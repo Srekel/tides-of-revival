@@ -12,7 +12,7 @@ void PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
-    InstanceMaterial material = materialsBuffer.Load<InstanceMaterial>(instanceIndex * sizeof(InstanceMaterial));
+    InstanceMaterial material = materialsBuffer.Load<InstanceMaterial>(instance.materialBufferOffset);
 
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];

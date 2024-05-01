@@ -12,8 +12,8 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     uint instanceIndex = Input.InstanceID + Get(startInstanceLocation);
     InstanceData instance = instanceTransformBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
-    ByteAddressBuffer materialBuffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
-    InstanceMaterial material = materialBuffer.Load<InstanceMaterial>(instanceIndex * sizeof(InstanceMaterial));
+    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
+    InstanceMaterial material = materialsBuffer.Load<InstanceMaterial>(instance.materialBufferOffset);
 
     const float3 P = Input.PositionWS.xyz;
     const float3 V = normalize(Get(camPos).xyz - P);

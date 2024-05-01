@@ -25,6 +25,7 @@ pub const ShadowsUniformFrameData = struct {
 
 const InstanceData = struct {
     object_to_world: [16]f32,
+    materials_buffer_offset: u32,
 };
 
 const InstanceMaterial = struct {
@@ -632,6 +633,8 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
             const material = comps.mesh.materials[sub_mesh_index];
             const entity_type_index = if (material.surface_type == .@"opaque") opaque_entities_index else masked_entities_index;
 
+            const material_buffer_offset = self.instance_materials[entity_type_index].items.len * @sizeOf(InstanceMaterial);
+
             self.instance_materials[entity_type_index].append(.{
                 .albedo_color = [4]f32{ material.base_color.r, material.base_color.g, material.base_color.b, 1.0 },
                 .roughness = material.roughness,
@@ -648,6 +651,7 @@ fn cullStaticMeshes(self: *GeometryRenderPass) void {
 
             var instance_data: InstanceData = undefined;
             zm.storeMat(&instance_data.object_to_world, z_world);
+            instance_data.materials_buffer_offset = @intCast(material_buffer_offset);
             self.instance_data[entity_type_index].append(instance_data) catch unreachable;
         }
     }
