@@ -23,6 +23,8 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
         baseColor *= baseColorSample.rgb;
+    } else {
+        baseColor *= Input.Color.rgb;
     }
 
     float3 N = normalize(Input.Normal);

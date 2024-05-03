@@ -207,8 +207,8 @@ pub const Renderer = struct {
         self.im3d_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 4;
 
         self.default_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
-        self.default_vertex_layout.mBindingCount = 4;
-        self.default_vertex_layout.mAttribCount = 4;
+        self.default_vertex_layout.mBindingCount = 5;
+        self.default_vertex_layout.mAttribCount = 5;
         self.default_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
         self.default_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
         self.default_vertex_layout.mAttribs[0].mBinding = 0;
@@ -229,6 +229,11 @@ pub const Renderer = struct {
         self.default_vertex_layout.mAttribs[3].mBinding = 3;
         self.default_vertex_layout.mAttribs[3].mLocation = 3;
         self.default_vertex_layout.mAttribs[3].mOffset = 0;
+        self.default_vertex_layout.mAttribs[4].mSemantic = graphics.ShaderSemantic.COLOR;
+        self.default_vertex_layout.mAttribs[4].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+        self.default_vertex_layout.mAttribs[4].mBinding = 4;
+        self.default_vertex_layout.mAttribs[4].mLocation = 4;
+        self.default_vertex_layout.mAttribs[4].mOffset = 0;
 
         self.frame_index = 0;
 
@@ -657,11 +662,13 @@ pub const Renderer = struct {
         mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)] = 1;
         mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)] = 2;
         mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)] = 3;
+        mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.COLOR)] = 4;
 
         mesh.buffer_layout_desc.mVerticesStrides[0] = @sizeOf(f32) * 3;
         mesh.buffer_layout_desc.mVerticesStrides[1] = @sizeOf(u32);
         mesh.buffer_layout_desc.mVerticesStrides[2] = @sizeOf(u32);
         mesh.buffer_layout_desc.mVerticesStrides[3] = @sizeOf(u32);
+        mesh.buffer_layout_desc.mVerticesStrides[4] = @sizeOf(u32);
 
         const index_count_max: u32 = 1024 * 1024;
         const vertex_count_max: u32 = 1024 * 1024;
@@ -673,11 +680,13 @@ pub const Renderer = struct {
         buffer_load_desc.mVerticesSizes[1] = mesh.buffer_layout_desc.mVerticesStrides[1] * vertex_count_max;
         buffer_load_desc.mVerticesSizes[2] = mesh.buffer_layout_desc.mVerticesStrides[2] * vertex_count_max;
         buffer_load_desc.mVerticesSizes[3] = mesh.buffer_layout_desc.mVerticesStrides[3] * vertex_count_max;
+        buffer_load_desc.mVerticesSizes[4] = mesh.buffer_layout_desc.mVerticesStrides[4] * vertex_count_max;
         buffer_load_desc.pNameIndexBuffer = "Indices";
         buffer_load_desc.pNamesVertexBuffers[0] = "Positions";
         buffer_load_desc.pNamesVertexBuffers[1] = "Normals";
         buffer_load_desc.pNamesVertexBuffers[2] = "Tangents";
         buffer_load_desc.pNamesVertexBuffers[3] = "UVs";
+        buffer_load_desc.pNamesVertexBuffers[4] = "Colors";
         resource_loader.addGeometryBuffer(&buffer_load_desc);
 
         var load_desc = std.mem.zeroes(resource_loader.GeometryLoadDesc);

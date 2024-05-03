@@ -24,6 +24,8 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
         clip(baseColorSample.a - 0.5);
         baseColor *= baseColorSample.rgb;
+    } else {
+        baseColor *= Input.Color.rgb;
     }
 
     float3 N = normalize(Input.Normal);
@@ -32,9 +34,9 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
         N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
     }
 
-    if (isFrontFace) {
-        N *= -1.0;
-    }
+    // if (isFrontFace) {
+    //     N *= -1.0;
+    // }
 
     float roughness = material.roughness;
     float metallic = material.metallic;

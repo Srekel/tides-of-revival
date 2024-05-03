@@ -44,6 +44,7 @@ STRUCT(VSInput)
 	DATA(uint, Normal, NORMAL);
 	DATA(uint, Tangent, TANGENT);
 	DATA(uint, UV, TEXCOORD0);
+	DATA(float4, Color, COLOR);
 };
 
 STRUCT(VSOutput)
