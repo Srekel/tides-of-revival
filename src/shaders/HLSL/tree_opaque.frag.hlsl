@@ -1,8 +1,8 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#define VL_PosNorTanUv0Col
-#include "lit_resources.hlsl"
+#define VL_PosNorTanUv0ColUV1
+#include "tree_resources.hlsl"
 #include "utils.hlsl"
 
 GBufferOutput PS_MAIN( VSOutput Input) {

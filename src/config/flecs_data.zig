@@ -335,9 +335,17 @@ pub const SurfaceType = enum {
     masked,
 };
 
-pub const UberShader = struct {
-    surface_type: SurfaceType,
+pub const ShadingTechnique = enum {
+    gbuffer,
+    shadow_caster,
+};
 
+pub const UberShader = struct {
+    // Techniques
+    gbuffer_pipeline_id: ?IdLocal,
+    shadow_caster_pipeline_id: ?IdLocal,
+
+    // Basic PBR Surface Data
     base_color: ColorRGB,
     metallic: f32,
     roughness: f32,
@@ -348,11 +356,13 @@ pub const UberShader = struct {
     arm: TextureHandle,
     emissive: TextureHandle,
 
+    // Wind Feature
     wind_feature: bool,
     wind_initial_bend: f32,
     wind_stifness: f32,
     wind_drag: f32,
 
+    // Wind Shiver Feature
     wind_shiver_feature: bool,
     wind_shiver_drag: f32,
     wind_shiver_directionality: f32,
@@ -360,7 +370,8 @@ pub const UberShader = struct {
 
     pub fn init() UberShader {
         return .{
-            .surface_type = .@"opaque",
+            .gbuffer_pipeline_id = null,
+            .shadow_caster_pipeline_id = null,
             .base_color = ColorRGB.init(1, 1, 1),
             .roughness = 0.8,
             .metallic = 0,
@@ -383,8 +394,8 @@ pub const UberShader = struct {
 
     pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {
         return .{
-            .surface_type = .@"opaque",
-
+            .gbuffer_pipeline_id = null,
+            .shadow_caster_pipeline_id = null,
             .base_color = base_color,
             .roughness = roughness,
             .metallic = metallic,

@@ -187,6 +187,7 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     var rctx = system.renderer;
+    rctx.time += iter.iter.delta_time;
 
     if (rctx.window.frame_buffer_size[0] != rctx.window_width or rctx.window.frame_buffer_size[1] != rctx.window_height) {
         rctx.window_width = rctx.window.frame_buffer_size[0];

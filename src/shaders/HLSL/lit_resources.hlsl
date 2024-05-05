@@ -8,6 +8,7 @@
 struct InstanceData
 {
 	float4x4 worldMat;
+	float4x4 worldMatInverted;
 	uint materialBufferOffset;
 	float3 _padding;
 };
@@ -20,6 +21,7 @@ CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
 	DATA(float4x4, projView, None);
 	DATA(float4x4, projViewInverted, None);
 	DATA(float4, camPos, None);
+	DATA(float, time, None);
 };
 
 PUSH_CONSTANT(RootConstant, b0)
@@ -28,6 +30,8 @@ PUSH_CONSTANT(RootConstant, b0)
 	DATA(uint, instanceDataBufferIndex, None);
 	DATA(uint, materialBufferIndex, None);
 };
+
+#if defined(VL_PosNorTanUv0Col)
 
 STRUCT(VSInput)
 {
@@ -49,13 +53,37 @@ STRUCT(VSOutput)
 	DATA(uint, InstanceID, SV_InstanceID);
 };
 
+#elif defined(VL_PosNorTanUv0ColUv1)
+
+STRUCT(VSInput)
+{
+	DATA(float4, Position, POSITION);
+	DATA(uint, Normal, NORMAL);
+	DATA(uint, Tangent, TANGENT);
+	DATA(uint, UV, TEXCOORD0);
+	DATA(float4, Color, COLOR);
+	DATA(float2, UV1, TEXCOORD1);
+};
+
+STRUCT(VSOutput)
+{
+	DATA(float4, Position, SV_Position);
+	DATA(float3, PositionWS, POSITION);
+	DATA(float3, Normal, NORMAL);
+	DATA(float3, Tangent, TANGENT);
+	DATA(float2, UV, TEXCOORD0);
+	DATA(float4, Color, COLOR);
+	DATA(float2, UV1, TEXCOORD1);
+	DATA(uint, InstanceID, SV_InstanceID);
+};
+
+#endif
+
 STRUCT(GBufferOutput)
 {
 	DATA(float4, GBuffer0, SV_TARGET0);
 	DATA(float4, GBuffer1, SV_TARGET1);
 	DATA(float4, GBuffer2, SV_TARGET2);
 };
-
-// #include "pbr.h"
 
 #endif // _LIT_RESOURCES_H

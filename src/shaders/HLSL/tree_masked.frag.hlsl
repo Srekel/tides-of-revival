@@ -1,17 +1,17 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#define VL_PosNorTanUv0Col
-#include "lit_resources.hlsl"
+#define VL_PosNorTanUv0ColUV1
+#include "tree_resources.hlsl"
 #include "utils.hlsl"
 
-GBufferOutput PS_MAIN( VSOutput Input) {
+GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     INIT_MAIN;
     GBufferOutput Out;
 
-    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[Get(instanceDataBufferIndex)];
+    ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[Get(instanceDataBufferIndex)];
     uint instanceIndex = Input.InstanceID + Get(startInstanceLocation);
-    InstanceData instance = instanceTransformBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
+    InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
@@ -23,6 +23,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
+        clip(baseColorSample.a - 0.5);
         baseColor *= baseColorSample.rgb;
     } else {
         baseColor *= Input.Color.rgb;
@@ -33,6 +34,10 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
         N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
     }
+
+    // if (isFrontFace) {
+    //     N *= -1.0;
+    // }
 
     float roughness = material.roughness;
     float metallic = material.metallic;

@@ -1,6 +1,7 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
+#define VL_PosNorTanUv0Col
 #include "lit_resources.hlsl"
 #include "utils.hlsl"
 

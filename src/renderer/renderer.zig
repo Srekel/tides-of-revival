@@ -24,6 +24,20 @@ pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) 
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
+pub const opaque_pipelines = [_]IdLocal{
+    IdLocal.init("lit"),
+    IdLocal.init("shadows_lit"),
+    IdLocal.init("tree"),
+    IdLocal.init("shadows_tree"),
+};
+
+pub const masked_pipelines = [_]IdLocal{
+    IdLocal.init("lit_masked"),
+    IdLocal.init("shadows_lit_masked"),
+    IdLocal.init("tree_masked"),
+    IdLocal.init("shadows_tree_masked"),
+};
+
 const VertexLayoutHashMap = std.AutoHashMap(IdLocal, graphics.VertexLayout);
 
 pub const Renderer = struct {
@@ -34,6 +48,7 @@ pub const Renderer = struct {
     window: *window.Window = undefined,
     window_width: i32 = 0,
     window_height: i32 = 0,
+    time: f32 = 0.0,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -119,6 +134,7 @@ pub const Renderer = struct {
         self.window = wnd;
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
+        self.time = 0.0;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -976,6 +992,10 @@ pub const Renderer = struct {
         const handle = self.pso_map.get(id).?;
         const root_signature = self.pso_pool.getColumn(handle, .root_signature) catch unreachable;
         return root_signature;
+    }
+
+    pub fn getVertexLayout(self: *Renderer, id: IdLocal) ?graphics.VertexLayout {
+        return self.vertex_layouts_map.get(id);
     }
 
     fn addSwapchain(self: *Renderer) bool {

@@ -12,14 +12,14 @@ struct MaterialData
 	uint emissiveTextureIndex;
 	uint normalTextureIndex;
 	uint armTextureIndex;
-    bool wind_feature;
-    float wind_initial_bend;
-    float wind_stifness;
-    float wind_drag;
-    bool wind_shiver_feature;
-    float wind_shiver_drag;
-    float wind_normal_influence;
-    float wind_shiver_directionality;
+    uint windFeature;
+    float windInitialBend;
+    float windStifness;
+    float windDrag;
+    uint windShiverFeature;
+    float windShiverDrag;
+    float windNormalInfluence;
+    float windShiverDirectionality;
 };
 
 static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
