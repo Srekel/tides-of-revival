@@ -105,6 +105,7 @@ pub fn destroySystems() void {
     defer city_system.destroy(city_sys);
     defer input_system.destroy(input_sys);
     defer interact_system.destroy(interact_sys);
+    defer navmesh_system.destroy(navmesh_sys);
     defer patch_prop_system.destroy(patch_prop_sys);
     defer physics_system.destroy(physics_sys);
     defer renderer_system.destroy(renderer_sys);

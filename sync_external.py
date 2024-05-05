@@ -69,7 +69,7 @@ def main():
     sync_lib(
         "c2z",
         "https://github.com/Srekel/c2z.git",
-        "49ead61b742cf4339f1418b254c443591f39f946",
+        "5cb4b156cca9c8283150efc539c1e817eb00a05e",
     )
     sync_lib(
         "The-Forge",
@@ -79,7 +79,7 @@ def main():
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "7d009556a0a82e95db2cf1f66a5fdb057642faba",
+        "c77f87d0e6548865636eb9781106a8be72e5755a",
     )
     sync_lib(
         "wwise-zig",
@@ -89,12 +89,12 @@ def main():
     sync_lib(
         "zig-args",
         "https://github.com/MasterQ32/zig-args.git",
-        "01d72b9a0128c474aeeb9019edd48605fa6d95f7",
+        "adb65692a3e3e1d7ea00e4f865ef1b1718326573",
     )
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "f9ba07587fdc26ea3770c3349c04f1b6705f7b6b",
+        "9634167353d792ffd9d6a04fcefae22f38013b13",
     )
     sync_lib(
         "zig-im3d",
@@ -104,16 +104,16 @@ def main():
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
-        "8873f29fc449e1b63400e9f4ad86d3c76204f962",
+        "637974e2d31dcdbc33f1e9cc8ffb2e46abd2e215",
     )
     sync_lib(
         "zig-recastnavigation",
         "https://github.com/Srekel/zig-recastnavigation.git",
-        "90c440c7117ec405371c6fb2de4a27bbcc93c1ae",
+        "6a69021cd643276aafb0f12a32b50bbdc21ed59a",
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
-    sync_zig_exe("0.12.0-dev.3180+83e578a18")
+    sync_zig_exe("0.13.0-dev.46+3648d7df1")
 
     os.chdir("..")
     print("Done syncing external!")
