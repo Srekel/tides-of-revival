@@ -13,7 +13,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
-    InstanceMaterial material = materialsBuffer.Load<InstanceMaterial>(instance.materialBufferOffset);
+    MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
 
     const float3 P = Input.PositionWS.xyz;
     const float3 V = normalize(Get(camPos).xyz - P);

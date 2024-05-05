@@ -3,6 +3,7 @@
 
 #include "../FSL/d3d.h"
 #include "../FSL/ShaderUtilities.h.fsl"
+#include "material.hlsl"
 
 struct InstanceData
 {
@@ -10,26 +11,6 @@ struct InstanceData
 	uint materialBufferOffset;
 	float3 _padding;
 };
-
-struct InstanceMaterial
-{
-	float4 baseColor;
-	float roughness;
-	float metallic;
-	float normalIntensity;
-	float emissiveStrength;
-	uint baseColorTextureIndex;
-	uint emissiveTextureIndex;
-	uint normalTextureIndex;
-	uint armTextureIndex;
-};
-
-static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
-
-bool hasValidTexture(uint textureIndex)
-{
-	return textureIndex != INVALID_TEXTURE_INDEX;
-}
 
 RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s1, binding = 2);

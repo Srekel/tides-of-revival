@@ -13,7 +13,7 @@ const IdLocal = @import("core/core.zig").IdLocal;
 const assert = std.debug.assert;
 
 const PrefabHashMap = std.AutoHashMap(IdLocal, ecsu.Entity);
-const MaterialHashmap = std.AutoHashMap(IdLocal, fd.PBRMaterial);
+const MaterialHashmap = std.AutoHashMap(IdLocal, fd.UberShader);
 
 pub const PrefabManager = struct {
     prefab_hash_map: PrefabHashMap,
@@ -35,13 +35,13 @@ pub const PrefabManager = struct {
         self.material_hash_map.deinit();
     }
 
-    pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, id: IdLocal, world: ecsu.World) ecsu.Entity {
+    pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, id: IdLocal, vertex_layout_id: IdLocal, world: ecsu.World) ecsu.Entity {
         const existing_prefab = self.prefab_hash_map.get(id);
         if (existing_prefab) |prefab| {
             return prefab;
         }
 
-        const mesh_handle = self.rctx.loadMesh(path) catch unreachable;
+        const mesh_handle = self.rctx.loadMesh(path, vertex_layout_id) catch unreachable;
         var entity = world.newPrefab(path);
         entity.setOverride(fd.Forward{});
 
@@ -82,11 +82,11 @@ pub const PrefabManager = struct {
         return null;
     }
 
-    pub fn storeMaterial(self: *@This(), id: IdLocal, material: fd.PBRMaterial) void {
+    pub fn storeMaterial(self: *@This(), id: IdLocal, material: fd.UberShader) void {
         self.material_hash_map.put(id, material) catch unreachable;
     }
 
-    pub fn getMaterial(self: *@This(), id: IdLocal) ?fd.PBRMaterial {
+    pub fn getMaterial(self: *@This(), id: IdLocal) ?fd.UberShader {
         const existing_material = self.material_hash_map.get(id);
         if (existing_material) |material| {
             return material;
