@@ -4,6 +4,7 @@ const assert = std.debug.assert;
 const ecs = @import("zflecs");
 const zm = @import("zmath");
 const zphy = @import("zphysics");
+const im3d = @import("im3d");
 
 const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
@@ -21,7 +22,7 @@ const DetourNavMesh = zignav.DetourNavMesh;
 const DetourNavMeshBuilder = zignav.DetourNavMeshBuilder;
 const DetourNavMeshQuery = zignav.DetourNavMeshQuery;
 const DetourStatus = zignav.DetourStatus;
-// const util = @import("navmesh_system_util.zig");
+const nav_util = @import("navmesh_system_util.zig");
 
 const IndexType = u32;
 const patch_side_vertex_count = config.patch_resolution;
@@ -35,7 +36,7 @@ const WorldLoaderData = struct {
 
 const Patch = struct {
     lookup: world_patch_manager.PatchLookup,
-    lookup_neighbors: world_patch_manager.PatchLookup[8],
+    lookup_neighbors: [8]world_patch_manager.PatchLookup,
     poly_mesh_opt: ?*Recast.rcPolyMesh,
     poly_mesh_detail_opt: ?*Recast.rcPolyMeshDetail,
 };
@@ -101,7 +102,6 @@ pub fn destroy(system: *SystemState) void {
     system.comp_query_loader.deinit();
     system.patches.deinit();
     system.nav_ctx.deinit();
-    system.allocator.destroy(system.contact_listener);
     system.allocator.destroy(system);
 }
 
@@ -199,18 +199,18 @@ fn updateLoaders(system: *SystemState) void {
         system.world_patch_mgr.addLoadRequestFromLookups(system.requester_id, lookups_new.items, .medium);
 
         for (lookups_new.items) |lookup| {
-            var neighbors = lookup ** 8;
-            neighbors[0].patch_x -= 1; // row above
+            var neighbors = .{lookup} ** 8;
+            neighbors[0].patch_x -= 1; // row below
             neighbors[0].patch_z -= 1;
             neighbors[1].patch_x += 0;
             neighbors[1].patch_z -= 1;
             neighbors[2].patch_x += 1;
-            neighbors[2].patch_z += 0;
+            neighbors[2].patch_z -= 1;
             neighbors[3].patch_x -= 1; // same row, skip same patch
             neighbors[3].patch_z += 0;
-            neighbors[4].patch_x -= 1;
+            neighbors[4].patch_x += 1;
             neighbors[4].patch_z += 0;
-            neighbors[5].patch_x -= 1; // row below
+            neighbors[5].patch_x -= 1; // row above
             neighbors[5].patch_z += 1;
             neighbors[6].patch_x += 0;
             neighbors[6].patch_z += 1;
@@ -228,127 +228,190 @@ fn updateLoaders(system: *SystemState) void {
     }
 }
 
+const vertex_margin = 3;
+const vertices_side = config.patch_resolution + vertex_margin;
+const square_side_count = (vertices_side - 1);
+const square_count = square_side_count * square_side_count;
+const triangle_count = square_count * 2;
+var s_vertices: [vertices_side * vertices_side]f32 = undefined;
+const s_triangles = tri_blk: {
+    @setEvalBranchQuota(square_side_count * square_side_count * 2);
+    var tris: [triangle_count * 3]i32 = undefined;
+    var triangle_index = 0;
+    for (0..square_side_count) |sqx| {
+        for (0..square_side_count) |sqz| {
+            const bl = sqx + sqz * (square_side_count + 1); // bot left
+            const br = sqx + sqz * (square_side_count + 1) + 1;
+            const tl = sqx + (sqz + 1) * (square_side_count + 1);
+            const tr = sqx + (sqz + 1) * (square_side_count + 1) + 1;
+            tris[triangle_index + 0] = bl;
+            tris[triangle_index + 1] = tr;
+            tris[triangle_index + 2] = br;
+            triangle_index += 3;
+            tris[triangle_index + 0] = bl;
+            tris[triangle_index + 1] = tl;
+            tris[triangle_index + 2] = tr;
+            triangle_index += 3;
+        }
+    }
+    break :tri_blk tris;
+};
+
+fn readVertices(source: []f32, source_offset_x: u32, source_offset_z: u32, dest: []f32, dest_offset_x: u32, dest_offset_z: u32) void {
+    const count_x = @min(config.patch_resolution - source_offset_x - 1, vertices_side - dest_offset_x);
+    const count_z = @min(config.patch_resolution - source_offset_z - 1, vertices_side - dest_offset_z);
+
+    // util.log("");
+    // util.log3("sourcelen", source.len, "destlen", dest.len, "vertices_side", vertices_side);
+
+    for (0..count_z) |z| {
+        for (0..count_x) |x| {
+            const source_index = (x + source_offset_x) + (z + source_offset_z) * config.patch_resolution;
+            const dest_index = (x + dest_offset_x) + (z + dest_offset_z) * vertices_side;
+            // util.log2("source_index", source_index, "dest_index", dest_index);
+            const val = source[source_index];
+            dest[dest_index] = val;
+        }
+    }
+}
+
 fn updatePatches(system: *SystemState) void {
-    for (system.patches.items) |*patch| {
+    var patch_data: [9][]f32 = undefined;
+
+    patch_loop: for (system.patches.items) |*patch| {
         if (patch.poly_mesh_opt) |_| {
             continue;
         }
 
         const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, f32);
-        if (patch_info.data_opt) |data| {
-            // _ = data;
+        if (patch_info.data_opt == null) {
+            continue;
+        }
+        patch_data[5] = patch_info.data_opt.?;
 
-            const world_pos = patch.lookup.getWorldPos();
-
-            // const game_config: util.GameConfig = .{
-            //     .indoors = true,
-            //     .tile_size = 64,
-            //     .offset = .{ world_pos.world_x, 0, world_pos.world_z },
-            // };
-            // const config = recast_util.generateConfig(game_config);
-
-            // const tile_mesh = try buildTileMesh(&nav_ctx, .{ 64, 0, 0 });
-            // defer Recast.rcFreePolyMesh(tile_mesh.poly_mesh);
-            // defer Recast.rcFreePolyMeshDetail(tile_mesh.poly_mesh_detail);
-
-            // const tile = try detour_util.createTileFromPolyMesh(
-            //     tile_mesh.poly_mesh,
-            //     tile_mesh.poly_mesh_detail,
-            //     tile_mesh.config,
-            //     1,
-            //     // @intFromFloat(64 / tile_factor),
-            //     0,
-            // );
-
-            // var tile_ref: DetourNavMesh.dtPolyRef = 0;
-            // const status_tile = nav_mesh.*.addTile(
-            //     tile.data,
-            //     tile.data_size,
-            //     // DetourNavMesh.dtTileFlags.DT_TILE_FREE_DATA.bits,
-            //     0,
-            //     0,
-            //     &tile_ref,
-            // );
-            // assert(DetourStatus._1_dtStatusSucceed_(status_tile));
-
-            _ = world_pos; // autofix
-            // var vertices: [config.patch_resolution * config.patch_resolution][3]f32 = undefined;
-            // var z: u32 = 0;
-            // while (z < config.patch_resolution) : (z += 1) {
-            //     var x: u32 = 0;
-            //     while (x < config.patch_resolution) : (x += 1) {
-            //         const index = @intCast(u32, x + z * config.patch_resolution);
-            //         const height = data[index];
-
-            //         vertices[index][0] = @floatFromInt(f32, x);
-            //         vertices[index][1] = height;
-            //         vertices[index][2] = @floatFromInt(f32, z);
-            //     }
-            // }
-
-            // var indices = &system.indices;
-            // // var indices: [indices_per_patch]IndexType = undefined;
-
-            // // TODO: Optimize, don't do it for every frame!
-            // var i: u32 = 0;
-            // z = 0;
-            // const width = @intCast(u32, config.patch_resolution);
-            // const height = @intCast(u32, config.patch_resolution);
-            // while (z < height - 1) : (z += 1) {
-            //     var x: u32 = 0;
-            //     while (x < width - 1) : (x += 1) {
-            //         const indices_quad = [_]u32{
-            //             x + z * width, //           0
-            //             x + (z + 1) * width, //     4
-            //             x + 1 + z * width, //       1
-            //             x + 1 + (z + 1) * width, // 5
-            //         };
-
-            //         indices[i + 0] = indices_quad[0]; // 0
-            //         indices[i + 1] = indices_quad[1]; // 4
-            //         indices[i + 2] = indices_quad[2]; // 1
-
-            //         indices[i + 3] = indices_quad[2]; // 1
-            //         indices[i + 4] = indices_quad[1]; // 4
-            //         indices[i + 5] = indices_quad[3]; // 5
-
-            //         // std.debug.print("quad: {any}\n", .{indices_quad});
-            //         // std.debug.print("indices: {any}\n", .{patch_indices[i .. i + 6]});
-            //         // std.debug.print("tri: {any} {any} {any}\n", .{
-            //         //     patch_vertex_positions[patch_indices[i + 0]],
-            //         //     patch_vertex_positions[patch_indices[i + 1]],
-            //         //     patch_vertex_positions[patch_indices[i + 2]],
-            //         // });
-            //         // std.debug.print("tri: {any} {any} {any}\n", .{
-            //         //     patch_vertex_positions[patch_indices[i + 3]],
-            //         //     patch_vertex_positions[patch_indices[i + 4]],
-            //         //     patch_vertex_positions[patch_indices[i + 5]],
-            //         // });
-            //         i += 6;
-            //     }
-            // }
-            // std.debug.assert(i == indices_per_patch);
-            // std.debug.assert(i == indices_per_patch);
-            // std.debug.assert(i == indices_per_patch);
-            // std.debug.assert(i == indices_per_patch);
-
-            // std.debug.assert(patch_indices.len == indices_per_patch);
-
-            //  TODO: Use mesh
-            const height_field_size = config.patch_size;
-            var samples: [height_field_size * height_field_size]f32 = undefined;
-
-            const width = @as(u32, @intCast(config.patch_size));
-            for (0..width) |z| {
-                for (0..width) |x| {
-                    const index = @as(u32, @intCast(x + z * config.patch_resolution));
-                    const height = data[index];
-                    const sample = &samples[x + z * width];
-                    sample.* = height;
-                }
+        for (patch.lookup_neighbors, 0..8) |neighbor, neighbor_index| {
+            const patch_info_neighbor = system.world_patch_mgr.tryGetPatch(neighbor, f32);
+            if (patch_info_neighbor.data_opt == null) {
+                continue :patch_loop;
             }
+            patch_data[if (neighbor_index < 5) neighbor_index else neighbor_index + 1] = patch_info_neighbor.data_opt.?;
+        }
 
-            // patch.shape_opt = shape;
+        const mrgn = vertex_margin;
+        const psize = config.patch_size;
+        const verts = &s_vertices;
+        // zig fmt: off
+        readVertices(patch_data[0], psize - mrgn, psize - mrgn, verts, 0,                        0);                        // bot left
+        readVertices(patch_data[1], 0,            psize - mrgn, verts, mrgn,                     0);                        // bot mid
+        readVertices(patch_data[2], 0,            psize - mrgn, verts, vertices_side - mrgn * 2, 0);                        // bot right
+        readVertices(patch_data[3], psize - mrgn, 0,            verts, 0,                        mrgn);                     // mid left
+        readVertices(patch_data[4], 0,            0,            verts, mrgn,                     mrgn);                     // mid mid
+        readVertices(patch_data[5], 0,            0,            verts, vertices_side - mrgn * 2, mrgn);                     // mid right
+        readVertices(patch_data[6], psize - mrgn, 0,            verts, 0,                        vertices_side - mrgn * 2); // top left
+        readVertices(patch_data[7], 0,            0,            verts, mrgn,                     vertices_side - mrgn * 2); // top mid
+        readVertices(patch_data[8], 0,            0,            verts, vertices_side - mrgn * 2, vertices_side - mrgn * 2); // top right
+        // // zig fmt: on
+
+        const world_pos = patch.lookup.getWorldPos();
+        _ = world_pos; // autofix
+
+        // im3d.Im3d.BeginTriangles();
+        // im3d.Im3d.Vertex(world_pos.world_x, s_vertices[s_triangles[0]]);
+        // im3d.Im3d.Vertex(s_vertices[s_triangles[1]]);
+        // im3d.Im3d.Vertex(s_vertices[s_triangles[2]]);
+        // im3d.Im3d.EndTriangles();
+
+
+
+        // const game_config: nav_util.GameConfig = .{
+        //     .indoors = true,
+        //     .tile_size = config.patch_size,
+        //     .offset = .{ @floatFromInt(world_pos.world_x), 0, @floatFromInt(world_pos.world_z) },
+        // };
+        // _ = game_config; // autofix
+
+        // const tile_mesh = buildTileMesh(&system.nav_ctx, .{@floatFromInt(world_pos.world_x), 0, @floatFromInt(world_pos.world_z)  },) catch unreachable;
+        // patch.poly_mesh_opt = tile_mesh.poly_mesh;
+        // patch.poly_mesh_detail_opt = tile_mesh.poly_mesh_detail;
+
+        // const tile = nav_util.createTileFromPolyMesh(
+        //     tile_mesh.poly_mesh,
+        //     tile_mesh.poly_mesh_detail,
+        //     tile_mesh.config,
+        //     @intCast( @divFloor(world_pos.world_x, config.patch_size)),
+        //     @intCast(  @divFloor(world_pos.world_z, config.patch_size)),
+        // ) catch unreachable;
+
+        // var tile_ref: DetourNavMesh.dtPolyRef = 0;
+        // const status_tile = system.nav_mesh.*.addTile(
+        //     tile.data,
+        //     tile.data_size,
+        //     0, // DetourNavMesh.dtTileFlags.DT_TILE_FREE_DATA.bits,
+        //     0,
+        //     &tile_ref,
+        // );
+        // assert(DetourStatus.dtStatusSucceed(status_tile));
+
+    }
+}
+
+pub fn buildTileMesh(
+    nav_ctx: *Recast.rcContext,
+    offset: [3]f32,
+) !struct {
+    config: Recast.rcConfig,
+    poly_mesh: *Recast.rcPolyMesh,
+    poly_mesh_detail: *Recast.rcPolyMeshDetail,
+} {
+    const recast_config = nav_util.generateConfig(nav_util.GameConfig{
+        .indoors = true,
+        .tile_size = config.patch_size,
+        .offset = offset,
+    });
+
+    const heightfield = Recast.rcAllocHeightfield();
+    const compact_heightfield = Recast.rcAllocCompactHeightfield();
+    const contour_set = Recast.rcAllocContourSet();
+    const poly_mesh = Recast.rcAllocPolyMesh();
+    const poly_mesh_detail = Recast.rcAllocPolyMeshDetail();
+    if (heightfield == null or
+        compact_heightfield == null or
+        contour_set == null or
+        poly_mesh == null or
+        poly_mesh_detail == null)
+    {
+        return error.OutOfMemory;
+    }
+
+    defer Recast.rcFreeHeightField(heightfield);
+    defer Recast.rcFreeCompactHeightfield(compact_heightfield);
+    defer Recast.rcFreeContourSet(contour_set);
+
+    try nav_util.buildFullNavMesh(
+        recast_config,
+        nav_ctx,
+        &s_vertices,
+        &s_triangles,
+        heightfield,
+        compact_heightfield,
+        contour_set,
+        poly_mesh,
+        poly_mesh_detail,
+    );
+
+    const FLAG_AREA_GROUND = 0;
+    const FLAG_POLY_WALK = 1;
+
+    for (0..@intCast(poly_mesh.*.npolys)) |pi| {
+        if (poly_mesh.*.areas[pi] == Recast.WALKABLE_AREA) {
+            poly_mesh.*.areas[pi] = FLAG_AREA_GROUND;
+            poly_mesh.*.flags[pi] = FLAG_POLY_WALK;
         }
     }
+
+    return .{
+        .config = recast_config,
+        .poly_mesh = poly_mesh,
+        .poly_mesh_detail = poly_mesh_detail,
+    };
 }
