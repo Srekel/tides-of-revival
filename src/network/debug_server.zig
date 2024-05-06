@@ -40,7 +40,7 @@ pub const DebugServer = struct {
     }
 
     pub fn run(self: *DebugServer) void {
-        @atomicStore(bool, &self.active, true, std.builtin.AtomicOrder.SeqCst);
+        @atomicStore(bool, &self.active, true, std.builtin.AtomicOrder.seq_cst);
         const thread_config = .{};
         const thread_args: ThreadContextDebugServer = .{
             .debug_server = self,
@@ -50,7 +50,7 @@ pub const DebugServer = struct {
     }
 
     pub fn stop(self: *DebugServer) void {
-        @atomicStore(bool, &self.active, false, std.builtin.AtomicOrder.SeqCst);
+        @atomicStore(bool, &self.active, false, std.builtin.AtomicOrder.seq_cst);
     }
 
     pub fn listen(self: *DebugServer) !void {

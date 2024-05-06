@@ -8,6 +8,7 @@
         .system_sdk = .{ .path = "external/zig-gamedev/libs/system-sdk" },
         .zflecs = .{ .path = "external/zig-gamedev/libs/zflecs" },
         .zglfw = .{ .path = "external/zig-gamedev/libs/zglfw" },
+        .zgui = .{ .path = "external/zig-gamedev/libs/zgui" },
         .zmath = .{ .path = "external/zig-gamedev/libs/zmath" },
         .zmesh = .{ .path = "external/zig-gamedev/libs/zmesh" },
         .znoise = .{ .path = "external/zig-gamedev/libs/znoise" },
