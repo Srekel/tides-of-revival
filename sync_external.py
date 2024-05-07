@@ -94,7 +94,7 @@ def main():
     sync_lib(
         "zig-gamedev",
         "https://github.com/Srekel/zig-gamedev.git",
-        "9634167353d792ffd9d6a04fcefae22f38013b13",
+        "4c42a5af94a7d9e2614ae428078c5d615dca83c0",
     )
     sync_lib(
         "zig-im3d",
