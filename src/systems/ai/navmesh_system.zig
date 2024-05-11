@@ -100,7 +100,6 @@ pub fn destroy(system: *SystemState) void {
     system.comp_query_loader.deinit();
     system.patches.deinit();
     system.nav_ctx.deinit();
-    system.allocator.destroy(system.contact_listener);
     system.allocator.destroy(system);
 }
 
