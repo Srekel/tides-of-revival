@@ -3,6 +3,7 @@ const std = @import("std");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
+const zgui = @import("zgui");
 
 const file_system = zforge.file_system;
 const font = zforge.font;
@@ -214,6 +215,26 @@ pub const Renderer = struct {
 
         self.vertex_layouts_map = VertexLayoutHashMap.init(allocator);
 
+        var imgui_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
+        imgui_vertex_layout.mBindingCount = 1;
+        imgui_vertex_layout.mAttribCount = 3;
+        imgui_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+        imgui_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
+        imgui_vertex_layout.mAttribs[0].mBinding = 0;
+        imgui_vertex_layout.mAttribs[0].mLocation = 0;
+        imgui_vertex_layout.mAttribs[0].mOffset = 0;
+        imgui_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
+        imgui_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
+        imgui_vertex_layout.mAttribs[1].mBinding = 0;
+        imgui_vertex_layout.mAttribs[1].mLocation = 1;
+        imgui_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 2;
+        imgui_vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.COLOR;
+        imgui_vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+        imgui_vertex_layout.mAttribs[2].mBinding = 0;
+        imgui_vertex_layout.mAttribs[2].mLocation = 2;
+        imgui_vertex_layout.mAttribs[2].mOffset = @sizeOf(f32) * 4;
+        self.vertex_layouts_map.put(IdLocal.init("imgui"), imgui_vertex_layout) catch unreachable;
+
         var im3d_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
         im3d_vertex_layout.mBindingCount = 1;
         im3d_vertex_layout.mAttribCount = 2;
@@ -297,6 +318,10 @@ pub const Renderer = struct {
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_pool = PSOPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_map = PSOMap.init(allocator);
+
+        zgui.init(allocator);
+        _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
+
         return self;
     }
 
@@ -364,6 +389,26 @@ pub const Renderer = struct {
 
         if (reload_desc.mType.SHADER) {
             self.createPipelines();
+
+            const rtv_format = self.swap_chain.*.ppRenderTargets[0].*.mFormat;
+            const pipeline_id = IdLocal.init("imgui");
+            const pipeline = self.getPSO(pipeline_id);
+            const root_signature = self.getRootSignature(pipeline_id);
+            const heap = self.renderer.*.mDx.pCbvSrvUavHeaps[0].pHeap;
+            const cpu_desc_handle = self.renderer.*.mDx.pCbvSrvUavHeaps[0].mStartCpuHandle;
+            const gpu_desc_handle = self.renderer.*.mDx.pCbvSrvUavHeaps[0].mStartGpuHandle;
+
+            zgui.backend.init(
+                self.window.window,
+                self.renderer.*.mDx.pDevice,
+                data_buffer_count,
+                @intFromEnum(rtv_format),
+                heap,
+                root_signature.*.mDx.pRootSignature,
+                pipeline.*.mDx.pPipelineState,
+                @as(zgui.backend.D3D12_CPU_DESCRIPTOR_HANDLE, @bitCast(cpu_desc_handle)),
+                @as(zgui.backend.D3D12_GPU_DESCRIPTOR_HANDLE, @bitCast(gpu_desc_handle)),
+            );
 
             if (self.render_terrain_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                 create_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
@@ -439,6 +484,7 @@ pub const Renderer = struct {
 
         if (reload_desc.mType.SHADER) {
             self.destroyPipelines();
+            zgui.backend.deinit();
         }
 
         if (reload_desc.mType.RESIZE or reload_desc.mType.RENDERTARGET) {
@@ -664,6 +710,11 @@ pub const Renderer = struct {
                     render_fn(cmd_list, user_data);
                 }
             }
+        }
+
+        // ImGUI Pass
+        {
+            zgui.backend.draw(cmd_list.*.mDx.pCmdList);
         }
 
         // Present
@@ -1149,6 +1200,7 @@ pub const Renderer = struct {
         const pos_uv0_nor_tan_col_uv1_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("pos_uv0_nor_tan_col_uv1")).?;
         const pos_uv0_col_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("pos_uv0_col")).?;
         const im3d_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("im3d")).?;
+        const imgui_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("imgui")).?;
 
         // Skybox
         {
@@ -1714,6 +1766,85 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // ImGUI Pipeline
+        {
+            const id = IdLocal.init("imgui");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "imgui.vert";
+            shader_load_desc.mStages[1].pFileName = "imgui.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{"sampler0"};
+            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_repeat};
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
+            blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
+            blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
+            blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
+            blend_state_desc.mIndependentBlend = false;
+
+            var rasterizer_state_desc = std.mem.zeroes(graphics.RasterizerStateDesc);
+            rasterizer_state_desc.mCullMode = graphics.CullMode.CULL_MODE_NONE;
+            rasterizer_state_desc.mDepthBias = 0;
+            rasterizer_state_desc.mSlopeScaledDepthBias = 0.0;
+            rasterizer_state_desc.mFillMode = graphics.FillMode.FILL_MODE_SOLID;
+            rasterizer_state_desc.mFrontFace = graphics.FrontFace.FRONT_FACE_CW;
+            rasterizer_state_desc.mMultiSample = false;
+            rasterizer_state_desc.mScissor = false;
+            rasterizer_state_desc.mDepthClampEnable = true;
+
+            var depth_state = std.mem.zeroes(graphics.DepthStateDesc);
+            depth_state.mDepthTest = false;
+            depth_state.mDepthWrite = true;
+            depth_state.mDepthFunc = graphics.CompareMode.CMP_ALWAYS;
+            depth_state.mStencilTest = false;
+            depth_state.mStencilFrontFunc = graphics.CompareMode.CMP_ALWAYS;
+            depth_state.mDepthFrontFail = graphics.StencilOp.STENCIL_OP_KEEP;
+            depth_state.mStencilFrontFail = graphics.StencilOp.STENCIL_OP_KEEP;
+            depth_state.mStencilFrontPass = graphics.StencilOp.STENCIL_OP_KEEP;
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.swap_chain.*.ppRenderTargets[0].*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&imgui_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
             const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;

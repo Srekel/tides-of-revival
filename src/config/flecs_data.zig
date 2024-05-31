@@ -134,7 +134,7 @@ pub const Rotation = struct {
         return rot;
     }
     pub fn initFromEulerDegrees(pitch: f32, yaw: f32, roll: f32) Rotation {
-        return initFromEuler(std.math.degreesToRadians(f32, pitch), std.math.degreesToRadians(f32, yaw), std.math.degreesToRadians(f32, roll));
+        return initFromEuler(std.math.degreesToRadians(pitch), std.math.degreesToRadians(yaw), std.math.degreesToRadians(roll));
     }
     pub fn elems(self: *Rotation) *[4]f32 {
         return @as(*[4]f32, @ptrCast(&self.x));

@@ -147,7 +147,7 @@ pub fn TableIteratorData(comptime Components: type) type {
     }
 
     return @Type(.{ .Struct = .{
-        .layout = .Auto,
+        .layout = .auto,
         .fields = &fields,
         .decls = &[_]std.builtin.Type.Declaration{},
         .is_tuple = false,
