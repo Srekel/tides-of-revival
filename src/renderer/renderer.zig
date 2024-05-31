@@ -1842,7 +1842,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&imgui_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&imgui_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
