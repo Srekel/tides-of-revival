@@ -212,7 +212,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_trunk_04_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_albedo.dds");
         beech_trunk_04_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_arm.dds");
         beech_trunk_04_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_normal.dds");
-        beech_trunk_04_material.wind_feature = true;
+        beech_trunk_04_material.wind_feature = false;
         beech_trunk_04_material.wind_initial_bend = 1.0;
         beech_trunk_04_material.wind_stifness = 1.0;
         beech_trunk_04_material.wind_drag = 0.1;
@@ -225,11 +225,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_atlas_v2_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_v2_albedo.dds");
         beech_atlas_v2_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_arm.dds");
         beech_atlas_v2_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_normal.dds");
-        beech_atlas_v2_material.wind_feature = true;
+        beech_atlas_v2_material.wind_feature = false;
         beech_atlas_v2_material.wind_initial_bend = 1.0;
         beech_atlas_v2_material.wind_stifness = 1.0;
         beech_atlas_v2_material.wind_drag = 0.1;
-        beech_atlas_v2_material.wind_shiver_feature = true;
+        beech_atlas_v2_material.wind_shiver_feature = false;
         beech_atlas_v2_material.wind_shiver_drag = 0.1;
         beech_atlas_v2_material.wind_normal_influence = 0.2;
         beech_atlas_v2_material.wind_shiver_directionality = 0.4;
