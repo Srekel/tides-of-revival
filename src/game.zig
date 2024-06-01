@@ -7,7 +7,7 @@ const zphy = @import("zphysics");
 const zglfw = @import("zglfw");
 const graphics = @import("zforge").graphics;
 const zstbi = @import("zstbi");
-// const ztracy = @import("ztracy");
+const ztracy = @import("ztracy");
 // const AK = @import("wwise-zig");
 // const AK_ID = @import("wwise-ids");
 const audio_manager = @import("audio/audio_manager_mock.zig");
@@ -33,8 +33,8 @@ const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
 
 pub fn run() void {
-    // const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
-    // defer tracy_zone.End();
+    const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
+    defer tracy_zone.End();
 
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
@@ -221,14 +221,6 @@ pub fn run() void {
     const matball_prefab = prefab_mgr.getPrefab(config.prefab.matball_id).?;
     const matball_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
     var matball_ent = prefab_mgr.instantiatePrefab(ecsu_world, matball_prefab);
-    const static_mesh_component = matball_ent.getMut(fd.StaticMesh);
-    if (static_mesh_component) |static_mesh| {
-        static_mesh.material_count = 1;
-        static_mesh.materials[0] = fd.PBRMaterial.init();
-        static_mesh.materials[0].albedo = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
-        static_mesh.materials[0].arm = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
-        static_mesh.materials[0].normal = renderer_ctx.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
-    }
     matball_ent.set(matball_position);
     matball_ent.set(fd.Rotation{});
     matball_ent.set(fd.Scale.createScalar(1.0));
@@ -288,6 +280,9 @@ pub fn run() void {
             gameloop_context,
             &(tl_giant_ant_spawn_ctx.?),
         );
+
+        ztracy.FrameMark();
+
         if (done) {
             break;
         }
@@ -304,8 +299,8 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     const renderer_ctx = gameloop_context.renderer;
     var stats = gameloop_context.stats;
 
-    // const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
-    // defer trazy_zone.End();
+    const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
+    defer trazy_zone.End();
 
     const window_status = window.update() catch unreachable;
     if (window_status == .no_windows) {

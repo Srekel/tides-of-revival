@@ -335,7 +335,17 @@ pub const SurfaceType = enum {
     masked,
 };
 
-pub const PBRMaterial = struct {
+pub const ShadingTechnique = enum {
+    gbuffer,
+    shadow_caster,
+};
+
+pub const UberShader = struct {
+    // Techniques
+    gbuffer_pipeline_id: ?IdLocal,
+    shadow_caster_pipeline_id: ?IdLocal,
+
+    // Basic PBR Surface Data
     base_color: ColorRGB,
     metallic: f32,
     roughness: f32,
@@ -345,10 +355,23 @@ pub const PBRMaterial = struct {
     normal: TextureHandle,
     arm: TextureHandle,
     emissive: TextureHandle,
-    surface_type: SurfaceType,
 
-    pub fn init() PBRMaterial {
+    // Wind Feature
+    wind_feature: bool,
+    wind_initial_bend: f32,
+    wind_stifness: f32,
+    wind_drag: f32,
+
+    // Wind Shiver Feature
+    wind_shiver_feature: bool,
+    wind_shiver_drag: f32,
+    wind_shiver_directionality: f32,
+    wind_normal_influence: f32,
+
+    pub fn init() UberShader {
         return .{
+            .gbuffer_pipeline_id = null,
+            .shadow_caster_pipeline_id = null,
             .base_color = ColorRGB.init(1, 1, 1),
             .roughness = 0.8,
             .metallic = 0,
@@ -358,12 +381,21 @@ pub const PBRMaterial = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
-            .surface_type = .@"opaque",
+            .wind_feature = false,
+            .wind_initial_bend = 1.0,
+            .wind_stifness = 1.0,
+            .wind_drag = 0.1,
+            .wind_shiver_feature = false,
+            .wind_shiver_drag = 0.1,
+            .wind_normal_influence = 0,
+            .wind_shiver_directionality = 0.4,
         };
     }
 
-    pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) PBRMaterial {
+    pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {
         return .{
+            .gbuffer_pipeline_id = null,
+            .shadow_caster_pipeline_id = null,
             .base_color = base_color,
             .roughness = roughness,
             .metallic = metallic,
@@ -373,7 +405,14 @@ pub const PBRMaterial = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
-            .surface_type = .@"opaque",
+            .wind_feature = false,
+            .wind_initial_bend = 1.0,
+            .wind_stifness = 1.0,
+            .wind_drag = 0.1,
+            .wind_shiver_feature = false,
+            .wind_shiver_drag = 0.1,
+            .wind_normal_influence = 0,
+            .wind_shiver_directionality = 0.4,
         };
     }
 };
@@ -392,7 +431,7 @@ pub const StaticMesh = struct {
     mesh_handle: MeshHandle,
 
     material_count: u32,
-    materials: [renderer.sub_mesh_max_count]PBRMaterial,
+    materials: [renderer.sub_mesh_max_count]IdLocal,
 };
 
 // ███████╗██╗  ██╗██╗   ██╗██████╗  ██████╗ ██╗  ██╗

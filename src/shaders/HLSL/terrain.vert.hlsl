@@ -23,9 +23,6 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     float4x4 tempMat = mul(Get(projView), instance.worldMat);
     Out.Position = mul(tempMat, float4(displaced_position, 1.0f));
     Out.PositionWS = mul(instance.worldMat, float4(displaced_position, 1.0f)).xyz;
-    // TODO(gmodarelli): We don't need to store normals and tangent in the vertex buffer since terrain tiles are flat
-    Out.Normal = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Normal)), 0.0f)).rgb;
-    Out.Tangent = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Tangent)), 0.0f)).rgb;
 
     RETURN(Out);
 }

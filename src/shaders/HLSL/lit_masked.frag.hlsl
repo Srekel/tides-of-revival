@@ -1,6 +1,7 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
+#define VL_PosNorTanUv0Col
 #include "lit_resources.hlsl"
 #include "utils.hlsl"
 
@@ -13,7 +14,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
-    InstanceMaterial material = materialsBuffer.Load<InstanceMaterial>(instanceIndex * sizeof(InstanceMaterial));
+    MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
 
     const float3 P = Input.PositionWS.xyz;
     const float3 V = normalize(Get(camPos).xyz - P);
@@ -24,6 +25,8 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
         clip(baseColorSample.a - 0.5);
         baseColor *= baseColorSample.rgb;
+    } else {
+        baseColor *= Input.Color.rgb;
     }
 
     float3 N = normalize(Input.Normal);
@@ -32,9 +35,9 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
         N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
     }
 
-    if (isFrontFace) {
-        N *= -1.0;
-    }
+    // if (isFrontFace) {
+    //     N *= -1.0;
+    // }
 
     float roughness = material.roughness;
     float metallic = material.metallic;

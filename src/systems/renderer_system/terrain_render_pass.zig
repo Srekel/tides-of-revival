@@ -313,9 +313,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                 const vertex_buffers = [_][*c]graphics.Buffer{
                     mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
                     mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.COLOR)]].pBuffer,
                 };
 
                 graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
@@ -459,9 +458,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                 const vertex_buffers = [_][*c]graphics.Buffer{
                     mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
-                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
                     mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
+                    mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.COLOR)]].pBuffer,
                 };
 
                 graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
@@ -688,7 +686,7 @@ const QuadTreeNode = struct {
 };
 
 fn loadMesh(rctx: *renderer.Renderer, path: [:0]const u8, meshes: *std.ArrayList(renderer.MeshHandle)) !void {
-    const mesh_handle = rctx.loadMesh(path) catch unreachable;
+    const mesh_handle = rctx.loadMesh(path, IdLocal.init("pos_uv0_col")) catch unreachable;
     meshes.append(mesh_handle) catch unreachable;
 }
 

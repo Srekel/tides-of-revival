@@ -12,6 +12,7 @@ const log = zforge.log;
 const memory = zforge.memory;
 const resource_loader = zforge.resource_loader;
 const util = @import("../util.zig");
+const ztracy = @import("ztracy");
 
 const Pool = @import("zpool").Pool;
 
@@ -25,13 +26,31 @@ pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) 
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
+pub const opaque_pipelines = [_]IdLocal{
+    IdLocal.init("lit"),
+    IdLocal.init("shadows_lit"),
+    IdLocal.init("tree"),
+    IdLocal.init("shadows_tree"),
+};
+
+pub const masked_pipelines = [_]IdLocal{
+    IdLocal.init("lit_masked"),
+    IdLocal.init("shadows_lit_masked"),
+    IdLocal.init("tree_masked"),
+    IdLocal.init("shadows_tree_masked"),
+};
+
+const VertexLayoutHashMap = std.AutoHashMap(IdLocal, graphics.VertexLayout);
+
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
 
+    allocator: std.mem.Allocator = undefined,
     renderer: [*c]graphics.Renderer = null,
     window: *window.Window = undefined,
     window_width: i32 = 0,
     window_height: i32 = 0,
+    time: f32 = 0.0,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -48,9 +67,7 @@ pub const Renderer = struct {
     scene_color: [*c]graphics.RenderTarget = null,
 
     samplers: StaticSamplers = undefined,
-    default_vertex_layout: graphics.VertexLayout = undefined,
-    imgui_vertex_layout: graphics.VertexLayout = undefined,
-    im3d_vertex_layout: graphics.VertexLayout = undefined,
+    vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
 
     mesh_pool: MeshPool = undefined,
@@ -114,9 +131,12 @@ pub const Renderer = struct {
     pub fn init(wnd: *window.Window, allocator: std.mem.Allocator) Error!Renderer {
         var self = Renderer{};
 
+        self.allocator = allocator;
+
         self.window = wnd;
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
+        self.time = 0.0;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -194,62 +214,103 @@ pub const Renderer = struct {
 
         self.samplers = StaticSamplers.init(self.renderer);
 
-        self.imgui_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
-        self.imgui_vertex_layout.mBindingCount = 1;
-        self.imgui_vertex_layout.mAttribCount = 3;
-        self.imgui_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
-        self.imgui_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
-        self.imgui_vertex_layout.mAttribs[0].mBinding = 0;
-        self.imgui_vertex_layout.mAttribs[0].mLocation = 0;
-        self.imgui_vertex_layout.mAttribs[0].mOffset = 0;
-        self.imgui_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
-        self.imgui_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
-        self.imgui_vertex_layout.mAttribs[1].mBinding = 0;
-        self.imgui_vertex_layout.mAttribs[1].mLocation = 1;
-        self.imgui_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 2;
-        self.imgui_vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.COLOR;
-        self.imgui_vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
-        self.imgui_vertex_layout.mAttribs[2].mBinding = 0;
-        self.imgui_vertex_layout.mAttribs[2].mLocation = 2;
-        self.imgui_vertex_layout.mAttribs[2].mOffset = @sizeOf(f32) * 4;
+        self.vertex_layouts_map = VertexLayoutHashMap.init(allocator);
 
-        self.im3d_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
-        self.im3d_vertex_layout.mBindingCount = 1;
-        self.im3d_vertex_layout.mAttribCount = 2;
-        self.im3d_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
-        self.im3d_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
-        self.im3d_vertex_layout.mAttribs[0].mBinding = 0;
-        self.im3d_vertex_layout.mAttribs[0].mLocation = 0;
-        self.im3d_vertex_layout.mAttribs[0].mOffset = 0;
-        self.im3d_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.COLOR;
-        self.im3d_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
-        self.im3d_vertex_layout.mAttribs[1].mBinding = 0;
-        self.im3d_vertex_layout.mAttribs[1].mLocation = 1;
-        self.im3d_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 4;
+        var imgui_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
+        imgui_vertex_layout.mBindingCount = 1;
+        imgui_vertex_layout.mAttribCount = 3;
+        imgui_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+        imgui_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
+        imgui_vertex_layout.mAttribs[0].mBinding = 0;
+        imgui_vertex_layout.mAttribs[0].mLocation = 0;
+        imgui_vertex_layout.mAttribs[0].mOffset = 0;
+        imgui_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
+        imgui_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
+        imgui_vertex_layout.mAttribs[1].mBinding = 0;
+        imgui_vertex_layout.mAttribs[1].mLocation = 1;
+        imgui_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 2;
+        imgui_vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.COLOR;
+        imgui_vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+        imgui_vertex_layout.mAttribs[2].mBinding = 0;
+        imgui_vertex_layout.mAttribs[2].mLocation = 2;
+        imgui_vertex_layout.mAttribs[2].mOffset = @sizeOf(f32) * 4;
+        self.vertex_layouts_map.put(IdLocal.init("imgui"), imgui_vertex_layout) catch unreachable;
 
-        self.default_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
-        self.default_vertex_layout.mBindingCount = 4;
-        self.default_vertex_layout.mAttribCount = 4;
-        self.default_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
-        self.default_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
-        self.default_vertex_layout.mAttribs[0].mBinding = 0;
-        self.default_vertex_layout.mAttribs[0].mLocation = 0;
-        self.default_vertex_layout.mAttribs[0].mOffset = 0;
-        self.default_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.NORMAL;
-        self.default_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32_UINT;
-        self.default_vertex_layout.mAttribs[1].mBinding = 1;
-        self.default_vertex_layout.mAttribs[1].mLocation = 1;
-        self.default_vertex_layout.mAttribs[1].mOffset = 0;
-        self.default_vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.TANGENT;
-        self.default_vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R32_UINT;
-        self.default_vertex_layout.mAttribs[2].mBinding = 2;
-        self.default_vertex_layout.mAttribs[2].mLocation = 2;
-        self.default_vertex_layout.mAttribs[2].mOffset = 0;
-        self.default_vertex_layout.mAttribs[3].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
-        self.default_vertex_layout.mAttribs[3].mFormat = graphics.TinyImageFormat.R32_UINT;
-        self.default_vertex_layout.mAttribs[3].mBinding = 3;
-        self.default_vertex_layout.mAttribs[3].mLocation = 3;
-        self.default_vertex_layout.mAttribs[3].mOffset = 0;
+        var im3d_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
+        im3d_vertex_layout.mBindingCount = 1;
+        im3d_vertex_layout.mAttribCount = 2;
+        im3d_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+        im3d_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
+        im3d_vertex_layout.mAttribs[0].mBinding = 0;
+        im3d_vertex_layout.mAttribs[0].mLocation = 0;
+        im3d_vertex_layout.mAttribs[0].mOffset = 0;
+        im3d_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.COLOR;
+        im3d_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+        im3d_vertex_layout.mAttribs[1].mBinding = 0;
+        im3d_vertex_layout.mAttribs[1].mLocation = 1;
+        im3d_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 4;
+        self.vertex_layouts_map.put(IdLocal.init("im3d"), im3d_vertex_layout) catch unreachable;
+
+        {
+            var vertex_layout = std.mem.zeroes(graphics.VertexLayout);
+
+            vertex_layout.mBindingCount = 3;
+            vertex_layout.mAttribCount = 3;
+            vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+            vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
+            vertex_layout.mAttribs[0].mBinding = 0;
+            vertex_layout.mAttribs[0].mLocation = 0;
+            vertex_layout.mAttribs[0].mOffset = 0;
+            vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
+            vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32_UINT;
+            vertex_layout.mAttribs[1].mBinding = 1;
+            vertex_layout.mAttribs[1].mLocation = 1;
+            vertex_layout.mAttribs[1].mOffset = 0;
+            vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.COLOR;
+            vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+            vertex_layout.mAttribs[2].mBinding = 2;
+            vertex_layout.mAttribs[2].mLocation = 2;
+            vertex_layout.mAttribs[2].mOffset = 0;
+            self.vertex_layouts_map.put(IdLocal.init("pos_uv0_col"), vertex_layout) catch unreachable;
+
+            vertex_layout.mBindingCount = 5;
+            vertex_layout.mAttribCount = 5;
+            vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+            vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
+            vertex_layout.mAttribs[0].mBinding = 0;
+            vertex_layout.mAttribs[0].mLocation = 0;
+            vertex_layout.mAttribs[0].mOffset = 0;
+            vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.NORMAL;
+            vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32_UINT;
+            vertex_layout.mAttribs[1].mBinding = 1;
+            vertex_layout.mAttribs[1].mLocation = 1;
+            vertex_layout.mAttribs[1].mOffset = 0;
+            vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.TANGENT;
+            vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R32_UINT;
+            vertex_layout.mAttribs[2].mBinding = 2;
+            vertex_layout.mAttribs[2].mLocation = 2;
+            vertex_layout.mAttribs[2].mOffset = 0;
+            vertex_layout.mAttribs[3].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
+            vertex_layout.mAttribs[3].mFormat = graphics.TinyImageFormat.R32_UINT;
+            vertex_layout.mAttribs[3].mBinding = 3;
+            vertex_layout.mAttribs[3].mLocation = 3;
+            vertex_layout.mAttribs[3].mOffset = 0;
+            vertex_layout.mAttribs[4].mSemantic = graphics.ShaderSemantic.COLOR;
+            vertex_layout.mAttribs[4].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+            vertex_layout.mAttribs[4].mBinding = 4;
+            vertex_layout.mAttribs[4].mLocation = 4;
+            vertex_layout.mAttribs[4].mOffset = 0;
+            self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan_col"), vertex_layout) catch unreachable;
+
+            vertex_layout.mBindingCount = 6;
+            vertex_layout.mAttribCount = 6;
+            vertex_layout.mAttribs[5].mSemantic = graphics.ShaderSemantic.TEXCOORD1;
+            vertex_layout.mAttribs[5].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
+            vertex_layout.mAttribs[5].mBinding = 5;
+            vertex_layout.mAttribs[5].mLocation = 5;
+            vertex_layout.mAttribs[5].mOffset = 0;
+            self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan_col_uv1"), vertex_layout) catch unreachable;
+        }
 
         self.frame_index = 0;
 
@@ -302,6 +363,8 @@ pub const Renderer = struct {
             resource_loader.removeResource__Overload4(mesh.data);
         }
         self.mesh_pool.deinit();
+
+        self.vertex_layouts_map.deinit();
 
         graphics.removeQueue(self.renderer, self.graphics_queue);
         self.gpu_cmd_ring.destroy(self.renderer);
@@ -481,6 +544,9 @@ pub const Renderer = struct {
     }
 
     pub fn draw(self: *Renderer) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
+        defer trazy_zone.End();
+
         var swap_chain_image_index: u32 = 0;
         graphics.acquireNextImage(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &swap_chain_image_index);
 
@@ -697,22 +763,21 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    pub fn loadMesh(self: *Renderer, path: [:0]const u8) !MeshHandle {
+    pub fn loadMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !MeshHandle {
+        const vertex_layout = self.vertex_layouts_map.get(vertex_layout_id).?;
+
         var mesh: Mesh = undefined;
         mesh.geometry = null;
         mesh.buffer = null;
         mesh.data = null;
+        mesh.vertex_layout_id = vertex_layout_id;
 
         mesh.buffer_layout_desc.mSemanticBindings = std.mem.zeroes([19]u32);
-        mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)] = 0;
-        mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)] = 1;
-        mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)] = 2;
-        mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)] = 3;
 
-        mesh.buffer_layout_desc.mVerticesStrides[0] = @sizeOf(f32) * 3;
-        mesh.buffer_layout_desc.mVerticesStrides[1] = @sizeOf(u32);
-        mesh.buffer_layout_desc.mVerticesStrides[2] = @sizeOf(u32);
-        mesh.buffer_layout_desc.mVerticesStrides[3] = @sizeOf(u32);
+        for (0..vertex_layout.mAttribCount) |i| {
+            mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(vertex_layout.mAttribs[i].mSemantic)] = @intCast(i);
+            mesh.buffer_layout_desc.mVerticesStrides[i] = @intCast(graphics.byteSizeOfBlock(vertex_layout.mAttribs[i].mFormat));
+        }
 
         const index_count_max: u32 = 1024 * 1024;
         const vertex_count_max: u32 = 1024 * 1024;
@@ -720,20 +785,23 @@ pub const Renderer = struct {
         buffer_load_desc.mStartState = @intCast(graphics.ResourceState.RESOURCE_STATE_COPY_DEST.bits);
         buffer_load_desc.pOutGeometryBuffer = &mesh.buffer;
         buffer_load_desc.mIndicesSize = @sizeOf(u32) * index_count_max;
-        buffer_load_desc.mVerticesSizes[0] = mesh.buffer_layout_desc.mVerticesStrides[0] * vertex_count_max;
-        buffer_load_desc.mVerticesSizes[1] = mesh.buffer_layout_desc.mVerticesStrides[1] * vertex_count_max;
-        buffer_load_desc.mVerticesSizes[2] = mesh.buffer_layout_desc.mVerticesStrides[2] * vertex_count_max;
-        buffer_load_desc.mVerticesSizes[3] = mesh.buffer_layout_desc.mVerticesStrides[3] * vertex_count_max;
         buffer_load_desc.pNameIndexBuffer = "Indices";
-        buffer_load_desc.pNamesVertexBuffers[0] = "Positions";
-        buffer_load_desc.pNamesVertexBuffers[1] = "Normals";
-        buffer_load_desc.pNamesVertexBuffers[2] = "Tangents";
-        buffer_load_desc.pNamesVertexBuffers[3] = "UVs";
+
+        for (0..vertex_layout.mAttribCount) |i| {
+            buffer_load_desc.mVerticesSizes[i] = mesh.buffer_layout_desc.mVerticesStrides[i] * vertex_count_max;
+        }
+
+        // TODO(gmodarelli): Figure out how to pass these debug names
+        // buffer_load_desc.pNamesVertexBuffers[0] = "Positions";
+        // buffer_load_desc.pNamesVertexBuffers[1] = "Normals";
+        // buffer_load_desc.pNamesVertexBuffers[2] = "Tangents";
+        // buffer_load_desc.pNamesVertexBuffers[3] = "UVs";
+        // buffer_load_desc.pNamesVertexBuffers[4] = "Colors";
         resource_loader.addGeometryBuffer(&buffer_load_desc);
 
         var load_desc = std.mem.zeroes(resource_loader.GeometryLoadDesc);
         load_desc.pFileName = path;
-        load_desc.pVertexLayout = &self.default_vertex_layout;
+        load_desc.pVertexLayout = &vertex_layout;
         load_desc.pGeometryBuffer = mesh.buffer;
         load_desc.pGeometryBufferLayoutDesc = &mesh.buffer_layout_desc;
         load_desc.ppGeometry = &mesh.geometry;
@@ -981,6 +1049,10 @@ pub const Renderer = struct {
         return root_signature;
     }
 
+    pub fn getVertexLayout(self: *Renderer, id: IdLocal) ?graphics.VertexLayout {
+        return self.vertex_layouts_map.get(id);
+    }
+
     fn addSwapchain(self: *Renderer) bool {
         const native_handle = zglfw.getWin32Window(self.window.window).?;
 
@@ -1128,6 +1200,12 @@ pub const Renderer = struct {
         depth_gequal.mDepthTest = true;
         depth_gequal.mDepthFunc = graphics.CompareMode.CMP_GEQUAL;
 
+        const pos_uv0_nor_tan_col_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("pos_uv0_nor_tan_col")).?;
+        const pos_uv0_nor_tan_col_uv1_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("pos_uv0_nor_tan_col_uv1")).?;
+        const pos_uv0_col_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("pos_uv0_col")).?;
+        const im3d_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("im3d")).?;
+        const imgui_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("imgui")).?;
+
         // Skybox
         {
             const id = IdLocal.init("skybox");
@@ -1176,7 +1254,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1219,7 +1297,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_col_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1269,7 +1347,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_col_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1312,7 +1390,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1355,7 +1433,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1405,7 +1483,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1455,7 +1533,193 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.default_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Shadows Tree
+        {
+            const id = IdLocal.init("shadows_tree");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "shadows_tree.vert";
+            shader_load_desc.mStages[1].pFileName = "shadows_tree_opaque.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Shadows Tree Masked
+        {
+            const id = IdLocal.init("shadows_tree_masked");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "shadows_tree.vert";
+            shader_load_desc.mStages[1].pFileName = "shadows_tree_masked.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Tree
+        {
+            const id = IdLocal.init("tree");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "tree.vert";
+            shader_load_desc.mStages[1].pFileName = "tree_opaque.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.gbuffer_0.*.mFormat,
+                self.gbuffer_1.*.mFormat,
+                self.gbuffer_2.*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+            self.pso_map.put(id, handle) catch unreachable;
+        }
+
+        // Tree Masked
+        {
+            const id = IdLocal.init("tree_masked");
+            var shader: [*c]graphics.Shader = null;
+            var root_signature: [*c]graphics.RootSignature = null;
+            var pipeline: [*c]graphics.Pipeline = null;
+
+            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
+            shader_load_desc.mStages[0].pFileName = "tree.vert";
+            shader_load_desc.mStages[1].pFileName = "tree_masked.frag";
+            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+            const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
+            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+            root_signature_desc.mStaticSamplerCount = static_samplers.len;
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+            root_signature_desc.mShaderCount = 1;
+            root_signature_desc.ppShaders = @ptrCast(&shader);
+            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+            var render_targets = [_]graphics.TinyImageFormat{
+                self.gbuffer_0.*.mFormat,
+                self.gbuffer_1.*.mFormat,
+                self.gbuffer_2.*.mFormat,
+            };
+
+            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.depth_buffer.*.mFormat;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1582,7 +1846,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.imgui_vertex_layout);
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&imgui_vertex_layout);
             pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1647,7 +1911,7 @@ pub const Renderer = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
                 pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.im3d_vertex_layout);
+                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&im3d_vertex_layout);
                 pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
                 pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
                 graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1691,7 +1955,7 @@ pub const Renderer = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
                 pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.im3d_vertex_layout);
+                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&im3d_vertex_layout);
                 pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
                 pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
                 graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -1734,7 +1998,7 @@ pub const Renderer = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
                 pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @ptrCast(&self.im3d_vertex_layout);
+                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&im3d_vertex_layout);
                 pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
                 pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
                 graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
@@ -2072,6 +2336,7 @@ pub const Mesh = struct {
     data: [*c]resource_loader.GeometryData,
     buffer: [*c]resource_loader.GeometryBuffer,
     buffer_layout_desc: resource_loader.GeometryBufferLayoutDesc,
+    vertex_layout_id: IdLocal,
     loaded: bool,
 };
 

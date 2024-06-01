@@ -31,9 +31,8 @@ PUSH_CONSTANT(RootConstant, b0)
 STRUCT(VSInput)
 {
 	DATA(float4, Position, POSITION);
-	DATA(uint, Normal, NORMAL);
-	DATA(uint, Tangent, TANGENT);
 	DATA(uint, UV, TEXCOORD0);
+	DATA(float4, Color, COLOR);
 };
 
 STRUCT(VSOutput)

@@ -1,12 +1,14 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
+#define VL_PosNorTanUv0Col
 #include "lit_resources.hlsl"
 
 VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 {
     INIT_MAIN;
     VSOutput Out;
+    Out.Color = Input.Color;
     Out.InstanceID = instance_id;
     Out.UV = unpack2Floats(Input.UV);
 

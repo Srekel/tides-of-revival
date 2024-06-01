@@ -6,6 +6,7 @@ const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const im3d = @import("im3d");
 const IdLocal = @import("../core/core.zig").IdLocal;
+const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const renderer = @import("../renderer/renderer.zig");
 const zforge = @import("zforge");
 const util = @import("../util.zig");
@@ -52,6 +53,7 @@ pub const SystemCtx = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+    prefab_mgr: *PrefabManager,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
@@ -61,7 +63,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     const pre_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PreUpdate", ecs.PreUpdate, fd.NOCOMP, preUpdate, .{ .ctx = system });
     const post_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PostUpdate", ecs.PostUpdate, fd.NOCOMP, postUpdate, .{ .ctx = system });
 
-    const geometry_pass = GeometryRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    const geometry_pass = GeometryRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.prefab_mgr, ctx.allocator);
     ctx.renderer.render_gbuffer_pass_render_fn = geometry_render_pass.renderFn;
     ctx.renderer.render_gbuffer_pass_render_shadow_map_fn = geometry_render_pass.renderShadowMapFn;
     ctx.renderer.render_gbuffer_pass_create_descriptor_sets_fn = geometry_render_pass.createDescriptorSetsFn;
@@ -186,6 +188,9 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     var rctx = system.renderer;
+
+    const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
+    rctx.time = environment_info.world_time;
 
     if (rctx.window.frame_buffer_size[0] != rctx.window_width or rctx.window.frame_buffer_size[1] != rctx.window_height) {
         rctx.window_width = rctx.window.frame_buffer_size[0];
