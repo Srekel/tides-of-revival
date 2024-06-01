@@ -52,6 +52,7 @@ pub const Renderer = struct {
     window_width: i32 = 0,
     window_height: i32 = 0,
     time: f32 = 0.0,
+    vsync_enabled: bool = false,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -142,6 +143,7 @@ pub const Renderer = struct {
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
+        self.vsync_enabled = false;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -560,9 +562,19 @@ pub const Renderer = struct {
         self.onLoad(reload_desc) catch unreachable;
     }
 
+    pub fn toggleVSync(self: *Renderer) void {
+        self.vsync_enabled = !self.vsync_enabled;
+    }
+
     pub fn draw(self: *Renderer) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
         defer trazy_zone.End();
+
+        if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
+            std.log.debug("Toggling VSync", .{});
+            graphics.waitQueueIdle(self.graphics_queue);
+            graphics.toggleVSync(self.renderer, &self.swap_chain);
+        }
 
         var swap_chain_image_index: u32 = 0;
         {
@@ -1178,7 +1190,7 @@ pub const Renderer = struct {
         desc.mImageCount = graphics.getRecommendedSwapchainImageCount(self.renderer, &window_handle);
         desc.mColorFormat = graphics.getSupportedSwapchainFormat(self.renderer, &desc, graphics.ColorSpace.COLOR_SPACE_SDR_SRGB);
         desc.mColorSpace = graphics.ColorSpace.COLOR_SPACE_SDR_SRGB;
-        desc.mEnableVsync = true;
+        desc.mEnableVsync = self.vsync_enabled;
         desc.mFlags = graphics.SwapChainCreationFlags.SWAP_CHAIN_CREATION_FLAG_ENABLE_FOVEATED_RENDERING_VR;
         graphics.addSwapChain(self.renderer, &desc, &self.swap_chain);
 

@@ -314,6 +314,10 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
         renderer_ctx.requestReload(reload_desc);
     }
 
+    if (input_frame_data.just_pressed(config.input.toggle_vsync)) {
+        renderer_ctx.toggleVSync();
+    }
+
     if (main_window.frame_buffer_size[0] != renderer_ctx.window_width or main_window.frame_buffer_size[1] != renderer_ctx.window_height) {
         renderer_ctx.window_width = main_window.frame_buffer_size[0];
         renderer_ctx.window_height = main_window.frame_buffer_size[1];
