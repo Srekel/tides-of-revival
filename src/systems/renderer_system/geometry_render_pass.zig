@@ -941,21 +941,18 @@ fn cullAndBatchDrawCalls(
         const trazy_zone2 = ztracy.ZoneNC(@src(), "Collect Instance and Material data", 0x00_ff_ff_00);
         defer trazy_zone2.End();
 
+        const max_draw_distance_squared = max_draw_distance * max_draw_distance;
+
         while (entity_iterator.next()) |comps| {
-            const sub_mesh_count = self.renderer.getSubMeshCount(comps.mesh.mesh_handle);
+            const sub_mesh_count = comps.mesh.material_count;
             if (sub_mesh_count == 0) continue;
 
-            const z_world_position = zm.loadArr3(comps.transform.getPos00());
-            if (zm.lengthSq3(zm.loadArr3(camera_position) - z_world_position)[0] > (max_draw_distance * max_draw_distance)) {
+            // Distance culling
+            if (!isWithinCameraDrawDistance(camera_position, comps.transform.getPos00(), max_draw_distance_squared)) {
                 continue;
             }
 
-            const z_world = zm.loadMat43(comps.transform.matrix[0..]);
-            // TODO(gmodarelli): Store bounding boxes into The-Forge mesh's user data
-            // const bb_ws = mesh.bounding_box.calculateBoundingBoxCoordinates(z_world);
-            // if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
-            //     continue;
-            // }
+            // TODO(gmodarelli): Implement frustum culling
 
             var draw_call_info = DrawCallInfo{
                 .pipeline_id = undefined,
@@ -1011,8 +1008,8 @@ fn cullAndBatchDrawCalls(
                 self.draw_calls_info.append(draw_call_info) catch unreachable;
 
                 var instance_data: InstanceData = undefined;
-                zm.storeMat(&instance_data.object_to_world, z_world);
-                zm.storeMat(&instance_data.world_to_object, zm.inverse(z_world));
+                storeMat44(comps.transform.matrix[0..], &instance_data.object_to_world);
+                storeMat44(comps.transform.inv_matrix[0..], &instance_data.world_to_object);
                 instance_data.materials_buffer_offset = material_buffer_offset;
                 instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
                 instances.append(instance_data) catch unreachable;
@@ -1096,4 +1093,34 @@ fn cullAndBatchDrawCalls(
             }
         }
     }
+}
+
+inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [3]f32, max_draw_distance_squared: f32) bool {
+    const dx = camera_position[0] - entity_position[0];
+    const dy = camera_position[1] - entity_position[1];
+    const dz = camera_position[2] - entity_position[2];
+    if ((dx * dx + dy * dy + dz * dz) <= (max_draw_distance_squared)) {
+        return true;
+    }
+
+    return false;
+}
+
+inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
+    mat44[0] = mat43[0];
+    mat44[1] = mat43[1];
+    mat44[2] = mat43[2];
+    mat44[3] = 0;
+    mat44[4] = mat43[3];
+    mat44[5] = mat43[4];
+    mat44[6] = mat43[5];
+    mat44[7] = 0;
+    mat44[8] = mat43[6];
+    mat44[9] = mat43[7];
+    mat44[10] = mat43[8];
+    mat44[11] = 0;
+    mat44[12] = mat43[9];
+    mat44[13] = mat43[10];
+    mat44[14] = mat43[11];
+    mat44[15] = 1;
 }

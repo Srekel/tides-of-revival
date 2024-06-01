@@ -187,42 +187,47 @@ pub const Scale = struct {
 
 pub const Transform = struct {
     matrix: [12]f32 = undefined,
+    inv_matrix: [12]f32 = undefined,
 
     pub fn init(x: f32, y: f32, z: f32) Transform {
-        return .{
-            .matrix = [_]f32{
-                1.0, 0.0, 0.0,
-                0.0, 1.0, 0.0,
-                0.0, 0.0, 1.0,
-                x,   y,   z,
-            },
+        var transform: Transform = undefined;
+        transform.matrix = [_]f32{
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0,
+            x,   y,   z,
         };
+        transform.updateInverseMatrix();
+        return transform;
     }
     pub fn initFromPosition(pos: Position) Transform {
-        return .{
-            .matrix = [_]f32{
-                1.0,   0.0,   0.0,
-                0.0,   1.0,   0.0,
-                0.0,   0.0,   1.0,
-                pos.x, pos.y, pos.z,
-            },
+        var transform: Transform = undefined;
+        transform.matrix = [_]f32{
+            1.0,   0.0,   0.0,
+            0.0,   1.0,   0.0,
+            0.0,   0.0,   1.0,
+            pos.x, pos.y, pos.z,
         };
+        transform.updateInverseMatrix();
+        return transform;
     }
     pub fn initWithScale(x: f32, y: f32, z: f32, scale: f32) Transform {
-        return .{
-            .matrix = [_]f32{
-                scale, 0.0,   0.0,
-                0.0,   scale, 0.0,
-                0.0,   0.0,   scale,
-                x,     y,     z,
-            },
+        var transform: Transform = undefined;
+        transform.matrix = [_]f32{
+            scale, 0.0,   0.0,
+            0.0,   scale, 0.0,
+            0.0,   0.0,   scale,
+            x,     y,     z,
         };
+        transform.updateInverseMatrix();
+        return transform;
     }
 
     pub fn initWithQuaternion(quat: [4]f32) Transform {
         const z_rotation_matrix = zm.matFromQuat(zm.Quat{ quat[0], quat[1], quat[2], quat[3] });
         var transform = Transform{};
         zm.storeMat43(&transform.matrix, z_rotation_matrix);
+        transform.updateInverseMatrix();
         return transform;
     }
 
@@ -236,6 +241,7 @@ pub const Transform = struct {
 
     pub fn setPos(self: *Transform, pos: [3]f32) void {
         self.matrix[9..].* = pos;
+        self.updateInverseMatrix();
     }
 
     pub fn getRotPitchRollYaw(self: Transform) [3]f32 {
@@ -257,6 +263,8 @@ pub const Transform = struct {
         self.matrix[0] = scale[0];
         self.matrix[4] = scale[1];
         self.matrix[8] = scale[2];
+
+        self.updateInverseMatrix();
     }
 
     pub fn asZM(self: *const Transform) zm.Mat {
@@ -265,6 +273,13 @@ pub const Transform = struct {
 
     pub fn fromZM(self: *Transform, mat_z: zm.Mat) void {
         zm.storeMat43(&self.matrix, mat_z);
+        self.updateInverseMatrix();
+    }
+
+    fn updateInverseMatrix(self: *Transform) void {
+        const z_matrix = self.asZM();
+        const z_inv_matrix = zm.inverse(z_matrix);
+        zm.storeMat43(&self.inv_matrix, z_inv_matrix);
     }
     // pub fn initWithRotY(x: f32, y: f32, z: f32, angle: f32) Transform {
     //     // f32x4(sc[1], 0.0, -sc[0], 0.0),

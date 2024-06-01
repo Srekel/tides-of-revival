@@ -942,15 +942,6 @@ pub const Renderer = struct {
         return mesh;
     }
 
-    pub fn getSubMeshCount(self: *Renderer, handle: MeshHandle) u32 {
-        const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
-        if (!mesh.loaded) {
-            return 0;
-        }
-
-        return mesh.geometry.*.bitfield_1.mDrawArgCount;
-    }
-
     pub fn createTexture(self: *Renderer, desc: graphics.TextureDesc) TextureHandle {
         var texture: [*c]graphics.Texture = null;
 
