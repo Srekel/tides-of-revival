@@ -370,33 +370,28 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .gbuffer,
         );
 
-        const instance_data_slice = renderer.Slice{
-            .data = @ptrCast(self.gbuffer_instance_data[masked_entities_index].items),
-            .size = self.gbuffer_instance_data[masked_entities_index].items.len * @sizeOf(InstanceData),
-        };
-        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[masked_entities_index][frame_index]);
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-        var pipeline_id: IdLocal = undefined;
-        var pipeline: [*c]graphics.Pipeline = undefined;
-        var root_signature: [*c]graphics.RootSignature = undefined;
-        var root_constant_index: u32 = 0;
+            const instance_data_slice = renderer.Slice{
+                .data = @ptrCast(self.gbuffer_instance_data[masked_entities_index].items),
+                .size = self.gbuffer_instance_data[masked_entities_index].items.len * @sizeOf(InstanceData),
+            };
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[masked_entities_index][frame_index]);
+        }
 
-        for (self.gbuffer_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
-            if (i == 0) {
-                pipeline_id = draw_call.pipeline_id;
-                pipeline = self.renderer.getPSO(pipeline_id);
-                root_signature = self.renderer.getRootSignature(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                if (pipeline_id.hash == renderer.masked_pipelines[2].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[masked_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
-                }
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-                root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                std.debug.assert(root_constant_index != std.math.maxInt(u32));
-            } else {
-                if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+            var pipeline_id: IdLocal = undefined;
+            var pipeline: [*c]graphics.Pipeline = undefined;
+            var root_signature: [*c]graphics.RootSignature = undefined;
+            var root_constant_index: u32 = 0;
+
+            for (self.gbuffer_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
+                if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -409,24 +404,39 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                } else {
+                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        pipeline_id = draw_call.pipeline_id;
+                        pipeline = self.renderer.getPSO(pipeline_id);
+                        root_signature = self.renderer.getRootSignature(pipeline_id);
+                        graphics.cmdBindPipeline(cmd_list, pipeline);
+                        if (pipeline_id.hash == renderer.masked_pipelines[2].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[masked_entities_index]);
+                        } else {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
+                        }
+
+                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    }
                 }
-            }
 
-            const push_constants = &self.gbuffer_draw_calls_push_constants[masked_entities_index].items[i];
-            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const push_constants = &self.gbuffer_draw_calls_push_constants[masked_entities_index].items[i];
+                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
-            if (mesh.loaded) {
-                bindMeshBuffers(self, mesh, cmd_list);
+                if (mesh.loaded) {
+                    bindMeshBuffers(self, mesh, cmd_list);
 
-                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
-                graphics.cmdDrawIndexedInstanced(
-                    cmd_list,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
-                );
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                    );
+                }
             }
         }
     }
@@ -447,33 +457,28 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .gbuffer,
         );
 
-        const instance_data_slice = renderer.Slice{
-            .data = @ptrCast(self.gbuffer_instance_data[opaque_entities_index].items),
-            .size = self.gbuffer_instance_data[opaque_entities_index].items.len * @sizeOf(InstanceData),
-        };
-        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[opaque_entities_index][frame_index]);
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-        var pipeline_id: IdLocal = undefined;
-        var pipeline: [*c]graphics.Pipeline = undefined;
-        var root_signature: [*c]graphics.RootSignature = undefined;
-        var root_constant_index: u32 = 0;
+            const instance_data_slice = renderer.Slice{
+                .data = @ptrCast(self.gbuffer_instance_data[opaque_entities_index].items),
+                .size = self.gbuffer_instance_data[opaque_entities_index].items.len * @sizeOf(InstanceData),
+            };
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[opaque_entities_index][frame_index]);
+        }
 
-        for (self.gbuffer_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
-            if (i == 0) {
-                pipeline_id = draw_call.pipeline_id;
-                pipeline = self.renderer.getPSO(pipeline_id);
-                root_signature = self.renderer.getRootSignature(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
-                }
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-                root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                std.debug.assert(root_constant_index != std.math.maxInt(u32));
-            } else {
-                if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+            var pipeline_id: IdLocal = undefined;
+            var pipeline: [*c]graphics.Pipeline = undefined;
+            var root_signature: [*c]graphics.RootSignature = undefined;
+            var root_constant_index: u32 = 0;
+
+            for (self.gbuffer_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
+                if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -486,24 +491,39 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                } else {
+                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        pipeline_id = draw_call.pipeline_id;
+                        pipeline = self.renderer.getPSO(pipeline_id);
+                        root_signature = self.renderer.getRootSignature(pipeline_id);
+                        graphics.cmdBindPipeline(cmd_list, pipeline);
+                        if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
+                        } else {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
+                        }
+
+                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    }
                 }
-            }
 
-            const push_constants = &self.gbuffer_draw_calls_push_constants[opaque_entities_index].items[i];
-            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const push_constants = &self.gbuffer_draw_calls_push_constants[opaque_entities_index].items[i];
+                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
-            if (mesh.loaded) {
-                bindMeshBuffers(self, mesh, cmd_list);
+                if (mesh.loaded) {
+                    bindMeshBuffers(self, mesh, cmd_list);
 
-                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
-                graphics.cmdDrawIndexedInstanced(
-                    cmd_list,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
-                );
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                    );
+                }
             }
         }
     }
@@ -564,33 +584,28 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .shadow_caster,
         );
 
-        const instance_data_slice = renderer.Slice{
-            .data = @ptrCast(self.shadow_caster_instance_data[masked_entities_index].items),
-            .size = self.shadow_caster_instance_data[masked_entities_index].items.len * @sizeOf(InstanceData),
-        };
-        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[masked_entities_index][frame_index]);
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-        var pipeline_id: IdLocal = undefined;
-        var pipeline: [*c]graphics.Pipeline = undefined;
-        var root_signature: [*c]graphics.RootSignature = undefined;
-        var root_constant_index: u32 = 0;
+            const instance_data_slice = renderer.Slice{
+                .data = @ptrCast(self.shadow_caster_instance_data[masked_entities_index].items),
+                .size = self.shadow_caster_instance_data[masked_entities_index].items.len * @sizeOf(InstanceData),
+            };
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[masked_entities_index][frame_index]);
+        }
 
-        for (self.shadow_caster_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
-            if (i == 0) {
-                pipeline_id = draw_call.pipeline_id;
-                pipeline = self.renderer.getPSO(pipeline_id);
-                root_signature = self.renderer.getRootSignature(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                if (pipeline_id.hash == renderer.masked_pipelines[3].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[masked_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[masked_entities_index]);
-                }
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-                root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                std.debug.assert(root_constant_index != std.math.maxInt(u32));
-            } else {
-                if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+            var pipeline_id: IdLocal = undefined;
+            var pipeline: [*c]graphics.Pipeline = undefined;
+            var root_signature: [*c]graphics.RootSignature = undefined;
+            var root_constant_index: u32 = 0;
+
+            for (self.shadow_caster_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
+                if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -603,24 +618,39 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                } else {
+                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        pipeline_id = draw_call.pipeline_id;
+                        pipeline = self.renderer.getPSO(pipeline_id);
+                        root_signature = self.renderer.getRootSignature(pipeline_id);
+                        graphics.cmdBindPipeline(cmd_list, pipeline);
+                        if (pipeline_id.hash == renderer.masked_pipelines[3].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[masked_entities_index]);
+                        } else {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[masked_entities_index]);
+                        }
+
+                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    }
                 }
-            }
 
-            const push_constants = &self.shadow_caster_draw_calls_push_constants[masked_entities_index].items[i];
-            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const push_constants = &self.shadow_caster_draw_calls_push_constants[masked_entities_index].items[i];
+                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
-            if (mesh.loaded) {
-                bindMeshBuffers(self, mesh, cmd_list);
+                if (mesh.loaded) {
+                    bindMeshBuffers(self, mesh, cmd_list);
 
-                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
-                graphics.cmdDrawIndexedInstanced(
-                    cmd_list,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
-                );
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                    );
+                }
             }
         }
     }
@@ -641,33 +671,28 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .shadow_caster,
         );
 
-        const instance_data_slice = renderer.Slice{
-            .data = @ptrCast(self.shadow_caster_instance_data[opaque_entities_index].items),
-            .size = self.shadow_caster_instance_data[opaque_entities_index].items.len * @sizeOf(InstanceData),
-        };
-        self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[opaque_entities_index][frame_index]);
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-        var pipeline_id: IdLocal = undefined;
-        var pipeline: [*c]graphics.Pipeline = undefined;
-        var root_signature: [*c]graphics.RootSignature = undefined;
-        var root_constant_index: u32 = 0;
+            const instance_data_slice = renderer.Slice{
+                .data = @ptrCast(self.shadow_caster_instance_data[opaque_entities_index].items),
+                .size = self.shadow_caster_instance_data[opaque_entities_index].items.len * @sizeOf(InstanceData),
+            };
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[opaque_entities_index][frame_index]);
+        }
 
-        for (self.shadow_caster_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
-            if (i == 0) {
-                pipeline_id = draw_call.pipeline_id;
-                pipeline = self.renderer.getPSO(pipeline_id);
-                root_signature = self.renderer.getRootSignature(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
-                }
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
-                root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                std.debug.assert(root_constant_index != std.math.maxInt(u32));
-            } else {
-                if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+            var pipeline_id: IdLocal = undefined;
+            var pipeline: [*c]graphics.Pipeline = undefined;
+            var root_signature: [*c]graphics.RootSignature = undefined;
+            var root_constant_index: u32 = 0;
+
+            for (self.shadow_caster_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
+                if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -680,24 +705,39 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                } else {
+                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        pipeline_id = draw_call.pipeline_id;
+                        pipeline = self.renderer.getPSO(pipeline_id);
+                        root_signature = self.renderer.getRootSignature(pipeline_id);
+                        graphics.cmdBindPipeline(cmd_list, pipeline);
+                        if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
+                        } else {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
+                        }
+
+                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    }
                 }
-            }
 
-            const push_constants = &self.shadow_caster_draw_calls_push_constants[opaque_entities_index].items[i];
-            const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const push_constants = &self.shadow_caster_draw_calls_push_constants[opaque_entities_index].items[i];
+                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
-            if (mesh.loaded) {
-                bindMeshBuffers(self, mesh, cmd_list);
+                if (mesh.loaded) {
+                    bindMeshBuffers(self, mesh, cmd_list);
 
-                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
-                graphics.cmdDrawIndexedInstanced(
-                    cmd_list,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                    mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
-                );
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                    );
+                }
             }
         }
     }
