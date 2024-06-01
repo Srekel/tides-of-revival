@@ -389,7 +389,7 @@ fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c
 }
 
 fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Geometry Render Pass", 0x00_ff_ff_00);
+    const trazy_zone = ztracy.ZoneNC(@src(), "GBuffer: Geometry Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
@@ -430,6 +430,9 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Render GBuffer Masked Objects
     {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Masked Objects", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
+
         cullAndBatchDrawCalls(
             self,
             camera_entity,
@@ -505,6 +508,9 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Render GBuffer Opauqe Objects
     {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Opaque Objects", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
+
         cullAndBatchDrawCalls(
             self,
             camera_entity,
@@ -620,6 +626,9 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Render Shadows Masked Objects
     {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Masked Objects", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
+
         cullAndBatchDrawCalls(
             self,
             camera_entity,
@@ -695,6 +704,9 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Render Shadows Opauqe Objects
     {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Opaque Objects", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
+
         cullAndBatchDrawCalls(
             self,
             camera_entity,
@@ -936,6 +948,10 @@ fn cullAndBatchDrawCalls(
     surface_type: fd.SurfaceType,
     technique: fd.ShadingTechnique,
 ) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Cull and Batch Draw Calls", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
+    const trazy_zone1 = ztracy.ZoneNC(@src(), "Fetching entities", 0x00_ff_ff_00);
     const camera_comps = camera_entity.getComps(struct {
         camera: *const fd.Camera,
         transform: *const fd.Transform,
@@ -946,96 +962,110 @@ fn cullAndBatchDrawCalls(
         transform: *const fd.Transform,
         mesh: *const fd.StaticMesh,
     });
+    trazy_zone1.End();
 
-    instances.clearRetainingCapacity();
-    draw_calls.clearRetainingCapacity();
-    draw_calls_push_constants.clearRetainingCapacity();
+    {
+        const trazy_zone2 = ztracy.ZoneNC(@src(), "Clearing memory", 0x00_ff_ff_00);
+        defer trazy_zone2.End();
 
-    self.draw_calls_info.clearRetainingCapacity();
+        instances.clearRetainingCapacity();
+        draw_calls.clearRetainingCapacity();
+        draw_calls_push_constants.clearRetainingCapacity();
+
+        self.draw_calls_info.clearRetainingCapacity();
+    }
 
     // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
-    while (entity_iterator.next()) |comps| {
-        const sub_mesh_count = self.renderer.getSubMeshCount(comps.mesh.mesh_handle);
-        if (sub_mesh_count == 0) continue;
+    {
+        const trazy_zone2 = ztracy.ZoneNC(@src(), "Collect Instance and Material data", 0x00_ff_ff_00);
+        defer trazy_zone2.End();
 
-        const z_world_position = zm.loadArr3(comps.transform.getPos00());
-        if (zm.lengthSq3(zm.loadArr3(camera_position) - z_world_position)[0] > (max_draw_distance * max_draw_distance)) {
-            continue;
-        }
+        while (entity_iterator.next()) |comps| {
+            const sub_mesh_count = self.renderer.getSubMeshCount(comps.mesh.mesh_handle);
+            if (sub_mesh_count == 0) continue;
 
-        const z_world = zm.loadMat43(comps.transform.matrix[0..]);
-        // TODO(gmodarelli): Store bounding boxes into The-Forge mesh's user data
-        // const bb_ws = mesh.bounding_box.calculateBoundingBoxCoordinates(z_world);
-        // if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
-        //     continue;
-        // }
-
-        var draw_call_info = DrawCallInfo{
-            .pipeline_id = undefined,
-            .mesh_handle = comps.mesh.mesh_handle,
-            .sub_mesh_index = undefined,
-        };
-
-        for (0..sub_mesh_count) |sub_mesh_index| {
-            draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
-
-            const material_id = comps.mesh.materials[sub_mesh_index];
-            var material: fd.UberShader = undefined;
-            if (self.prefab_mgr.getMaterial(material_id)) |m| {
-                material = m;
-            } else {
+            const z_world_position = zm.loadArr3(comps.transform.getPos00());
+            if (zm.lengthSq3(zm.loadArr3(camera_position) - z_world_position)[0] > (max_draw_distance * max_draw_distance)) {
                 continue;
             }
 
-            const material_buffer_offset = self.material_buffer_offset_hashmap.get(material_id).?;
-            var pipeline_id: IdLocal = undefined;
+            const z_world = zm.loadMat43(comps.transform.matrix[0..]);
+            // TODO(gmodarelli): Store bounding boxes into The-Forge mesh's user data
+            // const bb_ws = mesh.bounding_box.calculateBoundingBoxCoordinates(z_world);
+            // if (!cam.isVisible(bb_ws.center, bb_ws.radius)) {
+            //     continue;
+            // }
 
-            if (technique == .gbuffer) {
-                if (material.gbuffer_pipeline_id) |p_id| {
-                    pipeline_id = p_id;
+            var draw_call_info = DrawCallInfo{
+                .pipeline_id = undefined,
+                .mesh_handle = comps.mesh.mesh_handle,
+                .sub_mesh_index = undefined,
+            };
+
+            for (0..sub_mesh_count) |sub_mesh_index| {
+                draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
+
+                const material_id = comps.mesh.materials[sub_mesh_index];
+                var material: fd.UberShader = undefined;
+                if (self.prefab_mgr.getMaterial(material_id)) |m| {
+                    material = m;
                 } else {
                     continue;
                 }
-            } else if (technique == .shadow_caster) {
-                if (material.shadow_caster_pipeline_id) |p_id| {
-                    pipeline_id = p_id;
+
+                const trazy_zone3 = ztracy.ZoneNC(@src(), "Fetch material offset", 0x00_ff_ff_00);
+                const material_buffer_offset = self.material_buffer_offset_hashmap.get(material_id).?;
+                trazy_zone3.End();
+
+                var pipeline_id: IdLocal = undefined;
+
+                if (technique == .gbuffer) {
+                    if (material.gbuffer_pipeline_id) |p_id| {
+                        pipeline_id = p_id;
+                    } else {
+                        continue;
+                    }
+                } else if (technique == .shadow_caster) {
+                    if (material.shadow_caster_pipeline_id) |p_id| {
+                        pipeline_id = p_id;
+                    } else {
+                        continue;
+                    }
+                }
+
+                draw_call_info.pipeline_id = pipeline_id;
+
+                var should_parse_submesh = false;
+
+                if (surface_type == .@"opaque") {
+                    for (renderer.opaque_pipelines) |pipeline| {
+                        if (pipeline_id.hash == pipeline.hash) {
+                            should_parse_submesh = true;
+                            break;
+                        }
+                    }
                 } else {
+                    for (renderer.masked_pipelines) |pipeline| {
+                        if (pipeline_id.hash == pipeline.hash) {
+                            should_parse_submesh = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!should_parse_submesh) {
                     continue;
                 }
+
+                self.draw_calls_info.append(draw_call_info) catch unreachable;
+
+                var instance_data: InstanceData = undefined;
+                zm.storeMat(&instance_data.object_to_world, z_world);
+                zm.storeMat(&instance_data.world_to_object, zm.inverse(z_world));
+                instance_data.materials_buffer_offset = material_buffer_offset;
+                instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
+                instances.append(instance_data) catch unreachable;
             }
-
-            draw_call_info.pipeline_id = pipeline_id;
-
-            var should_parse_submesh = false;
-
-            if (surface_type == .@"opaque") {
-                for (renderer.opaque_pipelines) |pipeline| {
-                    if (pipeline_id.hash == pipeline.hash) {
-                        should_parse_submesh = true;
-                        break;
-                    }
-                }
-            } else {
-                for (renderer.masked_pipelines) |pipeline| {
-                    if (pipeline_id.hash == pipeline.hash) {
-                        should_parse_submesh = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!should_parse_submesh) {
-                continue;
-            }
-
-            self.draw_calls_info.append(draw_call_info) catch unreachable;
-
-            var instance_data: InstanceData = undefined;
-            zm.storeMat(&instance_data.object_to_world, z_world);
-            zm.storeMat(&instance_data.world_to_object, zm.inverse(z_world));
-            instance_data.materials_buffer_offset = material_buffer_offset;
-            instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
-            instances.append(instance_data) catch unreachable;
         }
     }
 
@@ -1047,66 +1077,71 @@ fn cullAndBatchDrawCalls(
     const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(instances_buffer);
     const material_buffer_index = self.renderer.getBufferBindlessIndex(materials_buffer);
 
-    for (self.draw_calls_info.items, 0..) |draw_call_info, i| {
-        if (i == 0) {
-            current_draw_call = .{
-                .pipeline_id = draw_call_info.pipeline_id,
-                .mesh_handle = draw_call_info.mesh_handle,
-                .sub_mesh_index = draw_call_info.sub_mesh_index,
-                .instance_count = 1,
-                .start_instance_location = start_instance_location,
-            };
+    {
+        const trazy_zone2 = ztracy.ZoneNC(@src(), "Batch draw calls", 0x00_ff_ff_00);
+        defer trazy_zone2.End();
 
-            start_instance_location += 1;
+        for (self.draw_calls_info.items, 0..) |draw_call_info, i| {
+            if (i == 0) {
+                current_draw_call = .{
+                    .pipeline_id = draw_call_info.pipeline_id,
+                    .mesh_handle = draw_call_info.mesh_handle,
+                    .sub_mesh_index = draw_call_info.sub_mesh_index,
+                    .instance_count = 1,
+                    .start_instance_location = start_instance_location,
+                };
 
-            if (i == self.draw_calls_info.items.len - 1) {
-                draw_calls.append(current_draw_call) catch unreachable;
-                draw_calls_push_constants.append(.{
-                    .start_instance_location = current_draw_call.start_instance_location,
-                    .instance_material_buffer_index = material_buffer_index,
-                    .instance_data_buffer_index = instance_data_buffer_index,
-                }) catch unreachable;
+                start_instance_location += 1;
+
+                if (i == self.draw_calls_info.items.len - 1) {
+                    draw_calls.append(current_draw_call) catch unreachable;
+                    draw_calls_push_constants.append(.{
+                        .start_instance_location = current_draw_call.start_instance_location,
+                        .instance_material_buffer_index = material_buffer_index,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                    }) catch unreachable;
+                }
+                continue;
             }
-            continue;
-        }
 
-        if (current_draw_call.mesh_handle.id == draw_call_info.mesh_handle.id and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index and current_draw_call.pipeline_id.hash == draw_call_info.pipeline_id.hash) {
-            current_draw_call.instance_count += 1;
-            start_instance_location += 1;
+            if (current_draw_call.mesh_handle.id == draw_call_info.mesh_handle.id and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index and current_draw_call.pipeline_id.hash == draw_call_info.pipeline_id.hash) {
+                current_draw_call.instance_count += 1;
+                start_instance_location += 1;
 
-            if (i == self.draw_calls_info.items.len - 1) {
+                if (i == self.draw_calls_info.items.len - 1) {
+                    draw_calls.append(current_draw_call) catch unreachable;
+                    draw_calls_push_constants.append(.{
+                        .start_instance_location = current_draw_call.start_instance_location,
+                        .instance_material_buffer_index = material_buffer_index,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                    }) catch unreachable;
+                }
+            } else {
                 draw_calls.append(current_draw_call) catch unreachable;
                 draw_calls_push_constants.append(.{
                     .start_instance_location = current_draw_call.start_instance_location,
                     .instance_material_buffer_index = material_buffer_index,
                     .instance_data_buffer_index = instance_data_buffer_index,
                 }) catch unreachable;
-            }
-        } else {
-            draw_calls.append(current_draw_call) catch unreachable;
-            draw_calls_push_constants.append(.{
-                .start_instance_location = current_draw_call.start_instance_location,
-                .instance_material_buffer_index = material_buffer_index,
-                .instance_data_buffer_index = instance_data_buffer_index,
-            }) catch unreachable;
 
-            current_draw_call = .{
-                .pipeline_id = draw_call_info.pipeline_id,
-                .mesh_handle = draw_call_info.mesh_handle,
-                .sub_mesh_index = draw_call_info.sub_mesh_index,
-                .instance_count = 1,
-                .start_instance_location = start_instance_location,
-            };
+                current_draw_call = .{
+                    .pipeline_id = draw_call_info.pipeline_id,
+                    .mesh_handle = draw_call_info.mesh_handle,
+                    .sub_mesh_index = draw_call_info.sub_mesh_index,
+                    .instance_count = 1,
+                    .start_instance_location = start_instance_location,
+                };
 
-            start_instance_location += 1;
+                start_instance_location += 1;
 
-            if (i == self.draw_calls_info.items.len - 1) {
-                draw_calls.append(current_draw_call) catch unreachable;
-                draw_calls_push_constants.append(.{
-                    .start_instance_location = current_draw_call.start_instance_location,
-                    .instance_material_buffer_index = material_buffer_index,
-                    .instance_data_buffer_index = instance_data_buffer_index,
-                }) catch unreachable;
+                if (i == self.draw_calls_info.items.len - 1) {
+                    draw_calls.append(current_draw_call) catch unreachable;
+                    draw_calls_push_constants.append(.{
+                        .start_instance_location = current_draw_call.start_instance_location,
+                        .instance_material_buffer_index = material_buffer_index,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                    }) catch unreachable;
+                }
             }
         }
     }

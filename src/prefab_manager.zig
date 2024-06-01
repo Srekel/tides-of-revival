@@ -3,6 +3,7 @@ const ecs = @import("zflecs");
 const ecsu = @import("flecs_util/flecs_util.zig");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
+const ztracy = @import("ztracy");
 const zwin32 = @import("zwin32");
 
 const fd = @import("config/flecs_data.zig");
@@ -87,6 +88,9 @@ pub const PrefabManager = struct {
     }
 
     pub fn getMaterial(self: *@This(), id: IdLocal) ?fd.UberShader {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Get Material", 0x00_ff_ff_00);
+        defer trazy_zone.End();
+
         const existing_material = self.material_hash_map.get(id);
         if (existing_material) |material| {
             return material;

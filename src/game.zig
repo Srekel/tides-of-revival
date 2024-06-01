@@ -7,7 +7,7 @@ const zphy = @import("zphysics");
 const zglfw = @import("zglfw");
 const graphics = @import("zforge").graphics;
 const zstbi = @import("zstbi");
-// const ztracy = @import("ztracy");
+const ztracy = @import("ztracy");
 // const AK = @import("wwise-zig");
 // const AK_ID = @import("wwise-ids");
 const audio_manager = @import("audio/audio_manager_mock.zig");
@@ -33,8 +33,8 @@ const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
 
 pub fn run() void {
-    // const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
-    // defer tracy_zone.End();
+    const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
+    defer tracy_zone.End();
 
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
@@ -280,6 +280,9 @@ pub fn run() void {
             gameloop_context,
             &(tl_giant_ant_spawn_ctx.?),
         );
+
+        ztracy.FrameMark();
+
         if (done) {
             break;
         }
@@ -296,8 +299,8 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     const renderer_ctx = gameloop_context.renderer;
     var stats = gameloop_context.stats;
 
-    // const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
-    // defer trazy_zone.End();
+    const trazy_zone = ztracy.ZoneNC(@src(), "Game Loop Update", 0x00_00_00_ff);
+    defer trazy_zone.End();
 
     const window_status = window.update() catch unreachable;
     if (window_status == .no_windows) {

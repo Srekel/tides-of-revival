@@ -12,6 +12,7 @@ const log = zforge.log;
 const memory = zforge.memory;
 const resource_loader = zforge.resource_loader;
 const util = @import("../util.zig");
+const ztracy = @import("ztracy");
 
 const Pool = @import("zpool").Pool;
 
@@ -543,6 +544,9 @@ pub const Renderer = struct {
     }
 
     pub fn draw(self: *Renderer) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
+        defer trazy_zone.End();
+
         var swap_chain_image_index: u32 = 0;
         graphics.acquireNextImage(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &swap_chain_image_index);
 

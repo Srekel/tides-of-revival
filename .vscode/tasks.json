@@ -6,7 +6,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "zig build -Dztracy-enable=false -Dtarget=native-native-msvc --summary failures",
+            "command": "zig build -Dztracy-enable=true -Dtarget=native-native-msvc --summary failures",
             // "command": "zig build -Dztracy-enable=false -Dtarget=native-native-msvc --summary failures -freference-trace --verbose",
             "group": "build",
             "problemMatcher": [
