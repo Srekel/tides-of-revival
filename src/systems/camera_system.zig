@@ -10,7 +10,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
 const config = @import("../config/config.zig");
 const renderer = @import("../renderer/renderer.zig");
-// const ztracy = @import("ztracy");
+const ztracy = @import("ztracy");
 
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
@@ -90,8 +90,8 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
-    // const trazy_zone = ztracy.ZoneNC(@src(), "Camera Update", 0x00_ff_00_ff);
-    // defer trazy_zone.End();
+    const trazy_zone = ztracy.ZoneNC(@src(), "Camera System: Update", 0x00_ff_00_ff);
+    defer trazy_zone.End();
 
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));

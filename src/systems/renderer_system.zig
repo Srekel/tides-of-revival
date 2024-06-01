@@ -9,6 +9,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const renderer = @import("../renderer/renderer.zig");
 const zforge = @import("zforge");
+const ztracy = @import("ztracy");
 const util = @import("../util.zig");
 const zm = @import("zmath");
 const zgui = @import("zgui");
@@ -185,6 +186,9 @@ pub fn destroy(system: *SystemState) void {
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Renderer System: Pre Update", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     var rctx = system.renderer;
@@ -226,6 +230,9 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 }
 
 fn postUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Renderer System: Post Update", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     var rctx = system.renderer;
