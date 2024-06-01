@@ -6,6 +6,7 @@ const window = @import("../renderer/window.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const renderer = @import("../renderer/renderer.zig");
+const MaterialHandle = renderer.MaterialHandle;
 const MeshHandle = renderer.MeshHandle;
 const TextureHandle = renderer.TextureHandle;
 
@@ -431,7 +432,7 @@ pub const StaticMesh = struct {
     mesh_handle: MeshHandle,
 
     material_count: u32,
-    materials: [renderer.sub_mesh_max_count]IdLocal,
+    materials: [renderer.sub_mesh_max_count]MaterialHandle,
 };
 
 // ███████╗██╗  ██╗██╗   ██╗██████╗  ██████╗ ██╗  ██╗

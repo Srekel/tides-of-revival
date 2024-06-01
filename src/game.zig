@@ -33,9 +33,6 @@ const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
 
 pub fn run() void {
-    const tracy_zone = ztracy.ZoneNC(@src(), "Game Run", 0x00_ff_00_00);
-    defer tracy_zone.End();
-
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
 
