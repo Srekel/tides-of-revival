@@ -6,6 +6,7 @@ const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
+const ztracy = @import("ztracy");
 
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
@@ -43,6 +44,9 @@ pub fn destroy(system: *SystemState) void {
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Input System: Update", 0x00_ff_00_ff);
+    defer trazy_zone.End();
+
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     // const dt4 = zm.f32x4s(iter.iter.delta_time);

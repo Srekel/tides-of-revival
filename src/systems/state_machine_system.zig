@@ -1,15 +1,16 @@
 const std = @import("std");
 const math = std.math;
 const ecs = @import("zflecs");
-
 const zm = @import("zmath");
+const zphy = @import("zphysics");
+const ztracy = @import("ztracy");
+
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const fsm = @import("../fsm/fsm.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const BlobArray = @import("../core/blob_array.zig").BlobArray;
 const input = @import("../input.zig");
-const zphy = @import("zphysics");
 const util = @import("../util.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const config = @import("../config/config.zig");
@@ -164,6 +165,9 @@ fn initStateData(system: *SystemState) void {
 }
 
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "State Machine System: Update", 0x00_ff_00_ff);
+    defer trazy_zone.End();
+
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
     const dt4 = zm.f32x4s(iter.iter.delta_time);

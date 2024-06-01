@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
@@ -51,6 +52,7 @@ pub const Renderer = struct {
     window_width: i32 = 0,
     window_height: i32 = 0,
     time: f32 = 0.0,
+    vsync_enabled: bool = false,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -69,6 +71,10 @@ pub const Renderer = struct {
     samplers: StaticSamplers = undefined,
     vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
+
+    material_pool: MaterialPool = undefined,
+    materials: std.ArrayList(Material) = undefined,
+    materials_buffer: BufferHandle = undefined,
 
     mesh_pool: MeshPool = undefined,
     texture_pool: TexturePool = undefined,
@@ -137,6 +143,7 @@ pub const Renderer = struct {
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
+        self.vsync_enabled = false;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -320,6 +327,14 @@ pub const Renderer = struct {
         self.pso_pool = PSOPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_map = PSOMap.init(allocator);
 
+        self.material_pool = MaterialPool.initMaxCapacity(allocator) catch unreachable;
+        self.materials = std.ArrayList(Material).init(allocator);
+        const buffer_data = Slice{
+            .data = null,
+            .size = 1000 * @sizeOf(Material),
+        };
+        self.materials_buffer = self.createBindlessBuffer(buffer_data, "Materials Buffer");
+
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
 
@@ -363,6 +378,10 @@ pub const Renderer = struct {
             resource_loader.removeResource__Overload4(mesh.data);
         }
         self.mesh_pool.deinit();
+
+        // TODO(juice): Clean gpu resources
+        self.material_pool.deinit();
+        self.materials.deinit();
 
         self.vertex_layouts_map.deinit();
 
@@ -543,20 +562,39 @@ pub const Renderer = struct {
         self.onLoad(reload_desc) catch unreachable;
     }
 
+    pub fn toggleVSync(self: *Renderer) void {
+        self.vsync_enabled = !self.vsync_enabled;
+    }
+
     pub fn draw(self: *Renderer) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
         defer trazy_zone.End();
 
+        if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
+            std.log.debug("Toggling VSync", .{});
+            graphics.waitQueueIdle(self.graphics_queue);
+            graphics.toggleVSync(self.renderer, &self.swap_chain);
+        }
+
         var swap_chain_image_index: u32 = 0;
-        graphics.acquireNextImage(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &swap_chain_image_index);
+        {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Acquire Next Image", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+            graphics.acquireNextImage(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &swap_chain_image_index);
+        }
 
         var elem = self.gpu_cmd_ring.getNextGpuCmdRingElement(true, 1).?;
 
         // Stall if CPU is running "data_buffer_count" frames ahead of GPU
-        var fence_status: graphics.FenceStatus = undefined;
-        graphics.getFenceStatus(self.renderer, elem.fence, &fence_status);
-        if (fence_status.bits == graphics.FenceStatus.FENCE_STATUS_INCOMPLETE.bits) {
-            graphics.waitForFences(self.renderer, 1, &elem.fence);
+        {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Wait for GPU", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            var fence_status: graphics.FenceStatus = undefined;
+            graphics.getFenceStatus(self.renderer, elem.fence, &fence_status);
+            if (fence_status.bits == graphics.FenceStatus.FENCE_STATUS_INCOMPLETE.bits) {
+                graphics.waitForFences(self.renderer, 1, &elem.fence);
+            }
         }
 
         graphics.resetCmdPool(self.renderer, elem.cmd_pool);
@@ -566,6 +604,9 @@ pub const Renderer = struct {
 
         // Shadow Map Pass
         {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
             var input_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.shadow_depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
             };
@@ -598,6 +639,9 @@ pub const Renderer = struct {
 
         // GBuffer Pass
         {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "GBuffer Pass", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
             var input_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
@@ -642,6 +686,9 @@ pub const Renderer = struct {
 
         // Deferred Shading and Skybox Passes
         {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading & Skybox Passes", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
             var input_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
@@ -680,6 +727,9 @@ pub const Renderer = struct {
 
         // Tonemap & UI Passes
         {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemap & UI Passes", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
             var input_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
@@ -718,11 +768,17 @@ pub const Renderer = struct {
 
         // ImGUI Pass
         {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "ImGUI Pass", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
             zgui.backend.draw(cmd_list.*.mDx.pCmdList);
         }
 
         // Present
         {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "End GPU Frame", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
             const render_target = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
 
             {
@@ -741,26 +797,90 @@ pub const Renderer = struct {
 
             var wait_semaphores = [2]*graphics.Semaphore{ flush_update_desc.pOutSubmittedSemaphore, self.image_acquired_semaphore };
 
-            var submit_desc: graphics.QueueSubmitDesc = undefined;
-            submit_desc.mCmdCount = 1;
-            submit_desc.mSignalSemaphoreCount = 1;
-            submit_desc.mWaitSemaphoreCount = 2;
-            submit_desc.ppCmds = &cmd_list;
-            submit_desc.ppSignalSemaphores = &elem.semaphore;
-            submit_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
-            submit_desc.pSignalFence = elem.fence;
-            graphics.queueSubmit(self.graphics_queue, &submit_desc);
+            {
+                const trazy_zone2 = ztracy.ZoneNC(@src(), "Submit", 0x00_ff_00_00);
+                defer trazy_zone2.End();
 
-            var queue_present_desc: graphics.QueuePresentDesc = undefined;
-            queue_present_desc.mIndex = @intCast(swap_chain_image_index);
-            queue_present_desc.mWaitSemaphoreCount = 1;
-            queue_present_desc.pSwapChain = self.swap_chain;
-            queue_present_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
-            queue_present_desc.mSubmitDone = true;
-            graphics.queuePresent(self.graphics_queue, &queue_present_desc);
+                var submit_desc: graphics.QueueSubmitDesc = undefined;
+                submit_desc.mCmdCount = 1;
+                submit_desc.mSignalSemaphoreCount = 1;
+                submit_desc.mWaitSemaphoreCount = 2;
+                submit_desc.ppCmds = &cmd_list;
+                submit_desc.ppSignalSemaphores = &elem.semaphore;
+                submit_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
+                submit_desc.pSignalFence = elem.fence;
+                graphics.queueSubmit(self.graphics_queue, &submit_desc);
+            }
+
+            {
+                const trazy_zone2 = ztracy.ZoneNC(@src(), "Present", 0x00_ff_00_00);
+                defer trazy_zone2.End();
+
+                var queue_present_desc: graphics.QueuePresentDesc = undefined;
+                queue_present_desc.mIndex = @intCast(swap_chain_image_index);
+                queue_present_desc.mWaitSemaphoreCount = 1;
+                queue_present_desc.pSwapChain = self.swap_chain;
+                queue_present_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
+                queue_present_desc.mSubmitDone = true;
+                graphics.queuePresent(self.graphics_queue, &queue_present_desc);
+            }
         }
 
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
+    }
+
+    pub fn uploadMaterial(self: *Renderer, material_data: fd.UberShader) !MaterialHandle {
+        const offset = self.materials.items.len * @sizeOf(Material);
+
+        const material = Material{
+            .albedo_color = [4]f32{ material_data.base_color.r, material_data.base_color.g, material_data.base_color.b, 1.0 },
+            .roughness = material_data.roughness,
+            .metallic = material_data.metallic,
+            .normal_intensity = material_data.normal_intensity,
+            .emissive_strength = material_data.emissive_strength,
+            .albedo_texture_index = self.getTextureBindlessIndex(material_data.albedo),
+            .emissive_texture_index = self.getTextureBindlessIndex(material_data.emissive),
+            .normal_texture_index = self.getTextureBindlessIndex(material_data.normal),
+            .arm_texture_index = self.getTextureBindlessIndex(material_data.arm),
+            .wind_feature = if (material_data.wind_feature) 1 else 0,
+            .wind_initial_bend = material_data.wind_initial_bend,
+            .wind_stifness = material_data.wind_stifness,
+            .wind_drag = material_data.wind_drag,
+            .wind_shiver_feature = if (material_data.wind_shiver_feature) 1 else 0,
+            .wind_shiver_drag = material_data.wind_shiver_drag,
+            .wind_normal_influence = material_data.wind_normal_influence,
+            .wind_shiver_directionality = material_data.wind_shiver_directionality,
+        };
+
+        const pipeline_ids = PassPipelineIds{
+            .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
+            .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
+        };
+
+        self.materials.append(material) catch unreachable;
+
+        const buffer = self.buffer_pool.getColumn(self.materials_buffer, .buffer) catch unreachable;
+
+        var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
+        update_desc.pBuffer = @ptrCast(buffer);
+        update_desc.mDstOffset = offset;
+        update_desc.mSize = @sizeOf(Material);
+        resource_loader.beginUpdateResource(&update_desc);
+        util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(Material));
+        resource_loader.endUpdateResource(&update_desc);
+
+        const handle: MaterialHandle = try self.material_pool.add(.{ .material = material, .buffer_offset = @intCast(offset), .pipeline_ids = pipeline_ids });
+        return handle;
+    }
+
+    pub fn getMaterialPipelineIds(self: *Renderer, handle: MaterialHandle) PassPipelineIds {
+        const pipeline_ids = self.material_pool.getColumn(handle, .pipeline_ids) catch unreachable;
+        return pipeline_ids;
+    }
+
+    pub fn getMaterialBufferOffset(self: *Renderer, handle: MaterialHandle) u32 {
+        const offset = self.material_pool.getColumn(handle, .buffer_offset) catch unreachable;
+        return offset;
     }
 
     pub fn loadMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !MeshHandle {
@@ -1070,7 +1190,7 @@ pub const Renderer = struct {
         desc.mImageCount = graphics.getRecommendedSwapchainImageCount(self.renderer, &window_handle);
         desc.mColorFormat = graphics.getSupportedSwapchainFormat(self.renderer, &desc, graphics.ColorSpace.COLOR_SPACE_SDR_SRGB);
         desc.mColorSpace = graphics.ColorSpace.COLOR_SPACE_SDR_SRGB;
-        desc.mEnableVsync = true;
+        desc.mEnableVsync = self.vsync_enabled;
         desc.mFlags = graphics.SwapChainCreationFlags.SWAP_CHAIN_CREATION_FLAG_ENABLE_FOVEATED_RENDERING_VR;
         graphics.addSwapChain(self.renderer, &desc, &self.swap_chain);
 
@@ -2339,6 +2459,34 @@ pub const Mesh = struct {
     vertex_layout_id: IdLocal,
     loaded: bool,
 };
+
+pub const Material = struct {
+    albedo_color: [4]f32,
+    roughness: f32,
+    metallic: f32,
+    normal_intensity: f32,
+    emissive_strength: f32,
+    albedo_texture_index: u32,
+    emissive_texture_index: u32,
+    normal_texture_index: u32,
+    arm_texture_index: u32,
+    wind_feature: u32,
+    wind_initial_bend: f32,
+    wind_stifness: f32,
+    wind_drag: f32,
+    wind_shiver_feature: u32,
+    wind_shiver_drag: f32,
+    wind_normal_influence: f32,
+    wind_shiver_directionality: f32,
+};
+
+pub const PassPipelineIds = struct {
+    shadow_caster_pipeline_id: ?IdLocal,
+    gbuffer_pipeline_id: ?IdLocal,
+};
+
+const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds });
+pub const MaterialHandle = MaterialPool.Handle;
 
 const MeshPool = Pool(16, 16, Mesh, struct { mesh: Mesh });
 pub const MeshHandle = MeshPool.Handle;
