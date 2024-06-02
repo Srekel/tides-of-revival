@@ -50,6 +50,7 @@ const DrawCallInstanced = struct {
     sub_mesh_index: u32,
     start_instance_location: u32,
     instance_count: u32,
+    depth_value: u12, // Used for batching only
 };
 
 const DrawCallPushConstants = struct {
@@ -659,12 +660,17 @@ fn cullAndBatchDrawCalls(
             const sub_mesh_count = comps.mesh.material_count;
             if (sub_mesh_count == 0) continue;
 
+            const camera_distance_squared = distanceSquared(camera_position, comps.transform.getPos00());
+
             // Distance culling
-            if (!isWithinCameraDrawDistance(camera_position, comps.transform.getPos00(), max_draw_distance_squared)) {
+            if (camera_distance_squared > max_draw_distance_squared) {
                 continue;
             }
 
             // TODO(gmodarelli): Implement frustum culling
+
+            // Calculate normalized squared distance
+            const normalized_depth = camera_distance_squared / max_draw_distance_squared;
 
             for (0..sub_mesh_count) |sub_mesh_index| {
                 const material_handle = comps.mesh.materials[sub_mesh_index];
@@ -675,11 +681,10 @@ fn cullAndBatchDrawCalls(
                 var draw_call_sort_key: DrawCallSortKey = undefined;
 
                 draw_call_sort_key.masked = 0;
+                draw_call_sort_key.depth = @intFromFloat((1.0 - normalized_depth) * 4096);
                 draw_call_sort_key.material_id = material_handle.id;
                 draw_call_sort_key.mesh_id = comps.mesh.mesh_handle.id;
                 draw_call_sort_key.submesh_index = @intCast(sub_mesh_index);
-                // TODO(gmodarelli): Calculate depth and store it here as normalized u12
-                draw_call_sort_key.depth = 0;
                 draw_call_sort_key.index = @intCast(instances.items.len);
 
                 var pipeline_id: IdLocal = undefined;
@@ -701,6 +706,7 @@ fn cullAndBatchDrawCalls(
                 for (renderer.masked_pipelines) |pipeline| {
                     if (pipeline_id.hash == pipeline.hash) {
                         draw_call_sort_key.masked = 1;
+                        draw_call_sort_key.depth = @intFromFloat(normalized_depth * 4096);
                         break;
                     }
                 }
@@ -751,6 +757,7 @@ fn cullAndBatchDrawCalls(
                     .sub_mesh_index = sort_key.submesh_index,
                     .instance_count = 1,
                     .start_instance_location = start_instance_location,
+                    .depth_value = sort_key.depth,
                 };
 
                 start_instance_location += 1;
@@ -766,7 +773,7 @@ fn cullAndBatchDrawCalls(
                 continue;
             }
 
-            if (current_draw_call.mesh_handle.id == mesh_handle.id and current_draw_call.sub_mesh_index == sort_key.submesh_index and current_draw_call.material_handle.id == material_handle.id) {
+            if (current_draw_call.mesh_handle.id == mesh_handle.id and current_draw_call.sub_mesh_index == sort_key.submesh_index and current_draw_call.material_handle.id == material_handle.id and @abs(current_draw_call.depth_value - sort_key.depth) <= 1000) {
                 current_draw_call.instance_count += 1;
                 start_instance_location += 1;
 
@@ -792,6 +799,7 @@ fn cullAndBatchDrawCalls(
                     .sub_mesh_index = sort_key.submesh_index,
                     .instance_count = 1,
                     .start_instance_location = start_instance_location,
+                    .depth_value = sort_key.depth,
                 };
 
                 start_instance_location += 1;
@@ -809,15 +817,11 @@ fn cullAndBatchDrawCalls(
     }
 }
 
-inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [3]f32, max_draw_distance_squared: f32) bool {
+inline fn distanceSquared(camera_position: [3]f32, entity_position: [3]f32) f32 {
     const dx = camera_position[0] - entity_position[0];
     const dy = camera_position[1] - entity_position[1];
     const dz = camera_position[2] - entity_position[2];
-    if ((dx * dx + dy * dy + dz * dz) <= (max_draw_distance_squared)) {
-        return true;
-    }
-
-    return false;
+    return (dx * dx + dy * dy + dz * dz);
 }
 
 inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
