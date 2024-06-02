@@ -250,6 +250,7 @@ fn updatePatches(system: *SystemState) void {
                 const z_prop_sr_matrix = zm.mul(z_prop_scale_matrix, z_prop_rot_matrix);
                 const z_prop_srt_matrix = zm.mul(z_prop_sr_matrix, z_prop_translate_matrix);
                 zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
+                prop_transform.updateInverseMatrix();
 
                 if (prop.id.hash == house_id.hash) {
                     var house_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.medium_house_prefab);

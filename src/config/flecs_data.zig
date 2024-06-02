@@ -276,7 +276,7 @@ pub const Transform = struct {
         self.updateInverseMatrix();
     }
 
-    fn updateInverseMatrix(self: *Transform) void {
+    pub fn updateInverseMatrix(self: *Transform) void {
         const z_matrix = self.asZM();
         const z_inv_matrix = zm.inverse(z_matrix);
         zm.storeMat43(&self.inv_matrix, z_inv_matrix);
