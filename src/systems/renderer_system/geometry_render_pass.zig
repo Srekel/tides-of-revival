@@ -964,8 +964,9 @@ fn cullAndBatchDrawCalls(
                 draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
 
                 const material_handle = comps.mesh.materials[sub_mesh_index];
-                const pipeline_ids = self.renderer.getMaterialPipelineIds(material_handle);
-                const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_handle);
+                const metadata = self.renderer.getMaterialMetadata(material_handle);
+                const pipeline_ids = metadata.pipeline_ids;
+                const material_buffer_offset = metadata.buffer_offset;
 
                 draw_call_info.pipeline_id = undefined;
 

@@ -178,6 +178,7 @@ pub const Renderer = struct {
         renderer_desc.mGLESSupported = false;
         renderer_desc.mShaderTarget = graphics.ShaderTarget.SHADER_TARGET_6_6;
         renderer_desc.mDisableReloadServer = true;
+        renderer_desc.mEnableGpuBasedValidation = false;
         graphics.initRenderer("Tides Renderer", &renderer_desc, &self.renderer);
         if (self.renderer == null) {
             std.log.err("Failed to initialize Z-Forge Renderer", .{});
@@ -852,11 +853,6 @@ pub const Renderer = struct {
             .wind_shiver_directionality = material_data.wind_shiver_directionality,
         };
 
-        const pipeline_ids = PassPipelineIds{
-            .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
-            .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
-        };
-
         self.materials.append(material) catch unreachable;
 
         const buffer = self.buffer_pool.getColumn(self.materials_buffer, .buffer) catch unreachable;
@@ -869,18 +865,20 @@ pub const Renderer = struct {
         util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(Material));
         resource_loader.endUpdateResource(&update_desc);
 
-        const handle: MaterialHandle = try self.material_pool.add(.{ .material = material, .buffer_offset = @intCast(offset), .pipeline_ids = pipeline_ids });
+        const metadata = MaterialMetadata{
+            .buffer_offset = @intCast(offset),
+            .pipeline_ids = .{
+                .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
+                .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
+            },
+        };
+        const handle: MaterialHandle = try self.material_pool.add(.{ .material = material, .metadata = metadata });
         return handle;
     }
 
-    pub fn getMaterialPipelineIds(self: *Renderer, handle: MaterialHandle) PassPipelineIds {
-        const pipeline_ids = self.material_pool.getColumn(handle, .pipeline_ids) catch unreachable;
-        return pipeline_ids;
-    }
-
-    pub fn getMaterialBufferOffset(self: *Renderer, handle: MaterialHandle) u32 {
-        const offset = self.material_pool.getColumn(handle, .buffer_offset) catch unreachable;
-        return offset;
+    pub fn getMaterialMetadata(self: *Renderer, handle: MaterialHandle) MaterialMetadata {
+        const metadata = self.material_pool.getColumn(handle, .metadata) catch unreachable;
+        return metadata;
     }
 
     pub fn loadMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !MeshHandle {
@@ -2476,7 +2474,12 @@ pub const PassPipelineIds = struct {
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds });
+pub const MaterialMetadata = struct {
+    buffer_offset: u32,
+    pipeline_ids: PassPipelineIds,
+};
+
+const MaterialPool = Pool(16, 16, Material, struct { material: Material, metadata: MaterialMetadata });
 pub const MaterialHandle = MaterialPool.Handle;
 
 const MeshPool = Pool(16, 16, Mesh, struct { mesh: Mesh });
