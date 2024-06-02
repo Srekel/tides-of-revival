@@ -925,6 +925,11 @@ pub const Renderer = struct {
         self.material_pool.setColumn(handle, .descriptor_sets, descriptor_sets) catch unreachable;
     }
 
+    pub fn getMaterial(self: *Renderer, handle: MaterialHandle) Material {
+        const material = self.material_pool.getColumn(handle, .material) catch unreachable;
+        return material;
+    }
+
     pub fn getMaterialMetadata(self: *Renderer, handle: MaterialHandle) MaterialMetadata {
         const metadata = self.material_pool.getColumn(handle, .metadata) catch unreachable;
         return metadata;
