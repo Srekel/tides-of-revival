@@ -67,9 +67,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     const geometry_pass = GeometryRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.prefab_mgr, ctx.allocator);
     ctx.renderer.render_gbuffer_pass_render_fn = geometry_render_pass.renderFn;
     ctx.renderer.render_gbuffer_pass_render_shadow_map_fn = geometry_render_pass.renderShadowMapFn;
-    ctx.renderer.render_gbuffer_pass_create_descriptor_sets_fn = geometry_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = geometry_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_gbuffer_pass_unload_descriptor_sets_fn = geometry_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_gbuffer_pass_user_data = geometry_pass;
 
     const terrain_pass = TerrainRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
@@ -142,7 +140,6 @@ pub fn destroy(system: *SystemState) void {
     system.geometry_render_pass.destroy();
     system.renderer.render_gbuffer_pass_render_fn = null;
     system.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_gbuffer_pass_unload_descriptor_sets_fn = null;
     system.renderer.render_gbuffer_pass_user_data = null;
 
     system.deferred_shading_render_pass.destroy();

@@ -46,12 +46,14 @@ const InstanceData = struct {
 
 const DrawCallInfo = struct {
     pipeline_id: IdLocal,
+    material_handle: renderer.MaterialHandle,
     mesh_handle: renderer.MeshHandle,
     sub_mesh_index: u32,
 };
 
 const DrawCallInstanced = struct {
     pipeline_id: IdLocal,
+    material_handle: renderer.MaterialHandle,
     mesh_handle: renderer.MeshHandle,
     sub_mesh_index: u32,
     start_instance_location: u32,
@@ -81,21 +83,14 @@ pub const GeometryRenderPass = struct {
 
     uniform_frame_data: UniformFrameData,
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    // TODO(gmodarelli): Descriptor Set should be associated to materials
-    descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
 
     shadows_uniform_frame_data: ShadowsUniformFrameData,
     shadows_uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    // TODO(gmodarelli): Descriptor Set should be associated to materials
-    shadows_descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
 
     wind_noise_texture: renderer.TextureHandle,
     wind_gust_texture: renderer.TextureHandle,
     wind_frame_data: WindFrameData,
     wind_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    // TODO(gmodarelli): Descriptor Set should be associated to materials
-    tree_descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
-    shadows_tree_descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
 
     gbuffer_instance_data_buffers: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     shadow_caster_instance_data_buffers: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -230,14 +225,10 @@ pub const GeometryRenderPass = struct {
             .wind_frame_buffers = wind_frame_buffers,
             .wind_noise_texture = wind_noise_texture,
             .wind_gust_texture = wind_gust_texture,
-            .tree_descriptor_sets = undefined,
-            .shadows_tree_descriptor_sets = undefined,
             .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
             .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
-            .shadows_descriptor_sets = undefined,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .descriptor_sets = undefined,
             .gbuffer_instance_data_buffers = .{ gbuffer_masked_instance_data_buffers, gbuffer_opaque_instance_data_buffers },
             .shadow_caster_instance_data_buffers = .{ shadow_caster_masked_instance_data_buffers, shadow_caster_opaque_instance_data_buffers },
             .draw_calls_info = draw_calls_info,
@@ -250,7 +241,6 @@ pub const GeometryRenderPass = struct {
             .query_static_mesh = query_static_mesh,
         };
 
-        createDescriptorSets(@ptrCast(pass));
         prepareDescriptorSets(@ptrCast(pass));
 
         return pass;
@@ -258,15 +248,6 @@ pub const GeometryRenderPass = struct {
 
     pub fn destroy(self: *GeometryRenderPass) void {
         self.query_static_mesh.deinit();
-
-        for (self.descriptor_sets) |descriptor_set| {
-            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
-        }
-
-        for (self.shadows_descriptor_sets) |descriptor_set| {
-            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
-        }
-
         self.draw_calls_info.deinit();
 
         self.gbuffer_instance_data[opaque_entities_index].deinit();
@@ -296,9 +277,7 @@ pub const GeometryRenderPass = struct {
 
 pub const renderFn: renderer.renderPassRenderFn = render;
 pub const renderShadowMapFn: renderer.renderPassRenderShadowMapFn = renderShadowMap;
-pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
-pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
 fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c]graphics.Cmd) void {
     const vertex_layout = self.renderer.getVertexLayout(mesh.vertex_layout_id).?;
@@ -389,32 +368,29 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.gbuffer_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                    descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.masked_pipelines[2].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[masked_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
-                    }
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                        descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
                         pipeline_id = draw_call.pipeline_id;
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.masked_pipelines[2].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[masked_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
-                        }
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                         std.debug.assert(root_constant_index != std.math.maxInt(u32));
@@ -476,32 +452,29 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.gbuffer_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                    descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
-                    }
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                        descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
                         pipeline_id = draw_call.pipeline_id;
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
-                        }
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                         std.debug.assert(root_constant_index != std.math.maxInt(u32));
@@ -603,32 +576,29 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.shadow_caster_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                    descriptor_set = descriptor_sets.shadow_descriptor_set.?;
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.masked_pipelines[3].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[masked_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[masked_entities_index]);
-                    }
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                        descriptor_set = descriptor_sets.shadow_descriptor_set.?;
                         pipeline_id = draw_call.pipeline_id;
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.masked_pipelines[3].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[masked_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[masked_entities_index]);
-                        }
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                         std.debug.assert(root_constant_index != std.math.maxInt(u32));
@@ -690,32 +660,29 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.shadow_caster_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                    descriptor_set = descriptor_sets.shadow_descriptor_set.?;
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
-                    }
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
+                        descriptor_set = descriptor_sets.shadow_descriptor_set.?;
                         pipeline_id = draw_call.pipeline_id;
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
-                        }
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                         std.debug.assert(root_constant_index != std.math.maxInt(u32));
@@ -743,160 +710,49 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 }
 
-fn createDescriptorSets(user_data: *anyopaque) void {
-    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
-
-    const shadows_descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("shadows_lit"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("shadows_lit_masked"));
-
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == opaque_entities_index) {
-                desc.pRootSignature = root_signature_lit;
-            } else {
-                desc.pRootSignature = root_signature_lit_masked;
-            }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
-        }
-
-        break :blk descriptor_sets;
-    };
-    self.shadows_descriptor_sets = shadows_descriptor_sets;
-
-    const shadows_tree_descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("shadows_tree"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("shadows_tree_masked"));
-
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == opaque_entities_index) {
-                desc.pRootSignature = root_signature_lit;
-            } else {
-                desc.pRootSignature = root_signature_lit_masked;
-            }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
-        }
-
-        break :blk descriptor_sets;
-    };
-    self.shadows_tree_descriptor_sets = shadows_tree_descriptor_sets;
-
-    const tree_descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_masked"));
-
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == opaque_entities_index) {
-                desc.pRootSignature = root_signature_lit;
-            } else {
-                desc.pRootSignature = root_signature_lit_masked;
-            }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
-        }
-
-        break :blk descriptor_sets;
-    };
-    self.tree_descriptor_sets = tree_descriptor_sets;
-
-    const descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_masked"));
-
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == opaque_entities_index) {
-                desc.pRootSignature = root_signature_lit;
-            } else {
-                desc.pRootSignature = root_signature_lit_masked;
-            }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
-        }
-
-        break :blk descriptor_sets;
-    };
-    self.descriptor_sets = descriptor_sets;
-}
-
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
 
     var params: [2]graphics.DescriptorData = undefined;
 
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+    // TODO(gmodarelli): Find all materials that need to render in the geometry pass and update their descriptors
+    var handles = self.renderer.material_pool.liveHandles();
+    while (handles.next()) |handle| {
+        const descriptor_sets = self.renderer.getMaterialDescriptorSets(handle);
+        if (descriptor_sets.gbuffer_descriptor_set) |descriptor_set| {
+            for (0..renderer.Renderer.data_buffer_count) |i| {
+                var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
+                var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
+                // TODO(gmodarelli): We should use shader reflection here to know which buffers to bind where
+                params[0] = std.mem.zeroes(graphics.DescriptorData);
+                params[0].pName = "cbFrame";
+                params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+                params[1] = std.mem.zeroes(graphics.DescriptorData);
+                params[1].pName = "cbWind";
+                params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
+
+                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), descriptor_set, 2, @ptrCast(&params));
+            }
+        }
+
+        if (descriptor_sets.shadow_descriptor_set) |descriptor_set| {
+            for (0..renderer.Renderer.data_buffer_count) |i| {
+                var uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
+                var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
+
+                // TODO(gmodarelli): We should use shader reflection here to know which buffers to bind where
+                params[0] = std.mem.zeroes(graphics.DescriptorData);
+                params[0].pName = "cbFrame";
+                params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+                params[1] = std.mem.zeroes(graphics.DescriptorData);
+                params[1].pName = "cbWind";
+                params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
+
+                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), descriptor_set, 2, @ptrCast(&params));
+            }
+        }
     }
-
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var shadows_uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&shadows_uniform_buffer);
-
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
-    }
-
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
-        var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
-        params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "cbWind";
-        params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
-
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets[masked_entities_index], 2, @ptrCast(&params));
-    }
-
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
-        var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
-        params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "cbWind";
-        params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
-
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_tree_descriptor_sets[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_tree_descriptor_sets[masked_entities_index], 2, @ptrCast(&params));
-    }
-}
-
-fn unloadDescriptorSets(user_data: *anyopaque) void {
-    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
-
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[masked_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[masked_entities_index]);
-
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets[masked_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_tree_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_tree_descriptor_sets[masked_entities_index]);
 }
 
 fn cullAndBatchDrawCalls(
@@ -956,6 +812,7 @@ fn cullAndBatchDrawCalls(
 
             var draw_call_info = DrawCallInfo{
                 .pipeline_id = undefined,
+                .material_handle = undefined,
                 .mesh_handle = comps.mesh.mesh_handle,
                 .sub_mesh_index = undefined,
             };
@@ -968,6 +825,7 @@ fn cullAndBatchDrawCalls(
                 const pipeline_ids = metadata.pipeline_ids;
                 const material_buffer_offset = metadata.buffer_offset;
 
+                draw_call_info.material_handle = material_handle;
                 draw_call_info.pipeline_id = undefined;
 
                 if (technique == .gbuffer) {
@@ -1034,6 +892,7 @@ fn cullAndBatchDrawCalls(
             if (i == 0) {
                 current_draw_call = .{
                     .pipeline_id = draw_call_info.pipeline_id,
+                    .material_handle = draw_call_info.material_handle,
                     .mesh_handle = draw_call_info.mesh_handle,
                     .sub_mesh_index = draw_call_info.sub_mesh_index,
                     .instance_count = 1,
@@ -1075,6 +934,7 @@ fn cullAndBatchDrawCalls(
 
                 current_draw_call = .{
                     .pipeline_id = draw_call_info.pipeline_id,
+                    .material_handle = draw_call_info.material_handle,
                     .mesh_handle = draw_call_info.mesh_handle,
                     .sub_mesh_index = draw_call_info.sub_mesh_index,
                     .instance_count = 1,
