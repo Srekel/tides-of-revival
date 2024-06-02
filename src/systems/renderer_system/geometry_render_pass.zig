@@ -45,14 +45,12 @@ const InstanceData = struct {
 };
 
 const DrawCallInfo = struct {
-    pipeline_id: IdLocal,
     material_handle: renderer.MaterialHandle,
     mesh_handle: renderer.MeshHandle,
     sub_mesh_index: u32,
 };
 
 const DrawCallInstanced = struct {
-    pipeline_id: IdLocal,
     material_handle: renderer.MaterialHandle,
     mesh_handle: renderer.MeshHandle,
     sub_mesh_index: u32,
@@ -364,18 +362,22 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
-            var pipeline_id: IdLocal = undefined;
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var material_handle = renderer.MaterialHandle.nil;
             var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.gbuffer_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
-                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                    descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
-                    pipeline_id = draw_call.pipeline_id;
+                    material_handle = draw_call.material_handle;
+                    const metadata = self.renderer.getMaterialMetadata(material_handle);
+                    const pipeline_id = metadata.pipeline_ids.gbuffer_pipeline_id.?;
                     pipeline = self.renderer.getPSO(pipeline_id);
+
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                    descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
+
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -383,11 +385,15 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                        descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
-                        pipeline_id = draw_call.pipeline_id;
+                    if (material_handle.id != draw_call.material_handle.id) {
+                        material_handle = draw_call.material_handle;
+                        const metadata = self.renderer.getMaterialMetadata(material_handle);
+                        const pipeline_id = metadata.pipeline_ids.gbuffer_pipeline_id.?;
                         pipeline = self.renderer.getPSO(pipeline_id);
+
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                        descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
+
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -448,18 +454,22 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
-            var pipeline_id: IdLocal = undefined;
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var material_handle = renderer.MaterialHandle.nil;
             var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.gbuffer_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
-                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                    descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
-                    pipeline_id = draw_call.pipeline_id;
+                    material_handle = draw_call.material_handle;
+                    const metadata = self.renderer.getMaterialMetadata(material_handle);
+                    const pipeline_id = metadata.pipeline_ids.gbuffer_pipeline_id.?;
                     pipeline = self.renderer.getPSO(pipeline_id);
+
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                    descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
+
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -467,11 +477,15 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                        descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
-                        pipeline_id = draw_call.pipeline_id;
+                    if (material_handle.id != draw_call.material_handle.id) {
+                        material_handle = draw_call.material_handle;
+                        const metadata = self.renderer.getMaterialMetadata(material_handle);
+                        const pipeline_id = metadata.pipeline_ids.gbuffer_pipeline_id.?;
                         pipeline = self.renderer.getPSO(pipeline_id);
+
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                        descriptor_set = descriptor_sets.gbuffer_descriptor_set.?;
+
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -572,18 +586,22 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
-            var pipeline_id: IdLocal = undefined;
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var material_handle = renderer.MaterialHandle.nil;
             var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.shadow_caster_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
-                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                    descriptor_set = descriptor_sets.shadow_descriptor_set.?;
-                    pipeline_id = draw_call.pipeline_id;
+                    material_handle = draw_call.material_handle;
+                    const metadata = self.renderer.getMaterialMetadata(material_handle);
+                    const pipeline_id = metadata.pipeline_ids.shadow_caster_pipeline_id.?;
                     pipeline = self.renderer.getPSO(pipeline_id);
+
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                    descriptor_set = descriptor_sets.shadow_descriptor_set.?;
+
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -591,11 +609,15 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                        descriptor_set = descriptor_sets.shadow_descriptor_set.?;
-                        pipeline_id = draw_call.pipeline_id;
+                    if (material_handle.id != draw_call.material_handle.id) {
+                        material_handle = draw_call.material_handle;
+                        const metadata = self.renderer.getMaterialMetadata(material_handle);
+                        const pipeline_id = metadata.pipeline_ids.shadow_caster_pipeline_id.?;
                         pipeline = self.renderer.getPSO(pipeline_id);
+
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                        descriptor_set = descriptor_sets.shadow_descriptor_set.?;
+
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -656,18 +678,22 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
-            var pipeline_id: IdLocal = undefined;
             var pipeline: [*c]graphics.Pipeline = undefined;
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
+            var material_handle = renderer.MaterialHandle.nil;
             var descriptor_set: [*c]graphics.DescriptorSet = undefined;
 
             for (self.shadow_caster_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
-                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                    descriptor_set = descriptor_sets.shadow_descriptor_set.?;
-                    pipeline_id = draw_call.pipeline_id;
+                    material_handle = draw_call.material_handle;
+                    const metadata = self.renderer.getMaterialMetadata(material_handle);
+                    const pipeline_id = metadata.pipeline_ids.shadow_caster_pipeline_id.?;
                     pipeline = self.renderer.getPSO(pipeline_id);
+
+                    const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                    descriptor_set = descriptor_sets.shadow_descriptor_set.?;
+
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -675,11 +701,15 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                     std.debug.assert(root_constant_index != std.math.maxInt(u32));
                 } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(draw_call.material_handle);
-                        descriptor_set = descriptor_sets.shadow_descriptor_set.?;
-                        pipeline_id = draw_call.pipeline_id;
+                    if (material_handle.id != draw_call.material_handle.id) {
+                        material_handle = draw_call.material_handle;
+                        const metadata = self.renderer.getMaterialMetadata(material_handle);
+                        const pipeline_id = metadata.pipeline_ids.shadow_caster_pipeline_id.?;
                         pipeline = self.renderer.getPSO(pipeline_id);
+
+                        const descriptor_sets = self.renderer.getMaterialDescriptorSets(material_handle);
+                        descriptor_set = descriptor_sets.shadow_descriptor_set.?;
+
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
@@ -811,7 +841,6 @@ fn cullAndBatchDrawCalls(
             // TODO(gmodarelli): Implement frustum culling
 
             var draw_call_info = DrawCallInfo{
-                .pipeline_id = undefined,
                 .material_handle = undefined,
                 .mesh_handle = comps.mesh.mesh_handle,
                 .sub_mesh_index = undefined,
@@ -826,17 +855,17 @@ fn cullAndBatchDrawCalls(
                 const material_buffer_offset = metadata.buffer_offset;
 
                 draw_call_info.material_handle = material_handle;
-                draw_call_info.pipeline_id = undefined;
+                var pipeline_id: IdLocal = undefined;
 
                 if (technique == .gbuffer) {
                     if (pipeline_ids.gbuffer_pipeline_id) |p_id| {
-                        draw_call_info.pipeline_id = p_id;
+                        pipeline_id = p_id;
                     } else {
                         continue;
                     }
                 } else if (technique == .shadow_caster) {
                     if (pipeline_ids.shadow_caster_pipeline_id) |p_id| {
-                        draw_call_info.pipeline_id = p_id;
+                        pipeline_id = p_id;
                     } else {
                         continue;
                     }
@@ -846,14 +875,14 @@ fn cullAndBatchDrawCalls(
 
                 if (surface_type == .@"opaque") {
                     for (renderer.opaque_pipelines) |pipeline| {
-                        if (draw_call_info.pipeline_id.hash == pipeline.hash) {
+                        if (pipeline_id.hash == pipeline.hash) {
                             should_parse_submesh = true;
                             break;
                         }
                     }
                 } else {
                     for (renderer.masked_pipelines) |pipeline| {
-                        if (draw_call_info.pipeline_id.hash == pipeline.hash) {
+                        if (pipeline_id.hash == pipeline.hash) {
                             should_parse_submesh = true;
                             break;
                         }
@@ -891,7 +920,6 @@ fn cullAndBatchDrawCalls(
         for (self.draw_calls_info.items, 0..) |draw_call_info, i| {
             if (i == 0) {
                 current_draw_call = .{
-                    .pipeline_id = draw_call_info.pipeline_id,
                     .material_handle = draw_call_info.material_handle,
                     .mesh_handle = draw_call_info.mesh_handle,
                     .sub_mesh_index = draw_call_info.sub_mesh_index,
@@ -912,7 +940,7 @@ fn cullAndBatchDrawCalls(
                 continue;
             }
 
-            if (current_draw_call.mesh_handle.id == draw_call_info.mesh_handle.id and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index and current_draw_call.pipeline_id.hash == draw_call_info.pipeline_id.hash) {
+            if (current_draw_call.mesh_handle.id == draw_call_info.mesh_handle.id and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index and current_draw_call.material_handle.id == draw_call_info.material_handle.id) {
                 current_draw_call.instance_count += 1;
                 start_instance_location += 1;
 
@@ -933,7 +961,6 @@ fn cullAndBatchDrawCalls(
                 }) catch unreachable;
 
                 current_draw_call = .{
-                    .pipeline_id = draw_call_info.pipeline_id,
                     .material_handle = draw_call_info.material_handle,
                     .mesh_handle = draw_call_info.mesh_handle,
                     .sub_mesh_index = draw_call_info.sub_mesh_index,
