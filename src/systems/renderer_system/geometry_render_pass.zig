@@ -50,7 +50,7 @@ const DrawCallInstanced = struct {
     sub_mesh_index: u32,
     start_instance_location: u32,
     instance_count: u32,
-    depth_value: u12, // Used for batching only
+    depth_value: u14, // Used for batching only
 };
 
 const DrawCallPushConstants = struct {
@@ -64,27 +64,27 @@ const DrawCallPushConstants = struct {
 //
 // | -- Sorting key -- | -- Index -- |
 //
-// Sortkey: 80 bits
+// Sortkey: 96 bits
 // ----------------
 // Masked: 1 bit (0 opaque, 1 masked)
 // Material Handle: 32 bits
 // Mesh Handle: 32 bits
 // Submesh Index: 3 bits
-// Depth: 12 bits
+// Depth: 14 bits
 //
-// Index: 16 bits
+// Index: 14 bits
 // --------------
 // Index into parallel array of instance data
 const DrawCallSortKey = packed struct(u96) {
-    index: u16, // Least significant bits
-    depth: u12,
+    index: u14, // Least significant bits
+    depth: u14,
     submesh_index: u3,
     mesh_id: u32,
     material_id: u32,
     masked: u1, // Most significant bits
 };
 
-const max_instances = 10000;
+const max_instances = 16384;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 500.0;
 
@@ -603,8 +603,8 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
 
 fn sortingKeyCompare(context: void, a: DrawCallSortKey, b: DrawCallSortKey) bool {
     _ = context;
-    const a_mask: u80 = @intCast(@as(u96, @bitCast(a)) >> 16);
-    const b_mask: u80 = @intCast(@as(u96, @bitCast(b)) >> 16);
+    const a_mask: u82 = @intCast(@as(u96, @bitCast(a)) >> 14);
+    const b_mask: u82 = @intCast(@as(u96, @bitCast(b)) >> 14);
     if (a_mask > b_mask) {
         return true;
     } else {
@@ -681,7 +681,7 @@ fn cullAndBatchDrawCalls(
                 var draw_call_sort_key: DrawCallSortKey = undefined;
 
                 draw_call_sort_key.masked = 0;
-                draw_call_sort_key.depth = @intFromFloat((1.0 - normalized_depth) * 4096);
+                draw_call_sort_key.depth = @intFromFloat((1.0 - normalized_depth) * 16384);
                 draw_call_sort_key.material_id = material_handle.id;
                 draw_call_sort_key.mesh_id = comps.mesh.mesh_handle.id;
                 draw_call_sort_key.submesh_index = @intCast(sub_mesh_index);
@@ -706,7 +706,7 @@ fn cullAndBatchDrawCalls(
                 for (renderer.masked_pipelines) |pipeline| {
                     if (pipeline_id.hash == pipeline.hash) {
                         draw_call_sort_key.masked = 1;
-                        draw_call_sort_key.depth = @intFromFloat(normalized_depth * 4096);
+                        draw_call_sort_key.depth = @intFromFloat(normalized_depth * 16384);
                         break;
                     }
                 }
@@ -727,7 +727,6 @@ fn cullAndBatchDrawCalls(
 
     // Sort draw call keys
     {
-        std.log.debug("Instances to sort: {}", .{self.draw_call_sort_keys.items.len});
         const trazy_zone2 = ztracy.ZoneNC(@src(), "Sort draw keys", 0x00_ff_ff_00);
         defer trazy_zone2.End();
         std.mem.sort(DrawCallSortKey, self.draw_call_sort_keys.items, {}, sortingKeyCompare);
@@ -772,7 +771,11 @@ fn cullAndBatchDrawCalls(
                 continue;
             }
 
-            if (current_draw_call.mesh_handle.id == mesh_handle.id and current_draw_call.sub_mesh_index == sort_key.submesh_index and current_draw_call.material_handle.id == material_handle.id and @abs(current_draw_call.depth_value - sort_key.depth) <= 1000) {
+            if (current_draw_call.mesh_handle.id == mesh_handle.id and
+                current_draw_call.sub_mesh_index == sort_key.submesh_index and
+                current_draw_call.material_handle.id == material_handle.id and
+                @abs(current_draw_call.depth_value - sort_key.depth) <= 1000)
+            {
                 current_draw_call.instance_count += 1;
                 start_instance_location += 1;
 
