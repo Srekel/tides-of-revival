@@ -188,17 +188,17 @@ pub const GeometryRenderPass = struct {
             break :blk buffers;
         };
 
-        const draw_call_sort_keys = std.ArrayList(DrawCallSortKey).init(allocator);
+        const draw_call_sort_keys = std.ArrayList(DrawCallSortKey).initCapacity(allocator, max_instances) catch unreachable;
 
-        const gbuffer_instance_data = std.ArrayList(InstanceData).init(allocator);
-        const gbuffer_draw_calls = std.ArrayList(DrawCallInstanced).init(allocator);
-        const gbuffer_draw_calls_push_constants = std.ArrayList(DrawCallPushConstants).init(allocator);
+        const gbuffer_instance_data = std.ArrayList(InstanceData).initCapacity(allocator, max_instances) catch unreachable;
+        const gbuffer_draw_calls = std.ArrayList(DrawCallInstanced).initCapacity(allocator, max_instances) catch unreachable;
+        const gbuffer_draw_calls_push_constants = std.ArrayList(DrawCallPushConstants).initCapacity(allocator, max_instances) catch unreachable;
 
-        const shadow_caster_instance_data = std.ArrayList(InstanceData).init(allocator);
-        const shadow_caster_draw_calls = std.ArrayList(DrawCallInstanced).init(allocator);
-        const shadow_caster_draw_calls_push_constants = std.ArrayList(DrawCallPushConstants).init(allocator);
+        const shadow_caster_instance_data = std.ArrayList(InstanceData).initCapacity(allocator, max_instances) catch unreachable;
+        const shadow_caster_draw_calls = std.ArrayList(DrawCallInstanced).initCapacity(allocator, max_instances) catch unreachable;
+        const shadow_caster_draw_calls_push_constants = std.ArrayList(DrawCallPushConstants).initCapacity(allocator, max_instances) catch unreachable;
 
-        const sorted_instance_data = std.ArrayList(InstanceData).init(allocator);
+        const sorted_instance_data = std.ArrayList(InstanceData).initCapacity(allocator, max_instances) catch unreachable;
 
         // Queries
         var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
@@ -725,13 +725,12 @@ fn cullAndBatchDrawCalls(
 
     if (self.draw_call_sort_keys.items.len == 0) return;
 
-    // NOTE(gmodarelli): This allocates memory. We should have a "scratch buffer/frame allocator" for stuff like this
-    const sort_keys_slice = self.draw_call_sort_keys.toOwnedSlice() catch unreachable;
+    // Sort draw call keys
     {
-        // Sort draw call keys
+        std.log.debug("Instances to sort: {}", .{self.draw_call_sort_keys.items.len});
         const trazy_zone2 = ztracy.ZoneNC(@src(), "Sort draw keys", 0x00_ff_ff_00);
         defer trazy_zone2.End();
-        std.mem.sort(DrawCallSortKey, sort_keys_slice, {}, sortingKeyCompare);
+        std.mem.sort(DrawCallSortKey, self.draw_call_sort_keys.items, {}, sortingKeyCompare);
     }
 
     var start_instance_location: u32 = 0;
@@ -744,7 +743,7 @@ fn cullAndBatchDrawCalls(
         const trazy_zone2 = ztracy.ZoneNC(@src(), "Batch draw calls", 0x00_ff_ff_00);
         defer trazy_zone2.End();
 
-        for (sort_keys_slice, 0..) |sort_key, i| {
+        for (self.draw_call_sort_keys.items, 0..) |sort_key, i| {
             self.sorted_instance_data.append(instances.items[sort_key.index]) catch unreachable;
 
             const material_handle = renderer.MaterialHandle{ .id = sort_key.material_id };
@@ -762,7 +761,7 @@ fn cullAndBatchDrawCalls(
 
                 start_instance_location += 1;
 
-                if (i == sort_keys_slice.len - 1) {
+                if (i == self.draw_call_sort_keys.items.len - 1) {
                     draw_calls.append(current_draw_call) catch unreachable;
                     draw_calls_push_constants.append(.{
                         .start_instance_location = current_draw_call.start_instance_location,
@@ -777,7 +776,7 @@ fn cullAndBatchDrawCalls(
                 current_draw_call.instance_count += 1;
                 start_instance_location += 1;
 
-                if (i == sort_keys_slice.len - 1) {
+                if (i == self.draw_call_sort_keys.items.len - 1) {
                     draw_calls.append(current_draw_call) catch unreachable;
                     draw_calls_push_constants.append(.{
                         .start_instance_location = current_draw_call.start_instance_location,
@@ -804,7 +803,7 @@ fn cullAndBatchDrawCalls(
 
                 start_instance_location += 1;
 
-                if (i == sort_keys_slice.len - 1) {
+                if (i == self.draw_call_sort_keys.items.len - 1) {
                     draw_calls.append(current_draw_call) catch unreachable;
                     draw_calls_push_constants.append(.{
                         .start_instance_location = current_draw_call.start_instance_location,
