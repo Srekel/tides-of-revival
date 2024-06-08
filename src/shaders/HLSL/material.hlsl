@@ -3,6 +3,7 @@
 
 struct MaterialData
 {
+	// Surface
 	float4 baseColor;
 	float roughness;
 	float metallic;
@@ -12,10 +13,19 @@ struct MaterialData
 	uint emissiveTextureIndex;
 	uint normalTextureIndex;
 	uint armTextureIndex;
+	// Details
+	uint detailFeature;
+	uint detailMaskTextureIndex;
+	uint detailBaseColorTextureIndex;
+	uint detailNormalTextureIndex;
+	uint detailArmTextureIndex;
+	uint detailUseUV2;
+	// Wind Feature
     uint windFeature;
     float windInitialBend;
     float windStifness;
     float windDrag;
+	// Wind Shiver Feature
     uint windShiverFeature;
     float windShiverDrag;
     float windNormalInfluence;

@@ -204,6 +204,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_trunk_04_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_albedo.dds");
         beech_trunk_04_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_arm.dds");
         beech_trunk_04_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_normal.dds");
+        beech_trunk_04_material.detail_feature = true;
+        beech_trunk_04_material.detail_use_uv2 = true;
+        beech_trunk_04_material.detail_mask = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_maska.dds");
+        beech_trunk_04_material.detail_base_color = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_bark_01_albedo.dds");
+        beech_trunk_04_material.detail_normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_bark_01_normal.dds");
+        beech_trunk_04_material.detail_arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_bark_01_arm.dds");
         beech_trunk_04_material.wind_feature = false;
         beech_trunk_04_material.wind_initial_bend = 1.0;
         beech_trunk_04_material.wind_stifness = 1.0;

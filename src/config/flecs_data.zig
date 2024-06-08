@@ -372,6 +372,14 @@ pub const UberShader = struct {
     arm: TextureHandle,
     emissive: TextureHandle,
 
+    // Detail Feature
+    detail_feature: bool,
+    detail_mask: TextureHandle,
+    detail_base_color: TextureHandle,
+    detail_normal: TextureHandle,
+    detail_arm: TextureHandle,
+    detail_use_uv2: bool,
+
     // Wind Feature
     wind_feature: bool,
     wind_initial_bend: f32,
@@ -385,27 +393,7 @@ pub const UberShader = struct {
     wind_normal_influence: f32,
 
     pub fn init() UberShader {
-        return .{
-            .gbuffer_pipeline_id = null,
-            .shadow_caster_pipeline_id = null,
-            .base_color = ColorRGB.init(1, 1, 1),
-            .roughness = 0.8,
-            .metallic = 0,
-            .normal_intensity = 1.0,
-            .emissive_strength = 1.0,
-            .albedo = TextureHandle.nil,
-            .normal = TextureHandle.nil,
-            .arm = TextureHandle.nil,
-            .emissive = TextureHandle.nil,
-            .wind_feature = false,
-            .wind_initial_bend = 1.0,
-            .wind_stifness = 1.0,
-            .wind_drag = 0.1,
-            .wind_shiver_feature = false,
-            .wind_shiver_drag = 0.1,
-            .wind_normal_influence = 0,
-            .wind_shiver_directionality = 0.4,
-        };
+        return initNoTexture(ColorRGB.init(1, 1, 1), 0.8, 0.0);
     }
 
     pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {
@@ -421,6 +409,12 @@ pub const UberShader = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
+            .detail_feature = false,
+            .detail_mask = TextureHandle.nil,
+            .detail_base_color = TextureHandle.nil,
+            .detail_normal = TextureHandle.nil,
+            .detail_arm = TextureHandle.nil,
+            .detail_use_uv2 = false,
             .wind_feature = false,
             .wind_initial_bend = 1.0,
             .wind_stifness = 1.0,

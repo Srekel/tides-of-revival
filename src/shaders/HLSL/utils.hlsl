@@ -31,4 +31,9 @@ INLINE float3 UnpackNormals(float2 uv, float3 viewDirection, Tex2D(float4) norma
 	return normalize(mul(tangentNormal, TBN));
 }
 
+INLINE float4 degamma(float4 color) {
+    return pow(color, 1.0f / 2.2f);
+}
+
+
 #endif // _UTILS_H
