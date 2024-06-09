@@ -31,31 +31,31 @@ INLINE float3 UnpackNormals(float2 uv, float3 viewDirection, Tex2D(float4) norma
 	return normalize(mul(tangentNormal, TBN));
 }
 
-INLINE float srgb_to_linear(float s)
+INLINE float sRGBToLinear(float s)
 {
 	if (s <= 0.04045f) return s / 12.92f;
 	else return pow((s + 0.055) / 1.055, 2.4);
 }
 
-INLINE float linear_to_srgb(float l)
+INLINE float LinearTosRGB(float l)
 {
 	if (l < 0.0031308f) return l * 12.92f;
 	else return 1.055 * pow(l, 1.0f / 2.4f) - 0.055f;
 }
 
-INLINE float3 srgb_to_linear_float3(float3 s) {
+INLINE float3 sRGBToLinear_Float3(float3 s) {
 	return float3(
-		srgb_to_linear(s.r),
-		srgb_to_linear(s.g),
-		srgb_to_linear(s.b)
+		sRGBToLinear(s.r),
+		sRGBToLinear(s.g),
+		sRGBToLinear(s.b)
 	);
 }
 
-INLINE float3 linear_to_srgb_float3(float3 l) {
+INLINE float3 LinearTosRGB_Float3(float3 l) {
 	return float3(
-		linear_to_srgb(l.r),
-		linear_to_srgb(l.g),
-		linear_to_srgb(l.b)
+		LinearTosRGB(l.r),
+		LinearTosRGB(l.g),
+		LinearTosRGB(l.b)
 	);
 }
 

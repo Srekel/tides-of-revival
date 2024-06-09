@@ -19,13 +19,13 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     const float3 P = Input.PositionWS.xyz;
     const float3 V = normalize(Get(camPos).xyz - P);
 
-    float3 baseColor = srgb_to_linear_float3(material.baseColor.rgb);
+    float3 baseColor = sRGBToLinear_Float3(material.baseColor.rgb);
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
-        baseColor *= srgb_to_linear_float3(baseColorSample.rgb);
+        baseColor *= baseColorSample.rgb;
     } else {
-        baseColor *= srgb_to_linear_float3(Input.Color.rgb);
+        baseColor *= sRGBToLinear_Float3(Input.Color.rgb);
     }
 
     float3 N = normalize(Input.Normal);

@@ -161,7 +161,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET {
 
     float3 color = SampleLvlTex2D(Get(sceneColor), Get(bilinearClampSampler), Input.UV, 0).rgb;
     color = AMDTonemapper(color);
-    Out.rgb = linear_to_srgb_float3(color);
+    Out.rgb = color;
 
     RETURN(Out);
 }

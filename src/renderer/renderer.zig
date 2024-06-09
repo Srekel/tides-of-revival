@@ -1237,7 +1237,7 @@ pub const Renderer = struct {
             rt_desc.mArraySize = 1;
             rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
             rt_desc.mDepth = 1;
-            rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+            rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_SRGB;
             rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
             rt_desc.mWidth = @intCast(self.window_width);
             rt_desc.mHeight = @intCast(self.window_height);

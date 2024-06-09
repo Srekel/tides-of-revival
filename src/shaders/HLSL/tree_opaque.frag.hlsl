@@ -25,9 +25,8 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
         baseColor = baseColorSample.rgb;
     } else {
-        baseColor = Input.Color.rgb;
+        baseColor = sRGBToLinear_Float3(Input.Color.rgb);
     }
-    baseColor = srgb_to_linear_float3(baseColor);
 
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(material.normalTextureIndex)) {
@@ -63,7 +62,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
 
         // Blend base color
         Texture2D detailBaseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailBaseColorTextureIndex)];
-        float3 detailBaseColor = srgb_to_linear_float3(detailBaseColorTexture.Sample(Get(bilinearClampSampler), Input.UV).rgb);
+        float3 detailBaseColor = detailBaseColorTexture.Sample(Get(bilinearClampSampler), Input.UV).rgb;
         baseColor = lerp(baseColor, detailBaseColor, detailMask);
 
         // Blend ARM
@@ -74,7 +73,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         metallic = lerp(metallic, detailArmSample.b, detailMask);
     }
 
-    baseColor *= srgb_to_linear_float3(material.baseColor.rgb);
+    baseColor *= sRGBToLinear_Float3(material.baseColor.rgb);
 
     Out.GBuffer0 = float4(baseColor.rgb, 1.0f);
     Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
