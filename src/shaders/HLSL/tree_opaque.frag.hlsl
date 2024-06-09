@@ -49,7 +49,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     if (material.detailFeature)
     {
         Texture2D detailMaskTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailMaskTextureIndex)];
-        float detailMask = srgb_to_linear(detailMaskTexture.Sample(Get(bilinearRepeatSampler), Input.UV).a);
+        float detailMask = detailMaskTexture.Sample(Get(bilinearRepeatSampler), Input.UV).r;
         float2 detailUV = Input.UV;
         if (material.detailUseUV2)
         {
@@ -74,7 +74,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         metallic = lerp(metallic, detailArmSample.b, detailMask);
     }
 
-    baseColor *= material.baseColor.rgb;
+    baseColor *= srgb_to_linear_float3(material.baseColor.rgb);
 
     Out.GBuffer0 = float4(baseColor.rgb, 1.0f);
     Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
