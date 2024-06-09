@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "TidesOfRevival",
-        .root_source_file = .{ .path = thisDir() ++ "/src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -40,7 +40,7 @@ pub fn build(b: *std.Build) void {
 
     // websocket.zig
     exe.root_module.addImport("websocket", b.createModule(.{
-        .root_source_file = .{ .path = thisDir() ++ "/external/websocket.zig/src/websocket.zig" },
+        .root_source_file = b.path("external/websocket.zig/src/websocket.zig"),
         .imports = &.{},
     }));
 
@@ -54,17 +54,17 @@ pub fn build(b: *std.Build) void {
 
     // zforge
     const zforge_pkg = zforge.package(b, target, optimize, .{});
-    zforge_pkg.link(exe);
+    zforge_pkg.link(b, exe);
 
     // zigimg
     exe.root_module.addImport("zigimg", b.createModule(.{
-        .root_source_file = .{ .path = thisDir() ++ "/external/zigimg/zigimg.zig" },
+        .root_source_file = b.path("external/zigimg/zigimg.zig"),
         .imports = &.{},
     }));
 
     // zig-args
     exe.root_module.addImport("args", b.createModule(.{
-        .root_source_file = .{ .path = thisDir() ++ "/external/zig-args/args.zig" },
+        .root_source_file = b.path("external/zig-args/args.zig"),
         .imports = &.{},
     }));
 
@@ -164,7 +164,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    const zwin32_path = zwin32.path("").getPath(b);
+    _ = zwin32; // autofix
 
     // Recast
     const zignav = b.dependency("zignav", .{});
@@ -178,22 +178,22 @@ pub fn build(b: *std.Build) void {
 
     // TODO: Asset cookify
     const install_fonts_step = b.addInstallDirectory(.{
-        .source_dir = .{ .path = thisDir() ++ "/content/fonts" },
+        .source_dir = b.path("content/fonts"),
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/fonts",
     });
     exe.step.dependOn(&install_fonts_step.step);
 
     const install_systems_step = b.addInstallDirectory(.{
-        .source_dir = .{ .path = thisDir() ++ "/content/systems" },
+        .source_dir = b.path("content/systems"),
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/content/systems",
     });
     exe.step.dependOn(&install_systems_step.step);
 
-    @import("zwin32").install_xaudio2(&exe.step, .bin, zwin32_path) catch unreachable;
-    @import("zwin32").install_d3d12(&exe.step, .bin, zwin32_path) catch unreachable;
-    @import("zwin32").install_directml(&exe.step, .bin, zwin32_path) catch unreachable;
+    @import("zwin32").install_xaudio2(&exe.step, .bin);
+    @import("zwin32").install_d3d12(&exe.step, .bin);
+    @import("zwin32").install_directml(&exe.step, .bin);
     @import("system_sdk").addLibraryPathsTo(exe);
 
     // WWise
@@ -250,8 +250,4 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
-}
-
-inline fn thisDir() []const u8 {
-    return comptime std.fs.path.dirname(@src().file) orelse ".";
 }

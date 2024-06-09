@@ -17,3 +17,4 @@ licenses.txt
 release_build/*
 binaries/
 imgui.ini
+.zig-cache
