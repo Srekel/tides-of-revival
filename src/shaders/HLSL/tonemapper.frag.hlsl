@@ -2,6 +2,7 @@
 #define STAGE_FRAG
 
 #include "../FSL/d3d.h"
+#include "utils.hlsl"
 
 // AMD Cauldron code
 //
@@ -144,9 +145,6 @@ float3 ACESFilm(float3 x)
     return saturate((x*(a*x + b)) / (x*(c*x + d) + e));
 }
 
-static const float GAMMA = 2.2;
-float3 gamma(float3 color) { return pow(abs(color), 1.0f / GAMMA); }
-
 RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s0, binding = 0);
 
 RES(Tex2D(float4), sceneColor, UPDATE_FREQ_NONE, t0, binding = 1);
@@ -163,7 +161,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET {
 
     float3 color = SampleLvlTex2D(Get(sceneColor), Get(bilinearClampSampler), Input.UV, 0).rgb;
     color = AMDTonemapper(color);
-    Out.rgb = color;
+    Out.rgb = linear_to_srgb_float3(color);
 
     RETURN(Out);
 }

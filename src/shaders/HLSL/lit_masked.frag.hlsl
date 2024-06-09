@@ -19,14 +19,14 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     const float3 P = Input.PositionWS.xyz;
     const float3 V = normalize(Get(camPos).xyz - P);
 
-    float3 baseColor = material.baseColor.rgb;
+    float3 baseColor = srgb_to_linear_float3(material.baseColor.rgb);
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
         clip(baseColorSample.a - 0.5);
-        baseColor *= baseColorSample.rgb;
+        baseColor *= srgb_to_linear_float3(baseColorSample.rgb);
     } else {
-        baseColor *= Input.Color.rgb;
+        baseColor *= srgb_to_linear_float3(Input.Color.rgb);
     }
 
     float3 N = normalize(Input.Normal);
@@ -44,7 +44,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     float occlusion = 1.0f;
     if (hasValidTexture(material.armTextureIndex)) {
         Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.armTextureIndex)];
-        float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), Input.UV), 1.0f / 2.2f);
+        float3 armSample = armTexture.Sample(Get(bilinearRepeatSampler), Input.UV).rgb;
         occlusion = armSample.r;
         roughness = armSample.g;
         metallic = armSample.b;

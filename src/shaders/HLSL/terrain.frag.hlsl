@@ -51,10 +51,10 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
 
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
     float2 worldSpaceUV = Input.PositionWS.xz * 0.1f;
-    float3 albedo = diffuseTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV).rgb;
+    float3 albedo = srgb_to_linear_float3(diffuseTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV).rgb);
     N = UnpackNormals(worldSpaceUV, -V, normalTexture, Get(bilinearRepeatSampler), N, 1.0f);
 
-    float4 armSample = pow(armTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV), 1.0f / 2.2f);
+    float3 armSample = armTexture.Sample(Get(bilinearRepeatSampler), worldSpaceUV).rgb;
     float roughness = armSample.g;
     float metallic = armSample.b;
 

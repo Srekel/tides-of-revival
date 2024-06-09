@@ -2,6 +2,7 @@
 #define STAGE_FRAG
 
 #include "../FSL/d3d.h"
+#include "utils.hlsl"
 
 RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s1, binding = 2);
@@ -110,7 +111,7 @@ float ShadowTest(float4 Pl, float2 shadowMapDimensions)
     shadow += ShadowFetchBilinear(Get(shadowDepthBuffer), shadowTexCoords, shadowUVFrac, int2(0,0), pxDepthInLSpace);
 
 #endif
-	
+
 	return 1.0 - shadow;
 }
 
@@ -154,7 +155,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const float  clamped = pow(saturate(distanceByRadius), 2.0f);
         const float  attenuation = clamped / (distance * distance + 1.0f);
 
-        const float3 color = pointLight.colorAndIntensity.rgb;
+        const float3 color = srgb_to_linear_float3(pointLight.colorAndIntensity.rgb);
         const float  intensity = pointLight.colorAndIntensity.a;
         const float3 radiance = color * intensity * attenuation;
 
@@ -168,7 +169,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const DirectionalLight directionalLight = directionalLightsBuffer.Load<DirectionalLight>(i * sizeof(DirectionalLight));
         const float3 L = directionalLight.directionAndShadowMap.xyz;
         const float  NdotL = max(dot(N, L), 0.0f);
-        const float3 color = directionalLight.colorAndIntensity.rgb;
+        const float3 color = srgb_to_linear_float3(directionalLight.colorAndIntensity.rgb);
         const float  intensity = directionalLight.colorAndIntensity.a;
         const float3 radiance = color * intensity;
 
