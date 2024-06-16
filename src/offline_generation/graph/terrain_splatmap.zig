@@ -62,8 +62,8 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
         data.noise = .{
             .seed = @intCast(seed),
             .fractal_type = .fbm,
-            .frequency = 0.001,
-            .octaves = 10,
+            .frequency = 0.01,
+            .octaves = 8,
         };
         node.data = data;
     }
@@ -158,13 +158,12 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                         const world_z = patch_z * patch_width + z;
                         const world_y = heightmap_patches.getHeight(world_x, world_z);
 
-                        splatmap[x + z * patch_width] = @intFromFloat(4 * world_z / config.terrain_max);
-                        // const noise_value: f32 = data.noise.noise2(
-                        //     @as(f32, @floatFromInt(world_x)) * config.noise_scale_xz,
-                        //     @as(f32, @floatFromInt(world_z)) * config.noise_scale_xz,
-                        // );
-                        // const world_y_noised = world_y + noise_value * 100;
-                        // splatmap[x + z * patch_width] = @intFromFloat(4 * world_z / config.terrain_max);
+                        const noise_value: f32 = data.noise.noise2(
+                            @as(f32, @floatFromInt(world_x)) * config.noise_scale_xz,
+                            @as(f32, @floatFromInt(world_z)) * config.noise_scale_xz,
+                        );
+                        const world_z_noised = std.math.clamp(world_y + noise_value * 100, 0, config.terrain_max);
+                        splatmap[x + z * patch_width] = @intFromFloat(4 * world_z_noised / config.terrain_max);
                         // if (height_sample < 1000) {
                         //     splatmap[x + z * patch_width] = 50;
                         // } else {

@@ -79,14 +79,14 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
     const noise = znoise.FnlGenerator{
         .seed = @as(i32, @intCast(123)),
         .fractal_type = .fbm,
-        .frequency = 0.001,
-        .octaves = 8,
+        .frequency = 0.005,
+        .octaves = 5,
     };
 
     const PROPS_LOD = 1;
     const PROPS_PATCH_SIZE = config.patch_size * std.math.pow(u64, 2, PROPS_LOD);
     const PROPS_PATCH_SIZE_F = @as(f32, @floatFromInt(config.patch_size * std.math.pow(u64, 2, PROPS_LOD)));
-    const TREE_STEP = 16;
+    const TREE_STEP = 8;
     const TREE_STEP_F = @as(f32, @floatFromInt(TREE_STEP));
     const SAMPLES = @divFloor(PROPS_PATCH_SIZE, TREE_STEP);
     const PATCH_BEGIN_X = span_world_x / PROPS_PATCH_SIZE;
@@ -111,11 +111,13 @@ pub fn funcTemplateForest(node: *g.Node, output: *g.NodeOutput, context: *g.Grap
                         @as(u32, @intFromFloat(@floor(world_z))),
                     );
 
-                    if (world_y < 10 or world_y > 230) {
-                        continue;
-                    }
+                    // if (world_y < 10 or world_y > 230) {
+                    //     continue;
+                    // }
 
-                    if (noise.noise2(world_x, world_z) < -0.15) {
+                    var noise_value = noise.noise2(world_x, world_z);
+                    noise_value = noise_value * noise_value;
+                    if (noise_value < 0.4) {
                         continue;
                     }
 

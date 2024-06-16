@@ -66,7 +66,7 @@ const DrawCallPushConstants = struct {
 
 const max_instances = 10000;
 const max_instances_per_draw_call = 4096;
-const max_draw_distance: f32 = 500.0;
+const max_draw_distance: f32 = 1500.0;
 
 const masked_entities_index: u32 = 0;
 const opaque_entities_index: u32 = 1;

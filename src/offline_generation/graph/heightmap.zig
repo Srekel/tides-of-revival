@@ -101,7 +101,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
             .seed = @as(i32, @intCast(seed)),
             .fractal_type = .fbm,
             .frequency = 0.00025,
-            .octaves = 9,
+            .octaves = 8,
         };
         node.data = data;
     }
