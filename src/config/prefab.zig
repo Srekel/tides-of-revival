@@ -12,6 +12,7 @@ pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
 pub var default_cube: ecsu.Entity = undefined;
 pub var matball: ecsu.Entity = undefined;
+pub var color_calibrator: ecsu.Entity = undefined;
 
 pub const arrow_id = ID("prefab_arrow");
 pub const beech_tree_04_id = ID("beech_tree_04");
@@ -24,6 +25,7 @@ pub const matball_id = ID("prefab_matball");
 pub const medium_house_id = ID("prefab_medium_house");
 pub const player_id = ID("prefab_player");
 pub const sphere_id = ID("prefab_sphere");
+pub const color_calibrator_id = ID("color_calibrator");
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
@@ -71,6 +73,23 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         matball.setOverride(fd.Dynamic{});
 
         const static_mesh_component = matball.getMut(fd.StaticMesh);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = material_handle;
+        }
+    }
+
+    {
+        var material = fd.UberShader.init();
+        material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+        material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/color_calibrator/color_checker_albedo.dds");
+        const material_handle = prefab_mgr.rctx.uploadMaterial(material) catch unreachable;
+
+        color_calibrator = prefab_mgr.loadPrefabFromBinary("prefabs/props/color_calibrator/color_calibrator.bin", color_calibrator_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        color_calibrator.setOverride(fd.Dynamic{});
+
+        const static_mesh_component = color_calibrator.getMut(fd.StaticMesh);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = material_handle;
