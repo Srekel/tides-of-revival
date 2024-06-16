@@ -110,6 +110,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
     const im3d_pass = Im3dRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_im3d_pass_render_fn = im3d_render_pass.renderFn;
+    ctx.renderer.render_im3d_pass_create_descriptor_sets_fn = im3d_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_im3d_pass_prepare_descriptor_sets_fn = im3d_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_im3d_pass_unload_descriptor_sets_fn = im3d_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_im3d_pass_user_data = im3d_pass;
