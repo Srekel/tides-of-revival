@@ -50,6 +50,8 @@ STRUCT(VSOutput)
 	DATA(float4, Position, SV_Position);
 	DATA(float3, PositionWS, POSITION);
 	DATA(float2, UV, TEXCOORD0);
+	DATA(float3, Normal, TEXCOORD1);
+	DATA(float3, Tangent, TEXCOORD2);
 	DATA(uint, InstanceID, SV_InstanceID);
 };
 
