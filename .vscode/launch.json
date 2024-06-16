@@ -13,8 +13,7 @@
                 // "--offlinegen",
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            // "cwd": "${workspaceFolder}/zig-out/bin",
+            "cwd": "${workspaceFolder}/zig-out/bin",
             "environment": [],
             "preLaunchTask": "build"
         },
