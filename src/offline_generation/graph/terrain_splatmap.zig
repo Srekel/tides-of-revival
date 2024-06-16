@@ -150,21 +150,28 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                 }
 
                 // Calc splatmap
-                var y: u64 = 0;
-                while (y < patch_width) : (y += 1) {
+                var z: u64 = 0;
+                while (z < patch_width) : (z += 1) {
                     var x: u64 = 0;
                     while (x < patch_width) : (x += 1) {
                         const world_x = patch_x * patch_width + x;
-                        const world_z = patch_z * patch_width + y;
+                        const world_z = patch_z * patch_width + z;
                         const world_y = heightmap_patches.getHeight(world_x, world_z);
-                        splatmap[x + y * patch_width] = @intFromFloat(4 * world_y / config.terrain_max);
+
+                        splatmap[x + z * patch_width] = @intFromFloat(4 * world_z / config.terrain_max);
+                        // const noise_value: f32 = data.noise.noise2(
+                        //     @as(f32, @floatFromInt(world_x)) * config.noise_scale_xz,
+                        //     @as(f32, @floatFromInt(world_z)) * config.noise_scale_xz,
+                        // );
+                        // const world_y_noised = world_y + noise_value * 100;
+                        // splatmap[x + z * patch_width] = @intFromFloat(4 * world_z / config.terrain_max);
                         // if (height_sample < 1000) {
-                        //     splatmap[x + y * patch_width] = 50;
+                        //     splatmap[x + z * patch_width] = 50;
                         // } else {
-                        //     splatmap[x + y * patch_width] = @intCast(SplatmapMaterial, height_sample / 256);
-                        //     splatmap[x + y * patch_width] = 200;
+                        //     splatmap[x + z * patch_width] = @intCast(SplatmapMaterial, height_sample / 256);
+                        //     splatmap[x + z * patch_width] = 200;
                         // }
-                        // heightmap[x + y * patch_width] = @floatToInt(SplatmapMaterial, height_sample * 127);
+                        // heightmap[x + z * patch_width] = @floatToInt(SplatmapMaterial, height_sample * 127);
                         // std.debug.print("({},{})", .{ world_x, world_z });
                     }
                     // std.debug.print("\n", .{});

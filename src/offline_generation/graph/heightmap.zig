@@ -82,15 +82,15 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
     const debug_shape_input = node.getInputByString("Debug Shape");
     const debug_shape = getInputResult(debug_shape_input, context).getBool();
 
-    var world_x: u64 = 0;
-    var world_z: u64 = 0;
-    var width: u64 = world_width;
-    var height: u64 = world_width;
+    var base_world_x: u64 = 0;
+    var base_world_z: u64 = 0;
+    var base_width: u64 = world_width;
+    var base_height: u64 = world_width;
     if (params.len > 0 and !params[0].value.isUnset()) {
-        world_x = params[0].value.getUInt64();
-        world_z = params[1].value.getUInt64();
-        width = params[2].value.getUInt64();
-        height = params[3].value.getUInt64();
+        base_world_x = params[0].value.getUInt64();
+        base_world_z = params[1].value.getUInt64();
+        base_width = params[2].value.getUInt64();
+        base_height = params[3].value.getUInt64();
     }
 
     const PATCH_CACHE_SIZE = 64 * 64;
@@ -109,10 +109,10 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
     var data = alignedCast(*HeightmapNodeData, node.data.?);
     var cache = &data.cache;
 
-    const patch_x_begin = @divTrunc(world_x, patch_width);
-    const patch_x_end = @divTrunc((world_x + width - 1), patch_width) + 1;
-    const patch_z_begin = @divTrunc(world_z, patch_width);
-    const patch_z_end = @divTrunc((world_z + height - 1), patch_width) + 1;
+    const patch_x_begin = @divTrunc(base_world_x, patch_width);
+    const patch_x_end = @divTrunc((base_world_x + base_width - 1), patch_width) + 1;
+    const patch_z_begin = @divTrunc(base_world_z, patch_width);
+    const patch_z_end = @divTrunc((base_world_z + base_height - 1), patch_width) + 1;
 
     std.debug.assert((patch_x_end - patch_x_begin) * (patch_z_end - patch_z_begin) < PATCH_CACHE_SIZE);
 
@@ -188,17 +188,17 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                         // std.debug.print("\n", .{});
                     }
                 } else {
-                    var y: u64 = 0;
-                    while (y < patch_width) : (y += 1) {
+                    var z: u64 = 0;
+                    while (z < patch_width) : (z += 1) {
                         var x: u64 = 0;
                         while (x < patch_width) : (x += 1) {
-                            const x_world = patch_x * patch_width + x;
-                            const y_world = patch_z * patch_width + y;
+                            const world_x = patch_x * patch_width + x;
+                            const world_z = patch_z * patch_width + z;
                             // NOTE(gmodarelli): we're remapping the noise from [-1, 1] to [0, 1] to be able to store it inside a texture,
                             // and then we're converting it to a 16-bit unsigned integer
                             var height_sample: f32 = data.noise.noise2(
-                                @as(f32, @floatFromInt(x_world)) * config.noise_scale_xz,
-                                @as(f32, @floatFromInt(y_world)) * config.noise_scale_xz,
+                                @as(f32, @floatFromInt(world_x)) * config.noise_scale_xz,
+                                @as(f32, @floatFromInt(world_z)) * config.noise_scale_xz,
                             ) * 0.5 + 0.5;
                             // if (height_sample < 0.1) {
                             //     height_sample = zm.mapLinearV(height_sample, 0.0, 0.05, 0, 0.1);
@@ -212,7 +212,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                             //     height_sample = zm.mapLinearV(height_sample, 0.7, 1, 0.6, 1);
                             // }
                             height_sample = std.math.clamp(height_sample, 0, 1);
-                            heightmap[x + y * patch_width] = zm.mapLinearV(height_sample, 0, 1, config.terrain_min, config.terrain_max);
+                            heightmap[x + z * patch_width] = zm.mapLinearV(height_sample, 0, 1, config.terrain_min, config.terrain_max);
                         }
                         // std.debug.print("\n", .{});
                     }
