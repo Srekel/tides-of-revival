@@ -145,7 +145,7 @@ fn funcTemplateSplatmap(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
                     var arrptr = alignedCast([*]SplatmapMaterial, evictable_lru_value);
                     splatmap = arrptr[0..@as(u64, @intCast(patch_size))];
                 } else {
-                    std.debug.print("[SPLATMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_z });
+                    // std.debug.print("[SPLATMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_z });
                     splatmap = node.allocator.?.alloc(SplatmapMaterial, @as(u64, @intCast(patch_size))) catch unreachable;
                 }
 

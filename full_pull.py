@@ -66,7 +66,7 @@ def task_build_game():
         [
             "zig",
             "build",
-            # "-Dtarget=native-native-msvc",
+            "-Dtarget=native-native-msvc",
             "--summary",
             "failures",
         ],

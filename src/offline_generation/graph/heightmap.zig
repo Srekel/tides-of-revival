@@ -100,8 +100,8 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
         data.noise = .{
             .seed = @as(i32, @intCast(seed)),
             .fractal_type = .fbm,
-            .frequency = 0.001,
-            .octaves = 10,
+            .frequency = 0.00025,
+            .octaves = 9,
         };
         node.data = data;
     }
@@ -146,7 +146,7 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                     var arrptr = alignedCast([*]HeightmapHeight, evictable_lru_value);
                     heightmap = arrptr[0..@as(u64, @intCast(patch_size))];
                 } else {
-                    std.debug.print("[HEIGHTMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_z });
+                    // std.debug.print("[HEIGHTMAP] Cache miss for patch {}, {}\n", .{ patch_x, patch_z });
                     heightmap = node.allocator.?.alloc(HeightmapHeight, @as(u64, @intCast(patch_size))) catch unreachable;
                 }
 
@@ -200,19 +200,17 @@ fn funcTemplateHeightmap(node: *g.Node, output: *g.NodeOutput, context: *g.Graph
                                 @as(f32, @floatFromInt(x_world)) * config.noise_scale_xz,
                                 @as(f32, @floatFromInt(y_world)) * config.noise_scale_xz,
                             ) * 0.5 + 0.5;
-                            if (height_sample < 0) {
-                                height_sample = 0;
-                            } else if (height_sample < 0.1) {
-                                height_sample = zm.mapLinearV(height_sample, 0.0, 0.05, 0, 0.1);
-                            } else if (height_sample < 0.5) {
-                                height_sample = zm.mapLinearV(height_sample, 0.05, 0.5, 0.1, 0.3);
-                            } else if (height_sample < 0.6) {
-                                height_sample = zm.mapLinearV(height_sample, 0.5, 0.6, 0.3, 0.5);
-                            } else if (height_sample < 0.7) {
-                                height_sample = zm.mapLinearV(height_sample, 0.6, 0.7, 0.5, 0.6);
-                            } else {
-                                height_sample = zm.mapLinearV(height_sample, 0.7, 1, 0.6, 1);
-                            }
+                            // if (height_sample < 0.1) {
+                            //     height_sample = zm.mapLinearV(height_sample, 0.0, 0.05, 0, 0.1);
+                            // } else if (height_sample < 0.5) {
+                            //     height_sample = zm.mapLinearV(height_sample, 0.05, 0.5, 0.1, 0.3);
+                            // } else if (height_sample < 0.6) {
+                            //     height_sample = zm.mapLinearV(height_sample, 0.5, 0.6, 0.3, 0.5);
+                            // } else if (height_sample < 0.7) {
+                            //     height_sample = zm.mapLinearV(height_sample, 0.6, 0.7, 0.5, 0.6);
+                            // } else {
+                            //     height_sample = zm.mapLinearV(height_sample, 0.7, 1, 0.6, 1);
+                            // }
                             height_sample = std.math.clamp(height_sample, 0, 1);
                             heightmap[x + y * patch_width] = zm.mapLinearV(height_sample, 0, 1, config.terrain_min, config.terrain_max);
                         }

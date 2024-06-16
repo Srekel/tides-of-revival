@@ -35,7 +35,7 @@ pub const noise_scale_y = terrain_span;
 pub const noise_offset_y = 0.0;
 
 pub const terrain_height_ocean_floor = 0;
-pub const terrain_height_mountain_top = 500;
+pub const terrain_height_mountain_top = 1000;
 pub const terrain_min = terrain_height_ocean_floor;
 pub const terrain_max = terrain_height_mountain_top;
 pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floor;

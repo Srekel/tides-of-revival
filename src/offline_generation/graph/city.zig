@@ -44,8 +44,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
     var cities = std.ArrayList(City).init(context.frame_allocator);
 
     const CITY_WIDTH_MAX = 64;
-    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 16;
-    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 16;
+    const CITY_MARGIN_EDGE = CITY_WIDTH_MAX * 12;
+    const CITY_MARGIN_CITY = CITY_WIDTH_MAX * 12;
     const CITY_SKIP = 16;
     const CITY_HEIGHT_TEST_SKIP = 16;
     const CITY_MIN_BORDERS = 15;
@@ -95,7 +95,7 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
             };
 
             const world_y = patches.getHeightWorld(world_x, world_z);
-            if (world_y < 50 or world_y > 200) {
+            if (world_y < 520 or world_y > 2200) {
                 continue;
             }
 
@@ -139,8 +139,8 @@ pub fn funcTemplateCity(node: *g.Node, output: *g.NodeOutput, context: *g.GraphC
 
                 // const pos_curr_diff_x = std.math.absInt(city.pos[0] - pos_curr[0]) catch unreachable;
                 // const pos_curr_diff_z = std.math.absInt(city.pos[2] - pos_curr[2]) catch unreachable;
-                const max_slope_center = 10;
-                const max_slope_edge = 3;
+                const max_slope_center = 130;
+                const max_slope_edge = 130;
                 nswe_blk: for (posNSWE) |pos| {
                     const pos_diff_x = @abs(city.pos[0] - pos[0]);
                     const pos_diff_z = @abs(city.pos[2] - pos[2]);
