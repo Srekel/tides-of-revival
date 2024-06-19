@@ -53,9 +53,7 @@ pub fn castOpaqueConst(comptime T: type, ptr: *const anyopaque) *const T {
 pub fn memcpy(dst: *anyopaque, src: *const anyopaque, byte_count: u64) void {
     const src_slice = @as([*]const u8, @ptrCast(src))[0..byte_count];
     const dst_slice = @as([*]u8, @ptrCast(dst))[0..byte_count];
-    for (src_slice, 0..) |byte, i| {
-        dst_slice[i] = byte;
-    }
+    @memcpy(dst_slice, src_slice);
 }
 
 pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y: f32, noise_offset_y: f32, noise: *const znoise.FnlGenerator) f32 {

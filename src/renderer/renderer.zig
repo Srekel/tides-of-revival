@@ -92,9 +92,7 @@ pub const Renderer = struct {
     render_gbuffer_pass_user_data: ?*anyopaque = null,
     render_gbuffer_pass_render_fn: renderPassRenderFn = null,
     render_gbuffer_pass_render_shadow_map_fn: renderPassRenderShadowMapFn = null,
-    render_gbuffer_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_gbuffer_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_gbuffer_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_deferred_shading_pass_user_data: ?*anyopaque = null,
     render_deferred_shading_pass_render_fn: renderPassRenderFn = null,
@@ -178,6 +176,7 @@ pub const Renderer = struct {
         renderer_desc.mGLESSupported = false;
         renderer_desc.mShaderTarget = graphics.ShaderTarget.SHADER_TARGET_6_6;
         renderer_desc.mDisableReloadServer = true;
+        renderer_desc.mEnableGpuBasedValidation = false;
         graphics.initRenderer("Tides Renderer", &renderer_desc, &self.renderer);
         if (self.renderer == null) {
             std.log.err("Failed to initialize Z-Forge Renderer", .{});
@@ -430,12 +429,13 @@ pub const Renderer = struct {
                 @as(zgui.backend.D3D12_GPU_DESCRIPTOR_HANDLE, @bitCast(gpu_desc_handle)),
             );
 
-            if (self.render_terrain_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
+            var handles = self.material_pool.liveHandles();
+            while (handles.next()) |handle| {
+                self.createDescriptorSets(handle);
             }
 
-            if (self.render_gbuffer_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
+            if (self.render_terrain_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
             }
 
             if (self.render_deferred_shading_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
@@ -513,14 +513,13 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER) {
-            if (self.render_terrain_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_terrain_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
+            var handles = self.material_pool.liveHandles();
+            while (handles.next()) |handle| {
+                self.destroyDescriptorSets(handle);
             }
 
-            if (self.render_gbuffer_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_gbuffer_pass_user_data) |user_data| {
+            if (self.render_terrain_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_terrain_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
                 }
             }
@@ -858,11 +857,6 @@ pub const Renderer = struct {
             .wind_shiver_directionality = material_data.wind_shiver_directionality,
         };
 
-        const pipeline_ids = PassPipelineIds{
-            .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
-            .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
-        };
-
         self.materials.append(material) catch unreachable;
 
         const buffer = self.buffer_pool.getColumn(self.materials_buffer, .buffer) catch unreachable;
@@ -875,18 +869,81 @@ pub const Renderer = struct {
         util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(Material));
         resource_loader.endUpdateResource(&update_desc);
 
-        const handle: MaterialHandle = try self.material_pool.add(.{ .material = material, .buffer_offset = @intCast(offset), .pipeline_ids = pipeline_ids });
+        const metadata = MaterialMetadata{
+            .buffer_offset = @intCast(offset),
+            .pipeline_ids = .{
+                .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
+                .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
+            },
+        };
+
+        const descriptor_sets = MaterialDescriptorSets{
+            .gbuffer_descriptor_set = null,
+            .shadow_descriptor_set = null,
+        };
+
+        const handle: MaterialHandle = try self.material_pool.add(.{ .material = material, .metadata = metadata, .descriptor_sets = descriptor_sets });
+        self.createDescriptorSets(handle);
         return handle;
     }
 
-    pub fn getMaterialPipelineIds(self: *Renderer, handle: MaterialHandle) PassPipelineIds {
-        const pipeline_ids = self.material_pool.getColumn(handle, .pipeline_ids) catch unreachable;
-        return pipeline_ids;
+    pub fn createDescriptorSets(self: *Renderer, handle: MaterialHandle) void {
+        const metadata = self.getMaterialMetadata(handle);
+
+        var descriptor_sets: MaterialDescriptorSets = undefined;
+
+        // Initialize Descriptor Sets
+        if (metadata.pipeline_ids.shadow_caster_pipeline_id) |shadow_caster_pipeline_id| {
+            const root_signature = self.getRootSignature(shadow_caster_pipeline_id);
+            // TODO(gmodarelli): We should use shader reflection here
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = Renderer.data_buffer_count;
+            desc.pRootSignature = root_signature;
+            graphics.addDescriptorSet(self.renderer, &desc, @ptrCast(&descriptor_sets.shadow_descriptor_set));
+        }
+
+        if (metadata.pipeline_ids.gbuffer_pipeline_id) |gbuffer_pipeline_id| {
+            const root_signature = self.getRootSignature(gbuffer_pipeline_id);
+            // TODO(gmodarelli): We should use shader reflection here
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = Renderer.data_buffer_count;
+            desc.pRootSignature = root_signature;
+            graphics.addDescriptorSet(self.renderer, &desc, @ptrCast(&descriptor_sets.gbuffer_descriptor_set));
+        }
+
+        self.material_pool.setColumn(handle, .descriptor_sets, descriptor_sets) catch unreachable;
     }
 
-    pub fn getMaterialBufferOffset(self: *Renderer, handle: MaterialHandle) u32 {
-        const offset = self.material_pool.getColumn(handle, .buffer_offset) catch unreachable;
-        return offset;
+    pub fn destroyDescriptorSets(self: *Renderer, handle: MaterialHandle) void {
+        var descriptor_sets = self.material_pool.getColumn(handle, .descriptor_sets) catch unreachable;
+        if (descriptor_sets.gbuffer_descriptor_set) |descriptor_set| {
+            graphics.removeDescriptorSet(self.renderer, descriptor_set);
+            descriptor_sets.gbuffer_descriptor_set = null;
+        }
+
+        if (descriptor_sets.shadow_descriptor_set) |descriptor_set| {
+            graphics.removeDescriptorSet(self.renderer, descriptor_set);
+            descriptor_sets.shadow_descriptor_set = null;
+        }
+
+        self.material_pool.setColumn(handle, .descriptor_sets, descriptor_sets) catch unreachable;
+    }
+
+    pub fn getMaterial(self: *Renderer, handle: MaterialHandle) Material {
+        const material = self.material_pool.getColumn(handle, .material) catch unreachable;
+        return material;
+    }
+
+    pub fn getMaterialMetadata(self: *Renderer, handle: MaterialHandle) MaterialMetadata {
+        const metadata = self.material_pool.getColumn(handle, .metadata) catch unreachable;
+        return metadata;
+    }
+
+    pub fn getMaterialDescriptorSets(self: *Renderer, handle: MaterialHandle) MaterialDescriptorSets {
+        const descriptor_sets = self.material_pool.getColumn(handle, .descriptor_sets) catch unreachable;
+        return descriptor_sets;
     }
 
     pub fn loadMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !MeshHandle {
@@ -2488,7 +2545,20 @@ pub const PassPipelineIds = struct {
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds });
+pub const MaterialMetadata = struct {
+    buffer_offset: u32,
+    pipeline_ids: PassPipelineIds,
+};
+
+// NOTE(gmodarelli): Temporarily hardcoding some descriptor sets, but we should
+// use a struct that allows for a max number of descriptor sets and use shader
+// reflection to be able to both create and update them.
+pub const MaterialDescriptorSets = struct {
+    gbuffer_descriptor_set: ?[*c]graphics.DescriptorSet,
+    shadow_descriptor_set: ?[*c]graphics.DescriptorSet,
+};
+
+const MaterialPool = Pool(16, 16, Material, struct { material: Material, metadata: MaterialMetadata, descriptor_sets: MaterialDescriptorSets });
 pub const MaterialHandle = MaterialPool.Handle;
 
 const MeshPool = Pool(16, 16, Mesh, struct { mesh: Mesh });
