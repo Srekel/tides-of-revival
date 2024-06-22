@@ -46,6 +46,13 @@ pub fn castOpaque(comptime T: type, ptr: *anyopaque) *T {
     return @as(*T, @ptrCast(@alignCast(ptr)));
 }
 
+pub fn castSliceToSlice(comptime T: type, slice: anytype) []T {
+    // Note; This is a workaround for @ptrCast not supporting this
+    const bytes = std.mem.sliceAsBytes(slice);
+    const new_slice = std.mem.bytesAsSlice(T, bytes);
+    return new_slice;
+}
+
 pub fn castOpaqueConst(comptime T: type, ptr: *const anyopaque) *const T {
     return @as(*const T, @ptrCast(@alignCast(ptr)));
 }
@@ -56,6 +63,19 @@ pub fn memcpy(dst: *anyopaque, src: *const anyopaque, byte_count: u64) void {
     for (src_slice, 0..) |byte, i| {
         dst_slice[i] = byte;
     }
+}
+
+pub fn log(str: []const u8) void {
+    std.log.debug("{str}", .{str});
+}
+pub fn log1(obj1name: []const u8, obj1: anytype) void {
+    std.log.debug("{str}:{any}", .{ obj1name, obj1 });
+}
+pub fn log2(obj1name: []const u8, obj1: anytype, obj2name: []const u8, obj2: anytype) void {
+    std.log.debug("{str}:{any}, {str}:{any}", .{ obj1name, obj1, obj2name, obj2 });
+}
+pub fn log3(obj1name: []const u8, obj1: anytype, obj2name: []const u8, obj2: anytype, obj3name: []const u8, obj3: anytype) void {
+    std.log.debug("{str}:{any}, {str}:{any}, {str}:{any}", .{ obj1name, obj1, obj2name, obj2, obj3name, obj3 });
 }
 
 pub fn heightAtXZ(world_x: f32, world_z: f32, noise_scale_xz: f32, noise_scale_y: f32, noise_offset_y: f32, noise: *const znoise.FnlGenerator) f32 {

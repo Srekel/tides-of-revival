@@ -83,6 +83,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_ent.set(fd.WorldLoader{
         .range = 2,
         .physics = true,
+        .navmesh = true,
     });
     player_ent.set(fd.Input{ .active = !DEBUG_CAMERA_ACTIVE, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
