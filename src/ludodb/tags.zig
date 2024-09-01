@@ -2,16 +2,45 @@ const std = @import("std");
 const IdLocal = @import("../core/core.zig").IdLocal;
 
 pub const TagHash = u64;
+const TagIndex = u16;
 
 const TagData = struct {
     id: IdLocal,
-    parents: std.BoundedArray(TagHash, 8),
-    children: std.BoundedArray(TagHash, 32), // way too low - should be in the thousands
+
+    // Note: Could switch these out for a continuous array in Tags for less memory.
+    parents: std.BoundedArray(TagIndex, 4),
+    children: std.BoundedArray(TagIndex, 32),
 };
 
 pub const Tags = struct {
     tags: std.ArrayList(TagHash),
+    tag_lookup: std.AutoHashMap(TagHash, u16),
     data: TagData,
+
+    pub fn getIndex(self: Tags, hash: TagHash) TagIndex {
+        const td_index = self.tag_lookup.get(hash).?;
+        return td_index;
+    }
+
+    pub fn isA(self: Tags, index: TagIndex, parent_hash: TagHash) bool {
+        const td = self.data[index];
+        for (td.parents.slice()) |parent_index| {
+            if (self.tags[parent_index] == parent_hash) {
+                return true;
+            }
+
+            if (self.isA(parent_index, parent_hash)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    pub fn isA_fromHash(self: Tags, hash: TagHash, parent_hash: TagHash) bool {
+        const td_index = self.getIndex(hash);
+        return self.isA(td_index, parent_hash);
+    }
 };
 
 pub const TagsBuilder = struct {
@@ -19,9 +48,9 @@ pub const TagsBuilder = struct {
         // hash: TagHash,
         id: IdLocal,
         parents: std.BoundedArray(TagHash, 8),
-        children: std.BoundedArray(TagHash, 32), // way too low - should be in the thousands
+        children: std.BoundedArray(TagHash, 32),
         island: usize,
-        max_depth: u8,
+        depth: u8,
     };
 
     tags: std.ArrayList(TagsBuilderData),
@@ -31,12 +60,12 @@ pub const TagsBuilder = struct {
             .id = id,
             .parents = std.BoundedArray(TagHash, 8).fromSlice(parents),
             .children = .{},
-            .max_depth = 0,
+            .depth = 0,
         };
 
         for (parents) |p| {
             if (self.get(p)) |parent_data| {
-                td.max_depth = std.math.max(td.max_depth, parent_data.max_depth + 1);
+                td.depth = std.math.max(td.depth, parent_data.depth + 1);
                 parent_data.children.append(td.hash);
             }
         }
@@ -45,7 +74,7 @@ pub const TagsBuilder = struct {
             for (td2.parents.slice()) |parent_hash| {
                 if (td.id.hash == parent_hash) {
                     td2.parents.append(td.hash);
-                    td2.max_depth = std.math.max(td2.max_depth, td.max_depth + 1);
+                    td2.depth = std.math.max(td2.depth, td.max_depth + 1);
                 }
             }
         }
@@ -90,15 +119,20 @@ pub const TagsBuilder = struct {
             return false;
         }
 
-        // Place tagdatas in order of depth, i.e.
-        if (a.max_depth < b.max_depth) {
+        // Place tagdatas in order of depth, i.e. roots first, then parents, children last.
+        if (a.max_depth < b.depth) {
             return true;
         }
-        if (a.max_depth > b.max_depth) {
+        if (a.depth > b.depth) {
             return false;
         }
 
-    return std.sort.asc(u8)
+        // Finally just sort by name (for convenience - for uniqueness the hash would be sufficient)
+        switch (std.ascii.orderIgnoreCase(a.id.toString(), b.id.toString())) {
+            .eq => unreachable,
+            .gt => return true,
+            .lt => return false,
+        }
     }
 
     pub fn build(self: *TagsBuilder) Tags {
@@ -108,8 +142,37 @@ pub const TagsBuilder = struct {
             }
         }
 
+        std.mem.sort(TagsBuilderData, self.tags, void, self.sort);
         var tags: Tags = .{};
-        _ = tags; // autofix
 
+        for (self.tags) |tbd| {
+            tags.tags.append(tbd.id.hash);
+
+            var td: TagData = .{
+                .id = tbd.id,
+                .parents = .{},
+                .children = .{},
+            };
+
+            for (tbd.parents.slice()) |parent_hash| {
+                const tbdp = self.get(parent_hash).?;
+                const parent_index = tbdp - self.tags.items.ptr;
+                const index: TagIndex = @intCast(parent_index);
+                td.parents.append(index);
+            }
+
+            for (tbd.children.slice()) |child_hash| {
+                const tbdc = self.get(child_hash).?;
+                const parent_index = tbdc - self.tags.items.ptr;
+                const index: TagIndex = @intCast(parent_index);
+                td.children.append(index);
+            }
+
+            tags.data.append(td);
+        }
+
+        return tags;
     }
 };
+
+pub fn buildFromJson (json:std.json.)
