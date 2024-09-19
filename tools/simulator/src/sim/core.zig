@@ -27,9 +27,6 @@ pub const Resource = extern struct {
 };
 
 pub const MutatorType = struct {
-    name: []const u8,
-    inputs: []ResourceType,
-    outputs: []ResourceType,
     input_ranges: []f32,
 };
 
@@ -48,10 +45,78 @@ pub const Grid_i32 = extern struct {
     }
 };
 
+pub const Node = extern struct {
+    name: []const u8,
+    connections_in: []NodeId,
+    connections_out: []NodeId,
+    inputs: []ResourceType,
+    outputs: []ResourceType,
+};
+
 pub const Graph = extern struct {
-    nodes: [][]const u8,
-    resources: [][]const u8,
+    nodes: []Node,
+    resources: []*Resource,
     pub fn getMutator(self: *Graph, nodeid: NodeId) *const Mutator {
         return std.mem.bytesAsValue(Mutator, self.nodes[nodeid]);
     }
 };
+
+const VisitedNodeSet = std.AutoHashMap(NodeId, bool);
+pub fn writePass(writer: std.ArrayList(u8).Writer, graph: Graph, node_id: NodeId, visited: *VisitedNodeSet) void {
+    visited.put(node_id, true);
+    const node = graph.nodes[node_id];
+
+    for (node.connections_in) |conn| {
+        if (visited.get(conn) == null) {
+            writePass(writer, graph, conn);
+        }
+    }
+
+    writer.print("    pass_{s}_{d}(\n", .{
+        node.name,
+        node_id,
+    });
+
+    for (node.inputs) |res| {
+        writer.print("        {s},\n", .{res});
+    }
+
+    for (node.outputs) |res| {
+        writer.print("        {s},\n", .{res});
+    }
+
+    writer.write("    );");
+}
+
+pub fn writeGraph(graph: Graph) void {
+    const allocator = std.heap.GeneralPurposeAllocator(.{}).allocator();
+    var buffer = std.ArrayList(u8).init(allocator);
+    const writer = buffer.writer();
+
+    writer.print("pub fn graph_{s}(context:GraphContext) void {\n");
+
+    for (graph.resources) |res| {
+        writer.print("    var res_{s} = context.getResource(\"{s}\");\n", .{ res.name, res.name });
+    }
+    writer.write("\n");
+
+    for (graph.nodes) |node_id| {
+        writePass(graph, node_id);
+    }
+    writer.write("\n");
+
+    var buf: [1024]u8 = undefined;
+
+    const filepath = std.fmt.bufPrint(&buf, "graph_{s}.zig", .{
+        graph.name,
+    });
+
+    const file = try std.fs.cwd().createFile(
+        filepath,
+        .{ .read = true },
+    );
+    defer file.close();
+
+    const bytes_written = try file.writeAll(buffer.items);
+    _ = bytes_written; // autofix
+}
