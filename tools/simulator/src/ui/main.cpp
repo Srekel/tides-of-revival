@@ -14,20 +14,20 @@
 #include <tchar.h>
 #include <inttypes.h>
 
-#include "world_generator.h"
+// #include "world_generator.h"
 
 // Data
-static ID3D11Device*            g_pd3dDevice = nullptr;
-static ID3D11DeviceContext*     g_pd3dDeviceContext = nullptr;
-static IDXGISwapChain*          g_pSwapChain = nullptr;
-static UINT                     g_ResizeWidth = 0, g_ResizeHeight = 0;
-static ID3D11RenderTargetView*  g_mainRenderTargetView = nullptr;
+static ID3D11Device *g_pd3dDevice = nullptr;
+static ID3D11DeviceContext *g_pd3dDeviceContext = nullptr;
+static IDXGISwapChain *g_pSwapChain = nullptr;
+static UINT g_ResizeWidth = 0, g_ResizeHeight = 0;
+static ID3D11RenderTargetView *g_mainRenderTargetView = nullptr;
 
 // Voronoi viewport
-ID3D11Texture2D* g_viewportTexture = nullptr;
-ID3D11ShaderResourceView* g_viewportSRV;
-int                       g_viewportImageWidth  = 512;
-int                       g_viewportImageHeight = 512;
+ID3D11Texture2D *g_viewportTexture = nullptr;
+ID3D11ShaderResourceView *g_viewportSRV;
+int g_viewportImageWidth = 512;
+int g_viewportImageHeight = 512;
 
 // Forward declarations of helper functions
 bool CreateDeviceD3D(HWND hWnd);
@@ -36,34 +36,39 @@ void CreateRenderTarget();
 void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-constexpr const char* cWindowNameViewport = "Viewport";
-constexpr const char* cWindowNameSettings = "Settings";
+constexpr const char *cWindowNameViewport = "Viewport";
+constexpr const char *cWindowNameSettings = "Settings";
 
 bool gExit = false;
 bool gVSync = false;
 void gSetupDocking();
 void gDrawViewport();
-void gDrawSettings(map_settings_t& settings, grid_t* grid);
+void gDrawSettings();
+// void gDrawSettings(map_settings_t &settings, grid_t *grid);
 void gDrawMenuBar();
 
-void gGenerateLandscapePreview(grid_t* grid);
-
+// void gGenerateLandscapePreview(grid_t *grid);
 // Main code
-int main(int, char**)
+#ifdef ZIG_BUILD
+#include "../main_cpp.h"
+int main_cpp()
+#else
+int main(int, char **)
+#endif
 {
-	grid_t grid;
-	map_settings_t map_settings;
-	map_settings.size                = 8.0f;
-	map_settings.radius              = 0.05f;
-	map_settings.num_relaxations     = 10;
-	map_settings.seed                = 1981;
-	map_settings.landscape_seed      = 12421;
-	map_settings.landscape_frequency = 1.0f;
-	map_settings.landscape_octaves   = 8;
+	// grid_t grid;
+	// map_settings_t map_settings;
+	// map_settings.size = 8.0f;
+	// map_settings.radius = 0.05f;
+	// map_settings.num_relaxations = 10;
+	// map_settings.seed = 1981;
+	// map_settings.landscape_seed = 12421;
+	// map_settings.landscape_frequency = 1.0f;
+	// map_settings.landscape_octaves = 8;
 
 	// Create application window
 	ImGui_ImplWin32_EnableDpiAwareness();
-	WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Voronoi Map", nullptr };
+	WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Voronoi Map", nullptr};
 	::RegisterClassExW(&wc);
 	HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Voronoi Map", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
@@ -87,7 +92,7 @@ int main(int, char**)
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	desc.CPUAccessFlags = 0;
 	g_pd3dDevice->CreateTexture2D(&desc, nullptr, &g_viewportTexture);
-	assert(g_viewportTexture);
+	// assert(g_viewportTexture);
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 	memset(&srvDesc, 0, sizeof(srvDesc));
@@ -104,17 +109,18 @@ int main(int, char**)
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+	ImGuiIO &io = ImGui::GetIO();
+	(void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;	  // Enable Docking
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;	  // Enable Multi-Viewport / Platform Windows
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
 	// When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
-	ImGuiStyle& style = ImGui::GetStyle();
+	ImGuiStyle &style = ImGui::GetStyle();
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 	{
 		style.WindowRounding = 0.0f;
@@ -158,13 +164,14 @@ int main(int, char**)
 		ImGui::NewFrame();
 
 		gSetupDocking();
-		gDrawSettings(map_settings, &grid);
+		// gDrawSettings(map_settings, &grid);
+		gDrawSettings();
 		gDrawViewport();
 		gDrawMenuBar();
 
 		// Rendering
 		ImGui::Render();
-		const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
+		const float clear_color_with_alpha[4] = {clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w};
 		g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, nullptr);
 		g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color_with_alpha);
 		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
@@ -206,7 +213,7 @@ void gSetupDocking()
 	// because it would be confusing to have two docking targets within each others.
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
 
-	ImGuiViewport* viewport = ImGui::GetMainViewport();
+	ImGuiViewport *viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(viewport->Pos);
 	ImGui::SetNextWindowSize(viewport->Size);
 	ImGui::SetNextWindowViewport(viewport->ID);
@@ -222,9 +229,9 @@ void gSetupDocking()
 	}
 
 	// Important: note that we proceed even if Begin() returns false (aka window is collapsed).
-	// This is because we want to keep our DockSpace() active. If a DockSpace() is inactive, 
+	// This is because we want to keep our DockSpace() active. If a DockSpace() is inactive,
 	// all active windows docked into it will lose their parent and become undocked.
-	// We cannot preserve the docking relationship between an active window and an inactive docking, otherwise 
+	// We cannot preserve the docking relationship between an active window and an inactive docking, otherwise
 	// any change of dockspace/settings would lead to windows being stuck in limbo and never being visible.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 	ImGui::Begin("DockSpace", nullptr, window_flags);
@@ -232,7 +239,7 @@ void gSetupDocking()
 	ImGui::PopStyleVar(2);
 
 	// Dockspace
-	ImGuiIO& io = ImGui::GetIO();
+	ImGuiIO &io = ImGui::GetIO();
 	if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
 	{
 		ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
@@ -253,7 +260,6 @@ void gSetupDocking()
 			ImGuiID dock_id_main;
 			ImGuiID dock_id_settings = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.2f, nullptr, &dock_id_main);
 
-
 			// we now dock our windows into the docking node we made above
 			ImGui::DockBuilderDockWindow(cWindowNameViewport, dock_id_main);
 			ImGui::DockBuilderDockWindow(cWindowNameSettings, dock_id_settings);
@@ -272,12 +278,13 @@ void gDrawViewport()
 		return;
 	}
 
-	ImGui::Image((void*)g_viewportSRV, ImVec2(1024, 1024));
+	ImGui::Image((void *)g_viewportSRV, ImVec2(1024, 1024));
 
 	ImGui::End();
 }
 
-void gDrawSettings(map_settings_t& settings, grid_t* grid)
+// void gDrawSettings(map_settings_t &settings, grid_t *grid)
+void gDrawSettings()
 {
 	if (!ImGui::Begin(cWindowNameSettings))
 	{
@@ -287,33 +294,33 @@ void gDrawSettings(map_settings_t& settings, grid_t* grid)
 
 	ImGui::Checkbox("VSync", &gVSync);
 
-	ImGui::SliderInt("Seed", &settings.seed, 0, 65535);
-	ImGui::InputFloat("World Size (km)", &settings.size);
-	ImGui::InputFloat("Cell radius (km)", &settings.radius);
-	ImGui::SliderInt("Relaxations", &settings.num_relaxations, 1, 15);
+	// ImGui::SliderInt("Seed", &settings.seed, 0, 65535);
+	// ImGui::InputFloat("World Size (km)", &settings.size);
+	// ImGui::InputFloat("Cell radius (km)", &settings.radius);
+	// ImGui::SliderInt("Relaxations", &settings.num_relaxations, 1, 15);
 	// ImGui::ColorPicker3("Land Color", g_landscapeLandColor);
 	// ImGui::ColorPicker3("Water Color", g_landscapeWaterColor);
 	// ImGui::ColorPicker3("Shore Color", g_landscapeShoreColor);
 
 	if (ImGui::Button("Generate Map"))
 	{
-		generate_voronoi_map(settings, grid);
+		// generate_voronoi_map(settings, grid);
 	}
 
 	if (ImGui::Button("Generate Landscape From Image"))
 	{
-		generate_landscape_from_image(settings, "content/tides_2.0.png", grid);
-		gGenerateLandscapePreview(grid);
+		// generate_landscape_from_image(settings, "content/tides_2.0.png", grid);
+		// gGenerateLandscapePreview(grid);
 	}
 
-	ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
-	ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
-	ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
+	// ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
+	// ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
+	// ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
 
 	if (ImGui::Button("Generate Landscape"))
 	{
-		generate_landscape(settings, grid);
-		gGenerateLandscapePreview(grid);
+		// generate_landscape(settings, grid);
+		// gGenerateLandscapePreview(grid);
 	}
 
 	ImGui::End();
@@ -358,9 +365,12 @@ bool CreateDeviceD3D(HWND hWnd)
 	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
 	UINT createDeviceFlags = 0;
-	//createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+	// createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 	D3D_FEATURE_LEVEL featureLevel;
-	const D3D_FEATURE_LEVEL featureLevelArray[2] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0, };
+	const D3D_FEATURE_LEVEL featureLevelArray[2] = {
+		D3D_FEATURE_LEVEL_11_0,
+		D3D_FEATURE_LEVEL_10_0,
+	};
 	HRESULT res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
 	if (res == DXGI_ERROR_UNSUPPORTED) // Try high-performance WARP software driver if hardware is not available.
 		res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
@@ -374,14 +384,26 @@ bool CreateDeviceD3D(HWND hWnd)
 void CleanupDeviceD3D()
 {
 	CleanupRenderTarget();
-	if (g_pSwapChain) { g_pSwapChain->Release(); g_pSwapChain = nullptr; }
-	if (g_pd3dDeviceContext) { g_pd3dDeviceContext->Release(); g_pd3dDeviceContext = nullptr; }
-	if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
+	if (g_pSwapChain)
+	{
+		g_pSwapChain->Release();
+		g_pSwapChain = nullptr;
+	}
+	if (g_pd3dDeviceContext)
+	{
+		g_pd3dDeviceContext->Release();
+		g_pd3dDeviceContext = nullptr;
+	}
+	if (g_pd3dDevice)
+	{
+		g_pd3dDevice->Release();
+		g_pd3dDevice = nullptr;
+	}
 }
 
 void CreateRenderTarget()
 {
-	ID3D11Texture2D* pBackBuffer;
+	ID3D11Texture2D *pBackBuffer;
 	g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
 	g_pd3dDevice->CreateRenderTargetView(pBackBuffer, nullptr, &g_mainRenderTargetView);
 	pBackBuffer->Release();
@@ -389,7 +411,11 @@ void CreateRenderTarget()
 
 void CleanupRenderTarget()
 {
-	if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = nullptr; }
+	if (g_mainRenderTargetView)
+	{
+		g_mainRenderTargetView->Release();
+		g_mainRenderTargetView = nullptr;
+	}
 }
 
 #ifndef WM_DPICHANGED
@@ -427,9 +453,9 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_DPICHANGED:
 		if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_DpiEnableScaleViewports)
 		{
-			//const int dpi = HIWORD(wParam);
-			//printf("WM_DPICHANGED to %d (%.0f%%)\n", dpi, (float)dpi / 96.0f * 100.0f);
-			const RECT* suggested_rect = (RECT*)lParam;
+			// const int dpi = HIWORD(wParam);
+			// printf("WM_DPICHANGED to %d (%.0f%%)\n", dpi, (float)dpi / 96.0f * 100.0f);
+			const RECT *suggested_rect = (RECT *)lParam;
 			::SetWindowPos(hWnd, nullptr, suggested_rect->left, suggested_rect->top, suggested_rect->right - suggested_rect->left, suggested_rect->bottom - suggested_rect->top, SWP_NOZORDER | SWP_NOACTIVATE);
 		}
 		break;
@@ -437,19 +463,18 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
-void gGenerateLandscapePreview(grid_t* grid)
-{
-	unsigned char* image = generate_landscape_preview(grid, g_viewportImageWidth, g_viewportImageHeight);
+// void gGenerateLandscapePreview(grid_t *grid)
+// {
+// 	unsigned char *image = generate_landscape_preview(grid, g_viewportImageWidth, g_viewportImageHeight);
 
-	D3D11_BOX box;
-	box.front = 0;
-	box.back = 1;
-	box.left = 0;
-	box.top = 0;
-	box.right = g_viewportImageWidth;
-	box.bottom = g_viewportImageHeight;
-	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource*)g_viewportTexture, 0, &box, image, g_viewportImageWidth * 4, 0);
+// 	D3D11_BOX box;
+// 	box.front = 0;
+// 	box.back = 1;
+// 	box.left = 0;
+// 	box.top = 0;
+// 	box.right = g_viewportImageWidth;
+// 	box.bottom = g_viewportImageHeight;
+// 	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource *)g_viewportTexture, 0, &box, image, g_viewportImageWidth * 4, 0);
 
-	free(image);
-}
-
+// 	free(image);
+// }
