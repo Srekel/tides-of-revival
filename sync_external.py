@@ -113,6 +113,32 @@ def main():
     )
     # sync_lib("zls", "https://github.com/zigtools/zls.git", "949e4fe525abaf25699b7f15368ecdc49fd8b786")
 
+    sync_lib(
+        "FastNoiseLite",
+        "https://github.com/Auburn/FastNoiseLite",
+        "72d212e005e62c886c06f55f740571116f361571",
+    )
+    sync_lib(
+        "imgui",
+        "https://github.com/ocornut/imgui",
+        "10fe2b674a39a2dbee2a1f0449c6f52f2af7c0f3",
+    )
+    sync_lib(
+        "poisson-disk-sampling",
+        "https://github.com/thinks/poisson-disk-sampling",
+        "11575d53f9b123b69e4963bb68251334181ad22d",
+    )
+    sync_lib(
+        "stb",
+        "https://github.com/nothings/stb",
+        "f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31",
+    )
+    sync_lib(
+        "voronoi",
+        "https://github.com/JCash/voronoi",
+        "d9bfd6ce3ddb75b947e1fea2f9b522addc9d49df",
+    )
+
     sync_zig_exe("0.13.0")
 
     os.chdir("..")
