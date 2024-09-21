@@ -1,10 +1,50 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-pub fn buildExe(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step {
+    const dll = b.addSharedLibrary(.{
+        .name = "CppNodes",
+        .target = target,
+        .optimize = optimize,
+    });
 
+    // const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
+    // dll.linkLibC();
+    // if (abi != .msvc) {
+    //     dll.linkLibCpp();
+    // }
+
+    dll.addIncludePath(b.path("src/sim_cpp"));
+
+    dll.addCSourceFiles(.{
+        .files = &.{"src/sim_cpp/world_generator.cpp"},
+        .flags = &.{""},
+    });
+
+    // Single header libraries
+    dll.addIncludePath(b.path("../../external/FastNoiseLite/C"));
+    dll.addIncludePath(b.path("../../external/poisson-disk-sampling/include"));
+    dll.addIncludePath(b.path("../../external/voronoi/src"));
+    dll.addIncludePath(b.path("../../external/stb"));
+
+    // dll.linkSystemLibrary("Gdi32");
+    // dll.linkSystemLibrary("Dwmapi");
+
+    b.installArtifact(dll);
+
+    const install_file = b.addInstallFile(b.path("lib/CppNodes.lib"), "bin/CppNodes.lib");
+    install_file.step.dependOn(&dll.step);
+    // const run_cmd = b.addRunArtifact(dll);
+    // if (b.args) |args| {
+    //     run_cmd.addArgs(args);
+    // }
+
+    // const run_step = b.step("run", "Run the app");
+    // run_step.dependOn(&run_cmd.step);
+    return &dll.step;
+}
+
+pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, cpp_nodes_step: *std.Build.Step) void {
     const exe = b.addExecutable(.{
         .name = "Simulator",
         .root_source_file = b.path("src/main.zig"),
@@ -19,6 +59,7 @@ pub fn buildExe(b: *std.Build) void {
     }
 
     exe.addIncludePath(b.path("src"));
+    exe.addIncludePath(b.path("src/sim_cpp"));
     exe.addIncludePath(b.path("../../external/imgui"));
     exe.addIncludePath(b.path("../../external/imgui/backends/"));
 
@@ -49,6 +90,13 @@ pub fn buildExe(b: *std.Build) void {
     exe.linkSystemLibrary("Gdi32");
     exe.linkSystemLibrary("Dwmapi");
 
+    // Link in our cpp library of nodes
+    // const install_file = b.addInstallFile(b.path("zig-out/lib/CppNodes.lib"), "bin/CppNodes.lib");
+    // _ = install_file; // autofix
+    exe.addLibraryPath(b.path("zig-out/lib"));
+    exe.linkSystemLibrary("CppNodes");
+
+    exe.step.dependOn(cpp_nodes_step);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -61,12 +109,10 @@ pub fn buildExe(b: *std.Build) void {
 }
 
 pub fn build(b: *std.Build) void {
-    // Single header libraries
-    // exe.addIncludePath(b.path("../../external/FastNoiseLite"));
-    // exe.addIncludePath(b.path("../../external/IconsForkAwesome"));
-    // exe.addIncludePath(b.path("../../external/poisson-disk-sampling/include/"));
-    // exe.addIncludePath(b.path("../../external/voronoi/src"));
-    buildExe(b);
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+    const cpp_nodes_step = buildCppNodesDll(b, target, optimize);
+    buildExe(b, target, optimize, cpp_nodes_step);
 
     // exe.addCSourceFiles(.{
     //     .files = &.{"src/single_header_wrapper.cpp"},

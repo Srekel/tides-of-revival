@@ -14,7 +14,7 @@
 #include <tchar.h>
 #include <inttypes.h>
 
-// #include "world_generator.h"
+#include "world_generator.h"
 
 // Data
 static ID3D11Device *g_pd3dDevice = nullptr;
@@ -43,11 +43,10 @@ bool gExit = false;
 bool gVSync = false;
 void gSetupDocking();
 void gDrawViewport();
-void gDrawSettings();
-// void gDrawSettings(map_settings_t &settings, grid_t *grid);
+void gDrawSettings(map_settings_t &settings, grid_t *grid);
 void gDrawMenuBar();
 
-// void gGenerateLandscapePreview(grid_t *grid);
+void gGenerateLandscapePreview(grid_t *grid);
 // Main code
 #ifdef ZIG_BUILD
 #include "../main_cpp.h"
@@ -56,15 +55,15 @@ int main_cpp()
 int main(int, char **)
 #endif
 {
-	// grid_t grid;
-	// map_settings_t map_settings;
-	// map_settings.size = 8.0f;
-	// map_settings.radius = 0.05f;
-	// map_settings.num_relaxations = 10;
-	// map_settings.seed = 1981;
-	// map_settings.landscape_seed = 12421;
-	// map_settings.landscape_frequency = 1.0f;
-	// map_settings.landscape_octaves = 8;
+	grid_t grid;
+	map_settings_t map_settings;
+	map_settings.size = 8.0f;
+	map_settings.radius = 0.05f;
+	map_settings.num_relaxations = 10;
+	map_settings.seed = 1981;
+	map_settings.landscape_seed = 12421;
+	map_settings.landscape_frequency = 1.0f;
+	map_settings.landscape_octaves = 8;
 
 	// Create application window
 	ImGui_ImplWin32_EnableDpiAwareness();
@@ -164,8 +163,7 @@ int main(int, char **)
 		ImGui::NewFrame();
 
 		gSetupDocking();
-		// gDrawSettings(map_settings, &grid);
-		gDrawSettings();
+		gDrawSettings(map_settings, &grid);
 		gDrawViewport();
 		gDrawMenuBar();
 
@@ -283,8 +281,8 @@ void gDrawViewport()
 	ImGui::End();
 }
 
-// void gDrawSettings(map_settings_t &settings, grid_t *grid)
-void gDrawSettings()
+void gDrawSettings(map_settings_t &settings, grid_t *grid)
+// void gDrawSettings()
 {
 	if (!ImGui::Begin(cWindowNameSettings))
 	{
@@ -294,33 +292,33 @@ void gDrawSettings()
 
 	ImGui::Checkbox("VSync", &gVSync);
 
-	// ImGui::SliderInt("Seed", &settings.seed, 0, 65535);
-	// ImGui::InputFloat("World Size (km)", &settings.size);
-	// ImGui::InputFloat("Cell radius (km)", &settings.radius);
-	// ImGui::SliderInt("Relaxations", &settings.num_relaxations, 1, 15);
+	ImGui::SliderInt("Seed", &settings.seed, 0, 65535);
+	ImGui::InputFloat("World Size (km)", &settings.size);
+	ImGui::InputFloat("Cell radius (km)", &settings.radius);
+	ImGui::SliderInt("Relaxations", &settings.num_relaxations, 1, 15);
 	// ImGui::ColorPicker3("Land Color", g_landscapeLandColor);
 	// ImGui::ColorPicker3("Water Color", g_landscapeWaterColor);
 	// ImGui::ColorPicker3("Shore Color", g_landscapeShoreColor);
 
 	if (ImGui::Button("Generate Map"))
 	{
-		// generate_voronoi_map(settings, grid);
+		generate_voronoi_map(settings, grid);
 	}
 
 	if (ImGui::Button("Generate Landscape From Image"))
 	{
-		// generate_landscape_from_image(settings, "content/tides_2.0.png", grid);
-		// gGenerateLandscapePreview(grid);
+		generate_landscape_from_image(settings, "content/tides_2.0.png", grid);
+		gGenerateLandscapePreview(grid);
 	}
 
-	// ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
-	// ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
-	// ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
+	ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
+	ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
+	ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
 
 	if (ImGui::Button("Generate Landscape"))
 	{
-		// generate_landscape(settings, grid);
-		// gGenerateLandscapePreview(grid);
+		generate_landscape(settings, grid);
+		gGenerateLandscapePreview(grid);
 	}
 
 	ImGui::End();
