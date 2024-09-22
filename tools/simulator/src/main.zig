@@ -1,7 +1,7 @@
 const std = @import("std");
 const args = @import("args");
 
-const c = @cImport({
+const c_ui = @cImport({
     @cInclude("main_cpp.h");
 });
 
@@ -17,8 +17,11 @@ pub fn main() void {
     if (options.options.generate) {
         //
     } else {
-        _ = c.main_cpp();
-        // const world = load_world();
-        // world.simulate();
+        var dll_ui = std.DynLib.open("ui.dll") catch unreachable;
+        const dll_ui_runUI = dll_ui.lookup(c_ui.PFN_runUI, "runUI").?.?;
+        dll_ui_runUI();
+
+        std.log.debug("{any}", .{dll_ui});
+        std.log.debug("{any}", .{dll_ui_runUI});
     }
 }

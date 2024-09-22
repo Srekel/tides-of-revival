@@ -16,6 +16,7 @@
 #include <tchar.h>
 
 #include "world_generator.h"
+#include "../main_cpp.h"
 
 // Data
 static ID3D11Device *g_pd3dDevice = nullptr;
@@ -53,13 +54,9 @@ PFN_generate_landscape_from_image generate_landscape_from_image;
 PFN_generate_landscape_preview generate_landscape_preview;
 
 void gGenerateLandscapePreview(grid_t *grid);
-// Main code
-#ifdef ZIG_BUILD
-#include "../main_cpp.h"
-int main_cpp()
-#else
-int main(int, char **)
-#endif
+
+// void runUI(const SimulatorAPI *api, const SimulatorContext *context)
+void runUI()
 {
 	grid_t grid;
 	map_settings_t map_settings;
@@ -97,7 +94,7 @@ int main(int, char **)
 	{
 		CleanupDeviceD3D();
 		::UnregisterClassW(wc.lpszClassName, wc.hInstance);
-		return 1;
+		return;
 	}
 
 	D3D11_TEXTURE2D_DESC desc;
@@ -222,8 +219,6 @@ int main(int, char **)
 	::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
 	::FreeLibrary(cpp_nodes_dll);
-
-	return 0;
 }
 
 // https://gist.github.com/moebiussurfing/d7e6ec46a44985dd557d7678ddfeda99

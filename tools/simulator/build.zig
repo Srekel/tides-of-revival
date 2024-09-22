@@ -1,7 +1,35 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
+pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+    const exe = b.addExecutable(.{
+        .name = "Simulator",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    exe.addIncludePath(b.path("src"));
+    exe.addIncludePath(b.path("src/ui"));
+    // exe.addIncludePath(b.path("src/sim_cpp"));
+
+    exe.root_module.addImport("args", b.createModule(.{
+        .root_source_file = b.path("../../external/zig-args/args.zig"),
+        .imports = &.{},
+    }));
+
+    b.installArtifact(exe);
+
+    const run_cmd = b.addRunArtifact(exe);
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
+}
+
+pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const dll = b.addSharedLibrary(.{
         .name = "CppNodes",
         .target = target,
@@ -27,48 +55,36 @@ pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
     dll.addIncludePath(b.path("../../external/voronoi/src"));
     dll.addIncludePath(b.path("../../external/stb"));
 
-    // dll.linkSystemLibrary("Gdi32");
-    // dll.linkSystemLibrary("Dwmapi");
-
     b.installArtifact(dll);
 
     const install_file = b.addInstallFile(b.path("lib/CppNodes.lib"), "bin/CppNodes.lib");
     install_file.step.dependOn(&dll.step);
-    // const run_cmd = b.addRunArtifact(dll);
-    // if (b.args) |args| {
-    //     run_cmd.addArgs(args);
-    // }
-
-    // const run_step = b.step("run", "Run the app");
-    // run_step.dependOn(&run_cmd.step);
-    return dll;
 }
 
-pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, cpp_nodes: *std.Build.Step.Compile) void {
-    const exe = b.addExecutable(.{
-        .name = "Simulator",
-        .root_source_file = b.path("src/main.zig"),
+pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+    const dll_ui = b.addSharedLibrary(.{
+        .name = "UI",
         .target = target,
         .optimize = optimize,
     });
 
     const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
-    exe.linkLibC();
+    dll_ui.linkLibC();
     if (abi != .msvc) {
-        exe.linkLibCpp();
+        dll_ui.linkLibCpp();
     }
 
-    exe.addIncludePath(b.path("src"));
-    exe.addIncludePath(b.path("src/sim_cpp"));
-    exe.addIncludePath(b.path("../../external/imgui"));
-    exe.addIncludePath(b.path("../../external/imgui/backends/"));
+    dll_ui.addIncludePath(b.path("src"));
+    dll_ui.addIncludePath(b.path("src/sim_cpp"));
+    dll_ui.addIncludePath(b.path("../../external/imgui"));
+    dll_ui.addIncludePath(b.path("../../external/imgui/backends/"));
 
-    exe.addCSourceFiles(.{
+    dll_ui.addCSourceFiles(.{
         .files = &.{"src/ui/main.cpp"},
         .flags = &.{"-DZIG_BUILD"},
     });
 
-    exe.addCSourceFiles(.{
+    dll_ui.addCSourceFiles(.{
         .files = &.{
             "../../external/imgui/imgui.cpp",
             "../../external/imgui/imgui_draw.cpp",
@@ -80,36 +96,26 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .flags = &.{""},
     });
 
-    exe.root_module.addImport("args", b.createModule(.{
-        .root_source_file = b.path("../../external/zig-args/args.zig"),
-        .imports = &.{},
-    }));
-
-    exe.linkSystemLibrary("d3d11");
-    exe.linkSystemLibrary("d3dcompiler_47");
-    exe.linkSystemLibrary("Gdi32");
-    exe.linkSystemLibrary("Dwmapi");
+    dll_ui.linkSystemLibrary("d3d11");
+    dll_ui.linkSystemLibrary("d3dcompiler_47");
+    dll_ui.linkSystemLibrary("Gdi32");
+    dll_ui.linkSystemLibrary("Dwmapi");
 
     // Link in our cpp library of nodes
-    exe.step.dependOn(&cpp_nodes.step);
-    b.installArtifact(exe);
+    b.installArtifact(dll_ui);
 
-    const run_cmd = b.addRunArtifact(exe);
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    const install_file = b.addInstallFile(b.path("lib/CppNodes.lib"), "bin/CppNodes.lib");
+    install_file.step.dependOn(&dll_ui.step);
 }
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const cpp_nodes = buildCppNodesDll(b, target, optimize);
-    buildExe(b, target, optimize, cpp_nodes);
+    buildExe(b, target, optimize);
+    buildCppNodesDll(b, target, optimize);
+    buildUIDll(b, target, optimize);
 
-    // exe.addCSourceFiles(.{
+    // dll.addCSourceFiles(.{
     //     .files = &.{"src/single_header_wrapper.cpp"},
     //     .flags = &.{},
     // });

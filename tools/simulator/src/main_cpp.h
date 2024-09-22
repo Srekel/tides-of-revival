@@ -1,6 +1,15 @@
 #ifdef __cplusplus
 extern "C"
+{
 #endif
 
-    int
-    main_cpp();
+#define DLLEXPORT __declspec(dllexport)
+#define CALLCONV
+
+    DLLEXPORT void runUI();
+
+    typedef void(CALLCONV *PFN_runUI)();
+
+#ifdef __cplusplus
+}
+#endif
