@@ -1,10 +1,7 @@
 #pragma once
 
-// #include "jc_voronoi.h"
-// #include <inttypes.h>
-
 #if defined(_WIN32)
-#define CPP_NODES_API __cdecl
+#define CPP_NODES_API __stdcall
 #elif
 #error Unsupported OS
 #endif

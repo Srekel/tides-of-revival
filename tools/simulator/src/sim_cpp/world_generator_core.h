@@ -1,3 +1,5 @@
+#include "world_generator.h"
+
 #ifdef __cplusplus
 extern "C"
 {
