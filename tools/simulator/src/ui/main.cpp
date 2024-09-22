@@ -17,6 +17,7 @@
 
 #include "world_generator.h"
 #include "../main_cpp.h"
+#include "../sim/api.h"
 
 // Data
 static ID3D11Device *g_pd3dDevice = nullptr;
@@ -56,8 +57,9 @@ PFN_generate_landscape_preview generate_landscape_preview;
 void gGenerateLandscapePreview(grid_t *grid);
 
 // void runUI(const SimulatorAPI *api, const SimulatorContext *context)
-void runUI()
+void runUI(const SimulatorAPI *api)
 {
+	api->simulate();
 	grid_t grid;
 	map_settings_t map_settings;
 	map_settings.size = 8.0f;

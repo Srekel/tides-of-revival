@@ -1,3 +1,5 @@
+#pragma once
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -6,9 +8,10 @@ extern "C"
 #define DLLEXPORT __declspec(dllexport)
 #define CALLCONV
 
-    DLLEXPORT void runUI();
+    struct SimulatorAPI;
+    DLLEXPORT void runUI(const struct SimulatorAPI *api);
 
-    typedef void(CALLCONV *PFN_runUI)();
+    typedef void(CALLCONV *PFN_runUI)(const struct SimulatorAPI *api);
 
 #ifdef __cplusplus
 }
