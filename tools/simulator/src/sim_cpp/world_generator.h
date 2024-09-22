@@ -3,6 +3,12 @@
 // #include "jc_voronoi.h"
 // #include <inttypes.h>
 
+#if defined(_WIN32)
+#define CPP_NODES_API __cdecl
+#elif
+#error Unsupported OS
+#endif
+
 enum map_cell_type_t
 {
 	NONE = 0,
@@ -41,9 +47,7 @@ struct map_settings_t
 	float landscape_lacunarity;
 };
 
-void generate_voronoi_map(map_settings_t settings, grid_t *grid);
-void generate_landscape_from_image(map_settings_t settings, const char *image_path, grid_t *grid);
-void generate_landscape(map_settings_t settings, grid_t *grid);
-
-// NOTE: Utility function, not a mutator
-unsigned char *generate_landscape_preview(grid_t *grid, unsigned int image_width, unsigned int image_height);
+typedef void(CPP_NODES_API *PFN_generate_voronoi_map)(map_settings_t settings, grid_t *grid);
+typedef void(CPP_NODES_API *PFN_generate_landscape_from_image)(map_settings_t settings, grid_t *grid, const char *image_path);
+typedef void(CPP_NODES_API *PFN_generate_landscape)(map_settings_t settings, grid_t *grid);
+typedef unsigned char *(CPP_NODES_API *PFN_generate_landscape_preview)(grid_t *grid, unsigned int image_width, unsigned int image_height);

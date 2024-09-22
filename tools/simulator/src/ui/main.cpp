@@ -10,9 +10,10 @@
 #include "imgui_internal.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+#include <assert.h>
 #include <d3d11.h>
-#include <tchar.h>
 #include <inttypes.h>
+#include <tchar.h>
 
 #include "world_generator.h"
 
@@ -46,6 +47,11 @@ void gDrawViewport();
 void gDrawSettings(map_settings_t &settings, grid_t *grid);
 void gDrawMenuBar();
 
+PFN_generate_voronoi_map generate_voronoi_map;
+PFN_generate_landscape generate_landscape;
+PFN_generate_landscape_from_image generate_landscape_from_image;
+PFN_generate_landscape_preview generate_landscape_preview;
+
 void gGenerateLandscapePreview(grid_t *grid);
 // Main code
 #ifdef ZIG_BUILD
@@ -64,6 +70,21 @@ int main(int, char **)
 	map_settings.landscape_seed = 12421;
 	map_settings.landscape_frequency = 1.0f;
 	map_settings.landscape_octaves = 8;
+
+	HMODULE cpp_nodes_dll = ::LoadLibraryA("CppNodes.dll");
+	assert(cpp_nodes_dll);
+
+	generate_voronoi_map = (PFN_generate_voronoi_map)::GetProcAddress(cpp_nodes_dll, "generate_voronoi_map");
+	assert(generate_voronoi_map);
+
+	generate_landscape = (PFN_generate_landscape)::GetProcAddress(cpp_nodes_dll, "generate_landscape");
+	assert(generate_landscape);
+
+	generate_landscape_from_image = (PFN_generate_landscape_from_image)::GetProcAddress(cpp_nodes_dll, "generate_landscape_from_image");
+	assert(generate_landscape_from_image);
+
+	generate_landscape_preview = (PFN_generate_landscape_preview)::GetProcAddress(cpp_nodes_dll, "generate_landscape_preview");
+	assert(generate_landscape_preview);
 
 	// Create application window
 	ImGui_ImplWin32_EnableDpiAwareness();
@@ -91,7 +112,7 @@ int main(int, char **)
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	desc.CPUAccessFlags = 0;
 	g_pd3dDevice->CreateTexture2D(&desc, nullptr, &g_viewportTexture);
-	// assert(g_viewportTexture);
+	assert(g_viewportTexture);
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 	memset(&srvDesc, 0, sizeof(srvDesc));
@@ -200,6 +221,8 @@ int main(int, char **)
 	::DestroyWindow(hwnd);
 	::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
+	::FreeLibrary(cpp_nodes_dll);
+
 	return 0;
 }
 
@@ -307,7 +330,7 @@ void gDrawSettings(map_settings_t &settings, grid_t *grid)
 
 	if (ImGui::Button("Generate Landscape From Image"))
 	{
-		generate_landscape_from_image(settings, "content/tides_2.0.png", grid);
+		generate_landscape_from_image(settings, grid, "content/tides_2.0.png");
 		gGenerateLandscapePreview(grid);
 	}
 
@@ -317,8 +340,8 @@ void gDrawSettings(map_settings_t &settings, grid_t *grid)
 
 	if (ImGui::Button("Generate Landscape"))
 	{
-		generate_landscape(settings, grid);
-		gGenerateLandscapePreview(grid);
+		// generate_landscape(settings, grid);
+		// gGenerateLandscapePreview(grid);
 	}
 
 	ImGui::End();
@@ -461,18 +484,18 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
-// void gGenerateLandscapePreview(grid_t *grid)
-// {
-// 	unsigned char *image = generate_landscape_preview(grid, g_viewportImageWidth, g_viewportImageHeight);
+void gGenerateLandscapePreview(grid_t *grid)
+{
+	unsigned char *image = generate_landscape_preview(grid, g_viewportImageWidth, g_viewportImageHeight);
 
-// 	D3D11_BOX box;
-// 	box.front = 0;
-// 	box.back = 1;
-// 	box.left = 0;
-// 	box.top = 0;
-// 	box.right = g_viewportImageWidth;
-// 	box.bottom = g_viewportImageHeight;
-// 	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource *)g_viewportTexture, 0, &box, image, g_viewportImageWidth * 4, 0);
+	D3D11_BOX box;
+	box.front = 0;
+	box.back = 1;
+	box.left = 0;
+	box.top = 0;
+	box.right = g_viewportImageWidth;
+	box.bottom = g_viewportImageHeight;
+	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource *)g_viewportTexture, 0, &box, image, g_viewportImageWidth * 4, 0);
 
-// 	free(image);
-// }
+	free(image);
+}

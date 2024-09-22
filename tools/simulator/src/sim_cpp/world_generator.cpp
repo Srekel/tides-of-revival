@@ -1,4 +1,5 @@
 #include "world_generator.h"
+#include "world_generator_core.h"
 
 // #define FNL_IMPL
 // #include "FastNoiseLite.h"
@@ -60,7 +61,7 @@ void generate_voronoi_map(map_settings_t settings, grid_t *grid)
 	}
 }
 
-void generate_landscape_from_image(map_settings_t settings, const char *image_path, grid_t *grid)
+void generate_landscape_from_image(map_settings_t settings, grid_t *grid, const char *image_path)
 {
 	int image_width, image_height, image_channels;
 	stbi_set_flip_vertically_on_load(true);
@@ -333,21 +334,21 @@ unsigned char *generate_landscape_preview(grid_t *grid, uint32_t image_width, ui
 			color_tri[3] = 255;
 			if (cell.cell_type == LAND)
 			{
-				color_tri[0] = (char)(g_landscapeLandColor[0] * 255.0f);
-				color_tri[1] = (char)(g_landscapeLandColor[1] * 255.0f);
-				color_tri[2] = (char)(g_landscapeLandColor[2] * 255.0f);
+				color_tri[0] = (unsigned char)(g_landscapeLandColor[0] * 255.0f);
+				color_tri[1] = (unsigned char)(g_landscapeLandColor[1] * 255.0f);
+				color_tri[2] = (unsigned char)(g_landscapeLandColor[2] * 255.0f);
 			}
 			else if (cell.cell_type == WATER)
 			{
-				color_tri[0] = (char)(g_landscapeWaterColor[0] * 255.0f);
-				color_tri[1] = (char)(g_landscapeWaterColor[1] * 255.0f);
-				color_tri[2] = (char)(g_landscapeWaterColor[2] * 255.0f);
+				color_tri[0] = (unsigned char)(g_landscapeWaterColor[0] * 255.0f);
+				color_tri[1] = (unsigned char)(g_landscapeWaterColor[1] * 255.0f);
+				color_tri[2] = (unsigned char)(g_landscapeWaterColor[2] * 255.0f);
 			}
 			else if (cell.cell_type == SHORE)
 			{
-				color_tri[0] = (char)(g_landscapeShoreColor[0] * 255.0f);
-				color_tri[1] = (char)(g_landscapeShoreColor[1] * 255.0f);
-				color_tri[2] = (char)(g_landscapeShoreColor[2] * 255.0f);
+				color_tri[0] = (unsigned char)(g_landscapeShoreColor[0] * 255.0f);
+				color_tri[1] = (unsigned char)(g_landscapeShoreColor[1] * 255.0f);
+				color_tri[2] = (unsigned char)(g_landscapeShoreColor[2] * 255.0f);
 			}
 
 			jcv_point s = remap(&site->p, &grid->voronoi_grid->min, &grid->voronoi_grid->max, &dimensions);

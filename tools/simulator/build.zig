@@ -1,18 +1,18 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step {
+pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
     const dll = b.addSharedLibrary(.{
         .name = "CppNodes",
         .target = target,
         .optimize = optimize,
     });
 
-    // const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
-    // dll.linkLibC();
-    // if (abi != .msvc) {
-    //     dll.linkLibCpp();
-    // }
+    const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
+    dll.linkLibC();
+    if (abi != .msvc) {
+        dll.linkLibCpp();
+    }
 
     dll.addIncludePath(b.path("src/sim_cpp"));
 
@@ -41,10 +41,10 @@ pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 
     // const run_step = b.step("run", "Run the app");
     // run_step.dependOn(&run_cmd.step);
-    return &dll.step;
+    return dll;
 }
 
-pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, cpp_nodes_step: *std.Build.Step) void {
+pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, cpp_nodes: *std.Build.Step.Compile) void {
     const exe = b.addExecutable(.{
         .name = "Simulator",
         .root_source_file = b.path("src/main.zig"),
@@ -91,12 +91,7 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exe.linkSystemLibrary("Dwmapi");
 
     // Link in our cpp library of nodes
-    // const install_file = b.addInstallFile(b.path("zig-out/lib/CppNodes.lib"), "bin/CppNodes.lib");
-    // _ = install_file; // autofix
-    exe.addLibraryPath(b.path("zig-out/lib"));
-    exe.linkSystemLibrary("CppNodes");
-
-    exe.step.dependOn(cpp_nodes_step);
+    exe.step.dependOn(&cpp_nodes.step);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -111,8 +106,8 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const cpp_nodes_step = buildCppNodesDll(b, target, optimize);
-    buildExe(b, target, optimize, cpp_nodes_step);
+    const cpp_nodes = buildCppNodesDll(b, target, optimize);
+    buildExe(b, target, optimize, cpp_nodes);
 
     // exe.addCSourceFiles(.{
     //     .files = &.{"src/single_header_wrapper.cpp"},
