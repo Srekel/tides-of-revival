@@ -15,9 +15,8 @@
 #include <inttypes.h>
 #include <tchar.h>
 
-#include "world_generator.h"
-#include "../main_cpp.h"
-#include "../sim/api.h"
+#include "main_cpp.h"
+#include "sim/api.h"
 
 // Data
 static ID3D11Device *g_pd3dDevice = nullptr;
@@ -46,45 +45,13 @@ bool gExit = false;
 bool gVSync = false;
 void gSetupDocking();
 void gDrawViewport();
-void gDrawSettings(map_settings_t &settings, grid_t *grid);
+void gDrawSettings(const SimulatorAPI *api);
 void gDrawMenuBar();
 
-PFN_generate_voronoi_map generate_voronoi_map;
-PFN_generate_landscape generate_landscape;
-PFN_generate_landscape_from_image generate_landscape_from_image;
-PFN_generate_landscape_preview generate_landscape_preview;
+void gGenerateLandscapePreview(const SimulatorAPI *api);
 
-void gGenerateLandscapePreview(grid_t *grid);
-
-// void runUI(const SimulatorAPI *api, const SimulatorContext *context)
 void runUI(const SimulatorAPI *api)
 {
-	api->simulate();
-	grid_t grid;
-	map_settings_t map_settings;
-	map_settings.size = 8.0f;
-	map_settings.radius = 0.05f;
-	map_settings.num_relaxations = 10;
-	map_settings.seed = 1981;
-	map_settings.landscape_seed = 12421;
-	map_settings.landscape_frequency = 1.0f;
-	map_settings.landscape_octaves = 8;
-
-	HMODULE cpp_nodes_dll = ::LoadLibraryA("CppNodes.dll");
-	assert(cpp_nodes_dll);
-
-	generate_voronoi_map = (PFN_generate_voronoi_map)::GetProcAddress(cpp_nodes_dll, "generate_voronoi_map");
-	assert(generate_voronoi_map);
-
-	generate_landscape = (PFN_generate_landscape)::GetProcAddress(cpp_nodes_dll, "generate_landscape");
-	assert(generate_landscape);
-
-	generate_landscape_from_image = (PFN_generate_landscape_from_image)::GetProcAddress(cpp_nodes_dll, "generate_landscape_from_image");
-	assert(generate_landscape_from_image);
-
-	generate_landscape_preview = (PFN_generate_landscape_preview)::GetProcAddress(cpp_nodes_dll, "generate_landscape_preview");
-	assert(generate_landscape_preview);
-
 	// Create application window
 	ImGui_ImplWin32_EnableDpiAwareness();
 	WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Voronoi Map", nullptr};
@@ -183,7 +150,7 @@ void runUI(const SimulatorAPI *api)
 		ImGui::NewFrame();
 
 		gSetupDocking();
-		gDrawSettings(map_settings, &grid);
+		gDrawSettings(api);
 		gDrawViewport();
 		gDrawMenuBar();
 
@@ -219,8 +186,6 @@ void runUI(const SimulatorAPI *api)
 	CleanupDeviceD3D();
 	::DestroyWindow(hwnd);
 	::UnregisterClassW(wc.lpszClassName, wc.hInstance);
-
-	::FreeLibrary(cpp_nodes_dll);
 }
 
 // https://gist.github.com/moebiussurfing/d7e6ec46a44985dd557d7678ddfeda99
@@ -301,8 +266,7 @@ void gDrawViewport()
 	ImGui::End();
 }
 
-void gDrawSettings(map_settings_t &settings, grid_t *grid)
-// void gDrawSettings()
+void gDrawSettings(const SimulatorAPI *api)
 {
 	if (!ImGui::Begin(cWindowNameSettings))
 	{
@@ -312,34 +276,44 @@ void gDrawSettings(map_settings_t &settings, grid_t *grid)
 
 	ImGui::Checkbox("VSync", &gVSync);
 
-	ImGui::SliderInt("Seed", &settings.seed, 0, 65535);
-	ImGui::InputFloat("World Size (km)", &settings.size);
-	ImGui::InputFloat("Cell radius (km)", &settings.radius);
-	ImGui::SliderInt("Relaxations", &settings.num_relaxations, 1, 15);
+	// ImGui::SliderInt("Seed", &settings.seed, 0, 65535);
+	// ImGui::InputFloat("World Size (km)", &settings.size);
+	// ImGui::InputFloat("Cell radius (km)", &settings.radius);
+	// ImGui::SliderInt("Relaxations", &settings.num_relaxations, 1, 15);
 	// ImGui::ColorPicker3("Land Color", g_landscapeLandColor);
 	// ImGui::ColorPicker3("Water Color", g_landscapeWaterColor);
 	// ImGui::ColorPicker3("Shore Color", g_landscapeShoreColor);
 
-	if (ImGui::Button("Generate Map"))
+	// if (ImGui::Button("Generate Map"))
+	// {
+	// 	generate_voronoi_map(settings, grid);
+	// }
+
+	if (ImGui::Button("SIMULATE!!!!"))
 	{
-		generate_voronoi_map(settings, grid);
+		api->simulate();
 	}
 
-	if (ImGui::Button("Generate Landscape From Image"))
+	if (ImGui::Button("PREVIEW!!!!"))
 	{
-		generate_landscape_from_image(settings, grid, "content/tides_2.0.png");
-		gGenerateLandscapePreview(grid);
+		gGenerateLandscapePreview(api);
 	}
 
-	ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
-	ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
-	ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
+	// if (ImGui::Button("Generate Landscape From Image"))
+	// {
+	// 	generate_landscape_from_image(settings, grid, "content/tides_2.0.png");
+	// 	gGenerateLandscapePreview(grid);
+	// }
 
-	if (ImGui::Button("Generate Landscape"))
-	{
-		// generate_landscape(settings, grid);
-		// gGenerateLandscapePreview(grid);
-	}
+	// ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
+	// ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
+	// ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
+
+	// if (ImGui::Button("Generate Landscape"))
+	// {
+	// 	// generate_landscape(settings, grid);
+	// 	// gGenerateLandscapePreview(grid);
+	// }
 
 	ImGui::End();
 }
@@ -481,9 +455,9 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
-void gGenerateLandscapePreview(grid_t *grid)
+void gGenerateLandscapePreview(const SimulatorAPI *api)
 {
-	unsigned char *image = generate_landscape_preview(grid, g_viewportImageWidth, g_viewportImageHeight);
+	unsigned char *image = api->get_preview(g_viewportImageWidth, g_viewportImageHeight);
 
 	D3D11_BOX box;
 	box.front = 0;

@@ -9,9 +9,16 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
     });
 
+    const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
+    exe.linkLibC();
+    if (abi != .msvc) {
+        exe.linkLibCpp();
+    }
+
     exe.addIncludePath(b.path("src"));
     exe.addIncludePath(b.path("src/ui"));
-    // exe.addIncludePath(b.path("src/sim_cpp"));
+    exe.addIncludePath(b.path("src/sim_cpp"));
+    exe.addIncludePath(b.path("../../external/voronoi/src"));
 
     exe.root_module.addImport("args", b.createModule(.{
         .root_source_file = b.path("../../external/zig-args/args.zig"),
@@ -30,35 +37,32 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 }
 
 pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
-    const dll = b.addSharedLibrary(.{
+    const dll_cpp_nodes = b.addSharedLibrary(.{
         .name = "CppNodes",
         .target = target,
         .optimize = optimize,
     });
 
     const abi = (std.zig.system.resolveTargetQuery(target.query) catch unreachable).abi;
-    dll.linkLibC();
+    dll_cpp_nodes.linkLibC();
     if (abi != .msvc) {
-        dll.linkLibCpp();
+        dll_cpp_nodes.linkLibCpp();
     }
 
-    dll.addIncludePath(b.path("src/sim_cpp"));
+    dll_cpp_nodes.addIncludePath(b.path("src/sim_cpp"));
 
-    dll.addCSourceFiles(.{
+    dll_cpp_nodes.addCSourceFiles(.{
         .files = &.{"src/sim_cpp/world_generator.cpp"},
         .flags = &.{""},
     });
 
     // Single header libraries
-    dll.addIncludePath(b.path("../../external/FastNoiseLite/C"));
-    dll.addIncludePath(b.path("../../external/poisson-disk-sampling/include"));
-    dll.addIncludePath(b.path("../../external/voronoi/src"));
-    dll.addIncludePath(b.path("../../external/stb"));
+    dll_cpp_nodes.addIncludePath(b.path("../../external/FastNoiseLite/C"));
+    dll_cpp_nodes.addIncludePath(b.path("../../external/poisson-disk-sampling/include"));
+    dll_cpp_nodes.addIncludePath(b.path("../../external/voronoi/src"));
+    dll_cpp_nodes.addIncludePath(b.path("../../external/stb"));
 
-    b.installArtifact(dll);
-
-    const install_file = b.addInstallFile(b.path("lib/CppNodes.lib"), "bin/CppNodes.lib");
-    install_file.step.dependOn(&dll.step);
+    b.installArtifact(dll_cpp_nodes);
 }
 
 pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
@@ -103,9 +107,6 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
 
     // Link in our cpp library of nodes
     b.installArtifact(dll_ui);
-
-    const install_file = b.addInstallFile(b.path("lib/CppNodes.lib"), "bin/CppNodes.lib");
-    install_file.step.dependOn(&dll_ui.step);
 }
 
 pub fn build(b: *std.Build) void {

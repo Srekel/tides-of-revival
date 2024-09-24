@@ -26,17 +26,17 @@ static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_po
 static void relax_points(const jcv_diagram *diagram, jcv_point *points);
 jcv_point *generate_points(float size, float radius, uint32_t seed, uint32_t *num_points);
 
-void generate_voronoi_map(map_settings_t settings, grid_t *grid)
+void generate_voronoi_map(const map_settings_t *settings, grid_t *grid)
 {
 	uint32_t num_points = 0;
-	jcv_point *points = generate_points(settings.size, settings.radius, (uint32_t)settings.seed, &num_points);
+	jcv_point *points = generate_points(settings->size, settings->radius, (uint32_t)settings->seed, &num_points);
 	if (points)
 	{
 		assert(num_points > 0);
-		jcv_rect bounding_box = {{0.0f, 0.0f}, {settings.size, settings.size}};
+		jcv_rect bounding_box = {{0.0f, 0.0f}, {settings->size, settings->size}};
 
 		// Relax points
-		for (int i = 0; i < settings.num_relaxations; ++i)
+		for (int i = 0; i < settings->num_relaxations; ++i)
 		{
 			jcv_diagram diagram;
 			memset(&diagram, 0, sizeof(jcv_diagram));
@@ -61,7 +61,7 @@ void generate_voronoi_map(map_settings_t settings, grid_t *grid)
 	}
 }
 
-void generate_landscape_from_image(map_settings_t settings, grid_t *grid, const char *image_path)
+void generate_landscape_from_image(const map_settings_t *settings, grid_t *grid, const char *image_path)
 {
 	int image_width, image_height, image_channels;
 	stbi_set_flip_vertically_on_load(true);
@@ -105,19 +105,19 @@ void generate_landscape_from_image(map_settings_t settings, grid_t *grid, const 
 	stbi_image_free(image_data);
 }
 
-void generate_landscape(map_settings_t settings, grid_t *grid)
+void generate_landscape(const map_settings_t *settings, grid_t *grid)
 {
 	// fnl_state noise = fnlCreateState();
 	// noise.noise_type = FNL_NOISE_OPENSIMPLEX2;
-	// noise.seed = settings.landscape_seed;
-	// noise.octaves = settings.landscape_octaves;
-	// noise.frequency = settings.landscape_frequency;
+	// noise.seed = settings->landscape_seed;
+	// noise.octaves = settings->landscape_octaves;
+	// noise.frequency = settings->landscape_frequency;
 
 	// jcv_point center;
-	// const float landscape_radius = settings.size / 2.0f - 0.5f;
+	// const float landscape_radius = settings->size / 2.0f - 0.5f;
 	// const float squared_radius = landscape_radius * landscape_radius;
-	// center.x = settings.size / 2.0f;
-	// center.y = settings.size / 2.0f;
+	// center.x = settings->size / 2.0f;
+	// center.y = settings->size / 2.0f;
 
 	// const jcv_site *sites = jcv_diagram_get_sites(grid->voronoi_grid);
 	// for (int i = 0; i < grid->voronoi_grid->numsites; ++i)

@@ -18,17 +18,19 @@ enum map_cell_type_t
 struct jcv_site_;
 struct jcv_diagram_;
 
+#include "jc_voronoi.h"
+
 struct map_cell_t
 {
-	map_cell_type_t cell_type;
+	enum map_cell_type_t cell_type;
 	float noise_value;
-	const jcv_site_ *site;
+	const struct jcv_site_ *site;
 };
 
 struct grid_t
 {
-	jcv_diagram_ *voronoi_grid; // read-only
-	map_cell_t *voronoi_cells;	// read-write
+	struct jcv_diagram_ *voronoi_grid; // read-only
+	struct map_cell_t *voronoi_cells;  // read-write
 };
 
 struct map_settings_t
@@ -44,7 +46,7 @@ struct map_settings_t
 	float landscape_lacunarity;
 };
 
-typedef void(CPP_NODES_API *PFN_generate_voronoi_map)(map_settings_t settings, grid_t *grid);
-typedef void(CPP_NODES_API *PFN_generate_landscape_from_image)(map_settings_t settings, grid_t *grid, const char *image_path);
-typedef void(CPP_NODES_API *PFN_generate_landscape)(map_settings_t settings, grid_t *grid);
-typedef unsigned char *(CPP_NODES_API *PFN_generate_landscape_preview)(grid_t *grid, unsigned int image_width, unsigned int image_height);
+typedef void(CPP_NODES_API *PFN_generate_voronoi_map)(const struct map_settings_t *settings, struct grid_t *grid);
+typedef void(CPP_NODES_API *PFN_generate_landscape_from_image)(const struct map_settings_t *settings, struct grid_t *grid, const char *image_path);
+typedef void(CPP_NODES_API *PFN_generate_landscape)(const struct map_settings_t *settings, struct grid_t *grid);
+typedef unsigned char *(CPP_NODES_API *PFN_generate_landscape_preview)(struct grid_t *grid, unsigned int image_width, unsigned int image_height);
