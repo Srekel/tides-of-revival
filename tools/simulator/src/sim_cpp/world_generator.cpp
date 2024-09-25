@@ -26,17 +26,17 @@ static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_po
 static void relax_points(const jcv_diagram *diagram, jcv_point *points);
 jcv_point *generate_points(float size, float radius, uint32_t seed, uint32_t *num_points);
 
-void generate_voronoi_map(const map_settings_t *settings, grid_t *grid)
+void generate_voronoi_map(const MapSettings *map_settings, const VoronoiSettings *voronoi_settings, Grid *grid)
 {
 	uint32_t num_points = 0;
-	jcv_point *points = generate_points(settings->size, settings->radius, (uint32_t)settings->seed, &num_points);
+	jcv_point *points = generate_points(map_settings->size, voronoi_settings->radius, (uint32_t)map_settings->seed, &num_points);
 	if (points)
 	{
 		assert(num_points > 0);
-		jcv_rect bounding_box = {{0.0f, 0.0f}, {settings->size, settings->size}};
+		jcv_rect bounding_box = {{0.0f, 0.0f}, {map_settings->size, map_settings->size}};
 
 		// Relax points
-		for (int i = 0; i < settings->num_relaxations; ++i)
+		for (int i = 0; i < voronoi_settings->num_relaxations; ++i)
 		{
 			jcv_diagram diagram;
 			memset(&diagram, 0, sizeof(jcv_diagram));
@@ -55,13 +55,13 @@ void generate_voronoi_map(const map_settings_t *settings, grid_t *grid)
 		free(points);
 
 		assert(grid->voronoi_grid->numsites);
-		grid->voronoi_cells = (map_cell_t *)malloc(sizeof(map_cell_t) * grid->voronoi_grid->numsites);
+		grid->voronoi_cells = (VoronoiCell *)malloc(sizeof(VoronoiCell) * grid->voronoi_grid->numsites);
 		assert(grid->voronoi_cells);
-		memset(grid->voronoi_cells, 0, sizeof(map_cell_t) * grid->voronoi_grid->numsites);
+		memset(grid->voronoi_cells, 0, sizeof(VoronoiCell) * grid->voronoi_grid->numsites);
 	}
 }
 
-void generate_landscape_from_image(const map_settings_t *settings, grid_t *grid, const char *image_path)
+void generate_landscape_from_image(Grid *grid, const char *image_path)
 {
 	int image_width, image_height, image_channels;
 	stbi_set_flip_vertically_on_load(true);
@@ -72,7 +72,7 @@ void generate_landscape_from_image(const map_settings_t *settings, grid_t *grid,
 	for (int i = 0; i < grid->voronoi_grid->numsites; ++i)
 	{
 		const jcv_site *site = &sites[i];
-		map_cell_t &cell = grid->voronoi_cells[site->index];
+		VoronoiCell &cell = grid->voronoi_cells[site->index];
 		cell.site = site;
 
 		// P is in the voronoi diagram space, we need to convert it to the image space
@@ -105,7 +105,7 @@ void generate_landscape_from_image(const map_settings_t *settings, grid_t *grid,
 	stbi_image_free(image_data);
 }
 
-void generate_landscape(const map_settings_t *settings, grid_t *grid)
+void generate_landscape(const MapSettings *settings, Grid *grid)
 {
 	// fnl_state noise = fnlCreateState();
 	// noise.noise_type = FNL_NOISE_OPENSIMPLEX2;
@@ -123,7 +123,7 @@ void generate_landscape(const map_settings_t *settings, grid_t *grid)
 	// for (int i = 0; i < grid->voronoi_grid->numsites; ++i)
 	// {
 	// 	const jcv_site *site = &sites[i];
-	// 	map_cell_t &cell = grid->voronoi_cells[site->index];
+	// 	VoronoiCell &cell = grid->voronoi_cells[site->index];
 	// 	cell.site = site;
 
 	// 	float squared_distance = (site->p.x - center.x) * (site->p.x - center.x) + (site->p.y - center.y) * (site->p.y - center.y);
@@ -142,7 +142,7 @@ void generate_landscape(const map_settings_t *settings, grid_t *grid)
 	// for (int i = 0; i < grid->voronoi_grid->numsites; ++i)
 	// {
 	// 	const jcv_site *site = &sites[i];
-	// 	map_cell_t &cell = grid->voronoi_cells[site->index];
+	// 	VoronoiCell &cell = grid->voronoi_cells[site->index];
 	// 	if (cell.cell_type == WATER)
 	// 	{
 	// 		const jcv_graphedge *edge = site->edges;
@@ -151,7 +151,7 @@ void generate_landscape(const map_settings_t *settings, grid_t *grid)
 	// 			if (edge->neighbor != nullptr)
 	// 			{
 	// 				int cell_index = edge->neighbor->index;
-	// 				map_cell_t &neighbor = grid->voronoi_cells[cell_index];
+	// 				VoronoiCell &neighbor = grid->voronoi_cells[cell_index];
 	// 				if (neighbor.cell_type == LAND)
 	// 				{
 	// 					cell.cell_type = SHORE;
@@ -307,7 +307,7 @@ jcv_point *generate_points(float size, float radius, uint32_t seed, uint32_t *nu
 	return points;
 }
 
-unsigned char *generate_landscape_preview(grid_t *grid, uint32_t image_width, uint32_t image_height)
+unsigned char *generate_landscape_preview(Grid *grid, uint32_t image_width, uint32_t image_height)
 {
 	size_t imagesize = (size_t)(image_width * image_height * 4);
 	unsigned char *image = (unsigned char *)malloc(imagesize);
@@ -328,7 +328,7 @@ unsigned char *generate_landscape_preview(grid_t *grid, uint32_t image_width, ui
 			const jcv_site *site = &sites[i];
 			srand((unsigned int)site->index);
 
-			map_cell_t &cell = grid->voronoi_cells[site->index];
+			VoronoiCell &cell = grid->voronoi_cells[site->index];
 			unsigned char color_tri[4];
 			color_tri[0] = color_tri[1] = color_tri[2] = (int)(cell.noise_value * 255.0f);
 			color_tri[3] = 255;

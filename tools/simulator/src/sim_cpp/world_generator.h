@@ -6,7 +6,7 @@
 #error Unsupported OS
 #endif
 
-enum map_cell_type_t
+enum VoronoiCellType
 {
 	NONE = 0,
 	WATER = 1,
@@ -15,38 +15,34 @@ enum map_cell_type_t
 	MOUNTAIN = 4,
 };
 
-struct jcv_site_;
-struct jcv_diagram_;
-
 #include "jc_voronoi.h"
 
-struct map_cell_t
+struct VoronoiCell
 {
-	enum map_cell_type_t cell_type;
+	enum VoronoiCellType cell_type;
 	float noise_value;
 	const struct jcv_site_ *site;
 };
 
-struct grid_t
+struct Grid
 {
 	struct jcv_diagram_ *voronoi_grid; // read-only
-	struct map_cell_t *voronoi_cells;  // read-write
+	struct VoronoiCell *voronoi_cells; // read-write
 };
 
-struct map_settings_t
+struct MapSettings
 {
 	float size;
-	float radius;
-	int num_relaxations;
 	int seed;
-	// Shape noise settings
-	int landscape_seed;
-	float landscape_frequency;
-	int landscape_octaves;
-	float landscape_lacunarity;
 };
 
-typedef void(CPP_NODES_API *PFN_generate_voronoi_map)(const struct map_settings_t *settings, struct grid_t *grid);
-typedef void(CPP_NODES_API *PFN_generate_landscape_from_image)(const struct map_settings_t *settings, struct grid_t *grid, const char *image_path);
-typedef void(CPP_NODES_API *PFN_generate_landscape)(const struct map_settings_t *settings, struct grid_t *grid);
-typedef unsigned char *(CPP_NODES_API *PFN_generate_landscape_preview)(struct grid_t *grid, unsigned int image_width, unsigned int image_height);
+struct VoronoiSettings
+{
+	float radius;
+	int num_relaxations;
+};
+
+typedef void(CPP_NODES_API *PFN_generate_voronoi_map)(const struct MapSettings *map_settings, const struct VoronoiSettings *voronoi_settings, struct Grid *grid);
+typedef void(CPP_NODES_API *PFN_generate_landscape_from_image)(struct Grid *grid, const char *image_path);
+typedef void(CPP_NODES_API *PFN_generate_landscape)(const struct MapSettings *settings, struct Grid *grid);
+typedef unsigned char *(CPP_NODES_API *PFN_generate_landscape_preview)(struct Grid *grid, unsigned int image_width, unsigned int image_height);

@@ -4,10 +4,21 @@ const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
 });
 
-const fn_generate_voronoi_map = *const fn (map_settings: *const c_cpp_nodes.map_settings_t, grid: *c_cpp_nodes.grid_t) callconv(.C) void;
-const fn_generate_landscape_from_image = *const fn (map_settings: *const c_cpp_nodes.map_settings_t, grid: *c_cpp_nodes.grid_t, image_path: [*:0]const u8) callconv(.C) void;
-// const fn_generate_landscape = *const fn (map_settings: *const c_cpp_nodes.map_settings_t, grid: *c_cpp_nodes.grid_t) callconv(.C) void;
-const fn_generate_landscape_preview = *const fn (grid: *c_cpp_nodes.grid_t, image_width: c_uint, image_height: c_uint) callconv(.C) [*c]u8;
+const fn_generate_voronoi_map = *const fn (
+    map_settings: *const c_cpp_nodes.MapSettings,
+    voronoi_settings: *const c_cpp_nodes.VoronoiSettings,
+    grid: *c_cpp_nodes.Grid,
+) callconv(.C) void;
+const fn_generate_landscape_from_image = *const fn (
+    grid: *c_cpp_nodes.Grid,
+    image_path: [*:0]const u8,
+) callconv(.C) void;
+// const fn_generate_landscape = *const fn (map_settings: *const c_cpp_nodes.MapSettings, grid: *c_cpp_nodes.Grid) callconv(.C) void;
+const fn_generate_landscape_preview = *const fn (
+    grid: *c_cpp_nodes.Grid,
+    image_width: c_uint,
+    image_height: c_uint,
+) callconv(.C) [*c]u8;
 
 const fn_node = *const fn (self: *Simulator) void;
 
@@ -18,8 +29,9 @@ pub const Simulator = struct {
 
     next_nodes: std.BoundedArray(fn_node, 16) = .{},
 
-    grid: c_cpp_nodes.grid_t = undefined,
-    map_settings: c_cpp_nodes.map_settings_t = undefined,
+    grid: c_cpp_nodes.Grid = undefined,
+    map_settings: c_cpp_nodes.MapSettings = undefined,
+    voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined,
 
     pub fn init(self: *Simulator) void {
         var dll_cpp_nodes = std.DynLib.open("CppNodes.dll") catch unreachable;
@@ -28,9 +40,9 @@ pub const Simulator = struct {
         self.generate_landscape_preview = dll_cpp_nodes.lookup(c_cpp_nodes.PFN_generate_landscape_preview, "generate_landscape_preview").?.?;
 
         self.map_settings.size = 8.0;
-        self.map_settings.radius = 0.05;
-        self.map_settings.num_relaxations = 10;
         self.map_settings.seed = 1981;
+        self.voronoi_settings.radius = 0.05;
+        self.voronoi_settings.num_relaxations = 10;
 
         self.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
     }
@@ -60,11 +72,11 @@ pub const Simulator = struct {
     }
 
     fn doNode_GenerateVoronoiMap1(self: *Simulator) void {
-        self.generate_voronoi_map(&self.map_settings, &self.grid);
+        self.generate_voronoi_map(&self.map_settings, &self.voronoi_settings, &self.grid);
         self.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
     }
 
     fn doNode_generate_landscape_from_image(self: *Simulator) void {
-        self.generate_landscape_from_image(&self.map_settings, &self.grid, "content/tides_2.0.png");
+        self.generate_landscape_from_image(&self.grid, "content/tides_2.0.png");
     }
 };

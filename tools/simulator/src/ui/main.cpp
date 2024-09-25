@@ -284,11 +284,6 @@ void gDrawSettings(const SimulatorAPI *api)
 	// ImGui::ColorPicker3("Water Color", g_landscapeWaterColor);
 	// ImGui::ColorPicker3("Shore Color", g_landscapeShoreColor);
 
-	// if (ImGui::Button("Generate Map"))
-	// {
-	// 	generate_voronoi_map(settings, grid);
-	// }
-
 	if (ImGui::Button("SIMULATE!!!!"))
 	{
 		api->simulate();
@@ -304,21 +299,9 @@ void gDrawSettings(const SimulatorAPI *api)
 		gGenerateLandscapePreview(api);
 	}
 
-	// if (ImGui::Button("Generate Landscape From Image"))
-	// {
-	// 	generate_landscape_from_image(settings, grid, "content/tides_2.0.png");
-	// 	gGenerateLandscapePreview(grid);
-	// }
-
 	// ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
 	// ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
 	// ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
-
-	// if (ImGui::Button("Generate Landscape"))
-	// {
-	// 	// generate_landscape(settings, grid);
-	// 	// gGenerateLandscapePreview(grid);
-	// }
 
 	ImGui::End();
 }
