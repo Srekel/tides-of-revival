@@ -294,6 +294,11 @@ void gDrawSettings(const SimulatorAPI *api)
 		api->simulate();
 	}
 
+	if (ImGui::Button("ONE TSTEP!!!!"))
+	{
+		api->simulateSteps(1);
+	}
+
 	if (ImGui::Button("PREVIEW!!!!"))
 	{
 		gGenerateLandscapePreview(api);
