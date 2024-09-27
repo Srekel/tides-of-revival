@@ -20,6 +20,7 @@ pub fn main() void {
     const api = sim_api.getAPI();
     var simulator = Simulator{};
     simulator.init();
+    defer simulator.deinit();
     sim_api.simulator = &simulator;
 
     if (options.options.generate) {
