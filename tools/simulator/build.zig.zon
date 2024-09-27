@@ -1,0 +1,14 @@
+.{
+    .name = "Simulator",
+    .version = "0.1.0-alpha",
+    .paths = .{""},
+    .dependencies = .{
+        // .system_sdk = .{ .path = "external/zig-gamedev/libs/system-sdk" },
+        // .zmath = .{ .path = "external/zig-gamedev/libs/zmath" },
+        // .znoise = .{ .path = "external/zig-gamedev/libs/znoise" },
+        .zjobs = .{ .path = "../../external/zig-gamedev/libs/zjobs" },
+        // .zpool = .{ .path = "../../external/zig-gamedev/libs/zpool" },
+        // .zstbi = .{ .path = "external/zig-gamedev/libs/zstbi" },
+        // .zwin32 = .{ .path = "external/zig-gamedev/libs/zwin32" },
+    },
+}

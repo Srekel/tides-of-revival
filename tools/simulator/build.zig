@@ -21,10 +21,17 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exe.addIncludePath(b.path("src/sim_cpp"));
     exe.addIncludePath(b.path("../../external/voronoi/src"));
 
+    // MODULES
+
     exe.root_module.addImport("args", b.createModule(.{
         .root_source_file = b.path("../../external/zig-args/args.zig"),
         .imports = &.{},
     }));
+
+    const zjobs = b.dependency("zjobs", .{});
+    exe.root_module.addImport("zjobs", zjobs.module("root"));
+
+    // END MODULES
 
     b.installArtifact(exe);
 

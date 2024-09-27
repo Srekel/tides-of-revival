@@ -1,4 +1,7 @@
 const std = @import("std");
+const zjobs = @import("zjobs");
+
+const Jobs = zjobs.JobQueue(.{});
 
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
 
@@ -48,6 +51,7 @@ pub const Simulator = struct {
     next_nodes: std.BoundedArray(fn_node, 16) = .{},
     mutex: std.Thread.Mutex = .{},
     progress: SimulatorProgress = .{},
+    jobs: Jobs = .{},
     thread: ?std.Thread = null,
 
     grid: c_cpp_nodes.Grid = undefined,
@@ -57,6 +61,7 @@ pub const Simulator = struct {
     pub fn init(self: *Simulator) void {
         cpp_nodes.init();
         self.progress.percent = 0;
+        self.jobs = Jobs.init();
 
         self.map_settings.size = 8.0;
         self.map_settings.seed = 1981;
@@ -66,6 +71,7 @@ pub const Simulator = struct {
 
     pub fn deinit(self: *Simulator) void {
         cpp_nodes.deinit();
+        self.jobs.deinit();
     }
 
     pub fn simulate(self: *Simulator) void {
