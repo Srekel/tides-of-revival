@@ -302,6 +302,8 @@ void gDrawSettings(const SimulatorAPI *api)
 	// ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
 	// ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
 	// ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
+	const SimulatorProgress progress = api->getProgress();
+	ImGui::ProgressBar(progress.percent, ImVec2(ImGui::GetFontSize() * 25, 0.0f));
 
 	ImGui::End();
 }

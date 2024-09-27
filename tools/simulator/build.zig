@@ -17,6 +17,7 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     exe.addIncludePath(b.path("src"));
     exe.addIncludePath(b.path("src/ui"));
+    exe.addIncludePath(b.path("src/sim"));
     exe.addIncludePath(b.path("src/sim_cpp"));
     exe.addIncludePath(b.path("../../external/voronoi/src"));
 
