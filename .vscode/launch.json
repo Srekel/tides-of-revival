@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(Windows) Launch",
+            "name": "Tides of Revival",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/TidesOfRevival.exe",
@@ -16,6 +16,17 @@
             "cwd": "${workspaceFolder}/zig-out/bin",
             "environment": [],
             "preLaunchTask": "build"
+        },
+        {
+            "name": "Simulator",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/simulator/zig-out/bin/Simulator.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/tools/simulator/zig-out/bin",
+            "environment": [],
+            "preLaunchTask": "build_simulator"
         },
         {
             "name": "c2z",

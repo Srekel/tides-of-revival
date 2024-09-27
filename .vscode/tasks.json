@@ -18,6 +18,21 @@
             }
         },
         {
+            "label": "build_simulator",
+            "type": "shell",
+            "command": "zig build --summary failures",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/tools/simulator/"
+            },
+            "presentation": {
+                "clear": true,
+            }
+        },
+        {
             "label": "zig test",
             "type": "process",
             "command": "zig",
