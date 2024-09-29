@@ -450,7 +450,11 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 void gGenerateLandscapePreview(const SimulatorAPI *api)
 {
-	unsigned char *image = api->get_preview(g_viewportImageWidth, g_viewportImageHeight);
+	unsigned char *image = api->getPreview(g_viewportImageWidth, g_viewportImageHeight);
+	if (image == NULL)
+	{
+		return;
+	}
 
 	D3D11_BOX box;
 	box.front = 0;

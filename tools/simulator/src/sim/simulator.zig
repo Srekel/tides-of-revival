@@ -100,7 +100,12 @@ pub const Simulator = struct {
         }
     }
 
-    pub fn get_preview(self: *Simulator, image_width: u32, image_height: u32) [*c]u8 {
+    pub fn getPreview(self: *Simulator, image_width: u32, image_height: u32) [*c]u8 {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.thread != null) {
+            return null;
+        }
         return cpp_nodes.generate_landscape_preview(&self.grid, image_width, image_height);
     }
 
