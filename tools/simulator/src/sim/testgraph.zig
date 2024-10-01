@@ -33,6 +33,8 @@ pub fn start(ctx: *Context) void {
     // INITIALIZE LOCAL
     voronoi_settings.radius = 0.05;
     voronoi_settings.num_relaxations = 10;
+
+    // Start!
     ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
 }
 
@@ -40,15 +42,18 @@ pub fn exit(ctx: *Context) void {
     const name_grid = "voronoigrid";
     ctx.resources.put(name_grid, &grid);
 
-    // TODO: Dealloc grid?
+    ctx.next_nodes.appendAssumeCapacity(heightmap_output.start);
 }
 
 fn doNode_GenerateVoronoiMap1(ctx: *Context) void {
     cpp_nodes.generate_voronoi_map(&map_settings, &voronoi_settings, &grid);
+    // const preview = voronoi.copy_to_preview(grid);
+    // ctx.previews.put("voronoigrid", preview);
     ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
 }
 
 fn doNode_generate_landscape_from_image(ctx: *Context) void {
     _ = ctx; // autofix
     cpp_nodes.generate_landscape_from_image(&grid, "content/tides_2.0.png");
+    ctx.next_nodes.appendAssumeCapacity(exit);
 }

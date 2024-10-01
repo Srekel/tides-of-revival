@@ -30,6 +30,7 @@
             },
             "presentation": {
                 "clear": true,
+                "revealProblems": "onProblem",
             }
         },
         {
