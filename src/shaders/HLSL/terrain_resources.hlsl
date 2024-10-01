@@ -51,7 +51,6 @@ STRUCT(VSOutput)
 	DATA(float3, PositionWS, POSITION);
 	DATA(float2, UV, TEXCOORD0);
 	DATA(float3, Normal, TEXCOORD1);
-	DATA(float3, Tangent, TEXCOORD2);
 	DATA(uint, InstanceID, SV_InstanceID);
 };
 
@@ -61,7 +60,5 @@ STRUCT(GBufferOutput)
 	DATA(float4, GBuffer1, SV_TARGET1);
 	DATA(float4, GBuffer2, SV_TARGET2);
 };
-
-// #include "pbr.h"
 
 #endif // _TERRAIN_RESOURCES_H
