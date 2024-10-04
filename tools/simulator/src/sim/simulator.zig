@@ -4,13 +4,8 @@ const zjobs = @import("zjobs");
 const Jobs = zjobs.JobQueue(.{});
 
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
+const graph = @import("graph.zig");
 const loaded_graph = @import("testgraph.zig");
-
-const c_cpp_nodes = @cImport({
-    @cInclude("world_generator.h");
-});
-
-// const fn_node = *const fn (self: *Simulator) void;
 
 const SimulatorJob = struct {
     simulator: Simulator,
@@ -31,8 +26,19 @@ fn runSimulation(args: RunSimulationArgs) void {
     self.mutex.unlock();
 
     const node_count = 2;
-    var ctx: loaded_graph.Context = .{};
-    // ctx.next_nodes = self.next_nodes;
+    var ctx: graph.Context = .{};
+    ctx.resources = std.StringHashMap(*anyopaque).init(std.heap.c_allocator); // TODO fix
+    ctx.resources.ensureTotalCapacity(1024) catch unreachable;
+
+    // TODO: Move into global graph (?)
+    const c_cpp_nodes = @cImport({
+        @cInclude("world_generator.h");
+    });
+    var map_settings: c_cpp_nodes.MapSettings = .{};
+    map_settings.seed = 100;
+    map_settings.size = 8;
+    ctx.resources.putAssumeCapacity("map", &map_settings);
+
     loaded_graph.start(&ctx);
 
     while (self.next_nodes.len > 0) {
@@ -52,25 +58,16 @@ fn runSimulation(args: RunSimulationArgs) void {
 }
 
 pub const Simulator = struct {
-    next_nodes: std.BoundedArray(loaded_graph.fn_node, 16) = .{},
+    next_nodes: std.BoundedArray(graph.fn_node, 16) = .{},
     mutex: std.Thread.Mutex = .{},
     progress: SimulatorProgress = .{},
     jobs: Jobs = .{},
     thread: ?std.Thread = null,
 
-    // grid: c_cpp_nodes.Grid = undefined,
-    // map_settings: c_cpp_nodes.MapSettings = undefined,
-    // voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined,
-
     pub fn init(self: *Simulator) void {
         cpp_nodes.init();
         self.progress.percent = 0;
         self.jobs = Jobs.init();
-
-        // self.map_settings.size = 8.0;
-        // self.map_settings.seed = 1981;
-        // self.voronoi_settings.radius = 0.05;
-        // self.voronoi_settings.num_relaxations = 10;
     }
 
     pub fn deinit(self: *Simulator) void {
@@ -122,15 +119,6 @@ pub const Simulator = struct {
         self.mutex.unlock();
         return progress;
     }
-
-    // fn doNode_GenerateVoronoiMap1(self: *Simulator) void {
-    //     cpp_nodes.generate_voronoi_map(&self.map_settings, &self.voronoi_settings, &self.grid);
-    //     self.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
-    // }
-
-    // fn doNode_generate_landscape_from_image(self: *Simulator) void {
-    //     cpp_nodes.generate_landscape_from_image(&self.grid, "content/tides_2.0.png");
-    // }
 };
 
 pub const SimulatorProgress = struct {

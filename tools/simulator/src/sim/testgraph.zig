@@ -1,13 +1,9 @@
 const std = @import("std");
 
+const graph = @import("graph.zig");
+const Context = graph.Context;
+
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
-
-pub const fn_node = *const fn (context: *Context) void;
-pub const fn_node2 = *const fn (context: *Context) void;
-
-pub const Context = struct {
-    next_nodes: std.BoundedArray(fn_node2, 16) = .{},
-};
 
 const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
@@ -25,7 +21,7 @@ var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
     const name_map_settings = "map";
-    map_settings = @ptrCast(ctx.resources.get(name_map_settings));
+    map_settings = @ptrCast(@alignCast(ctx.resources.get(name_map_settings)));
 
     // INITIALIZE OUT
     grid = undefined;
@@ -39,21 +35,22 @@ pub fn start(ctx: *Context) void {
 }
 
 pub fn exit(ctx: *Context) void {
+    _ = ctx; // autofix
     const name_grid = "voronoigrid";
-    ctx.resources.put(name_grid, &grid);
+    _ = name_grid; // autofix
+    // ctx.resources.put(name_grid, &grid);
 
-    ctx.next_nodes.appendAssumeCapacity(heightmap_output.start);
+    // ctx.next_nodes.appendAssumeCapacity(heightmap_output.start);
 }
 
 fn doNode_GenerateVoronoiMap1(ctx: *Context) void {
-    cpp_nodes.generate_voronoi_map(&map_settings, &voronoi_settings, &grid);
+    cpp_nodes.generate_voronoi_map(map_settings, &voronoi_settings, grid);
     // const preview = voronoi.copy_to_preview(grid);
     // ctx.previews.put("voronoigrid", preview);
     ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
 }
 
 fn doNode_generate_landscape_from_image(ctx: *Context) void {
-    _ = ctx; // autofix
-    cpp_nodes.generate_landscape_from_image(&grid, "content/tides_2.0.png");
+    cpp_nodes.generate_landscape_from_image(grid, "content/tides_2.0.png");
     ctx.next_nodes.appendAssumeCapacity(exit);
 }
