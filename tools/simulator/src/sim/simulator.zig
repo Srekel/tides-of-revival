@@ -26,9 +26,7 @@ fn runSimulation(args: RunSimulationArgs) void {
     self.mutex.unlock();
 
     const node_count = 2;
-    var ctx: graph.Context = .{};
-    ctx.resources = std.StringHashMap(*anyopaque).init(std.heap.c_allocator); // TODO fix
-    ctx.resources.ensureTotalCapacity(1024) catch unreachable;
+    var ctx = &self.ctx;
 
     // TODO: Move into global graph (?)
     const c_cpp_nodes = @cImport({
@@ -39,17 +37,17 @@ fn runSimulation(args: RunSimulationArgs) void {
     map_settings.size = 8;
     ctx.resources.putAssumeCapacity("map", &map_settings);
 
-    loaded_graph.start(&ctx);
+    loaded_graph.start(ctx);
 
-    while (self.next_nodes.len > 0) {
+    while (ctx.next_nodes.len > 0) {
         self.mutex.lock();
         self.progress.percent += @as(f32, 1.0) / node_count;
         self.mutex.unlock();
 
-        const node_function = self.next_nodes.buffer[0];
+        const node_function = ctx.next_nodes.buffer[0];
         std.log.debug("simulate \n{any}\n\n", .{node_function});
         _ = ctx.next_nodes.orderedRemove(0);
-        node_function(&ctx);
+        node_function(ctx);
     }
     self.mutex.lock();
     self.progress.percent = 1;
@@ -58,16 +56,22 @@ fn runSimulation(args: RunSimulationArgs) void {
 }
 
 pub const Simulator = struct {
-    next_nodes: std.BoundedArray(graph.fn_node, 16) = .{},
     mutex: std.Thread.Mutex = .{},
     progress: SimulatorProgress = .{},
     jobs: Jobs = .{},
     thread: ?std.Thread = null,
+    ctx: graph.Context = undefined,
 
     pub fn init(self: *Simulator) void {
         cpp_nodes.init();
         self.progress.percent = 0;
         self.jobs = Jobs.init();
+
+        self.ctx = .{};
+        self.ctx.resources = std.StringHashMap(*anyopaque).init(std.heap.c_allocator); // TODO fix
+        self.ctx.resources.ensureTotalCapacity(1024) catch unreachable;
+        self.ctx.previews = std.StringHashMap(graph.Preview).init(std.heap.c_allocator); // TODO fix
+        self.ctx.previews.ensureTotalCapacity(1024) catch unreachable;
     }
 
     pub fn deinit(self: *Simulator) void {
@@ -102,15 +106,12 @@ pub const Simulator = struct {
         // }
     }
 
-    pub fn getPreview(self: *Simulator, image_width: u32, image_height: u32) [*c]u8 {
+    pub fn getPreview(self: *Simulator, image_width: u32, image_height: u32) []u8 {
         _ = image_width; // autofix
         _ = image_height; // autofix
         self.mutex.lock();
         defer self.mutex.unlock();
-        // if (self.thread != null) {
-        return null;
-        // }
-        // return cpp_nodes.generate_landscape_preview(&self.grid, image_width, image_height);
+        return self.ctx.previews.get("generate_landscape_from_image_grid").?.data;
     }
 
     pub fn getProgress(self: *Simulator) SimulatorProgress {

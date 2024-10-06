@@ -16,7 +16,7 @@ fn simulateSteps(steps: c_uint) callconv(.C) void {
 }
 
 fn getPreview(image_width: c_uint, image_height: c_uint) callconv(.C) [*c]u8 {
-    return simulator.getPreview(image_width, image_height);
+    return @ptrCast(simulator.getPreview(image_width, image_height));
 }
 
 fn getProgress() callconv(.C) c_self_api.SimulatorProgress {
