@@ -15,6 +15,11 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         exe.linkLibCpp();
     }
 
+    exe.addCSourceFiles(.{
+        .files = &.{"src/single_header_wrapper.cpp"},
+        .flags = &.{ "-g", "-O0" },
+    });
+
     exe.addIncludePath(b.path("src"));
     exe.addIncludePath(b.path("src/ui"));
     exe.addIncludePath(b.path("src/sim"));
