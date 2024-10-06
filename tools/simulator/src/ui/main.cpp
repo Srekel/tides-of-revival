@@ -261,7 +261,7 @@ void gDrawViewport()
 		return;
 	}
 
-	ImGui::Image((void *)g_viewportSRV, ImVec2(1024, 1024));
+	ImGui::Image((void *)g_viewportSRV, ImVec2(512, 512));
 
 	ImGui::End();
 }

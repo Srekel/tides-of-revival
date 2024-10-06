@@ -4,6 +4,7 @@ const graph = @import("graph.zig");
 const Context = graph.Context;
 
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
+const nodes = @import("nodes/nodes.zig");
 
 const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
@@ -57,7 +58,17 @@ fn doNode_generate_landscape_from_image(ctx: *Context) void {
     cpp_nodes.generate_landscape_from_image(grid, "content/tides_2.0.png");
 
     const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
-    const preview_grid_key = "generate_landscape_from_image_grid";
+    const preview_grid_key = "generate_landscape_from_image.grid";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+
+    ctx.next_nodes.appendAssumeCapacity(doNode_beaches);
+}
+
+fn doNode_beaches(ctx: *Context) void {
+    nodes.voronoiContours(grid);
+
+    const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
+    const preview_grid_key = "beaches.grid";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
     ctx.next_nodes.appendAssumeCapacity(exit);

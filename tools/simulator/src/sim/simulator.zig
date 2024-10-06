@@ -111,7 +111,7 @@ pub const Simulator = struct {
         _ = image_height; // autofix
         self.mutex.lock();
         defer self.mutex.unlock();
-        return self.ctx.previews.get("generate_landscape_from_image_grid").?.data;
+        return self.ctx.previews.get("beaches.grid").?.data;
     }
 
     pub fn getProgress(self: *Simulator) SimulatorProgress {
