@@ -135,8 +135,8 @@ def main():
     )
     sync_lib(
         "voronoi",
-        "https://github.com/JCash/voronoi",
-        "d9bfd6ce3ddb75b947e1fea2f9b522addc9d49df",
+        "https://github.com/Srekel/voronoi",
+        "e4b62e3a765c1ecf80ca3b759f456bcf0b51dc37",
     )
 
     sync_zig_exe("0.13.0")

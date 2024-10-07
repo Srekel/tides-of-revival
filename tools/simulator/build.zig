@@ -17,7 +17,11 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     exe.addCSourceFiles(.{
         .files = &.{"src/single_header_wrapper.cpp"},
-        .flags = &.{ "-g", "-O0" },
+        .flags = &.{
+            "-g",
+            "-O0",
+            // "-DJCV_DISABLE_STRUCT_PACKING", // https://github.com/ziglang/zig/issues/20405
+        },
     });
 
     exe.addIncludePath(b.path("src"));
@@ -66,7 +70,11 @@ pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 
     dll_cpp_nodes.addCSourceFiles(.{
         .files = &.{"src/sim_cpp/world_generator.cpp"},
-        .flags = &.{""},
+        .flags = &.{
+            "-g",
+            "-O0",
+            // "-DJCV_DISABLE_STRUCT_PACKING", // https://github.com/ziglang/zig/issues/20405
+        },
     });
 
     // Single header libraries
