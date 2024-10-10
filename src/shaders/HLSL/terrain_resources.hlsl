@@ -8,9 +8,8 @@ struct InstanceData
 {
 	float4x4 worldMat;
 	uint heightmapTextureIndex;
-	uint splatmapTextureIndex;
 	uint lod;
-	uint _padding1;
+	uint2 _padding1;
 };
 
 struct TerrainLayerTextureIndices

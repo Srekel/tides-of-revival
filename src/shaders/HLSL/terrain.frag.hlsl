@@ -17,11 +17,9 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
     float3 N = normalize(Input.Normal);
     const float3 V = normalize(Get(camPos).xyz - P);
 
-    Texture2D splatmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.splatmapTextureIndex)];
-    uint splatmapIndex = uint(SampleLvlTex2D(splatmap, Get(bilinearClampSampler), Input.UV, 0).r * 255);
-
     ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
-    TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(splatmapIndex * sizeof(TerrainLayerTextureIndices));
+    uint terrain_layer_index = 1;
+    TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(terrain_layer_index * sizeof(TerrainLayerTextureIndices));
     Texture2D diffuseTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.diffuseIndex)];
     Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.normalIndex)];
     Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.armIndex)];
