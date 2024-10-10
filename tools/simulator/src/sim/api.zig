@@ -15,8 +15,9 @@ fn simulateSteps(steps: c_uint) callconv(.C) void {
     simulator.simulateSteps(steps);
 }
 
-fn getPreview(image_width: c_uint, image_height: c_uint) callconv(.C) [*c]u8 {
-    return @ptrCast(simulator.getPreview(image_width, image_height));
+fn getPreview(resource_name: [*c]u8, image_width: c_uint, image_height: c_uint) callconv(.C) [*c]const u8 {
+    const preview = simulator.getPreview(std.mem.span(resource_name), image_width, image_height);
+    return @ptrCast(preview);
 }
 
 fn getProgress() callconv(.C) c_self_api.SimulatorProgress {
@@ -29,7 +30,7 @@ fn getProgress() callconv(.C) c_self_api.SimulatorProgress {
 pub const SimulatorAPI = extern struct {
     simulate: *const fn () callconv(.C) void,
     simulateSteps: *const fn (steps: c_uint) callconv(.C) void,
-    getPreview: *const fn (image_width: c_uint, image_height: c_uint) callconv(.C) [*c]u8,
+    getPreview: *const fn (resource_name: [*c]u8, image_width: c_uint, image_height: c_uint) callconv(.C) [*c]const u8,
     getProgress: *const fn () callconv(.C) c_self_api.SimulatorProgress,
     // abort: *const fn () callconv(.C) void,
 };

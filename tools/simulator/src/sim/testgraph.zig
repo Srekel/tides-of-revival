@@ -48,7 +48,7 @@ fn doNode_GenerateVoronoiMap1(ctx: *Context) void {
     cpp_nodes.generate_voronoi_map(map_settings, &voronoi_settings, grid);
 
     const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
-    const preview_grid_key = "GenerateVoronoiMap1_grid";
+    const preview_grid_key = "GenerateVoronoiMap1.grid";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);

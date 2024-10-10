@@ -25,7 +25,7 @@ fn runSimulation(args: RunSimulationArgs) void {
     self.progress.percent = 0;
     self.mutex.unlock();
 
-    const node_count = 4;
+    const node_count = 5;
     var ctx = &self.ctx;
 
     // TODO: Move into global graph (?)
@@ -107,12 +107,15 @@ pub const Simulator = struct {
         // }
     }
 
-    pub fn getPreview(self: *Simulator, image_width: u32, image_height: u32) []u8 {
+    pub fn getPreview(self: *Simulator, resource_name: []const u8, image_width: u32, image_height: u32) ?[]u8 {
         _ = image_width; // autofix
         _ = image_height; // autofix
         self.mutex.lock();
         defer self.mutex.unlock();
-        return self.ctx.previews.get("beaches.grid").?.data;
+        if (!self.ctx.previews.contains(resource_name)) {
+            return null;
+        }
+        return self.ctx.previews.get(resource_name).?.data;
     }
 
     pub fn getProgress(self: *Simulator) SimulatorProgress {

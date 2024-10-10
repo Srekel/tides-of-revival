@@ -41,8 +41,19 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 constexpr const char *cWindowNameViewport = "Viewport";
 constexpr const char *cWindowNameSettings = "Settings";
 
+struct Preview
+{
+	const char *name;
+	bool visible;
+};
+
+Preview gPreviews[] = {
+	{"GenerateVoronoiMap1.grid", false},
+	{"generate_landscape_from_image.grid", false},
+	{"beaches.grid", false},
+};
+
 bool gRanOnce = false;
-bool gWaitingToPreview = false;
 bool gExit = false;
 bool gVSync = false;
 void gSetupDocking();
@@ -50,7 +61,7 @@ void gDrawViewport();
 void gDrawSettings(const SimulatorAPI *api);
 void gDrawMenuBar();
 
-void gGenerateLandscapePreview(const SimulatorAPI *api);
+void gGeneratePreview(const SimulatorAPI *api, Preview &preview);
 
 void runUI(const SimulatorAPI *api)
 {
@@ -159,17 +170,23 @@ void runUI(const SimulatorAPI *api)
 		if (!gRanOnce)
 		{
 			gRanOnce = true;
-			gWaitingToPreview = true;
+			for (unsigned i_preview = 0; i_preview < 3; i_preview++)
+			{
+				gPreviews[i_preview].visible = false;
+			}
 			api->simulate();
 		}
 
-		if (gWaitingToPreview)
+		for (unsigned i_preview = 0; i_preview < 3; i_preview++)
 		{
-			const SimulatorProgress progress = api->getProgress();
-			if (progress.percent == 1)
+			Preview &preview = gPreviews[i_preview];
+			if (!preview.visible)
 			{
-				gWaitingToPreview = false;
-				gGenerateLandscapePreview(api);
+				gGeneratePreview(api, preview);
+				if (preview.visible)
+				{
+					break;
+				}
 			}
 		}
 
@@ -313,17 +330,12 @@ void gDrawSettings(const SimulatorAPI *api)
 		api->simulateSteps(1);
 	}
 
-	if (ImGui::Button("PREVIEW!!!!"))
-	{
-		gGenerateLandscapePreview(api);
-	}
-
 	// ImGui::SliderInt("Landscape Seed", &settings.landscape_seed, 0, 65535);
 	// ImGui::SliderInt("Landscape Octaves", &settings.landscape_octaves, 0, 16);
 	// ImGui::InputFloat("Landscape Frequency", &settings.landscape_frequency);
 	static float percent = 0;
 	const SimulatorProgress progress = api->getProgress();
-	percent = percent + (progress.percent - percent) * 0.05;
+	percent = percent + (progress.percent - percent) * 0.5;
 	ImGui::ProgressBar(
 		percent, ImVec2(ImGui::GetFontSize() * 15, 0.0f));
 
@@ -467,9 +479,9 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
-void gGenerateLandscapePreview(const SimulatorAPI *api)
+void gGeneratePreview(const SimulatorAPI *api, Preview &preview)
 {
-	unsigned char *image = api->getPreview(g_viewportImageWidth, g_viewportImageHeight);
+	unsigned char *image = api->getPreview(preview.name, g_viewportImageWidth, g_viewportImageHeight);
 	if (image == NULL)
 	{
 		return;
@@ -483,4 +495,6 @@ void gGenerateLandscapePreview(const SimulatorAPI *api)
 	box.right = g_viewportImageWidth;
 	box.bottom = g_viewportImageHeight;
 	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource *)g_viewportTexture, 0, &box, image, g_viewportImageWidth * 4, 0);
+
+	preview.visible = true;
 }
