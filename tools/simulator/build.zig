@@ -20,7 +20,7 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .flags = &.{
             "-g",
             "-O0",
-            // "-DJCV_DISABLE_STRUCT_PACKING", // https://github.com/ziglang/zig/issues/20405
+            "-DJCV_DISABLE_STRUCT_PACKING", // https://github.com/ziglang/zig/issues/20405
         },
     });
 
@@ -73,7 +73,7 @@ pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
         .flags = &.{
             "-g",
             "-O0",
-            // "-DJCV_DISABLE_STRUCT_PACKING", // https://github.com/ziglang/zig/issues/20405
+            "-DJCV_DISABLE_STRUCT_PACKING", // https://github.com/ziglang/zig/issues/20405
         },
     });
 
