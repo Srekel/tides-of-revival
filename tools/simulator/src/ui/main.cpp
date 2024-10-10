@@ -25,17 +25,12 @@ static IDXGISwapChain *g_pSwapChain = nullptr;
 static UINT g_ResizeWidth = 0, g_ResizeHeight = 0;
 static ID3D11RenderTargetView *g_mainRenderTargetView = nullptr;
 
-// Voronoi viewport
-ID3D11Texture2D *g_viewportTexture = nullptr;
-ID3D11ShaderResourceView *g_viewportSRV;
-int g_viewportImageWidth = 512;
-int g_viewportImageHeight = 512;
-
 // Forward declarations of helper functions
 bool CreateDeviceD3D(HWND hWnd);
 void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
+void CreateTexture(int width, int height, ID3D11Texture2D **ppTexture, ID3D11ShaderResourceView **ppSRV);
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 constexpr const char *cWindowNameViewport = "Viewport";
@@ -45,12 +40,16 @@ struct Preview
 {
 	const char *name;
 	bool visible;
+	int texture_width;
+	int texture_height;
+	ID3D11Texture2D *texture;
+	ID3D11ShaderResourceView *srv;
 };
 
 Preview gPreviews[] = {
-	{"GenerateVoronoiMap1.grid", false},
-	{"generate_landscape_from_image.grid", false},
-	{"beaches.grid", false},
+	{"GenerateVoronoiMap1.grid", false, 512, 512, nullptr, nullptr},
+	{"generate_landscape_from_image.grid", false, 512, 512, nullptr, nullptr},
+	{"beaches.grid", false, 512, 512, nullptr, nullptr},
 };
 
 bool gRanOnce = false;
@@ -78,28 +77,6 @@ void runUI(const SimulatorAPI *api)
 		::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 		return;
 	}
-
-	D3D11_TEXTURE2D_DESC desc;
-	memset(&desc, 0, sizeof(D3D11_TEXTURE2D_DESC));
-	desc.Width = g_viewportImageWidth;
-	desc.Height = g_viewportImageHeight;
-	desc.MipLevels = 1;
-	desc.ArraySize = 1;
-	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	desc.SampleDesc.Count = 1;
-	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	desc.CPUAccessFlags = 0;
-	g_pd3dDevice->CreateTexture2D(&desc, nullptr, &g_viewportTexture);
-	assert(g_viewportTexture);
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	memset(&srvDesc, 0, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = desc.MipLevels;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	g_pd3dDevice->CreateShaderResourceView(g_viewportTexture, &srvDesc, &g_viewportSRV);
 
 	// Show the window
 	::ShowWindow(hwnd, SW_SHOWDEFAULT);
@@ -172,7 +149,9 @@ void runUI(const SimulatorAPI *api)
 			gRanOnce = true;
 			for (unsigned i_preview = 0; i_preview < 3; i_preview++)
 			{
-				gPreviews[i_preview].visible = false;
+				Preview &preview = gPreviews[i_preview];
+				preview.visible = false;
+				CreateTexture(preview.texture_width, preview.texture_height, &preview.texture, &preview.srv);
 			}
 			api->simulate();
 		}
@@ -297,7 +276,16 @@ void gDrawViewport()
 		return;
 	}
 
-	ImGui::Image((void *)g_viewportSRV, ImVec2(512, 512));
+	for (unsigned i_preview = 0; i_preview < 3; i_preview++)
+	{
+		Preview &preview = gPreviews[i_preview];
+		if (preview.visible)
+		{
+			assert(preview.texture);
+			assert(preview.srv);
+			ImGui::Image((void *)preview.srv, ImVec2(preview.texture_width, preview.texture_height));
+		}
+	}
 
 	ImGui::End();
 }
@@ -434,6 +422,31 @@ void CleanupRenderTarget()
 	}
 }
 
+void CreateTexture(int width, int height, ID3D11Texture2D **ppTexture, ID3D11ShaderResourceView **ppSRV)
+{
+	D3D11_TEXTURE2D_DESC desc;
+	memset(&desc, 0, sizeof(D3D11_TEXTURE2D_DESC));
+	desc.Width = width;
+	desc.Height = height;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	g_pd3dDevice->CreateTexture2D(&desc, nullptr, ppTexture);
+	assert(*ppTexture);
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	memset(&srvDesc, 0, sizeof(srvDesc));
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = desc.MipLevels;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	g_pd3dDevice->CreateShaderResourceView(*ppTexture, &srvDesc, ppSRV);
+}
+
 #ifndef WM_DPICHANGED
 #define WM_DPICHANGED 0x02E0 // From Windows SDK 8.1+ headers
 #endif
@@ -481,7 +494,7 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 void gGeneratePreview(const SimulatorAPI *api, Preview &preview)
 {
-	unsigned char *image = api->getPreview(preview.name, g_viewportImageWidth, g_viewportImageHeight);
+	unsigned char *image = api->getPreview(preview.name, preview.texture_width, preview.texture_height);
 	if (image == NULL)
 	{
 		return;
@@ -492,9 +505,9 @@ void gGeneratePreview(const SimulatorAPI *api, Preview &preview)
 	box.back = 1;
 	box.left = 0;
 	box.top = 0;
-	box.right = g_viewportImageWidth;
-	box.bottom = g_viewportImageHeight;
-	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource *)g_viewportTexture, 0, &box, image, g_viewportImageWidth * 4, 0);
+	box.right = preview.texture_width;
+	box.bottom = preview.texture_height;
+	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource *)preview.texture, 0, &box, image, preview.texture_width * 4, 0);
 
 	preview.visible = true;
 }
