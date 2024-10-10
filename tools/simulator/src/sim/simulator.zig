@@ -25,7 +25,7 @@ fn runSimulation(args: RunSimulationArgs) void {
     self.progress.percent = 0;
     self.mutex.unlock();
 
-    const node_count = 2;
+    const node_count = 4;
     var ctx = &self.ctx;
 
     // TODO: Move into global graph (?)
@@ -40,13 +40,14 @@ fn runSimulation(args: RunSimulationArgs) void {
     loaded_graph.start(ctx);
 
     while (ctx.next_nodes.len > 0) {
+        const node_function = ctx.next_nodes.buffer[0];
+        std.log.debug("simulate \n{any}\n\n", .{node_function});
+        _ = ctx.next_nodes.orderedRemove(0);
+
         self.mutex.lock();
         self.progress.percent += @as(f32, 1.0) / node_count;
         self.mutex.unlock();
 
-        const node_function = ctx.next_nodes.buffer[0];
-        std.log.debug("simulate \n{any}\n\n", .{node_function});
-        _ = ctx.next_nodes.orderedRemove(0);
         node_function(ctx);
     }
     self.mutex.lock();

@@ -41,6 +41,8 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 constexpr const char *cWindowNameViewport = "Viewport";
 constexpr const char *cWindowNameSettings = "Settings";
 
+bool gRanOnce = false;
+bool gWaitingToPreview = false;
 bool gExit = false;
 bool gVSync = false;
 void gSetupDocking();
@@ -153,6 +155,23 @@ void runUI(const SimulatorAPI *api)
 		gDrawSettings(api);
 		gDrawViewport();
 		gDrawMenuBar();
+
+		if (!gRanOnce)
+		{
+			gRanOnce = true;
+			gWaitingToPreview = true;
+			api->simulate();
+		}
+
+		if (gWaitingToPreview)
+		{
+			const SimulatorProgress progress = api->getProgress();
+			if (progress.percent == 1)
+			{
+				gWaitingToPreview = false;
+				gGenerateLandscapePreview(api);
+			}
+		}
 
 		// Rendering
 		ImGui::Render();
@@ -464,6 +483,4 @@ void gGenerateLandscapePreview(const SimulatorAPI *api)
 	box.right = g_viewportImageWidth;
 	box.bottom = g_viewportImageHeight;
 	g_pd3dDeviceContext->UpdateSubresource((ID3D11Resource *)g_viewportTexture, 0, &box, image, g_viewportImageWidth * 4, 0);
-
-	free(image);
 }
