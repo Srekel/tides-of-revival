@@ -25,13 +25,14 @@ const TerrainLayer = struct {
     diffuse: renderer.TextureHandle,
     normal: renderer.TextureHandle,
     arm: renderer.TextureHandle,
+    height: renderer.TextureHandle,
 };
 
 const TerrainLayerMaterial = extern struct {
     diffuse_index: u32,
     normal_index: u32,
     arm_index: u32,
-    padding: u32,
+    height_index: u32,
 };
 
 const InstanceData = struct {
@@ -152,7 +153,7 @@ pub const TerrainRenderPass = struct {
                 .diffuse_index = rctx.getTextureBindlessIndex(terrain_layer.diffuse),
                 .normal_index = rctx.getTextureBindlessIndex(terrain_layer.normal),
                 .arm_index = rctx.getTextureBindlessIndex(terrain_layer.arm),
-                .padding = 42,
+                .height_index = rctx.getTextureBindlessIndex(terrain_layer.height),
             });
         }
 
@@ -716,10 +717,23 @@ fn loadTerrainLayer(rctx: *renderer.Renderer, name: []const u8) !TerrainLayer {
         break :blk rctx.loadTexture(path);
     };
 
+    const height = blk: {
+        // Generate Path
+        var namebuf: [256]u8 = undefined;
+        const path = std.fmt.bufPrintZ(
+            namebuf[0..namebuf.len],
+            "prefabs/environment/terrain/{s}_height.dds",
+            .{name},
+        ) catch unreachable;
+
+        break :blk rctx.loadTexture(path);
+    };
+
     return .{
         .diffuse = diffuse,
         .normal = normal,
         .arm = arm,
+        .height = height,
     };
 }
 

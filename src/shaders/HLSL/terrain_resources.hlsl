@@ -17,7 +17,7 @@ struct TerrainLayerTextureIndices
 	uint diffuseIndex;
 	uint normalIndex;
 	uint armIndex;
-	uint padding;
+	uint heightIndex;
 };
 
 RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
