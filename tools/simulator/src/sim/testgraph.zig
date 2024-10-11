@@ -10,6 +10,44 @@ const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
 });
 
+pub const GraphNode = struct {
+    name: []const u8,
+    connections_out: []*GraphNode,
+};
+
+pub const Graph = struct {
+    nodes: []GraphNode = &.{
+
+    },
+};
+
+var self: Graph = .{};
+
+pub fn getGraph() Graph {
+    const node_count = 5;
+    self.nodes = (std.heap.c_allocator.alloc(GraphNode, node_count) catch unreachable)[0..];
+    self.nodes[0] = .{
+        .name = "start",
+        .connections_out = &.{&self.nodes[1]},
+    };
+    self.nodes[1] = .{
+        .name = "GenerateVoronoiMap1",
+        .connections_out = &.{&self.nodes[2]},
+    };
+    self.nodes[2] = .{
+        .name = "generate_landscape_from_image",
+        .connections_out = &.{&self.nodes[3]},
+    };
+    self.nodes[3] = .{
+        .name = "beaches",
+        .connections_out = &.{&self.nodes[4]},
+    };
+    self.nodes[4] = .{
+        .name = "exit",
+        .connections_out = &.{},
+    };
+}
+
 // IN
 var map_settings: *c_cpp_nodes.MapSettings = undefined;
 
