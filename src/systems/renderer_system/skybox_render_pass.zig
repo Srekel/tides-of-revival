@@ -130,10 +130,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         if (mesh.loaded) {
             const vertex_buffers = [_][*c]graphics.Buffer{
-                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.POSITION)]].pBuffer,
-                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.NORMAL)]].pBuffer,
-                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TANGENT)]].pBuffer,
-                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(graphics.ShaderSemantic.TEXCOORD0)]].pBuffer,
+                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_POSITION.bits)]].pBuffer,
+                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_NORMAL.bits)]].pBuffer,
+                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_TANGENT.bits)]].pBuffer,
+                mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_TEXCOORD0.bits)]].pBuffer,
             };
 
             graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);

@@ -175,10 +175,6 @@ pub const Renderer = struct {
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_FONTS, "content");
 
         var renderer_desc = std.mem.zeroes(graphics.RendererDesc);
-        renderer_desc.mD3D11Supported = false;
-        renderer_desc.mGLESSupported = false;
-        renderer_desc.mShaderTarget = graphics.ShaderTarget.SHADER_TARGET_6_6;
-        renderer_desc.mDisableReloadServer = true;
         graphics.initGPUConfiguration(null);
         graphics.initRenderer("Tides Renderer", &renderer_desc, &self.renderer);
         if (self.renderer == null) {
@@ -189,7 +185,7 @@ pub const Renderer = struct {
         var queue_desc = std.mem.zeroes(graphics.QueueDesc);
         queue_desc.mType = graphics.QueueType.QUEUE_TYPE_GRAPHICS;
         queue_desc.mFlag = graphics.QueueFlag.QUEUE_FLAG_INIT_MICROPROFILE;
-        graphics.addQueue(self.renderer, &queue_desc, &self.graphics_queue);
+        graphics.initQueue(self.renderer, &queue_desc, &self.graphics_queue);
 
         var cmd_ring_desc: graphics.GpuCmdRingDesc = undefined;
         cmd_ring_desc.queue = self.graphics_queue;
@@ -198,7 +194,7 @@ pub const Renderer = struct {
         cmd_ring_desc.add_sync_primitives = true;
         self.gpu_cmd_ring = graphics.GpuCmdRing.create(self.renderer, &cmd_ring_desc);
 
-        graphics.addSemaphore(self.renderer, &self.image_acquired_semaphore);
+        graphics.initSemaphore(self.renderer, &self.image_acquired_semaphore);
 
         var resource_loader_desc = resource_loader.ResourceLoaderDesc{
             .mBufferSize = 256 * 1024 * 1024,
@@ -228,17 +224,17 @@ pub const Renderer = struct {
         var imgui_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
         imgui_vertex_layout.mBindingCount = 1;
         imgui_vertex_layout.mAttribCount = 3;
-        imgui_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+        imgui_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.SEMANTIC_POSITION;
         imgui_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
         imgui_vertex_layout.mAttribs[0].mBinding = 0;
         imgui_vertex_layout.mAttribs[0].mLocation = 0;
         imgui_vertex_layout.mAttribs[0].mOffset = 0;
-        imgui_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
+        imgui_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.SEMANTIC_TEXCOORD0;
         imgui_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
         imgui_vertex_layout.mAttribs[1].mBinding = 0;
         imgui_vertex_layout.mAttribs[1].mLocation = 1;
         imgui_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 2;
-        imgui_vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.COLOR;
+        imgui_vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.SEMANTIC_COLOR;
         imgui_vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
         imgui_vertex_layout.mAttribs[2].mBinding = 0;
         imgui_vertex_layout.mAttribs[2].mLocation = 2;
@@ -248,12 +244,12 @@ pub const Renderer = struct {
         var im3d_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
         im3d_vertex_layout.mBindingCount = 1;
         im3d_vertex_layout.mAttribCount = 2;
-        im3d_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+        im3d_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.SEMANTIC_POSITION;
         im3d_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
         im3d_vertex_layout.mAttribs[0].mBinding = 0;
         im3d_vertex_layout.mAttribs[0].mLocation = 0;
         im3d_vertex_layout.mAttribs[0].mOffset = 0;
-        im3d_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.COLOR;
+        im3d_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.SEMANTIC_COLOR;
         im3d_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
         im3d_vertex_layout.mAttribs[1].mBinding = 0;
         im3d_vertex_layout.mAttribs[1].mLocation = 1;
@@ -265,17 +261,17 @@ pub const Renderer = struct {
 
             vertex_layout.mBindingCount = 3;
             vertex_layout.mAttribCount = 3;
-            vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+            vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.SEMANTIC_POSITION;
             vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
             vertex_layout.mAttribs[0].mBinding = 0;
             vertex_layout.mAttribs[0].mLocation = 0;
             vertex_layout.mAttribs[0].mOffset = 0;
-            vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
+            vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.SEMANTIC_TEXCOORD0;
             vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32_UINT;
             vertex_layout.mAttribs[1].mBinding = 1;
             vertex_layout.mAttribs[1].mLocation = 1;
             vertex_layout.mAttribs[1].mOffset = 0;
-            vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.COLOR;
+            vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.SEMANTIC_COLOR;
             vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
             vertex_layout.mAttribs[2].mBinding = 2;
             vertex_layout.mAttribs[2].mLocation = 2;
@@ -284,27 +280,27 @@ pub const Renderer = struct {
 
             vertex_layout.mBindingCount = 5;
             vertex_layout.mAttribCount = 5;
-            vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.POSITION;
+            vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.SEMANTIC_POSITION;
             vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
             vertex_layout.mAttribs[0].mBinding = 0;
             vertex_layout.mAttribs[0].mLocation = 0;
             vertex_layout.mAttribs[0].mOffset = 0;
-            vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.NORMAL;
+            vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.SEMANTIC_NORMAL;
             vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R32_UINT;
             vertex_layout.mAttribs[1].mBinding = 1;
             vertex_layout.mAttribs[1].mLocation = 1;
             vertex_layout.mAttribs[1].mOffset = 0;
-            vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.TANGENT;
+            vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.SEMANTIC_TANGENT;
             vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R32_UINT;
             vertex_layout.mAttribs[2].mBinding = 2;
             vertex_layout.mAttribs[2].mLocation = 2;
             vertex_layout.mAttribs[2].mOffset = 0;
-            vertex_layout.mAttribs[3].mSemantic = graphics.ShaderSemantic.TEXCOORD0;
+            vertex_layout.mAttribs[3].mSemantic = graphics.ShaderSemantic.SEMANTIC_TEXCOORD0;
             vertex_layout.mAttribs[3].mFormat = graphics.TinyImageFormat.R32_UINT;
             vertex_layout.mAttribs[3].mBinding = 3;
             vertex_layout.mAttribs[3].mLocation = 3;
             vertex_layout.mAttribs[3].mOffset = 0;
-            vertex_layout.mAttribs[4].mSemantic = graphics.ShaderSemantic.COLOR;
+            vertex_layout.mAttribs[4].mSemantic = graphics.ShaderSemantic.SEMANTIC_COLOR;
             vertex_layout.mAttribs[4].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
             vertex_layout.mAttribs[4].mBinding = 4;
             vertex_layout.mAttribs[4].mLocation = 4;
@@ -313,7 +309,7 @@ pub const Renderer = struct {
 
             vertex_layout.mBindingCount = 6;
             vertex_layout.mAttribCount = 6;
-            vertex_layout.mAttribs[5].mSemantic = graphics.ShaderSemantic.TEXCOORD1;
+            vertex_layout.mAttribs[5].mSemantic = graphics.ShaderSemantic.SEMANTIC_TEXCOORD1;
             vertex_layout.mAttribs[5].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
             vertex_layout.mAttribs[5].mBinding = 5;
             vertex_layout.mAttribs[5].mLocation = 5;
@@ -387,9 +383,9 @@ pub const Renderer = struct {
 
         self.vertex_layouts_map.deinit();
 
-        graphics.removeQueue(self.renderer, self.graphics_queue);
+        graphics.exitQueue(self.renderer, self.graphics_queue);
         self.gpu_cmd_ring.destroy(self.renderer);
-        graphics.removeSemaphore(self.renderer, self.image_acquired_semaphore);
+        graphics.exitSemaphore(self.renderer, self.image_acquired_semaphore);
         font.exitFontSystem();
         resource_loader.exitResourceLoaderInterface(self.renderer);
         self.samplers.exit(self.renderer);
@@ -903,7 +899,7 @@ pub const Renderer = struct {
         mesh.buffer_layout_desc.mSemanticBindings = std.mem.zeroes([19]u32);
 
         for (0..vertex_layout.mAttribCount) |i| {
-            mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(vertex_layout.mAttribs[i].mSemantic)] = @intCast(i);
+            mesh.buffer_layout_desc.mSemanticBindings[@intCast(vertex_layout.mAttribs[i].mSemantic.bits)] = @intCast(i);
             mesh.buffer_layout_desc.mVerticesStrides[i] = @intCast(graphics.byteSizeOfBlock(vertex_layout.mAttribs[i].mFormat));
         }
 

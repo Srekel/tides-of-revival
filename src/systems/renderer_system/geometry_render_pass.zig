@@ -306,7 +306,7 @@ fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c
     var vertex_buffers: [vertex_buffer_count_max][*c]graphics.Buffer = undefined;
 
     for (0..vertex_layout.mAttribCount) |attribute_index| {
-        const buffer = mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intFromEnum(vertex_layout.mAttribs[attribute_index].mSemantic)]].pBuffer;
+        const buffer = mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intCast(vertex_layout.mAttribs[attribute_index].mSemantic.bits)]].pBuffer;
         vertex_buffers[attribute_index] = buffer;
     }
 
