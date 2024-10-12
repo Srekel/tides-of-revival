@@ -168,6 +168,7 @@ pub const Renderer = struct {
         log.initLog("Tides Renderer", log.LogLevel.eALL);
 
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_GPU_CONFIG, "GPUCfg");
+        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_OTHER_FILES, "");
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_SHADER_BINARIES, "content/compiled_shaders");
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_TEXTURES, "content");
         file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_MESHES, "content");
@@ -178,6 +179,7 @@ pub const Renderer = struct {
         renderer_desc.mGLESSupported = false;
         renderer_desc.mShaderTarget = graphics.ShaderTarget.SHADER_TARGET_6_6;
         renderer_desc.mDisableReloadServer = true;
+        graphics.initGPUConfiguration(null);
         graphics.initRenderer("Tides Renderer", &renderer_desc, &self.renderer);
         if (self.renderer == null) {
             std.log.err("Failed to initialize Z-Forge Renderer", .{});
@@ -1331,9 +1333,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "skybox.vert";
-            shader_load_desc.mStages[1].pFileName = "skybox.frag";
+            shader_load_desc.mVert.pFileName = "skybox.vert";
+            shader_load_desc.mFrag.pFileName = "skybox.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{"bilinearRepeatSampler"};
@@ -1388,9 +1389,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "shadows_terrain.vert";
-            shader_load_desc.mStages[1].pFileName = "shadows_terrain.frag";
+            shader_load_desc.mVert.pFileName = "shadows_terrain.vert";
+            shader_load_desc.mFrag.pFileName = "shadows_terrain.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1431,9 +1431,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "terrain.vert";
-            shader_load_desc.mStages[1].pFileName = "terrain.frag";
+            shader_load_desc.mVert.pFileName = "terrain.vert";
+            shader_load_desc.mFrag.pFileName = "terrain.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1481,9 +1480,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "shadows_lit.vert";
-            shader_load_desc.mStages[1].pFileName = "shadows_lit_opaque.frag";
+            shader_load_desc.mVert.pFileName = "shadows_lit.vert";
+            shader_load_desc.mFrag.pFileName = "shadows_lit_opaque.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1524,9 +1522,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "shadows_lit.vert";
-            shader_load_desc.mStages[1].pFileName = "shadows_lit_masked.frag";
+            shader_load_desc.mVert.pFileName = "shadows_lit.vert";
+            shader_load_desc.mFrag.pFileName = "shadows_lit_masked.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1567,9 +1564,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "lit.vert";
-            shader_load_desc.mStages[1].pFileName = "lit_opaque.frag";
+            shader_load_desc.mVert.pFileName = "lit.vert";
+            shader_load_desc.mFrag.pFileName = "lit_opaque.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1617,9 +1613,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "lit.vert";
-            shader_load_desc.mStages[1].pFileName = "lit_masked.frag";
+            shader_load_desc.mVert.pFileName = "lit.vert";
+            shader_load_desc.mFrag.pFileName = "lit_masked.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1667,9 +1662,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "shadows_tree.vert";
-            shader_load_desc.mStages[1].pFileName = "shadows_tree_opaque.frag";
+            shader_load_desc.mVert.pFileName = "shadows_tree.vert";
+            shader_load_desc.mFrag.pFileName = "shadows_tree_opaque.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1710,9 +1704,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "shadows_tree.vert";
-            shader_load_desc.mStages[1].pFileName = "shadows_tree_masked.frag";
+            shader_load_desc.mVert.pFileName = "shadows_tree.vert";
+            shader_load_desc.mFrag.pFileName = "shadows_tree_masked.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1753,9 +1746,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "tree.vert";
-            shader_load_desc.mStages[1].pFileName = "tree_opaque.frag";
+            shader_load_desc.mVert.pFileName = "tree.vert";
+            shader_load_desc.mFrag.pFileName = "tree_opaque.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1803,9 +1795,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "tree.vert";
-            shader_load_desc.mStages[1].pFileName = "tree_masked.frag";
+            shader_load_desc.mVert.pFileName = "tree.vert";
+            shader_load_desc.mFrag.pFileName = "tree_masked.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
@@ -1853,9 +1844,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "fullscreen.vert";
-            shader_load_desc.mStages[1].pFileName = "deferred_shading.frag";
+            shader_load_desc.mVert.pFileName = "fullscreen.vert";
+            shader_load_desc.mFrag.pFileName = "deferred_shading.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler", "pointSampler" };
@@ -1901,9 +1891,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "imgui.vert";
-            shader_load_desc.mStages[1].pFileName = "imgui.frag";
+            shader_load_desc.mVert.pFileName = "imgui.vert";
+            shader_load_desc.mFrag.pFileName = "imgui.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{"sampler0"};
@@ -2001,10 +1990,9 @@ pub const Renderer = struct {
                 var pipeline: [*c]graphics.Pipeline = null;
 
                 var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-                shader_load_desc.mStages[0].pFileName = "im3d_points_lines.vert";
-                shader_load_desc.mStages[1].pFileName = "im3d_points.geom";
-                shader_load_desc.mStages[2].pFileName = "im3d_points.frag";
+                shader_load_desc.mVert.pFileName = "im3d_points_lines.vert";
+                shader_load_desc.mGeom.pFileName = "im3d_points.geom";
+                shader_load_desc.mFrag.pFileName = "im3d_points.frag";
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
@@ -2045,10 +2033,9 @@ pub const Renderer = struct {
                 var pipeline: [*c]graphics.Pipeline = null;
 
                 var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-                shader_load_desc.mStages[0].pFileName = "im3d_points_lines.vert";
-                shader_load_desc.mStages[1].pFileName = "im3d_lines.geom";
-                shader_load_desc.mStages[2].pFileName = "im3d_lines.frag";
+                shader_load_desc.mVert.pFileName = "im3d_points_lines.vert";
+                shader_load_desc.mGeom.pFileName = "im3d_lines.geom";
+                shader_load_desc.mFrag.pFileName = "im3d_lines.frag";
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
@@ -2089,9 +2076,8 @@ pub const Renderer = struct {
                 var pipeline: [*c]graphics.Pipeline = null;
 
                 var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-                shader_load_desc.mStages[0].pFileName = "im3d_triangles.vert";
-                shader_load_desc.mStages[1].pFileName = "im3d_triangles.frag";
+                shader_load_desc.mVert.pFileName = "im3d_triangles.vert";
+                shader_load_desc.mFrag.pFileName = "im3d_triangles.frag";
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
@@ -2133,9 +2119,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "fullscreen.vert";
-            shader_load_desc.mStages[1].pFileName = "tonemapper.frag";
+            shader_load_desc.mVert.pFileName = "fullscreen.vert";
+            shader_load_desc.mFrag.pFileName = "tonemapper.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{"bilinearClampSampler"};
@@ -2181,9 +2166,8 @@ pub const Renderer = struct {
             var pipeline: [*c]graphics.Pipeline = null;
 
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-            shader_load_desc.mStages[0].pFileName = "ui.vert";
-            shader_load_desc.mStages[1].pFileName = "ui.frag";
+            shader_load_desc.mVert.pFileName = "ui.vert";
+            shader_load_desc.mFrag.pFileName = "ui.frag";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{"bilinearRepeatSampler"};
@@ -2242,8 +2226,7 @@ pub const Renderer = struct {
                 var pipeline: [*c]graphics.Pipeline = null;
 
                 var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-                shader_load_desc.mStages[0].pFileName = "brdf_integration.comp";
+                shader_load_desc.mComp.pFileName = "brdf_integration.comp";
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
@@ -2274,8 +2257,7 @@ pub const Renderer = struct {
                 var pipeline: [*c]graphics.Pipeline = null;
 
                 var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-                shader_load_desc.mStages[0].pFileName = "compute_irradiance_map.comp";
+                shader_load_desc.mComp.pFileName = "compute_irradiance_map.comp";
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
@@ -2306,8 +2288,7 @@ pub const Renderer = struct {
                 var pipeline: [*c]graphics.Pipeline = null;
 
                 var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mStages = std.mem.zeroes([6]resource_loader.ShaderStageLoadDesc);
-                shader_load_desc.mStages[0].pFileName = "compute_specular_map.comp";
+                shader_load_desc.mComp.pFileName = "compute_specular_map.comp";
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
