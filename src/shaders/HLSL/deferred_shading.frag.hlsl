@@ -177,7 +177,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     }
 
     // IBL (Environment Light)
-    float environmentLightIntensity = 0.15f;
+    float environmentLightIntensity = 0.35f;
     Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
 
     RETURN(float4(Lo, 1.0f));
