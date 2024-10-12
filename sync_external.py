@@ -69,7 +69,7 @@ def main():
     sync_lib(
         "c2z",
         "https://github.com/Srekel/c2z.git",
-        "b22872e63ee5e15f010078c2d0ea9d8e948fc893",
+        "da79d270587b1c523d3363b3031aff999c8860a4",
     )
     sync_lib(
         "The-Forge",
