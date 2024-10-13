@@ -5,6 +5,7 @@ const Context = graph.Context;
 
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
 const nodes = @import("nodes/nodes.zig");
+const types = @import("types.zig");
 
 const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
@@ -44,12 +45,16 @@ var map_settings: *c_cpp_nodes.MapSettings = undefined;
 
 // OUT
 var grid: *c_cpp_nodes.Grid = undefined;
-// var heightmap: Imagef32 = undefined;
+var heightmap: types.ImageF32 = types.ImageF32.square(1024);
 
 // LOCAL
 var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
-// var fbm_settinsg = ..;
-// var fbm_image: Imagef32 = undefined;
+var fbm_settings = nodes.fbm.FbmSettings{
+    .frequency = 5,
+    .octaves = 5,
+    .rect = types.Rect.createOriginSquare(1024),
+};
+var fbm_image: types.ImageF32 = types.ImageF32.square(1024);
 
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
@@ -103,18 +108,19 @@ fn doNode_beaches(ctx: *Context) void {
     const preview_grid_key = "beaches.grid";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
-    ctx.next_nodes.appendAssumeCapacity(exit);
+    ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
 }
 
-// fn doNode_fbm(ctx: *Context) void {
-//     nodes.fbm(fbm_settings, fbm_image);
+var preview_fbm_image = types.ImageRGBA.square(512);
+fn doNode_fbm(ctx: *Context) void {
+    nodes.fbm.fbm(&fbm_settings, &fbm_image);
 
-//     const preview_fbm = nodes.image_preview(fbm_image);
-//     const preview_grid_key = "fbm.image";
-//     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+    const preview_fbm = types.image_preview(fbm_image, &preview_fbm_image);
+    const preview_grid_key = "fbm.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm });
 
-//     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap);
-// }
+    ctx.next_nodes.appendAssumeCapacity(exit);
+}
 
 // fn doNode_heightmap(ctx: *Context) void {
 //     heightmap = fbm_image;

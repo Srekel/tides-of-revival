@@ -5,6 +5,8 @@ const znoise = @import("znoise");
 pub const FbmSettings = struct {
     octaves: u8,
     frequency: f32,
+    rect: types.Rect,
+    // resolution_inv: u32,
 };
 
 pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
@@ -15,14 +17,23 @@ pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
         .octaves = settings.octaves,
     };
 
-    for (0..settings.size[1]) |z| {
-        for (0..settings.size[0]) |x| {
+    const res_inv = settings.rect.size().width / image.size.width;
+
+    for (settings.rect.bottom..settings.rect.top) |z| {
+        const z_sample = z * res_inv;
+        for (settings.rect.left..settings.rect.right) |x| {
+            const x_sample = x * res_inv;
+
             var value: f32 = noise.noise2(
-                @as(f32, @floatFromInt(x)),
-                @as(f32, @floatFromInt(z)),
+                @as(f32, @floatFromInt(x_sample)),
+                @as(f32, @floatFromInt(z_sample)),
             ) * 0.5 + 0.5;
+
             value = std.math.clamp(value, 0, 1);
-            image[x + z * settings.size[0]] = value;
+
+            const x_image = (x - settings.rect.left) / res_inv;
+            const z_image = (z - settings.rect.bottom) / res_inv;
+            image.pixels[x_image + z_image * settings.rect.size().width] = value;
         }
     }
 }
