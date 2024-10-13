@@ -142,6 +142,8 @@
         "external/zig-gamedev/libs/zbullet/*": true,
         "external/The-Forge/Common_3/OS/Android*": true,
         "external/The-Forge/Common_3/OS/Linux*": true,
+        "tools/external/msvc*": true,
+        "tools/external/BuildTools*": true,
         // "external/zig-gamedev/libs/zphysics/**/*.cpp": true,
         "**/zig-cache/*": true,
     },
