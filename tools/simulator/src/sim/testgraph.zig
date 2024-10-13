@@ -44,9 +44,12 @@ var map_settings: *c_cpp_nodes.MapSettings = undefined;
 
 // OUT
 var grid: *c_cpp_nodes.Grid = undefined;
+// var heightmap: Imagef32 = undefined;
 
 // LOCAL
 var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
+// var fbm_settinsg = ..;
+// var fbm_image: Imagef32 = undefined;
 
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
@@ -102,3 +105,23 @@ fn doNode_beaches(ctx: *Context) void {
 
     ctx.next_nodes.appendAssumeCapacity(exit);
 }
+
+// fn doNode_fbm(ctx: *Context) void {
+//     nodes.fbm(fbm_settings, fbm_image);
+
+//     const preview_fbm = nodes.image_preview(fbm_image);
+//     const preview_grid_key = "fbm.image";
+//     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+
+//     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap);
+// }
+
+// fn doNode_heightmap(ctx: *Context) void {
+//     heightmap = fbm_image;
+
+//     const preview_fbm = nodes.fbm(fbm_settings, fbm_image);
+//     const preview_grid_key = "heightmap.image";
+//     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+
+//     ctx.next_nodes.appendAssumeCapacity(exit);
+// }

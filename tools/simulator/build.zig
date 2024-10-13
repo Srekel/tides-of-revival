@@ -30,6 +30,7 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exe.addIncludePath(b.path("src/sim_cpp"));
     exe.addIncludePath(b.path("../../external/voronoi/src"));
 
+    ///////////
     // MODULES
 
     exe.root_module.addImport("args", b.createModule(.{
@@ -37,10 +38,21 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{},
     }));
 
+    // ZIG GAMEDEV
+    // zjobs
     const zjobs = b.dependency("zjobs", .{});
     exe.root_module.addImport("zjobs", zjobs.module("root"));
 
+    // znoise
+    const znoise = b.dependency("znoise", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("znoise", znoise.module("root"));
+    exe.linkLibrary(znoise.artifact("FastNoiseLite"));
+
     // END MODULES
+    //////////////
 
     b.installArtifact(exe);
 
