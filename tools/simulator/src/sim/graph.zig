@@ -13,3 +13,14 @@ pub const Context = struct {
     resources: std.StringHashMap(*anyopaque) = undefined,
     previews: std.StringHashMap(Preview) = undefined,
 };
+
+pub const Graph = struct {
+    pub const NodeLookup = u8;
+
+    pub const Node = struct {
+        name: []const u8,
+        connections_out: []const NodeLookup = &.{},
+    };
+
+    nodes: []const Node,
+};
