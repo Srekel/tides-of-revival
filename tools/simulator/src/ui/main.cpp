@@ -50,6 +50,7 @@ Preview gPreviews[] = {
 	{"GenerateVoronoiMap1.grid", false, 512, 512, nullptr, nullptr},
 	{"generate_landscape_from_image.grid", false, 512, 512, nullptr, nullptr},
 	{"beaches.grid", false, 512, 512, nullptr, nullptr},
+	{"fbm.image", false, 512, 512, nullptr, nullptr},
 };
 
 bool gRanOnce = false;
@@ -147,7 +148,7 @@ void runUI(const SimulatorAPI *api)
 		if (!gRanOnce)
 		{
 			gRanOnce = true;
-			for (unsigned i_preview = 0; i_preview < 3; i_preview++)
+			for (unsigned i_preview = 0; i_preview < 4; i_preview++)
 			{
 				Preview &preview = gPreviews[i_preview];
 				preview.visible = false;
@@ -156,7 +157,7 @@ void runUI(const SimulatorAPI *api)
 			api->simulate();
 		}
 
-		for (unsigned i_preview = 0; i_preview < 3; i_preview++)
+		for (unsigned i_preview = 0; i_preview < 4; i_preview++)
 		{
 			Preview &preview = gPreviews[i_preview];
 			if (!preview.visible)
@@ -276,8 +277,9 @@ void gDrawViewport()
 		return;
 	}
 
-	for (unsigned i_preview = 0; i_preview < 3; i_preview++)
+	for (unsigned i_preview = 4; i_preview > 0;)
 	{
+		i_preview--;
 		Preview &preview = gPreviews[i_preview];
 		if (preview.visible)
 		{

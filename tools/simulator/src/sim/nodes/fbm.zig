@@ -25,8 +25,8 @@ pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
             const x_sample = x * res_inv;
 
             var value: f32 = noise.noise2(
-                @as(f32, @floatFromInt(x_sample)),
-                @as(f32, @floatFromInt(z_sample)),
+                @as(f32, @floatFromInt(x_sample)) * 0.001,
+                @as(f32, @floatFromInt(z_sample)) * 0.001,
             ) * 0.5 + 0.5;
 
             value = std.math.clamp(value, 0, 1);

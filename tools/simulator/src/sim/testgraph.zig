@@ -63,6 +63,8 @@ pub fn start(ctx: *Context) void {
 
     // INITIALIZE OUT
     grid = std.heap.c_allocator.create(c_cpp_nodes.Grid) catch unreachable;
+    fbm_image.pixels = std.heap.c_allocator.alloc(f32, 1024 * 1024) catch unreachable;
+    preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
 
     // INITIALIZE LOCAL
     voronoi_settings.radius = 0.05;
@@ -115,9 +117,9 @@ var preview_fbm_image = types.ImageRGBA.square(512);
 fn doNode_fbm(ctx: *Context) void {
     nodes.fbm.fbm(&fbm_settings, &fbm_image);
 
-    const preview_fbm = types.image_preview(fbm_image, &preview_fbm_image);
+    types.image_preview_f32(fbm_image, &preview_fbm_image);
     const preview_grid_key = "fbm.image";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm });
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(exit);
 }
