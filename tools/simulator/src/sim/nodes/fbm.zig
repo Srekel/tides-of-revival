@@ -19,20 +19,20 @@ pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
 
     const res_inv = settings.rect.size().width / image.size.width;
 
-    for (settings.rect.bottom..settings.rect.top) |z| {
-        const z_sample = z * res_inv;
+    for (settings.rect.bottom..settings.rect.top) |y| {
+        const y_sample = y * res_inv;
         for (settings.rect.left..settings.rect.right) |x| {
             const x_sample = x * res_inv;
 
             var value: f32 = noise.noise2(
                 @as(f32, @floatFromInt(x_sample)) * 0.001,
-                @as(f32, @floatFromInt(z_sample)) * 0.001,
+                @as(f32, @floatFromInt(y_sample)) * 0.001,
             ) * 0.5 + 0.5;
 
             value = std.math.clamp(value, 0, 1);
 
             const x_image = (x - settings.rect.left) / res_inv;
-            const z_image = (z - settings.rect.bottom) / res_inv;
+            const z_image = (y - settings.rect.bottom) / res_inv;
             image.pixels[x_image + z_image * settings.rect.size().width] = value;
         }
     }
