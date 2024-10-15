@@ -51,7 +51,9 @@ Preview gPreviews[] = {
 	{"generate_landscape_from_image.grid", false, 512, 512, nullptr, nullptr},
 	{"beaches.grid", false, 512, 512, nullptr, nullptr},
 	{"fbm.image", false, 512, 512, nullptr, nullptr},
+	{"heightmap.image", false, 512, 512, nullptr, nullptr},
 };
+constexpr unsigned PREVIEW_COUNT = sizeof(gPreviews) / sizeof(gPreviews[0]);
 
 bool gRanOnce = false;
 bool gExit = false;
@@ -148,7 +150,7 @@ void runUI(const SimulatorAPI *api)
 		if (!gRanOnce)
 		{
 			gRanOnce = true;
-			for (unsigned i_preview = 0; i_preview < 4; i_preview++)
+			for (unsigned i_preview = 0; i_preview < PREVIEW_COUNT; i_preview++)
 			{
 				Preview &preview = gPreviews[i_preview];
 				preview.visible = false;
@@ -157,7 +159,7 @@ void runUI(const SimulatorAPI *api)
 			api->simulate();
 		}
 
-		for (unsigned i_preview = 0; i_preview < 4; i_preview++)
+		for (unsigned i_preview = 0; i_preview < PREVIEW_COUNT; i_preview++)
 		{
 			Preview &preview = gPreviews[i_preview];
 			if (!preview.visible)
@@ -277,7 +279,7 @@ void gDrawViewport()
 		return;
 	}
 
-	for (unsigned i_preview = 4; i_preview > 0;)
+	for (unsigned i_preview = PREVIEW_COUNT; i_preview > 0;)
 	{
 		i_preview--;
 		Preview &preview = gPreviews[i_preview];

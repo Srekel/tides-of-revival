@@ -50,8 +50,8 @@ var heightmap: types.ImageF32 = types.ImageF32.square(1024);
 // LOCAL
 var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
 var fbm_settings = nodes.fbm.FbmSettings{
-    .frequency = 5,
-    .octaves = 5,
+    .frequency = 0.00025,
+    .octaves = 8,
     .rect = types.Rect.createOriginSquare(1024),
 };
 var fbm_image: types.ImageF32 = types.ImageF32.square(1024);
@@ -121,15 +121,14 @@ fn doNode_fbm(ctx: *Context) void {
     const preview_grid_key = "fbm.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_image.asBytes() });
 
-    ctx.next_nodes.appendAssumeCapacity(exit);
+    ctx.next_nodes.appendAssumeCapacity(doNode_heightmap);
 }
 
-// fn doNode_heightmap(ctx: *Context) void {
-//     heightmap = fbm_image;
+fn doNode_heightmap(ctx: *Context) void {
+    heightmap.copy(fbm_image, std.heap.c_allocator);
 
-//     const preview_fbm = nodes.fbm(fbm_settings, fbm_image);
-//     const preview_grid_key = "heightmap.image";
-//     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+    const preview_grid_key = "heightmap.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_image.asBytes() });
 
-//     ctx.next_nodes.appendAssumeCapacity(exit);
-// }
+    ctx.next_nodes.appendAssumeCapacity(exit);
+}

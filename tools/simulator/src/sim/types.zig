@@ -3,6 +3,12 @@ const std = @import("std");
 pub const Size2D = struct {
     width: u16,
     height: u16,
+    pub fn eql(self: Size2D, other: Size2D) bool {
+        return std.meta.eql(self, other);
+    }
+    pub fn area(self: Size2D) u32 {
+        return @as(u32, self.width) * self.height;
+    }
 };
 
 pub const Rect = struct {
@@ -32,6 +38,10 @@ pub fn Image(ElemType: type) type {
         size: Size2D,
         pixels: []ElemType = undefined,
 
+        pub fn byteCount(self: Self) usize {
+            return @sizeOf(ElemType) * @as(usize, self.size.height) * self.size.width;
+        }
+
         pub fn square(width: u16) Image(ElemType) {
             return .{ .size = .{
                 .width = width,
@@ -42,6 +52,14 @@ pub fn Image(ElemType: type) type {
         pub fn asBytes(self: Self) []u8 {
             return castSliceToSlice(u8, self.pixels);
             // return std.mem.asBytes(self.pixels);
+        }
+
+        pub fn copy(self: *Self, other: Self, allocator: std.mem.Allocator) void {
+            std.debug.assert(self.size.eql(other.size));
+            if (self.pixels.len == 0) {
+                self.pixels = allocator.alignedAlloc(ElemType, 128, other.size.area()) catch unreachable;
+            }
+            @memcpy(self.pixels, other.pixels);
         }
     };
 }
