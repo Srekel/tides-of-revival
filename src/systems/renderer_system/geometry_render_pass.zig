@@ -327,9 +327,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         transform: *const fd.Transform,
     });
     const camera_position = camera_comps.transform.getPos00();
-    const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-    const z_proj_view = zm.mul(z_view, z_proj);
+    const z_proj_view = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
     zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
     zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));

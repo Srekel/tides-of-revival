@@ -1305,8 +1305,8 @@ pub const Renderer = struct {
     }
 
     fn createPipelines(self: *Renderer) void {
-        var rasterizer_cull_front = std.mem.zeroes(graphics.RasterizerStateDesc);
-        rasterizer_cull_front.mCullMode = graphics.CullMode.CULL_MODE_FRONT;
+        var rasterizer_cull_back = std.mem.zeroes(graphics.RasterizerStateDesc);
+        rasterizer_cull_back.mCullMode = graphics.CullMode.CULL_MODE_BACK;
 
         var rasterizer_cull_none = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_none.mCullMode = graphics.CullMode.CULL_MODE_NONE;
@@ -1412,7 +1412,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
@@ -1461,7 +1461,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
@@ -1503,7 +1503,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
@@ -1594,7 +1594,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
@@ -1685,7 +1685,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
@@ -1776,7 +1776,7 @@ pub const Renderer = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_front;
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
             pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
             graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
