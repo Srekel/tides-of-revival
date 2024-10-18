@@ -4,9 +4,17 @@
 float3 ReconstructNormal(float4 sampleNormal, float intensity)
 {
 	float3 tangentNormal;
-	tangentNormal.xy = (sampleNormal.rg * 2 - 1) * intensity;
-	tangentNormal.z = sqrt(1 - saturate(dot(tangentNormal.xy, tangentNormal.xy)));
+	tangentNormal.xy = (sampleNormal.rg * 2.0f - 1.0f) * intensity;
+	tangentNormal.z = sqrt(1.0f - saturate(dot(tangentNormal.xy, tangentNormal.xy)));
 	return tangentNormal;
+}
+
+float3x3 ComputeTBN(float3 normal, float4 tangent)
+{
+	normal = normalize(normal);
+	tangent.xyz = normalize(tangent.xyz);
+	float3 bitangent = cross(normal, tangent.xyz) * -tangent.w;
+	return float3x3(tangent.xyz, bitangent, normal);
 }
 
 INLINE float3 UnpackNormals(float2 uv, float3 viewDirection, Tex2D(float4) normalMap, SamplerState samplerState, float3 normal, float intensity)
@@ -58,6 +66,5 @@ INLINE float3 LinearTosRGB_Float3(float3 l) {
 		LinearTosRGB(l.b)
 	);
 }
-
 
 #endif // _UTILS_H

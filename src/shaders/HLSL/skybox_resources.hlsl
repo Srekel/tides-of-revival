@@ -17,7 +17,7 @@ RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
 STRUCT(VSInput) {
 	DATA(float4, Position, POSITION);
 	DATA(uint, Normal, NORMAL);
-	DATA(uint, Tangent, TANGENT);
+	DATA(float4, Tangent, TANGENT);
 	DATA(uint, UV, TEXCOORD0);
 };
 

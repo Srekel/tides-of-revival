@@ -51,22 +51,22 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
     uint grass_layer_index = 1;
     uint rock_layer_index = 2;
 
-    float3 grass_albedo;
-    float3 grass_normal;
-    float3 grass_arm;
-    float grass_height;
-
-    float3 rock_albedo;
-    float3 rock_normal;
-    float3 rock_arm;
-    float rock_height;
-
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
     // TODO(gmodarelli): Use triplanar mapping
     // TODO(gmodarelli): Scale UVs based on distance from camera
     // TODO(gmodarelli): Use more UV techniques to break tiling patterns
     float2 worldSpaceUV = Input.PositionWS.xz * 0.1f;
+
+    float3 grass_albedo;
+    float3 grass_normal;
+    float3 grass_arm;
+    float grass_height;
     SampleTerrainLayer(grass_layer_index, worldSpaceUV, N, V, grass_albedo, grass_normal, grass_arm, grass_height);
+
+    float3 rock_albedo;
+    float3 rock_normal;
+    float3 rock_arm;
+    float rock_height;
     SampleTerrainLayer(rock_layer_index, worldSpaceUV, N, V, rock_albedo, rock_normal, rock_arm, rock_height);
 
 #if 0

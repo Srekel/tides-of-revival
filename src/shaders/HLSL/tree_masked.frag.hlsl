@@ -30,9 +30,11 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     }
 
     float3 N = normalize(Input.Normal);
+    float3x3 TBN = ComputeTBN(Input.Normal, Input.Tangent);
     if (hasValidTexture(material.normalTextureIndex)) {
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
-        N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, Get(bilinearRepeatSampler), Input.UV), 1.0f);
+        N = normalize(mul(tangentNormal, TBN));
     }
 
     // if (isFrontFace) {
@@ -62,7 +64,8 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
 
         // Blend detail normal
         Texture2D detailNormalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailNormalTextureIndex)];
-        float3 detailN = UnpackNormals(detailUV, -V, detailNormalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(detailNormalTexture, Get(bilinearRepeatSampler), Input.UV), 1.0f);
+        float3 detailN = normalize(mul(tangentNormal, TBN));
         N = lerp(N, detailN, detailMask);
 
         // Blend base color

@@ -35,7 +35,7 @@ STRUCT(VSInput)
 {
 	DATA(float4, Position, POSITION);
 	DATA(uint, Normal, NORMAL);
-	DATA(uint, Tangent, TANGENT);
+	DATA(float4, Tangent, TANGENT);
 	DATA(uint, UV, TEXCOORD0);
 	DATA(float4, Color, COLOR);
 };
@@ -53,7 +53,7 @@ STRUCT(VSInput)
 {
 	DATA(float4, Position, POSITION);
 	DATA(uint, Normal, NORMAL);
-	DATA(uint, Tangent, TANGENT);
+	DATA(float4, Tangent, TANGENT);
 	DATA(uint, UV, TEXCOORD0);
 	DATA(float4, Color, COLOR);
 	DATA(float2, UV1, TEXCOORD1);

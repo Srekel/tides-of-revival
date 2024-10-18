@@ -290,8 +290,9 @@ pub const Renderer = struct {
             vertex_layout.mAttribs[1].mBinding = 1;
             vertex_layout.mAttribs[1].mLocation = 1;
             vertex_layout.mAttribs[1].mOffset = 0;
+            // TODO(gmodarelli): Encode tangent into a smaller representation
             vertex_layout.mAttribs[2].mSemantic = graphics.ShaderSemantic.SEMANTIC_TANGENT;
-            vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R32_UINT;
+            vertex_layout.mAttribs[2].mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
             vertex_layout.mAttribs[2].mBinding = 2;
             vertex_layout.mAttribs[2].mLocation = 2;
             vertex_layout.mAttribs[2].mOffset = 0;

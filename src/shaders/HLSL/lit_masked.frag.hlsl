@@ -31,8 +31,10 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
 
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(material.normalTextureIndex)) {
+        float3x3 TBN = ComputeTBN(Input.Normal, Input.Tangent);
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
-        N = UnpackNormals(Input.UV, -V, normalTexture, Get(bilinearRepeatSampler), Input.Normal, 1.0f);
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, Get(bilinearRepeatSampler), Input.UV), 1.0f);
+        N = normalize(mul(tangentNormal, TBN));
     }
 
     // if (isFrontFace) {

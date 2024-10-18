@@ -20,7 +20,9 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     Out.Position = mul(tempMat, float4(Input.Position.xyz, 1.0f));
     Out.PositionWS = mul(instance.worldMat, float4(Input.Position.xyz, 1.0f)).xyz;
     Out.Normal = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Normal)), 0.0f)).rgb;
-    Out.Tangent = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Tangent)), 0.0f)).rgb;
+    // Out.Tangent = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Tangent)), 0.0f)).rgb;
+    Out.Tangent.xyz = mul((float3x3)instance.worldMat, Input.Tangent.xyz);
+    Out.Tangent.w = Input.Tangent.w;
 
     RETURN(Out);
 }
