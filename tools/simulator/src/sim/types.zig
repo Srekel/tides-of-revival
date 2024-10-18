@@ -1,8 +1,8 @@
 const std = @import("std");
 
 pub const Size2D = struct {
-    width: u16,
-    height: u16,
+    width: u32,
+    height: u32,
     pub fn eql(self: Size2D, other: Size2D) bool {
         return std.meta.eql(self, other);
     }
@@ -12,10 +12,10 @@ pub const Size2D = struct {
 };
 
 pub const Rect = struct {
-    bottom: u16 = 0,
-    top: u16,
-    left: u16 = 0,
-    right: u16,
+    bottom: u32 = 0,
+    top: u32,
+    left: u32 = 0,
+    right: u32,
     pub fn createOriginSquare(width: u32) Rect {
         return .{
             .top = width,
@@ -38,11 +38,15 @@ pub fn Image(ElemType: type) type {
         size: Size2D,
         pixels: []ElemType = undefined,
 
+        pub fn get(self: Self, x: anytype, y: anytype) ElemType {
+            return self.pixels[x + y * self.size.width];
+        }
+
         pub fn byteCount(self: Self) usize {
             return @sizeOf(ElemType) * @as(usize, self.size.height) * self.size.width;
         }
 
-        pub fn square(width: u16) Image(ElemType) {
+        pub fn square(width: u32) Image(ElemType) {
             return .{ .size = .{
                 .width = width,
                 .height = width,
@@ -66,9 +70,10 @@ pub fn Image(ElemType: type) type {
 
 pub const ImageF32 = Image(f32);
 pub const ImageRGBA = Image(ColorRGBA);
+pub const ImageGreyscale = Image(u8);
 
 pub fn image_preview_f32(image_in: ImageF32, preview_image: *ImageRGBA) void {
-    const scale = [2]u16{
+    const scale = [2]u32{
         image_in.size.width / preview_image.size.width,
         image_in.size.height / preview_image.size.height,
     };
@@ -86,9 +91,33 @@ pub fn image_preview_f32(image_in: ImageF32, preview_image: *ImageRGBA) void {
     }
 }
 
+pub fn image_preview_f32_greyscale(image_in: ImageF32, preview_image: *ImageGreyscale) void {
+    const scale = [2]u32{
+        image_in.size.width / preview_image.size.width,
+        image_in.size.height / preview_image.size.height,
+    };
+
+    for (0..preview_image.size.height) |y| {
+        for (0..preview_image.size.width) |x| {
+            const index_in_x = x * scale[0];
+            const index_in_y = y * scale[1];
+            const value_in = image_in.pixels[index_in_x + index_in_y * image_in.size.width];
+            const value_out: u8 = @intFromFloat(value_in * 255);
+            preview_image.pixels[x + y * preview_image.size.width] = value_out;
+        }
+    }
+}
+
 pub fn castSliceToSlice(comptime T: type, slice: anytype) []T {
     // Note; This is a workaround for @ptrCast not supporting this
     const bytes = std.mem.sliceAsBytes(slice);
     const new_slice = std.mem.bytesAsSlice(T, bytes);
     return new_slice;
 }
+
+pub const WorldSettings = struct {
+    size: Size2D,
+    patch_resolution: u32 = 65,
+    terrain_height_min: f32 = 0,
+    terrain_height_max: f32 = 1500,
+};

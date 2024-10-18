@@ -1,6 +1,7 @@
 const std = @import("std");
 const types = @import("../types.zig");
 const znoise = @import("znoise");
+const zm = @import("zmath");
 
 pub const FbmSettings = struct {
     octaves: u8,
@@ -25,8 +26,8 @@ pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
             const x_sample = x * res_inv;
 
             var value: f32 = noise.noise2(
-                @as(f32, @floatFromInt(x_sample)),
-                @as(f32, @floatFromInt(y_sample)),
+                @as(f32, @floatFromInt(x_sample)) * 0.5,
+                @as(f32, @floatFromInt(y_sample)) * 0.5,
             ) * 0.5 + 0.5;
 
             value = std.math.clamp(value, 0, 1);

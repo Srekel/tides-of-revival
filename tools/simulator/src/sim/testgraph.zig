@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const io = @import("../io.zig");
 const graph = @import("graph.zig");
 const Context = graph.Context;
 
@@ -40,21 +41,25 @@ pub fn getGraph() *const graph.Graph {
     return &self;
 }
 
+const world_settings: types.WorldSettings = .{
+    .size = .{ .width = 4096, .height = 4096 },
+};
+
 // IN
 var map_settings: *c_cpp_nodes.MapSettings = undefined;
 
 // OUT
 var grid: *c_cpp_nodes.Grid = undefined;
-var heightmap: types.ImageF32 = types.ImageF32.square(1024);
+var heightmap: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 
 // LOCAL
 var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
 var fbm_settings = nodes.fbm.FbmSettings{
     .frequency = 0.00025,
     .octaves = 8,
-    .rect = types.Rect.createOriginSquare(1024),
+    .rect = types.Rect.createOriginSquare(world_settings.size.width),
 };
-var fbm_image: types.ImageF32 = types.ImageF32.square(1024);
+var fbm_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
@@ -63,7 +68,7 @@ pub fn start(ctx: *Context) void {
 
     // INITIALIZE OUT
     grid = std.heap.c_allocator.create(c_cpp_nodes.Grid) catch unreachable;
-    fbm_image.pixels = std.heap.c_allocator.alloc(f32, 1024 * 1024) catch unreachable;
+    fbm_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
 
     // INITIALIZE LOCAL
@@ -71,7 +76,8 @@ pub fn start(ctx: *Context) void {
     voronoi_settings.num_relaxations = 10;
 
     // Start!
-    ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
+    // ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
+    ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
 }
 
 pub fn exit(ctx: *Context) void {
@@ -129,6 +135,16 @@ fn doNode_heightmap(ctx: *Context) void {
 
     const preview_grid_key = "heightmap.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_image.asBytes() });
+
+    ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
+}
+
+fn doNode_heightmap_file(ctx: *Context) void {
+    nodes.heightmap_format.heightmap_format(world_settings, heightmap);
+    // var output_greyscale = types.ImageGreyscale.square(512);
+    // output_greyscale.pixels = std.heap.c_allocator.alloc(u8, 512 * 512) catch unreachable;
+    // types.image_preview_f32_greyscale(heightmap, &output_greyscale);
+    // io.writeFile(output_greyscale.pixels, "../lol.heightmap");
 
     ctx.next_nodes.appendAssumeCapacity(exit);
 }

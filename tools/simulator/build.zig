@@ -43,6 +43,14 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const zjobs = b.dependency("zjobs", .{});
     exe.root_module.addImport("zjobs", zjobs.module("root"));
 
+    // // zmath
+    const zmath = b.dependency("zmath", .{
+        .target = target,
+        .optimize = optimize,
+        .enable_cross_platform_determinism = false,
+    });
+    exe.root_module.addImport("zmath", zmath.module("root"));
+
     // znoise
     const znoise = b.dependency("znoise", .{
         .target = target,
@@ -50,6 +58,14 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     });
     exe.root_module.addImport("znoise", znoise.module("root"));
     exe.linkLibrary(znoise.artifact("FastNoiseLite"));
+
+    // zstbi
+    const zstbi = b.dependency("zstbi", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("zstbi", zstbi.module("root"));
+    exe.linkLibrary(zstbi.artifact("zstbi"));
 
     // END MODULES
     //////////////

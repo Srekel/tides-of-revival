@@ -119,8 +119,9 @@ pub fn destroy(system: *SystemState) void {
 fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    updateLoaders(system);
-    updatePatches(system);
+    _ = system; // autofix
+    // updateLoaders(system);
+    // updatePatches(system);
 }
 
 fn updateLoaders(system: *SystemState) void {
