@@ -39,14 +39,17 @@ STRUCT(VsOut)
     DATA(float2, UV, TEXCOORD0);
 };
 
-float3 getPositionFromDepth(float depth, float2 uv) {
+float4 getClipPositionFromDepth(float depth, float2 uv) {
     float x = uv.x * 2.0f - 1.0f;
     float y = (1.0f - uv.y) * 2.0f - 1.0f;
     float4 positionCS = float4(x, y, depth, 1.0f);
-    float4 positionWS = mul(Get(projViewInverted), positionCS);
-    return positionWS.xyz / positionWS.w;
+    return mul(Get(projViewInverted), positionCS);
 }
 
+float3 getWorldPositionFromDepth(float depth, float2 uv) {
+    float4 positionCS = getClipPositionFromDepth(depth, uv);
+    return positionCS.xyz / positionCS.w;
+}
 
 float ShadowFetch(Texture2D<float> shadowMap, float2 uv, int2 offset, float depth)
 {
@@ -129,7 +132,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     float3 armSample = SampleLvlTex2D(Get(gBuffer2), Get(bilinearClampSampler), Input.UV, 0).rgb;
     float depth  = SampleLvlTex2D(Get(depthBuffer), Get(bilinearClampSampler), Input.UV, 0).r;
 
-    const float3 P = getPositionFromDepth(depth, Input.UV);
+    const float3 P = getWorldPositionFromDepth(depth, Input.UV);
     const float3 V = normalize(Get(camPos).xyz - P);
 
     float4 positionLightSpace = mul(Get(lightProjView), float4(P, 1.0f));
@@ -180,10 +183,11 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     float environmentLightIntensity = 0.35f;
     Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
 
-    // float near = 0.001;
-    // float far = 25000;
-    // float linearDepth = (2*near*far)/(far+near-depth*(far-near));
-    // float currentDistanceFraction = (linearDepth)/5000;
-    // Lo = lerp(float3(0.25, 0.25, 0.25), Lo, currentDistanceFraction);
+    // Simple depth-based fog
+    float view_distance = length(Get(camPos).xyz - P.xyz);
+    float fog_density = 0.0001;
+    float fog_factor = exp(-fog_density * view_distance);
+    Lo = lerp(float3(0.5, 0.5, 0.5), Lo, saturate(fog_factor));
+
     RETURN(float4(Lo, 1.0f));
 }
