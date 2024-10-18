@@ -180,5 +180,10 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     float environmentLightIntensity = 0.35f;
     Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
 
+    // float near = 0.001;
+    // float far = 25000;
+    // float linearDepth = (2*near*far)/(far+near-depth*(far-near));
+    // float currentDistanceFraction = (linearDepth)/5000;
+    // Lo = lerp(float3(0.25, 0.25, 0.25), Lo, currentDistanceFraction);
     RETURN(float4(Lo, 1.0f));
 }

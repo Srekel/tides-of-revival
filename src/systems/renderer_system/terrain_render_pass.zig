@@ -18,8 +18,10 @@ const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
 const lod_load_range = 300;
-const max_instances = 1000;
+const max_instances = 16384;
 const invalid_index = std.math.maxInt(u32);
+const lod_3_patches_side = config.world_size_x / config.largest_patch_width;
+const lod_3_patches_total = lod_3_patches_side * lod_3_patches_side;
 
 const TerrainLayer = struct {
     diffuse: renderer.TextureHandle,
@@ -87,7 +89,7 @@ pub const TerrainRenderPass = struct {
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, world_patch_mgr: *world_patch_manager.WorldPatchManager, allocator: std.mem.Allocator) *TerrainRenderPass {
         // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
-        const max_quad_tree_nodes: usize = 85 * 64;
+        const max_quad_tree_nodes: usize = 85 * lod_3_patches_total;
         var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
         const quads_to_render = std.ArrayList(u32).init(allocator);
         const quads_to_load = std.ArrayList(u32).init(allocator);
@@ -96,9 +98,9 @@ pub const TerrainRenderPass = struct {
         {
             const patch_half_size = @as(f32, @floatFromInt(config.largest_patch_width)) / 2.0;
             var patch_y: u32 = 0;
-            while (patch_y < 8) : (patch_y += 1) {
+            while (patch_y < lod_3_patches_side) : (patch_y += 1) {
                 var patch_x: u32 = 0;
-                while (patch_x < 8) : (patch_x += 1) {
+                while (patch_x < lod_3_patches_side) : (patch_x += 1) {
                     terrain_quad_tree_nodes.appendAssumeCapacity(.{
                         .center = [2]f32{
                             @as(f32, @floatFromInt(patch_x * config.largest_patch_width)) + patch_half_size,
@@ -113,10 +115,10 @@ pub const TerrainRenderPass = struct {
                 }
             }
 
-            std.debug.assert(terrain_quad_tree_nodes.items.len == 64);
+            std.debug.assert(terrain_quad_tree_nodes.items.len == lod_3_patches_total);
 
             var sector_index: u32 = 0;
-            while (sector_index < 64) : (sector_index += 1) {
+            while (sector_index < lod_3_patches_total) : (sector_index += 1) {
                 const node = &terrain_quad_tree_nodes.items[sector_index];
                 divideQuadTreeNode(&terrain_quad_tree_nodes, node);
             }
@@ -379,7 +381,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     {
         var sector_index: u32 = 0;
-        while (sector_index < 64) : (sector_index += 1) {
+        while (sector_index < lod_3_patches_total) : (sector_index += 1) {
             const lod3_node = &self.terrain_quad_tree_nodes.items[sector_index];
             const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
@@ -804,7 +806,7 @@ fn loadResources(
 
     // Ask the World Patch Manager to load all LOD3 for the current world extents
     const rid = world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
-    const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = 4096, .height = 4096 };
+    const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = config.world_size_x, .height = config.world_size_z };
     var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
     world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 3, &lookups);
     world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);

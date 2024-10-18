@@ -25,6 +25,8 @@ pub const ROLL_Z = FORWARD_Z;
 //    ██║   ███████╗██║  ██║██║  ██║██║  ██║██║██║ ╚████║
 //    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
 
+pub const world_size_x = 16 * 1024;
+pub const world_size_z = 16 * 1024;
 pub const patch_size = 64; // 2^6 m
 pub const largest_patch_width = 512;
 pub const patch_resolution = 65;

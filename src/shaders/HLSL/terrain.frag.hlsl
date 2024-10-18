@@ -80,7 +80,14 @@ GBufferOutput PS_MAIN( VSOutput Input ) {
     N = normalize(HeightBlend(grass_normal, rock_normal, b1, b2));
     float3 arm = HeightBlend(grass_arm, rock_arm, b1, b2);
 #endif
+    // const float3 lod_colors[4] = {
+    //     float3(1, 0, 0),
+    //     float3(0, 1, 0),
+    //     float3(0, 0, 1),
+    //     float3(0, 1, 1)
+    // };
 
+    // Out.GBuffer0 = float4(lod_colors[instance.lod], 1.0f);
     Out.GBuffer0 = float4(albedo, 1.0f);
     Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
     Out.GBuffer2 = float4(arm, 1.0f);

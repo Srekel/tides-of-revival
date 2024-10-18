@@ -102,7 +102,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Dynamic{});
     debug_camera_ent.set(fd.CICamera{
         .near = 0.1,
-        .far = 10000,
+        .far = 25000,
         .active = DEBUG_CAMERA_ACTIVE,
         .class = 0,
     });
@@ -125,7 +125,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.set(fd.Forward{});
     player_camera_ent.set(fd.CICamera{
         .near = 0.1,
-        .far = 10000,
+        .far = 25000,
         .active = !DEBUG_CAMERA_ACTIVE,
         .class = 1,
     });

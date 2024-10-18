@@ -12,7 +12,7 @@ const DEBUG_LOGGING = false;
 
 const LoD = u4;
 const lod_0_patch_size = config.patch_size;
-const max_world_size = 4 * 1024; // 512 * 1024; // 500 km
+const max_world_size = 16 * 1024; // 512 * 1024; // 500 km
 const max_patch = max_world_size / lod_0_patch_size; // 8k patches
 const max_patch_int_bits = 16; // 2**13 = 8k
 const max_patch_int = std.meta.Int(.unsigned, max_patch_int_bits);
@@ -348,7 +348,7 @@ pub const WorldPatchManager = struct {
     pub fn getLookupsFromRectangle(patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD, out_lookups: *std.ArrayList(PatchLookup)) void {
 
         // NOTE(Anders) HACK!
-        const patch_lod_end = 8 * std.math.pow(u16, 2, 3 - lod);
+        const patch_lod_end = (4 * 8) * std.math.pow(u16, 2, 3 - lod);
 
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @as(f32, @floatFromInt(lod)));
         const patch_x_begin_i = @as(i32, @intFromFloat(@divFloor(area.x, world_stride)));

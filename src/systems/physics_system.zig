@@ -224,10 +224,10 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         @as(*const zphy.ObjectVsBroadPhaseLayerFilter, @ptrCast(object_vs_broad_phase_layer_filter)),
         @as(*const zphy.ObjectLayerPairFilter, @ptrCast(object_layer_pair_filter)),
         .{
-            .max_bodies = 1024,
+            .max_bodies = 16 * 1024,
             .num_body_mutexes = 0,
-            .max_body_pairs = 1024,
-            .max_contact_constraints = 1024,
+            .max_body_pairs = 16 * 1024,
+            .max_contact_constraints = 16 * 1024,
         },
     ) catch unreachable;
 

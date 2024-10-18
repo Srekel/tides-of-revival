@@ -27,7 +27,6 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
     const best_lod_width = 64; // meter
     const best_lod = 0;
     const worst_lod = 3; // inclusive
-    const worst_lod_width = best_lod_width * std.math.pow(u32, 2, worst_lod) / precision; // 64*8 = 512m
     for (best_lod..worst_lod + 1) |lod| {
         folderbufslice = std.fmt.bufPrintZ(
             folderbuf[0..folderbuf.len],
@@ -38,16 +37,16 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
 
         const lod_pixel_stride = std.math.pow(usize, 2, lod) / precision;
 
-        const lod_patch_count_per_side = std.math.pow(usize, 2, worst_lod - lod); // 8 -> 1
-        const lod_patch_width = worst_lod_width / lod_patch_count_per_side; // 64 -> 512
+        const lod_patch_width = best_lod_width * std.math.pow(usize, 2, lod); // 64, 128, 256 , 512
+        const lod_patch_count_per_side = world_settings.size.width / lod_patch_width;
         for (0..lod_patch_count_per_side) |lod_patch_z| {
             for (0..lod_patch_count_per_side) |lod_patch_x| {
 
                 // Calculate range
                 var range_max: f32 = 0;
                 var range_min: f32 = std.math.floatMax(f32);
-                for (0..patch_resolution) |pixel_z| {
-                    for (0..patch_resolution) |pixel_x| {
+                for (0..(patch_resolution - 1)) |pixel_z| {
+                    for (0..(patch_resolution - 1)) |pixel_x| {
                         const world_x = lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride;
                         const world_z = lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride;
                         const value = heightmap.get(world_x, world_z);
@@ -89,8 +88,8 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
                 // Top
                 for (0..patch_resolution) |pixel_x| {
                     const pixel_z = 0;
-                    const world_x = lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride;
-                    const world_z = lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride;
+                    const world_x = @min(world_settings.size.width - 1, lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
+                    const world_z = @min(world_settings.size.height - 1, lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride);
                     const value = heightmap.get(world_x, world_z);
                     const value_mapped: f32 = zm.mapLinearV(value, world_settings.terrain_height_min, world_settings.terrain_height_max, 0, height_max_mapped_edge);
                     const value_int: int_type_edge = @intFromFloat(value_mapped);
@@ -99,8 +98,8 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
                 // Bot
                 for (0..patch_resolution) |pixel_x| {
                     const pixel_z = patch_resolution - 1;
-                    const world_x = lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride;
-                    const world_z = lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride;
+                    const world_x = @min(world_settings.size.width - 1, lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
+                    const world_z = @min(world_settings.size.height - 1, lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride);
                     const value = heightmap.get(world_x, world_z);
                     const value_mapped: f32 = zm.mapLinearV(value, world_settings.terrain_height_min, world_settings.terrain_height_max, 0, height_max_mapped_edge);
                     const value_int: int_type_edge = @intFromFloat(value_mapped);
@@ -109,8 +108,8 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
                 // Left (redundant corners)
                 for (0..patch_resolution) |pixel_z| {
                     const pixel_x = 0;
-                    const world_x = lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride;
-                    const world_z = lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride;
+                    const world_x = @min(world_settings.size.width - 1, lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
+                    const world_z = @min(world_settings.size.height - 1, lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride);
                     const value = heightmap.get(world_x, world_z);
                     const value_mapped: f32 = zm.mapLinearV(value, world_settings.terrain_height_min, world_settings.terrain_height_max, 0, height_max_mapped_edge);
                     const value_int: int_type_edge = @intFromFloat(value_mapped);
@@ -119,8 +118,8 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
                 // Right (redundant corners)
                 for (0..patch_resolution) |pixel_z| {
                     const pixel_x = patch_resolution - 1;
-                    const world_x = lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride;
-                    const world_z = lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride;
+                    const world_x = @min(world_settings.size.width - 1, lod_patch_x * lod_patch_width + pixel_x * lod_pixel_stride);
+                    const world_z = @min(world_settings.size.height - 1, lod_patch_z * lod_patch_width + pixel_z * lod_pixel_stride);
                     const value = heightmap.get(world_x, world_z);
                     const value_mapped: f32 = zm.mapLinearV(value, world_settings.terrain_height_min, world_settings.terrain_height_max, 0, height_max_mapped_edge);
                     const value_int: int_type_edge = @intFromFloat(value_mapped);

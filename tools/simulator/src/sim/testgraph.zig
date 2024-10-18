@@ -42,7 +42,7 @@ pub fn getGraph() *const graph.Graph {
 }
 
 const world_settings: types.WorldSettings = .{
-    .size = .{ .width = 4096, .height = 4096 },
+    .size = .{ .width = 16 * 1024, .height = 16 * 1024 },
 };
 
 // IN
