@@ -163,16 +163,7 @@ pub const Renderer = struct {
             return Error.FontSystemNotInitialized;
         }
 
-        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_DEBUG, file_system.ResourceDirectory.RD_LOG, "");
-
         log.initLog("Tides Renderer", log.LogLevel.eALL);
-
-        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_GPU_CONFIG, "GPUCfg");
-        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_OTHER_FILES, "");
-        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_SHADER_BINARIES, "content/compiled_shaders");
-        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_TEXTURES, "content");
-        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_MESHES, "content");
-        file_system.fsSetPathForResourceDir(file_system.fsGetSystemFileIO(), file_system.ResourceMount.RM_CONTENT, file_system.ResourceDirectory.RD_FONTS, "content");
 
         var renderer_desc = std.mem.zeroes(graphics.RendererDesc);
         graphics.initGPUConfiguration(null);
@@ -424,7 +415,7 @@ pub const Renderer = struct {
                 @intFromEnum(rtv_format),
                 heap,
                 root_signature.*.mDx.pRootSignature,
-                pipeline.*.mDx.pPipelineState,
+                pipeline.*.mDx.__union_field1.pPipelineState,
                 @as(zgui.backend.D3D12_CPU_DESCRIPTOR_HANDLE, @bitCast(cpu_desc_handle)),
                 @as(zgui.backend.D3D12_GPU_DESCRIPTOR_HANDLE, @bitCast(gpu_desc_handle)),
             );
