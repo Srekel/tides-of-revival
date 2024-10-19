@@ -1,4 +1,5 @@
 const std = @import("std");
+const zm = @import("zmath");
 
 pub const Size2D = struct {
     width: u64,
@@ -36,6 +37,8 @@ pub fn Image(ElemType: type) type {
     return struct {
         const Self = @This();
         size: Size2D,
+        height_min: f32 = 0,
+        height_max: f32 = 1,
         pixels: []ElemType = undefined,
 
         pub fn get(self: Self, x: anytype, y: anytype) ElemType {
@@ -65,12 +68,26 @@ pub fn Image(ElemType: type) type {
             }
             @memcpy(self.pixels, other.pixels);
         }
+
+        pub fn remap(self: *Self, min: f32, max: f32) void {
+            // TODO: Simdify/jobify
+            for (0..self.size.area()) |i_pixel| {
+                self.pixels[i_pixel] = zm.mapLinearV(self.pixels[i_pixel], self.height_min, self.height_max, min, max);
+            }
+            self.height_min = min;
+            self.height_max = max;
+        }
     };
 }
 
 pub const ImageF32 = Image(f32);
 pub const ImageRGBA = Image(ColorRGBA);
 pub const ImageGreyscale = Image(u8);
+
+pub const Heightmap = struct {
+    image: ImageF32,
+    precision: f32 = 1,
+};
 
 pub fn image_preview_f32(image_in: ImageF32, preview_image: *ImageRGBA) void {
     const scale = [2]u64{
@@ -83,11 +100,10 @@ pub fn image_preview_f32(image_in: ImageF32, preview_image: *ImageRGBA) void {
             const index_in_x = x * scale[0];
             const index_in_y = y * scale[1];
             const value_in = image_in.pixels[index_in_x + index_in_y * image_in.size.width];
-            _ = value_in; // autofix
-            // const value_out: u8 = @intFromFloat(value_in * 255);
-            // preview_image.pixels[x + y * preview_image.size.width][0] = value_out;
-            // preview_image.pixels[x + y * preview_image.size.width][1] = value_out;
-            // preview_image.pixels[x + y * preview_image.size.width][2] = value_out;
+            const value_out: u8 = @intFromFloat(value_in * 255);
+            preview_image.pixels[x + y * preview_image.size.width][0] = value_out;
+            preview_image.pixels[x + y * preview_image.size.width][1] = value_out;
+            preview_image.pixels[x + y * preview_image.size.width][2] = value_out;
         }
     }
 }
@@ -98,12 +114,15 @@ pub fn image_preview_f32_greyscale(image_in: ImageF32, preview_image: *ImageGrey
         image_in.size.height / preview_image.size.height,
     };
 
+    std.debug.assert(image_in.height_min == 0);
+    const scale_factor_u8 = 255 / image_in.height_max;
+
     for (0..preview_image.size.height) |y| {
         for (0..preview_image.size.width) |x| {
             const index_in_x = x * scale[0];
             const index_in_y = y * scale[1];
             const value_in = image_in.pixels[index_in_x + index_in_y * image_in.size.width];
-            const value_out: u8 = @intFromFloat(value_in * 255);
+            const value_out: u8 = @intFromFloat(value_in * scale_factor_u8 );
             preview_image.pixels[x + y * preview_image.size.width] = value_out;
         }
     }

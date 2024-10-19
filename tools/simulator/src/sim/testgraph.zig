@@ -58,6 +58,7 @@ var fbm_settings = nodes.fbm.FbmSettings{
     .frequency = 0.00025,
     .octaves = 8,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
+    .scale = 0.5,
 };
 var fbm_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 
@@ -132,6 +133,7 @@ fn doNode_fbm(ctx: *Context) void {
 
 fn doNode_heightmap(ctx: *Context) void {
     heightmap.copy(fbm_image, std.heap.c_allocator);
+    heightmap.remap(0, 1500);
 
     const preview_grid_key = "heightmap.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_image.asBytes() });

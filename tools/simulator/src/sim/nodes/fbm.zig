@@ -7,7 +7,7 @@ pub const FbmSettings = struct {
     octaves: u8,
     frequency: f32,
     rect: types.Rect,
-    // resolution_inv: u32,
+    scale: f32,
 };
 
 pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
@@ -26,12 +26,11 @@ pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
             const x_sample = x * res_inv;
 
             var value: f32 = noise.noise2(
-                @as(f32, @floatFromInt(x_sample)) * 0.5,
-                @as(f32, @floatFromInt(y_sample)) * 0.5,
+                @as(f32, @floatFromInt(x_sample)) * settings.scale,
+                @as(f32, @floatFromInt(y_sample)) * settings.scale,
             ) * 0.5 + 0.5;
 
             value = std.math.clamp(value, 0, 1);
-            value = zm.mapLinearV(value, 0, 1, 0, 1500);
 
             const x_image = (x - settings.rect.left) / res_inv;
             const z_image = (y - settings.rect.bottom) / res_inv;
