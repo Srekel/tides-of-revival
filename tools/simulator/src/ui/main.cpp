@@ -52,6 +52,7 @@ Preview gPreviews[] = {
 	{"beaches.grid", false, 512, 512, nullptr, nullptr},
 	{"fbm.image", false, 512, 512, nullptr, nullptr},
 	{"heightmap.image", false, 512, 512, nullptr, nullptr},
+	{"gradient.image", false, 512, 512, nullptr, nullptr},
 };
 constexpr unsigned PREVIEW_COUNT = sizeof(gPreviews) / sizeof(gPreviews[0]);
 
@@ -69,7 +70,7 @@ void runUI(const SimulatorAPI *api)
 {
 	// Create application window
 	ImGui_ImplWin32_EnableDpiAwareness();
-	WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Voronoi Map", nullptr};
+	WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Simulator", nullptr};
 	::RegisterClassExW(&wc);
 	HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Voronoi Map", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 

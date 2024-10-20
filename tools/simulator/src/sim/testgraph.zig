@@ -61,6 +61,7 @@ var fbm_settings = nodes.fbm.FbmSettings{
     .scale = 0.5,
 };
 var fbm_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var gradient_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
@@ -70,7 +71,11 @@ pub fn start(ctx: *Context) void {
     // INITIALIZE OUT
     grid = std.heap.c_allocator.create(c_cpp_nodes.Grid) catch unreachable;
     fbm_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    gradient_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
+    preview_heightmap_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
+    preview_gradient_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
 
     // INITIALIZE LOCAL
     voronoi_settings.radius = 0.05;
@@ -131,12 +136,25 @@ fn doNode_fbm(ctx: *Context) void {
     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap);
 }
 
+var preview_heightmap_image = types.ImageRGBA.square(512);
 fn doNode_heightmap(ctx: *Context) void {
-    heightmap.copy(fbm_image, std.heap.c_allocator);
-    heightmap.remap(0, 1500);
+    heightmap.copy(fbm_image);
+    heightmap.remap(0, world_settings.terrain_height_max);
 
+    types.image_preview_f32(heightmap, &preview_heightmap_image);
     const preview_grid_key = "heightmap.image";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_image.asBytes() });
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_heightmap_image.asBytes() });
+
+    ctx.next_nodes.appendAssumeCapacity(doNode_gradient);
+}
+
+var preview_gradient_image = types.ImageRGBA.square(512);
+fn doNode_gradient(ctx: *Context) void {
+    nodes.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+
+    types.image_preview_f32(gradient_image, &preview_gradient_image);
+    const preview_grid_key = "gradient.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
 }

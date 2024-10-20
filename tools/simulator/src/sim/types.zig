@@ -45,6 +45,10 @@ pub fn Image(ElemType: type) type {
             return self.pixels[x + y * self.size.width];
         }
 
+        pub fn set(self: *Self, x: anytype, y: anytype, val: ElemType) void {
+            self.pixels[x + y * self.size.width] = val;
+        }
+
         pub fn byteCount(self: Self) usize {
             return @sizeOf(ElemType) * @as(usize, self.size.height) * self.size.width;
         }
@@ -61,16 +65,14 @@ pub fn Image(ElemType: type) type {
             // return std.mem.asBytes(self.pixels);
         }
 
-        pub fn copy(self: *Self, other: Self, allocator: std.mem.Allocator) void {
+        pub fn copy(self: *Self, other: Self) void {
             std.debug.assert(self.size.eql(other.size));
-            if (self.pixels.len == 0) {
-                self.pixels = allocator.alignedAlloc(ElemType, 128, other.size.area()) catch unreachable;
-            }
             @memcpy(self.pixels, other.pixels);
         }
 
         pub fn remap(self: *Self, min: f32, max: f32) void {
             // TODO: Simdify/jobify
+
             for (0..self.size.area()) |i_pixel| {
                 self.pixels[i_pixel] = zm.mapLinearV(self.pixels[i_pixel], self.height_min, self.height_max, min, max);
             }
@@ -81,6 +83,7 @@ pub fn Image(ElemType: type) type {
 }
 
 pub const ImageF32 = Image(f32);
+pub const ImageVec3 = Image([3]f32);
 pub const ImageRGBA = Image(ColorRGBA);
 pub const ImageGreyscale = Image(u8);
 
@@ -95,12 +98,13 @@ pub fn image_preview_f32(image_in: ImageF32, preview_image: *ImageRGBA) void {
         image_in.size.height / preview_image.size.height,
     };
 
+    const scale_factor_u8 = 255 / image_in.height_max;
     for (0..preview_image.size.height) |y| {
         for (0..preview_image.size.width) |x| {
             const index_in_x = x * scale[0];
             const index_in_y = y * scale[1];
             const value_in = image_in.pixels[index_in_x + index_in_y * image_in.size.width];
-            const value_out: u8 = @intFromFloat(value_in * 255);
+            const value_out: u8 = @intFromFloat(value_in * scale_factor_u8);
             preview_image.pixels[x + y * preview_image.size.width][0] = value_out;
             preview_image.pixels[x + y * preview_image.size.width][1] = value_out;
             preview_image.pixels[x + y * preview_image.size.width][2] = value_out;
@@ -122,7 +126,7 @@ pub fn image_preview_f32_greyscale(image_in: ImageF32, preview_image: *ImageGrey
             const index_in_x = x * scale[0];
             const index_in_y = y * scale[1];
             const value_in = image_in.pixels[index_in_x + index_in_y * image_in.size.width];
-            const value_out: u8 = @intFromFloat(value_in * scale_factor_u8 );
+            const value_out: u8 = @intFromFloat(value_in * scale_factor_u8);
             preview_image.pixels[x + y * preview_image.size.width] = value_out;
         }
     }
