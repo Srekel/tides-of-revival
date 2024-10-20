@@ -158,6 +158,10 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     dll_ui.linkSystemLibrary("Gdi32");
     dll_ui.linkSystemLibrary("Dwmapi");
 
+    // Install shaders
+    var install_file = b.addInstallFile(b.path("src/ui/d3d11/shaders/Remap.hlsl"), "bin/shaders/Remap.hlsl");
+    dll_ui.step.dependOn(&install_file.step);
+
     // Link in our cpp library of nodes
     b.installArtifact(dll_ui);
 }
