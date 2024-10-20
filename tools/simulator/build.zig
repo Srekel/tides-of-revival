@@ -128,12 +128,16 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     }
 
     dll_ui.addIncludePath(b.path("src"));
+    dll_ui.addIncludePath(b.path("src/ui"));
     dll_ui.addIncludePath(b.path("src/sim_cpp"));
     dll_ui.addIncludePath(b.path("../../external/imgui"));
     dll_ui.addIncludePath(b.path("../../external/imgui/backends/"));
 
     dll_ui.addCSourceFiles(.{
-        .files = &.{"src/ui/main.cpp"},
+        .files = &.{
+            "src/ui/main.cpp",
+            "src/ui/d3d11/d3d11.cpp",
+        },
         .flags = &.{"-DZIG_BUILD"},
     });
 
