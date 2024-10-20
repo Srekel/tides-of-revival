@@ -50,6 +50,9 @@ fn runSimulation(args: RunSimulationArgs) void {
 
         node_function(ctx);
     }
+
+    loaded_graph.exit(ctx);
+
     self.mutex.lock();
     self.progress.percent = 1;
     self.thread = null;

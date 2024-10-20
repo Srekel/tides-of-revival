@@ -41,8 +41,9 @@ pub fn getGraph() *const graph.Graph {
     return &self;
 }
 
+const kilometers = 1;
 const world_settings: types.WorldSettings = .{
-    .size = .{ .width = 16 * 1024, .height = 16 * 1024 },
+    .size = .{ .width = kilometers * 1024, .height = kilometers * 1024 },
 };
 
 // IN
@@ -62,6 +63,7 @@ var fbm_settings = nodes.fbm.FbmSettings{
 };
 var fbm_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var gradient_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var cities: std.ArrayList([3]f32) = undefined;
 
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
@@ -80,6 +82,7 @@ pub fn start(ctx: *Context) void {
     // INITIALIZE LOCAL
     voronoi_settings.radius = 0.05;
     voronoi_settings.num_relaxations = 10;
+    cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
 
     // Start!
     // ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
@@ -146,6 +149,7 @@ fn doNode_heightmap(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_heightmap_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_gradient);
+    ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
 }
 
 var preview_gradient_image = types.ImageRGBA.square(512);
@@ -156,15 +160,21 @@ fn doNode_gradient(ctx: *Context) void {
     const preview_grid_key = "gradient.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
+    ctx.next_nodes.appendAssumeCapacity(doNode_cities);
+}
+
+var preview_cities_image = types.ImageRGBA.square(512);
+fn doNode_cities(ctx: *Context) void {
+    _ = ctx; // autofix
+    nodes.experiments.cities(world_settings, heightmap, gradient_image, &cities);
+
+    // preview_cities_image.copy(preview_heightmap_image);
+    // types.image_preview_f32(cities_image, &preview_cities_image);
+    // const preview_grid_key = "cities.image";
+    // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_cities_image.asBytes() });
 }
 
 fn doNode_heightmap_file(ctx: *Context) void {
+    _ = ctx; // autofix
     nodes.heightmap_format.heightmap_format(world_settings, heightmap);
-    // var output_greyscale = types.ImageGreyscale.square(512);
-    // output_greyscale.pixels = std.heap.c_allocator.alloc(u8, 512 * 512) catch unreachable;
-    // types.image_preview_f32_greyscale(heightmap, &output_greyscale);
-    // io.writeFile(output_greyscale.pixels, "../lol.heightmap");
-
-    ctx.next_nodes.appendAssumeCapacity(exit);
 }
