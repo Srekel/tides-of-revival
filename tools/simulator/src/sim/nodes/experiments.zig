@@ -7,17 +7,21 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
     _ = gradient; // autofix
 
     // TODO gradient stuff
-    const x = heightmap.size.width / 2;
-    const z = heightmap.size.height / 2;
-    const height = heightmap.get(x, z);
-    cities_out.appendAssumeCapacity(.{ @floatFromInt(x), height, @floatFromInt(z) });
+    for (2..4) |z_div| {
+        for (2..4) |x_div| {
+            const x = heightmap.size.width / x_div;
+            const z = heightmap.size.height / z_div;
+            const height = heightmap.get(x, z);
+            cities_out.appendAssumeCapacity(.{ @floatFromInt(x), height, @floatFromInt(z) });
+        }
+    }
 
     var folderbuf: [256]u8 = undefined;
     var namebuf: [256]u8 = undefined;
 
     const folderbufslice = std.fmt.bufPrintZ(
         folderbuf[0..folderbuf.len],
-        "../../../../content/systemes",
+        "../../../../content/systems",
         .{},
     ) catch unreachable;
 

@@ -41,7 +41,7 @@ pub fn getGraph() *const graph.Graph {
     return &self;
 }
 
-const kilometers = 1;
+const kilometers = 16;
 const world_settings: types.WorldSettings = .{
     .size = .{ .width = kilometers * 1024, .height = kilometers * 1024 },
 };
