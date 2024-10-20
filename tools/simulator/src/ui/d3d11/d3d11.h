@@ -42,6 +42,7 @@ struct ComputeShader : NoCopy
 {
     ID3D11ComputeShader *compute_shader;
     ID3D11ShaderReflection *reflection;
+    uint32_t thread_group_size[3];
 };
 
 struct RemapSettings

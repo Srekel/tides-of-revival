@@ -168,6 +168,8 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, ComputeSh
     D3DReflect(shader_blob->GetBufferPointer(), shader_blob->GetBufferSize(), IID_ID3D11ShaderReflection, (void **)&out_compute_shader->reflection);
     assert(out_compute_shader->reflection);
 
+    out_compute_shader->reflection->GetThreadGroupSize(&out_compute_shader->thread_group_size[0], &out_compute_shader->thread_group_size[1], &out_compute_shader->thread_group_size[2]);
+
     return hr;
 }
 
@@ -325,7 +327,7 @@ void D3D11::dispatch_remap_float_shader(RemapSettings remap_settings, float *inp
         device_context->CSSetConstantBuffers(0, 1, &remap_settings_buffer);
         device_context->CSSetShaderResources(0, 1, &input_buffer_srv);
         device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
-        device_context->Dispatch(remap_settings.width / 8 + 1, remap_settings.height / 8 + 1, 1);
+        device_context->Dispatch(remap_settings.width / remap_shader.thread_group_size[0] + 1, remap_settings.height / remap_shader.thread_group_size[1] + 1, remap_shader.thread_group_size[2]);
     }
 
     // Cleanup context
