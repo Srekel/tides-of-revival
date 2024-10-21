@@ -131,6 +131,7 @@ fn doNode_beaches(ctx: *Context) void {
 var preview_fbm_image = types.ImageRGBA.square(512);
 fn doNode_fbm(ctx: *Context) void {
     nodes.fbm.fbm(&fbm_settings, &fbm_image);
+    fbm_image.remap(0, 1);
 
     types.image_preview_f32(fbm_image, &preview_fbm_image);
     const preview_grid_key = "fbm.image";

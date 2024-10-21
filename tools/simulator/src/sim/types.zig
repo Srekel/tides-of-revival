@@ -68,6 +68,8 @@ pub fn Image(ElemType: type) type {
         pub fn copy(self: *Self, other: Self) void {
             std.debug.assert(self.size.eql(other.size));
             @memcpy(self.pixels, other.pixels);
+            self.height_min = other.height_min;
+            self.height_max = other.height_max;
         }
 
         pub fn remap(self: *Self, min: f32, max: f32) void {
@@ -143,5 +145,5 @@ pub const WorldSettings = struct {
     size: Size2D,
     patch_resolution: u64 = 65,
     terrain_height_min: f32 = 0,
-    terrain_height_max: f32 = 1500,
+    terrain_height_max: f32 = 1000,
 };

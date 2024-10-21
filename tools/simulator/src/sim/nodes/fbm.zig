@@ -19,6 +19,8 @@ pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
     };
 
     const res_inv = settings.rect.size().width / image.size.width;
+    var min: f32 = 10;
+    var max: f32 = 0;
 
     for (settings.rect.bottom..settings.rect.top) |y| {
         const y_sample = y * res_inv;
@@ -35,6 +37,11 @@ pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
             const x_image = (x - settings.rect.left) / res_inv;
             const z_image = (y - settings.rect.bottom) / res_inv;
             image.pixels[x_image + z_image * settings.rect.size().width] = value;
+            min = @min(min, value);
+            max = @max(max, value);
         }
     }
+
+    image.height_min = min;
+    image.height_max = max;
 }
