@@ -52,6 +52,7 @@ var map_settings: *c_cpp_nodes.MapSettings = undefined;
 // OUT
 var grid: *c_cpp_nodes.Grid = undefined;
 var heightmap: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap2: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 
 // LOCAL
 var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
@@ -74,9 +75,11 @@ pub fn start(ctx: *Context) void {
     grid = std.heap.c_allocator.create(c_cpp_nodes.Grid) catch unreachable;
     fbm_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    heightmap2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     gradient_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
     preview_heightmap_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
+    preview_heightmap2_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
     preview_gradient_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
 
     // INITIALIZE LOCAL
@@ -141,13 +144,19 @@ fn doNode_fbm(ctx: *Context) void {
 }
 
 var preview_heightmap_image = types.ImageRGBA.square(512);
+var preview_heightmap2_image = types.ImageRGBA.square(512);
 fn doNode_heightmap(ctx: *Context) void {
     heightmap.copy(fbm_image);
+    // nodes.gradient.laplace(heightmap, 1 / world_settings.terrain_height_max, &heightmap2);
     heightmap.remap(0, world_settings.terrain_height_max);
 
     types.image_preview_f32(heightmap, &preview_heightmap_image);
-    const preview_grid_key = "heightmap.image";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_heightmap_image.asBytes() });
+    const preview_key = "heightmap.image";
+    ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_heightmap_image.asBytes() });
+
+    // types.image_preview_f32(heightmap2, &preview_heightmap2_image);
+    // const preview_key2 = "heightmap2.image";
+    // ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_gradient);
     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
@@ -155,11 +164,22 @@ fn doNode_heightmap(ctx: *Context) void {
 
 var preview_gradient_image = types.ImageRGBA.square(512);
 fn doNode_gradient(ctx: *Context) void {
-    nodes.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+    nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
 
     types.image_preview_f32(gradient_image, &preview_gradient_image);
     const preview_grid_key = "gradient.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
+
+    // for (0..3) |_| {
+    heightmap2.copy(heightmap);
+    nodes.gradient.terrace(heightmap, gradient_image, &heightmap2);
+    // nodes.gradient.terrace(heightmap2, gradient_image, &heightmap);
+    // nodes.gradient.terrace(heightmap, gradient_image, &heightmap2);
+    // }
+
+    types.image_preview_f32(heightmap2, &preview_heightmap2_image);
+    const preview_key2 = "heightmap2.image";
+    ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_cities);
 }
@@ -167,7 +187,7 @@ fn doNode_gradient(ctx: *Context) void {
 var preview_cities_image = types.ImageRGBA.square(512);
 fn doNode_cities(ctx: *Context) void {
     _ = ctx; // autofix
-    nodes.experiments.cities(world_settings, heightmap, gradient_image, &cities);
+    nodes.experiments.cities(world_settings, heightmap2, gradient_image, &cities);
 
     // preview_cities_image.copy(preview_heightmap_image);
     // types.image_preview_f32(cities_image, &preview_cities_image);
@@ -177,5 +197,5 @@ fn doNode_cities(ctx: *Context) void {
 
 fn doNode_heightmap_file(ctx: *Context) void {
     _ = ctx; // autofix
-    nodes.heightmap_format.heightmap_format(world_settings, heightmap);
+    nodes.heightmap_format.heightmap_format(world_settings, heightmap2);
 }

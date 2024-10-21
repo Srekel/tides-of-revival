@@ -40,6 +40,7 @@ Preview gPreviews[] = {
 	{.name = "beaches.grid", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
 	{.name = "fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
 	{.name = "heightmap.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
+	{.name = "heightmap2.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
 	{.name = "gradient.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
 };
 constexpr unsigned PREVIEW_COUNT = sizeof(gPreviews) / sizeof(gPreviews[0]);
