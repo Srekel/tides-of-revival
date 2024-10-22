@@ -46,7 +46,7 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
 
     speed_scalar *= 2.0;
     if (boosting) {
-        speed_scalar = 50;
+        speed_scalar = 150;
     }
 
     if (!boosting) {
@@ -57,8 +57,8 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
         rot.fromZM(rot_new);
 
         if (input_state.just_pressed(config.input.interact) and state.boost_next_cooldown < environment_info.world_time) {
-            state.boost_next_cooldown = environment_info.world_time + 10;
-            state.boost_active_time = environment_info.world_time + 0.2;
+            state.boost_next_cooldown = environment_info.world_time + 2;
+            state.boost_active_time = environment_info.world_time + 0.5;
         }
     }
 
