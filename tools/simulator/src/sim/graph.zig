@@ -2,10 +2,11 @@ const std = @import("std");
 
 pub const ComputeInfo = extern struct {
     // shader:[*c] // TODO
-    in: [*c]f32,
+    in: [*c] f32,
     out: [*c]f32,
-    buffer_lengths: u32,
-    data: [*c]u8,
+    buffer_width: u32,
+    buffer_height: u32,
+    data: [*c]const u8,
     data_size: u32,
 };
 

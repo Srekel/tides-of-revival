@@ -133,10 +133,42 @@ fn doNode_beaches(ctx: *Context) void {
     ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
 }
 
+const RemapSettings = extern struct {
+    from_min: f32,
+    from_max: f32,
+    to_min: f32,
+    to_max: f32,
+    width: u32,
+    height: u32,
+    _padding: [2]f32 = undefined,
+};
+var remap_settings = RemapSettings{
+    .from_min = undefined,
+    .from_max = undefined,
+    .to_min = 0,
+    .to_max = 1,
+    .width = kilometers * 1024,
+    .height = kilometers * 1024,
+};
+
 var preview_fbm_image = types.ImageRGBA.square(512);
 fn doNode_fbm(ctx: *Context) void {
     nodes.fbm.fbm(&fbm_settings, &fbm_image);
-    fbm_image.remap(0, 1);
+
+    remap_settings.from_min = fbm_image.height_min;
+    remap_settings.from_max = fbm_image.height_max;
+    remap_settings.to_min = 0;
+    remap_settings.to_max = 1;
+    var compute_info = graph.ComputeInfo{
+        .buffer_width = @intCast(fbm_image.size.width),
+        .buffer_height = @intCast(fbm_image.size.height),
+        .in = fbm_image.pixels.ptr,
+        .out = scratch_image.pixels.ptr,
+        .data_size = @sizeOf(RemapSettings),
+        .data = std.mem.asBytes(&remap_settings),
+    };
+    ctx.compute_fn(&compute_info);
+    fbm_image.swap(&scratch_image);
 
     types.image_preview_f32(fbm_image, &preview_fbm_image);
     const preview_grid_key = "fbm.image";

@@ -22,7 +22,8 @@
 #include <stdio.h>
 #include <windows.h>
 #include <psapi.h>
-CRITICAL_SECTION CriticalSection;
+CRITICAL_SECTION CriticalSectionEnqueue;
+CRITICAL_SECTION CriticalSectionDequeue;
 RemapSettings compute_remap_settings;
 float *compute_in = nullptr;
 float *compute_out = nullptr;
@@ -68,7 +69,8 @@ void gGeneratePreview(const SimulatorAPI *api, Preview &preview);
 
 void runUI(const SimulatorAPI *api)
 {
-	InitializeCriticalSection(&CriticalSection);
+	InitializeCriticalSection(&CriticalSectionEnqueue);
+	InitializeCriticalSection(&CriticalSectionDequeue);
 
 	// Create application window
 	ImGui_ImplWin32_EnableDpiAwareness();
@@ -144,13 +146,15 @@ void runUI(const SimulatorAPI *api)
 		gDrawViewport();
 		gDrawMenuBar();
 
-		EnterCriticalSection(&CriticalSection);
+		EnterCriticalSection(&CriticalSectionEnqueue);
 		if (compute_do_it_now)
 		{
+			EnterCriticalSection(&CriticalSectionDequeue);
 			compute_do_it_now = false;
 			g_d3d11.dispatch_remap_float_shader(compute_remap_settings, compute_in, compute_out);
+			LeaveCriticalSection(&CriticalSectionDequeue);
 		}
-		LeaveCriticalSection(&CriticalSection);
+		LeaveCriticalSection(&CriticalSectionEnqueue);
 
 		if (!gRanOnce)
 		{
@@ -241,7 +245,8 @@ void runUI(const SimulatorAPI *api)
 	::DestroyWindow(hwnd);
 	::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
-	DeleteCriticalSection(&CriticalSection);
+	DeleteCriticalSection(&CriticalSectionEnqueue);
+	DeleteCriticalSection(&CriticalSectionDequeue);
 }
 
 // https://gist.github.com/moebiussurfing/d7e6ec46a44985dd557d7678ddfeda99
@@ -448,24 +453,42 @@ void gGeneratePreview(const SimulatorAPI *api, Preview &preview)
 	preview.visible = true;
 }
 
+struct ComputeInfo
+{
+	// shader:[*c] // TODO
+	float *in;
+	float *out;
+	unsigned buffer_width;
+	unsigned buffer_height;
+	unsigned char *data;
+	unsigned data_size;
+};
+
 void compute(const struct ComputeInfo *info)
 {
 	// TODO
 
 	OutputDebugStringA("LOLOLOOL\n");
 
-	EnterCriticalSection(&CriticalSection);
+	EnterCriticalSection(&CriticalSectionEnqueue);
 	compute_do_it_now = true;
 	compute_in = info->in;
 	compute_out = info->out;
-	compute_remap_settings = {
-		.from_min = 0.0f,
-		.from_max = 1.0f,
-		.to_min = 0.0f,
-		.to_max = 15000.0f,
-		.width = info->buffer_width,
-		.height = info->buffer_height,
-	};
+	compute_remap_settings = *((RemapSettings *)info->data);
 
-	LeaveCriticalSection(&CriticalSection);
+	LeaveCriticalSection(&CriticalSectionEnqueue);
+
+	while (true)
+	{
+		EnterCriticalSection(&CriticalSectionDequeue);
+		if (compute_do_it_now)
+		{
+			LeaveCriticalSection(&CriticalSectionDequeue);
+			continue;
+		}
+
+		OutputDebugStringA("LOLOLOOL 2222\n");
+		LeaveCriticalSection(&CriticalSectionDequeue);
+		break;
+	}
 }

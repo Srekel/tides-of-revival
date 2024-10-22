@@ -284,6 +284,7 @@ HRESULT D3D11::create_buffer_uav(ID3D11Buffer *buffer, ID3D11UnorderedAccessView
 
 void D3D11::dispatch_remap_float_shader(RemapSettings remap_settings, float *input_data, float *output_data)
 {
+    OutputDebugStringA("dispatch_remap_float_shader START");
     assert(device);
     assert(device_context);
     assert(remap_shader.compute_shader);
@@ -369,4 +370,5 @@ void D3D11::dispatch_remap_float_shader(RemapSettings remap_settings, float *inp
         SAFE_RELEASE(remap_settings_buffer);
         SAFE_RELEASE(readback_buffer);
     }
+    OutputDebugStringA("dispatch_remap_float_shader DONE");
 }
