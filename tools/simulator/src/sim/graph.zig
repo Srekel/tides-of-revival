@@ -1,7 +1,17 @@
 const std = @import("std");
 
+pub const ComputeInfo = extern struct {
+    // shader:[*c] // TODO
+    in: [*c]f32,
+    out: [*c]f32,
+    buffer_lengths: u32,
+    data: [*c]u8,
+    data_size: u32,
+};
+
 pub const fn_node = *const fn (context: *Context) void;
 pub const fn_node2 = *const fn (context: *Context) void;
+pub const fn_compute = *const fn (compute_info: ?*ComputeInfo) callconv(.C) void;
 
 pub const Resource = opaque {};
 pub const Preview = struct {
@@ -12,6 +22,7 @@ pub const Context = struct {
     next_nodes: std.BoundedArray(fn_node2, 16) = .{},
     resources: std.StringHashMap(*anyopaque) = undefined,
     previews: std.StringHashMap(Preview) = undefined,
+    compute_fn: fn_compute = undefined,
 };
 
 pub const Graph = struct {

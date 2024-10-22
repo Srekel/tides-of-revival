@@ -28,6 +28,9 @@ fn runSimulation(args: RunSimulationArgs) void {
     const node_count = loaded_graph.getGraph().nodes.len;
     var ctx = &self.ctx;
 
+    var compute_info: graph.ComputeInfo = undefined;
+    ctx.compute_fn(&compute_info);
+
     // TODO: Move into global graph (?)
     const c_cpp_nodes = @cImport({
         @cInclude("world_generator.h");

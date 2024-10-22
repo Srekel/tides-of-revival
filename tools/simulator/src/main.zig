@@ -28,6 +28,8 @@ pub fn main() void {
     } else {
         var dll_ui = std.DynLib.open("ui.dll") catch unreachable;
         const dll_ui_runUI = dll_ui.lookup(c_ui.PFN_runUI, "runUI").?.?;
+        const dll_ui_compute = dll_ui.lookup(c_ui.PFN_compute, "compute").?.?;
+        simulator.ctx.compute_fn = @ptrCast(dll_ui_compute);
 
         dll_ui_runUI(@ptrCast(&api));
 
