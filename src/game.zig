@@ -175,6 +175,7 @@ pub fn run() void {
         .active_camera = null,
         .sun = null,
         .sky_light = null,
+        .player = null,
     });
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗

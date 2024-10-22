@@ -142,4 +142,5 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     environment_info.active_camera = player_camera_ent;
     environment_info.sun = sun_ent;
     environment_info.sky_light = sky_light_ent;
+    environment_info.player = player_ent;
 }
