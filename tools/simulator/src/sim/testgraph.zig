@@ -64,6 +64,7 @@ var fbm_settings = nodes.fbm.FbmSettings{
 };
 var fbm_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var gradient_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var scratch_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var cities: std.ArrayList([3]f32) = undefined;
 
 pub fn start(ctx: *Context) void {
@@ -77,6 +78,7 @@ pub fn start(ctx: *Context) void {
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     gradient_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
     preview_heightmap_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
     preview_heightmap2_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
@@ -147,16 +149,11 @@ var preview_heightmap_image = types.ImageRGBA.square(512);
 var preview_heightmap2_image = types.ImageRGBA.square(512);
 fn doNode_heightmap(ctx: *Context) void {
     heightmap.copy(fbm_image);
-    // nodes.gradient.laplace(heightmap, 1 / world_settings.terrain_height_max, &heightmap2);
     heightmap.remap(0, world_settings.terrain_height_max);
 
     types.image_preview_f32(heightmap, &preview_heightmap_image);
     const preview_key = "heightmap.image";
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_heightmap_image.asBytes() });
-
-    // types.image_preview_f32(heightmap2, &preview_heightmap2_image);
-    // const preview_key2 = "heightmap2.image";
-    // ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_gradient);
     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
@@ -170,12 +167,12 @@ fn doNode_gradient(ctx: *Context) void {
     const preview_grid_key = "gradient.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
 
-    // for (0..3) |_| {
     heightmap2.copy(heightmap);
-    nodes.gradient.terrace(heightmap, gradient_image, &heightmap2);
-    // nodes.gradient.terrace(heightmap2, gradient_image, &heightmap);
-    // nodes.gradient.terrace(heightmap, gradient_image, &heightmap2);
-    // }
+    for (0..3) |_| {
+        nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
+        nodes.gradient.terrace(heightmap2, gradient_image, &heightmap, &scratch_image);
+    }
+    nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
 
     types.image_preview_f32(heightmap2, &preview_heightmap2_image);
     const preview_key2 = "heightmap2.image";

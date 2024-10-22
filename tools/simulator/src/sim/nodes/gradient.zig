@@ -90,20 +90,17 @@ pub fn laplace(image_in: types.ImageF32, height_ratio: f32, image_out: *types.Im
     }
 }
 
-pub fn terrace(image_in: types.ImageF32, gradient_in: types.ImageF32, image_out: *types.ImageF32) void {
+pub fn terrace(image_in: types.ImageF32, gradient_in: types.ImageF32, image_out: *types.ImageF32, scratch_image: *types.ImageF32) void {
+    scratch_image.zeroClear();
 
-    // var range_min: f32 = 10000;
-    // var range_max: f32 = 0;
+    var range_min: f32 = 1000000;
+    var range_max: f32 = 0;
     const SCALE = 5;
     for (SCALE * 2..image_in.size.height - SCALE * 2) |y1| {
         for (SCALE * 2..image_in.size.width - SCALE * 2) |x1| {
             const gradient_value = gradient_in.get(x1, y1) / gradient_in.height_max;
             const gradient_effect = std.math.clamp(1 - gradient_value, 0, 1);
             const height_value1 = image_in.get(x1, y1);
-
-            if (gradient_effect < 0.65) {
-                continue;
-            }
 
             for (0..5) |y2| {
                 for (0..5) |x2| {
@@ -113,31 +110,25 @@ pub fn terrace(image_in: types.ImageF32, gradient_in: types.ImageF32, image_out:
                     const effect_clamped = std.math.clamp(distance_effect * gradient_effect, 0, 1);
                     const height_value2 = image_in.get(x1 + x2 * SCALE - 2 * SCALE, y1 + y2 * SCALE - 2 * SCALE);
                     // image_out.set(x1 + x2 - 1, y1 + y2 - 1, std.math.lerp(height_value2, height_value1, effect_clamped));
+
+                    if (effect_clamped < scratch_image.get(x1 + x2 * SCALE - 2 * SCALE, y1 + y2 * SCALE - 2 * SCALE)) {
+                        continue;
+                    }
+                    scratch_image.set(x1 + x2 * SCALE - 2 * SCALE, y1 + y2 * SCALE - 2 * SCALE, effect_clamped);
+
+                    const value = std.math.lerp(height_value2, height_value1, effect_clamped);
                     image_out.set(
                         x1 + x2 * SCALE - 2 * SCALE,
                         y1 + y2 * SCALE - 2 * SCALE,
-                        std.math.lerp(height_value2, height_value1, effect_clamped),
-                        // gradient_effect * image_in.height_max,
+                        value,
                     );
+                    range_min = @min(range_min, value);
+                    range_max = @max(range_max, value);
                 }
             }
-
-            // image_out.set(x1, y1, @max(0, sum));
-            // range_min = @min(range_min, gradient_value);
-            // range_max = @max(range_max, sum);
         }
     }
 
-    // image_out.height_min = range_min; // Not sure we want to do this?
-    image_out.height_max = image_in.height_max;
-
-    // Set corners/edges to be the same as their neighbors
-    for (1..image_in.size.width - 1) |x1| {
-        image_out.set(x1, 0, image_out.get(x1, 1));
-        image_out.set(x1, image_in.size.height - 1, image_out.get(x1, image_in.size.height - 2));
-    }
-    for (0..image_in.size.height) |y1| {
-        image_out.set(0, y1, image_out.get(1, y1));
-        image_out.set(image_in.size.width - 1, y1, image_out.get(image_in.size.width - 2, y1));
-    }
+    image_out.height_min = range_min;
+    image_out.height_max = range_max;
 }

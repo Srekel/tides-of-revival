@@ -41,6 +41,10 @@ pub fn Image(ElemType: type) type {
         height_max: f32 = 1,
         pixels: []ElemType = undefined,
 
+        pub fn zeroClear(self: *Self) void {
+            @memset(self.pixels, 0);
+        }
+
         pub fn get(self: Self, x: anytype, y: anytype) ElemType {
             return self.pixels[x + y * self.size.width];
         }
