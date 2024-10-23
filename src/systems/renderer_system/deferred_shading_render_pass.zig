@@ -288,6 +288,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             sun_rotation.?.z = std.math.degreesToRadians(sun_rotation_degrees[2]);
         }
         _ = zgui.dragFloat("Sun Intensity", .{ .v = &sun_light.?.intensity, .speed = 0.05, .min = 0.0, .max = 100.0});
+        _ = zgui.checkbox("Cast Shadows", .{ .v = &self.lighting_settings.apply_shadows});
         _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0});
         _ = zgui.colorPicker3("Fog Color", .{ .col = self.lighting_settings.fog_color.elems(), .flags = zgui.ColorEditFlags.default_options });
         _ = zgui.dragFloat("Fog Density", .{ .v = &self.lighting_settings.fog_density, .speed = 0.0001, .min = 0.0, .max = 1.0, .cfmt = "%.5f"});
