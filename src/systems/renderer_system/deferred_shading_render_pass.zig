@@ -260,18 +260,15 @@ pub const DeferredShadingRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const renderImGuiFn: renderer.renderPassImGuiFn = renderImGui;
 pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
-fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Deferred Shading Render Pass", 0x00_ff_ff_00);
-    defer trazy_zone.End();
+fn renderImGui(user_data: *anyopaque) void {
+    if (zgui.collapsingHeader("Deferred Shading", .{})) {
+        const self: *DeferredShadingRenderPass = @ptrCast(@alignCast(user_data));
 
-    const self: *DeferredShadingRenderPass = @ptrCast(@alignCast(user_data));
-
-    zgui.setNextWindowSize(.{ .w = 600, .h = 1000 });
-    if (zgui.begin("Lighting", .{})) {
         const sun_entity = util.getSun(self.ecsu_world);
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
         var sun_rotation = sun_entity.?.getMut(fd.Rotation);
@@ -292,8 +289,14 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0});
         _ = zgui.colorPicker3("Fog Color", .{ .col = self.lighting_settings.fog_color.elems(), .flags = zgui.ColorEditFlags.default_options });
         _ = zgui.dragFloat("Fog Density", .{ .v = &self.lighting_settings.fog_density, .speed = 0.0001, .min = 0.0, .max = 1.0, .cfmt = "%.5f"});
-        zgui.end();
     }
+}
+
+fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Deferred Shading Render Pass", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
+    const self: *DeferredShadingRenderPass = @ptrCast(@alignCast(user_data));
 
     const frame_index = self.renderer.frame_index;
 

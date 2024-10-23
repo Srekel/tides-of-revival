@@ -87,6 +87,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
     const deferred_shading_pass = DeferredShadingRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_deferred_shading_pass_render_fn = deferred_shading_render_pass.renderFn;
+    ctx.renderer.render_deferred_shading_pass_imgui_fn = deferred_shading_render_pass.renderImGuiFn;
     ctx.renderer.render_deferred_shading_pass_create_descriptor_sets_fn = deferred_shading_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_prepare_descriptor_sets_fn = deferred_shading_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = deferred_shading_render_pass.unloadDescriptorSetsFn;
