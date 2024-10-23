@@ -31,6 +31,11 @@ CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
     DATA(uint,     pointLightsBufferIndex, None);
     DATA(uint,     directionalLightsCount, None);
     DATA(uint,     pointLightsCount, None);
+    DATA(float,    applyShadows, None);
+    DATA(float,    environmentLightIntensity, None);
+    DATA(float2,   _padding, None);
+    DATA(float3,   fogColor, None);
+    DATA(float,    fogDensity, None);
 };
 
 STRUCT(VsOut)
@@ -136,7 +141,10 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     const float3 V = normalize(Get(camPos).xyz - P);
 
     float4 positionLightSpace = mul(Get(lightProjView), float4(P, 1.0f));
-    float shadow = ShadowTest(positionLightSpace, 2048.0f);
+    float shadowAttenuation = 1.0f;
+    if (Get(applyShadows)) {
+        shadowAttenuation = ShadowTest(positionLightSpace, 2048.0f);
+    }
 
     float metalness = armSample.b;
     float roughness = armSample.g;
@@ -162,7 +170,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const float  intensity = pointLight.colorAndIntensity.a;
         const float3 radiance = color * intensity * attenuation;
 
-        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadow;
+        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadowAttenuation;
     }
 
     // Directional Lights
@@ -176,18 +184,16 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const float  intensity = directionalLight.colorAndIntensity.a;
         const float3 radiance = color * intensity;
 
-        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadow;
+        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadowAttenuation;
     }
 
     // IBL (Environment Light)
-    float environmentLightIntensity = 0.35f;
-    Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * environmentLightIntensity;
+    Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * Get(environmentLightIntensity);
 
     // Simple depth-based fog
     float view_distance = length(Get(camPos).xyz - P.xyz);
-    float fog_density = 0.0001;
-    float fog_factor = exp(-fog_density * view_distance);
-    Lo = lerp(float3(0.5, 0.5, 0.5), Lo, saturate(fog_factor));
+    float fog_factor = exp(-Get(fogDensity) * view_distance);
+    Lo = lerp(Get(fogColor), Lo, saturate(fog_factor));
 
     RETURN(float4(Lo, 1.0f));
 }

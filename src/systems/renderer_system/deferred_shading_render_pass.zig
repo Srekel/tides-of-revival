@@ -6,6 +6,7 @@ const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
 const zforge = @import("zforge");
+const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const zm = @import("zmath");
@@ -28,6 +29,18 @@ const UniformFrameData = struct {
     point_lights_buffer_index: u32,
     directional_lights_count: u32,
     point_lights_count: u32,
+    apply_shadows: f32,
+    environment_light_intensity: f32,
+    _padding: [2]f32,
+    fog_color: [3]f32,
+    fog_density: f32,
+};
+
+const LightingSettings = struct {
+    apply_shadows: bool,
+    environment_light_intensity: f32,
+    fog_color: fd.ColorRGB,
+    fog_density: f32,
 };
 
 const PointLight = extern struct {
@@ -69,6 +82,7 @@ pub const DeferredShadingRenderPass = struct {
     irradiance_descriptor_set: [*c]graphics.DescriptorSet,
     specular_descriptor_sets: [2][*c]graphics.DescriptorSet,
 
+    lighting_settings: LightingSettings,
     directional_lights: std.ArrayList(DirectionalLight),
     point_lights: std.ArrayList(PointLight),
     directional_lights_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -183,6 +197,13 @@ pub const DeferredShadingRenderPass = struct {
             .withReadonly(fd.PointLight);
         const query_point_lights = query_builder_point_lights.buildQuery();
 
+        const lighting_settings = LightingSettings{
+            .apply_shadows = true,
+            .environment_light_intensity = 0.35,
+            .fog_color = fd.ColorRGB.init(0.3, 0.3, 0.3),
+            .fog_density = 0.0001,
+        };
+
         const pass = allocator.create(DeferredShadingRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
@@ -198,6 +219,7 @@ pub const DeferredShadingRenderPass = struct {
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
             .deferred_descriptor_sets = undefined,
+            .lighting_settings = lighting_settings,
             .directional_lights = directional_lights,
             .point_lights = point_lights,
             .directional_lights_buffers = directional_lights_buffers,
@@ -247,6 +269,30 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     defer trazy_zone.End();
 
     const self: *DeferredShadingRenderPass = @ptrCast(@alignCast(user_data));
+
+    zgui.setNextWindowSize(.{ .w = 600, .h = 1000 });
+    if (zgui.begin("Lighting", .{})) {
+        const sun_entity = util.getSun(self.ecsu_world);
+        var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
+        var sun_rotation = sun_entity.?.getMut(fd.Rotation);
+        var sun_rotation_degrees = [3]f32{
+            std.math.radiansToDegrees(sun_rotation.?.x),
+            std.math.radiansToDegrees(sun_rotation.?.y),
+            std.math.radiansToDegrees(sun_rotation.?.z),
+        };
+
+        _ = zgui.colorPicker3("Sun Color", .{ .col = sun_light.?.color.elems() });
+        if (zgui.dragFloat3("Sun Orientation", .{ .v = &sun_rotation_degrees, .speed = 0.1, .min = -360.0, .max = 360.0 })) {
+            sun_rotation.?.x = std.math.degreesToRadians(sun_rotation_degrees[0]);
+            sun_rotation.?.y = std.math.degreesToRadians(sun_rotation_degrees[1]);
+            sun_rotation.?.z = std.math.degreesToRadians(sun_rotation_degrees[2]);
+        }
+        _ = zgui.dragFloat("Sun Intensity", .{ .v = &sun_light.?.intensity, .speed = 0.05, .min = 0.0, .max = 100.0});
+        _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0});
+        _ = zgui.colorPicker3("Fog Color", .{ .col = self.lighting_settings.fog_color.elems() });
+        _ = zgui.dragFloat("Fog Density", .{ .v = &self.lighting_settings.fog_density, .speed = 0.0001, .min = 0.0, .max = 1.0, .cfmt = "%.5f"});
+        zgui.end();
+    }
 
     const frame_index = self.renderer.frame_index;
 
@@ -407,6 +453,11 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.uniform_frame_data.directional_lights_count = @intCast(self.directional_lights.items.len);
     self.uniform_frame_data.point_lights_buffer_index = self.renderer.getBufferBindlessIndex(self.point_lights_buffers[frame_index]);
     self.uniform_frame_data.point_lights_count = @intCast(self.point_lights.items.len);
+    self.uniform_frame_data.apply_shadows = if (self.lighting_settings.apply_shadows) 1.0 else 0.0;
+    self.uniform_frame_data.environment_light_intensity = self.lighting_settings.environment_light_intensity;
+    self.uniform_frame_data.fog_color = [3]f32{ self.lighting_settings.fog_color.r, self.lighting_settings.fog_color.g, self.lighting_settings.fog_color.b };
+    self.uniform_frame_data.fog_density = self.lighting_settings.fog_density;
+    self.uniform_frame_data._padding = [2]f32{ 42, 42 };
 
     const data = renderer.Slice{
         .data = @ptrCast(&self.uniform_frame_data),
