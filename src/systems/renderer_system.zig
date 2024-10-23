@@ -1,11 +1,13 @@
 const std = @import("std");
 
+const config = @import("../config/config.zig");
 const context = @import("../core/context.zig");
 const ecs = @import("zflecs");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
-const im3d = @import("im3d");
 const IdLocal = @import("../core/core.zig").IdLocal;
+const im3d = @import("im3d");
+const input = @import("../input.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const renderer = @import("../renderer/renderer.zig");
 const zforge = @import("zforge");
@@ -37,6 +39,7 @@ const resource_loader = zforge.resource_loader;
 pub const SystemState = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
     pre_sys: ecs.entity_t,
     post_sys: ecs.entity_t,
@@ -47,12 +50,14 @@ pub const SystemState = struct {
     tonemap_render_pass: *TonemapRenderPass,
     ui_render_pass: *UIRenderPass,
     im3d_render_pass: *Im3dRenderPass,
+    render_imgui: bool,
 };
 
 pub const SystemCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
     prefab_mgr: *PrefabManager,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
@@ -118,6 +123,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     system.* = .{
         .allocator = ctx.allocator,
         .ecsu_world = ctx.ecsu_world,
+        .input_frame_data = ctx.input_frame_data,
         .renderer = ctx.renderer,
         .terrain_render_pass = terrain_pass,
         .geometry_render_pass = geometry_pass,
@@ -126,6 +132,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .tonemap_render_pass = tonemap_pass,
         .ui_render_pass = ui_pass,
         .im3d_render_pass = im3d_pass,
+        .render_imgui = false,
         .pre_sys = pre_sys,
         .post_sys = post_sys,
     };
@@ -192,8 +199,13 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
 
     defer ecs.iter_fini(iter.iter);
     const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    var rctx = system.renderer;
 
+    if (system.input_frame_data.just_pressed(config.input.toggle_imgui)) {
+        system.render_imgui = !system.render_imgui;
+        system.renderer.render_imgui = system.render_imgui;
+    }
+
+    var rctx = system.renderer;
     const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     rctx.time = environment_info.world_time;
 

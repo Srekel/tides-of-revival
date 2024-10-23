@@ -2,11 +2,13 @@ const std = @import("std");
 const math = std.math;
 const ecs = @import("zflecs");
 const zgpu = @import("zgpu");
+const zglfw = @import("zglfw");
 const zm = @import("zmath");
 
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
+const ID = @import("../core/core.zig").ID;
 const input = @import("../input.zig");
 const config = @import("../config/config.zig");
 const renderer = @import("../renderer/renderer.zig");
@@ -203,6 +205,17 @@ fn updateCameraFrustum(system: *SystemState) void {
 }
 
 fn updateCameraSwitch(system: *SystemState) void {
+    if (system.input_frame_data.just_pressed(config.input.toggle_player_control)) {
+        for (system.input_frame_data.map.layer_stack.items) |*layer| {
+            if (layer.id.eql(ID("on_foot"))) {
+                layer.active = !layer.active;
+                var window = system.input_frame_data.window;
+                const cursor_mode: zglfw.Cursor.Mode = if (layer.active) .disabled else .normal;
+                window.setInputMode(.cursor, cursor_mode);
+            }
+        }
+    }
+
     if (!system.input_frame_data.just_pressed(config.input.camera_switch)) {
         return;
     }

@@ -114,6 +114,7 @@ pub const Renderer = struct {
     render_tonemap_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_tonemap_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
+    render_imgui: bool = false,
     render_ui_pass_user_data: ?*anyopaque = null,
     render_ui_pass_render_fn: renderPassRenderFn = null,
     render_ui_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
@@ -757,11 +758,13 @@ pub const Renderer = struct {
         }
 
         // ImGUI Pass
-        {
+        if (self.render_imgui) {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "ImGUI Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
             zgui.backend.draw(cmd_list.*.mDx.pCmdList);
+        } else {
+            zgui.endFrame();
         }
 
         // Present

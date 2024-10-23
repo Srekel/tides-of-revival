@@ -2,6 +2,10 @@ const std = @import("std");
 const input = @import("../input.zig");
 const ID = @import("../core/core.zig").ID;
 
+// Debug Layer
+pub const toggle_imgui = ID("toggle_imgui");
+pub const toggle_player_control = ID("toggle_player_control");
+
 pub const move_left = ID("move_left");
 pub const move_right = ID("move_right");
 pub const move_forward = ID("move_forward");
@@ -48,6 +52,8 @@ pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(allocator);
         itm.ensureUnusedCapacity(64) catch unreachable;
+        itm.putAssumeCapacity(toggle_player_control, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(toggle_imgui, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(move_left, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(move_right, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(move_forward, input.TargetValue{ .number = 0 });
@@ -91,6 +97,18 @@ pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap
 pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
     _ = allocator;
     const keymap = blk: {
+        //
+        // DEBUG
+        //
+        var debug_keyboard_map = input.DeviceKeyMap{
+            .device_type = .keyboard,
+            .bindings = std.ArrayList(input.Binding).init(std.heap.page_allocator),
+            .processors = std.ArrayList(input.Processor).init(std.heap.page_allocator),
+        };
+        debug_keyboard_map.bindings.ensureTotalCapacity(8) catch unreachable;
+        debug_keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_imgui, .source = input.BindingSource{ .keyboard_key = .F2 } });
+        debug_keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_player_control, .source = input.BindingSource{ .keyboard_key = .F8 } });
+
         //
         // KEYBOARD
         //
@@ -244,6 +262,13 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         //     .class = input.ProcessorClass{ .axis_split = input.ProcessorAxisToBool{ .source_target = wielded_use_primary } },
         // });
 
+        var layer_debug = input.KeyMapLayer{
+            .id = ID("debug"),
+            .active = true,
+            .device_maps = std.ArrayList(input.DeviceKeyMap).init(std.heap.page_allocator),
+        };
+        layer_debug.device_maps.append(debug_keyboard_map) catch unreachable;
+
         var layer_on_foot = input.KeyMapLayer{
             .id = ID("on_foot"),
             .active = true,
@@ -256,6 +281,7 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         var map = input.KeyMap{
             .layer_stack = std.ArrayList(input.KeyMapLayer).init(std.heap.page_allocator),
         };
+        map.layer_stack.append(layer_debug) catch unreachable;
         map.layer_stack.append(layer_on_foot) catch unreachable;
         break :blk map;
     };
