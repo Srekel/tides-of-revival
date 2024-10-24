@@ -272,18 +272,26 @@ fn renderImGui(user_data: *anyopaque) void {
         const sun_entity = util.getSun(self.ecsu_world);
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
         var sun_rotation = sun_entity.?.getMut(fd.Rotation);
-        var sun_rotation_degrees = [3]f32{
-            std.math.radiansToDegrees(sun_rotation.?.x),
-            std.math.radiansToDegrees(sun_rotation.?.y),
-            std.math.radiansToDegrees(sun_rotation.?.z),
+        const z_sun_forward = zm.normalize4(zm.rotate(sun_rotation.?.asZM(), zm.Vec{ 0, 0, 1, 0 }));
+        var sun_forward = [4]f32{0, 0, 0, 0};
+        zm.storeArr4(&sun_forward, z_sun_forward);
+
+        const sun_rotation_rads = zm.quatToRollPitchYaw(sun_rotation.?.asZM());
+        var sun_rotation_degs = [3]f32{
+            std.math.radiansToDegrees(sun_rotation_rads[0]),
+            std.math.radiansToDegrees(sun_rotation_rads[1]),
+            std.math.radiansToDegrees(sun_rotation_rads[2]),
         };
 
         _ = zgui.colorPicker3("Sun Color", .{ .col = sun_light.?.color.elems(), .flags = zgui.ColorEditFlags.default_options });
-        if (zgui.dragFloat3("Sun Orientation", .{ .v = &sun_rotation_degrees, .speed = 0.1, .min = -360.0, .max = 360.0 })) {
-            sun_rotation.?.x = std.math.degreesToRadians(sun_rotation_degrees[0]);
-            sun_rotation.?.y = std.math.degreesToRadians(sun_rotation_degrees[1]);
-            sun_rotation.?.z = std.math.degreesToRadians(sun_rotation_degrees[2]);
+        if (zgui.dragFloat3("Sun Orientation", .{ .v = &sun_rotation_degs, .speed = 0.1, .min = -360.0, .max = 360.0 })) {
+            const new_rotation = fd.Rotation.initFromEulerDegrees(sun_rotation_degs[0], sun_rotation_degs[1], sun_rotation_degs[2]);
+            sun_rotation.?.x = new_rotation.x;
+            sun_rotation.?.y = new_rotation.y;
+            sun_rotation.?.z = new_rotation.z;
+            sun_rotation.?.w = new_rotation.w;
         }
+        zgui.text("Sun Direction ({d:.3}, {d:.3}, {d:.3})", .{sun_forward[0], sun_forward[1], sun_forward[2]});
         _ = zgui.dragFloat("Sun Intensity", .{ .v = &sun_light.?.intensity, .speed = 0.05, .min = 0.0, .max = 100.0});
         _ = zgui.checkbox("Cast Shadows", .{ .v = &self.lighting_settings.apply_shadows});
         _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0});
