@@ -23,18 +23,20 @@ struct TerrainLayerTextureIndices
 RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s1, binding = 2);
 
-CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
-{
-	DATA(float4x4, projView, None);
-	DATA(float4x4, projViewInverted, None);
-	DATA(float4, camPos, None);
-};
-
 PUSH_CONSTANT(RootConstant, b0)
 {
 	DATA(uint, startInstanceLocation, None);
 	DATA(uint, instanceDataBufferIndex, None);
 	DATA(uint, materialBufferIndex, None);
+};
+
+CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
+{
+	DATA(float4x4, projView, None);
+	DATA(float4x4, projViewInverted, None);
+	DATA(float4, camPos, None);
+	DATA(float, triplanarMapping, None);
+	DATA(float3, _padding, None);
 };
 
 STRUCT(VSInput)

@@ -9,6 +9,7 @@ const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
 const tides_math = @import("../../core/math.zig");
 const zforge = @import("zforge");
+const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const world_patch_manager = @import("../../worldpatch/world_patch_manager.zig");
@@ -22,6 +23,10 @@ const max_instances = 16384;
 const invalid_index = std.math.maxInt(u32);
 const lod_3_patches_side = config.world_size_x / config.largest_patch_width;
 const lod_3_patches_total = lod_3_patches_side * lod_3_patches_side;
+
+const TerrainRenderSettings = struct {
+    triplanar_mapping: bool,
+};
 
 const TerrainLayer = struct {
     diffuse: renderer.TextureHandle,
@@ -48,6 +53,8 @@ pub const UniformFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
     camera_position: [4]f32,
+    triplanar_mapping: f32,
+    _padding: [3]f32,
 };
 
 pub const ShadowsUniformFrameData = struct {
@@ -65,6 +72,7 @@ pub const TerrainRenderPass = struct {
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    terrain_render_settings: TerrainRenderSettings,
 
     shadows_uniform_frame_data: ShadowsUniformFrameData,
     shadows_uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -88,6 +96,10 @@ pub const TerrainRenderPass = struct {
     cam_pos_old: [3]f32 = .{ -100000, 0, -100000 }, // NOTE(Anders): Assumes only one camera
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, world_patch_mgr: *world_patch_manager.WorldPatchManager, allocator: std.mem.Allocator) *TerrainRenderPass {
+        const terrain_render_settings = TerrainRenderSettings{
+            .triplanar_mapping = true,
+        };
+
         // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
         const max_quad_tree_nodes: usize = 85 * lod_3_patches_total;
         var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
@@ -203,6 +215,7 @@ pub const TerrainRenderPass = struct {
             .ecsu_world = ecsu_world,
             .renderer = rctx,
             .world_patch_mgr = world_patch_mgr,
+            .terrain_render_settings = terrain_render_settings,
             .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
             .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
             .shadows_descriptor_set = undefined,
@@ -248,10 +261,19 @@ pub const TerrainRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const renderImGuiFn: renderer.renderPassImGuiFn = renderImGui;
 pub const renderShadowMapFn: renderer.renderPassRenderShadowMapFn = renderShadowMap;
 pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
+
+fn renderImGui(user_data: *anyopaque) void {
+    if (zgui.collapsingHeader("Terrain", .{})) {
+        const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
+
+        _ = zgui.checkbox("Triplanar mapping", .{ .v = &self.terrain_render_settings.triplanar_mapping});
+    }
+}
 
 fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Shadow Map: Terrain Render Pass", 0x00_ff_ff_00);
@@ -274,6 +296,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
     zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
     self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+    self.uniform_frame_data.triplanar_mapping = if (self.terrain_render_settings.triplanar_mapping) 1.0 else 0.0;
 
     const data = renderer.Slice{
         .data = @ptrCast(&self.uniform_frame_data),
@@ -379,15 +402,22 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.quads_to_render.clearRetainingCapacity();
     self.quads_to_load.clearRetainingCapacity();
 
+
     {
+        const player_entity = util.getPlayer(self.ecsu_world);
+        const player_comps = player_entity.?.getComps(struct {
+            transform: *const fd.Transform,
+        });
+        const player_position = player_comps.transform.getPos00();
+        const player_point = [2]f32{ player_position[0], player_position[2] };
+
         var sector_index: u32 = 0;
         while (sector_index < lod_3_patches_total) : (sector_index += 1) {
             const lod3_node = &self.terrain_quad_tree_nodes.items[sector_index];
-            const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
             collectQuadsToRenderForSector(
                 self,
-                camera_point,
+                player_point,
                 lod_load_range,
                 lod3_node,
                 sector_index,

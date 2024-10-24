@@ -79,6 +79,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
     const terrain_pass = TerrainRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
     ctx.renderer.render_terrain_pass_render_fn = terrain_render_pass.renderFn;
+    ctx.renderer.render_terrain_pass_imgui_fn = terrain_render_pass.renderImGuiFn;
     ctx.renderer.render_terrain_pass_render_shadow_map_fn = terrain_render_pass.renderShadowMapFn;
     ctx.renderer.render_terrain_pass_create_descriptor_sets_fn = terrain_render_pass.createDescriptorSetsFn;
     ctx.renderer.render_terrain_pass_prepare_descriptor_sets_fn = terrain_render_pass.prepareDescriptorSetsFn;
