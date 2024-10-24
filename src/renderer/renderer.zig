@@ -64,6 +64,11 @@ pub const Renderer = struct {
     frame_index: u32 = 0,
 
     gpu_profile_token: profiler.ProfileToken = undefined,
+    shadow_pass_profile_token: profiler.ProfileToken = undefined,
+    gbuffer_pass_profile_token: profiler.ProfileToken = undefined,
+    deferred_pass_profile_token: profiler.ProfileToken = undefined,
+    tonemap_pass_profile_token: profiler.ProfileToken = undefined,
+    imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
     depth_buffer: [*c]graphics.RenderTarget = null,
     shadow_depth_buffer: [*c]graphics.RenderTarget = null,
@@ -585,13 +590,14 @@ pub const Renderer = struct {
             } else {
                 // GPU Profiler
                 {
-                    if (zgui.collapsingHeader("Performance", .{})) {
-                        const gpu_avg_time = profiler.getGpuProfileAvgTime(self.gpu_profile_token);
-                        const gpu_min_time = profiler.getGpuProfileMinTime(self.gpu_profile_token);
-                        const gpu_max_time = profiler.getGpuProfileMaxTime(self.gpu_profile_token);
-                        zgui.text("GPU Average time: {d}", .{gpu_avg_time});
-                        zgui.text("GPU Min time: {d}", .{gpu_min_time});
-                        zgui.text("GPU Max time: {d}", .{gpu_max_time});
+                    if (zgui.collapsingHeader("Performance", .{ .default_open = true})) {
+                        zgui.text("GPU Average time: {d}", .{profiler.getGpuProfileAvgTime(self.gpu_profile_token)});
+
+                        zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
+                        zgui.text("\tGBuffer Pass: {d}", .{profiler.getGpuProfileAvgTime(self.gbuffer_pass_profile_token)});
+                        zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
+                        zgui.text("\tTonemap Pass: {d}", .{profiler.getGpuProfileAvgTime(self.tonemap_pass_profile_token)});
+                        zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
                     }
                 }
 
@@ -679,7 +685,7 @@ pub const Renderer = struct {
 
         // Shadow Map Pass
         {
-            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
+            self.shadow_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -718,7 +724,7 @@ pub const Renderer = struct {
 
         // GBuffer Pass
         {
-            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "GBuffer Pass", .{ .bUseMarker = true });
+            self.gbuffer_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "GBuffer Pass", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "GBuffer Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -769,7 +775,7 @@ pub const Renderer = struct {
 
         // Deferred Shading and Skybox Passes
         {
-            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading & Skybox Passes", .{ .bUseMarker = true });
+            self.deferred_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading & Skybox Passes", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading & Skybox Passes", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -814,7 +820,7 @@ pub const Renderer = struct {
 
         // Tonemap & UI Passes
         {
-            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Tonemap & UI Passes", .{ .bUseMarker = true });
+            self.tonemap_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Tonemap & UI Passes", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemap & UI Passes", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -859,7 +865,7 @@ pub const Renderer = struct {
 
         // ImGUI Pass
         if (self.render_imgui) {
-            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "ImGUI Pass", .{ .bUseMarker = true });
+            self.imgui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "ImGUI Pass", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "ImGUI Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
