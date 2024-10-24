@@ -11,6 +11,7 @@ const font = zforge.font;
 const graphics = zforge.graphics;
 const log = zforge.log;
 const memory = zforge.memory;
+const profiler = zforge.profiler;
 const resource_loader = zforge.resource_loader;
 const util = @import("../util.zig");
 const ztracy = @import("ztracy");
@@ -61,6 +62,8 @@ pub const Renderer = struct {
     swap_chain_image_index: u32 = 0,
     graphics_queue: [*c]graphics.Queue = null,
     frame_index: u32 = 0,
+
+    gpu_profile_token: profiler.ProfileToken = undefined,
 
     depth_buffer: [*c]graphics.RenderTarget = null,
     shadow_depth_buffer: [*c]graphics.RenderTarget = null,
@@ -216,6 +219,11 @@ pub const Renderer = struct {
         if (!font.initFontSystem(&font_system_desc)) {
             return Error.FontSystemNotInitialized;
         }
+
+        var profiler_desc = profiler.ProfilerDesc{};
+        profiler_desc.pRenderer = self.renderer;
+        profiler.initProfiler(&profiler_desc);
+        self.gpu_profile_token = profiler.initGpuProfiler(self.renderer, self.graphics_queue, "Graphics");
 
         self.samplers = StaticSamplers.init(self.renderer);
 
@@ -387,6 +395,10 @@ pub const Renderer = struct {
         graphics.exitQueue(self.renderer, self.graphics_queue);
         self.gpu_cmd_ring.destroy(self.renderer);
         graphics.exitSemaphore(self.renderer, self.image_acquired_semaphore);
+
+        profiler.exitGpuProfiler(self.gpu_profile_token);
+        profiler.exitProfiler();
+
         font.exitFontSystem();
         resource_loader.exitResourceLoaderInterface(self.renderer);
         self.samplers.exit(self.renderer);
@@ -571,6 +583,18 @@ pub const Renderer = struct {
             if (!zgui.begin("Renderer Settings", .{})) {
                 zgui.end();
             } else {
+                // GPU Profiler
+                {
+                    if (zgui.collapsingHeader("Performance", .{})) {
+                        const gpu_avg_time = profiler.getGpuProfileAvgTime(self.gpu_profile_token);
+                        const gpu_min_time = profiler.getGpuProfileMinTime(self.gpu_profile_token);
+                        const gpu_max_time = profiler.getGpuProfileMaxTime(self.gpu_profile_token);
+                        zgui.text("GPU Average time: {d}", .{gpu_avg_time});
+                        zgui.text("GPU Min time: {d}", .{gpu_min_time});
+                        zgui.text("GPU Max time: {d}", .{gpu_max_time});
+                    }
+                }
+
                 if (self.render_terrain_pass_imgui_fn) |render_fn| {
                     if (self.render_terrain_pass_user_data) |user_data| {
                         render_fn(user_data);
@@ -651,8 +675,12 @@ pub const Renderer = struct {
         var cmd_list = elem.cmds[0];
         graphics.beginCmd(cmd_list);
 
+        profiler.cmdBeginGpuFrameProfile(cmd_list, self.gpu_profile_token, .{ .bUseMarker = true });
+
         // Shadow Map Pass
         {
+            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
+
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
@@ -684,10 +712,14 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
         }
 
         // GBuffer Pass
         {
+            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "GBuffer Pass", .{ .bUseMarker = true });
+
             const trazy_zone1 = ztracy.ZoneNC(@src(), "GBuffer Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
@@ -731,10 +763,14 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
         }
 
         // Deferred Shading and Skybox Passes
         {
+            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading & Skybox Passes", .{ .bUseMarker = true });
+
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading & Skybox Passes", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
@@ -772,10 +808,14 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
         }
 
         // Tonemap & UI Passes
         {
+            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Tonemap & UI Passes", .{ .bUseMarker = true });
+
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemap & UI Passes", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
@@ -813,14 +853,20 @@ pub const Renderer = struct {
                     render_fn(cmd_list, user_data);
                 }
             }
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
         }
 
         // ImGUI Pass
         if (self.render_imgui) {
+            _ = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "ImGUI Pass", .{ .bUseMarker = true });
+
             const trazy_zone1 = ztracy.ZoneNC(@src(), "ImGUI Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
             zgui.backend.draw(cmd_list.*.mDx.pCmdList);
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
         } else {
             zgui.endFrame();
         }
@@ -840,6 +886,7 @@ pub const Renderer = struct {
                 graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, 1, &barrier);
             }
 
+            profiler.cmdEndGpuFrameProfile(cmd_list, self.gpu_profile_token);
             graphics.endCmd(cmd_list);
 
             var flush_update_desc = std.mem.zeroes(resource_loader.FlushResourceUpdateDesc);
@@ -1360,6 +1407,10 @@ pub const Renderer = struct {
         var rasterizer_cull_back = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_back.mCullMode = graphics.CullMode.CULL_MODE_BACK;
 
+        var rasterizer_wireframe = std.mem.zeroes(graphics.RasterizerStateDesc);
+        rasterizer_wireframe.mCullMode = graphics.CullMode.CULL_MODE_NONE;
+        rasterizer_wireframe.mFillMode = graphics.FillMode.FILL_MODE_WIREFRAME;
+
         var rasterizer_cull_none = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_none.mCullMode = graphics.CullMode.CULL_MODE_NONE;
 
@@ -1482,6 +1533,8 @@ pub const Renderer = struct {
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
             shader_load_desc.mVert.pFileName = "terrain.vert";
             shader_load_desc.mFrag.pFileName = "terrain.frag";
+            // shader_load_desc.mHull.pFilename = "terrain.hull";
+            // shader_load_desc.mDomain.pFilename = "terrain.domain";
             resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };

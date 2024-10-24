@@ -74,7 +74,7 @@ def main():
     sync_lib(
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "a7879643fe5eed5669b2f2ddce939623ec77bd02",
+        "0fa3de1867dc7896d9b27f9d62ea35e5ae4fbb80",
     )
     sync_lib(
         "websocket.zig",
