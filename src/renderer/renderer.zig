@@ -843,6 +843,7 @@ pub const Renderer = struct {
                 }
             }
 
+            // NOTE(gmodarelli): Old, cubemap skybox
             // if (self.render_skybox_pass_render_fn) |render_fn| {
             //     if (self.render_skybox_pass_user_data) |user_data| {
             //         render_fn(cmd_list, user_data);
@@ -1527,6 +1528,38 @@ pub const Renderer = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
                 pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Multi Scattering
+            {
+                const id = IdLocal.init("multi_scattering");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mComp.pFileName = "render_multi_scattering.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"sampler_linear_clamp"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
+
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
                 graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
                 const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;

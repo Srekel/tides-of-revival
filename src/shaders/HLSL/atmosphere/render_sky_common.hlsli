@@ -3,17 +3,17 @@
 
 #include "sky_atmosphere_common.hlsli"
 
-Texture2D<float4> transmittance_lut_texture : register(t2, UPDATE_FREQ_NONE);
-Texture2D<float4> sky_view_lut_texture : register(t3, UPDATE_FREQ_NONE);
+Texture2D<float4> transmittance_lut_texture : register(t2, UPDATE_FREQ_PER_FRAME);
+Texture2D<float4> sky_view_lut_texture : register(t3, UPDATE_FREQ_PER_FRAME);
 
-Texture2D<float4> view_depth_texture : register(t4, UPDATE_FREQ_NONE);
-Texture2D<float4> shadowmap_texture : register(t5, UPDATE_FREQ_NONE);
+Texture2D<float4> view_depth_texture : register(t4, UPDATE_FREQ_PER_FRAME);
+Texture2D<float4> shadowmap_texture : register(t5, UPDATE_FREQ_PER_FRAME);
 
-Texture2D<float4> multi_scat_texture : register(t6, UPDATE_FREQ_NONE);
-Texture3D<float4> atmosphere_camera_scattering_volume : register(t7, UPDATE_FREQ_NONE);
+Texture2D<float4> multi_scat_texture : register(t6, UPDATE_FREQ_PER_FRAME);
+Texture3D<float4> atmosphere_camera_scattering_volume : register(t7, UPDATE_FREQ_PER_FRAME);
 
-RWTexture2D<float4> output_texture : register(u0, UPDATE_FREQ_NONE);
-RWTexture2D<float4> output_texture1 : register(u1, UPDATE_FREQ_NONE);
+RWTexture2D<float4> output_texture : register(u0, UPDATE_FREQ_PER_FRAME);
+RWTexture2D<float4> output_texture1 : register(u1, UPDATE_FREQ_PER_FRAME);
 
 
 #define RAYDPOS 0.00001f

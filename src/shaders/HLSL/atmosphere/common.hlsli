@@ -20,14 +20,14 @@ cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 	float2 pad;
 };
 
-Texture2D<float4> texture_2d : register(t0, UPDATE_FREQ_NONE);
-Texture2D<float4> blue_noise_2d_texture : register(t1, UPDATE_FREQ_NONE);
+Texture2D<float4> texture_2d : register(t0, UPDATE_FREQ_PER_FRAME);
+Texture2D<float4> blue_noise_2d_texture : register(t1, UPDATE_FREQ_PER_FRAME);
 
-RWTexture2D<float4> rw_texture_2d : register(u0, UPDATE_FREQ_NONE);
+RWTexture2D<float4> rw_texture_2d : register(u0, UPDATE_FREQ_PER_FRAME);
 
-SamplerState sampler_linear_clamp : register(s0, UPDATE_FREQ_NONE);
+SamplerState sampler_linear_clamp : register(s0, UPDATE_FREQ_PER_FRAME);
 // TODO(gmodarelli): Enable Shadow Map
-// SamplerComparisonState sampler_shadow : register(s1, UPDATE_FREQ_NONE);
+// SamplerComparisonState sampler_shadow : register(s1, UPDATE_FREQ_PER_FRAME);
 
 struct VertexInput
 {
