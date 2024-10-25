@@ -89,7 +89,7 @@ GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
 
     float3 N = normalize(Input.Normal);
     float slope = dot(N, float3(0, 1, 0));
-    slope = smoothstep(0.9f, 1.0f, slope);
+    slope = smoothstep(Get(blackPoint), Get(whitePoint), slope);
     const float3 V = normalize(Get(camPos).xyz - P);
 
     uint grass_layer_index = 1;
@@ -98,7 +98,7 @@ GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
     // TODO(gmodarelli): Scale UVs based on distance from camera
     // TODO(gmodarelli): Use more UV techniques to break tiling patterns
-    float3 worldSpaceUV = Input.PositionWS.xyz * 0.1f;
+    float3 worldSpaceUV = Input.PositionWS.xyz * 1.0f;
     float3 triplanarWeights = GetTriplanarWeights(N);
 
     float3 grass_albedo;
@@ -111,7 +111,7 @@ GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
     float3 rock_normal;
     float3 rock_arm;
     float rock_height;
-    SampleTerrainLayer(rock_layer_index, triplanarWeights, worldSpaceUV, N, V, rock_albedo, rock_normal, rock_arm, rock_height);
+    SampleTerrainLayer(rock_layer_index, triplanarWeights, worldSpaceUV * 0.1f, N, V, rock_albedo, rock_normal, rock_arm, rock_height);
 
 #if 0
     float3 albedo = lerp(rock_albedo, grass_albedo, slope);

@@ -36,7 +36,9 @@ CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
 	DATA(float4x4, projViewInverted, None);
 	DATA(float4, camPos, None);
 	DATA(float, triplanarMapping, None);
-	DATA(float3, _padding, None);
+	DATA(float, blackPoint, None);
+	DATA(float, whitePoint, None);
+	DATA(float, _padding, None);
 };
 
 STRUCT(VSInput)

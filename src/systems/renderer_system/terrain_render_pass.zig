@@ -26,6 +26,8 @@ const lod_3_patches_total = lod_3_patches_side * lod_3_patches_side;
 
 const TerrainRenderSettings = struct {
     triplanar_mapping: bool,
+    black_point: f32,
+    white_point: f32,
 };
 
 const TerrainLayer = struct {
@@ -54,7 +56,9 @@ pub const UniformFrameData = struct {
     projection_view_inverted: [16]f32,
     camera_position: [4]f32,
     triplanar_mapping: f32,
-    _padding: [3]f32,
+    black_point: f32,
+    white_point: f32,
+    _padding: [1]f32,
 };
 
 pub const ShadowsUniformFrameData = struct {
@@ -98,6 +102,8 @@ pub const TerrainRenderPass = struct {
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, world_patch_mgr: *world_patch_manager.WorldPatchManager, allocator: std.mem.Allocator) *TerrainRenderPass {
         const terrain_render_settings = TerrainRenderSettings{
             .triplanar_mapping = true,
+            .black_point = 0,
+            .white_point = 1.0,
         };
 
         // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
@@ -271,7 +277,9 @@ fn renderImGui(user_data: *anyopaque) void {
     if (zgui.collapsingHeader("Terrain", .{})) {
         const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
 
-        _ = zgui.checkbox("Triplanar mapping", .{ .v = &self.terrain_render_settings.triplanar_mapping});
+        _ = zgui.checkbox("Triplanar mapping", .{ .v = &self.terrain_render_settings.triplanar_mapping });
+        _ = zgui.dragFloat("Black point", .{ .v = &self.terrain_render_settings.black_point, .speed = 0.05, .min = 0.0, .max = 1.0 });
+        _ = zgui.dragFloat("White point", .{ .v = &self.terrain_render_settings.white_point, .speed = 0.05, .min = 0.0, .max = 1.0 });
     }
 }
 
@@ -297,6 +305,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
     self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
     self.uniform_frame_data.triplanar_mapping = if (self.terrain_render_settings.triplanar_mapping) 1.0 else 0.0;
+    self.uniform_frame_data.black_point = self.terrain_render_settings.black_point;
+    self.uniform_frame_data.white_point = self.terrain_render_settings.white_point;
 
     const data = renderer.Slice{
         .data = @ptrCast(&self.uniform_frame_data),
@@ -819,8 +829,9 @@ fn loadResources(
     // Load terrain layers textures
     {
         const dry_ground = loadTerrainLayer(rctx, "dry_ground_rocks") catch unreachable;
-        const forest_ground = loadTerrainLayer(rctx, "forest_ground_01") catch unreachable;
-        const rock_ground = loadTerrainLayer(rctx, "rock_ground_02") catch unreachable;
+        // const forest_ground = loadTerrainLayer(rctx, "Wild_Grass_oiloL0_2K") catch unreachable;
+        const forest_ground = loadTerrainLayer(rctx, "Fresh_Windswept_Snow_uekmbi2dy_2K") catch unreachable;
+        const rock_ground = loadTerrainLayer(rctx, "Layered_Rock_vl0fdhdo_2K") catch unreachable;
         const snow = loadTerrainLayer(rctx, "snow_02") catch unreachable;
 
         // NOTE: There's an implicit dependency on the order of the Splatmap here

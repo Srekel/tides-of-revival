@@ -201,7 +201,7 @@ pub const DeferredShadingRenderPass = struct {
             .apply_shadows = true,
             .environment_light_intensity = 0.35,
             .fog_color = fd.ColorRGB.init(0.3, 0.3, 0.3),
-            .fog_density = 0.0001,
+            .fog_density = 0.000075,
         };
 
         const pass = allocator.create(DeferredShadingRenderPass) catch unreachable;
@@ -273,7 +273,7 @@ fn renderImGui(user_data: *anyopaque) void {
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
         var sun_rotation = sun_entity.?.getMut(fd.Rotation);
         const z_sun_forward = zm.normalize4(zm.rotate(sun_rotation.?.asZM(), zm.Vec{ 0, 0, 1, 0 }));
-        var sun_forward = [4]f32{0, 0, 0, 0};
+        var sun_forward = [4]f32{ 0, 0, 0, 0 };
         zm.storeArr4(&sun_forward, z_sun_forward);
 
         const sun_rotation_rads = zm.quatToRollPitchYaw(sun_rotation.?.asZM());
@@ -291,12 +291,12 @@ fn renderImGui(user_data: *anyopaque) void {
             sun_rotation.?.z = new_rotation.z;
             sun_rotation.?.w = new_rotation.w;
         }
-        zgui.text("Sun Direction ({d:.3}, {d:.3}, {d:.3})", .{sun_forward[0], sun_forward[1], sun_forward[2]});
-        _ = zgui.dragFloat("Sun Intensity", .{ .v = &sun_light.?.intensity, .speed = 0.05, .min = 0.0, .max = 100.0});
-        _ = zgui.checkbox("Cast Shadows", .{ .v = &self.lighting_settings.apply_shadows});
-        _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0});
+        zgui.text("Sun Direction ({d:.3}, {d:.3}, {d:.3})", .{ sun_forward[0], sun_forward[1], sun_forward[2] });
+        _ = zgui.dragFloat("Sun Intensity", .{ .v = &sun_light.?.intensity, .speed = 0.05, .min = 0.0, .max = 100.0 });
+        _ = zgui.checkbox("Cast Shadows", .{ .v = &self.lighting_settings.apply_shadows });
+        _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0 });
         _ = zgui.colorPicker3("Fog Color", .{ .col = self.lighting_settings.fog_color.elems(), .flags = zgui.ColorEditFlags.default_options });
-        _ = zgui.dragFloat("Fog Density", .{ .v = &self.lighting_settings.fog_density, .speed = 0.0001, .min = 0.0, .max = 1.0, .cfmt = "%.5f"});
+        _ = zgui.dragFloat("Fog Density", .{ .v = &self.lighting_settings.fog_density, .speed = 0.0001, .min = 0.0, .max = 1.0, .cfmt = "%.5f" });
     }
 }
 
