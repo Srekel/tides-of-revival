@@ -53,7 +53,7 @@ pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = 
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
 fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Skybox Render Pass", 0x00_ff_ff_00);
+    const trazy_zone = ztracy.ZoneNC(@src(), "Tonemap Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *TonemapRenderPass = @ptrCast(@alignCast(user_data));
