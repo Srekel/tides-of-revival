@@ -16,6 +16,8 @@ const resource_loader = zforge.resource_loader;
 const util = @import("../util.zig");
 const ztracy = @import("ztracy");
 
+const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
+
 const Pool = @import("zpool").Pool;
 
 const window = @import("window.zig");
@@ -67,6 +69,8 @@ pub const Renderer = struct {
     shadow_pass_profile_token: profiler.ProfileToken = undefined,
     gbuffer_pass_profile_token: profiler.ProfileToken = undefined,
     deferred_pass_profile_token: profiler.ProfileToken = undefined,
+    skybox_pass_profile_token: profiler.ProfileToken = undefined,
+    atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
     tonemap_pass_profile_token: profiler.ProfileToken = undefined,
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
@@ -76,6 +80,9 @@ pub const Renderer = struct {
     gbuffer_1: [*c]graphics.RenderTarget = null,
     gbuffer_2: [*c]graphics.RenderTarget = null,
     scene_color: [*c]graphics.RenderTarget = null,
+
+    // Atmospheric Scattering Render Targets
+    transmittance_lut: [*c]graphics.RenderTarget = null,
 
     samplers: StaticSamplers = undefined,
     vertex_layouts_map: VertexLayoutHashMap = undefined,
@@ -120,6 +127,13 @@ pub const Renderer = struct {
     render_skybox_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_skybox_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_skybox_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
+    render_atmosphere_pass_user_data: ?*anyopaque = null,
+    render_atmosphere_pass_imgui_fn: renderPassImGuiFn = null,
+    render_atmosphere_pass_render_fn: renderPassRenderFn = null,
+    render_atmosphere_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
+    render_atmosphere_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_atmosphere_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_tonemap_pass_user_data: ?*anyopaque = null,
     render_tonemap_pass_imgui_fn: renderPassImGuiFn = null,
@@ -462,6 +476,10 @@ pub const Renderer = struct {
                 create_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
             }
 
+            if (self.render_atmosphere_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_atmosphere_pass_user_data.?);
+            }
+
             if (self.render_tonemap_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                 create_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
             }
@@ -489,6 +507,10 @@ pub const Renderer = struct {
 
         if (self.render_skybox_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
             prepare_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
+        }
+
+        if (self.render_atmosphere_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_atmosphere_pass_user_data.?);
         }
 
         if (self.render_tonemap_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -553,6 +575,12 @@ pub const Renderer = struct {
                 }
             }
 
+            if (self.render_atmosphere_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_atmosphere_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
             if (self.render_tonemap_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_tonemap_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
@@ -596,6 +624,8 @@ pub const Renderer = struct {
                         zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
                         zgui.text("\tGBuffer Pass: {d}", .{profiler.getGpuProfileAvgTime(self.gbuffer_pass_profile_token)});
                         zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
+                        zgui.text("\tSkybox Pass: {d}", .{profiler.getGpuProfileAvgTime(self.skybox_pass_profile_token)});
+                        zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
                         zgui.text("\tTonemap Pass: {d}", .{profiler.getGpuProfileAvgTime(self.tonemap_pass_profile_token)});
                         zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
                     }
@@ -621,6 +651,12 @@ pub const Renderer = struct {
 
                 if (self.render_skybox_pass_imgui_fn) |render_fn| {
                     if (self.render_skybox_pass_user_data) |user_data| {
+                        render_fn(user_data);
+                    }
+                }
+
+                if (self.render_atmosphere_pass_imgui_fn) |render_fn| {
+                    if (self.render_atmosphere_pass_user_data) |user_data| {
                         render_fn(user_data);
                     }
                 }
@@ -773,11 +809,11 @@ pub const Renderer = struct {
             profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
         }
 
-        // Deferred Shading and Skybox Passes
+        // Deferred Shading
         {
-            self.deferred_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading & Skybox Passes", .{ .bUseMarker = true });
+            self.deferred_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading", .{ .bUseMarker = true });
 
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading & Skybox Passes", 0x00_ff_00_00);
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
             var input_barriers = [_]graphics.RenderTargetBarrier{
@@ -807,8 +843,26 @@ pub const Renderer = struct {
                 }
             }
 
-            if (self.render_skybox_pass_render_fn) |render_fn| {
-                if (self.render_skybox_pass_user_data) |user_data| {
+            // if (self.render_skybox_pass_render_fn) |render_fn| {
+            //     if (self.render_skybox_pass_user_data) |user_data| {
+            //         render_fn(cmd_list, user_data);
+            //     }
+            // }
+
+            graphics.cmdBindRenderTargets(cmd_list, null);
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+        }
+
+        // Atmospheric Scattering Pass
+        {
+            self.atmosphere_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Atmosphere", .{ .bUseMarker = true });
+
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            if (self.render_atmosphere_pass_render_fn) |render_fn| {
+                if (self.render_atmosphere_pass_user_data) |user_data| {
                     render_fn(cmd_list, user_data);
                 }
             }
@@ -1430,6 +1484,55 @@ pub const Renderer = struct {
         const pos_uv0_col_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("pos_uv0_col")).?;
         const im3d_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("im3d")).?;
         const imgui_vertex_layout = self.vertex_layouts_map.get(IdLocal.init("imgui")).?;
+
+        // Atmosphere Scattering
+        {
+            // Transmittance LUT
+            {
+                const id = IdLocal.init("transmittance_lut");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mVert.pFileName = "screen_triangle.vert";
+                shader_load_desc.mFrag.pFileName = "render_transmittance_lut.frag";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"sampler_linear_clamp"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
+
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var render_targets = [_]graphics.TinyImageFormat{atmosphere_render_pass.transmittance_lut_format};
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
+                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
+                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+        }
 
         // Skybox
         {
