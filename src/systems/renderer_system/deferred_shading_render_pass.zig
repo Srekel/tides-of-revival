@@ -283,7 +283,7 @@ fn renderImGui(user_data: *anyopaque) void {
             std.math.radiansToDegrees(sun_rotation_rads[2]),
         };
 
-        _ = zgui.colorPicker3("Sun Color", .{ .col = sun_light.?.color.elems(), .flags = zgui.ColorEditFlags.default_options });
+        _ = zgui.colorEdit3("Sun Color", .{ .col = sun_light.?.color.elems() });
         if (zgui.dragFloat3("Sun Orientation", .{ .v = &sun_rotation_degs, .speed = 0.1, .min = -360.0, .max = 360.0 })) {
             const new_rotation = fd.Rotation.initFromEulerDegrees(sun_rotation_degs[0], sun_rotation_degs[1], sun_rotation_degs[2]);
             sun_rotation.?.x = new_rotation.x;
@@ -295,7 +295,7 @@ fn renderImGui(user_data: *anyopaque) void {
         _ = zgui.dragFloat("Sun Intensity", .{ .v = &sun_light.?.intensity, .speed = 0.05, .min = 0.0, .max = 100.0 });
         _ = zgui.checkbox("Cast Shadows", .{ .v = &self.lighting_settings.apply_shadows });
         _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0 });
-        _ = zgui.colorPicker3("Fog Color", .{ .col = self.lighting_settings.fog_color.elems(), .flags = zgui.ColorEditFlags.default_options });
+        _ = zgui.colorEdit3("Fog Color", .{ .col = self.lighting_settings.fog_color.elems() });
         _ = zgui.dragFloat("Fog Density", .{ .v = &self.lighting_settings.fog_density, .speed = 0.0001, .min = 0.0, .max = 1.0, .cfmt = "%.5f" });
     }
 }

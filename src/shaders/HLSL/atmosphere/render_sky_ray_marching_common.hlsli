@@ -90,9 +90,9 @@ SingleScatteringResult IntegrateScatteredLuminance(
 #ifdef ILLUMINANCE_IS_ONE
 	// When building the scattering factor, we assume light illuminance is 1 to compute a transfert function relative to identity illuminance of 1.
 	// This make the scattering factor independent of the light. It is now only linked to the atmosphere properties.
-	float3 globalL = 1.0f;
+	float3 global_l = 1.0f;
 #else
-	float3 globalL = sun_illuminance;
+	float3 global_l = sun_illuminance;
 #endif
 
 	// Ray march the atmosphere to integrate optical depth
@@ -123,7 +123,6 @@ SingleScatteringResult IntegrateScatteredLuminance(
 			{
 				t1 = t_max_floor * t1;
 			}
-			//t = t0 + (t1 - t0) * (whangHashNoise(pix_pos.x, pix_pos.y, gFrameId * 1920 * 1080)); // With dithering required to hide some sampling artefact relying on TAA later? This may even allow volumetric shadow?
 			t = t0 + (t1 - t0)*sample_segment_t;
 			dt = t1 - t0;
 		}
@@ -177,7 +176,7 @@ SingleScatteringResult IntegrateScatteredLuminance(
 		// shadow = GetShadow(Atmosphere, P);
 #endif
 
-		float3 S = globalL * (earthShadow * shadow * transmittance_to_sun * phase_times_scattering + multi_scattered_luminance * medium.scattering);
+		float3 S = global_l * (earthShadow * shadow * transmittance_to_sun * phase_times_scattering + multi_scattered_luminance * medium.scattering);
 
 		// When using the power serie to accumulate all sattering order, serie r must be <1 for a serie to converge.
 		// Under extreme coefficient, multi_scat_as_1 can grow larger and thus result in broken visuals.
@@ -233,7 +232,7 @@ SingleScatteringResult IntegrateScatteredLuminance(
 		float3 transmittance_to_sun = transmittance_lut_texture.SampleLevel(sampler_linear_clamp, uv, 0).rgb;
 
 		const float n_dot_l = saturate(dot(normalize(up_vector), normalize(sun_dir)));
-		L += globalL * transmittance_to_sun * throughput * n_dot_l * atmosphere.ground_albedo / PI;
+		L += global_l * transmittance_to_sun * throughput * n_dot_l * atmosphere.ground_albedo / PI;
 	}
 
 	result.L = L;

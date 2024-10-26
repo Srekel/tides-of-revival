@@ -20,13 +20,12 @@ RayMarchPixelOutputStruct main(VertexOutput Input)
 	float2 pix_pos = Input.position.xy;
 	AtmosphereParameters atmosphere = GetAtmosphereParameters();
 
-	float3 clip_space = float3((pix_pos / float2(resolution))*float2(2.0, -2.0) - float2(1.0, -1.0), 1.0);
+	float3 clip_space = float3((pix_pos / float2(resolution))*float2(2.0, -2.0) - float2(1.0, -1.0), 0.0);
 	float4 h_view_pos = mul(sky_inv_proj_mat, float4(clip_space, 1.0));
 	float3 world_dir = normalize(mul((float3x3)sky_inv_view_mat, h_view_pos.xyz / h_view_pos.w));
-	float3 world_pos = camera + float3(0, 0, atmosphere.bottom_radius);
+	float3 world_pos = camera + float3(0, atmosphere.bottom_radius, 0);
 
 	float depth_buffer_value = -1.0;
-
 
 	//if (pix_pos.x < 512 && pix_pos.y < 512)
 	//{
@@ -34,12 +33,13 @@ RayMarchPixelOutputStruct main(VertexOutput Input)
 	//	return output;
 	//}
 
-
 	float view_height = length(world_pos);
 	float3 L = 0;
 	depth_buffer_value = view_depth_texture[pix_pos].r;
 #if FASTSKY_ENABLED
-	if (view_height < atmosphere.top_radius && depth_buffer_value == 1.0f)
+	// NOTE(gmodarelli): Tides uses a reversed z-buffer
+	// if (view_height < atmosphere.top_radius && depth_buffer_value == 1.0f)
+	if (view_height < atmosphere.top_radius && depth_buffer_value == 0.0f)
 	{
 		float2 uv;
 		float3 up_vector = normalize(world_pos);
@@ -61,7 +61,9 @@ RayMarchPixelOutputStruct main(VertexOutput Input)
 		return output;
 	}
 #else
-	if (depth_buffer_value == 1.0f)
+	// NOTE(gmodarelli): Tides uses a reversed z-buffer
+	// if (depth_buffer_value == 1.0f)
+	if (depth_buffer_value == 0.0f)
 		L += GetSunLuminance(world_pos, world_dir, atmosphere.bottom_radius);
 #endif
 
@@ -74,8 +76,8 @@ RayMarchPixelOutputStruct main(VertexOutput Input)
 	clip_space = float3((pix_pos / float2(resolution))*float2(2.0, -2.0) - float2(1.0, -1.0), depth_buffer_value);
 	float4 depth_buffer_world_pos = mul(sky_inv_view_proj_mat, float4(clip_space, 1.0));
 	depth_buffer_world_pos /= depth_buffer_world_pos.w;
-	float t_depth = length(depth_buffer_world_pos.xyz - (world_pos + float3(0.0, 0.0, -atmosphere.bottom_radius)));
-	float slice = AerialPerspectiveDepthToslice(t_depth);
+	float t_depth = length(depth_buffer_world_pos.xyz - (world_pos + float3(0.0, -atmosphere.bottom_radius, 0.0)));
+	float slice = AerialPerspectiveDepthToSlice(t_depth);
 	float weight = 1.0;
 	if (slice < 0.5)
 	{

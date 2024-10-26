@@ -246,36 +246,6 @@ MediumSampleRGB SampleMediumRGB(in float3 world_pos, in AtmosphereParameters atm
 // Sampling functions
 ////////////////////////////////////////////////////////////
 
-// Generates a uniform distribution of directions over a sphere.
-// Random zetaX and zetaY values must be in [0, 1].
-// Top and bottom sphere pole (+-zenith) are along the Y axis.
-float3 GetUniformSphereSample(float zetaX, float zetaY)
-{
-	float phi = 2.0f * 3.14159f * zetaX;
-	float theta = 2.0f * acos(sqrt(1.0f - zetaY));
-	float3 dir = float3(sin(theta)*cos(phi), cos(theta), sin(theta)*sin(phi));
-	return dir;
-}
-
-// Generate a sample (using importance sampling) along an infinitely long path with a given constant extinction.
-// Zeta is a random number in [0,1]
-float InfiniteTransmittanceIS(float extinction, float zeta)
-{
-	return -log(1.0f - zeta) / extinction;
-}
-// Normalized PDF from a sample on an infinitely long path according to transmittance and extinction.
-float InfiniteTransmittancePDF(float extinction, float transmittance)
-{
-	return extinction * transmittance;
-}
-
-// Same as above but a sample is generated constrained within a range t,
-// where transmittance = exp(-extinction*t) over that range.
-float RangedTransmittanceIS(float extinction, float transmittance, float zeta)
-{
-	return -log(1.0f - zeta * (1.0f - transmittance)) / extinction;
-}
-
 float RayleighPhase(float cos_theta)
 {
 	float factor = 3.0f / (16.0f * PI);
@@ -301,46 +271,9 @@ float HgPhase(float g, float cos_theta)
 #endif
 }
 
-float DualLobPhase(float g0, float g1, float w, float cos_theta)
-{
-	return lerp(HgPhase(g0, cos_theta), HgPhase(g1, cos_theta), w);
-}
-
-float UniformPhase()
-{
-	return 1.0f / (4.0f * PI);
-}
-
 ////////////////////////////////////////////////////////////
 // Misc functions
 ////////////////////////////////////////////////////////////
-
-// From http://jcgt.org/published/0006/01/01/
-void CreateOrthonormalBasis(in float3 n, out float3 b1, out float3 b2)
-{
-	float sign = n.z >= 0.0f ? 1.0f : -1.0f; // copysignf(1.0f, n.z);
-	const float a = -1.0f / (sign + n.z);
-	const float b = n.x * n.y * a;
-	b1 = float3(1.0f + sign * n.x * n.x * a, sign * b, -sign * n.x);
-	b2 = float3(b, sign + n.y * n.y * a, -n.y);
-}
-
-float Mean(float3 v)
-{
-	return dot(v, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
-}
-
-float WhangHashNoise(uint u, uint v, uint s)
-{
-	uint seed = (u * 1664525u + v) + s;
-	seed = (seed ^ 61u) ^ (seed >> 16u);
-	seed *= 9u;
-	seed = seed ^ (seed >> 4u);
-	seed *= uint(0x27d4eb2d);
-	seed = seed ^ (seed >> 15u);
-	float value = float(seed) / (4294967296.0);
-	return value;
-}
 
 bool MoveToTopAtmosphere(inout float3 world_pos, in float3 world_dir, in float atmosphere_top_radius)
 {
