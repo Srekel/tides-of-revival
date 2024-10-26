@@ -45,16 +45,3 @@ struct GeometryOutput
 	float4 position	: SV_POSITION;
 	nointerpolation uint slice_id : SV_RenderTargetArrayIndex;	//write to a specific slice, it can also be read in the pixel shader.
 };
-
-[maxvertexcount(3)]
-void LutGS(triangle VertexOutput input[3], inout TriangleStream<GeometryOutput> gsout)
-{
-	GeometryOutput output;
-	for (uint i = 0; i < 3; i++)
-	{
-		output.position = input[i].position;
-		output.slice_id = input[0].slice_id;
-		gsout.Append(output);
-	}
-	gsout.RestartStrip();
-}

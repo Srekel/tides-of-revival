@@ -1565,6 +1565,53 @@ pub const Renderer = struct {
                 const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
                 self.pso_map.put(id, handle) catch unreachable;
             }
+
+            // Camera Volume
+            {
+                const id = IdLocal.init("camera_volume");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mVert.pFileName = "screen_triangle.vert";
+                shader_load_desc.mGeom.pFileName = "render_lut.geom";
+                shader_load_desc.mFrag.pFileName = "render_camera_volume.frag";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"sampler_linear_clamp"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
+
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var render_targets = [_]graphics.TinyImageFormat{atmosphere_render_pass.camera_scattering_volume_format};
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
+                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
+                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
         }
 
         // Skybox

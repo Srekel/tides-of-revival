@@ -1,5 +1,9 @@
 // Based on https://github.com/sebh/UnrealEngineSkyAtmosphere
 
+// TODO(gmodarelli): This macro should be specified a compile time,
+// but we don't have support for it with the current shader compilation pipeline
+#define ILLUMINANCE_IS_ONE 1
+
 #include "render_sky_ray_marching_common.hlsli"
 
 groupshared float3 multi_scat_as_1_shared_mem[64];

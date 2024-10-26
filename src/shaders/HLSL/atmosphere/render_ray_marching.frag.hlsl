@@ -2,18 +2,6 @@
 
 #include "render_sky_ray_marching_common.hlsli"
 
-#define AP_SLICE_COUNT 32.0f
-#define AP_KM_PER_SLICE 4.0f
-
-float AerialPerspectiveDepthToSlice(float depth)
-{
-	return depth * (1.0f / AP_KM_PER_SLICE);
-}
-float AerialPerspectiveSliceToDepth(float slice)
-{
-	return slice * AP_KM_PER_SLICE;
-}
-
 struct RayMarchPixelOutputStruct
 {
 	float4 luminance		: SV_TARGET0;

@@ -347,12 +347,12 @@ bool MoveToTopAtmosphere(inout float3 world_pos, in float3 world_dir, in float a
 	float view_height = length(world_pos);
 	if (view_height > atmosphere_top_radius)
 	{
-		float tTop = RaySphereIntersectNearest(world_pos, world_dir, float3(0.0f, 0.0f, 0.0f), atmosphere_top_radius);
-		if (tTop >= 0.0f)
+		float t_top = RaySphereIntersectNearest(world_pos, world_dir, float3(0.0f, 0.0f, 0.0f), atmosphere_top_radius);
+		if (t_top >= 0.0f)
 		{
 			float3 up_vector = world_pos / view_height;
 			float3 up_offset = up_vector * -PLANET_RADIUS_OFFSET;
-			world_pos = world_pos + world_dir * tTop + up_offset;
+			world_pos = world_pos + world_dir * t_top + up_offset;
 		}
 		else
 		{

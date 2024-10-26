@@ -167,7 +167,7 @@ SingleScatteringResult IntegrateScatteredLuminance(
 
 		float3 multi_scattered_luminance = 0.0f;
 #if MULTISCATAPPROX_ENABLED
-		multi_scattered_luminance = GetMultipleScattering(Atmosphere, medium.scattering, medium.extinction, P, sun_zenith_cos_angle);
+		multi_scattered_luminance = GetMultipleScattering(atmosphere, medium.scattering, medium.extinction, P, sun_zenith_cos_angle);
 #endif
 
 		float shadow = 1.0f;
@@ -240,4 +240,16 @@ SingleScatteringResult IntegrateScatteredLuminance(
 	result.optical_depth = optical_depth;
 	result.transmittance = throughput;
 	return result;
+}
+
+#define AP_SLICE_COUNT 32.0f
+#define AP_KM_PER_SLICE 4.0f
+
+float AerialPerspectiveDepthToSlice(float depth)
+{
+	return depth * (1.0f / AP_KM_PER_SLICE);
+}
+float AerialPerspectiveSliceToDepth(float slice)
+{
+	return slice * AP_KM_PER_SLICE;
 }
