@@ -39,9 +39,3 @@ struct VertexOutput
 	float4 position	: SV_POSITION;
 	nointerpolation uint slice_id : SLICEINDEX;
 };
-
-struct GeometryOutput
-{
-	float4 position	: SV_POSITION;
-	nointerpolation uint slice_id : SV_RenderTargetArrayIndex;	//write to a specific slice, it can also be read in the pixel shader.
-};

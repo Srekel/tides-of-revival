@@ -132,7 +132,6 @@ pub const AtmosphereRenderPass = struct {
     multi_scattering_texture: renderer.TextureHandle,
     transmittance_lut_descriptor_set: [*c]graphics.DescriptorSet,
     multi_scattering_descriptor_set: [*c]graphics.DescriptorSet,
-    camera_scattering_volume_descriptor_set: [*c]graphics.DescriptorSet,
     sky_ray_marching_descriptor_set: [*c]graphics.DescriptorSet,
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *AtmosphereRenderPass {
@@ -181,7 +180,6 @@ pub const AtmosphereRenderPass = struct {
             .sky_atmosphere_buffers = sky_atmosphere_buffers,
             .transmittance_lut_descriptor_set = undefined,
             .multi_scattering_descriptor_set = undefined,
-            .camera_scattering_volume_descriptor_set = undefined,
             .sky_ray_marching_descriptor_set = undefined,
         };
 
@@ -386,71 +384,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         graphics.cmdResourceBarrier(cmd_list, 0, null, output_barrier.len, @constCast(&output_barrier), 0, null);
     }
 
-    // NOTE(gmodarelli): This pass is only needed when rendering with Fast Aerial Perspective enabled
-    // Camera Volume
-    if (false) {
-        // Update Frame buffer
-        {
-            frame_buffer_data.resolution = [2]u32{ 32, 32 };
-
-            const data = renderer.Slice{
-                .data = @ptrCast(&frame_buffer_data),
-                .size = @sizeOf(FrameBuffer),
-            };
-            self.renderer.updateBuffer(data, FrameBuffer, self.frame_buffers[frame_index]);
-        }
-
-        var input_barriers = [_]graphics.RenderTargetBarrier{
-            graphics.RenderTargetBarrier.init(self.renderer.camera_scattering_volume_rt, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-        };
-        graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
-
-        // Update descriptors
-        {
-            var multi_scattering_texture = self.renderer.getTexture(self.multi_scattering_texture);
-            var params: [4]graphics.DescriptorData = undefined;
-
-            var frame_buffer = self.renderer.getBuffer(self.frame_buffers[frame_index]);
-            var sky_atmosphere_buffer = self.renderer.getBuffer(self.sky_atmosphere_buffers[frame_index]);
-            params[0] = std.mem.zeroes(graphics.DescriptorData);
-            params[0].pName = "FrameBuffer";
-            params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
-            params[1] = std.mem.zeroes(graphics.DescriptorData);
-            params[1].pName = "SkyAtmosphereBuffer";
-            params[1].__union_field3.ppBuffers = @ptrCast(&sky_atmosphere_buffer);
-            params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "transmittance_lut_texture";
-            params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.transmittance_lut.*.pTexture);
-            params[3] = std.mem.zeroes(graphics.DescriptorData);
-            params[3].pName = "multi_scat_texture";
-            params[3].__union_field3.ppTextures = @ptrCast(&multi_scattering_texture);
-
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.camera_scattering_volume_descriptor_set, 4, @ptrCast(&params));
-        }
-
-        var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
-        bind_render_targets_desc.mRenderTargetCount = 1;
-        bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-        bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.renderer.camera_scattering_volume_rt;
-        bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-
-        graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
-
-        graphics.cmdSetViewport(cmd_list, 0.0, 0.0, 32.0, 32.0, 0.0, 1.0);
-        graphics.cmdSetScissor(cmd_list, 0, 0, 32, 32);
-
-        const pipeline_id = IdLocal.init("camera_volume");
-        const pipeline = self.renderer.getPSO(pipeline_id);
-        graphics.cmdBindPipeline(cmd_list, pipeline);
-        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.camera_scattering_volume_descriptor_set);
-        graphics.cmdDrawInstanced(cmd_list, 3, 0, 32, 0);
-
-        var output_barriers = [_]graphics.RenderTargetBarrier{
-            graphics.RenderTargetBarrier.init(self.renderer.camera_scattering_volume_rt, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-        };
-        graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, output_barriers.len, @ptrCast(&output_barriers));
-    }
-
     // Sky Ray Marching
     {
         // Update Frame buffer
@@ -472,6 +405,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
             var frame_buffer = self.renderer.getBuffer(self.frame_buffers[frame_index]);
             var sky_atmosphere_buffer = self.renderer.getBuffer(self.sky_atmosphere_buffers[frame_index]);
+            var multi_scattering_texture = self.renderer.getTexture(self.multi_scattering_texture);
+
             params[0] = std.mem.zeroes(graphics.DescriptorData);
             params[0].pName = "FrameBuffer";
             params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
@@ -481,22 +416,14 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             params[2] = std.mem.zeroes(graphics.DescriptorData);
             params[2].pName = "view_depth_texture";
             params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer.*.pTexture);
-            if (true) {
-                var multi_scattering_texture = self.renderer.getTexture(self.multi_scattering_texture);
+            params[3] = std.mem.zeroes(graphics.DescriptorData);
+            params[3].pName = "transmittance_lut_texture";
+            params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.transmittance_lut.*.pTexture);
+            params[4] = std.mem.zeroes(graphics.DescriptorData);
+            params[4].pName = "multi_scat_texture";
+            params[4].__union_field3.ppTextures = @ptrCast(&multi_scattering_texture);
 
-                params[3] = std.mem.zeroes(graphics.DescriptorData);
-                params[3].pName = "transmittance_lut_texture";
-                params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.transmittance_lut.*.pTexture);
-                params[4] = std.mem.zeroes(graphics.DescriptorData);
-                params[4].pName = "multi_scat_texture";
-                params[4].__union_field3.ppTextures = @ptrCast(&multi_scattering_texture);
-            } else {
-                params[3] = std.mem.zeroes(graphics.DescriptorData);
-                params[3].pName = "atmosphere_camera_scattering_volume";
-                params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.camera_scattering_volume_rt.*.pTexture);
-            }
-
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.sky_ray_marching_descriptor_set, 4, @ptrCast(&params));
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.sky_ray_marching_descriptor_set, 5, @ptrCast(&params));
         }
 
         var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
@@ -600,10 +527,6 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     desc.pRootSignature = root_signature;
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.multi_scattering_descriptor_set));
 
-    root_signature = self.renderer.getRootSignature(IdLocal.init("camera_volume"));
-    desc.pRootSignature = root_signature;
-    graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.camera_scattering_volume_descriptor_set));
-
     root_signature = self.renderer.getRootSignature(IdLocal.init("sky_ray_marching"));
     desc.pRootSignature = root_signature;
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.sky_ray_marching_descriptor_set));
@@ -618,6 +541,5 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
 
     graphics.removeDescriptorSet(self.renderer.renderer, self.transmittance_lut_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.multi_scattering_descriptor_set);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.camera_scattering_volume_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.sky_ray_marching_descriptor_set);
 }

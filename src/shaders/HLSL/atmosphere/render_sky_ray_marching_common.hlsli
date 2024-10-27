@@ -164,10 +164,7 @@ SingleScatteringResult IntegrateScatteredLuminance(
 
 		// Dual scattering for multi scattering
 
-		float3 multi_scattered_luminance = 0.0f;
-#if MULTISCATAPPROX_ENABLED
-		multi_scattered_luminance = GetMultipleScattering(atmosphere, medium.scattering, medium.extinction, P, sun_zenith_cos_angle);
-#endif
+		float3 multi_scattered_luminance = GetMultipleScattering(atmosphere, medium.scattering, medium.extinction, P, sun_zenith_cos_angle);;
 
 		float shadow = 1.0f;
 #if SHADOWMAP_ENABLED
