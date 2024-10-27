@@ -6,6 +6,7 @@ const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
 const zforge = @import("zforge");
+const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const zm = @import("zmath");
@@ -121,10 +122,17 @@ const SkyAtmosphereBuffer = struct
 	pad10: f32,
 };
 
+const AtmoshereScatteringSettings = struct {
+    // Original radians value 0.004675;
+    sun_angular_radius_degrees: f32 = 0.27,
+};
+
 pub const AtmosphereRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+
+    atmosphere_settings: AtmoshereScatteringSettings,
 
     frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     sky_atmosphere_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -175,6 +183,7 @@ pub const AtmosphereRenderPass = struct {
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
+            .atmosphere_settings = .{},
             .multi_scattering_texture = multi_scattering_texture,
             .frame_buffers = frame_buffers,
             .sky_atmosphere_buffers = sky_atmosphere_buffers,
@@ -202,6 +211,7 @@ pub const AtmosphereRenderPass = struct {
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 pub const renderFn: renderer.renderPassRenderFn = render;
+pub const renderImGuiFn: renderer.renderPassImGuiFn = renderImGui;
 pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
 pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
 pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
@@ -236,9 +246,11 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     const sun_entity = util.getSun(self.ecsu_world);
     const sun_comps = sun_entity.?.getComps(struct {
+        light: *const fd.DirectionalLight,
         rotation: *const fd.Rotation,
     });
     const z_sun_direction = zm.normalize4(zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 }));
+    const sun_light = sun_comps.light.*;
 
     // Update Frame buffer
     var frame_buffer_data: FrameBuffer = blk: {
@@ -247,7 +259,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         zm.storeMat(&frame_buffer_data.view_proj_mat, z_proj_view);
         frame_buffer_data.color = [4]f32{0.0, 1.0, 1.0, 1.0};
         frame_buffer_data.resolution = [2]u32{@intCast(self.renderer.window.frame_buffer_size[0]), @intCast(self.renderer.window.frame_buffer_size[1])};
-        frame_buffer_data.sun_illuminance = [3]f32{ 1.0, 1.0, 1.0 };
+        frame_buffer_data.sun_illuminance = [3]f32{ sun_light.color.r * sun_light.intensity, sun_light.color.b * sun_light.intensity, sun_light.color.g * sun_light.intensity };
         frame_buffer_data.scattering_max_path_depth = 4;
         frame_buffer_data.frame_time_sec = 0.0; // unused so far
         frame_buffer_data.time_sec = 0.0; // unused so far
@@ -265,7 +277,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     // Update Sky Atmosphere Buffer
     {
         var sky_atmosphere_buffer = std.mem.zeroes(SkyAtmosphereBuffer);
-        setupEarthAtmosphere(&sky_atmosphere_buffer);
+        setupEarthAtmosphere(self, &sky_atmosphere_buffer);
         sky_atmosphere_buffer.transmittance_texture_width = transmittance_texture_width;
         sky_atmosphere_buffer.transmittance_texture_height = transmittance_texture_height;
         sky_atmosphere_buffer.irradiance_texture_width = irradiance_texture_width;
@@ -447,7 +459,15 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     graphics.cmdBindRenderTargets(cmd_list, null);
 }
 
-fn setupEarthAtmosphere(sky_atmosphere: *SkyAtmosphereBuffer) void {
+fn renderImGui(user_data: *anyopaque) void {
+    if (zgui.collapsingHeader("Atmosphere Scattering", .{})) {
+        const self: *AtmosphereRenderPass = @ptrCast(@alignCast(user_data));
+
+        _ = zgui.dragFloat("Sun Angular Radius (Deg)", .{ .v = &self.atmosphere_settings.sun_angular_radius_degrees, .cfmt = "%.4f", .min = 0.1, .max = 10.0, .speed = 0.005 });
+    }
+}
+
+fn setupEarthAtmosphere(self: *AtmosphereRenderPass, sky_atmosphere: *SkyAtmosphereBuffer) void {
 	// Values shown here are the result of integration over wavelength power spectrum integrated with paricular function.
 	// Refer to https://github.com/ebruneton/precomputed_atmospheric_scattering for details.
 
@@ -460,7 +480,7 @@ fn setupEarthAtmosphere(sky_atmosphere: *SkyAtmosphereBuffer) void {
 	// Sun - This should not be part of the sky model...
 	//sky_atmosphere.solar_irradiance = { 1.474000f, 1.850400f, 1.911980f };
 	sky_atmosphere.solar_irradiance = [3]f32{ 1.0, 1.0, 1.0 };	// Using a normalise sun illuminance. This is to make sure the LUTs acts as a transfert factor to apply the runtime computed sun irradiance over.
-	sky_atmosphere.sun_angular_radius = 0.004675;
+	sky_atmosphere.sun_angular_radius = std.math.degreesToRadians(self.atmosphere_settings.sun_angular_radius_degrees);
 
 	// Earth
 	sky_atmosphere.bottom_radius = earth_bottom_radius;

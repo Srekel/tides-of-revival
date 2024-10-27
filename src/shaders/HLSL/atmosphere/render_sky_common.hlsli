@@ -275,15 +275,14 @@ bool MoveToTopAtmosphere(inout float3 world_pos, in float3 world_dir, in float a
 float3 GetSunLuminance(float3 world_pos, float3 world_dir, float planet_radius)
 {
 #if RENDER_SUN_DISK
-	if (dot(world_dir, sun_direction) > cos(0.5*0.505*3.14159 / 180.0))
+	const float sun_angle = cos(sun_angular_radius);
+	const float3 sun_luminance = 1000000.0; // arbitrary. But fine, not use when comparing the models
+	if (dot(world_dir, sun_direction) > sun_angle)
 	{
 		float t = RaySphereIntersectNearest(world_pos, world_dir, float3(0.0f, 0.0f, 0.0f), planet_radius);
 		if (t < 0.0f) // no intersection
 		{
-            // TODO(gmodarelli): Check whether we need gScreenshotCaptureActive
-			// const float3 sun_luminance = 1000000.0; // arbitrary. But fine, not use when comparing the models
-			// return sun_luminance * (1.0 - gScreenshotCaptureActive);
-            return 1000000.0;
+            return sun_luminance;
 		}
 	}
 #endif
