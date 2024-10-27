@@ -9,7 +9,7 @@ float4 main(VertexOutput Input) : SV_TARGET0
 	float2 pix_pos = Input.position.xy;
 	AtmosphereParameters atmosphere = GetAtmosphereParameters();
 
-	float3 clip_space = float3((pix_pos / float2(resolution))*float2(2.0, -2.0) - float2(1.0, -1.0), 0.0);
+	float3 clip_space = float3((pix_pos / float2(resolution))*float2(2.0, -2.0) - float2(1.0, -1.0), 1.0);
 	float4 h_view_pos = mul(sky_inv_proj_mat, float4(clip_space, 1.0));
 	float3 world_dir = normalize(mul((float3x3)sky_inv_view_mat, h_view_pos.xyz / h_view_pos.w));
 	float3 world_pos = camera + float3(0, atmosphere.bottom_radius, 0);

@@ -50,6 +50,9 @@ SingleScatteringResult IntegrateScatteredLuminance(
 
 	if (depth_buffer_value >= 0.0f)
 	{
+		// NOTE(gmodarelli): Reversing the reverse depth.
+		// I'm not sure this is correct, but it works >:)
+		depth_buffer_value = saturate(1.0f - depth_buffer_value);
 		clip_space.z = depth_buffer_value;
 		if (clip_space.z < 1.0f)
 		{
