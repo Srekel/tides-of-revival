@@ -57,6 +57,7 @@ pub const Renderer = struct {
     window_height: i32 = 0,
     time: f32 = 0.0,
     vsync_enabled: bool = false,
+    atmosphere_scattering_enabled: bool = false,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -83,6 +84,7 @@ pub const Renderer = struct {
 
     // Atmospheric Scattering Render Targets
     transmittance_lut: [*c]graphics.RenderTarget = null,
+    camera_scattering_volume_rt: [*c]graphics.RenderTarget = null,
 
     samplers: StaticSamplers = undefined,
     vertex_layouts_map: VertexLayoutHashMap = undefined,
@@ -175,6 +177,7 @@ pub const Renderer = struct {
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
         self.vsync_enabled = false;
+        self.atmosphere_scattering_enabled = false;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -225,6 +228,8 @@ pub const Renderer = struct {
             .mUseMaterials = false,
         };
         resource_loader.initResourceLoaderInterface(self.renderer, &resource_loader_desc);
+
+        self.createResolutionIndependentRenderTargets();
 
         // Load Roboto Font
         const font_desc = font.FontDesc{
@@ -418,6 +423,8 @@ pub const Renderer = struct {
         profiler.exitGpuProfiler(self.gpu_profile_token);
         profiler.exitProfiler();
 
+        self.destroyResolutionIndependentRenderTargets();
+
         font.exitFontSystem();
         resource_loader.exitResourceLoaderInterface(self.renderer);
         self.samplers.exit(self.renderer);
@@ -610,6 +617,13 @@ pub const Renderer = struct {
         self.vsync_enabled = !self.vsync_enabled;
     }
 
+    pub fn reloadShaders(self: *Renderer) void {
+        const reload_desc = graphics.ReloadDesc{
+            .mType = .{ .SHADER = true },
+        };
+        self.requestReload(reload_desc);
+    }
+
     pub fn draw(self: *Renderer) void {
         if (self.render_imgui) {
             zgui.setNextWindowSize(.{ .w = 600, .h = 1000 });
@@ -628,6 +642,14 @@ pub const Renderer = struct {
                         zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
                         zgui.text("\tTonemap Pass: {d}", .{profiler.getGpuProfileAvgTime(self.tonemap_pass_profile_token)});
                         zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
+                    }
+                }
+
+                // Renderer Settings
+                {
+                    if (zgui.collapsingHeader("Renderer", .{ .default_open = true})) {
+                        _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
+                        _ = zgui.checkbox("Atmosphere Scattering", .{ .v = &self.atmosphere_scattering_enabled });
                     }
                 }
 
@@ -686,7 +708,6 @@ pub const Renderer = struct {
         defer trazy_zone.End();
 
         if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
-            std.log.debug("Toggling VSync", .{});
             graphics.waitQueueIdle(self.graphics_queue);
             graphics.toggleVSync(self.renderer, &self.swap_chain);
         }
@@ -843,12 +864,13 @@ pub const Renderer = struct {
                 }
             }
 
-            // NOTE(gmodarelli): Old, cubemap skybox
-            // if (self.render_skybox_pass_render_fn) |render_fn| {
-            //     if (self.render_skybox_pass_user_data) |user_data| {
-            //         render_fn(cmd_list, user_data);
-            //     }
-            // }
+            if (!self.atmosphere_scattering_enabled) {
+                if (self.render_skybox_pass_render_fn) |render_fn| {
+                    if (self.render_skybox_pass_user_data) |user_data| {
+                        render_fn(cmd_list, user_data);
+                    }
+                }
+            }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
 
@@ -856,7 +878,7 @@ pub const Renderer = struct {
         }
 
         // Atmospheric Scattering Pass
-        {
+        if (self.atmosphere_scattering_enabled) {
             self.atmosphere_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Atmosphere", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
@@ -1464,6 +1486,45 @@ pub const Renderer = struct {
         graphics.removeRenderTarget(self.renderer, self.scene_color);
     }
 
+    fn createResolutionIndependentRenderTargets(self: *Renderer) void {
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "Transmittance LUT";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
+            rt_desc.mDepth = 1;
+            rt_desc.mFormat = atmosphere_render_pass.transmittance_lut_format;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = atmosphere_render_pass.transmittance_texture_width;
+            rt_desc.mHeight = atmosphere_render_pass.transmittance_texture_height;
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.transmittance_lut);
+        }
+
+        {
+            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+            rt_desc.pName = "Camera Scattering Volume";
+            rt_desc.mArraySize = 1;
+            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
+            rt_desc.mFormat = atmosphere_render_pass.camera_scattering_volume_format;
+            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = atmosphere_render_pass.camera_scattering_volume_resolution;
+            rt_desc.mHeight = atmosphere_render_pass.camera_scattering_volume_resolution;
+            rt_desc.mDepth = atmosphere_render_pass.camera_scattering_volume_resolution;
+            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            rt_desc.mSampleQuality = 0;
+            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.camera_scattering_volume_rt);
+        }
+    }
+
+    fn destroyResolutionIndependentRenderTargets(self: *Renderer) void {
+        graphics.removeRenderTarget(self.renderer, self.transmittance_lut);
+        graphics.removeRenderTarget(self.renderer, self.camera_scattering_volume_rt);
+    }
+
     fn createPipelines(self: *Renderer) void {
         var rasterizer_cull_back = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_back.mCullMode = graphics.CullMode.CULL_MODE_BACK;
@@ -1640,15 +1701,16 @@ pub const Renderer = struct {
 
                 // Premultiply Alpha
                 var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
-                blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
-                blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+                blend_state_desc.mAlphaToCoverage = false;
+                blend_state_desc.mIndependentBlend = false;
                 blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_ONE;
                 blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+                blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
                 blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
                 blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
+                blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
                 blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
-                blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
-                blend_state_desc.mIndependentBlend = false;
+                blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_ALL;
 
                 var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
                 pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;

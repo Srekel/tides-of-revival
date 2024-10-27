@@ -17,8 +17,9 @@ pub const transmittance_lut_format = graphics.TinyImageFormat.R16G16B16A16_SFLOA
 pub const camera_scattering_volume_format = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
 
 // Look Up Tables Info
-const transmittance_texture_width: u32 = 256;
-const transmittance_texture_height: u32 = 64;
+pub const transmittance_texture_width: u32 = 256;
+pub const transmittance_texture_height: u32 = 64;
+pub const camera_scattering_volume_resolution = 32;
 const scattering_texture_r_size: u32 = 32;
 const scattering_texture_mu_size: u32 = 128;
 const scattering_texture_mu_s_size: u32 = 32;
@@ -128,10 +129,7 @@ pub const AtmosphereRenderPass = struct {
     frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     sky_atmosphere_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
-    transmittance_lut: [*c]graphics.RenderTarget,
     multi_scattering_texture: renderer.TextureHandle,
-    camera_scattering_volume_rt: [*c]graphics.RenderTarget,
-
     transmittance_lut_descriptor_set: [*c]graphics.DescriptorSet,
     multi_scattering_descriptor_set: [*c]graphics.DescriptorSet,
     camera_scattering_volume_descriptor_set: [*c]graphics.DescriptorSet,
@@ -156,25 +154,6 @@ pub const AtmosphereRenderPass = struct {
             break :blk buffers;
         };
 
-        const transmittance_lut = blk: {
-            var rt: [*c]graphics.RenderTarget = null;
-            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Transmittance LUT";
-            rt_desc.mArraySize = 1;
-            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
-            rt_desc.mDepth = 1;
-            rt_desc.mFormat = transmittance_lut_format;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = transmittance_texture_width;
-            rt_desc.mHeight = transmittance_texture_height;
-            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            rt_desc.mSampleQuality = 0;
-            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            graphics.addRenderTarget(rctx.renderer, &rt_desc, &rt);
-
-            break :blk rt;
-        };
-
         const multi_scattering_texture = blk: {
             var desc = std.mem.zeroes(graphics.TextureDesc);
             desc.mWidth = multi_scattering_texture_resolution;
@@ -192,33 +171,12 @@ pub const AtmosphereRenderPass = struct {
             break :blk rctx.createTexture(desc);
         };
 
-        const camera_scattering_volume_rt = blk: {
-            var rt: [*c]graphics.RenderTarget = null;
-            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Camera Scattering Volume";
-            rt_desc.mArraySize = 1;
-            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
-            rt_desc.mFormat = camera_scattering_volume_format;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = 32;
-            rt_desc.mHeight = 32;
-            rt_desc.mDepth = 32;
-            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            rt_desc.mSampleQuality = 0;
-            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            graphics.addRenderTarget(rctx.renderer, &rt_desc, &rt);
-
-            break :blk rt;
-        };
-
         const pass = allocator.create(AtmosphereRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
-            .transmittance_lut = transmittance_lut,
             .multi_scattering_texture = multi_scattering_texture,
-            .camera_scattering_volume_rt = camera_scattering_volume_rt,
             .frame_buffers = frame_buffers,
             .sky_atmosphere_buffers = sky_atmosphere_buffers,
             .transmittance_lut_descriptor_set = undefined,
@@ -234,13 +192,6 @@ pub const AtmosphereRenderPass = struct {
     }
 
     pub fn destroy(self: *AtmosphereRenderPass) void {
-        graphics.removeDescriptorSet(self.renderer.renderer, self.transmittance_lut_descriptor_set);
-
-        // NOTE(gmodarelli): We can remove the render target here because we can't wait
-        // for the gpu to be idle
-        // TODO(gmodarelli): Move RT creation/deletion to renderer.zig
-        // graphics.removeRenderTarget(self.renderer.renderer, self.transmittance_lut);
-
         self.allocator.destroy(self);
     }
 };
@@ -347,7 +298,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     // Render Transmittance LUT
     {
         var input_barriers = [_]graphics.RenderTargetBarrier{
-            graphics.RenderTargetBarrier.init(self.transmittance_lut, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+            graphics.RenderTargetBarrier.init(self.renderer.transmittance_lut, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
         };
         graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -365,7 +316,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
         bind_render_targets_desc.mRenderTargetCount = 1;
         bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-        bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.transmittance_lut;
+        bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.renderer.transmittance_lut;
         bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
 
         graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
@@ -381,7 +332,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         graphics.cmdDraw(cmd_list, 3, 0);
 
         var output_barriers = [_]graphics.RenderTargetBarrier{
-            graphics.RenderTargetBarrier.init(self.transmittance_lut, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+            graphics.RenderTargetBarrier.init(self.renderer.transmittance_lut, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
         };
         graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, output_barriers.len, @ptrCast(&output_barriers));
     }
@@ -407,7 +358,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             params[0].__union_field3.ppBuffers = @ptrCast(&sky_atmosphere_buffer);
             params[1] = std.mem.zeroes(graphics.DescriptorData);
             params[1].pName = "transmittance_lut_texture";
-            params[1].__union_field3.ppTextures = @ptrCast(&self.transmittance_lut.*.pTexture);
+            params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.transmittance_lut.*.pTexture);
             params[2] = std.mem.zeroes(graphics.DescriptorData);
             params[2].pName = "output_texture";
             params[2].__union_field3.ppTextures = @ptrCast(&multi_scattering_texture);
@@ -450,7 +401,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         var input_barriers = [_]graphics.RenderTargetBarrier{
-            graphics.RenderTargetBarrier.init(self.camera_scattering_volume_rt, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+            graphics.RenderTargetBarrier.init(self.renderer.camera_scattering_volume_rt, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
         };
         graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -469,7 +420,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             params[1].__union_field3.ppBuffers = @ptrCast(&sky_atmosphere_buffer);
             params[2] = std.mem.zeroes(graphics.DescriptorData);
             params[2].pName = "transmittance_lut_texture";
-            params[2].__union_field3.ppTextures = @ptrCast(&self.transmittance_lut.*.pTexture);
+            params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.transmittance_lut.*.pTexture);
             params[3] = std.mem.zeroes(graphics.DescriptorData);
             params[3].pName = "multi_scat_texture";
             params[3].__union_field3.ppTextures = @ptrCast(&multi_scattering_texture);
@@ -480,7 +431,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
         bind_render_targets_desc.mRenderTargetCount = 1;
         bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-        bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.camera_scattering_volume_rt;
+        bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.renderer.camera_scattering_volume_rt;
         bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
 
         graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
@@ -495,7 +446,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         graphics.cmdDrawInstanced(cmd_list, 3, 0, 32, 0);
 
         var output_barriers = [_]graphics.RenderTargetBarrier{
-            graphics.RenderTargetBarrier.init(self.camera_scattering_volume_rt, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+            graphics.RenderTargetBarrier.init(self.renderer.camera_scattering_volume_rt, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
         };
         graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, output_barriers.len, @ptrCast(&output_barriers));
     }
@@ -535,14 +486,14 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                 params[3] = std.mem.zeroes(graphics.DescriptorData);
                 params[3].pName = "transmittance_lut_texture";
-                params[3].__union_field3.ppTextures = @ptrCast(&self.transmittance_lut.*.pTexture);
+                params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.transmittance_lut.*.pTexture);
                 params[4] = std.mem.zeroes(graphics.DescriptorData);
                 params[4].pName = "multi_scat_texture";
                 params[4].__union_field3.ppTextures = @ptrCast(&multi_scattering_texture);
             } else {
                 params[3] = std.mem.zeroes(graphics.DescriptorData);
                 params[3].pName = "atmosphere_camera_scattering_volume";
-                params[3].__union_field3.ppTextures = @ptrCast(&self.camera_scattering_volume_rt.*.pTexture);
+                params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.camera_scattering_volume_rt.*.pTexture);
             }
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.sky_ray_marching_descriptor_set, 4, @ptrCast(&params));

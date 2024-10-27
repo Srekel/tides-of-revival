@@ -188,7 +188,9 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     }
 
     // IBL (Environment Light)
-    Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * Get(environmentLightIntensity);
+    if (Get(environmentLightIntensity) >= 0.0f) {
+        Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * Get(environmentLightIntensity);
+    }
 
     // Simple depth-based fog
     float view_distance = length(Get(camPos).xyz - P.xyz);

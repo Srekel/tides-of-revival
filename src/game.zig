@@ -309,10 +309,7 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     }
 
     if (input_frame_data.just_pressed(config.input.reload_shaders)) {
-        const reload_desc = graphics.ReloadDesc{
-            .mType = .{ .SHADER = true },
-        };
-        renderer_ctx.requestReload(reload_desc);
+        renderer_ctx.reloadShaders();
     }
 
     if (input_frame_data.just_pressed(config.input.toggle_vsync)) {

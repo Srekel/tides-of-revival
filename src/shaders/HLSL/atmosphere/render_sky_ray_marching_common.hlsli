@@ -56,10 +56,10 @@ SingleScatteringResult IntegrateScatteredLuminance(
 			float4 depth_buffer_world_pos = mul(sky_inv_view_proj_mat, float4(clip_space, 1.0));
 			depth_buffer_world_pos /= depth_buffer_world_pos.w;
 
-			float tDepth = length(depth_buffer_world_pos.xyz - (world_pos + float3(0.0, 0.0, -atmosphere.bottom_radius))); // apply earth offset to go back to origin as top of earth mode.
-			if (tDepth < t_max)
+			float t_depth = length(depth_buffer_world_pos.xyz - (world_pos + float3(0.0, -atmosphere.bottom_radius, 0.0))); // apply earth offset to go back to origin as top of earth mode.
+			if (t_depth < t_max)
 			{
-				t_max = tDepth;
+				t_max = t_depth;
 			}
 		}
 		//		if (variable_sample_count && clip_space.z == 1.0f)

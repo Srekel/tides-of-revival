@@ -466,7 +466,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.uniform_frame_data.point_lights_buffer_index = self.renderer.getBufferBindlessIndex(self.point_lights_buffers[frame_index]);
     self.uniform_frame_data.point_lights_count = @intCast(self.point_lights.items.len);
     self.uniform_frame_data.apply_shadows = if (self.lighting_settings.apply_shadows) 1.0 else 0.0;
-    self.uniform_frame_data.environment_light_intensity = self.lighting_settings.environment_light_intensity;
+    self.uniform_frame_data.environment_light_intensity = if (self.renderer.atmosphere_scattering_enabled) -1.0 else self.lighting_settings.environment_light_intensity;
     self.uniform_frame_data.fog_color = [3]f32{ self.lighting_settings.fog_color.r, self.lighting_settings.fog_color.g, self.lighting_settings.fog_color.b };
     self.uniform_frame_data.fog_density = self.lighting_settings.fog_density;
     self.uniform_frame_data._padding = [2]f32{ 42, 42 };
