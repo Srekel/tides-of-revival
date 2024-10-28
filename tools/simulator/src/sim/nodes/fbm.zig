@@ -4,6 +4,7 @@ const znoise = @import("znoise");
 const zm = @import("zmath");
 
 pub const FbmSettings = struct {
+    seed: i32,
     octaves: u8,
     frequency: f32,
     rect: types.Rect,
@@ -12,7 +13,7 @@ pub const FbmSettings = struct {
 
 pub fn fbm(settings: *const FbmSettings, image: *types.ImageF32) void {
     const noise: znoise.FnlGenerator = .{
-        .seed = @as(i32, 1),
+        .seed = settings.seed,
         .fractal_type = .fbm,
         .frequency = settings.frequency,
         .octaves = settings.octaves,

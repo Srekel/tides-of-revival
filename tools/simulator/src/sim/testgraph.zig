@@ -57,6 +57,7 @@ var heightmap2: types.ImageF32 = types.ImageF32.square(world_settings.size.width
 // LOCAL
 var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
 var fbm_settings = nodes.fbm.FbmSettings{
+    .seed = 1,
     .frequency = 0.00025,
     .octaves = 8,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
@@ -67,6 +68,15 @@ var gradient_image: types.ImageF32 = types.ImageF32.square(world_settings.size.w
 var scratch_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var cities: std.ArrayList([3]f32) = undefined;
 
+var fbm_trees_settings = nodes.fbm.FbmSettings{
+    .seed = 123,
+    .frequency = 0.005,
+    .octaves = 5,
+    .rect = types.Rect.createOriginSquare(world_settings.size.width),
+    .scale = 1,
+};
+var fbm_trees_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
     const name_map_settings = "map";
@@ -75,11 +85,13 @@ pub fn start(ctx: *Context) void {
     // INITIALIZE OUT
     grid = std.heap.c_allocator.create(c_cpp_nodes.Grid) catch unreachable;
     fbm_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    fbm_trees_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     gradient_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
+    preview_fbm_trees_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
     preview_heightmap_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
     preview_heightmap2_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
     preview_gradient_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
@@ -124,7 +136,7 @@ fn doNode_generate_landscape_from_image(ctx: *Context) void {
 }
 
 fn doNode_beaches(ctx: *Context) void {
-    nodes.voronoiContours(grid);
+    nodes.voronoi_contours.voronoiContours(grid);
 
     const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
     const preview_grid_key = "beaches.grid";
@@ -168,6 +180,8 @@ fn doNode_fbm(ctx: *Context) void {
         .data = std.mem.asBytes(&remap_settings),
     };
     ctx.compute_fn(&compute_info);
+    scratch_image.height_min = 0;
+    scratch_image.height_max = 1;
     fbm_image.swap(&scratch_image);
 
     types.image_preview_f32(fbm_image, &preview_fbm_image);
@@ -211,7 +225,7 @@ fn doNode_gradient(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_cities);
-    ctx.next_nodes.appendAssumeCapacity(doNode_trees);
+    ctx.next_nodes.appendAssumeCapacity(doNode_fbm_trees);
 }
 
 var preview_cities_image = types.ImageRGBA.square(512);
@@ -225,11 +239,40 @@ fn doNode_cities(ctx: *Context) void {
     // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_cities_image.asBytes() });
 }
 
+var preview_fbm_trees_image = types.ImageRGBA.square(512);
+fn doNode_fbm_trees(ctx: *Context) void {
+    nodes.fbm.fbm(&fbm_trees_settings, &fbm_trees_image);
+
+    remap_settings.from_min = fbm_trees_image.height_min;
+    remap_settings.from_max = fbm_trees_image.height_max;
+    remap_settings.to_min = 0;
+    remap_settings.to_max = 1;
+    var compute_info = graph.ComputeInfo{
+        .buffer_width = @intCast(fbm_trees_image.size.width),
+        .buffer_height = @intCast(fbm_trees_image.size.height),
+        .in = fbm_trees_image.pixels.ptr,
+        .out = scratch_image.pixels.ptr,
+        .data_size = @sizeOf(RemapSettings),
+        .data = std.mem.asBytes(&remap_settings),
+    };
+    ctx.compute_fn(&compute_info);
+    scratch_image.height_min = 0;
+    scratch_image.height_max = 1;
+    fbm_trees_image.swap(&scratch_image);
+    nodes.math.square(&fbm_trees_image);
+
+    types.image_preview_f32(fbm_trees_image, &preview_fbm_trees_image);
+    const preview_grid_key = "fbm_trees.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_trees_image.asBytes() });
+
+    ctx.next_nodes.appendAssumeCapacity(doNode_trees);
+}
+
 var preview_trees_image = types.ImageRGBA.square(512);
 fn doNode_trees(ctx: *Context) void {
     _ = ctx; // autofix
-    var trees = types.PatchDataPts2d.create(1, fbm_image.size.width / 128, 100, std.heap.c_allocator);
-    nodes.experiments.points_distribution_grid(fbm_image, 0.85, .{ .cell_size = 16, .size = fbm_image.size }, &trees);
+    var trees = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
+    nodes.experiments.points_distribution_grid(fbm_trees_image, 0.6, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees);
     nodes.experiments.write_trees(heightmap2, trees);
 }
 
