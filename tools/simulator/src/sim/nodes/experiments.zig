@@ -1,6 +1,8 @@
 const std = @import("std");
 const types = @import("../types.zig");
+const grid = @import("../grid.zig");
 const zm = @import("zmath");
+const znoise = @import("znoise");
 
 pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gradient: types.ImageF32, cities_out: *std.ArrayList([3]f32)) void {
     _ = world_settings; // autofix
@@ -45,4 +47,80 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
     const file = std.fs.cwd().createFile(namebufslice, .{ .read = true }) catch unreachable;
     defer file.close();
     _ = file.writeAll(output_file_data.items) catch unreachable;
+}
+
+pub fn points_distribution_grid(filter: types.ImageF32, score_min: f32, grid_settings: grid.Grid, pts_out: *types.PatchDataPts2d) void {
+    const cells_x = grid_settings.size.width / grid_settings.cell_size;
+    const cells_y = grid_settings.size.height / grid_settings.cell_size;
+    // const cells_x = pts_out.size.width;
+    // const cells_y = pts_out.size.height;
+    for (0..cells_y) |y| {
+        const filter_y = filter.size.height * y / cells_y;
+        const patch_y = pts_out.size.height * y / cells_y;
+        for (0..cells_x) |x| {
+            const filter_x = filter.size.width * x / cells_x;
+            const val = filter.get(filter_x, filter_y);
+            if (val < score_min) {
+                continue;
+            }
+
+            const pt_x: f32 = @floatFromInt(filter_x);
+            const pt_y: f32 = @floatFromInt(filter_y);
+            const patch_x = pts_out.size.width * x / cells_x;
+            pts_out.addToPatch(patch_x, patch_y, .{ pt_x, pt_y });
+        }
+    }
+}
+
+pub fn write_trees(heightmap: types.ImageF32, points: types.PatchDataPts2d) void {
+    var folderbuf: [256]u8 = undefined;
+    var namebuf: [256]u8 = undefined;
+
+    const PROPS_LOD = 1;
+    _ = PROPS_LOD; // autofix
+
+    const folderbufslice = std.fmt.bufPrintZ(
+        folderbuf[0..folderbuf.len],
+        "../../../../content/patch/props/lod{}",
+        .{points.lod},
+    ) catch unreachable;
+
+    std.fs.cwd().makeDir(folderbufslice) catch {};
+
+    for (0..points.size.height) |patch_z| {
+        for (0..points.size.width) |patch_x| {
+            const namebufslice = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "{s}/props_x{}_z{}.txt",
+                .{
+                    folderbufslice,
+                    patch_x,
+                    patch_z,
+                },
+            ) catch unreachable;
+
+            const props = points.getPatch(patch_x, patch_z);
+            if (props.len == 0) {
+                std.fs.cwd().deleteFile(namebufslice) catch {};
+                continue;
+            }
+
+            var output_file_data = std.ArrayList(u8).initCapacity(std.heap.c_allocator, props.len * 50) catch unreachable;
+            var writer = output_file_data.writer();
+
+            for (props) |prop| {
+                // city,1072.000,145.403,1152.000,43
+                const height = heightmap.get(
+                    @as(u64, @intFromFloat(@trunc(prop[0]))),
+                    @as(u64, @intFromFloat(@trunc(prop[1]))),
+                );
+                const rot = 0;
+                writer.print("tree,{d:.3},{d:.3},{d:.3},{}\n", .{ prop[0], height, prop[1], rot }) catch unreachable;
+            }
+
+            const file = std.fs.cwd().createFile(namebufslice, .{ .read = true }) catch unreachable;
+            defer file.close();
+            _ = file.writeAll(output_file_data.items) catch unreachable;
+        }
+    }
 }

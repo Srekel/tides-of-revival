@@ -829,8 +829,8 @@ fn loadResources(
     // Load terrain layers textures
     {
         const dry_ground = loadTerrainLayer(rctx, "dry_ground_rocks") catch unreachable;
-        // const forest_ground = loadTerrainLayer(rctx, "Wild_Grass_oiloL0_2K") catch unreachable;
-        const forest_ground = loadTerrainLayer(rctx, "Fresh_Windswept_Snow_uekmbi2dy_2K") catch unreachable;
+        const forest_ground = loadTerrainLayer(rctx, "Wild_Grass_oiloL0_2K") catch unreachable;
+        // const forest_ground = loadTerrainLayer(rctx, "Fresh_Windswept_Snow_uekmbi2dy_2K") catch unreachable;
         const rock_ground = loadTerrainLayer(rctx, "Layered_Rock_vl0fdhdo_2K") catch unreachable;
         const snow = loadTerrainLayer(rctx, "snow_02") catch unreachable;
 

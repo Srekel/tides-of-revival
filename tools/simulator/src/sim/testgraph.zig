@@ -211,6 +211,7 @@ fn doNode_gradient(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_cities);
+    ctx.next_nodes.appendAssumeCapacity(doNode_trees);
 }
 
 var preview_cities_image = types.ImageRGBA.square(512);
@@ -222,6 +223,14 @@ fn doNode_cities(ctx: *Context) void {
     // types.image_preview_f32(cities_image, &preview_cities_image);
     // const preview_grid_key = "cities.image";
     // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_cities_image.asBytes() });
+}
+
+var preview_trees_image = types.ImageRGBA.square(512);
+fn doNode_trees(ctx: *Context) void {
+    _ = ctx; // autofix
+    var trees = types.PatchDataPts2d.create(1, fbm_image.size.width / 128, 100, std.heap.c_allocator);
+    nodes.experiments.points_distribution_grid(fbm_image, 0.85, .{ .cell_size = 16, .size = fbm_image.size }, &trees);
+    nodes.experiments.write_trees(heightmap2, trees);
 }
 
 fn doNode_heightmap_file(ctx: *Context) void {

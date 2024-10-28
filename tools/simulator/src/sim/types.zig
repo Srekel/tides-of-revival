@@ -158,3 +158,44 @@ pub const WorldSettings = struct {
     terrain_height_min: f32 = 0,
     terrain_height_max: f32 = 1000,
 };
+
+// pub fn PatchData(ElemType: type, patch_count_side: u32, patch_lod: u8) type {
+pub fn PatchData(ElemType: type) type {
+    return struct {
+        const Self = @This();
+        const Patch = std.ArrayList(ElemType);
+
+        lod: u8,
+        size: Size2D,
+        patches: std.ArrayList(Patch),
+
+        pub fn create(lod: u8, size: u64, initial_capacity_per_patch: u64, allocator: std.mem.Allocator) Self {
+            var self = Self{
+                .lod = lod,
+                .size = .{ .width = size, .height = size },
+                .patches = std.ArrayList(Patch).initCapacity(allocator, size * size) catch unreachable,
+            };
+            // self.patches.initCapacity(allocator, patch_count_side * patch_count_side) catch unreachable;
+            self.patches.expandToCapacity();
+            for (self.patches.items) |*patch| {
+                patch.* = std.ArrayList(ElemType).initCapacity(allocator, initial_capacity_per_patch) catch unreachable;
+            }
+            return self;
+        }
+
+        pub fn destroy(self: *Self) void {
+            _ = self; // autofix
+            // TODO
+        }
+
+        pub fn getPatch(self: Self, x: anytype, y: anytype) []ElemType {
+            return self.patches.items[x + y * self.size.width].items;
+        }
+
+        pub fn addToPatch(self: *Self, x: anytype, y: anytype, elem: ElemType) void {
+            self.patches.items[x + y * self.size.width].append(elem) catch unreachable;
+        }
+    };
+}
+
+pub const PatchDataPts2d = PatchData([2]f32);
