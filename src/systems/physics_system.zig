@@ -414,8 +414,10 @@ fn updateLoaders(system: *SystemState) void {
             for (lookups_old.items) |lookup| {
                 for (system.patches.items, 0..) |*patch, i| {
                     if (patch.lookup.eql(lookup)) {
-                        body_interface.removeAndDestroyBody(patch.body_opt.?);
-                        patch.shape_opt.?.release();
+                        if (patch.body_opt != null) {
+                            body_interface.removeAndDestroyBody(patch.body_opt.?);
+                            patch.shape_opt.?.release();
+                        }
 
                         _ = system.patches.swapRemove(i);
                         break;
