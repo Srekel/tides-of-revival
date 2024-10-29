@@ -36,95 +36,95 @@ const multi_scattering_texture_resolution: u32 = 32;
 const illuminance_is_one: bool = true;
 
 const FrameBuffer = struct {
-	view_proj_mat: [16]f32,
-	color: [4]f32,
+    view_proj_mat: [16]f32,
+    color: [4]f32,
 
-	sun_illuminance: [3]f32,
-	scattering_max_path_depth: i32,
+    sun_illuminance: [3]f32,
+    scattering_max_path_depth: i32,
 
-	resolution: [2]u32,
-	frame_time_sec: f32,
-	time_sec: f32,
+    resolution: [2]u32,
+    frame_time_sec: f32,
+    time_sec: f32,
 
-	ray_march_min_max_spp: [2]f32,
-	pad: [2]f32,
+    ray_march_min_max_spp: [2]f32,
+    pad: [2]f32,
 };
 
-const SkyAtmosphereBuffer = struct
-{
-	//
-	// From AtmosphereParameters
-	//
+const SkyAtmosphereBuffer = struct {
+    //
+    // From AtmosphereParameters
+    //
 
-	solar_irradiance: [3]f32,
-	sun_angular_radius: f32,
+    solar_irradiance: [3]f32,
+    sun_angular_radius: f32,
 
-	absorption_extinction: [3]f32,
-	mu_s_min: f32,
+    absorption_extinction: [3]f32,
+    mu_s_min: f32,
 
-	rayleigh_scattering: [3]f32,
-	mie_phase_function_g: f32,
+    rayleigh_scattering: [3]f32,
+    mie_phase_function_g: f32,
 
-	mie_scattering: [3]f32,
-	bottom_radius: f32,
+    mie_scattering: [3]f32,
+    bottom_radius: f32,
 
-	mie_extinction: [3]f32,
-	top_radius: f32,
+    mie_extinction: [3]f32,
+    top_radius: f32,
 
-	mie_absorption: [3]f32,
-	pad00: f32,
+    mie_absorption: [3]f32,
+    pad00: f32,
 
-	ground_albedo: [3]f32,
-	pad0: f32,
+    ground_albedo: [3]f32,
+    pad0: f32,
 
-	rayleigh_density: [12]f32,
-	mie_density: [12]f32,
-	absorption_density: [12]f32,
+    rayleigh_density: [12]f32,
+    mie_density: [12]f32,
+    absorption_density: [12]f32,
 
-	//
-	// Add generated static header constant
-	//
+    //
+    // Add generated static header constant
+    //
 
-	transmittance_texture_width: i32,
-	transmittance_texture_height: i32,
-	irradiance_texture_width: i32,
-	irradiance_texture_height: i32,
+    transmittance_texture_width: i32,
+    transmittance_texture_height: i32,
+    irradiance_texture_width: i32,
+    irradiance_texture_height: i32,
 
-	scattering_texture_r_size: i32,
-	scattering_texture_mu_size: i32,
-	scattering_texture_mu_s_size: i32,
-	scattering_texture_nu_size: i32,
+    scattering_texture_r_size: i32,
+    scattering_texture_mu_size: i32,
+    scattering_texture_mu_s_size: i32,
+    scattering_texture_nu_size: i32,
 
-	sky_spectral_radiance_to_luminance: [3]f32,
-	pad3: f32,
-	sun_spectral_radiance_to_luminance: [3]f32,
-	pad4: f32,
+    sky_spectral_radiance_to_luminance: [3]f32,
+    pad3: f32,
+    sun_spectral_radiance_to_luminance: [3]f32,
+    pad4: f32,
 
-	//
-	// Other globals
-	//
-	sky_view_proj_mat: [16]f32,
-	sky_inv_view_proj_mat: [16]f32,
-	sky_inv_proj_mat: [16]f32,
-	sky_inv_view_mat: [16]f32,
-	shadowmap_view_proj_mat: [16]f32,
+    //
+    // Other globals
+    //
+    sky_view_proj_mat: [16]f32,
+    sky_inv_view_proj_mat: [16]f32,
+    sky_inv_proj_mat: [16]f32,
+    sky_inv_view_mat: [16]f32,
+    shadowmap_view_proj_mat: [16]f32,
 
-	camera: [3]f32,
-	pad5: f32,
-	sun_direction: [3]f32,
-	pad6: f32,
-	view_ray: [3]f32,
-	pad7: f32,
+    camera: [3]f32,
+    pad5: f32,
+    sun_direction: [3]f32,
+    pad6: f32,
+    view_ray: [3]f32,
+    pad7: f32,
 
-	multiple_scattering_factor: f32,
-	multi_scattering_LUT_res: f32,
-	pad9: f32,
-	pad10: f32,
+    multiple_scattering_factor: f32,
+    multi_scattering_LUT_res: f32,
+    pad9: f32,
+    pad10: f32,
 };
 
 const AtmoshereScatteringSettings = struct {
     // Original radians value 0.004675;
     sun_angular_radius_degrees: f32 = 0.27,
+    sky_exposure: f32 = 1.0,
 };
 
 pub const AtmosphereRenderPass = struct {
@@ -257,13 +257,17 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         var frame_buffer_data: FrameBuffer = std.mem.zeroes(FrameBuffer);
 
         zm.storeMat(&frame_buffer_data.view_proj_mat, z_proj_view);
-        frame_buffer_data.color = [4]f32{0.0, 1.0, 1.0, 1.0};
-        frame_buffer_data.resolution = [2]u32{@intCast(self.renderer.window.frame_buffer_size[0]), @intCast(self.renderer.window.frame_buffer_size[1])};
-        frame_buffer_data.sun_illuminance = [3]f32{ sun_light.color.r * sun_light.intensity, sun_light.color.b * sun_light.intensity, sun_light.color.g * sun_light.intensity };
+        frame_buffer_data.color = [4]f32{ 0.0, 1.0, 1.0, 1.0 };
+        frame_buffer_data.resolution = [2]u32{ @intCast(self.renderer.window.frame_buffer_size[0]), @intCast(self.renderer.window.frame_buffer_size[1]) };
+        frame_buffer_data.sun_illuminance = [3]f32{
+            sun_light.color.r * sun_light.intensity * self.atmosphere_settings.sky_exposure,
+            sun_light.color.b * sun_light.intensity * self.atmosphere_settings.sky_exposure,
+            sun_light.color.g * sun_light.intensity * self.atmosphere_settings.sky_exposure,
+        };
         frame_buffer_data.scattering_max_path_depth = 4;
         frame_buffer_data.frame_time_sec = 0.0; // unused so far
         frame_buffer_data.time_sec = 0.0; // unused so far
-        frame_buffer_data.ray_march_min_max_spp = [2]f32{4.0, 14.0};
+        frame_buffer_data.ray_march_min_max_spp = [2]f32{ 4.0, 14.0 };
 
         const data = renderer.Slice{
             .data = @ptrCast(&frame_buffer_data),
@@ -286,8 +290,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         sky_atmosphere_buffer.scattering_texture_mu_size = scattering_texture_mu_size;
         sky_atmosphere_buffer.scattering_texture_mu_s_size = scattering_texture_mu_s_size;
         sky_atmosphere_buffer.scattering_texture_nu_size = scattering_texture_nu_size;
-        sky_atmosphere_buffer.sky_spectral_radiance_to_luminance = [3]f32{114974.916437, 71305.954816, 65310.548555};
-        sky_atmosphere_buffer.sun_spectral_radiance_to_luminance = [3]f32{98242.786222, 69954.398112, 66475.012354};
+        sky_atmosphere_buffer.sky_spectral_radiance_to_luminance = [3]f32{ 114974.916437, 71305.954816, 65310.548555 };
+        sky_atmosphere_buffer.sun_spectral_radiance_to_luminance = [3]f32{ 98242.786222, 69954.398112, 66475.012354 };
         zm.storeMat(&sky_atmosphere_buffer.sky_view_proj_mat, z_proj_view);
         zm.storeMat(&sky_atmosphere_buffer.sky_inv_view_proj_mat, zm.inverse(z_proj_view));
         zm.storeMat(&sky_atmosphere_buffer.sky_inv_view_mat, zm.inverse(z_view));
@@ -464,72 +468,72 @@ fn renderImGui(user_data: *anyopaque) void {
         const self: *AtmosphereRenderPass = @ptrCast(@alignCast(user_data));
 
         _ = zgui.dragFloat("Sun Angular Radius (Deg)", .{ .v = &self.atmosphere_settings.sun_angular_radius_degrees, .cfmt = "%.4f", .min = 0.1, .max = 10.0, .speed = 0.005 });
+        _ = zgui.dragFloat("Sky exposure", .{ .v = &self.atmosphere_settings.sky_exposure, .cfmt = "%.4f", .min = 0.0, .max = 10.0, .speed = 0.05 });
     }
 }
 
 fn setupEarthAtmosphere(self: *AtmosphereRenderPass, sky_atmosphere: *SkyAtmosphereBuffer) void {
-	// Values shown here are the result of integration over wavelength power spectrum integrated with paricular function.
-	// Refer to https://github.com/ebruneton/precomputed_atmospheric_scattering for details.
+    // Values shown here are the result of integration over wavelength power spectrum integrated with paricular function.
+    // Refer to https://github.com/ebruneton/precomputed_atmospheric_scattering for details.
 
-	// All units in kilometers
-	const earth_bottom_radius: f32 = 6360.0;
-	const earth_top_radius: f32 = 6460.0;   // 100km atmosphere radius, less edge visible and it contain 99.99% of the atmosphere medium https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_line
-	const earth_rayleigh_scale_height: f32 = 8.0;
-	const earth_mie_scale_height: f32 = 1.2;
+    // All units in kilometers
+    const earth_bottom_radius: f32 = 6360.0;
+    const earth_top_radius: f32 = 6460.0; // 100km atmosphere radius, less edge visible and it contain 99.99% of the atmosphere medium https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_line
+    const earth_rayleigh_scale_height: f32 = 8.0;
+    const earth_mie_scale_height: f32 = 1.2;
 
-	// Sun - This should not be part of the sky model...
-	//sky_atmosphere.solar_irradiance = { 1.474000f, 1.850400f, 1.911980f };
-	sky_atmosphere.solar_irradiance = [3]f32{ 1.0, 1.0, 1.0 };	// Using a normalise sun illuminance. This is to make sure the LUTs acts as a transfert factor to apply the runtime computed sun irradiance over.
-	sky_atmosphere.sun_angular_radius = std.math.degreesToRadians(self.atmosphere_settings.sun_angular_radius_degrees);
+    // Sun - This should not be part of the sky model...
+    //sky_atmosphere.solar_irradiance = { 1.474000f, 1.850400f, 1.911980f };
+    sky_atmosphere.solar_irradiance = [3]f32{ 1.0, 1.0, 1.0 }; // Using a normalise sun illuminance. This is to make sure the LUTs acts as a transfert factor to apply the runtime computed sun irradiance over.
+    sky_atmosphere.sun_angular_radius = std.math.degreesToRadians(self.atmosphere_settings.sun_angular_radius_degrees);
 
-	// Earth
-	sky_atmosphere.bottom_radius = earth_bottom_radius;
-	sky_atmosphere.top_radius = earth_top_radius;
-	sky_atmosphere.ground_albedo = [3]f32{ 0.0, 0.0, 0.0 };
+    // Earth
+    sky_atmosphere.bottom_radius = earth_bottom_radius;
+    sky_atmosphere.top_radius = earth_top_radius;
+    sky_atmosphere.ground_albedo = [3]f32{ 0.0, 0.0, 0.0 };
 
     // TODO(gmodarelli): These are probably Z-up. Change them to Y-up
     // Or maybe it's just a coincidence, so change rayleigh_density from
     // a [12]f32 to a proper struct with fields
-	// Raleigh scattering
-	// sky_atmosphere.rayleigh_density[0] = [4]f32{ 0.0, 0.0, 0.0, 0.0, 0.0 };
-	// sky_atmosphere.rayleigh_density[1] = [4]f32{ 0.0, 1.0, -1.0 / earth_rayleigh_scale_height, 0.0, 0.0 };
+    // Raleigh scattering
+    // sky_atmosphere.rayleigh_density[0] = [4]f32{ 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // sky_atmosphere.rayleigh_density[1] = [4]f32{ 0.0, 1.0, -1.0 / earth_rayleigh_scale_height, 0.0, 0.0 };
     sky_atmosphere.rayleigh_density = [12]f32{
-        0.0, 0.0, 0.0, 0.0, 0.0,                                    // Layer 1
-        0.0, 1.0, -1.0 / earth_rayleigh_scale_height, 0.0, 0.0,     // Layer 2
-        42.0, 42.0,                                                 // Padding
+        0.0, 0.0, 0.0, 0.0, 0.0, // Layer 1
+        0.0, 1.0, -1.0 / earth_rayleigh_scale_height, 0.0, 0.0, // Layer 2
+        42.0, 42.0, // Padding
     };
-	sky_atmosphere.rayleigh_scattering = [3]f32{ 0.005802, 0.013558, 0.033100 };		// 1/km
+    sky_atmosphere.rayleigh_scattering = [3]f32{ 0.005802, 0.013558, 0.033100 }; // 1/km
 
-	// Mie scattering
-	// sky_atmosphere.mie_density[0] = [4]f32{ 0.0, 0.0, 0.0, 0.0, 0.0 };
-	// sky_atmosphere.mie_density[1] = [4]f32{ 0.0, 1.0, -1.0 / earth_mie_scale_height, 0.0, 0.0 };
+    // Mie scattering
+    // sky_atmosphere.mie_density[0] = [4]f32{ 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // sky_atmosphere.mie_density[1] = [4]f32{ 0.0, 1.0, -1.0 / earth_mie_scale_height, 0.0, 0.0 };
     sky_atmosphere.mie_density = [12]f32{
-        0.0, 0.0, 0.0, 0.0, 0.0,                            // Layer 1
-        0.0, 1.0, -1.0 / earth_mie_scale_height, 0.0, 0.0,  // Layer 2
-        42.0, 42.0,                                         // Padding
+        0.0, 0.0, 0.0, 0.0, 0.0, // Layer 1
+        0.0, 1.0, -1.0 / earth_mie_scale_height, 0.0, 0.0, // Layer 2
+        42.0, 42.0, // Padding
     };
-	sky_atmosphere.mie_scattering = [3]f32{ 0.003996, 0.003996, 0.003996 };			// 1/km
-	sky_atmosphere.mie_extinction = [3]f32{ 0.004440, 0.004440, 0.004440 };			// 1/km
+    sky_atmosphere.mie_scattering = [3]f32{ 0.003996, 0.003996, 0.003996 }; // 1/km
+    sky_atmosphere.mie_extinction = [3]f32{ 0.004440, 0.004440, 0.004440 }; // 1/km
     sky_atmosphere.mie_absorption = [3]f32{
         @max(0.0, sky_atmosphere.mie_extinction[0] - sky_atmosphere.mie_scattering[0]),
         @max(0.0, sky_atmosphere.mie_extinction[1] - sky_atmosphere.mie_scattering[1]),
         @max(0.0, sky_atmosphere.mie_extinction[2] - sky_atmosphere.mie_scattering[2]),
     };
-	sky_atmosphere.mie_phase_function_g = 0.8;
+    sky_atmosphere.mie_phase_function_g = 0.8;
 
-	// Ozone absorption
-	// sky_atmosphere.absorption_density[0] = [4]f32{ 25.0, 0.0, 0.0, 1.0 / 15.0, -2.0 / 3.0 };
-	// sky_atmosphere.absorption_density[1] = [4]f32{ 0.0, 0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0 };
+    // Ozone absorption
+    // sky_atmosphere.absorption_density[0] = [4]f32{ 25.0, 0.0, 0.0, 1.0 / 15.0, -2.0 / 3.0 };
+    // sky_atmosphere.absorption_density[1] = [4]f32{ 0.0, 0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0 };
     sky_atmosphere.absorption_density = [12]f32{
         25.0, 0.0, 0.0, 1.0 / 15.0, -2.0 / 3.0, // Layer 1
-        0.0, 0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0,  // Layer 2
-        42.0, 42.0,                             // Padding
+        0.0, 0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0, // Layer 2
+        42.0, 42.0, // Padding
     };
-	sky_atmosphere.absorption_extinction = [3]f32{ 0.000650, 0.001881, 0.000085 };	// 1/km
+    sky_atmosphere.absorption_extinction = [3]f32{ 0.000650, 0.001881, 0.000085 }; // 1/km
 
-	const max_sun_zenith_angle: f32 = std.math.pi * 120.0 / 180.0; // (use_half_precision_ ? 102.0 : 120.0) / 180.0 * kPi;
-	sky_atmosphere.mu_s_min = std.math.cos(max_sun_zenith_angle);
-
+    const max_sun_zenith_angle: f32 = std.math.pi * 120.0 / 180.0; // (use_half_precision_ ? 102.0 : 120.0) / 180.0 * kPi;
+    sky_atmosphere.mu_s_min = std.math.cos(max_sun_zenith_angle);
 }
 
 fn createDescriptorSets(user_data: *anyopaque) void {

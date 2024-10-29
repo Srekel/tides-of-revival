@@ -25,7 +25,7 @@ const window = @import("window.zig");
 pub const ReloadDesc = graphics.ReloadDesc;
 
 pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
-pub const renderPassImGuiFn = ?*const fn(user_data: *anyopaque) void;
+pub const renderPassImGuiFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassRenderShadowMapFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
 pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
@@ -58,6 +58,7 @@ pub const Renderer = struct {
     time: f32 = 0.0,
     vsync_enabled: bool = false,
     atmosphere_scattering_enabled: bool = false,
+    ibl_enabled: bool = false,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -177,6 +178,7 @@ pub const Renderer = struct {
         self.time = 0.0;
         self.vsync_enabled = false;
         self.atmosphere_scattering_enabled = false;
+        self.ibl_enabled = true;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -631,7 +633,7 @@ pub const Renderer = struct {
             } else {
                 // GPU Profiler
                 {
-                    if (zgui.collapsingHeader("Performance", .{ .default_open = true})) {
+                    if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
                         zgui.text("GPU Average time: {d}", .{profiler.getGpuProfileAvgTime(self.gpu_profile_token)});
 
                         zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
@@ -646,9 +648,10 @@ pub const Renderer = struct {
 
                 // Renderer Settings
                 {
-                    if (zgui.collapsingHeader("Renderer", .{ .default_open = true})) {
+                    if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
                         _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
                         _ = zgui.checkbox("Atmosphere Scattering", .{ .v = &self.atmosphere_scattering_enabled });
+                        _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
                     }
                 }
 
