@@ -333,6 +333,8 @@ void gDrawViewport()
 			assert(texture.texture);
 			assert(texture.srv);
 			ImGui::Image((void *)texture.srv, ImVec2(texture.width, texture.height));
+			ImGui::SameLine();
+			ImGui::LabelText("", preview.name);
 		}
 	}
 

@@ -20,7 +20,23 @@
         {
             "label": "build_simulator",
             "type": "shell",
-            "command": "zig build --summary failures",
+            "command": "zig build --summary failures -freference-trace",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/tools/simulator/"
+            },
+            "presentation": {
+                "clear": true,
+                "revealProblems": "onProblem",
+            }
+        },
+        {
+            "label": "build_simulator_release",
+            "type": "shell",
+            "command": "zig build -Doptimize=ReleaseFast --summary failures -freference-trace",
             "group": "build",
             "problemMatcher": [
                 "$gcc"

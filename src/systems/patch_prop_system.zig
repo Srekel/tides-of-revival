@@ -68,7 +68,7 @@ pub fn create(
         .prefab_mgr = prefab_mgr,
         .comp_query_loader = comp_query_loader,
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("props")),
-        .patches = std.ArrayList(Patch).initCapacity(allocator, 32 * 32) catch unreachable,
+        .patches = std.ArrayList(Patch).initCapacity(allocator, 4 * 4 * 32 * 32) catch unreachable,
         .medium_house_prefab = medium_house_prefab,
         .tree_prefab = tree_prefab,
         .cube_prefab = cube_prefab,
@@ -134,11 +134,11 @@ fn updateLoaders(system: *SystemState) void {
         }
 
         const patch_type_id = system.world_patch_mgr.getPatchTypeId(IdLocal.init("props"));
-        var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-        var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+        var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 16 * 1024) catch unreachable;
+        var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 16 * 1024) catch unreachable;
 
         const lod = 1;
-        const radius = 1024;
+        const radius = 2 * 1024;
         if (loader.pos_old) |pos_old| {
             const area_old = world_patch_manager.RequestRectangle{
                 .x = pos_old[0] - radius,

@@ -201,7 +201,7 @@ pub const DeferredShadingRenderPass = struct {
             .apply_shadows = true,
             .environment_light_intensity = 0.35,
             .fog_color = fd.ColorRGB.init(0.3, 0.3, 0.3),
-            .fog_density = 0.000075,
+            .fog_density = 0.00003,
         };
 
         const pass = allocator.create(DeferredShadingRenderPass) catch unreachable;

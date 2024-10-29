@@ -29,6 +29,17 @@
             "preLaunchTask": "build_simulator"
         },
         {
+            "name": "Simulator_Release",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/simulator/zig-out/bin/Simulator.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/tools/simulator/zig-out/bin",
+            "environment": [],
+            "preLaunchTask": "build_simulator_release"
+        },
+        {
             "name": "c2z",
             "type": "cppvsdbg",
             "request": "launch",
