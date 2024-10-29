@@ -57,8 +57,8 @@ pub const Renderer = struct {
     window_height: i32 = 0,
     time: f32 = 0.0,
     vsync_enabled: bool = false,
-    atmosphere_scattering_enabled: bool = false,
-    ibl_enabled: bool = false,
+    atmosphere_scattering_enabled: bool = true,
+    ibl_enabled: bool = true,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -177,7 +177,7 @@ pub const Renderer = struct {
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
         self.vsync_enabled = false;
-        self.atmosphere_scattering_enabled = false;
+        self.atmosphere_scattering_enabled = true;
         self.ibl_enabled = true;
 
         // Initialize The-Forge systems
@@ -627,7 +627,7 @@ pub const Renderer = struct {
 
     pub fn draw(self: *Renderer) void {
         if (self.render_imgui) {
-            zgui.setNextWindowSize(.{ .w = 600, .h = 1000 });
+            zgui.setNextWindowSize(.{ .w = 600, .h = 1000, .cond = .first_use_ever });
             if (!zgui.begin("Renderer Settings", .{})) {
                 zgui.end();
             } else {

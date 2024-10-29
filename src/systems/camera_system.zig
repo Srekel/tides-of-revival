@@ -4,6 +4,7 @@ const ecs = @import("zflecs");
 const zgpu = @import("zgpu");
 const zglfw = @import("zglfw");
 const zm = @import("zmath");
+const zgui = @import("zgui");
 
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
@@ -101,6 +102,24 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     updateTransformHierarchy(system, iter.iter.delta_time);
     updateCameraMatrices(system);
     updateCameraFrustum(system);
+
+    if (zgui.begin("Camera", .{})) {
+        const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+        if (environment_info.active_camera) |ent| {
+            const pos = ent.get(fd.Transform).?.getPos();
+
+            const transform_z = zm.matFromQuat(ent.get(fd.Rotation).?.asZM());
+            const forward = zm.util.getAxisZ(transform_z);
+
+            zgui.text("Cam pos: {d:.1}, {d:.1}, {d:.1}", .{ pos[0], pos[1], pos[2] });
+            zgui.text("Cam dir: {d:.2}, {d:.2}, {d:.2}", .{ forward[0], forward[1], forward[2] });
+        }
+        if (environment_info.player) |ent| {
+            const pos = ent.get(fd.Transform).?.getPos();
+            zgui.text("Ply pos: {d:.1}, {d:.1}, {d:.1}", .{ pos[0], pos[1], pos[2] });
+        }
+    }
+    zgui.end();
 }
 
 fn updateTransformHierarchy(system: *SystemState, dt: f32) void {

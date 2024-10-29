@@ -124,7 +124,7 @@ const SkyAtmosphereBuffer = struct {
 const AtmoshereScatteringSettings = struct {
     // Original radians value 0.004675;
     sun_angular_radius_degrees: f32 = 0.27,
-    sky_exposure: f32 = 1.0,
+    sky_exposure: f32 = 8.8,
 };
 
 pub const AtmosphereRenderPass = struct {

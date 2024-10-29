@@ -235,7 +235,7 @@ pub const Transform = struct {
         return self.matrix[9..].*;
     }
 
-    pub fn getPos(self: *Transform) []f32 {
+    pub fn getPos(self: Transform) []const f32 {
         return self.matrix[9..];
     }
 
