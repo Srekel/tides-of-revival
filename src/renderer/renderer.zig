@@ -59,6 +59,7 @@ pub const Renderer = struct {
     vsync_enabled: bool = false,
     atmosphere_scattering_enabled: bool = true,
     ibl_enabled: bool = true,
+    pp_enabled: bool = false,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -196,6 +197,7 @@ pub const Renderer = struct {
         self.vsync_enabled = false;
         self.atmosphere_scattering_enabled = true;
         self.ibl_enabled = true;
+        self.pp_enabled = false;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -684,6 +686,7 @@ pub const Renderer = struct {
                         _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
                         _ = zgui.checkbox("Atmosphere Scattering", .{ .v = &self.atmosphere_scattering_enabled });
                         _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
+                        _ = zgui.checkbox("Post Processing", .{ .v = &self.pp_enabled });
                     }
                 }
 
@@ -717,9 +720,11 @@ pub const Renderer = struct {
                     }
                 }
 
-                if (self.render_post_processing_pass_imgui_fn) |render_fn| {
-                    if (self.render_post_processing_pass_user_data) |user_data| {
-                        render_fn(user_data);
+                if (self.pp_enabled) {
+                    if (self.render_post_processing_pass_imgui_fn) |render_fn| {
+                        if (self.render_post_processing_pass_user_data) |user_data| {
+                            render_fn(user_data);
+                        }
                     }
                 }
 
@@ -936,7 +941,7 @@ pub const Renderer = struct {
         }
 
         // Post Processing
-        {
+        if (self.pp_enabled) {
             self.post_processing_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Post Processing", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
@@ -958,11 +963,18 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemap & UI Passes", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            var input_barriers = [_]graphics.RenderTargetBarrier{
-                // graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-            };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+            if (self.pp_enabled) {
+                var input_barriers = [_]graphics.RenderTargetBarrier{
+                    graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+                };
+                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+            } else {
+                var input_barriers = [_]graphics.RenderTargetBarrier{
+                    graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                    graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+                };
+                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+            }
 
             var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
             bind_render_targets_desc.mRenderTargetCount = 1;
@@ -1529,6 +1541,7 @@ pub const Renderer = struct {
             rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             rt_desc.mSampleQuality = 0;
             rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+            rt_desc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE;
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color);
         }
 
@@ -2607,9 +2620,9 @@ pub const Renderer = struct {
 
         // Post Processing
         {
-            // Bloom
+            // Bloom Extract
             {
-                const id = IdLocal.init("bloom");
+                const id = IdLocal.init("bloom_extract");
                 var shader: [*c]graphics.Shader = null;
                 var root_signature: [*c]graphics.RootSignature = null;
                 var pipeline: [*c]graphics.Pipeline = null;
@@ -2619,6 +2632,128 @@ pub const Renderer = struct {
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"bilinear_clamp_sampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
+
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Downsample Bloom All
+            {
+                const id = IdLocal.init("downsample_bloom_all");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mComp.pFileName = "downsample_bloom_all.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"bilinear_clamp_sampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
+
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Blur
+            {
+                const id = IdLocal.init("blur");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mComp.pFileName = "blur.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Upsample and Blur
+            {
+                const id = IdLocal.init("upsample_and_blur");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mComp.pFileName = "upsample_and_blur.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"linear_border_sampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_border};
+
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Upsample and Blur
+            {
+                const id = IdLocal.init("apply_bloom");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mComp.pFileName = "apply_bloom.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"linear_clamp_sampler"};
                 var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
@@ -2870,6 +3005,7 @@ pub const Renderer = struct {
 const StaticSamplers = struct {
     bilinear_repeat: [*c]graphics.Sampler = null,
     bilinear_clamp_to_edge: [*c]graphics.Sampler = null,
+    bilinear_clamp_to_border: [*c]graphics.Sampler = null,
     point_repeat: [*c]graphics.Sampler = null,
     point_clamp_to_edge: [*c]graphics.Sampler = null,
     point_clamp_to_border: [*c]graphics.Sampler = null,
@@ -2913,6 +3049,17 @@ const StaticSamplers = struct {
 
         {
             var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+            graphics.addSampler(renderer, &desc, &static_samplers.bilinear_clamp_to_border);
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
             desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
             desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
             desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -2951,6 +3098,7 @@ const StaticSamplers = struct {
     pub fn exit(self: *StaticSamplers, renderer: [*c]graphics.Renderer) void {
         graphics.removeSampler(renderer, self.bilinear_repeat);
         graphics.removeSampler(renderer, self.bilinear_clamp_to_edge);
+        graphics.removeSampler(renderer, self.bilinear_clamp_to_border);
         graphics.removeSampler(renderer, self.point_repeat);
         graphics.removeSampler(renderer, self.point_clamp_to_edge);
         graphics.removeSampler(renderer, self.point_clamp_to_border);

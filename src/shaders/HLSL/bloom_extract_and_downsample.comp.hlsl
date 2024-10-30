@@ -23,7 +23,7 @@ float RGBToLuminance( float3 x )
     return dot( x, float3(0.212671, 0.715160, 0.072169) );        // Defined by sRGB/Rec.709 gamut
 }
 
-SamplerState bilinear_clamp_sampler : register( s0, UPDATE_FREQ_PER_FRAME );
+SamplerState bilinear_clamp_sampler : register( s0 );
 Texture2D<float3> source_tex : register( t0, UPDATE_FREQ_PER_FRAME );
 RWTexture2D<float3> bloom_result : register( u0, UPDATE_FREQ_PER_FRAME );
 
