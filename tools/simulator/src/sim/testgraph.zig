@@ -41,7 +41,8 @@ pub fn getGraph() *const graph.Graph {
     return &self;
 }
 
-const kilometers = 16;
+const DRY_RUN = true;
+const kilometers = if (DRY_RUN) 1 else 16;
 const world_settings: types.WorldSettings = .{
     .size = .{ .width = kilometers * 1024, .height = kilometers * 1024 },
 };
@@ -145,6 +146,11 @@ fn doNode_beaches(ctx: *Context) void {
     ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
 }
 
+const SquareSettings = extern struct {
+    width: u32,
+    height: u32,
+    _padding: [2]f32 = undefined,
+};
 const RemapSettings = extern struct {
     from_min: f32,
     from_max: f32,
@@ -232,7 +238,9 @@ fn doNode_gradient(ctx: *Context) void {
 var preview_cities_image = types.ImageRGBA.square(512);
 fn doNode_cities(ctx: *Context) void {
     _ = ctx; // autofix
-    nodes.experiments.cities(world_settings, heightmap2, gradient_image, &cities);
+    if (!DRY_RUN) {
+        nodes.experiments.cities(world_settings, heightmap2, gradient_image, &cities);
+    }
 
     // preview_cities_image.copy(preview_heightmap_image);
     // types.image_preview_f32(cities_image, &preview_cities_image);
@@ -261,7 +269,26 @@ fn doNode_fbm_trees(ctx: *Context) void {
     scratch_image.height_min = 0;
     scratch_image.height_max = 1;
     fbm_trees_image.swap(&scratch_image);
-    nodes.math.square(&fbm_trees_image);
+
+    const square_settings = SquareSettings{
+        .width = kilometers * 1024,
+        .height = kilometers * 1024,
+    };
+    var compute_info_square = graph.ComputeInfo{
+        .compute_id = .square,
+        .buffer_width = @intCast(fbm_trees_image.size.width),
+        .buffer_height = @intCast(fbm_trees_image.size.height),
+        .in = fbm_trees_image.pixels.ptr,
+        .out = scratch_image.pixels.ptr,
+        .data_size = @sizeOf(SquareSettings),
+        .data = std.mem.asBytes(&square_settings),
+    };
+    ctx.compute_fn(&compute_info_square);
+    scratch_image.height_min = fbm_trees_image.height_min * fbm_trees_image.height_min;
+    scratch_image.height_max = fbm_trees_image.height_max * fbm_trees_image.height_max;
+    fbm_trees_image.swap(&scratch_image);
+
+    // nodes.math.square(&fbm_trees_image);
 
     types.image_preview_f32(fbm_trees_image, &preview_fbm_trees_image);
     const preview_grid_key = "fbm_trees.image";
@@ -275,10 +302,14 @@ fn doNode_trees(ctx: *Context) void {
     _ = ctx; // autofix
     var trees = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
     nodes.experiments.points_distribution_grid(fbm_trees_image, 0.6, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees);
-    nodes.experiments.write_trees(heightmap2, trees);
+    if (!DRY_RUN) {
+        nodes.experiments.write_trees(heightmap2, trees);
+    }
 }
 
 fn doNode_heightmap_file(ctx: *Context) void {
     _ = ctx; // autofix
-    nodes.heightmap_format.heightmap_format(world_settings, heightmap2);
+    if (!DRY_RUN) {
+        nodes.heightmap_format.heightmap_format(world_settings, heightmap2);
+    }
 }
