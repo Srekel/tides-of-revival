@@ -59,7 +59,7 @@ pub const Renderer = struct {
     vsync_enabled: bool = false,
     atmosphere_scattering_enabled: bool = true,
     ibl_enabled: bool = true,
-    pp_enabled: bool = false,
+    pp_enabled: bool = true,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -197,7 +197,7 @@ pub const Renderer = struct {
         self.vsync_enabled = false;
         self.atmosphere_scattering_enabled = true;
         self.ibl_enabled = true;
-        self.pp_enabled = false;
+        self.pp_enabled = true;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
