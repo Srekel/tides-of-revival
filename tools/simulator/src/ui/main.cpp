@@ -24,6 +24,18 @@
 #include <psapi.h>
 CRITICAL_SECTION CriticalSectionEnqueue;
 CRITICAL_SECTION CriticalSectionDequeue;
+
+struct RemapSettings
+{
+	float from_min;
+	float from_max;
+	float to_min;
+	float to_max;
+	uint32_t width;
+	uint32_t height;
+	float _padding[2];
+};
+
 RemapSettings compute_remap_settings;
 float *compute_in = nullptr;
 float *compute_out = nullptr;
@@ -152,7 +164,7 @@ void runUI(const SimulatorAPI *api)
 		{
 			EnterCriticalSection(&CriticalSectionDequeue);
 			compute_do_it_now = false;
-			g_d3d11.dispatch_remap_float_shader(compute_remap_settings, compute_in, compute_out);
+			g_d3d11.dispatch_float_shader(&compute_remap_settings, sizeof(compute_remap_settings), compute_remap_settings.width, compute_remap_settings.height, compute_in, compute_out);
 			LeaveCriticalSection(&CriticalSectionDequeue);
 		}
 		LeaveCriticalSection(&CriticalSectionEnqueue);

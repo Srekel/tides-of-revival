@@ -50,9 +50,11 @@ bool D3D11::create_device(HWND hwnd)
 
     create_render_target();
 
-    compile_compute_shader(L"shaders/Remap.hlsl", "CSRemap", &remap_shader);
-    assert(remap_shader.compute_shader);
-    assert(remap_shader.reflection);
+    compute_shader_count = 0;
+    compile_compute_shader(L"shaders/Remap.hlsl", "CSRemap", &compute_shaders[compute_shader_count]);
+    assert(compute_shaders[compute_shader_count].compute_shader);
+    assert(compute_shaders[compute_shader_count].reflection);
+    compute_shader_count++;
 
     return true;
 }
@@ -60,8 +62,11 @@ bool D3D11::create_device(HWND hwnd)
 void D3D11::cleanup_device()
 {
     cleanup_render_target();
-    SAFE_RELEASE(remap_shader.compute_shader);
-    SAFE_RELEASE(remap_shader.reflection);
+    for (unsigned i_cs = 0; i_cs < compute_shader_count; i_cs++)
+    {
+        SAFE_RELEASE(compute_shaders[i_cs].compute_shader);
+        SAFE_RELEASE(compute_shaders[i_cs].reflection);
+    }
     SAFE_RELEASE(swapchain);
     SAFE_RELEASE(device_context);
     SAFE_RELEASE(device);
@@ -282,33 +287,34 @@ HRESULT D3D11::create_buffer_uav(ID3D11Buffer *buffer, ID3D11UnorderedAccessView
     return device->CreateUnorderedAccessView(buffer, &desc, out_uav);
 }
 
-void D3D11::dispatch_remap_float_shader(RemapSettings remap_settings, float *input_data, float *output_data)
+void D3D11::dispatch_float_shader(void *shader_settings, size_t shader_settings_size, uint32_t buffer_width, uint32_t buffer_height, float *input_data, float *output_data)
 {
-    OutputDebugStringA("dispatch_remap_float_shader START\n");
+    OutputDebugStringA("dispatch_float_shader START\n");
+    ComputeShader &shader = compute_shaders[0];
     assert(device);
     assert(device_context);
-    assert(remap_shader.compute_shader);
+    assert(shader.compute_shader);
 
     assert(input_data);
     assert(output_data);
 
-    ID3D11Buffer *remap_settings_buffer = nullptr;
+    ID3D11Buffer *shader_settings_buffer = nullptr;
     ID3D11Buffer *input_buffer = nullptr;
     ID3D11Buffer *output_buffer = nullptr;
     ID3D11Buffer *readback_buffer = nullptr;
 
-    create_constant_buffer(sizeof(RemapSettings), &remap_settings, &remap_settings_buffer);
-    create_structured_buffer(sizeof(float), remap_settings.width * remap_settings.height, (void *)input_data, &input_buffer);
-    create_structured_buffer(sizeof(float), remap_settings.width * remap_settings.height, nullptr, &output_buffer);
-    create_readback_buffer(sizeof(float), remap_settings.width * remap_settings.height, &readback_buffer);
+    create_constant_buffer(shader_settings_size, shader_settings, &shader_settings_buffer);
+    create_structured_buffer(sizeof(float), buffer_width * buffer_height, (void *)input_data, &input_buffer);
+    create_structured_buffer(sizeof(float), buffer_width * buffer_height, nullptr, &output_buffer);
+    create_readback_buffer(sizeof(float), buffer_width * buffer_height, &readback_buffer);
 
-    assert(remap_settings_buffer);
+    assert(shader_settings_buffer);
     assert(input_buffer);
     assert(output_buffer);
     assert(readback_buffer);
 
 #if defined(_DEBUG)
-    remap_settings_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Remap Settings Buffer") - 1, "Remap Settings Buffer");
+    shader_settings_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Remap Settings Buffer") - 1, "Remap Settings Buffer");
     input_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Input Buffer") - 1, "Input Buffer");
     output_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Output Buffer") - 1, "Output Buffer");
     readback_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Readback Buffer") - 1, "Readback Buffer");
@@ -324,11 +330,11 @@ void D3D11::dispatch_remap_float_shader(RemapSettings remap_settings, float *inp
 
     // Run the compute shader
     {
-        device_context->CSSetShader(remap_shader.compute_shader, nullptr, 0);
-        device_context->CSSetConstantBuffers(0, 1, &remap_settings_buffer);
+        device_context->CSSetShader(shader.compute_shader, nullptr, 0);
+        device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
         device_context->CSSetShaderResources(0, 1, &input_buffer_srv);
         device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
-        device_context->Dispatch(remap_settings.width / remap_shader.thread_group_size[0] + 1, remap_settings.height / remap_shader.thread_group_size[1] + 1, remap_shader.thread_group_size[2]);
+        device_context->Dispatch(buffer_width / shader.thread_group_size[0] + 1, buffer_height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
     }
 
     // Cleanup context
@@ -349,13 +355,13 @@ void D3D11::dispatch_remap_float_shader(RemapSettings remap_settings, float *inp
         device_context->CopyResource(readback_buffer, output_buffer);
 
         D3D11_MAPPED_SUBRESOURCE subresource = {};
-        subresource.RowPitch = remap_settings.width * sizeof(float);
-        subresource.DepthPitch = remap_settings.height * sizeof(float);
+        subresource.RowPitch = buffer_width * sizeof(float);
+        subresource.DepthPitch = buffer_height * sizeof(float);
         device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
 
         if (subresource.pData)
         {
-            memcpy((void *)output_data, subresource.pData, remap_settings.width * remap_settings.height * sizeof(float));
+            memcpy((void *)output_data, subresource.pData, buffer_width * buffer_height * sizeof(float));
         }
 
         device_context->Unmap(readback_buffer, 0);
@@ -367,8 +373,8 @@ void D3D11::dispatch_remap_float_shader(RemapSettings remap_settings, float *inp
         SAFE_RELEASE(output_buffer_uav);
         SAFE_RELEASE(input_buffer);
         SAFE_RELEASE(output_buffer);
-        SAFE_RELEASE(remap_settings_buffer);
+        SAFE_RELEASE(shader_settings_buffer);
         SAFE_RELEASE(readback_buffer);
     }
-    OutputDebugStringA("dispatch_remap_float_shader DONE\n");
+    OutputDebugStringA("dispatch_float_shader DONE\n");
 }

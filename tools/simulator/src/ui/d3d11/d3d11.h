@@ -43,17 +43,7 @@ struct ComputeShader : NoCopy
     ID3D11ComputeShader *compute_shader;
     ID3D11ShaderReflection *reflection;
     uint32_t thread_group_size[3];
-};
-
-struct RemapSettings
-{
-    float from_min;
-    float from_max;
-    float to_min;
-    float to_max;
-    uint32_t width;
-    uint32_t height;
-    float _padding[2];
+    unsigned id;
 };
 
 struct D3D11 : NoCopy
@@ -65,7 +55,8 @@ struct D3D11 : NoCopy
     uint32_t render_target_width = 0;
     uint32_t render_target_height = 0;
 
-    ComputeShader remap_shader;
+    ComputeShader compute_shaders[16];
+    unsigned compute_shader_count = 0;
 
     bool create_device(HWND hwnd);
     void cleanup_device();
@@ -85,5 +76,5 @@ struct D3D11 : NoCopy
     HRESULT create_buffer_uav(ID3D11Buffer *buffer, ID3D11UnorderedAccessView **out_uav);
 
     // Higher-level API
-    void dispatch_remap_float_shader(RemapSettings remap_settings, float *input_data, float *output_data);
+    void dispatch_float_shader(void *shader_settings, size_t shader_settings_size, uint32_t buffer_width, uint32_t buffer_height, float *input_data, float *output_data);
 };
