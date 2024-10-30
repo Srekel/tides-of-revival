@@ -73,6 +73,7 @@ pub const Renderer = struct {
     deferred_pass_profile_token: profiler.ProfileToken = undefined,
     skybox_pass_profile_token: profiler.ProfileToken = undefined,
     atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
+    post_processing_pass_profile_token: profiler.ProfileToken = undefined,
     tonemap_pass_profile_token: profiler.ProfileToken = undefined,
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
@@ -82,6 +83,15 @@ pub const Renderer = struct {
     gbuffer_1: [*c]graphics.RenderTarget = null,
     gbuffer_2: [*c]graphics.RenderTarget = null,
     scene_color: [*c]graphics.RenderTarget = null,
+
+    // Bloom Render Targets
+    bloom_width: u32 = 0,
+    bloom_height: u32 = 0,
+    bloom_uav1: [2]TextureHandle = .{ undefined, undefined },
+    bloom_uav2: [2]TextureHandle = .{ undefined, undefined },
+    bloom_uav3: [2]TextureHandle = .{ undefined, undefined },
+    bloom_uav4: [2]TextureHandle = .{ undefined, undefined },
+    bloom_uav5: [2]TextureHandle = .{ undefined, undefined },
 
     // Resolution Independent Render Targets
     transmittance_lut: [*c]graphics.RenderTarget = null,
@@ -136,6 +146,13 @@ pub const Renderer = struct {
     render_atmosphere_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
     render_atmosphere_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_atmosphere_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
+    render_post_processing_pass_user_data: ?*anyopaque = null,
+    render_post_processing_pass_imgui_fn: renderPassImGuiFn = null,
+    render_post_processing_pass_render_fn: renderPassRenderFn = null,
+    render_post_processing_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
+    render_post_processing_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    render_post_processing_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     render_tonemap_pass_user_data: ?*anyopaque = null,
     render_tonemap_pass_imgui_fn: renderPassImGuiFn = null,
@@ -488,6 +505,10 @@ pub const Renderer = struct {
                 create_descriptor_sets_fn(self.render_atmosphere_pass_user_data.?);
             }
 
+            if (self.render_post_processing_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                create_descriptor_sets_fn(self.render_post_processing_pass_user_data.?);
+            }
+
             if (self.render_tonemap_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                 create_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
             }
@@ -519,6 +540,10 @@ pub const Renderer = struct {
 
         if (self.render_atmosphere_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
             prepare_descriptor_sets_fn(self.render_atmosphere_pass_user_data.?);
+        }
+
+        if (self.render_post_processing_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+            prepare_descriptor_sets_fn(self.render_post_processing_pass_user_data.?);
         }
 
         if (self.render_tonemap_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -589,6 +614,12 @@ pub const Renderer = struct {
                 }
             }
 
+            if (self.render_post_processing_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                if (self.render_post_processing_pass_user_data) |user_data| {
+                    unload_descriptor_sets_fn(user_data);
+                }
+            }
+
             if (self.render_tonemap_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_tonemap_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
@@ -641,6 +672,7 @@ pub const Renderer = struct {
                         zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
                         zgui.text("\tSkybox Pass: {d}", .{profiler.getGpuProfileAvgTime(self.skybox_pass_profile_token)});
                         zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
+                        zgui.text("\tPost Processing Pass: {d}", .{profiler.getGpuProfileAvgTime(self.post_processing_pass_profile_token)});
                         zgui.text("\tTonemap Pass: {d}", .{profiler.getGpuProfileAvgTime(self.tonemap_pass_profile_token)});
                         zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
                     }
@@ -681,6 +713,12 @@ pub const Renderer = struct {
 
                 if (self.render_atmosphere_pass_imgui_fn) |render_fn| {
                     if (self.render_atmosphere_pass_user_data) |user_data| {
+                        render_fn(user_data);
+                    }
+                }
+
+                if (self.render_post_processing_pass_imgui_fn) |render_fn| {
+                    if (self.render_post_processing_pass_user_data) |user_data| {
                         render_fn(user_data);
                     }
                 }
@@ -778,7 +816,7 @@ pub const Renderer = struct {
 
             graphics.cmdBindRenderTargets(cmd_list, null);
 
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.shadow_pass_profile_token);
         }
 
         // GBuffer Pass
@@ -829,7 +867,7 @@ pub const Renderer = struct {
 
             graphics.cmdBindRenderTargets(cmd_list, null);
 
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gbuffer_pass_profile_token);
         }
 
         // Deferred Shading
@@ -876,7 +914,7 @@ pub const Renderer = struct {
 
             graphics.cmdBindRenderTargets(cmd_list, null);
 
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.deferred_pass_profile_token);
         }
 
         // Atmospheric Scattering Pass
@@ -894,7 +932,23 @@ pub const Renderer = struct {
 
             graphics.cmdBindRenderTargets(cmd_list, null);
 
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.atmosphere_pass_profile_token);
+        }
+
+        // Post Processing
+        {
+            self.post_processing_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Post Processing", .{ .bUseMarker = true });
+
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            if (self.render_post_processing_pass_render_fn) |render_fn| {
+                if (self.render_post_processing_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
+            }
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.post_processing_pass_profile_token);
         }
 
         // Tonemap & UI Passes
@@ -905,7 +959,7 @@ pub const Renderer = struct {
             defer trazy_zone1.End();
 
             var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                // graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
@@ -939,7 +993,7 @@ pub const Renderer = struct {
                 }
             }
 
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.tonemap_pass_profile_token);
         }
 
         // ImGUI Pass
@@ -951,7 +1005,7 @@ pub const Renderer = struct {
 
             zgui.backend.draw(cmd_list.*.mDx.pCmdList);
 
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.imgui_pass_profile_token);
         } else {
             zgui.endFrame();
         }
@@ -1477,6 +1531,8 @@ pub const Renderer = struct {
             rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color);
         }
+
+        createBloomUAVs(self);
     }
 
     fn destroyRenderTargets(self: *Renderer) void {
@@ -1486,6 +1542,95 @@ pub const Renderer = struct {
         graphics.removeRenderTarget(self.renderer, self.gbuffer_1);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_2);
         graphics.removeRenderTarget(self.renderer, self.scene_color);
+
+        self.destroyBloomUAVs();
+    }
+
+    fn createBloomUAVs(self: *Renderer) void {
+        self.bloom_width = if (self.window_width > 2560) 1280 else 640;
+        self.bloom_height = if (self.window_height > 1440) 768 else 384;
+
+        var texture_desc = std.mem.zeroes(graphics.TextureDesc);
+        texture_desc.mDepth = 1;
+        texture_desc.mArraySize = 1;
+        texture_desc.mMipLevels = 1;
+        texture_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
+        texture_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+        texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
+        texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+        texture_desc.bBindless = false;
+
+        texture_desc.mWidth = self.bloom_width;
+        texture_desc.mHeight = self.bloom_height;
+        texture_desc.pName = "Bloom Buffer 1a";
+        self.bloom_uav1[0] = self.createTexture(texture_desc);
+        texture_desc.pName = "Bloom Buffer 1b";
+        self.bloom_uav1[1] = self.createTexture(texture_desc);
+
+        texture_desc.mWidth = self.bloom_width / 2;
+        texture_desc.mHeight = self.bloom_height / 2;
+        texture_desc.pName = "Bloom Buffer 2a";
+        self.bloom_uav2[0] = self.createTexture(texture_desc);
+        texture_desc.pName = "Bloom Buffer 2b";
+        self.bloom_uav2[1] = self.createTexture(texture_desc);
+
+        texture_desc.mWidth = self.bloom_width / 4;
+        texture_desc.mHeight = self.bloom_height / 4;
+        texture_desc.pName = "Bloom Buffer 3a";
+        self.bloom_uav3[0] = self.createTexture(texture_desc);
+        texture_desc.pName = "Bloom Buffer 3b";
+        self.bloom_uav3[1] = self.createTexture(texture_desc);
+
+        texture_desc.mWidth = self.bloom_width / 8;
+        texture_desc.mHeight = self.bloom_height / 8;
+        texture_desc.pName = "Bloom Buffer 4a";
+        self.bloom_uav4[0] = self.createTexture(texture_desc);
+        texture_desc.pName = "Bloom Buffer 4b";
+        self.bloom_uav4[1] = self.createTexture(texture_desc);
+
+        texture_desc.mWidth = self.bloom_width / 16;
+        texture_desc.mHeight = self.bloom_height / 16;
+        texture_desc.pName = "Bloom Buffer 5a";
+        self.bloom_uav5[0] = self.createTexture(texture_desc);
+        texture_desc.pName = "Bloom Buffer 5b";
+        self.bloom_uav5[1] = self.createTexture(texture_desc);
+    }
+
+    fn destroyBloomUAVs(self: *Renderer) void {
+        var texture = self.getTexture(self.bloom_uav1[0]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav1[0]);
+        texture = self.getTexture(self.bloom_uav1[1]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav1[1]);
+
+        texture = self.getTexture(self.bloom_uav2[0]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav2[0]);
+        texture = self.getTexture(self.bloom_uav2[1]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav2[1]);
+
+        texture = self.getTexture(self.bloom_uav3[0]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav3[0]);
+        texture = self.getTexture(self.bloom_uav3[1]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav3[1]);
+
+        texture = self.getTexture(self.bloom_uav4[0]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav4[0]);
+        texture = self.getTexture(self.bloom_uav4[1]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav4[1]);
+
+        texture = self.getTexture(self.bloom_uav5[0]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav5[0]);
+        texture = self.getTexture(self.bloom_uav5[1]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.bloom_uav5[1]);
     }
 
     fn createResolutionIndependentRenderTargets(self: *Renderer) void {
@@ -2460,51 +2605,86 @@ pub const Renderer = struct {
             }
         }
 
-        // Tonemapper
+        // Post Processing
         {
-            const id = IdLocal.init("tonemapper");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
+            // Bloom
+            {
+                const id = IdLocal.init("bloom");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
 
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "fullscreen.vert";
-            shader_load_desc.mFrag.pFileName = "tonemapper.frag";
-            resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mComp.pFileName = "bloom_extract_and_downsample.comp";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
-            const static_sampler_names = [_][*c]const u8{"bilinearClampSampler"};
-            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+                const static_sampler_names = [_][*c]const u8{"bilinear_clamp_sampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
-            var render_targets = [_]graphics.TinyImageFormat{
-                self.swap_chain.*.ppRenderTargets[0].*.mFormat,
-            };
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
 
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
 
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
+
+            // Tonemapper
+            {
+                const id = IdLocal.init("tonemapper");
+                var shader: [*c]graphics.Shader = null;
+                var root_signature: [*c]graphics.RootSignature = null;
+                var pipeline: [*c]graphics.Pipeline = null;
+
+                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+                shader_load_desc.mVert.pFileName = "fullscreen.vert";
+                shader_load_desc.mFrag.pFileName = "tonemapper.frag";
+                resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
+
+                const static_sampler_names = [_][*c]const u8{"bilinearClampSampler"};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
+                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+                root_signature_desc.mStaticSamplerCount = static_samplers.len;
+                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+                root_signature_desc.mShaderCount = 1;
+                root_signature_desc.ppShaders = @ptrCast(&shader);
+                graphics.addRootSignature(self.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+                var render_targets = [_]graphics.TinyImageFormat{
+                    self.swap_chain.*.ppRenderTargets[0].*.mFormat,
+                };
+
+                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
+                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
+                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
+                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
+                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
+                graphics.addPipeline(self.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+                self.pso_map.put(id, handle) catch unreachable;
+            }
         }
 
         // UI

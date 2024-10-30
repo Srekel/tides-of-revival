@@ -27,6 +27,8 @@ const skybox_render_pass = @import("renderer_system/skybox_render_pass.zig");
 const SkyboxRenderPass = skybox_render_pass.SkyboxRenderPass;
 const atmosphere_render_pass = @import("renderer_system/atmosphere_render_pass.zig");
 const AtmosphereRenderPass = atmosphere_render_pass.AtmosphereRenderPass;
+const post_processing_render_pass = @import("renderer_system/post_processing_render_pass.zig");
+const PostProcessingRenderPass = post_processing_render_pass.PostProcessingRenderPass;
 const tonemap_render_pass = @import("renderer_system/tonemap_render_pass.zig");
 const TonemapRenderPass = tonemap_render_pass.TonemapRenderPass;
 const ui_render_pass = @import("renderer_system/ui_render_pass.zig");
@@ -111,6 +113,14 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     ctx.renderer.render_atmosphere_pass_prepare_descriptor_sets_fn = atmosphere_render_pass.prepareDescriptorSetsFn;
     ctx.renderer.render_atmosphere_pass_unload_descriptor_sets_fn = atmosphere_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_atmosphere_pass_user_data = atmosphere_pass;
+
+    const post_processing_pass = PostProcessingRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    ctx.renderer.render_post_processing_pass_render_fn = post_processing_render_pass.renderFn;
+    ctx.renderer.render_post_processing_pass_imgui_fn = post_processing_render_pass.renderImGuiFn;
+    ctx.renderer.render_post_processing_pass_create_descriptor_sets_fn = post_processing_render_pass.createDescriptorSetsFn;
+    ctx.renderer.render_post_processing_pass_prepare_descriptor_sets_fn = post_processing_render_pass.prepareDescriptorSetsFn;
+    ctx.renderer.render_post_processing_pass_unload_descriptor_sets_fn = post_processing_render_pass.unloadDescriptorSetsFn;
+    ctx.renderer.render_post_processing_pass_user_data = post_processing_pass;
 
     const tonemap_pass = TonemapRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_tonemap_pass_render_fn = tonemap_render_pass.renderFn;
