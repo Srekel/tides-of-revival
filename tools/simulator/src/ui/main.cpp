@@ -126,7 +126,7 @@ void runUI(const SimulatorAPI *api)
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplDX11_Init(g_d3d11.device, g_d3d11.device_context);
+	ImGui_ImplDX11_Init(g_d3d11.m_device, g_d3d11.m_device_context);
 
 	ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -246,7 +246,7 @@ void runUI(const SimulatorAPI *api)
 			ImGui::RenderPlatformWindowsDefault();
 		}
 
-		g_d3d11.swapchain->Present(gVSync ? 1 : 0, 0);
+		g_d3d11.m_swapchain->Present(gVSync ? 1 : 0, 0);
 	}
 
 	// Cleanup
@@ -464,7 +464,7 @@ void gGeneratePreview(const SimulatorAPI *api, Preview &preview)
 		return;
 	}
 
-	preview.texture.update_content(g_d3d11.device_context, image);
+	preview.texture.update_content(g_d3d11.m_device_context, image);
 	preview.visible = true;
 }
 

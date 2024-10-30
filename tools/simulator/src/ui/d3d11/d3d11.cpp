@@ -42,19 +42,19 @@ bool D3D11::create_device(HWND hwnd)
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_0,
     };
-    HRESULT res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &swapchain, &device, &feature_level, &device_context);
+    HRESULT res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &m_swapchain, &m_device, &feature_level, &m_device_context);
     if (res == DXGI_ERROR_UNSUPPORTED) // Try high-performance WARP software driver if hardware is not available.
-        res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &swapchain, &device, &feature_level, &device_context);
+        res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &m_swapchain, &m_device, &feature_level, &m_device_context);
     if (res != S_OK)
         return false;
 
     create_render_target();
 
-    compute_shader_count = 0;
-    compile_compute_shader(L"shaders/Remap.hlsl", "CSRemap", &compute_shaders[compute_shader_count]);
-    assert(compute_shaders[compute_shader_count].compute_shader);
-    assert(compute_shaders[compute_shader_count].reflection);
-    compute_shader_count++;
+    m_compute_shader_count = 0;
+    compile_compute_shader(L"shaders/Remap.hlsl", "CSRemap", &m_compute_shaders[m_compute_shader_count]);
+    assert(m_compute_shaders[m_compute_shader_count].compute_shader);
+    assert(m_compute_shaders[m_compute_shader_count].reflection);
+    m_compute_shader_count++;
 
     return true;
 }
@@ -62,46 +62,46 @@ bool D3D11::create_device(HWND hwnd)
 void D3D11::cleanup_device()
 {
     cleanup_render_target();
-    for (unsigned i_cs = 0; i_cs < compute_shader_count; i_cs++)
+    for (unsigned i_cs = 0; i_cs < m_compute_shader_count; i_cs++)
     {
-        SAFE_RELEASE(compute_shaders[i_cs].compute_shader);
-        SAFE_RELEASE(compute_shaders[i_cs].reflection);
+        SAFE_RELEASE(m_compute_shaders[i_cs].compute_shader);
+        SAFE_RELEASE(m_compute_shaders[i_cs].reflection);
     }
-    SAFE_RELEASE(swapchain);
-    SAFE_RELEASE(device_context);
-    SAFE_RELEASE(device);
+    SAFE_RELEASE(m_swapchain);
+    SAFE_RELEASE(m_device_context);
+    SAFE_RELEASE(m_device);
 }
 
 void D3D11::create_render_target()
 {
     ID3D11Texture2D *back_buffer;
-    swapchain->GetBuffer(0, IID_PPV_ARGS(&back_buffer));
-    device->CreateRenderTargetView(back_buffer, nullptr, &main_render_target_view);
+    m_swapchain->GetBuffer(0, IID_PPV_ARGS(&back_buffer));
+    m_device->CreateRenderTargetView(back_buffer, nullptr, &m_main_render_target_view);
     SAFE_RELEASE(back_buffer);
 }
 
 void D3D11::cleanup_render_target()
 {
-    SAFE_RELEASE(main_render_target_view);
+    SAFE_RELEASE(m_main_render_target_view);
 }
 
 void D3D11::resize_render_target(int32_t width, int32_t height)
 {
-    if (width != 0 && height != 0 && (width != render_target_width || height != render_target_height))
+    if (width != 0 && height != 0 && (width != m_render_target_width || height != m_render_target_height))
     {
-        render_target_width = width;
-        render_target_height = height;
+        m_render_target_width = width;
+        m_render_target_height = height;
 
         cleanup_render_target();
-        swapchain->ResizeBuffers(0, render_target_width, render_target_height, DXGI_FORMAT_UNKNOWN, 0);
+        m_swapchain->ResizeBuffers(0, m_render_target_width, m_render_target_height, DXGI_FORMAT_UNKNOWN, 0);
         create_render_target();
     }
 }
 
 void D3D11::bind_render_target(const float clear_color[4])
 {
-    device_context->OMSetRenderTargets(1, &main_render_target_view, nullptr);
-    device_context->ClearRenderTargetView(main_render_target_view, clear_color);
+    m_device_context->OMSetRenderTargets(1, &m_main_render_target_view, nullptr);
+    m_device_context->ClearRenderTargetView(m_main_render_target_view, clear_color);
 }
 
 void D3D11::create_texture(int32_t width, int32_t height, Texture2D *out_texture)
@@ -117,7 +117,7 @@ void D3D11::create_texture(int32_t width, int32_t height, Texture2D *out_texture
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     desc.CPUAccessFlags = 0;
-    device->CreateTexture2D(&desc, nullptr, &out_texture->texture);
+    m_device->CreateTexture2D(&desc, nullptr, &out_texture->texture);
     assert(out_texture->texture);
 
     D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
@@ -126,7 +126,7 @@ void D3D11::create_texture(int32_t width, int32_t height, Texture2D *out_texture
     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srv_desc.Texture2D.MipLevels = desc.MipLevels;
     srv_desc.Texture2D.MostDetailedMip = 0;
-    device->CreateShaderResourceView(out_texture->texture, &srv_desc, &out_texture->srv);
+    m_device->CreateShaderResourceView(out_texture->texture, &srv_desc, &out_texture->srv);
 
     out_texture->width = width;
     out_texture->height = height;
@@ -136,7 +136,7 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, ComputeSh
 {
     assert(path);
     assert(entry);
-    assert(device);
+    assert(m_device);
 
     UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if defined(_DEBUG)
@@ -161,7 +161,7 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, ComputeSh
         return hr;
     }
 
-    hr = device->CreateComputeShader(shader_blob->GetBufferPointer(), shader_blob->GetBufferSize(), nullptr, &out_compute_shader->compute_shader);
+    hr = m_device->CreateComputeShader(shader_blob->GetBufferPointer(), shader_blob->GetBufferSize(), nullptr, &out_compute_shader->compute_shader);
 
 #if defined(_DEBUG)
     if (SUCCEEDED(hr))
@@ -188,7 +188,7 @@ HRESULT D3D11::create_constant_buffer(uint32_t buffer_size, void *data, ID3D11Bu
 
     D3D11_SUBRESOURCE_DATA subresource_data;
     subresource_data.pSysMem = data;
-    return device->CreateBuffer(&desc, &subresource_data, out_buffer);
+    return m_device->CreateBuffer(&desc, &subresource_data, out_buffer);
 }
 
 HRESULT D3D11::create_structured_buffer(uint32_t element_size, uint32_t element_count, void *initial_data, ID3D11Buffer **out_buffer)
@@ -205,11 +205,11 @@ HRESULT D3D11::create_structured_buffer(uint32_t element_size, uint32_t element_
     {
         D3D11_SUBRESOURCE_DATA subresource_data;
         subresource_data.pSysMem = initial_data;
-        return device->CreateBuffer(&desc, &subresource_data, out_buffer);
+        return m_device->CreateBuffer(&desc, &subresource_data, out_buffer);
     }
     else
     {
-        return device->CreateBuffer(&desc, nullptr, out_buffer);
+        return m_device->CreateBuffer(&desc, nullptr, out_buffer);
     }
 }
 
@@ -224,7 +224,7 @@ HRESULT D3D11::create_readback_buffer(uint32_t element_size, uint32_t element_co
     desc.Usage = D3D11_USAGE_STAGING;
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-    return device->CreateBuffer(&desc, nullptr, out_buffer);
+    return m_device->CreateBuffer(&desc, nullptr, out_buffer);
 }
 
 HRESULT D3D11::create_buffer_srv(ID3D11Buffer *buffer, ID3D11ShaderResourceView **out_srv)
@@ -254,7 +254,7 @@ HRESULT D3D11::create_buffer_srv(ID3D11Buffer *buffer, ID3D11ShaderResourceView 
         return E_INVALIDARG;
     }
 
-    return device->CreateShaderResourceView(buffer, &desc, out_srv);
+    return m_device->CreateShaderResourceView(buffer, &desc, out_srv);
 }
 
 HRESULT D3D11::create_buffer_uav(ID3D11Buffer *buffer, ID3D11UnorderedAccessView **out_uav)
@@ -284,15 +284,15 @@ HRESULT D3D11::create_buffer_uav(ID3D11Buffer *buffer, ID3D11UnorderedAccessView
         return E_INVALIDARG;
     }
 
-    return device->CreateUnorderedAccessView(buffer, &desc, out_uav);
+    return m_device->CreateUnorderedAccessView(buffer, &desc, out_uav);
 }
 
 void D3D11::dispatch_float_shader(void *shader_settings, size_t shader_settings_size, uint32_t buffer_width, uint32_t buffer_height, float *input_data, float *output_data)
 {
     OutputDebugStringA("dispatch_float_shader START\n");
-    ComputeShader &shader = compute_shaders[0];
-    assert(device);
-    assert(device_context);
+    ComputeShader &shader = m_compute_shaders[0];
+    assert(m_device);
+    assert(m_device_context);
     assert(shader.compute_shader);
 
     assert(input_data);
@@ -330,41 +330,41 @@ void D3D11::dispatch_float_shader(void *shader_settings, size_t shader_settings_
 
     // Run the compute shader
     {
-        device_context->CSSetShader(shader.compute_shader, nullptr, 0);
-        device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
-        device_context->CSSetShaderResources(0, 1, &input_buffer_srv);
-        device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
-        device_context->Dispatch(buffer_width / shader.thread_group_size[0] + 1, buffer_height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
+        m_device_context->CSSetShader(shader.compute_shader, nullptr, 0);
+        m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
+        m_device_context->CSSetShaderResources(0, 1, &input_buffer_srv);
+        m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
+        m_device_context->Dispatch(buffer_width / shader.thread_group_size[0] + 1, buffer_height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
     }
 
     // Cleanup context
     {
-        device_context->CSSetShader(nullptr, nullptr, 0);
+        m_device_context->CSSetShader(nullptr, nullptr, 0);
         ID3D11UnorderedAccessView *ppUAViewnullptr[1] = {nullptr};
-        device_context->CSSetUnorderedAccessViews(0, 1, ppUAViewnullptr, nullptr);
+        m_device_context->CSSetUnorderedAccessViews(0, 1, ppUAViewnullptr, nullptr);
 
         ID3D11ShaderResourceView *ppSRVnullptr[2] = {nullptr, nullptr};
-        device_context->CSSetShaderResources(0, 2, ppSRVnullptr);
+        m_device_context->CSSetShaderResources(0, 2, ppSRVnullptr);
 
         ID3D11Buffer *ppCBnullptr[1] = {nullptr};
-        device_context->CSSetConstantBuffers(0, 1, ppCBnullptr);
+        m_device_context->CSSetConstantBuffers(0, 1, ppCBnullptr);
     }
 
     // Read back data
     {
-        device_context->CopyResource(readback_buffer, output_buffer);
+        m_device_context->CopyResource(readback_buffer, output_buffer);
 
         D3D11_MAPPED_SUBRESOURCE subresource = {};
         subresource.RowPitch = buffer_width * sizeof(float);
         subresource.DepthPitch = buffer_height * sizeof(float);
-        device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
+        m_device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
 
         if (subresource.pData)
         {
             memcpy((void *)output_data, subresource.pData, buffer_width * buffer_height * sizeof(float));
         }
 
-        device_context->Unmap(readback_buffer, 0);
+        m_device_context->Unmap(readback_buffer, 0);
     }
 
     // Cleanup GPU Resources

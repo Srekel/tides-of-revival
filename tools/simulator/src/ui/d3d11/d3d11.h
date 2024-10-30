@@ -48,15 +48,15 @@ struct ComputeShader : NoCopy
 
 struct D3D11 : NoCopy
 {
-    ID3D11Device *device = nullptr;
-    ID3D11DeviceContext *device_context = nullptr;
-    IDXGISwapChain *swapchain = nullptr;
-    ID3D11RenderTargetView *main_render_target_view = nullptr;
-    uint32_t render_target_width = 0;
-    uint32_t render_target_height = 0;
+    ID3D11Device *m_device = nullptr;
+    ID3D11DeviceContext *m_device_context = nullptr;
+    IDXGISwapChain *m_swapchain = nullptr;
+    ID3D11RenderTargetView *m_main_render_target_view = nullptr;
+    uint32_t m_render_target_width = 0;
+    uint32_t m_render_target_height = 0;
 
-    ComputeShader compute_shaders[16];
-    unsigned compute_shader_count = 0;
+    ComputeShader m_compute_shaders[16];
+    unsigned m_compute_shader_count = 0;
 
     bool create_device(HWND hwnd);
     void cleanup_device();
