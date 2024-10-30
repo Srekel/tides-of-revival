@@ -33,7 +33,7 @@ struct DirectionalLight
 float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 {
 	float3 ret = float3(0.0, 0.0, 0.0);
-	float powTheta = pow(1.0 - cosTheta, 5.0);
+	float powTheta = pow(max(0.0, 1.0 - cosTheta), 5.0);
 	float invRough = float(1.0 - roughness);
 
 	ret.x = F0.x + (max(invRough, F0.x) - F0.x) * powTheta;
@@ -45,7 +45,7 @@ float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 
 float3 FresnelSchlick(float cosTheta, float3 F0)
 {
-	return F0 + (1.0f - F0) * pow(1.0 - cosTheta, 5.0);
+	return F0 + (1.0f - F0) * pow(max(0.0, 1.0 - cosTheta), 5.0);
 }
 
 float DistributionGGX(float3 N, float3 H, float roughness)
