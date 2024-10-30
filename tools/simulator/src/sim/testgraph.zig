@@ -172,6 +172,7 @@ fn doNode_fbm(ctx: *Context) void {
     remap_settings.to_min = 0;
     remap_settings.to_max = 1;
     var compute_info = graph.ComputeInfo{
+        .compute_id = .remap,
         .buffer_width = @intCast(fbm_image.size.width),
         .buffer_height = @intCast(fbm_image.size.height),
         .in = fbm_image.pixels.ptr,
@@ -248,6 +249,7 @@ fn doNode_fbm_trees(ctx: *Context) void {
     remap_settings.to_min = 0;
     remap_settings.to_max = 1;
     var compute_info = graph.ComputeInfo{
+        .compute_id = .remap,
         .buffer_width = @intCast(fbm_trees_image.size.width),
         .buffer_height = @intCast(fbm_trees_image.size.height),
         .in = fbm_trees_image.pixels.ptr,

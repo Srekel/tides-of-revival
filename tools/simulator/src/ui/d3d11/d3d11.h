@@ -44,6 +44,18 @@ struct ComputeShader : NoCopy
     ID3D11ShaderReflection *reflection;
     uint32_t thread_group_size[3];
     unsigned id;
+    const char *name;
+};
+
+struct ComputeInfo
+{
+    unsigned compute_id;
+    float *input_datas;
+    float *output_datas;
+    uint32_t buffer_width;
+    uint32_t buffer_height;
+    void *shader_settings;
+    unsigned shader_settings_size;
 };
 
 struct D3D11 : NoCopy
@@ -67,7 +79,7 @@ struct D3D11 : NoCopy
     void bind_render_target(const float clear_color[4]);
 
     void create_texture(int32_t width, int32_t height, Texture2D *out_texture);
-    HRESULT compile_compute_shader(LPCWSTR path, const char *entry, ComputeShader *out_compute_shdader);
+    HRESULT compile_compute_shader(LPCWSTR path, const char *entry, ComputeShader *out_compute_shader);
 
     HRESULT create_constant_buffer(uint32_t buffer_size, void *data, ID3D11Buffer **out_buffer);
     HRESULT create_structured_buffer(uint32_t element_size, uint32_t element_count, void *initial_data, ID3D11Buffer **out_buffer);
@@ -76,5 +88,5 @@ struct D3D11 : NoCopy
     HRESULT create_buffer_uav(ID3D11Buffer *buffer, ID3D11UnorderedAccessView **out_uav);
 
     // Higher-level API
-    void dispatch_float_shader(void *shader_settings, size_t shader_settings_size, uint32_t buffer_width, uint32_t buffer_height, float *input_data, float *output_data);
+    void dispatch_float_shader(ComputeInfo job);
 };

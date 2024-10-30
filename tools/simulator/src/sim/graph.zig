@@ -1,8 +1,10 @@
 const std = @import("std");
 
 pub const ComputeInfo = extern struct {
-    // shader:[*c] // TODO
-    in: [*c] f32,
+    compute_id: enum(u32) {
+        remap,
+    },
+    in: [*c]f32,
     out: [*c]f32,
     buffer_width: u32,
     buffer_height: u32,

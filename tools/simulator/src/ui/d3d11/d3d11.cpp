@@ -174,6 +174,7 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, ComputeSh
     assert(out_compute_shader->reflection);
 
     out_compute_shader->reflection->GetThreadGroupSize(&out_compute_shader->thread_group_size[0], &out_compute_shader->thread_group_size[1], &out_compute_shader->thread_group_size[2]);
+    out_compute_shader->name = entry;
 
     return hr;
 }
@@ -287,10 +288,17 @@ HRESULT D3D11::create_buffer_uav(ID3D11Buffer *buffer, ID3D11UnorderedAccessView
     return m_device->CreateUnorderedAccessView(buffer, &desc, out_uav);
 }
 
-void D3D11::dispatch_float_shader(void *shader_settings, size_t shader_settings_size, uint32_t buffer_width, uint32_t buffer_height, float *input_data, float *output_data)
+void D3D11::dispatch_float_shader(ComputeInfo job)
 {
     OutputDebugStringA("dispatch_float_shader START\n");
-    ComputeShader &shader = m_compute_shaders[0];
+    void *shader_settings = job.shader_settings;
+    size_t shader_settings_size = job.shader_settings_size;
+    int32_t buffer_width = job.buffer_width;
+    int32_t buffer_height = job.buffer_height;
+    float *input_data = &job.input_datas[0];
+    float *output_data = &job.output_datas[0];
+
+    ComputeShader &shader = m_compute_shaders[job.compute_id];
     assert(m_device);
     assert(m_device_context);
     assert(shader.compute_shader);

@@ -22,23 +22,10 @@
 #include <stdio.h>
 #include <windows.h>
 #include <psapi.h>
+
 CRITICAL_SECTION CriticalSectionEnqueue;
 CRITICAL_SECTION CriticalSectionDequeue;
-
-struct RemapSettings
-{
-	float from_min;
-	float from_max;
-	float to_min;
-	float to_max;
-	uint32_t width;
-	uint32_t height;
-	float _padding[2];
-};
-
-RemapSettings compute_remap_settings;
-float *compute_in = nullptr;
-float *compute_out = nullptr;
+ComputeInfo compute_job;
 bool compute_do_it_now = false;
 
 static int32_t g_resize_width = 0;
@@ -164,52 +151,13 @@ void runUI(const SimulatorAPI *api)
 		{
 			EnterCriticalSection(&CriticalSectionDequeue);
 			compute_do_it_now = false;
-			g_d3d11.dispatch_float_shader(&compute_remap_settings, sizeof(compute_remap_settings), compute_remap_settings.width, compute_remap_settings.height, compute_in, compute_out);
+			g_d3d11.dispatch_float_shader(compute_job);
 			LeaveCriticalSection(&CriticalSectionDequeue);
 		}
 		LeaveCriticalSection(&CriticalSectionEnqueue);
 
 		if (!gRanOnce)
 		{
-			// Remap through compute shader example
-			// ====================================
-			// {
-			// 	RemapSettings remap_settings = {
-			// 		.from_min = 0.0f,
-			// 		.from_max = 1.0f,
-			// 		.to_min = 0.0f,
-			// 		.to_max = 15000.0f,
-			// 		.width = 8,
-			// 		.height = 8,
-			// 	};
-			// 	float *data = (float *)malloc(sizeof(float) * remap_settings.width * remap_settings.height);
-			// 	for (int y = 0; y < remap_settings.height; y++)
-			// 	{
-			// 		for (int x = 0; x < remap_settings.width; x++)
-			// 		{
-			// 			int index = x + y * remap_settings.width;
-			// 			data[index] = (index + 1) / (float)(remap_settings.width * remap_settings.height);
-			// 			char buf[256];
-			// 			sprintf(&buf[0], "data[%d][%d] = %.2f\n", x, y, data[index]);
-			// 			OutputDebugStringA(buf);
-			// 		}
-			// 	}
-			// 	float *out_data = (float *)malloc(sizeof(float) * remap_settings.width * remap_settings.height);
-			// 	g_d3d11.dispatch_remap_float_shader(remap_settings, data, out_data);
-			// 	for (int y = 0; y < remap_settings.height; y++)
-			// 	{
-			// 		for (int x = 0; x < remap_settings.width; x++)
-			// 		{
-			// 			int index = x + y * remap_settings.width;
-			// 			char buf[256];
-			// 			sprintf(&buf[0], "outData[%d][%d] = %.2f\n", x, y, out_data[index]);
-			// 			OutputDebugStringA(buf);
-			// 		}
-			// 	}
-			// 	free(data);
-			// 	free(out_data);
-			// }
-
 			gRanOnce = true;
 			for (unsigned i_preview = 0; i_preview < PREVIEW_COUNT; i_preview++)
 			{
@@ -468,29 +416,13 @@ void gGeneratePreview(const SimulatorAPI *api, Preview &preview)
 	preview.visible = true;
 }
 
-struct ComputeInfo
-{
-	// shader:[*c] // TODO
-	float *in;
-	float *out;
-	unsigned buffer_width;
-	unsigned buffer_height;
-	unsigned char *data;
-	unsigned data_size;
-};
-
 void compute(const struct ComputeInfo *info)
 {
-	// TODO
-
 	OutputDebugStringA("LOLOLOOL\n");
 
 	EnterCriticalSection(&CriticalSectionEnqueue);
 	compute_do_it_now = true;
-	compute_in = info->in;
-	compute_out = info->out;
-	compute_remap_settings = *((RemapSettings *)info->data);
-
+	compute_job = *info;
 	LeaveCriticalSection(&CriticalSectionEnqueue);
 
 	while (true)
