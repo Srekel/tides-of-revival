@@ -4,6 +4,7 @@ pub const ComputeInfo = extern struct {
     compute_id: enum(u32) {
         remap,
         square,
+        gradient,
     },
     in: [*c]f32,
     out: [*c]f32,

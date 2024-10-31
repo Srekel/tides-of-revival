@@ -24,8 +24,8 @@ pub fn gradient(image_in: types.ImageF32, height_ratio: f32, gradient_out: *type
 
             for (0..3) |y2| {
                 for (0..3) |x2| {
-                    sum_x += sobel_filter_x[x2][y2] * image_in.get(x1 + x2 - 1, y1 + y2 - 1) * height_ratio;
-                    sum_y += sobel_filter_y[x2][y2] * image_in.get(x1 + x2 - 1, y1 + y2 - 1) * height_ratio;
+                    sum_x += sobel_filter_x[y2][x2] * image_in.get(x1 + x2 - 1, y1 + y2 - 1) * height_ratio;
+                    sum_y += sobel_filter_y[y2][x2] * image_in.get(x1 + x2 - 1, y1 + y2 - 1) * height_ratio;
                 }
             }
 

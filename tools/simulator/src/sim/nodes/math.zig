@@ -9,3 +9,14 @@ pub fn square(image: *types.ImageF32) void {
     image.height_min = image.height_min * image.height_min;
     image.height_max = image.height_max * image.height_max;
 }
+
+pub fn rerangify(image: *types.ImageF32) void {
+    var range_min: f32 = 10000;
+    var range_max: f32 = 0;
+    for (image.pixels) |pixel| {
+        range_min = @min(range_min, pixel);
+        range_max = @max(range_max, pixel);
+    }
+    image.height_min = range_min;
+    image.height_max = range_max;
+}

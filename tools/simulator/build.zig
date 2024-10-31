@@ -160,10 +160,12 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     dll_ui.linkSystemLibrary("Dwmapi");
 
     // Install shaders
-    var shader_remap = b.addInstallFile(b.path("src/ui/d3d11/shaders/Remap.hlsl"), "bin/shaders/Remap.hlsl");
+    var shader_remap = b.addInstallFile(b.path("src/ui/d3d11/shaders/remap.hlsl"), "bin/shaders/remap.hlsl");
     dll_ui.step.dependOn(&shader_remap.step);
-    var shader_square = b.addInstallFile(b.path("src/ui/d3d11/shaders/Square.hlsl"), "bin/shaders/Square.hlsl");
+    var shader_square = b.addInstallFile(b.path("src/ui/d3d11/shaders/square.hlsl"), "bin/shaders/square.hlsl");
     dll_ui.step.dependOn(&shader_square.step);
+    var shader_gradient = b.addInstallFile(b.path("src/ui/d3d11/shaders/gradient.hlsl"), "bin/shaders/gradient.hlsl");
+    dll_ui.step.dependOn(&shader_gradient.step);
 
     // Link in our cpp library of nodes
     b.installArtifact(dll_ui);

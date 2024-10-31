@@ -42,7 +42,7 @@ pub fn getGraph() *const graph.Graph {
 }
 
 const DRY_RUN = true;
-const kilometers = if (DRY_RUN) 1 else 16;
+const kilometers = if (DRY_RUN) 16 else 16;
 const world_settings: types.WorldSettings = .{
     .size = .{ .width = kilometers * 1024, .height = kilometers * 1024 },
 };
@@ -216,9 +216,34 @@ fn doNode_heightmap(ctx: *Context) void {
     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
 }
 
+const GradientData = extern struct {
+    g_buffer_width: u32,
+    g_buffer_height: u32,
+    g_height_ratio: f32,
+    _padding: f32 = 0,
+};
+
 var preview_gradient_image = types.ImageRGBA.square(512);
 fn doNode_gradient(ctx: *Context) void {
-    nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+    const gradient_data = GradientData{
+        .g_buffer_width = kilometers * 1024,
+        .g_buffer_height = kilometers * 1024,
+        .g_height_ratio = 1 / world_settings.terrain_height_max,
+    };
+    var compute_info_gradient = graph.ComputeInfo{
+        .compute_id = .gradient,
+        .buffer_width = @intCast(heightmap.size.width),
+        .buffer_height = @intCast(heightmap.size.height),
+        .in = heightmap.pixels.ptr,
+        .out = gradient_image.pixels.ptr,
+        .data_size = @sizeOf(GradientData),
+        .data = std.mem.asBytes(&gradient_data),
+    };
+    ctx.compute_fn(&compute_info_gradient);
+    nodes.math.rerangify(&gradient_image);
+    // fbm_trees_image.swap(&scratch_image);
+
+    // nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
 
     types.image_preview_f32(gradient_image, &preview_gradient_image);
     const preview_grid_key = "gradient.image";
