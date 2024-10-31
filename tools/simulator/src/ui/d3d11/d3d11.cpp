@@ -57,6 +57,10 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/gradient.hlsl", "CSGradient", &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    compile_compute_shader(L"shaders/reduce_to_1d.hlsl", "CSReduceTo1D", &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+    compile_compute_shader(L"shaders/reduce_to_single.hlsl", "CSReduceToSingle", &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     return true;
 }
