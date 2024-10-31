@@ -51,16 +51,39 @@ bool D3D11::create_device(HWND hwnd)
     create_render_target();
 
     m_compute_shader_count = 0;
-    compile_compute_shader(L"shaders/remap.hlsl", "CSRemap", &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/remap.hlsl", "CSRemap", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/square.hlsl", "CSSquare", &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/square.hlsl", "CSSquare", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/gradient.hlsl", "CSGradient", &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/gradient.hlsl", "CSGradient", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/reduce_to_1d.hlsl", "CSReduceTo1D", &m_compute_shaders[m_compute_shader_count]);
-    m_compute_shader_count++;
-    compile_compute_shader(L"shaders/reduce_to_single.hlsl", "CSReduceToSingle", &m_compute_shaders[m_compute_shader_count]);
-    m_compute_shader_count++;
+
+    // Parallel Reduction Min
+    {
+        D3D_SHADER_MACRO macro[] = {"REDUCTION_OPERATOR", "1", NULL, NULL};
+        compile_compute_shader(L"shaders/reduce_to_1d.hlsl", "CSReduceTo1D", macro, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+        compile_compute_shader(L"shaders/reduce_to_single.hlsl", "CSReduceToSingle", macro, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+    }
+
+    // Parallel Reduction Max
+    {
+        D3D_SHADER_MACRO macro[] = {"REDUCTION_OPERATOR", "2", NULL, NULL};
+        compile_compute_shader(L"shaders/reduce_to_1d.hlsl", "CSReduceTo1D", macro, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+        compile_compute_shader(L"shaders/reduce_to_single.hlsl", "CSReduceToSingle", macro, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+    }
+
+    // Parallel Reduction Sum
+    {
+        D3D_SHADER_MACRO macro[] = {"REDUCTION_OPERATOR", "3", NULL, NULL};
+        compile_compute_shader(L"shaders/reduce_to_1d.hlsl", "CSReduceTo1D", macro, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+        compile_compute_shader(L"shaders/reduce_to_single.hlsl", "CSReduceToSingle", macro, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+    }
 
     return true;
 }
@@ -138,7 +161,7 @@ void D3D11::create_texture(int32_t width, int32_t height, Texture2D *out_texture
     out_texture->height = height;
 }
 
-HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, ComputeShader *out_compute_shader)
+HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, const D3D_SHADER_MACRO *defines, ComputeShader *out_compute_shader)
 {
     assert(path);
     assert(entry);
@@ -153,7 +176,7 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, ComputeSh
 
     ID3DBlob *shader_blob = nullptr;
     ID3DBlob *error_blob = nullptr;
-    HRESULT hr = D3DCompileFromFile(path, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entry, profile, flags, 0, &shader_blob, &error_blob);
+    HRESULT hr = D3DCompileFromFile(path, defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, entry, profile, flags, 0, &shader_blob, &error_blob);
 
     if (FAILED(hr))
     {

@@ -1,3 +1,5 @@
+#include "parallel_reduction_common.hlsli"
+
 cbuffer constant_buffer_0 : register(b0)
 {
     uint g_thread_group_count_x;
@@ -16,7 +18,7 @@ groupshared float g_shader_mem[GROUP_THREADS];
 
 float FullPixelReduction(uint3 DTid)
 {
-    float minimum = 0.0f;
+    float result = 0.0f;
     float value = 0.0f;
 
     uint x = 0;
@@ -26,24 +28,24 @@ float FullPixelReduction(uint3 DTid)
     x = DTid.x;
     y = DTid.y;
     value = g_input_buffer[x + y * g_buffer_width];
-    minimum = value;
+    result = value;
 
     x = DTid.x + BLOCK_SIZE * g_buffer_width;
     y = DTid.y + 0;
     value = g_input_buffer[x + y * g_buffer_width];
-    minimum = min(minimum, value);
+    result = SERIAL_OPERATOR(result, value);
 
     x = DTid.x + 0;
     y = DTid.y + BLOCK_SIZE * g_buffer_height;
     value = g_input_buffer[x + y * g_buffer_width];
-    minimum = min(minimum, value);
+    result = SERIAL_OPERATOR(result, value);
 
     x = DTid.x + BLOCK_SIZE * g_buffer_width;
     y = DTid.y + BLOCK_SIZE * g_buffer_height;
     value = g_input_buffer[x + y * g_buffer_width];
-    minimum = min(minimum, value);
+    result = SERIAL_OPERATOR(result, value);
 
-    return minimum;
+    return result;
 }
 
 [numthreads(BLOCK_SIZE, BLOCK_SIZE, 1)]
@@ -53,27 +55,27 @@ void CSReduceTo1D(uint3 Gid : SV_GroupID, uint3 DTid : SV_DispatchThreadID, uint
 
     GroupMemoryBarrierWithGroupSync();
     if (GI < 32)
-        g_shader_mem[GI] = min(g_shader_mem[GI], g_shader_mem[GI + 32]);
+        g_shader_mem[GI] = PARALLEL_REDUCTION_OPERATOR(g_shader_mem, GI, GI + 32);
 
     GroupMemoryBarrierWithGroupSync();
     if (GI < 16)
-        g_shader_mem[GI] = min(g_shader_mem[GI], g_shader_mem[GI + 16]);
+        g_shader_mem[GI] = PARALLEL_REDUCTION_OPERATOR(g_shader_mem, GI, GI + 16);
 
     GroupMemoryBarrierWithGroupSync();
     if (GI < 8)
-        g_shader_mem[GI] = min(g_shader_mem[GI], g_shader_mem[GI + 8]);
+        g_shader_mem[GI] = PARALLEL_REDUCTION_OPERATOR(g_shader_mem, GI, GI + 8);
 
     GroupMemoryBarrierWithGroupSync();
     if (GI < 4)
-        g_shader_mem[GI] = min(g_shader_mem[GI], g_shader_mem[GI + 4]);
+        g_shader_mem[GI] = PARALLEL_REDUCTION_OPERATOR(g_shader_mem, GI, GI + 4);
 
     GroupMemoryBarrierWithGroupSync();
     if (GI < 2)
-        g_shader_mem[GI] = min(g_shader_mem[GI], g_shader_mem[GI + 2]);
+        g_shader_mem[GI] = PARALLEL_REDUCTION_OPERATOR(g_shader_mem, GI, GI + 2);
 
     GroupMemoryBarrierWithGroupSync();
     if (GI < 1)
-        g_shader_mem[GI] = min(g_shader_mem[GI], g_shader_mem[GI + 1]);
+        g_shader_mem[GI] = PARALLEL_REDUCTION_OPERATOR(g_shader_mem, GI, GI + 1);
 
     if (GI == 0)
     {

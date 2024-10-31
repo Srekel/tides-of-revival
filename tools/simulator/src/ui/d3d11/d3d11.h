@@ -79,7 +79,7 @@ struct D3D11 : NoCopy
     void bind_render_target(const float clear_color[4]);
 
     void create_texture(int32_t width, int32_t height, Texture2D *out_texture);
-    HRESULT compile_compute_shader(LPCWSTR path, const char *entry, ComputeShader *out_compute_shader);
+    HRESULT compile_compute_shader(LPCWSTR path, const char *entry, const D3D_SHADER_MACRO *defines, ComputeShader *out_compute_shader);
 
     HRESULT create_constant_buffer(uint32_t buffer_size, void *data, ID3D11Buffer **out_buffer);
     HRESULT create_structured_buffer(uint32_t element_size, uint32_t element_count, void *initial_data, ID3D11Buffer **out_buffer);

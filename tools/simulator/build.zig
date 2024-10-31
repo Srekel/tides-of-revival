@@ -166,6 +166,12 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     dll_ui.step.dependOn(&shader_square.step);
     var shader_gradient = b.addInstallFile(b.path("src/ui/d3d11/shaders/gradient.hlsl"), "bin/shaders/gradient.hlsl");
     dll_ui.step.dependOn(&shader_gradient.step);
+    var shader_parallel_reduction_common = b.addInstallFile(b.path("src/ui/d3d11/shaders/parallel_reduction_common.hlsli"), "bin/shaders/parallel_reduction_common.hlsli");
+    dll_ui.step.dependOn(&shader_parallel_reduction_common.step);
+    var shader_reduce_to_1d = b.addInstallFile(b.path("src/ui/d3d11/shaders/reduce_to_1d.hlsl"), "bin/shaders/reduce_to_1d.hlsl");
+    dll_ui.step.dependOn(&shader_reduce_to_1d.step);
+    var shader_reduce_to_single = b.addInstallFile(b.path("src/ui/d3d11/shaders/reduce_to_single.hlsl"), "bin/shaders/reduce_to_single.hlsl");
+    dll_ui.step.dependOn(&shader_reduce_to_single.step);
 
     // Link in our cpp library of nodes
     b.installArtifact(dll_ui);
