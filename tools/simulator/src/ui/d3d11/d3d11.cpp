@@ -55,6 +55,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/Square.hlsl", "CSSquare", &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    compile_compute_shader(L"shaders/gradient.hlsl", "CSGradient", &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     return true;
 }
