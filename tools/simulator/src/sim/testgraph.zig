@@ -102,6 +102,9 @@ pub fn start(ctx: *Context) void {
     voronoi_settings.num_relaxations = 10;
     cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
 
+    points = @TypeOf(points).init(std.heap.c_allocator);
+    nodes.poisson.generate_points(1, 1, 1, &points);
+
     // Start!
     // ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
     ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
@@ -136,6 +139,7 @@ fn doNode_generate_landscape_from_image(ctx: *Context) void {
     ctx.next_nodes.appendAssumeCapacity(doNode_beaches);
 }
 
+var points: std.ArrayList([2]f32) = undefined;
 fn doNode_beaches(ctx: *Context) void {
     nodes.voronoi.contours(grid);
 

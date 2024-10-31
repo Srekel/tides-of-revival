@@ -29,6 +29,7 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exe.addIncludePath(b.path("src/sim"));
     exe.addIncludePath(b.path("src/sim_cpp"));
     exe.addIncludePath(b.path("../../external/voronoi/src"));
+    exe.addIncludePath(b.path("../../external/poisson-disk-sampling/include/thinks"));
 
     ///////////
     // MODULES
@@ -107,7 +108,7 @@ pub fn buildCppNodesDll(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 
     // Single header libraries
     dll_cpp_nodes.addIncludePath(b.path("../../external/FastNoiseLite/C"));
-    dll_cpp_nodes.addIncludePath(b.path("../../external/poisson-disk-sampling/include"));
+    dll_cpp_nodes.addIncludePath(b.path("../../external/poisson-disk-sampling/include/thinks"));
     dll_cpp_nodes.addIncludePath(b.path("../../external/voronoi/src"));
     dll_cpp_nodes.addIncludePath(b.path("../../external/stb"));
 

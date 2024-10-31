@@ -16,6 +16,7 @@ enum VoronoiCellType
 };
 
 #include "jc_voronoi.h"
+#include "tph_poisson.h"
 
 struct VoronoiCell
 {

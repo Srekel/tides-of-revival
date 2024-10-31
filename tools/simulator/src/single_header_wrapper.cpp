@@ -5,8 +5,8 @@
 // #define JC_VORONOI_CLIP_IMPLEMENTATION
 // #include "jc_voronoi_clip.h"
 
-// #define TPH_POISSON_IMPLEMENTATION
-// #include "thinks/tph_poisson.h"
+#define TPH_POISSON_IMPLEMENTATION
+#include "tph_poisson.h"
 
 ///////////////////////////
 

@@ -14,7 +14,7 @@
 #include "stb_image_write.h"
 
 #define TPH_POISSON_IMPLEMENTATION
-#include "thinks/tph_poisson.h"
+#include "tph_poisson.h"
 
 float g_landscapeWaterColor[3] = {0.0f, 0.58f, 1.0f};
 float g_landscapeLandColor[3] = {0.15f, 0.5f, 0.0f};

@@ -149,7 +149,7 @@ pub fn castSliceToSlice(comptime T: type, slice: anytype) []T {
     // Note; This is a workaround for @ptrCast not supporting this
     const bytes = std.mem.sliceAsBytes(slice);
     const new_slice = std.mem.bytesAsSlice(T, bytes);
-    return new_slice;
+    return @constCast(new_slice);
 }
 
 pub const WorldSettings = struct {
