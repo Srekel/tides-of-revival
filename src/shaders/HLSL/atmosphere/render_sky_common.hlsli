@@ -276,7 +276,7 @@ float3 GetSunLuminance(float3 world_pos, float3 world_dir, float planet_radius)
 {
 #if RENDER_SUN_DISK
 	const float sun_angle = cos(sun_angular_radius);
-	const float3 sun_luminance = 1000000.0; // arbitrary. But fine, not use when comparing the models
+	const float3 sun_luminance = 1000.0; // arbitrary. But fine, not use when comparing the models
 	if (dot(world_dir, sun_direction) > sun_angle)
 	{
 		float t = RaySphereIntersectNearest(world_pos, world_dir, float3(0.0f, 0.0f, 0.0f), planet_radius);
