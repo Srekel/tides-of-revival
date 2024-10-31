@@ -162,7 +162,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         // Bloom Extract
         {
-            var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
+            const bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
             var t_barriers = [_]graphics.TextureBarrier{
                 graphics.TextureBarrier.init(bloom_uav1a, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
             };
@@ -182,24 +182,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 self.renderer.updateBuffer(data, BloomExtractConstantBuffer, self.bloom_extract_constant_buffers[frame_index]);
             }
 
-            // Update descriptors
-            {
-                var params: [3]graphics.DescriptorData = undefined;
-                var bloom_extract_constant_buffer = self.renderer.getBuffer(self.bloom_extract_constant_buffers[frame_index]);
-
-                params[0] = std.mem.zeroes(graphics.DescriptorData);
-                params[0].pName = "cb0";
-                params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
-                params[1] = std.mem.zeroes(graphics.DescriptorData);
-                params[1].pName = "source_tex";
-                params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
-                params[2] = std.mem.zeroes(graphics.DescriptorData);
-                params[2].pName = "bloom_result";
-                params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
-
-                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.bloom_extract_descriptor_set, params.len, @ptrCast(&params));
-            }
-
             const pipeline_id = IdLocal.init("bloom_extract");
             const pipeline = self.renderer.getPSO(pipeline_id);
             graphics.cmdBindPipeline(cmd_list, pipeline);
@@ -214,11 +196,11 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         // Downsample Bloom
         {
-            var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
-            var bloom_uav2a = self.renderer.getTexture(self.renderer.bloom_uav2[0]);
-            var bloom_uav3a = self.renderer.getTexture(self.renderer.bloom_uav3[0]);
-            var bloom_uav4a = self.renderer.getTexture(self.renderer.bloom_uav4[0]);
-            var bloom_uav5a = self.renderer.getTexture(self.renderer.bloom_uav5[0]);
+            // var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
+            const bloom_uav2a = self.renderer.getTexture(self.renderer.bloom_uav2[0]);
+            const bloom_uav3a = self.renderer.getTexture(self.renderer.bloom_uav3[0]);
+            const bloom_uav4a = self.renderer.getTexture(self.renderer.bloom_uav4[0]);
+            const bloom_uav5a = self.renderer.getTexture(self.renderer.bloom_uav5[0]);
 
             var t_barriers = [_]graphics.TextureBarrier{
                 graphics.TextureBarrier.init(bloom_uav2a, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
@@ -241,33 +223,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 self.renderer.updateBuffer(data, DownsampleBloomConstantBuffer, self.downsample_bloom_constant_buffers[frame_index]);
             }
 
-            // Update descriptors
-            {
-                var params: [6]graphics.DescriptorData = undefined;
-                var downsample_bloom_constant_buffer = self.renderer.getBuffer(self.downsample_bloom_constant_buffers[frame_index]);
-
-                params[0] = std.mem.zeroes(graphics.DescriptorData);
-                params[0].pName = "cb0";
-                params[0].__union_field3.ppBuffers = @ptrCast(&downsample_bloom_constant_buffer);
-                params[1] = std.mem.zeroes(graphics.DescriptorData);
-                params[1].pName = "bloom_buffer";
-                params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
-                params[2] = std.mem.zeroes(graphics.DescriptorData);
-                params[2].pName = "result_1";
-                params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav2a);
-                params[3] = std.mem.zeroes(graphics.DescriptorData);
-                params[3].pName = "result_2";
-                params[3].__union_field3.ppTextures = @ptrCast(&bloom_uav3a);
-                params[4] = std.mem.zeroes(graphics.DescriptorData);
-                params[4].pName = "result_3";
-                params[4].__union_field3.ppTextures = @ptrCast(&bloom_uav4a);
-                params[5] = std.mem.zeroes(graphics.DescriptorData);
-                params[5].pName = "result_4";
-                params[5].__union_field3.ppTextures = @ptrCast(&bloom_uav5a);
-
-                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.downsample_bloom_descriptor_set, params.len, @ptrCast(&params));
-            }
-
             const pipeline_id = IdLocal.init("downsample_bloom_all");
             const pipeline = self.renderer.getPSO(pipeline_id);
             graphics.cmdBindPipeline(cmd_list, pipeline);
@@ -285,27 +240,13 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         // Blur
         {
-            var bloom_uav5a = self.renderer.getTexture(self.renderer.bloom_uav5[0]);
-            var bloom_uav5b = self.renderer.getTexture(self.renderer.bloom_uav5[1]);
+            const bloom_uav5a = self.renderer.getTexture(self.renderer.bloom_uav5[0]);
+            const bloom_uav5b = self.renderer.getTexture(self.renderer.bloom_uav5[1]);
 
             var t_barriers = [_]graphics.TextureBarrier{
                 graphics.TextureBarrier.init(bloom_uav5b, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), 0, null);
-
-            // Update descriptors
-            {
-                var params: [2]graphics.DescriptorData = undefined;
-
-                params[0] = std.mem.zeroes(graphics.DescriptorData);
-                params[0].pName = "input_buffer";
-                params[0].__union_field3.ppTextures = @ptrCast(&bloom_uav5a);
-                params[1] = std.mem.zeroes(graphics.DescriptorData);
-                params[1].pName = "result";
-                params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav5b);
-
-                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.bloom_blur_descriptor_set, params.len, @ptrCast(&params));
-            }
 
             const pipeline_id = IdLocal.init("blur");
             const pipeline = self.renderer.getPSO(pipeline_id);
@@ -323,10 +264,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         // Upsample and Blur
         {
-            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav4[0], self.renderer.bloom_uav5[1], self.renderer.bloom_uav4[1], 0, self.upsample_and_blur_1_descriptor_set);
-            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav3[0], self.renderer.bloom_uav4[1], self.renderer.bloom_uav3[1], 1, self.upsample_and_blur_2_descriptor_set);
-            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav2[0], self.renderer.bloom_uav3[1], self.renderer.bloom_uav2[1], 2, self.upsample_and_blur_3_descriptor_set);
-            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav1[0], self.renderer.bloom_uav2[1], self.renderer.bloom_uav1[1], 3, self.upsample_and_blur_4_descriptor_set);
+            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav4[0], self.renderer.bloom_uav4[1], 0, self.upsample_and_blur_1_descriptor_set);
+            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav3[0], self.renderer.bloom_uav3[1], 1, self.upsample_and_blur_2_descriptor_set);
+            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav2[0], self.renderer.bloom_uav2[1], 2, self.upsample_and_blur_3_descriptor_set);
+            upsampleAndBlur(self, cmd_list, self.renderer.bloom_uav1[0], self.renderer.bloom_uav1[1], 3, self.upsample_and_blur_4_descriptor_set);
         }
 
         // Apply Bloom
@@ -350,25 +291,6 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 self.renderer.updateBuffer(data, ApplyBloomConstantBuffer, self.apply_bloom_constant_buffers[frame_index]);
             }
 
-            // Update descriptors
-            {
-                var params: [3]graphics.DescriptorData = undefined;
-                var bloom_extract_constant_buffer = self.renderer.getBuffer(self.apply_bloom_constant_buffers[frame_index]);
-                var bloom_uav1b = self.renderer.getTexture(self.renderer.bloom_uav1[1]);
-
-                params[0] = std.mem.zeroes(graphics.DescriptorData);
-                params[0].pName = "cb0";
-                params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
-                params[1] = std.mem.zeroes(graphics.DescriptorData);
-                params[1].pName = "bloom_buffer";
-                params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav1b);
-                params[2] = std.mem.zeroes(graphics.DescriptorData);
-                params[2].pName = "scene_color";
-                params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
-
-                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.apply_bloom_descriptor_set, params.len, @ptrCast(&params));
-            }
-
             const pipeline_id = IdLocal.init("apply_bloom");
             const pipeline = self.renderer.getPSO(pipeline_id);
             graphics.cmdBindPipeline(cmd_list, pipeline);
@@ -387,16 +309,14 @@ fn upsampleAndBlur(
     self: *PostProcessingRenderPass,
     cmd_list: [*c]graphics.Cmd,
     higher_res_handle: renderer.TextureHandle,
-    lower_res_handle: renderer.TextureHandle,
     result_handle: renderer.TextureHandle,
     buffer_index: u32,
     descriptor_set: [*c]graphics.DescriptorSet,
 ) void {
     const frame_index = self.renderer.frame_index;
 
-    var higher_res_buffer = self.renderer.getTexture(higher_res_handle);
-    var lower_res_buffer = self.renderer.getTexture(lower_res_handle);
-    var result = self.renderer.getTexture(result_handle);
+    const higher_res_buffer = self.renderer.getTexture(higher_res_handle);
+    const result = self.renderer.getTexture(result_handle);
 
     var t_barriers = [_]graphics.TextureBarrier{
         graphics.TextureBarrier.init(result, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
@@ -418,27 +338,6 @@ fn upsampleAndBlur(
             .size = @sizeOf(UpsampleAndBlurConstantBuffer),
         };
         self.renderer.updateBuffer(data, UpsampleAndBlurConstantBuffer, self.upsample_and_blur_constant_buffers[buffer_index][frame_index]);
-    }
-
-    // Update descriptors
-    {
-        var params: [4]graphics.DescriptorData = undefined;
-        var upsample_and_blur_constant_buffer = self.renderer.getBuffer(self.upsample_and_blur_constant_buffers[buffer_index][frame_index]);
-
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cb0";
-        params[0].__union_field3.ppBuffers = @ptrCast(&upsample_and_blur_constant_buffer);
-        params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "higher_res_buffer";
-        params[1].__union_field3.ppTextures = @ptrCast(&higher_res_buffer);
-        params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "lower_res_buffer";
-        params[2].__union_field3.ppTextures = @ptrCast(&lower_res_buffer);
-        params[3] = std.mem.zeroes(graphics.DescriptorData);
-        params[3].pName = "result";
-        params[3].__union_field3.ppTextures = @ptrCast(&result);
-
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), descriptor_set, params.len, @ptrCast(&params));
     }
 
     const pipeline_id = IdLocal.init("upsample_and_blur");
@@ -495,7 +394,141 @@ fn createDescriptorSets(user_data: *anyopaque) void {
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {
-    _ = user_data;
+    const self: *PostProcessingRenderPass = @ptrCast(@alignCast(user_data));
+
+    // Bloom Extract
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
+        var params: [3]graphics.DescriptorData = undefined;
+        var bloom_extract_constant_buffer = self.renderer.getBuffer(self.bloom_extract_constant_buffers[i]);
+
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cb0";
+        params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "source_tex";
+        params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
+        params[2] = std.mem.zeroes(graphics.DescriptorData);
+        params[2].pName = "bloom_result";
+        params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.bloom_extract_descriptor_set, params.len, @ptrCast(&params));
+    }
+
+    // Downsample Bloom
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var params: [6]graphics.DescriptorData = undefined;
+        var downsample_bloom_constant_buffer = self.renderer.getBuffer(self.downsample_bloom_constant_buffers[i]);
+        var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
+        var bloom_uav2a = self.renderer.getTexture(self.renderer.bloom_uav2[0]);
+        var bloom_uav3a = self.renderer.getTexture(self.renderer.bloom_uav3[0]);
+        var bloom_uav4a = self.renderer.getTexture(self.renderer.bloom_uav4[0]);
+        var bloom_uav5a = self.renderer.getTexture(self.renderer.bloom_uav5[0]);
+
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cb0";
+        params[0].__union_field3.ppBuffers = @ptrCast(&downsample_bloom_constant_buffer);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "bloom_buffer";
+        params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
+        params[2] = std.mem.zeroes(graphics.DescriptorData);
+        params[2].pName = "result_1";
+        params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav2a);
+        params[3] = std.mem.zeroes(graphics.DescriptorData);
+        params[3].pName = "result_2";
+        params[3].__union_field3.ppTextures = @ptrCast(&bloom_uav3a);
+        params[4] = std.mem.zeroes(graphics.DescriptorData);
+        params[4].pName = "result_3";
+        params[4].__union_field3.ppTextures = @ptrCast(&bloom_uav4a);
+        params[5] = std.mem.zeroes(graphics.DescriptorData);
+        params[5].pName = "result_4";
+        params[5].__union_field3.ppTextures = @ptrCast(&bloom_uav5a);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.downsample_bloom_descriptor_set, params.len, @ptrCast(&params));
+    }
+
+    // Bloom Blur
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var params: [2]graphics.DescriptorData = undefined;
+        var bloom_uav5a = self.renderer.getTexture(self.renderer.bloom_uav5[0]);
+        var bloom_uav5b = self.renderer.getTexture(self.renderer.bloom_uav5[1]);
+
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "input_buffer";
+        params[0].__union_field3.ppTextures = @ptrCast(&bloom_uav5a);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "result";
+        params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav5b);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.bloom_blur_descriptor_set, params.len, @ptrCast(&params));
+    }
+
+    // Upsample and Blur
+    for (0..4) |buffer_index| {
+        for (0..renderer.Renderer.data_buffer_count) |frame_index| {
+            var params: [4]graphics.DescriptorData = undefined;
+            var upsample_and_blur_constant_buffer = self.renderer.getBuffer(self.upsample_and_blur_constant_buffers[buffer_index][frame_index]);
+            var higher_res_buffer: [*]graphics.Texture = undefined;
+            var lower_res_buffer: [*]graphics.Texture = undefined;
+            var result_buffer: [*]graphics.Texture = undefined;
+            var descriptor_set: [*c]graphics.DescriptorSet = null;
+
+            if (buffer_index == 0) {
+                descriptor_set = self.upsample_and_blur_1_descriptor_set;
+                higher_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav4[0]);
+                lower_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav5[1]);
+                result_buffer = self.renderer.getTexture(self.renderer.bloom_uav4[1]);
+            } else if (buffer_index == 1) {
+                descriptor_set = self.upsample_and_blur_2_descriptor_set;
+                higher_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav3[0]);
+                lower_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav4[1]);
+                result_buffer = self.renderer.getTexture(self.renderer.bloom_uav3[1]);
+            } else if (buffer_index == 2) {
+                descriptor_set = self.upsample_and_blur_3_descriptor_set;
+                higher_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav2[0]);
+                lower_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav3[1]);
+                result_buffer = self.renderer.getTexture(self.renderer.bloom_uav2[1]);
+            } else {
+                descriptor_set = self.upsample_and_blur_4_descriptor_set;
+                higher_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
+                lower_res_buffer = self.renderer.getTexture(self.renderer.bloom_uav2[1]);
+                result_buffer = self.renderer.getTexture(self.renderer.bloom_uav1[1]);
+            }
+
+            params[0] = std.mem.zeroes(graphics.DescriptorData);
+            params[0].pName = "cb0";
+            params[0].__union_field3.ppBuffers = @ptrCast(&upsample_and_blur_constant_buffer);
+            params[1] = std.mem.zeroes(graphics.DescriptorData);
+            params[1].pName = "higher_res_buffer";
+            params[1].__union_field3.ppTextures = @ptrCast(&higher_res_buffer);
+            params[2] = std.mem.zeroes(graphics.DescriptorData);
+            params[2].pName = "lower_res_buffer";
+            params[2].__union_field3.ppTextures = @ptrCast(&lower_res_buffer);
+            params[3] = std.mem.zeroes(graphics.DescriptorData);
+            params[3].pName = "result";
+            params[3].__union_field3.ppTextures = @ptrCast(&result_buffer);
+
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), descriptor_set, params.len, @ptrCast(&params));
+        }
+    }
+
+    for (0..renderer.Renderer.data_buffer_count) |frame_index| {
+        var params: [3]graphics.DescriptorData = undefined;
+        var bloom_extract_constant_buffer = self.renderer.getBuffer(self.apply_bloom_constant_buffers[frame_index]);
+        var bloom_uav1b = self.renderer.getTexture(self.renderer.bloom_uav1[1]);
+
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cb0";
+        params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "bloom_buffer";
+        params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav1b);
+        params[2] = std.mem.zeroes(graphics.DescriptorData);
+        params[2].pName = "scene_color";
+        params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.apply_bloom_descriptor_set, params.len, @ptrCast(&params));
+    }
 }
 
 fn unloadDescriptorSets(user_data: *anyopaque) void {
