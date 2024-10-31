@@ -51,9 +51,9 @@ bool D3D11::create_device(HWND hwnd)
     create_render_target();
 
     m_compute_shader_count = 0;
-    compile_compute_shader(L"shaders/Remap.hlsl", "CSRemap", &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/remap.hlsl", "CSRemap", &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/Square.hlsl", "CSSquare", &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/square.hlsl", "CSSquare", &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/gradient.hlsl", "CSGradient", &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;

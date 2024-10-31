@@ -1,26 +1,26 @@
 cbuffer RemapData : register(b0)
 {
-    float2 from;
-    float2 to;
-    uint buffer_width;
-    uint buffer_height;
+    float2 g_from;
+    float2 g_to;
+    uint g_buffer_width;
+    uint g_buffer_height;
     float2 _padding;
 }
 
-StructuredBuffer<float> InputBuffer : register(t0);
-RWStructuredBuffer<float> OutputBuffer : register(u0);
+StructuredBuffer<float> g_input_buffer : register(t0);
+RWStructuredBuffer<float> g_output_buffer : register(u0);
 
-float Remap(float Value, float2 from, float2 to)
+float Remap(float value, float2 from, float2 to)
 {
-    return to.x + (Value - from.x) * (to.y - to.x) / (from.y - from.x);
+    return to.x + (value - from.x) * (to.y - to.x) / (from.y - from.x);
 }
 
 [numthreads(8, 8, 1)]
-void CSRemap(uint3 DTid : SV_DispatchThreadID)
+void CSRemap(uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
-    if (DTid.x < buffer_width && DTid.y < buffer_height)
+    if (dispatch_thread_id.x < g_buffer_width && dispatch_thread_id.y < g_buffer_height)
     {
-        uint index = DTid.x + DTid.y * buffer_width;
-        OutputBuffer[index] = Remap(InputBuffer[index], from, to);
+        uint index = dispatch_thread_id.x + dispatch_thread_id.y * g_buffer_width;
+        g_output_buffer[index] = Remap(g_input_buffer[index], g_from, g_to);
     }
 }
