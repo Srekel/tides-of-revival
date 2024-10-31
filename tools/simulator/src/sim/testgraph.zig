@@ -137,7 +137,7 @@ fn doNode_generate_landscape_from_image(ctx: *Context) void {
 }
 
 fn doNode_beaches(ctx: *Context) void {
-    nodes.voronoi_contours.voronoiContours(grid);
+    nodes.voronoi.contours(grid);
 
     const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
     const preview_grid_key = "beaches.grid";

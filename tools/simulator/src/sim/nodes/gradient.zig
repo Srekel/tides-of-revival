@@ -36,7 +36,7 @@ pub fn gradient(image_in: types.ImageF32, height_ratio: f32, gradient_out: *type
         }
     }
 
-    // gradient_out.height_min = range_min; // Not sure we want to do this?
+    gradient_out.height_min = range_min;
     gradient_out.height_max = range_max;
 
     // Set corners/edges to be the same as their neighbors

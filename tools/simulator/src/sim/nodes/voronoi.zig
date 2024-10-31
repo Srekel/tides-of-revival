@@ -2,7 +2,7 @@ const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
 });
 
-pub fn voronoiContours(grid: *c_cpp_nodes.Grid) void {
+pub fn contours(grid: *c_cpp_nodes.Grid) void {
     const sites = c_cpp_nodes.jcv_diagram_get_sites(grid.voronoi_grid.?);
     for (0..@intCast(grid.voronoi_grid.*.numsites)) |i| {
         const site = &sites[i];
