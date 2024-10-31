@@ -45,8 +45,8 @@ void CSGradient(uint3 dispatch_thread_id : SV_DispatchThreadID)
             {
                 // NOTE: I'm assuming input and output buffers are the same size
                 uint input_index = (dispatch_thread_id.x + x - 1) + (dispatch_thread_id.y + y - 1) * g_buffer_width;
-                sum.x = s_sobel_filter_x[x][y] * g_input_buffer[input_index] * g_height_ratio;
-                sum.y = s_sobel_filter_y[x][y] * g_input_buffer[input_index] * g_height_ratio;
+                sum.x += s_sobel_filter_x[x][y] * g_input_buffer[input_index] * g_height_ratio;
+                sum.y += s_sobel_filter_y[x][y] * g_input_buffer[input_index] * g_height_ratio;
             }
         }
 
