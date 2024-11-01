@@ -47,6 +47,12 @@ struct ComputeShader : NoCopy
     const char *name;
 };
 
+enum ReduceOperator
+{
+    REDUCE_OPERATOR_MIN = 0,
+    REDUCE_OPERATOR_MAX = 1,
+};
+
 struct ComputeInfo
 {
     unsigned compute_id;
@@ -83,6 +89,7 @@ struct D3D11 : NoCopy
 
     HRESULT create_buffer(D3D11_BUFFER_DESC desc, void *data, const char *debug_name, ID3D11Buffer **out_buffer);
     HRESULT create_constant_buffer(uint32_t buffer_size, void *data, const char *debug_name, ID3D11Buffer **out_buffer);
+    HRESULT update_constant_buffer(uint32_t buffer_size, void *data, ID3D11Buffer *buffer);
     HRESULT create_structured_buffer(uint32_t element_size, uint32_t element_count, void *initial_data, const char *debug_name, ID3D11Buffer **out_buffer);
     HRESULT create_readback_buffer(uint32_t element_size, uint32_t element_count, const char *debug_name, ID3D11Buffer **out_buffer);
     HRESULT create_buffer_srv(ID3D11Buffer *buffer, ID3D11ShaderResourceView **out_srv);
@@ -90,5 +97,6 @@ struct D3D11 : NoCopy
 
     // Higher-level API
     void dispatch_float_shader(ComputeInfo job);
-    void dispatch_float_reduce_shader(ComputeInfo job);
+    void dispatch_float_reduce(ComputeInfo job);
+    void dispatch_float_reduce(ComputeInfo job, ReduceOperator reduce_operator);
 };
