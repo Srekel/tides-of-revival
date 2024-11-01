@@ -151,7 +151,15 @@ void runUI(const SimulatorAPI *api)
 		{
 			EnterCriticalSection(&CriticalSectionDequeue);
 			compute_do_it_now = false;
-			g_d3d11.dispatch_float_shader(compute_job);
+			// NOTE(gmodarelli): 3 is .reduce :P
+			if (compute_job.compute_id == 3)
+			{
+				g_d3d11.dispatch_float_reduce(compute_job);
+			}
+			else
+			{
+				g_d3d11.dispatch_float_shader(compute_job);
+			}
 			LeaveCriticalSection(&CriticalSectionDequeue);
 		}
 		LeaveCriticalSection(&CriticalSectionEnqueue);

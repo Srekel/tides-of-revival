@@ -240,7 +240,22 @@ fn doNode_gradient(ctx: *Context) void {
         .data = std.mem.asBytes(&gradient_data),
     };
     ctx.compute_fn(&compute_info_gradient);
-    nodes.math.rerangify(&gradient_image);
+
+    // Reduce min
+    compute_info_gradient.compute_id = .reduce;
+    compute_info_gradient.compute_operator_id = .min;
+    compute_info_gradient.in = gradient_image.pixels.ptr;
+    compute_info_gradient.out = scratch_image.pixels.ptr;
+    compute_info_gradient.data_size = 0;
+    compute_info_gradient.data = null;
+    ctx.compute_fn(&compute_info_gradient);
+    gradient_image.height_min = scratch_image.pixels[0];
+    // Reduce max
+    compute_info_gradient.compute_operator_id = .max;
+    ctx.compute_fn(&compute_info_gradient);
+    gradient_image.height_max = scratch_image.pixels[0];
+
+    // nodes.math.rerangify(&gradient_image);
     // fbm_trees_image.swap(&scratch_image);
 
     // nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);

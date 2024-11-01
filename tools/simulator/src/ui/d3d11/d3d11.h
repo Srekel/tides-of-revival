@@ -47,15 +47,10 @@ struct ComputeShader : NoCopy
     const char *name;
 };
 
-enum ReduceOperator
-{
-    REDUCE_OPERATOR_MIN = 0,
-    REDUCE_OPERATOR_MAX = 1,
-};
-
 struct ComputeInfo
 {
     unsigned compute_id;
+    unsigned compute_operator_id;
     float *input_datas;
     float *output_datas;
     uint32_t buffer_width;
@@ -98,5 +93,4 @@ struct D3D11 : NoCopy
     // Higher-level API
     void dispatch_float_shader(ComputeInfo job);
     void dispatch_float_reduce(ComputeInfo job);
-    void dispatch_float_reduce(ComputeInfo job, ReduceOperator reduce_operator);
 };

@@ -478,7 +478,7 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     OutputDebugStringA("dispatch_float_shader DONE\n");
 }
 
-void D3D11::dispatch_float_reduce(ComputeInfo job, ReduceOperator reduce_operator)
+void D3D11::dispatch_float_reduce(ComputeInfo job)
 {
     OutputDebugStringA("dispatch_float_reduce START\n");
     assert(m_device);
@@ -523,7 +523,7 @@ void D3D11::dispatch_float_reduce(ComputeInfo job, ReduceOperator reduce_operato
             .m_first_pass = thread_group_x == buffer_size ? 1.0f : 0.0f,
             .m_buffer_width = (uint32_t)buffer_width,
             .m_buffer_height = (uint32_t)buffer_height,
-            .m_operator = (uint32_t)reduce_operator,
+            .m_operator = (uint32_t)job.compute_operator_id,
         };
 
         thread_group_x /= k_parallel_reduction_magic_value;

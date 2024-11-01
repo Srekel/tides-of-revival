@@ -2,10 +2,16 @@ const std = @import("std");
 
 pub const ComputeInfo = extern struct {
     compute_id: enum(u32) {
-        remap,
-        square,
-        gradient,
+        remap = 0,
+        square = 1,
+        gradient = 2,
+        reduce = 3,
     },
+    compute_operator_id: enum(u32) {
+        none = 0,
+        min = 1,
+        max = 2,
+    } = .none,
     in: [*c]f32,
     out: [*c]f32,
     buffer_width: u32,
