@@ -4,6 +4,10 @@ cbuffer constant_buffer_0 : register(b0)
 {
     uint g_thread_group_count_x;
     uint g_thread_group_count_y;
+};
+
+cbuffer constant_buffer_1 : register(b1)
+{
     uint g_buffer_width;
     uint g_buffer_height;
 };

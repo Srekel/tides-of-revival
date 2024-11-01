@@ -6,6 +6,12 @@ cbuffer constant_buffer_0 : register(b0)
     uint g_thread_group_count_x;
 };
 
+cbuffer constant_buffer_1 : register(b1)
+{
+    uint g_buffer_width;
+    uint g_buffer_height;
+};
+
 StructuredBuffer<float> g_input_buffer : register(t0);
 RWStructuredBuffer<float> g_output_buffer : register(u0);
 

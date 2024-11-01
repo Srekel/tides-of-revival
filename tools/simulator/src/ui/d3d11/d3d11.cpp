@@ -1,6 +1,7 @@
 #include "d3d11.h"
 
 #include <assert.h>
+#include <math.h>
 
 void Texture2D::update_content(ID3D11DeviceContext *device_context, unsigned char *data)
 {
@@ -208,53 +209,60 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, const D3D
     return hr;
 }
 
-HRESULT D3D11::create_constant_buffer(uint32_t buffer_size, void *data, ID3D11Buffer **out_buffer)
+HRESULT D3D11::create_buffer(D3D11_BUFFER_DESC desc, void *initial_data, const char *debug_name, ID3D11Buffer **out_buffer)
 {
     *out_buffer = nullptr;
 
-    D3D11_BUFFER_DESC desc = {};
-    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    desc.ByteWidth = buffer_size;
-
-    D3D11_SUBRESOURCE_DATA subresource_data;
-    subresource_data.pSysMem = data;
-    return m_device->CreateBuffer(&desc, &subresource_data, out_buffer);
-}
-
-HRESULT D3D11::create_structured_buffer(uint32_t element_size, uint32_t element_count, void *initial_data, ID3D11Buffer **out_buffer)
-{
-    *out_buffer = nullptr;
-
-    D3D11_BUFFER_DESC desc = {};
-    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
-    desc.ByteWidth = element_size * element_count;
-    desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    desc.StructureByteStride = element_size;
+    HRESULT hr;
 
     if (initial_data)
     {
         D3D11_SUBRESOURCE_DATA subresource_data;
         subresource_data.pSysMem = initial_data;
-        return m_device->CreateBuffer(&desc, &subresource_data, out_buffer);
+        hr = m_device->CreateBuffer(&desc, &subresource_data, out_buffer);
     }
     else
     {
-        return m_device->CreateBuffer(&desc, nullptr, out_buffer);
+        hr = m_device->CreateBuffer(&desc, nullptr, out_buffer);
     }
+
+#if defined(_DEBUG)
+    if (hr == S_OK)
+    {
+        (*out_buffer)->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(debug_name) - 1, debug_name);
+    }
+#endif
+
+    return hr;
 }
 
-HRESULT D3D11::create_readback_buffer(uint32_t element_size, uint32_t element_count, ID3D11Buffer **out_buffer)
+HRESULT D3D11::create_constant_buffer(uint32_t buffer_size, void *initial_data, const char *debug_name, ID3D11Buffer **out_buffer)
 {
-    *out_buffer = nullptr;
+    D3D11_BUFFER_DESC desc = {};
+    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    desc.ByteWidth = buffer_size;
+    return create_buffer(desc, initial_data, debug_name, out_buffer);
+}
 
+HRESULT D3D11::create_structured_buffer(uint32_t element_size, uint32_t element_count, void *initial_data, const char *debug_name, ID3D11Buffer **out_buffer)
+{
+    D3D11_BUFFER_DESC desc = {};
+    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+    desc.ByteWidth = element_size * element_count;
+    desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    desc.StructureByteStride = element_size;
+    return create_buffer(desc, initial_data, debug_name, out_buffer);
+}
+
+HRESULT D3D11::create_readback_buffer(uint32_t element_size, uint32_t element_count, const char *debug_name, ID3D11Buffer **out_buffer)
+{
     D3D11_BUFFER_DESC desc = {};
     desc.ByteWidth = element_size * element_count;
     desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     desc.StructureByteStride = element_size;
     desc.Usage = D3D11_USAGE_STAGING;
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-
-    return m_device->CreateBuffer(&desc, nullptr, out_buffer);
+    return create_buffer(desc, nullptr, debug_name, out_buffer);
 }
 
 HRESULT D3D11::create_buffer_srv(ID3D11Buffer *buffer, ID3D11ShaderResourceView **out_srv)
@@ -340,22 +348,15 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     ID3D11Buffer *output_buffer = nullptr;
     ID3D11Buffer *readback_buffer = nullptr;
 
-    create_constant_buffer(shader_settings_size, shader_settings, &shader_settings_buffer);
-    create_structured_buffer(sizeof(float), buffer_width * buffer_height, (void *)input_data, &input_buffer);
-    create_structured_buffer(sizeof(float), buffer_width * buffer_height, nullptr, &output_buffer);
-    create_readback_buffer(sizeof(float), buffer_width * buffer_height, &readback_buffer);
+    create_constant_buffer(shader_settings_size, shader_settings, "User CB", &shader_settings_buffer);
+    create_structured_buffer(sizeof(float), buffer_width * buffer_height, (void *)input_data, "Input Buffer", &input_buffer);
+    create_structured_buffer(sizeof(float), buffer_width * buffer_height, nullptr, "Output Buffer", &output_buffer);
+    create_readback_buffer(sizeof(float), buffer_width * buffer_height, "Readback Buffer", &readback_buffer);
 
     assert(shader_settings_buffer);
     assert(input_buffer);
     assert(output_buffer);
     assert(readback_buffer);
-
-#if defined(_DEBUG)
-    shader_settings_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Remap Settings Buffer") - 1, "Remap Settings Buffer");
-    input_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Input Buffer") - 1, "Input Buffer");
-    output_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Output Buffer") - 1, "Output Buffer");
-    readback_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Readback Buffer") - 1, "Readback Buffer");
-#endif
 
     ID3D11ShaderResourceView *input_buffer_srv = nullptr;
     ID3D11UnorderedAccessView *output_buffer_uav = nullptr;
@@ -414,4 +415,173 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
         SAFE_RELEASE(readback_buffer);
     }
     OutputDebugStringA("dispatch_float_shader DONE\n");
+}
+
+struct ReduceTo1dShaderSettings
+{
+    uint32_t thread_group_count_x;
+    uint32_t thread_group_count_y;
+};
+
+struct ReduceToSingleShaderSettings
+{
+    uint32_t element_count;
+    uint32_t thread_group_count_x;
+};
+
+void D3D11::dispatch_float_reduce_shader(ComputeInfo job)
+{
+    OutputDebugStringA("dispatch_float_reduce START\n");
+    void *shader_settings = job.shader_settings;
+    size_t shader_settings_size = job.shader_settings_size;
+    int32_t buffer_width = job.buffer_width;
+    int32_t buffer_height = job.buffer_height;
+    float *input_data = &job.input_datas[0];
+    float *output_data = &job.output_datas[0];
+
+    ComputeShader &reduce_to_1d_shader = m_compute_shaders[job.compute_id];
+    ComputeShader &reduce_to_single_shader = m_compute_shaders[job.compute_id + 1];
+    assert(m_device);
+    assert(m_device_context);
+    assert(reduce_to_1d_shader.compute_shader);
+    assert(reduce_to_single_shader.compute_shader);
+
+    assert(input_data);
+    assert(output_data);
+
+    ID3D11Buffer *reduce_to_1d_settings_buffer = nullptr;
+    ID3D11Buffer *reduce_to_single_settings_buffer = nullptr;
+    ID3D11Buffer *shader_settings_buffer = nullptr;
+    ID3D11Buffer *input_buffer = nullptr;
+    ID3D11Buffer *reduction_buffer_0 = nullptr;
+    ID3D11Buffer *reduction_buffer_1 = nullptr;
+    ID3D11Buffer *readback_buffer = nullptr;
+
+    create_constant_buffer(shader_settings_size, shader_settings, "User CB", &shader_settings_buffer);
+    create_structured_buffer(sizeof(float), buffer_width * buffer_height, (void *)input_data, "Input Buffer", &input_buffer);
+    create_structured_buffer(sizeof(float), uint32_t(ceil(buffer_width * buffer_height / (float)reduce_to_1d_shader.thread_group_size[0])), nullptr, "Reduction Buffer 0", &reduction_buffer_0);
+    create_structured_buffer(sizeof(float), uint32_t(ceil(buffer_width * buffer_height / (float)reduce_to_1d_shader.thread_group_size[0])), nullptr, "Reduction Buffer 1", &reduction_buffer_1);
+    create_structured_buffer(sizeof(float), uint32_t(ceil(buffer_width * buffer_height / (float)reduce_to_1d_shader.thread_group_size[0])), nullptr, "Readback Buffer", &readback_buffer);
+
+    assert(shader_settings_buffer);
+    assert(input_buffer);
+    assert(reduction_buffer_0);
+    assert(reduction_buffer_1);
+    assert(readback_buffer);
+
+    uint32_t dimension_x = uint32_t(ceil((buffer_width / (float)reduce_to_1d_shader.thread_group_size[0]) / 2.0f));
+    uint32_t dimension_y = uint32_t(ceil((buffer_height / (float)reduce_to_1d_shader.thread_group_size[1]) / 2.0f));
+
+    ReduceTo1dShaderSettings redute_to_1d_shader_settings = {dimension_x, dimension_y};
+    create_constant_buffer(sizeof(ReduceTo1dShaderSettings), &reduce_to_1d_settings_buffer, "Reduce to 1D CB", &reduce_to_1d_settings_buffer);
+    assert(reduce_to_1d_settings_buffer);
+
+    create_constant_buffer(sizeof(ReduceToSingleShaderSettings), nullptr, "Reduce to Single CB", &reduce_to_single_settings_buffer);
+    assert(reduce_to_single_settings_buffer);
+
+    ID3D11ShaderResourceView *input_buffer_srv = nullptr;
+    create_buffer_srv(input_buffer, &input_buffer_srv);
+    assert(input_buffer_srv);
+
+    ID3D11ShaderResourceView *reduction_buffer_0_srv = nullptr;
+    ID3D11ShaderResourceView *reduction_buffer_1_srv = nullptr;
+    create_buffer_srv(reduction_buffer_0, &reduction_buffer_0_srv);
+    create_buffer_srv(reduction_buffer_1, &reduction_buffer_1_srv);
+    assert(reduction_buffer_0_srv);
+    assert(reduction_buffer_1_srv);
+
+    ID3D11UnorderedAccessView *reduction_buffer_0_uav = nullptr;
+    ID3D11UnorderedAccessView *reduction_buffer_1_uav = nullptr;
+    create_buffer_uav(reduction_buffer_0, &reduction_buffer_0_uav);
+    create_buffer_uav(reduction_buffer_1, &reduction_buffer_1_uav);
+    assert(reduction_buffer_0_uav);
+    assert(reduction_buffer_1_uav);
+
+    // First Pass: reduce input buffer (which contains 2D image data) to 1D
+    {
+        m_device_context->CSSetShader(reduce_to_1d_shader.compute_shader, nullptr, 0);
+        m_device_context->CSSetConstantBuffers(0, 1, &reduce_to_1d_settings_buffer);
+        m_device_context->CSSetConstantBuffers(1, 1, &shader_settings_buffer);
+        m_device_context->CSSetShaderResources(0, 1, &input_buffer_srv);
+        m_device_context->CSSetUnorderedAccessViews(0, 1, &reduction_buffer_0_uav, nullptr);
+        m_device_context->Dispatch(dimension_x, dimension_y, reduce_to_1d_shader.thread_group_size[2]);
+    }
+
+    // Reduction Passes
+    uint32_t reduction_passes = 0;
+    {
+        uint32_t thread_group_count = uint32_t(ceil((dimension_x * dimension_y) / 128.0f));
+        uint32_t element_count = dimension_x * dimension_y;
+
+        if (element_count > 1)
+        {
+            for (;;)
+            {
+                reduction_passes += 1;
+
+                ReduceToSingleShaderSettings reduce_to_single_shader_settings = {element_count, thread_group_count};
+                D3D11_MAPPED_SUBRESOURCE mapped_resource;
+                m_device_context->Map(reduce_to_single_settings_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+                memcpy(mapped_resource.pData, &reduce_to_single_shader_settings, sizeof(reduce_to_single_shader_settings));
+                m_device_context->Unmap(reduce_to_single_settings_buffer, 0);
+
+                m_device_context->CSSetShader(reduce_to_single_shader.compute_shader, nullptr, 0);
+                m_device_context->CSSetConstantBuffers(0, 1, &reduce_to_single_settings_buffer);
+                m_device_context->CSSetConstantBuffers(1, 1, &shader_settings_buffer);
+
+                if (reduction_passes % 2 == 1)
+                {
+                    m_device_context->CSSetShaderResources(0, 1, &reduction_buffer_0_srv);
+                    m_device_context->CSSetUnorderedAccessViews(0, 1, &reduction_buffer_1_uav, nullptr);
+                }
+                else
+                {
+                    m_device_context->CSSetShaderResources(0, 1, &reduction_buffer_1_srv);
+                    m_device_context->CSSetUnorderedAccessViews(0, 1, &reduction_buffer_0_uav, nullptr);
+                }
+
+                m_device_context->Dispatch(thread_group_count, 1, 1);
+
+                element_count = thread_group_count;
+                thread_group_count = uint32_t(ceil(thread_group_count / 128.0f));
+
+                if (element_count == 1)
+                    break;
+            }
+        }
+    }
+
+    // Read back data
+    {
+        m_device_context->CopyResource(readback_buffer, reduction_passes % 2 == 0 ? reduction_buffer_0 : reduction_buffer_1);
+
+        D3D11_MAPPED_SUBRESOURCE subresource = {};
+        subresource.RowPitch = buffer_width * sizeof(float);
+        subresource.DepthPitch = buffer_height * sizeof(float);
+        m_device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
+
+        if (subresource.pData)
+        {
+            memcpy((void *)output_data, subresource.pData, sizeof(float));
+        }
+
+        m_device_context->Unmap(readback_buffer, 0);
+    }
+
+    // Cleanup GPU Resources
+    {
+        SAFE_RELEASE(input_buffer_srv);
+        SAFE_RELEASE(reduction_buffer_0_srv);
+        SAFE_RELEASE(reduction_buffer_0_uav);
+        SAFE_RELEASE(reduction_buffer_1_srv);
+        SAFE_RELEASE(reduction_buffer_1_uav);
+        SAFE_RELEASE(input_buffer);
+        SAFE_RELEASE(reduction_buffer_0);
+        SAFE_RELEASE(reduction_buffer_1);
+        SAFE_RELEASE(readback_buffer);
+        SAFE_RELEASE(shader_settings_buffer);
+        SAFE_RELEASE(reduce_to_1d_settings_buffer);
+        SAFE_RELEASE(reduce_to_single_settings_buffer);
+    }
+    OutputDebugStringA("dispatch_reduce_shader DONE\n");
 }
