@@ -93,4 +93,5 @@ struct D3D11 : NoCopy
     // Higher-level API
     void dispatch_float_shader(ComputeInfo job);
     void dispatch_float_reduce(ComputeInfo job);
+    void dispatch_float_generate(ComputeInfo job);
 };

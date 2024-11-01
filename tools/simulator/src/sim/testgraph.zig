@@ -150,6 +150,16 @@ fn doNode_beaches(ctx: *Context) void {
     ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
 }
 
+const GenerateFBMSettings = extern struct {
+    width: u32,
+    height: u32,
+    seed: i32,
+    frequency: f32,
+    octaves: u32,
+    scale: f32,
+    _padding: [2]f32,
+};
+
 const SquareSettings = extern struct {
     width: u32,
     height: u32,
@@ -175,7 +185,46 @@ var remap_settings = RemapSettings{
 
 var preview_fbm_image = types.ImageRGBA.square(512);
 fn doNode_fbm(ctx: *Context) void {
-    nodes.fbm.fbm(&fbm_settings, &fbm_image);
+    // // CPU FBM
+    // nodes.fbm.fbm(&fbm_settings, &fbm_image);
+
+    // GPU FBM
+    {
+        const generate_fbm_settings = GenerateFBMSettings{
+            .width = @intCast(fbm_image.size.width),
+            .height = @intCast(fbm_image.size.height),
+            .seed = fbm_settings.seed,
+            .frequency = fbm_settings.frequency,
+            .octaves = fbm_settings.octaves,
+            .scale = fbm_settings.scale,
+            ._padding = .{ 0, 0 },
+        };
+
+        var compute_info = graph.ComputeInfo{
+            .compute_id = .fbm,
+            .buffer_width = @intCast(fbm_image.size.width),
+            .buffer_height = @intCast(fbm_image.size.height),
+            .in = null,
+            .out = fbm_image.pixels.ptr,
+            .data_size = @sizeOf(GenerateFBMSettings),
+            .data = std.mem.asBytes(&generate_fbm_settings),
+        };
+        ctx.compute_fn(&compute_info);
+
+        // Reduce min
+        compute_info.compute_id = .reduce;
+        compute_info.compute_operator_id = .min;
+        compute_info.in = fbm_image.pixels.ptr;
+        compute_info.out = scratch_image.pixels.ptr;
+        compute_info.data_size = 0;
+        compute_info.data = null;
+        ctx.compute_fn(&compute_info);
+        fbm_image.height_min = scratch_image.pixels[0];
+        // Reduce max
+        compute_info.compute_operator_id = .max;
+        ctx.compute_fn(&compute_info);
+        fbm_image.height_max = scratch_image.pixels[0];
+    }
 
     remap_settings.from_min = fbm_image.height_min;
     remap_settings.from_max = fbm_image.height_max;
@@ -294,7 +343,46 @@ fn doNode_cities(ctx: *Context) void {
 
 var preview_fbm_trees_image = types.ImageRGBA.square(512);
 fn doNode_fbm_trees(ctx: *Context) void {
-    nodes.fbm.fbm(&fbm_trees_settings, &fbm_trees_image);
+    // CPU FBM
+    // nodes.fbm.fbm(&fbm_trees_settings, &fbm_trees_image);
+
+    // GPU FBM
+    {
+        const generate_fbm_settings = GenerateFBMSettings{
+            .width = @intCast(fbm_trees_image.size.width),
+            .height = @intCast(fbm_trees_image.size.height),
+            .seed = fbm_settings.seed,
+            .frequency = fbm_trees_settings.frequency,
+            .octaves = fbm_trees_settings.octaves,
+            .scale = fbm_trees_settings.scale,
+            ._padding = .{ 0, 0 },
+        };
+
+        var compute_info = graph.ComputeInfo{
+            .compute_id = .fbm,
+            .buffer_width = @intCast(fbm_trees_image.size.width),
+            .buffer_height = @intCast(fbm_trees_image.size.height),
+            .in = null,
+            .out = fbm_trees_image.pixels.ptr,
+            .data_size = @sizeOf(GenerateFBMSettings),
+            .data = std.mem.asBytes(&generate_fbm_settings),
+        };
+        ctx.compute_fn(&compute_info);
+
+        // Reduce min
+        compute_info.compute_id = .reduce;
+        compute_info.compute_operator_id = .min;
+        compute_info.in = fbm_trees_image.pixels.ptr;
+        compute_info.out = scratch_image.pixels.ptr;
+        compute_info.data_size = 0;
+        compute_info.data = null;
+        ctx.compute_fn(&compute_info);
+        fbm_trees_image.height_min = scratch_image.pixels[0];
+        // Reduce max
+        compute_info.compute_operator_id = .max;
+        ctx.compute_fn(&compute_info);
+        fbm_trees_image.height_max = scratch_image.pixels[0];
+    }
 
     remap_settings.from_min = fbm_trees_image.height_min;
     remap_settings.from_max = fbm_trees_image.height_max;

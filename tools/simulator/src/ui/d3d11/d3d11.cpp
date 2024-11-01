@@ -70,6 +70,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/gradient.hlsl", "CSGradient", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    compile_compute_shader(L"shaders/fbm.hlsl", "CSGenerateFBM", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     // Parallel Reduce (Min/Max)
     {
@@ -578,6 +580,75 @@ void D3D11::dispatch_float_reduce(ComputeInfo job)
         SAFE_RELEASE(readback_buffer);
     }
     OutputDebugStringA("dispatch_float_reduce DONE\n");
+}
+
+void D3D11::dispatch_float_generate(ComputeInfo job)
+{
+    OutputDebugStringA("dispatch_float_generate START\n");
+    void *shader_settings = job.shader_settings;
+    size_t shader_settings_size = job.shader_settings_size;
+    int32_t buffer_width = job.buffer_width;
+    int32_t buffer_height = job.buffer_height;
+    float *output_data = &job.output_datas[0];
+
+    ComputeShader &shader = m_compute_shaders[job.compute_id];
+    assert(m_device);
+    assert(m_device_context);
+    assert(shader.compute_shader);
+
+    assert(output_data);
+
+    ID3D11Buffer *shader_settings_buffer = nullptr;
+    ID3D11Buffer *output_buffer = nullptr;
+    ID3D11Buffer *readback_buffer = nullptr;
+
+    create_constant_buffer(shader_settings_size, shader_settings, "User CB", &shader_settings_buffer);
+    create_structured_buffer(sizeof(float), buffer_width * buffer_height, nullptr, "Output Buffer", &output_buffer);
+    create_readback_buffer(sizeof(float), buffer_width * buffer_height, "Readback Buffer", &readback_buffer);
+
+    assert(shader_settings_buffer);
+    assert(output_buffer);
+    assert(readback_buffer);
+
+    ID3D11UnorderedAccessView *output_buffer_uav = nullptr;
+    create_buffer_uav(output_buffer, &output_buffer_uav);
+
+    assert(output_buffer_uav);
+
+    // Run the compute shader
+    {
+        m_device_context->CSSetShader(shader.compute_shader, nullptr, 0);
+        m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
+        m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
+        m_device_context->Dispatch(buffer_width / shader.thread_group_size[0] + 1, buffer_height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
+        cleanup_compute_shader_context(m_device_context);
+    }
+
+    // Read back data
+    {
+        m_device_context->CopyResource(readback_buffer, output_buffer);
+
+        D3D11_MAPPED_SUBRESOURCE subresource = {};
+        subresource.RowPitch = buffer_width * sizeof(float);
+        subresource.DepthPitch = buffer_height * sizeof(float);
+        m_device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
+
+        if (subresource.pData)
+        {
+            memcpy((void *)output_data, subresource.pData, buffer_width * buffer_height * sizeof(float));
+        }
+
+        m_device_context->Unmap(readback_buffer, 0);
+    }
+
+    // Cleanup GPU Resources
+    {
+        SAFE_RELEASE(output_buffer_uav);
+        SAFE_RELEASE(output_buffer);
+        SAFE_RELEASE(shader_settings_buffer);
+        SAFE_RELEASE(readback_buffer);
+    }
+    OutputDebugStringA("dispatch_float_generate DONE\n");
 }
 
 uint32_t get_reduce_compute_id(uint32_t thread_group_x)

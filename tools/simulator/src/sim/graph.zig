@@ -5,7 +5,8 @@ pub const ComputeInfo = extern struct {
         remap = 0,
         square = 1,
         gradient = 2,
-        reduce = 3,
+        fbm = 3,
+        reduce = 4,
     },
     compute_operator_id: enum(u32) {
         none = 0,
