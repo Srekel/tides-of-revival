@@ -53,7 +53,7 @@ const TonemapType = enum(u32) {
 };
 
 const TonemapSettings = struct {
-    tonemap_type: TonemapType = .aces,
+    tonemap_type: TonemapType = .ACES,
 };
 
 // Tonemap Constant Buffer
