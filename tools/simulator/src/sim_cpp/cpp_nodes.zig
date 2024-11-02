@@ -7,15 +7,15 @@ const c_cpp_nodes = @cImport({
 pub const fn_generate_voronoi_map = *const fn (
     map_settings: *const c_cpp_nodes.MapSettings,
     voronoi_settings: *const c_cpp_nodes.VoronoiSettings,
-    grid: *c_cpp_nodes.Grid,
+    grid: *c_cpp_nodes.Voronoi,
 ) callconv(.C) void;
 pub const fn_generate_landscape_from_image = *const fn (
-    grid: *c_cpp_nodes.Grid,
+    grid: *c_cpp_nodes.Voronoi,
     image_path: [*:0]const u8,
 ) callconv(.C) void;
-// const fn_generate_landscape = *const fn (map_settings: *const c_cpp_nodes.MapSettings, grid: *c_cpp_nodes.Grid) callconv(.C) void;
+// const fn_generate_landscape = *const fn (map_settings: *const c_cpp_nodes.MapSettings, grid: *c_cpp_nodes.Voronoi) callconv(.C) void;
 pub const fn_generate_landscape_preview = *const fn (
-    grid: *c_cpp_nodes.Grid,
+    grid: *c_cpp_nodes.Voronoi,
     image_width: c_uint,
     image_height: c_uint,
 ) callconv(.C) [*c]u8;

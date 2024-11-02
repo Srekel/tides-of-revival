@@ -46,9 +46,9 @@ struct Preview
 };
 
 Preview gPreviews[] = {
-	{.name = "GenerateVoronoiMap1.grid", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
-	{.name = "generate_landscape_from_image.grid", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
-	{.name = "beaches.grid", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
+	{.name = "GenerateVoronoiMap1.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
+	{.name = "generate_landscape_from_image.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
+	{.name = "beaches.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
 	{.name = "fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
 	{.name = "heightmap.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},
 	{.name = "heightmap2.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = 512, .height = 512, .channel_count = 4}},

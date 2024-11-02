@@ -26,9 +26,9 @@ pub const VoronoiCellType = enum(u32) {
 };
 
 pub const VoronoiCell = struct {
-    cell_type: VoronoiCellType,
-    noise_value: f32,
-    site: *jcv_site_,
+    cell_type: VoronoiCellType = .NONE,
+    noise_value: f32 = 0,
+    site: ?*jcv_site_ = null,
 };
 
 pub const VoronoiSettings = struct {
@@ -64,22 +64,25 @@ pub fn generate_voronoi_map(voronoi_settings: VoronoiSettings, points: []types.V
 
     assert(voronoi.diagram.numsites > 0);
     voronoi.cells.resize(0) catch unreachable;
-    voronoi.cells.resize(@intCast(voronoi.diagram.numsites)) catch unreachable;
+    voronoi.cells.ensureTotalCapacity(@intCast(voronoi.diagram.numsites)) catch unreachable;
+    // voronoi.cells.resize(@intCast(voronoi.diagram.numsites)) catch unreachable;
+    // @memset(std.mem.sliceAsBytes(voronoi.cells), 0);
+    voronoi.cells.appendNTimesAssumeCapacity(.{}, @intCast(voronoi.diagram.numsites));
 }
 
 pub fn contours(voronoi: *Voronoi) void {
-    const sites = c_cpp_nodes.jcv_diagram_get_sites(voronoi.diagram.?);
+    const sites = c_cpp_nodes.jcv_diagram_get_sites(&voronoi.diagram);
     for (0..@intCast(voronoi.diagram.numsites)) |i| {
         const site = &sites[i];
-        var cell = &voronoi.cells[@intCast(site.index)];
-        if (cell.cell_type == c_cpp_nodes.WATER) {
+        var cell = &voronoi.cells.items[@intCast(site.index)];
+        if (cell.cell_type == .WATER) {
             var edge = site.edges;
             while (edge != null) {
                 if (edge.*.neighbor != null) {
                     const cell_index = edge.*.neighbor.*.index;
-                    const neighbor = &voronoi.cells[@intCast(cell_index)];
-                    if (neighbor.cell_type == c_cpp_nodes.LAND) {
-                        cell.cell_type = c_cpp_nodes.SHORE;
+                    const neighbor = &voronoi.cells.items[@intCast(cell_index)];
+                    if (neighbor.cell_type == .LAND) {
+                        cell.cell_type = .SHORE;
                         break;
                     }
                 }

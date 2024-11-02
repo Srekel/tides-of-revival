@@ -21,23 +21,23 @@ float g_landscapeMountainColor[3] = {0.5f, 0.5f, 0.5f};
 static inline jcv_point remap(const jcv_point *pt, const jcv_point *min, const jcv_point *max, const jcv_point *scale);
 static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_point *v2, unsigned char *image, int width, int height, int nchannels, unsigned char *color);
 
-void generate_landscape_from_image(Grid *grid, const char *image_path)
+void generate_landscape_from_image(Voronoi *grid, const char *image_path)
 {
 	int image_width, image_height, image_channels;
 	stbi_set_flip_vertically_on_load(true);
 	unsigned char *image_data = stbi_load(image_path, &image_width, &image_height, &image_channels, 0);
 	assert(image_data);
 
-	const jcv_site *sites = jcv_diagram_get_sites(grid->voronoi_grid);
-	for (int i = 0; i < grid->voronoi_grid->numsites; ++i)
+	const jcv_site *sites = jcv_diagram_get_sites(&grid->voronoi_grid);
+	for (int i = 0; i < grid->voronoi_grid.numsites; ++i)
 	{
 		const jcv_site *site = &sites[i];
 		VoronoiCell &cell = grid->voronoi_cells[site->index];
 		cell.site = site;
 
 		// P is in the voronoi diagram space, we need to convert it to the image space
-		float uv_x = site->p.x / (float)grid->voronoi_grid->max.x;
-		float uv_y = site->p.y / (float)grid->voronoi_grid->max.y;
+		float uv_x = site->p.x / (float)grid->voronoi_grid.max.x;
+		float uv_y = site->p.y / (float)grid->voronoi_grid.max.y;
 		int image_x = (int)(uv_x * image_width);
 		int image_y = (int)(uv_y * image_height);
 		assert(image_x >= 0 && image_x < image_width);
@@ -65,7 +65,7 @@ void generate_landscape_from_image(Grid *grid, const char *image_path)
 	stbi_image_free(image_data);
 }
 
-void generate_landscape(const MapSettings *settings, Grid *grid)
+void generate_landscape(const VoronoiSettings *settings, Voronoi *grid)
 {
 	// fnl_state noise = fnlCreateState();
 	// noise.noise_type = FNL_NOISE_OPENSIMPLEX2;
@@ -80,7 +80,7 @@ void generate_landscape(const MapSettings *settings, Grid *grid)
 	// center.y = settings->size / 2.0f;
 
 	// const jcv_site *sites = jcv_diagram_get_sites(grid->voronoi_grid);
-	// for (int i = 0; i < grid->voronoi_grid->numsites; ++i)
+	// for (int i = 0; i < grid->voronoi_grid.numsites; ++i)
 	// {
 	// 	const jcv_site *site = &sites[i];
 	// 	VoronoiCell &cell = grid->voronoi_cells[site->index];
@@ -99,7 +99,7 @@ void generate_landscape(const MapSettings *settings, Grid *grid)
 	// 	}
 	// }
 
-	// for (int i = 0; i < grid->voronoi_grid->numsites; ++i)
+	// for (int i = 0; i < grid->voronoi_grid.numsites; ++i)
 	// {
 	// 	const jcv_site *site = &sites[i];
 	// 	VoronoiCell &cell = grid->voronoi_cells[site->index];
@@ -208,7 +208,7 @@ static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_po
 	}
 }
 
-unsigned char *generate_landscape_preview(Grid *grid, uint32_t image_width, uint32_t image_height)
+unsigned char *generate_landscape_preview(Voronoi *grid, uint32_t image_width, uint32_t image_height)
 {
 	size_t imagesize = (size_t)(image_width * image_height * 4);
 	unsigned char *image = (unsigned char *)malloc(imagesize);
@@ -223,8 +223,8 @@ unsigned char *generate_landscape_preview(Grid *grid, uint32_t image_width, uint
 	dimensions.y = (jcv_real)image_height;
 
 	{
-		const jcv_site *sites = jcv_diagram_get_sites(grid->voronoi_grid);
-		for (int i = 0; i < grid->voronoi_grid->numsites; ++i)
+		const jcv_site *sites = jcv_diagram_get_sites(&grid->voronoi_grid);
+		for (int i = 0; i < grid->voronoi_grid.numsites; ++i)
 		{
 			const jcv_site *site = &sites[i];
 			srand((unsigned int)site->index);
@@ -252,13 +252,13 @@ unsigned char *generate_landscape_preview(Grid *grid, uint32_t image_width, uint
 				color_tri[2] = (unsigned char)(g_landscapeShoreColor[2] * 255.0f);
 			}
 
-			jcv_point s = remap(&site->p, &grid->voronoi_grid->min, &grid->voronoi_grid->max, &dimensions);
+			jcv_point s = remap(&site->p, &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);
 
 			const jcv_graphedge *e = site->edges;
 			while (e)
 			{
-				jcv_point p0 = remap(&e->pos[0], &grid->voronoi_grid->min, &grid->voronoi_grid->max, &dimensions);
-				jcv_point p1 = remap(&e->pos[1], &grid->voronoi_grid->min, &grid->voronoi_grid->max, &dimensions);
+				jcv_point p0 = remap(&e->pos[0], &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);
+				jcv_point p1 = remap(&e->pos[1], &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);
 
 				draw_triangle(&s, &p0, &p1, image, image_width, image_width, 4, color_tri);
 				e = e->next;

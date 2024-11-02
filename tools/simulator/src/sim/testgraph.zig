@@ -42,14 +42,13 @@ pub fn getGraph() *const graph.Graph {
 }
 
 const DRY_RUN = true;
-const kilometers = if (DRY_RUN) 16 else 16;
+const kilometers = if (DRY_RUN) 2 else 16;
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
 const world_settings: types.WorldSettings = .{
     .size = world_size,
 };
 
 // IN
-var map_settings: *c_cpp_nodes.MapSettings = undefined;
 
 // OUT
 var voronoi: *nodes.voronoi.Voronoi = undefined;
@@ -82,8 +81,8 @@ var fbm_trees_image: types.ImageF32 = types.ImageF32.square(world_settings.size.
 
 pub fn start(ctx: *Context) void {
     // INITIALIZE IN
-    const name_map_settings = "map";
-    map_settings = @ptrCast(@alignCast(ctx.resources.get(name_map_settings)));
+    // const name_map_settings = "map";
+    // map_settings = @ptrCast(@alignCast(ctx.resources.get(name_map_settings)));
 
     // INITIALIZE OUT
     voronoi = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;
@@ -102,14 +101,14 @@ pub fn start(ctx: *Context) void {
     // INITIALIZE LOCAL
     voronoi_settings.seed = 0;
     voronoi_settings.size = world_size.width;
-    voronoi_settings.radius = 0.05;
+    voronoi_settings.radius = 1;
     voronoi_settings.num_relaxations = 10;
     cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
 
     voronoi_points = @TypeOf(voronoi_points).init(std.heap.c_allocator);
 
     // Start!
-    // ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
+    ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap);
     ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
 }
 
@@ -122,22 +121,35 @@ pub fn exit(ctx: *Context) void {
     // ctx.next_nodes.appendAssumeCapacity(heightmap_output.start);
 }
 
-fn doNode_GenerateVoronoiMap1(ctx: *Context) void {
-    _ = ctx; // autofix
-    nodes.poisson.generate_points(world_size, 100, 1, &voronoi_points);
+fn doNode_GenerateVoronoiMap(ctx: *Context) void {
+    voronoi.* = .{
+        .diagram = .{},
+        .cells = std.ArrayList(nodes.voronoi.VoronoiCell).init(std.heap.c_allocator),
+    };
+
+    nodes.poisson.generate_points(world_size, 50, 1, &voronoi_points);
     nodes.voronoi.generate_voronoi_map(voronoi_settings, voronoi_points.items, voronoi);
 
-    // const preview_grid = cpp_nodes.generate_landscape_preview(voronoi, 512, 512);
-    // const preview_grid_key = "GenerateVoronoiMap1.voronoi";
-    // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+    var c_voronoi = c_cpp_nodes.Voronoi{
+        .voronoi_grid = voronoi.diagram,
+        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
+    };
+    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, 512, 512);
+    const preview_grid_key = "GenerateVoronoiMap1.voronoi";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
-    // ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
+    ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
 }
 
 fn doNode_generate_landscape_from_image(ctx: *Context) void {
-    cpp_nodes.generate_landscape_from_image(voronoi, "content/tides_2.0.png");
+    var c_voronoi = c_cpp_nodes.Voronoi{
+        .voronoi_grid = voronoi.diagram,
+        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
+    };
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(voronoi, 512, 512);
+    cpp_nodes.generate_landscape_from_image(&c_voronoi, "content/tides_2.0.png");
+
+    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, 512, 512);
     const preview_grid_key = "generate_landscape_from_image.voronoi";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
@@ -145,9 +157,14 @@ fn doNode_generate_landscape_from_image(ctx: *Context) void {
 }
 
 fn doNode_beaches(ctx: *Context) void {
-    // nodes.voronoi.contours(voronoi);
+    nodes.voronoi.contours(voronoi);
 
-    const preview_grid = nodes.voronoi.generate_landscape_preview(voronoi, 512, 512);
+    var c_voronoi = c_cpp_nodes.Voronoi{
+        .voronoi_grid = voronoi.diagram,
+        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
+    };
+
+    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, 512, 512);
     const preview_grid_key = "beaches.voronoi";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 

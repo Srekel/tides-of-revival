@@ -28,15 +28,6 @@ fn runSimulation(args: RunSimulationArgs) void {
     const node_count = loaded_graph.getGraph().nodes.len;
     var ctx = &self.ctx;
 
-    // TODO: Move into global graph (?)
-    const c_cpp_nodes = @cImport({
-        @cInclude("world_generator.h");
-    });
-    var map_settings: c_cpp_nodes.MapSettings = .{};
-    map_settings.seed = 100;
-    map_settings.size = 8;
-    ctx.resources.putAssumeCapacity("map", &map_settings);
-
     loaded_graph.start(ctx);
 
     while (ctx.next_nodes.len > 0) {
