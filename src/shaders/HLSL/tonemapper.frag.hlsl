@@ -145,23 +145,47 @@ float3 ACESFilm(float3 x)
     return saturate((x*(a*x + b)) / (x*(c*x + d) + e));
 }
 
-RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s0, binding = 0);
-
-RES(Tex2D(float4), sceneColor, UPDATE_FREQ_NONE, t0, binding = 1);
-
-STRUCT(VsOut)
+cbuffer ConstantBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
-	DATA(float4, Position,  SV_Position);
-	DATA(float2, UV, TEXCOORD0);
+    uint g_tonemap_type;
 };
 
-float4 PS_MAIN( VsOut Input) : SV_TARGET {
-    INIT_MAIN;
+SamplerState g_bilinear_clamp_sampler : register(s0, UPDATE_FREQ_NONE);
+Texture2D<float4> g_scene_color : register(t0, UPDATE_FREQ_PER_FRAME);
+
+struct VsOut
+{
+	float4 Position : SV_Position;
+	float2 UV : TEXCOORD0;
+};
+
+float4 PS_MAIN(VsOut Input) : SV_TARGET {
     float4 Out = float4(0, 0, 0, 1);
 
-    float3 color = SampleLvlTex2D(Get(sceneColor), Get(bilinearClampSampler), Input.UV, 0).rgb;
-    color = ACESFilm(color);
+    float3 color = SampleLvlTex2D(g_scene_color, g_bilinear_clamp_sampler, Input.UV, 0).rgb;
+
+    if (g_tonemap_type == 0)
+    {
+        color = AMDTonemapper(color);
+    }
+    else if (g_tonemap_type == 1)
+    {
+        color = ACESFilm(color);
+    }
+    else if (g_tonemap_type == 2)
+    {
+        color = Uncharted2Tonemap(color);
+    }
+    else if (g_tonemap_type == 3)
+    {
+        color = Reinhard(color);
+    }
+    else if (g_tonemap_type == 4)
+    {
+        color = DX11DSK(color);
+    }
+
     Out.rgb = color;
 
-    RETURN(Out);
+    return Out;
 }

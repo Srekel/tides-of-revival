@@ -14,6 +14,15 @@ const zm = @import("zmath");
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
+// Bloom Settings
+// ==============
+const BloomSettings = struct {
+    bloom_threshold: f32 = 4.0,
+    bloom_strength: f32 = 0.10,
+};
+
+// Bloom Constant Buffers
+// ======================
 const BloomExtractConstantBuffer = struct {
     inverse_output_size: [2]f32,
     bloom_threshold: f32,
@@ -33,9 +42,24 @@ const ApplyBloomConstantBuffer = struct {
     bloom_strength: f32,
 };
 
-const BloomSettings = struct {
-    bloom_threshold: f32 = 4.0,
-    bloom_strength: f32 = 0.10,
+// Tonemap Settings
+// ================
+const TonemapType = enum(u32) {
+    AMD,
+    ACES,
+    Uncharted2,
+    Reinhard,
+    DX11SDK,
+};
+
+const TonemapSettings = struct {
+    tonemap_type: TonemapType = .aces,
+};
+
+// Tonemap Constant Buffer
+// =======================
+const TonemapConstantBuffer = struct {
+    tonemap_type: u32,
 };
 
 pub const PostProcessingRenderPass = struct {
@@ -44,6 +68,7 @@ pub const PostProcessingRenderPass = struct {
     renderer: *renderer.Renderer,
 
     // Bloom
+    // =====
     bloom_settings: BloomSettings,
     bloom_extract_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     downsample_bloom_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -59,6 +84,12 @@ pub const PostProcessingRenderPass = struct {
     upsample_and_blur_3_descriptor_set: [*c]graphics.DescriptorSet,
     upsample_and_blur_4_descriptor_set: [*c]graphics.DescriptorSet,
     apply_bloom_descriptor_set: [*c]graphics.DescriptorSet,
+
+    // Tonemap
+    // =======
+    tonemap_settings: TonemapSettings,
+    tonemap_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    tonemap_descriptor_set: [*c]graphics.DescriptorSet,
 
     pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *PostProcessingRenderPass {
         const bloom_extract_constant_buffers = blk: {
@@ -99,6 +130,15 @@ pub const PostProcessingRenderPass = struct {
             break :blk buffers;
         };
 
+        const tonemap_constant_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(TonemapConstantBuffer);
+            }
+
+            break :blk buffers;
+        };
+
         const pass = allocator.create(PostProcessingRenderPass) catch unreachable;
         pass.* = .{
             .allocator = allocator,
@@ -117,6 +157,9 @@ pub const PostProcessingRenderPass = struct {
             .upsample_and_blur_3_descriptor_set = undefined,
             .upsample_and_blur_4_descriptor_set = undefined,
             .apply_bloom_descriptor_set = undefined,
+            .tonemap_settings = .{},
+            .tonemap_constant_buffers = tonemap_constant_buffers,
+            .tonemap_descriptor_set = undefined,
         };
 
         createDescriptorSets(@ptrCast(pass));
@@ -129,6 +172,12 @@ pub const PostProcessingRenderPass = struct {
         graphics.removeDescriptorSet(self.renderer.renderer, self.bloom_extract_descriptor_set);
         graphics.removeDescriptorSet(self.renderer.renderer, self.downsample_bloom_descriptor_set);
         graphics.removeDescriptorSet(self.renderer.renderer, self.bloom_blur_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_1_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_2_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_3_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_4_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.apply_bloom_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.tonemap_descriptor_set);
         self.allocator.destroy(self);
     }
 };
@@ -302,6 +351,44 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
         }
+
+        // Tonemap
+        {
+            var input_barriers = [_]graphics.RenderTargetBarrier{
+                graphics.RenderTargetBarrier.init(self.renderer.swap_chain.*.ppRenderTargets[self.renderer.swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+            };
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
+            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+            bind_render_targets_desc.mRenderTargetCount = 1;
+            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
+            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.renderer.swap_chain.*.ppRenderTargets[self.renderer.swap_chain_image_index];
+            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+
+            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.renderer.window.frame_buffer_size[0]), @floatFromInt(self.renderer.window.frame_buffer_size[1]), 0.0, 1.0);
+            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.renderer.window.frame_buffer_size[0]), @intCast(self.renderer.window.frame_buffer_size[1]));
+
+            // Update constant buffer
+            {
+                var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
+                constant_buffer_data.tonemap_type = @intFromEnum(self.tonemap_settings.tonemap_type);
+
+                const data = renderer.Slice{
+                    .data = @ptrCast(&constant_buffer_data),
+                    .size = @sizeOf(TonemapConstantBuffer),
+                };
+                self.renderer.updateBuffer(data, TonemapConstantBuffer, self.tonemap_constant_buffers[frame_index]);
+            }
+
+            const pipeline_id = IdLocal.init("tonemapper");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemap_descriptor_set);
+            graphics.cmdDraw(cmd_list, 3, 0);
+        }
     }
 }
 
@@ -353,11 +440,14 @@ fn upsampleAndBlur(
 }
 
 fn renderImGui(user_data: *anyopaque) void {
+    const self: *PostProcessingRenderPass = @ptrCast(@alignCast(user_data));
     if (zgui.collapsingHeader("Bloom", .{})) {
-        const self: *PostProcessingRenderPass = @ptrCast(@alignCast(user_data));
-
         _ = zgui.dragFloat("Threshold", .{ .v = &self.bloom_settings.bloom_threshold, .cfmt = "%.2f", .min = 0.1, .max = 10.0, .speed = 0.1 });
         _ = zgui.dragFloat("Strength", .{ .v = &self.bloom_settings.bloom_strength, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
+    }
+
+    if (zgui.collapsingHeader("Tonemap", .{})) {
+        _ = zgui.comboFromEnum("Type", &self.tonemap_settings.tonemap_type);
     }
 }
 
@@ -391,6 +481,11 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.upsample_and_blur_2_descriptor_set));
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.upsample_and_blur_3_descriptor_set));
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.upsample_and_blur_4_descriptor_set));
+
+    root_signature = self.renderer.getRootSignature(IdLocal.init("tonemapper"));
+    desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+    desc.pRootSignature = root_signature;
+    graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.tonemap_descriptor_set));
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {
@@ -512,6 +607,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         }
     }
 
+    // Apply Bloom
     for (0..renderer.Renderer.data_buffer_count) |frame_index| {
         var params: [3]graphics.DescriptorData = undefined;
         var bloom_extract_constant_buffer = self.renderer.getBuffer(self.apply_bloom_constant_buffers[frame_index]);
@@ -529,6 +625,20 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.apply_bloom_descriptor_set, params.len, @ptrCast(&params));
     }
+
+    // Tonemapper
+    for (0..renderer.Renderer.data_buffer_count) |frame_index| {
+        var tonemap_constant_buffer = self.renderer.getBuffer(self.tonemap_constant_buffers[frame_index]);
+        var params: [2]graphics.DescriptorData = undefined;
+
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "g_scene_color";
+        params[0].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "ConstantBuffer";
+        params[1].__union_field3.ppBuffers = @ptrCast(&tonemap_constant_buffer);
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.tonemap_descriptor_set, params.len, @ptrCast(&params));
+    }
 }
 
 fn unloadDescriptorSets(user_data: *anyopaque) void {
@@ -542,4 +652,5 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
     graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_3_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_4_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.apply_bloom_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tonemap_descriptor_set);
 }

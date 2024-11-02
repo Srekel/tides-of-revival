@@ -59,7 +59,6 @@ pub const Renderer = struct {
     vsync_enabled: bool = false,
     atmosphere_scattering_enabled: bool = true,
     ibl_enabled: bool = true,
-    pp_enabled: bool = true,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -75,7 +74,7 @@ pub const Renderer = struct {
     skybox_pass_profile_token: profiler.ProfileToken = undefined,
     atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
     post_processing_pass_profile_token: profiler.ProfileToken = undefined,
-    tonemap_pass_profile_token: profiler.ProfileToken = undefined,
+    im3d_pass_profile_token: profiler.ProfileToken = undefined,
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
     depth_buffer: [*c]graphics.RenderTarget = null,
@@ -155,13 +154,6 @@ pub const Renderer = struct {
     render_post_processing_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_post_processing_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
-    render_tonemap_pass_user_data: ?*anyopaque = null,
-    render_tonemap_pass_imgui_fn: renderPassImGuiFn = null,
-    render_tonemap_pass_render_fn: renderPassRenderFn = null,
-    render_tonemap_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_tonemap_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_tonemap_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
     render_imgui: bool = false,
     render_ui_pass_user_data: ?*anyopaque = null,
     render_ui_pass_imgui_fn: renderPassImGuiFn = null,
@@ -197,7 +189,6 @@ pub const Renderer = struct {
         self.vsync_enabled = false;
         self.atmosphere_scattering_enabled = true;
         self.ibl_enabled = true;
-        self.pp_enabled = true;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -511,10 +502,6 @@ pub const Renderer = struct {
                 create_descriptor_sets_fn(self.render_post_processing_pass_user_data.?);
             }
 
-            if (self.render_tonemap_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
-            }
-
             if (self.render_ui_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                 create_descriptor_sets_fn(self.render_ui_pass_user_data.?);
             }
@@ -546,10 +533,6 @@ pub const Renderer = struct {
 
         if (self.render_post_processing_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
             prepare_descriptor_sets_fn(self.render_post_processing_pass_user_data.?);
-        }
-
-        if (self.render_tonemap_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_tonemap_pass_user_data.?);
         }
 
         if (self.render_ui_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -622,12 +605,6 @@ pub const Renderer = struct {
                 }
             }
 
-            if (self.render_tonemap_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_tonemap_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
             if (self.render_ui_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_ui_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
@@ -675,7 +652,7 @@ pub const Renderer = struct {
                         zgui.text("\tSkybox Pass: {d}", .{profiler.getGpuProfileAvgTime(self.skybox_pass_profile_token)});
                         zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
                         zgui.text("\tPost Processing Pass: {d}", .{profiler.getGpuProfileAvgTime(self.post_processing_pass_profile_token)});
-                        zgui.text("\tTonemap Pass: {d}", .{profiler.getGpuProfileAvgTime(self.tonemap_pass_profile_token)});
+                        zgui.text("\tIm3D Pass: {d}", .{profiler.getGpuProfileAvgTime(self.im3d_pass_profile_token)});
                         zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
                     }
                 }
@@ -686,7 +663,7 @@ pub const Renderer = struct {
                         _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
                         _ = zgui.checkbox("Atmosphere Scattering", .{ .v = &self.atmosphere_scattering_enabled });
                         _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
-                        _ = zgui.checkbox("Post Processing", .{ .v = &self.pp_enabled });
+                        // _ = zgui.checkbox("Post Processing", .{ .v = &self.pp_enabled });
                     }
                 }
 
@@ -720,16 +697,8 @@ pub const Renderer = struct {
                     }
                 }
 
-                if (self.pp_enabled) {
-                    if (self.render_post_processing_pass_imgui_fn) |render_fn| {
-                        if (self.render_post_processing_pass_user_data) |user_data| {
-                            render_fn(user_data);
-                        }
-                    }
-                }
-
-                if (self.render_tonemap_pass_imgui_fn) |render_fn| {
-                    if (self.render_tonemap_pass_user_data) |user_data| {
+                if (self.render_post_processing_pass_imgui_fn) |render_fn| {
+                    if (self.render_post_processing_pass_user_data) |user_data| {
                         render_fn(user_data);
                     }
                 }
@@ -757,11 +726,10 @@ pub const Renderer = struct {
             graphics.toggleVSync(self.renderer, &self.swap_chain);
         }
 
-        var swap_chain_image_index: u32 = 0;
         {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Acquire Next Image", 0x00_ff_00_00);
             defer trazy_zone1.End();
-            graphics.acquireNextImage(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &swap_chain_image_index);
+            graphics.acquireNextImage(self.renderer, self.swap_chain, self.image_acquired_semaphore, null, &self.swap_chain_image_index);
         }
 
         var elem = self.gpu_cmd_ring.getNextGpuCmdRingElement(true, 1).?;
@@ -941,7 +909,7 @@ pub const Renderer = struct {
         }
 
         // Post Processing
-        if (self.pp_enabled) {
+        {
             self.post_processing_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Post Processing", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
@@ -956,48 +924,12 @@ pub const Renderer = struct {
             profiler.cmdEndGpuTimestampQuery(cmd_list, self.post_processing_pass_profile_token);
         }
 
-        // Tonemap & UI Passes
+        // Im3D Pass
         {
-            self.tonemap_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Tonemap & UI Passes", .{ .bUseMarker = true });
+            self.im3d_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Im3D Pass", .{ .bUseMarker = true });
 
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemap & UI Passes", 0x00_ff_00_00);
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Im3D Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
-
-            if (self.pp_enabled) {
-                var input_barriers = [_]graphics.RenderTargetBarrier{
-                    graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                };
-                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
-            } else {
-                var input_barriers = [_]graphics.RenderTargetBarrier{
-                    graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                    graphics.RenderTargetBarrier.init(self.swap_chain.*.ppRenderTargets[swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                };
-                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
-            }
-
-            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
-            bind_render_targets_desc.mRenderTargetCount = 1;
-            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
-            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-
-            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
-
-            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
-            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
-
-            if (self.render_tonemap_pass_render_fn) |render_fn| {
-                if (self.render_tonemap_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
-                }
-            }
-
-            if (self.render_im3d_pass_render_fn) |render_fn| {
-                if (self.render_im3d_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
-                }
-            }
 
             if (self.render_ui_pass_render_fn) |render_fn| {
                 if (self.render_ui_pass_user_data) |user_data| {
@@ -1005,7 +937,7 @@ pub const Renderer = struct {
                 }
             }
 
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.tonemap_pass_profile_token);
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.im3d_pass_profile_token);
         }
 
         // ImGUI Pass
@@ -1027,7 +959,7 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "End GPU Frame", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            const render_target = self.swap_chain.*.ppRenderTargets[swap_chain_image_index];
+            const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
 
             {
                 var barrier = std.mem.zeroes(graphics.RenderTargetBarrier);
@@ -1066,7 +998,7 @@ pub const Renderer = struct {
                 defer trazy_zone2.End();
 
                 var queue_present_desc: graphics.QueuePresentDesc = undefined;
-                queue_present_desc.mIndex = @intCast(swap_chain_image_index);
+                queue_present_desc.mIndex = @intCast(self.swap_chain_image_index);
                 queue_present_desc.mWaitSemaphoreCount = 1;
                 queue_present_desc.pSwapChain = self.swap_chain;
                 queue_present_desc.ppWaitSemaphores = @ptrCast(&wait_semaphores);
@@ -2786,7 +2718,7 @@ pub const Renderer = struct {
                 shader_load_desc.mFrag.pFileName = "tonemapper.frag";
                 resource_loader.addShader(self.renderer, &shader_load_desc, &shader);
 
-                const static_sampler_names = [_][*c]const u8{"bilinearClampSampler"};
+                const static_sampler_names = [_][*c]const u8{"g_bilinear_clamp_sampler"};
                 var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;

@@ -29,8 +29,6 @@ const atmosphere_render_pass = @import("renderer_system/atmosphere_render_pass.z
 const AtmosphereRenderPass = atmosphere_render_pass.AtmosphereRenderPass;
 const post_processing_render_pass = @import("renderer_system/post_processing_render_pass.zig");
 const PostProcessingRenderPass = post_processing_render_pass.PostProcessingRenderPass;
-const tonemap_render_pass = @import("renderer_system/tonemap_render_pass.zig");
-const TonemapRenderPass = tonemap_render_pass.TonemapRenderPass;
 const ui_render_pass = @import("renderer_system/ui_render_pass.zig");
 const UIRenderPass = ui_render_pass.UIRenderPass;
 const im3d_render_pass = @import("renderer_system/im3d_render_pass.zig");
@@ -52,7 +50,6 @@ pub const SystemState = struct {
     deferred_shading_render_pass: *DeferredShadingRenderPass,
     skybox_render_pass: *SkyboxRenderPass,
     atmosphere_render_pass: *AtmosphereRenderPass,
-    tonemap_render_pass: *TonemapRenderPass,
     ui_render_pass: *UIRenderPass,
     im3d_render_pass: *Im3dRenderPass,
     render_imgui: bool,
@@ -122,13 +119,6 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     ctx.renderer.render_post_processing_pass_unload_descriptor_sets_fn = post_processing_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_post_processing_pass_user_data = post_processing_pass;
 
-    const tonemap_pass = TonemapRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
-    ctx.renderer.render_tonemap_pass_render_fn = tonemap_render_pass.renderFn;
-    ctx.renderer.render_tonemap_pass_create_descriptor_sets_fn = tonemap_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_tonemap_pass_prepare_descriptor_sets_fn = tonemap_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_tonemap_pass_unload_descriptor_sets_fn = tonemap_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_tonemap_pass_user_data = tonemap_pass;
-
     const ui_pass = UIRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_ui_pass_render_fn = ui_render_pass.renderFn;
     ctx.renderer.render_ui_pass_create_descriptor_sets_fn = ui_render_pass.createDescriptorSetsFn;
@@ -153,7 +143,6 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .deferred_shading_render_pass = deferred_shading_pass,
         .skybox_render_pass = skybox_pass,
         .atmosphere_render_pass = atmosphere_pass,
-        .tonemap_render_pass = tonemap_pass,
         .ui_render_pass = ui_pass,
         .im3d_render_pass = im3d_pass,
         .render_imgui = false,
@@ -194,12 +183,6 @@ pub fn destroy(system: *SystemState) void {
     system.renderer.render_atmosphere_pass_prepare_descriptor_sets_fn = null;
     system.renderer.render_atmosphere_pass_unload_descriptor_sets_fn = null;
     system.renderer.render_atmosphere_pass_user_data = null;
-
-    system.tonemap_render_pass.destroy();
-    system.renderer.render_tonemap_pass_render_fn = null;
-    system.renderer.render_tonemap_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_tonemap_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_tonemap_pass_user_data = null;
 
     system.ui_render_pass.destroy();
     system.renderer.render_ui_pass_render_fn = null;
