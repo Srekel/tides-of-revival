@@ -43,20 +43,22 @@ pub fn getGraph() *const graph.Graph {
 
 const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 16 else 16;
+const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
 const world_settings: types.WorldSettings = .{
-    .size = .{ .width = kilometers * 1024, .height = kilometers * 1024 },
+    .size = world_size,
 };
 
 // IN
 var map_settings: *c_cpp_nodes.MapSettings = undefined;
 
 // OUT
-var grid: *c_cpp_nodes.Grid = undefined;
+var voronoi: *nodes.voronoi.Voronoi = undefined;
 var heightmap: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap2: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 
 // LOCAL
-var voronoi_settings: c_cpp_nodes.VoronoiSettings = undefined;
+var voronoi_points: std.ArrayList(types.Vec2) = undefined;
+var voronoi_settings: nodes.voronoi.VoronoiSettings = undefined;
 var fbm_settings = nodes.fbm.FbmSettings{
     .seed = 1,
     .frequency = 0.00025,
@@ -84,7 +86,7 @@ pub fn start(ctx: *Context) void {
     map_settings = @ptrCast(@alignCast(ctx.resources.get(name_map_settings)));
 
     // INITIALIZE OUT
-    grid = std.heap.c_allocator.create(c_cpp_nodes.Grid) catch unreachable;
+    voronoi = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;
     fbm_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     fbm_trees_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
@@ -98,12 +100,13 @@ pub fn start(ctx: *Context) void {
     preview_gradient_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
 
     // INITIALIZE LOCAL
+    voronoi_settings.seed = 0;
+    voronoi_settings.size = world_size.width;
     voronoi_settings.radius = 0.05;
     voronoi_settings.num_relaxations = 10;
     cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
 
-    points = @TypeOf(points).init(std.heap.c_allocator);
-    nodes.poisson.generate_points(1, 1, 1, &points);
+    voronoi_points = @TypeOf(voronoi_points).init(std.heap.c_allocator);
 
     // Start!
     // ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap1);
@@ -114,40 +117,41 @@ pub fn exit(ctx: *Context) void {
     _ = ctx; // autofix
     const name_grid = "voronoigrid";
     _ = name_grid; // autofix
-    // ctx.resources.put(name_grid, &grid);
+    // ctx.resources.put(name_grid, &voronoi);
 
     // ctx.next_nodes.appendAssumeCapacity(heightmap_output.start);
 }
 
 fn doNode_GenerateVoronoiMap1(ctx: *Context) void {
-    cpp_nodes.generate_voronoi_map(map_settings, &voronoi_settings, grid);
+    _ = ctx; // autofix
+    nodes.poisson.generate_points(world_size, 100, 1, &voronoi_points);
+    nodes.voronoi.generate_voronoi_map(voronoi_settings, voronoi_points.items, voronoi);
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
-    const preview_grid_key = "GenerateVoronoiMap1.grid";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+    // const preview_grid = cpp_nodes.generate_landscape_preview(voronoi, 512, 512);
+    // const preview_grid_key = "GenerateVoronoiMap1.voronoi";
+    // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
+    // ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
 }
 
 fn doNode_generate_landscape_from_image(ctx: *Context) void {
-    cpp_nodes.generate_landscape_from_image(grid, "content/tides_2.0.png");
+    cpp_nodes.generate_landscape_from_image(voronoi, "content/tides_2.0.png");
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
-    const preview_grid_key = "generate_landscape_from_image.grid";
+    const preview_grid = cpp_nodes.generate_landscape_preview(voronoi, 512, 512);
+    const preview_grid_key = "generate_landscape_from_image.voronoi";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
     ctx.next_nodes.appendAssumeCapacity(doNode_beaches);
 }
 
-var points: std.ArrayList([2]f32) = undefined;
 fn doNode_beaches(ctx: *Context) void {
-    nodes.voronoi.contours(grid);
+    // nodes.voronoi.contours(voronoi);
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(grid, 512, 512);
-    const preview_grid_key = "beaches.grid";
+    const preview_grid = nodes.voronoi.generate_landscape_preview(voronoi, 512, 512);
+    const preview_grid_key = "beaches.voronoi";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
+    // ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
 }
 
 const GenerateFBMSettings = extern struct {
@@ -179,8 +183,8 @@ var remap_settings = RemapSettings{
     .from_max = undefined,
     .to_min = 0,
     .to_max = 1,
-    .width = kilometers * 1024,
-    .height = kilometers * 1024,
+    .width = world_size.width,
+    .height = world_size.height,
 };
 
 var preview_fbm_image = types.ImageRGBA.square(512);
@@ -275,8 +279,8 @@ const GradientData = extern struct {
 var preview_gradient_image = types.ImageRGBA.square(512);
 fn doNode_gradient(ctx: *Context) void {
     const gradient_data = GradientData{
-        .g_buffer_width = kilometers * 1024,
-        .g_buffer_height = kilometers * 1024,
+        .g_buffer_width = world_size.width,
+        .g_buffer_height = world_size.height,
         .g_height_ratio = 1 / world_settings.terrain_height_max,
     };
     var compute_info_gradient = graph.ComputeInfo{
@@ -403,8 +407,8 @@ fn doNode_fbm_trees(ctx: *Context) void {
     fbm_trees_image.swap(&scratch_image);
 
     const square_settings = SquareSettings{
-        .width = kilometers * 1024,
-        .height = kilometers * 1024,
+        .width = world_size.width,
+        .height = world_size.height,
     };
     var compute_info_square = graph.ComputeInfo{
         .compute_id = .square,

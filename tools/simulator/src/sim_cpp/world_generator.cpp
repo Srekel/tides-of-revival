@@ -13,9 +13,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#define TPH_POISSON_IMPLEMENTATION
-#include "tph_poisson.h"
-
 float g_landscapeWaterColor[3] = {0.0f, 0.58f, 1.0f};
 float g_landscapeLandColor[3] = {0.15f, 0.5f, 0.0f};
 float g_landscapeShoreColor[3] = {1.0f, 0.0f, 0.0f};
@@ -23,43 +20,6 @@ float g_landscapeMountainColor[3] = {0.5f, 0.5f, 0.5f};
 
 static inline jcv_point remap(const jcv_point *pt, const jcv_point *min, const jcv_point *max, const jcv_point *scale);
 static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_point *v2, unsigned char *image, int width, int height, int nchannels, unsigned char *color);
-static void relax_points(const jcv_diagram *diagram, jcv_point *points);
-jcv_point *generate_points(float size, float radius, uint32_t seed, uint32_t *num_points);
-
-void generate_voronoi_map(const MapSettings *map_settings, const VoronoiSettings *voronoi_settings, Grid *grid)
-{
-	uint32_t num_points = 0;
-	jcv_point *points = generate_points(map_settings->size, voronoi_settings->radius, (uint32_t)map_settings->seed, &num_points);
-	if (points)
-	{
-		assert(num_points > 0);
-		jcv_rect bounding_box = {{0.0f, 0.0f}, {map_settings->size, map_settings->size}};
-
-		// Relax points
-		for (int i = 0; i < voronoi_settings->num_relaxations; ++i)
-		{
-			jcv_diagram diagram;
-			memset(&diagram, 0, sizeof(jcv_diagram));
-			jcv_diagram_generate(num_points, (const jcv_point *)points, &bounding_box, 0, &diagram);
-
-			relax_points(&diagram, points);
-
-			jcv_diagram_free(&diagram);
-		}
-
-		// Generate voronoi diagram
-		grid->voronoi_grid = (jcv_diagram *)malloc(sizeof(jcv_diagram));
-		memset(grid->voronoi_grid, 0, sizeof(jcv_diagram));
-		jcv_diagram_generate(num_points, (const jcv_point *)points, &bounding_box, 0, grid->voronoi_grid);
-
-		free(points);
-
-		assert(grid->voronoi_grid->numsites);
-		grid->voronoi_cells = (VoronoiCell *)malloc(sizeof(VoronoiCell) * grid->voronoi_grid->numsites);
-		assert(grid->voronoi_cells);
-		memset(grid->voronoi_cells, 0, sizeof(VoronoiCell) * grid->voronoi_grid->numsites);
-	}
-}
 
 void generate_landscape_from_image(Grid *grid, const char *image_path)
 {
@@ -165,30 +125,6 @@ void generate_landscape(const MapSettings *settings, Grid *grid)
 	// }
 }
 
-void relax_points(const jcv_diagram *diagram, jcv_point *points)
-{
-	const jcv_site *sites = jcv_diagram_get_sites(diagram);
-	for (int i = 0; i < diagram->numsites; ++i)
-	{
-		const jcv_site *site = &sites[i];
-		jcv_point sum = site->p;
-		int count = 1;
-
-		const jcv_graphedge *edge = site->edges;
-
-		while (edge)
-		{
-			sum.x += edge->pos[0].x;
-			sum.y += edge->pos[0].y;
-			++count;
-			edge = edge->next;
-		}
-
-		points[site->index].x = sum.x / (jcv_real)count;
-		points[site->index].y = sum.y / (jcv_real)count;
-	}
-}
-
 static inline jcv_point remap(const jcv_point *pt, const jcv_point *min, const jcv_point *max, const jcv_point *scale)
 {
 	jcv_point p;
@@ -270,41 +206,6 @@ static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_po
 			}
 		}
 	}
-}
-
-jcv_point *generate_points(float size, float radius, uint32_t seed, uint32_t *num_points)
-{
-	const tph_poisson_real bounds_min[2] = {(tph_poisson_real)0, (tph_poisson_real)0};
-	const tph_poisson_real bounds_max[2] = {(tph_poisson_real)size, (tph_poisson_real)size};
-	const tph_poisson_args args = {
-		.bounds_min = bounds_min,
-		.bounds_max = bounds_max,
-		.seed = (uint64_t)seed,
-		.radius = (tph_poisson_real)radius,
-		.ndims = INT32_C(2),
-		.max_sample_attempts = UINT32_C(30),
-	};
-	const tph_poisson_allocator *allocator = NULL;
-
-	tph_poisson_sampling sampling = {.internal = NULL, .nsamples = 0, .ndims = INT32_C(0)};
-	const int ret = tph_poisson_create(&args, allocator, &sampling);
-	if (ret != TPH_POISSON_SUCCESS)
-	{
-		printf("Failed creating Poisson sampling! Error code: %d\n", ret);
-		return NULL;
-	}
-
-	const tph_poisson_real *samples = tph_poisson_get_samples(&sampling);
-	assert(samples != NULL);
-	*num_points = (uint32_t)sampling.nsamples;
-
-	size_t samples_size = sizeof(jcv_point) * sampling.nsamples;
-	jcv_point *points = (jcv_point *)malloc(samples_size);
-	assert(points);
-	memcpy(points, samples, samples_size);
-	tph_poisson_destroy(&sampling);
-
-	return points;
 }
 
 unsigned char *generate_landscape_preview(Grid *grid, uint32_t image_width, uint32_t image_height)

@@ -1,6 +1,14 @@
 const std = @import("std");
 const zm = @import("zmath");
 
+pub const Vec2 = struct {
+    x: f32,
+    y: f32,
+    pub fn asSlice(self: *Vec2) []f32 {
+        return (&self.x)[0..2];
+    }
+};
+
 pub const Size2D = struct {
     width: u64,
     height: u64,

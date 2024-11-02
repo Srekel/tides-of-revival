@@ -16,9 +16,9 @@ const tph_poisson_get_samples = c_cpp_nodes.tph_poisson_get_samples;
 const tph_poisson_destroy = c_cpp_nodes.tph_poisson_destroy;
 const TPH_POISSON_SUCCESS = c_cpp_nodes.TPH_POISSON_SUCCESS;
 
-pub fn generate_points(size: tph_poisson_real, radius: tph_poisson_real, seed: u64, points: *std.ArrayList([2]f32)) void {
+pub fn generate_points(size: types.Size2D, radius: tph_poisson_real, seed: u64, points: *std.ArrayList(types.Vec2)) void {
     const bounds_min = [_]tph_poisson_real{ 0, 0 };
-    const bounds_max = [_]tph_poisson_real{ size, size };
+    const bounds_max = [_]tph_poisson_real{ @floatFromInt(size.width), @floatFromInt(size.height) };
     const args = tph_poisson_args{
         .bounds_min = &bounds_min,
         .bounds_max = &bounds_max,
@@ -41,6 +41,6 @@ pub fn generate_points(size: tph_poisson_real, radius: tph_poisson_real, seed: u
     std.debug.assert(samples != null);
 
     points.ensureTotalCapacity(@intCast(sampling.nsamples)) catch unreachable;
-    points.appendSliceAssumeCapacity(types.castSliceToSlice( [2]f32, samples[0..@intCast(sampling.nsamples * 2)]));
+    points.appendSliceAssumeCapacity(types.castSliceToSlice(types.Vec2, samples[0..@intCast(sampling.nsamples * 2)]));
     tph_poisson_destroy(&sampling);
 }
