@@ -19,6 +19,7 @@ pub const beech_tree_04_id = ID("beech_tree_04");
 pub const bow_id = ID("prefab_bow");
 pub const cube_id = ID("prefab_cube");
 pub const cylinder_id = ID("prefab_cylinder");
+pub const plane_id = ID("prefab_plane");
 pub const debug_sphere_id = ID("prefab_debug_sphere");
 pub const giant_ant_id = ID("prefab_giant_ant");
 pub const matball_id = ID("prefab_matball");
@@ -155,6 +156,16 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var cylinder = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cylinder.bin", cylinder_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         cylinder.setOverride(fd.Dynamic{});
         const static_mesh_component = cylinder.getMut(fd.StaticMesh);
+        if (static_mesh_component) |static_mesh| {
+            static_mesh.material_count = 1;
+            static_mesh.materials[0] = default_material_handle;
+        }
+    }
+
+    {
+        var plane = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_plane.bin", plane_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        plane.setOverride(fd.Dynamic{});
+        const static_mesh_component = plane.getMut(fd.StaticMesh);
         if (static_mesh_component) |static_mesh| {
             static_mesh.material_count = 1;
             static_mesh.materials[0] = default_material_handle;
