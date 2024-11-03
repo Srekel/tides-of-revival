@@ -289,31 +289,9 @@ fn doNode_heightmap(ctx: *Context) void {
 
 var preview_gradient_image = types.ImageRGBA.square(512);
 fn doNode_gradient(ctx: *Context) void {
-    compute.gradient(&heightmap,& gradient_image, 1 / world_settings.terrain_height_max);
-
-    var compute_info_gradient = graph.ComputeInfo{
-        .compute_id = .gradient,
-        .buffer_width = @intCast(heightmap.size.width),
-        .buffer_height = @intCast(heightmap.size.height),
-        .in = heightmap.pixels.ptr,
-        .out = gradient_image.pixels.ptr,
-        .data_size = undefined,
-        .data = undefined,
-    };
-
-    // Reduce min
-    compute_info_gradient.compute_id = .reduce;
-    compute_info_gradient.compute_operator_id = .min;
-    compute_info_gradient.in = gradient_image.pixels.ptr;
-    compute_info_gradient.out = scratch_image.pixels.ptr;
-    compute_info_gradient.data_size = 0;
-    compute_info_gradient.data = null;
-    ctx.compute_fn(&compute_info_gradient);
-    gradient_image.height_min = scratch_image.pixels[0];
-    // Reduce max
-    compute_info_gradient.compute_operator_id = .max;
-    ctx.compute_fn(&compute_info_gradient);
-    gradient_image.height_max = scratch_image.pixels[0];
+    compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
+    compute.min(&gradient_image, &scratch_image);
+    compute.max(&gradient_image, &scratch_image);
 
     // nodes.math.rerangify(&gradient_image);
     // fbm_trees_image.swap(&scratch_image);

@@ -8,13 +8,15 @@ pub const ComputeId = enum(u32) {
     reduce = 4,
 };
 
+pub const ComputeOperatorId = enum(u32) {
+    none = 0,
+    min = 1,
+    max = 2,
+};
+
 pub const ComputeInfo = extern struct {
     compute_id: ComputeId,
-    compute_operator_id: enum(u32) {
-        none = 0,
-        min = 1,
-        max = 2,
-    } = .none,
+    compute_operator_id: ComputeOperatorId = .none,
     in: [*c]f32,
     out: [*c]f32,
     buffer_width: u32,
