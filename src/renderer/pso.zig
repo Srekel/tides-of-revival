@@ -1396,7 +1396,8 @@ pub const PSOManager = struct {
             graphics.removeRootSignature(self.renderer.renderer, root_signature);
             graphics.removeShader(self.renderer.renderer, shader);
         }
-        self.pso_pool.deinit();
+        self.pso_pool.clear();
+        self.pso_map.clearRetainingCapacity();
     }
 };
 
