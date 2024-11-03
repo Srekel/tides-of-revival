@@ -120,24 +120,6 @@ fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
         }
     }
     zgui.end();
-
-    if (zgui.begin("Test Water", .{})) {
-        const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-        if (environment_info.water) |ent| {
-            const pos = ent.get(fd.Transform).?.getPos();
-            var position = [3]f32{pos[0], pos[1], pos[2]};
-
-            if (zgui.dragFloat3("Water Position", .{ .v = &position, .speed = 0.1 })) {
-                var transform = ent.getMut(fd.Transform).?;
-                transform.setPos(position);
-                var positionComponent = ent.getMut(fd.Position).?;
-                positionComponent.x = position[0];
-                positionComponent.y = position[1];
-                positionComponent.z = position[2];
-            }
-        }
-    }
-    zgui.end();
 }
 
 fn updateTransformHierarchy(system: *SystemState, dt: f32) void {
