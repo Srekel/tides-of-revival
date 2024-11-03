@@ -207,46 +207,21 @@ var remap_settings = RemapSettings{
 
 var preview_fbm_image = types.ImageRGBA.square(512);
 fn doNode_fbm(ctx: *Context) void {
-    // // CPU FBM
+    const generate_fbm_settings = GenerateFBMSettings{
+        .width = @intCast(fbm_image.size.width),
+        .height = @intCast(fbm_image.size.height),
+        .seed = fbm_settings.seed,
+        .frequency = fbm_settings.frequency,
+        .octaves = fbm_settings.octaves,
+        .scale = fbm_settings.scale,
+        ._padding = .{ 0, 0 },
+    };
+
+    compute.fbm(&fbm_image, generate_fbm_settings);
+    compute.min(&fbm_image, &scratch_image);
+    compute.max(&fbm_image, &scratch_image);
+
     // nodes.fbm.fbm(&fbm_settings, &fbm_image);
-
-    // GPU FBM
-    {
-        const generate_fbm_settings = GenerateFBMSettings{
-            .width = @intCast(fbm_image.size.width),
-            .height = @intCast(fbm_image.size.height),
-            .seed = fbm_settings.seed,
-            .frequency = fbm_settings.frequency,
-            .octaves = fbm_settings.octaves,
-            .scale = fbm_settings.scale,
-            ._padding = .{ 0, 0 },
-        };
-
-        var compute_info = graph.ComputeInfo{
-            .compute_id = .fbm,
-            .buffer_width = @intCast(fbm_image.size.width),
-            .buffer_height = @intCast(fbm_image.size.height),
-            .in = null,
-            .out = fbm_image.pixels.ptr,
-            .data_size = @sizeOf(GenerateFBMSettings),
-            .data = std.mem.asBytes(&generate_fbm_settings),
-        };
-        ctx.compute_fn(&compute_info);
-
-        // Reduce min
-        compute_info.compute_id = .reduce;
-        compute_info.compute_operator_id = .min;
-        compute_info.in = fbm_image.pixels.ptr;
-        compute_info.out = scratch_image.pixels.ptr;
-        compute_info.data_size = 0;
-        compute_info.data = null;
-        ctx.compute_fn(&compute_info);
-        fbm_image.height_min = scratch_image.pixels[0];
-        // Reduce max
-        compute_info.compute_operator_id = .max;
-        ctx.compute_fn(&compute_info);
-        fbm_image.height_max = scratch_image.pixels[0];
-    }
 
     remap_settings.from_min = fbm_image.height_min;
     remap_settings.from_max = fbm_image.height_max;
