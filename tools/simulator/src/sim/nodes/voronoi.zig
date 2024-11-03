@@ -25,7 +25,7 @@ pub const VoronoiCellType = enum(u32) {
     MOUNTAIN = 4,
 };
 
-pub const VoronoiCell = struct {
+pub const VoronoiCell = extern struct {
     cell_type: VoronoiCellType = .NONE,
     noise_value: f32 = 0,
     site: ?*jcv_site_ = null,
