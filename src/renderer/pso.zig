@@ -35,6 +35,7 @@ pub const PSOManager = struct {
 
     pso_pool: PSOPool = undefined,
     pso_map: PSOMap = undefined,
+    samplers: StaticSamplers = undefined,
 
     pub fn init(self: *PSOManager, renderer: *Renderer, allocator: std.mem.Allocator) !void {
         std.debug.assert(renderer.renderer != null);
@@ -43,6 +44,7 @@ pub const PSOManager = struct {
         self.renderer = renderer;
         self.pso_pool = PSOPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_map = PSOMap.init(allocator);
+        self.samplers = StaticSamplers.init(renderer.renderer);
     }
 
     pub fn exit(self: *PSOManager) void {
@@ -59,6 +61,8 @@ pub const PSOManager = struct {
         }
         self.pso_pool.deinit();
         self.pso_map.deinit();
+
+        self.samplers.exit(self.renderer.renderer);
     }
 
     pub fn getPipeline(self: *PSOManager, id: IdLocal) [*c]graphics.Pipeline {
@@ -110,7 +114,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"sampler_linear_clamp"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_edge};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
@@ -155,7 +159,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"sampler_linear_clamp"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_edge};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
@@ -188,7 +192,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"sampler_linear_clamp"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_edge};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
@@ -248,7 +252,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{"bilinearRepeatSampler"};
-            var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_repeat};
+            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_repeat};
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -304,7 +308,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -348,7 +352,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -397,7 +401,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -439,7 +443,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -481,7 +485,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -530,7 +534,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -579,7 +583,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -621,7 +625,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -663,7 +667,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -712,7 +716,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -761,7 +765,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{ "bilinearRepeatSampler", "bilinearClampSampler", "pointSampler" };
-            var static_samplers = [_][*c]graphics.Sampler{ self.renderer.samplers.bilinear_repeat, self.renderer.samplers.bilinear_clamp_to_edge, self.renderer.samplers.point_clamp_to_edge };
+            var static_samplers = [_][*c]graphics.Sampler{ self.samplers.bilinear_repeat, self.samplers.bilinear_clamp_to_edge, self.samplers.point_clamp_to_edge };
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -808,7 +812,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{"sampler0"};
-            var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_repeat};
+            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_repeat};
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -1037,7 +1041,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"bilinear_clamp_sampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_edge};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
@@ -1069,7 +1073,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"bilinear_clamp_sampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_edge};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
@@ -1127,7 +1131,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"linear_border_sampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_border};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_border};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
@@ -1159,7 +1163,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"linear_clamp_sampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_edge};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
 
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
@@ -1192,7 +1196,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"g_bilinear_clamp_sampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_clamp_to_edge};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_clamp_to_edge};
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
                 root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -1240,7 +1244,7 @@ pub const PSOManager = struct {
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const static_sampler_names = [_][*c]const u8{"bilinearRepeatSampler"};
-            var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.bilinear_repeat};
+            var static_samplers = [_][*c]graphics.Sampler{self.samplers.bilinear_repeat};
             var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
             root_signature_desc.mStaticSamplerCount = static_samplers.len;
             root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -1299,7 +1303,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.skybox};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.skybox};
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
                 root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -1330,7 +1334,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.skybox};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.skybox};
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
                 root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -1361,7 +1365,7 @@ pub const PSOManager = struct {
                 resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
                 const static_sampler_names = [_][*c]const u8{"skyboxSampler"};
-                var static_samplers = [_][*c]graphics.Sampler{self.renderer.samplers.skybox};
+                var static_samplers = [_][*c]graphics.Sampler{self.samplers.skybox};
                 var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
                 root_signature_desc.mStaticSamplerCount = static_samplers.len;
                 root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
@@ -1383,26 +1387,119 @@ pub const PSOManager = struct {
     }
 
     pub fn destroyPipelines(self: *PSOManager) void {
-        self.destroyPipeline(IdLocal.init("skybox"));
-        self.destroyPipeline(IdLocal.init("terrain"));
-        self.destroyPipeline(IdLocal.init("lit"));
-        self.destroyPipeline(IdLocal.init("lit_masked"));
-        self.destroyPipeline(IdLocal.init("deferred"));
-        self.destroyPipeline(IdLocal.init("tonemapper"));
-        self.destroyPipeline(IdLocal.init("ui"));
-        self.destroyPipeline(IdLocal.init("brdf_integration"));
-        self.destroyPipeline(IdLocal.init("compute_irradiance_map"));
-        self.destroyPipeline(IdLocal.init("compute_specular_map"));
+        var pipeline_handles = self.pso_pool.liveHandles();
+        while (pipeline_handles.next()) |handle| {
+            const shader = self.pso_pool.getColumn(handle, .shader) catch unreachable;
+            const root_signature = self.pso_pool.getColumn(handle, .root_signature) catch unreachable;
+            const pipeline = self.pso_pool.getColumn(handle, .pipeline) catch unreachable;
+            graphics.removePipeline(self.renderer.renderer, pipeline);
+            graphics.removeRootSignature(self.renderer.renderer, root_signature);
+            graphics.removeShader(self.renderer.renderer, shader);
+        }
+        self.pso_pool.deinit();
+    }
+};
+
+const StaticSamplers = struct {
+    bilinear_repeat: [*c]graphics.Sampler = null,
+    bilinear_clamp_to_edge: [*c]graphics.Sampler = null,
+    bilinear_clamp_to_border: [*c]graphics.Sampler = null,
+    point_repeat: [*c]graphics.Sampler = null,
+    point_clamp_to_edge: [*c]graphics.Sampler = null,
+    point_clamp_to_border: [*c]graphics.Sampler = null,
+    skybox: [*c]graphics.Sampler = null,
+
+    pub fn init(renderer: [*c]graphics.Renderer) StaticSamplers {
+        var static_samplers = std.mem.zeroes(StaticSamplers);
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+            graphics.addSampler(renderer, &desc, &static_samplers.bilinear_repeat);
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mMinFilter = graphics.FilterType.FILTER_NEAREST;
+            desc.mMagFilter = graphics.FilterType.FILTER_NEAREST;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
+            graphics.addSampler(renderer, &desc, &static_samplers.point_repeat);
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+            graphics.addSampler(renderer, &desc, &static_samplers.bilinear_clamp_to_edge);
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+            graphics.addSampler(renderer, &desc, &static_samplers.bilinear_clamp_to_border);
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mMinFilter = graphics.FilterType.FILTER_NEAREST;
+            desc.mMagFilter = graphics.FilterType.FILTER_NEAREST;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
+            graphics.addSampler(renderer, &desc, &static_samplers.point_clamp_to_edge);
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
+            desc.mMinFilter = graphics.FilterType.FILTER_NEAREST;
+            desc.mMagFilter = graphics.FilterType.FILTER_NEAREST;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
+            graphics.addSampler(renderer, &desc, &static_samplers.point_clamp_to_border);
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+            desc.mMaxAnisotropy = 16.0;
+            graphics.addSampler(renderer, &desc, &static_samplers.skybox);
+        }
+
+        return static_samplers;
     }
 
-    fn destroyPipeline(self: *PSOManager, id: IdLocal) void {
-        const handle = self.pso_map.get(id).?;
-        const shader = self.pso_pool.getColumn(handle, .shader) catch unreachable;
-        const root_signature = self.pso_pool.getColumn(handle, .root_signature) catch unreachable;
-        const pipeline = self.pso_pool.getColumn(handle, .pipeline) catch unreachable;
-        graphics.removePipeline(self.renderer.renderer, pipeline);
-        graphics.removeRootSignature(self.renderer.renderer, root_signature);
-        graphics.removeShader(self.renderer.renderer, shader);
-        self.pso_pool.remove(handle) catch unreachable;
+    pub fn exit(self: *StaticSamplers, renderer: [*c]graphics.Renderer) void {
+        graphics.removeSampler(renderer, self.bilinear_repeat);
+        graphics.removeSampler(renderer, self.bilinear_clamp_to_edge);
+        graphics.removeSampler(renderer, self.bilinear_clamp_to_border);
+        graphics.removeSampler(renderer, self.point_repeat);
+        graphics.removeSampler(renderer, self.point_clamp_to_edge);
+        graphics.removeSampler(renderer, self.point_clamp_to_border);
+        graphics.removeSampler(renderer, self.skybox);
     }
 };

@@ -86,7 +86,6 @@ pub const Renderer = struct {
     // Resolution Independent Render Targets
     transmittance_lut: [*c]graphics.RenderTarget = null,
 
-    samplers: StaticSamplers = undefined,
     vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
 
@@ -245,8 +244,6 @@ pub const Renderer = struct {
         profiler_desc.pRenderer = self.renderer;
         profiler.initProfiler(&profiler_desc);
         self.gpu_profile_token = profiler.initGpuProfiler(self.renderer, self.graphics_queue, "Graphics");
-
-        self.samplers = StaticSamplers.init(self.renderer);
 
         self.vertex_layouts_map = VertexLayoutHashMap.init(allocator);
 
@@ -410,7 +407,6 @@ pub const Renderer = struct {
 
         font.exitFontSystem();
         resource_loader.exitResourceLoaderInterface(self.renderer);
-        self.samplers.exit(self.renderer);
         graphics.exitRenderer(self.renderer);
 
         font.platformExitFontSystem();
@@ -1566,110 +1562,6 @@ pub const Renderer = struct {
 
     fn destroyResolutionIndependentRenderTargets(self: *Renderer) void {
         graphics.removeRenderTarget(self.renderer, self.transmittance_lut);
-    }
-};
-
-const StaticSamplers = struct {
-    bilinear_repeat: [*c]graphics.Sampler = null,
-    bilinear_clamp_to_edge: [*c]graphics.Sampler = null,
-    bilinear_clamp_to_border: [*c]graphics.Sampler = null,
-    point_repeat: [*c]graphics.Sampler = null,
-    point_clamp_to_edge: [*c]graphics.Sampler = null,
-    point_clamp_to_border: [*c]graphics.Sampler = null,
-    skybox: [*c]graphics.Sampler = null,
-
-    pub fn init(renderer: [*c]graphics.Renderer) StaticSamplers {
-        var static_samplers = std.mem.zeroes(StaticSamplers);
-
-        {
-            var desc = std.mem.zeroes(graphics.SamplerDesc);
-            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
-            graphics.addSampler(renderer, &desc, &static_samplers.bilinear_repeat);
-        }
-
-        {
-            var desc = std.mem.zeroes(graphics.SamplerDesc);
-            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mMinFilter = graphics.FilterType.FILTER_NEAREST;
-            desc.mMagFilter = graphics.FilterType.FILTER_NEAREST;
-            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
-            graphics.addSampler(renderer, &desc, &static_samplers.point_repeat);
-        }
-
-        {
-            var desc = std.mem.zeroes(graphics.SamplerDesc);
-            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
-            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
-            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
-            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
-            graphics.addSampler(renderer, &desc, &static_samplers.bilinear_clamp_to_edge);
-        }
-
-        {
-            var desc = std.mem.zeroes(graphics.SamplerDesc);
-            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
-            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
-            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
-            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
-            graphics.addSampler(renderer, &desc, &static_samplers.bilinear_clamp_to_border);
-        }
-
-        {
-            var desc = std.mem.zeroes(graphics.SamplerDesc);
-            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
-            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
-            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_EDGE;
-            desc.mMinFilter = graphics.FilterType.FILTER_NEAREST;
-            desc.mMagFilter = graphics.FilterType.FILTER_NEAREST;
-            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
-            graphics.addSampler(renderer, &desc, &static_samplers.point_clamp_to_edge);
-        }
-
-        {
-            var desc = std.mem.zeroes(graphics.SamplerDesc);
-            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
-            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
-            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_CLAMP_TO_BORDER;
-            desc.mMinFilter = graphics.FilterType.FILTER_NEAREST;
-            desc.mMagFilter = graphics.FilterType.FILTER_NEAREST;
-            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
-            graphics.addSampler(renderer, &desc, &static_samplers.point_clamp_to_border);
-        }
-
-        {
-            var desc = std.mem.zeroes(graphics.SamplerDesc);
-            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
-            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
-            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
-            desc.mMaxAnisotropy = 16.0;
-            graphics.addSampler(renderer, &desc, &static_samplers.skybox);
-        }
-
-        return static_samplers;
-    }
-
-    pub fn exit(self: *StaticSamplers, renderer: [*c]graphics.Renderer) void {
-        graphics.removeSampler(renderer, self.bilinear_repeat);
-        graphics.removeSampler(renderer, self.bilinear_clamp_to_edge);
-        graphics.removeSampler(renderer, self.bilinear_clamp_to_border);
-        graphics.removeSampler(renderer, self.point_repeat);
-        graphics.removeSampler(renderer, self.point_clamp_to_edge);
-        graphics.removeSampler(renderer, self.point_clamp_to_border);
-        graphics.removeSampler(renderer, self.skybox);
     }
 };
 
