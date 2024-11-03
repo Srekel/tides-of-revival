@@ -1,13 +1,15 @@
 const std = @import("std");
 
+pub const ComputeId = enum(u32) {
+    remap = 0,
+    square = 1,
+    gradient = 2,
+    fbm = 3,
+    reduce = 4,
+};
+
 pub const ComputeInfo = extern struct {
-    compute_id: enum(u32) {
-        remap = 0,
-        square = 1,
-        gradient = 2,
-        fbm = 3,
-        reduce = 4,
-    },
+    compute_id: ComputeId,
     compute_operator_id: enum(u32) {
         none = 0,
         min = 1,

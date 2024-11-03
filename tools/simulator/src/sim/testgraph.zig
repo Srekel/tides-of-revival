@@ -7,6 +7,7 @@ const Context = graph.Context;
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
 const nodes = @import("nodes/nodes.zig");
 const types = @import("types.zig");
+const compute = @import("compute.zig");
 
 const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
@@ -286,30 +287,19 @@ fn doNode_heightmap(ctx: *Context) void {
     ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
 }
 
-const GradientData = extern struct {
-    g_buffer_width: u32,
-    g_buffer_height: u32,
-    g_height_ratio: f32,
-    _padding: f32 = 0,
-};
-
 var preview_gradient_image = types.ImageRGBA.square(512);
 fn doNode_gradient(ctx: *Context) void {
-    const gradient_data = GradientData{
-        .g_buffer_width = world_size.width,
-        .g_buffer_height = world_size.height,
-        .g_height_ratio = 1 / world_settings.terrain_height_max,
-    };
+    compute.gradient(&heightmap,& gradient_image, 1 / world_settings.terrain_height_max);
+
     var compute_info_gradient = graph.ComputeInfo{
         .compute_id = .gradient,
         .buffer_width = @intCast(heightmap.size.width),
         .buffer_height = @intCast(heightmap.size.height),
         .in = heightmap.pixels.ptr,
         .out = gradient_image.pixels.ptr,
-        .data_size = @sizeOf(GradientData),
-        .data = std.mem.asBytes(&gradient_data),
+        .data_size = undefined,
+        .data = undefined,
     };
-    ctx.compute_fn(&compute_info_gradient);
 
     // Reduce min
     compute_info_gradient.compute_id = .reduce;
