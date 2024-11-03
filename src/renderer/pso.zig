@@ -1072,160 +1072,45 @@ pub const PSOManager = struct {
         {
             // Bloom Extract
             {
-                const id = IdLocal.init("bloom_extract");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "bloom_extract_and_downsample.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
                 const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
                 const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
+                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
 
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                self.createComputePipeline(IdLocal.init("bloom_extract"), "bloom_extract_and_downsample.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
             }
 
             // Downsample Bloom All
             {
-                const id = IdLocal.init("downsample_bloom_all");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "downsample_bloom_all.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
                 const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
                 const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
+                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
 
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "downsample_bloom_all.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
             }
 
             // Blur
             {
-                const id = IdLocal.init("blur");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "blur.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                const static_sampler_names = [_][*c]const u8{};
+                const static_samplers = [_][*c]graphics.Sampler{};
+                self.createComputePipeline(IdLocal.init("blur"), "blur.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
             }
 
             // Upsample and Blur
             {
-                const id = IdLocal.init("upsample_and_blur");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "upsample_and_blur.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
                 const linear_clamp_border = self.samplers.getSampler(StaticSamplers.linear_clamp_border);
                 const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_border.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_border.sampler };
+                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_border.sampler };
 
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                self.createComputePipeline(IdLocal.init("upsample_and_blur"), "upsample_and_blur.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
             }
 
             // Upsample and Blur
             {
-                const id = IdLocal.init("apply_bloom");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "apply_bloom.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
                 const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
                 const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
+                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
 
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                self.createComputePipeline(IdLocal.init("apply_bloom"), "apply_bloom.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
             }
 
             // Tonemapper
@@ -1336,104 +1221,13 @@ pub const PSOManager = struct {
 
         // IBL Pipelines
         {
-            // BRDF Integration
-            {
-                const id = IdLocal.init("brdf_integration");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
+            const skybox = self.samplers.getSampler(StaticSamplers.skybox);
+            const static_sampler_names = [_][*c]const u8{ @ptrCast(skybox.name) };
+            const static_samplers = [_][*c]graphics.Sampler{ skybox.sampler };
 
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "brdf_integration.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                const skybox = self.samplers.getSampler(StaticSamplers.skybox);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(skybox.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ skybox.sampler };
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
-            }
-
-            // Compute Irradiance Map
-            {
-                const id = IdLocal.init("compute_irradiance_map");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "compute_irradiance_map.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                const skybox = self.samplers.getSampler(StaticSamplers.skybox);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(skybox.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ skybox.sampler };
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
-            }
-
-            // Compute Specular Map
-            {
-                const id = IdLocal.init("compute_specular_map");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "compute_specular_map.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                const skybox = self.samplers.getSampler(StaticSamplers.skybox);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(skybox.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ skybox.sampler };
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
-            }
+            self.createComputePipeline(IdLocal.init("brdf_integration"), "brdf_integration.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
+            self.createComputePipeline(IdLocal.init("compute_irradiance_map"), "compute_irradiance_map.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
+            self.createComputePipeline(IdLocal.init("compute_specular_map"), "compute_specular_map.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
         }
     }
 
@@ -1449,6 +1243,33 @@ pub const PSOManager = struct {
         }
         self.pso_pool.clear();
         self.pso_map.clearRetainingCapacity();
+    }
+
+    fn createComputePipeline(self: *PSOManager, id: IdLocal, shader_name: []const u8, static_samplers: [][*c]graphics.Sampler, static_sampler_names: [][*c]const u8) void {
+        var shader: [*c]graphics.Shader = null;
+        var root_signature: [*c]graphics.RootSignature = null;
+        var pipeline: [*c]graphics.Pipeline = null;
+
+        var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+        shader_load_desc.mComp.pFileName = @ptrCast(shader_name);
+        resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
+
+        var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+        root_signature_desc.mStaticSamplerCount = @intCast(static_samplers.len);
+        root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+        root_signature_desc.ppStaticSamplers = @ptrCast(static_samplers.ptr);
+        root_signature_desc.mShaderCount = 1;
+        root_signature_desc.ppShaders = @ptrCast(&shader);
+        graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+        var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+        pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
+        pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
+        pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
+        graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+        const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+        self.pso_map.put(id, handle) catch unreachable;
     }
 
     fn getDepthStateDesc(depth_write: bool, depth_test: bool, depth_func: graphics.CompareMode) graphics.DepthStateDesc {
