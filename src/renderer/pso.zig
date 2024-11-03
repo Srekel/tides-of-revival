@@ -61,6 +61,7 @@ pub const PSOManager = struct {
         }
         self.pso_pool.deinit();
         self.pso_map.deinit();
+        // self.depth_states_map.deinit();
 
         self.samplers.exit(self.renderer.renderer);
     }
@@ -87,11 +88,6 @@ pub const PSOManager = struct {
 
         var rasterizer_cull_none = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_none.mCullMode = graphics.CullMode.CULL_MODE_NONE;
-
-        var depth_gequal = std.mem.zeroes(graphics.DepthStateDesc);
-        depth_gequal.mDepthWrite = true;
-        depth_gequal.mDepthTest = true;
-        depth_gequal.mDepthFunc = graphics.CompareMode.CMP_GEQUAL;
 
         const pos_uv0_nor_tan_col_vertex_layout = self.renderer.vertex_layouts_map.get(IdLocal.init("pos_uv0_nor_tan_col")).?;
         const pos_uv0_nor_tan_col_uv1_vertex_layout = self.renderer.vertex_layouts_map.get(IdLocal.init("pos_uv0_nor_tan_col_uv1")).?;
@@ -133,10 +129,8 @@ pub const PSOManager = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
                 pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
                 pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
                 pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
                 pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
@@ -226,10 +220,8 @@ pub const PSOManager = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
                 pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
                 pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
                 pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
                 pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
@@ -285,10 +277,8 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
             pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
             pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
@@ -325,13 +315,17 @@ pub const PSOManager = struct {
             root_signature_desc.ppShaders = @ptrCast(&shader);
             graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
 
+
             var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
             pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
             pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -355,8 +349,6 @@ pub const PSOManager = struct {
             var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
             shader_load_desc.mVert.pFileName = "terrain.vert";
             shader_load_desc.mFrag.pFileName = "terrain.frag";
-            // shader_load_desc.mHull.pFilename = "terrain.hull";
-            // shader_load_desc.mDomain.pFilename = "terrain.domain";
             resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
             const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
@@ -384,8 +376,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -429,8 +424,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -474,8 +472,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -526,8 +527,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -578,8 +582,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -623,8 +630,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -668,8 +678,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -720,8 +733,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -772,8 +788,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_gequal;
+
+            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -823,8 +842,6 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -883,16 +900,6 @@ pub const PSOManager = struct {
             rasterizer_state_desc.mScissor = false;
             rasterizer_state_desc.mDepthClampEnable = true;
 
-            var depth_state = std.mem.zeroes(graphics.DepthStateDesc);
-            depth_state.mDepthTest = false;
-            depth_state.mDepthWrite = true;
-            depth_state.mDepthFunc = graphics.CompareMode.CMP_ALWAYS;
-            depth_state.mStencilTest = false;
-            depth_state.mStencilFrontFunc = graphics.CompareMode.CMP_ALWAYS;
-            depth_state.mDepthFrontFail = graphics.StencilOp.STENCIL_OP_KEEP;
-            depth_state.mStencilFrontFail = graphics.StencilOp.STENCIL_OP_KEEP;
-            depth_state.mStencilFrontPass = graphics.StencilOp.STENCIL_OP_KEEP;
-
             var render_targets = [_]graphics.TinyImageFormat{
                 self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat,
             };
@@ -903,8 +910,11 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+
+            var depth_state = getDepthStateDesc(true, false, graphics.CompareMode.CMP_ALWAYS);
             pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
             pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
+
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -935,10 +945,6 @@ pub const PSOManager = struct {
             rasterizer_state_desc.mCullMode = graphics.CullMode.CULL_MODE_NONE;
             rasterizer_state_desc.mFillMode = graphics.FillMode.FILL_MODE_SOLID;
 
-            var depth_state = std.mem.zeroes(graphics.DepthStateDesc);
-            depth_state.mDepthWrite = false;
-            depth_state.mDepthTest = false;
-
             // Points
             {
                 const id = IdLocal.init("im3d_points");
@@ -967,8 +973,6 @@ pub const PSOManager = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_POINT_LIST;
                 pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
                 pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
-                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -1010,8 +1014,6 @@ pub const PSOManager = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_LINE_LIST;
                 pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
                 pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
-                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -1052,8 +1054,6 @@ pub const PSOManager = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
                 pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
                 pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
-                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -1262,8 +1262,6 @@ pub const PSOManager = struct {
                 pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
                 pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
                 pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
-                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
                 pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
                 pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -1323,8 +1321,6 @@ pub const PSOManager = struct {
             pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
             pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
             pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = null;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
             pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
@@ -1453,6 +1449,15 @@ pub const PSOManager = struct {
         }
         self.pso_pool.clear();
         self.pso_map.clearRetainingCapacity();
+    }
+
+    fn getDepthStateDesc(depth_write: bool, depth_test: bool, depth_func: graphics.CompareMode) graphics.DepthStateDesc {
+        var desc = std.mem.zeroes(graphics.DepthStateDesc);
+        desc.mDepthWrite = depth_write;
+        desc.mDepthTest = depth_test;
+        desc.mDepthFunc = depth_func;
+
+        return desc;
     }
 };
 
