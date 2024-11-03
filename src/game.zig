@@ -67,7 +67,8 @@ pub fn run() void {
     main_window.window.setInputMode(.cursor, .disabled);
 
     // Initialize Renderer
-    var renderer_ctx = renderer.Renderer.init(main_window, std.heap.page_allocator) catch unreachable;
+    var renderer_ctx = renderer.Renderer{};
+    renderer_ctx.init(main_window, std.heap.page_allocator) catch unreachable;
     defer renderer_ctx.exit();
     const reload_desc = renderer.ReloadDesc{ .mType = .{ .SHADER = true, .RESIZE = true, .RENDERTARGET = true } };
     renderer_ctx.onLoad(reload_desc) catch unreachable;
