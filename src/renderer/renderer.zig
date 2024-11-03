@@ -47,7 +47,6 @@ pub const Renderer = struct {
     window_height: i32 = 0,
     time: f32 = 0.0,
     vsync_enabled: bool = false,
-    atmosphere_scattering_enabled: bool = true,
     ibl_enabled: bool = true,
 
     swap_chain: [*c]graphics.SwapChain = null,
@@ -64,6 +63,7 @@ pub const Renderer = struct {
     skybox_pass_profile_token: profiler.ProfileToken = undefined,
     atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
     post_processing_pass_profile_token: profiler.ProfileToken = undefined,
+    ui_pass_profile_token: profiler.ProfileToken = undefined,
     im3d_pass_profile_token: profiler.ProfileToken = undefined,
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
@@ -120,13 +120,6 @@ pub const Renderer = struct {
     render_deferred_shading_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
     render_deferred_shading_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
-    render_skybox_pass_user_data: ?*anyopaque = null,
-    render_skybox_pass_imgui_fn: renderPassImGuiFn = null,
-    render_skybox_pass_render_fn: renderPassRenderFn = null,
-    render_skybox_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_skybox_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_skybox_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
     render_atmosphere_pass_user_data: ?*anyopaque = null,
     render_atmosphere_pass_imgui_fn: renderPassImGuiFn = null,
     render_atmosphere_pass_render_fn: renderPassRenderFn = null,
@@ -172,7 +165,6 @@ pub const Renderer = struct {
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
         self.vsync_enabled = false;
-        self.atmosphere_scattering_enabled = true;
         self.ibl_enabled = true;
 
         // Initialize The-Forge systems
@@ -458,10 +450,6 @@ pub const Renderer = struct {
                 create_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
             }
 
-            if (self.render_skybox_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
-            }
-
             if (self.render_atmosphere_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                 create_descriptor_sets_fn(self.render_atmosphere_pass_user_data.?);
             }
@@ -489,10 +477,6 @@ pub const Renderer = struct {
 
         if (self.render_deferred_shading_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
             prepare_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
-        }
-
-        if (self.render_skybox_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_skybox_pass_user_data.?);
         }
 
         if (self.render_atmosphere_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -551,12 +535,6 @@ pub const Renderer = struct {
 
             if (self.render_deferred_shading_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                 if (self.render_deferred_shading_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
-            if (self.render_skybox_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_skybox_pass_user_data) |user_data| {
                     unload_descriptor_sets_fn(user_data);
                 }
             }
@@ -620,6 +598,7 @@ pub const Renderer = struct {
                         zgui.text("\tSkybox Pass: {d}", .{profiler.getGpuProfileAvgTime(self.skybox_pass_profile_token)});
                         zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
                         zgui.text("\tPost Processing Pass: {d}", .{profiler.getGpuProfileAvgTime(self.post_processing_pass_profile_token)});
+                        zgui.text("\tUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.ui_pass_profile_token)});
                         zgui.text("\tIm3D Pass: {d}", .{profiler.getGpuProfileAvgTime(self.im3d_pass_profile_token)});
                         zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
                     }
@@ -629,7 +608,6 @@ pub const Renderer = struct {
                 {
                     if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
                         _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
-                        _ = zgui.checkbox("Atmosphere Scattering", .{ .v = &self.atmosphere_scattering_enabled });
                         _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
                         // _ = zgui.checkbox("Post Processing", .{ .v = &self.pp_enabled });
                     }
@@ -649,12 +627,6 @@ pub const Renderer = struct {
 
                 if (self.render_deferred_shading_pass_imgui_fn) |render_fn| {
                     if (self.render_deferred_shading_pass_user_data) |user_data| {
-                        render_fn(user_data);
-                    }
-                }
-
-                if (self.render_skybox_pass_imgui_fn) |render_fn| {
-                    if (self.render_skybox_pass_user_data) |user_data| {
                         render_fn(user_data);
                     }
                 }
@@ -845,21 +817,13 @@ pub const Renderer = struct {
                 }
             }
 
-            if (!self.atmosphere_scattering_enabled) {
-                if (self.render_skybox_pass_render_fn) |render_fn| {
-                    if (self.render_skybox_pass_user_data) |user_data| {
-                        render_fn(cmd_list, user_data);
-                    }
-                }
-            }
-
             graphics.cmdBindRenderTargets(cmd_list, null);
 
             profiler.cmdEndGpuTimestampQuery(cmd_list, self.deferred_pass_profile_token);
         }
 
         // Atmospheric Scattering Pass
-        if (self.atmosphere_scattering_enabled) {
+        {
             self.atmosphere_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Atmosphere", .{ .bUseMarker = true });
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
@@ -892,6 +856,22 @@ pub const Renderer = struct {
             profiler.cmdEndGpuTimestampQuery(cmd_list, self.post_processing_pass_profile_token);
         }
 
+        // UI Pass
+        {
+            self.ui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "UI Pass", .{ .bUseMarker = true });
+
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "UI Pass", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            if (self.render_ui_pass_render_fn) |render_fn| {
+                if (self.render_ui_pass_user_data) |user_data| {
+                    render_fn(cmd_list, user_data);
+                }
+            }
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.ui_pass_profile_token);
+        }
+
         // Im3D Pass
         {
             self.im3d_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Im3D Pass", .{ .bUseMarker = true });
@@ -899,8 +879,8 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Im3D Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            if (self.render_ui_pass_render_fn) |render_fn| {
-                if (self.render_ui_pass_user_data) |user_data| {
+            if (self.render_im3d_pass_render_fn) |render_fn| {
+                if (self.render_im3d_pass_user_data) |user_data| {
                     render_fn(cmd_list, user_data);
                 }
             }

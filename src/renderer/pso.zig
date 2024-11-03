@@ -28,6 +28,22 @@ pub const masked_pipelines = [_]IdLocal{
 const PSOPool = Pool(16, 16, graphics.Shader, struct { shader: [*c]graphics.Shader, root_signature: [*c]graphics.RootSignature, pipeline: [*c]graphics.Pipeline });
 const PSOHandle = PSOPool.Handle;
 const PSOMap = std.AutoHashMap(IdLocal, PSOHandle);
+const BlendStates = std.AutoHashMap(IdLocal, graphics.BlendStateDesc);
+
+const GraphicsPipelineDesc = struct {
+    id: IdLocal = undefined,
+    vert_shader_name: []const u8 = undefined,
+    frag_shader_name: []const u8 = undefined,
+    geom_shader_name: ?[]const u8 = null,
+    topology: graphics.PrimitiveTopology = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST,
+    vertex_layout_id: ?IdLocal = null,
+    render_targets: []graphics.TinyImageFormat = undefined,
+    rasterizer_state: ?graphics.RasterizerStateDesc = null,
+    depth_state: ?graphics.DepthStateDesc = null,
+    depth_format: ?graphics.TinyImageFormat = null,
+    blend_state: ?graphics.BlendStateDesc = null,
+    sampler_ids: []IdLocal = undefined,
+};
 
 pub const PSOManager = struct {
     allocator: std.mem.Allocator = undefined,
@@ -35,6 +51,7 @@ pub const PSOManager = struct {
 
     pso_pool: PSOPool = undefined,
     pso_map: PSOMap = undefined,
+    blend_states: BlendStates = undefined,
     samplers: StaticSamplers = undefined,
 
     pub fn init(self: *PSOManager, renderer: *Renderer, allocator: std.mem.Allocator) !void {
@@ -44,7 +61,10 @@ pub const PSOManager = struct {
         self.renderer = renderer;
         self.pso_pool = PSOPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_map = PSOMap.init(allocator);
+        self.blend_states = BlendStates.init(allocator);
         self.samplers = StaticSamplers.create(renderer.renderer, allocator);
+
+        self.createBlendStates();
     }
 
     pub fn exit(self: *PSOManager) void {
@@ -61,9 +81,108 @@ pub const PSOManager = struct {
         }
         self.pso_pool.deinit();
         self.pso_map.deinit();
-        // self.depth_states_map.deinit();
+        self.blend_states.deinit();
 
         self.samplers.exit(self.renderer.renderer);
+    }
+
+    fn createBlendStates(self: *PSOManager) void {
+        {
+            const id = IdLocal.init("bs_transparent");
+            var desc = std.mem.zeroes(graphics.BlendStateDesc);
+            desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
+            desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
+            desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_ALL;
+            desc.mAlphaToCoverage = false;
+            desc.mIndependentBlend = false;
+            self.blend_states.put(id, desc) catch unreachable;
+        }
+
+        {
+            const id = IdLocal.init("bs_premultiplied");
+            var desc = std.mem.zeroes(graphics.BlendStateDesc);
+            desc.mSrcFactors[0] = graphics.BlendConstant.BC_ONE;
+            desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
+            desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_ALL;
+            desc.mAlphaToCoverage = false;
+            desc.mIndependentBlend = false;
+            self.blend_states.put(id, desc) catch unreachable;
+        }
+
+        {
+            // TODO(gmodarelli): Find out what type of blending this is :)
+            const id = IdLocal.init("bs_atmosphere");
+            var desc = std.mem.zeroes(graphics.BlendStateDesc);
+            desc.mSrcFactors[0] = graphics.BlendConstant.BC_ONE;
+            desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
+            desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
+            desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_ALL;
+            desc.mAlphaToCoverage = false;
+            desc.mIndependentBlend = false;
+            self.blend_states.put(id, desc) catch unreachable;
+        }
+
+        {
+            const id = IdLocal.init("bs_additive");
+            var desc = std.mem.zeroes(graphics.BlendStateDesc);
+            desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
+            desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE;
+            desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
+            desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
+            desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_ALL;
+            desc.mAlphaToCoverage = false;
+            desc.mIndependentBlend = false;
+            self.blend_states.put(id, desc) catch unreachable;
+        }
+
+        {
+            const id = IdLocal.init("bs_multiply");
+            var desc = std.mem.zeroes(graphics.BlendStateDesc);
+            desc.mSrcFactors[0] = graphics.BlendConstant.BC_DST_COLOR;
+            desc.mDstFactors[0] = graphics.BlendConstant.BC_ZERO;
+            desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_DST_ALPHA;
+            desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
+            desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_ALL;
+            desc.mAlphaToCoverage = false;
+            desc.mIndependentBlend = false;
+            self.blend_states.put(id, desc) catch unreachable;
+        }
+
+        {
+            // TODO(gmodarelli): Find out what type of blending this is :)
+            const id = IdLocal.init("bs_im3d");
+            var desc = std.mem.zeroes(graphics.BlendStateDesc);
+            desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
+            desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
+            desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
+            desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
+            desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
+            desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
+            desc.mIndependentBlend = false;
+            self.blend_states.put(id, desc) catch unreachable;
+        }
     }
 
     pub fn getPipeline(self: *PSOManager, id: IdLocal) [*c]graphics.Pipeline {
@@ -89,1145 +208,337 @@ pub const PSOManager = struct {
         var rasterizer_cull_none = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_none.mCullMode = graphics.CullMode.CULL_MODE_NONE;
 
-        const pos_uv0_nor_tan_col_vertex_layout = self.renderer.vertex_layouts_map.get(IdLocal.init("pos_uv0_nor_tan_col")).?;
-        const pos_uv0_nor_tan_col_uv1_vertex_layout = self.renderer.vertex_layouts_map.get(IdLocal.init("pos_uv0_nor_tan_col_uv1")).?;
-        const pos_uv0_col_vertex_layout = self.renderer.vertex_layouts_map.get(IdLocal.init("pos_uv0_col")).?;
-        const im3d_vertex_layout = self.renderer.vertex_layouts_map.get(IdLocal.init("im3d")).?;
-        const imgui_vertex_layout = self.renderer.vertex_layouts_map.get(IdLocal.init("imgui")).?;
+        var rasterizer_imgui = std.mem.zeroes(graphics.RasterizerStateDesc);
+        rasterizer_imgui.mCullMode = graphics.CullMode.CULL_MODE_NONE;
+        rasterizer_imgui.mFrontFace = graphics.FrontFace.FRONT_FACE_CW;
+        rasterizer_imgui.mDepthClampEnable = true;
 
         // Atmosphere Scattering
         {
             // Transmittance LUT
             {
-                const id = IdLocal.init("transmittance_lut");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mVert.pFileName = "screen_triangle.vert";
-                shader_load_desc.mFrag.pFileName = "render_transmittance_lut.frag";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var render_targets = [_]graphics.TinyImageFormat{atmosphere_render_pass.transmittance_lut_format};
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{atmosphere_render_pass.transmittance_lut_format};
+                const desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("transmittance_lut"),
+                    .vert_shader_name = "screen_triangle.vert",
+                    .frag_shader_name = "render_transmittance_lut.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_none,
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
             }
 
             // Multi Scattering
             {
-                const id = IdLocal.init("multi_scattering");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mComp.pFileName = "render_multi_scattering.comp";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_COMPUTE;
-                pipeline_desc.__union_field1.mComputeDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mComputeDesc.pRootSignature = root_signature;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                self.createComputePipeline(IdLocal.init("multi_scattering"), "render_multi_scattering.comp", &sampler_ids);
             }
 
             // Sky Ray Marching
             {
-                const id = IdLocal.init("sky_ray_marching");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mVert.pFileName = "screen_triangle.vert";
-                shader_load_desc.mFrag.pFileName = "render_ray_marching.frag";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
-
-                // Premultiply Alpha
-                var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
-                blend_state_desc.mAlphaToCoverage = false;
-                blend_state_desc.mIndependentBlend = false;
-                blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_ONE;
-                blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
-                blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
-                blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
-                blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
-                blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
-                blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
-                blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_ALL;
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                const desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("sky_ray_marching"),
+                    .vert_shader_name = "screen_triangle.vert",
+                    .frag_shader_name = "render_ray_marching.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_none,
+                    .blend_state = self.blend_states.get(IdLocal.init("bs_additive")).?,
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
             }
-        }
-
-        // Skybox
-        {
-            const id = IdLocal.init("skybox");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "skybox.vert";
-            shader_load_desc.mFrag.pFileName = "skybox.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
-
-            var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
-            blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_DST_ALPHA;
-            blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_DST_ALPHA;
-            blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
-            blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
-            blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
-            blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
-            blend_state_desc.mIndependentBlend = false;
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
         }
 
         // Shadows Terrain
         {
-            const id = IdLocal.init("shadows_terrain");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{};
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "shadows_terrain.vert";
-            shader_load_desc.mFrag.pFileName = "shadows_terrain.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("shadows_terrain"),
+                .vert_shader_name = "shadows_terrain.vert",
+                .frag_shader_name = "shadows_terrain.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_col"),
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
         }
 
         // Terrain
         {
-            const id = IdLocal.init("terrain");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "terrain.vert";
-            shader_load_desc.mFrag.pFileName = "terrain.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{
                 self.renderer.gbuffer_0.*.mFormat,
                 self.renderer.gbuffer_1.*.mFormat,
                 self.renderer.gbuffer_2.*.mFormat,
             };
 
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("terrain"),
+                .vert_shader_name = "terrain.vert",
+                .frag_shader_name = "terrain.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_col"),
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
         }
 
         // Shadows Lit
         {
-            const id = IdLocal.init("shadows_lit");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{};
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "shadows_lit.vert";
-            shader_load_desc.mFrag.pFileName = "shadows_lit_opaque.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
+            var desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("shadows_lit"),
+                .vert_shader_name = "shadows_lit.vert",
+                .frag_shader_name = "shadows_lit_opaque.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
 
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
-        }
-
-        // Shadows Lit Masked
-        {
-            const id = IdLocal.init("shadows_lit_masked");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "shadows_lit.vert";
-            shader_load_desc.mFrag.pFileName = "shadows_lit_masked.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            desc.id = IdLocal.init("shadows_lit_masked");
+            desc.frag_shader_name = "shadows_lit_masked.frag";
+            desc.rasterizer_state = rasterizer_cull_none;
+            self.createGraphicsPipeline(desc);
         }
 
         // Lit
         {
-            const id = IdLocal.init("lit");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "lit.vert";
-            shader_load_desc.mFrag.pFileName = "lit_opaque.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{
                 self.renderer.gbuffer_0.*.mFormat,
                 self.renderer.gbuffer_1.*.mFormat,
                 self.renderer.gbuffer_2.*.mFormat,
             };
 
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
-        }
-
-        // Lit Masked
-        {
-            const id = IdLocal.init("lit_masked");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "lit.vert";
-            shader_load_desc.mFrag.pFileName = "lit_masked.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.gbuffer_0.*.mFormat,
-                self.renderer.gbuffer_1.*.mFormat,
-                self.renderer.gbuffer_2.*.mFormat,
+            var desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("lit"),
+                .vert_shader_name = "lit.vert",
+                .frag_shader_name = "lit_opaque.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
+                .sampler_ids = &sampler_ids,
             };
+            self.createGraphicsPipeline(desc);
 
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            desc.id = IdLocal.init("lit_masked");
+            desc.frag_shader_name = "lit_masked.frag";
+            desc.rasterizer_state = rasterizer_cull_none;
+            self.createGraphicsPipeline(desc);
         }
 
         // Shadows Tree
         {
-            const id = IdLocal.init("shadows_tree");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{};
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "shadows_tree.vert";
-            shader_load_desc.mFrag.pFileName = "shadows_tree_opaque.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
+            var desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("shadows_tree"),
+                .vert_shader_name = "shadows_tree.vert",
+                .frag_shader_name = "shadows_tree_opaque.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
 
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
-        }
-
-        // Shadows Tree Masked
-        {
-            const id = IdLocal.init("shadows_tree_masked");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "shadows_tree.vert";
-            shader_load_desc.mFrag.pFileName = "shadows_tree_masked.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = 0;
-
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            desc.id = IdLocal.init("shadows_tree_masked");
+            desc.frag_shader_name = "shadows_tree_masked.frag";
+            desc.rasterizer_state = rasterizer_cull_none;
+            self.createGraphicsPipeline(desc);
         }
 
         // Tree
         {
-            const id = IdLocal.init("tree");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "tree.vert";
-            shader_load_desc.mFrag.pFileName = "tree_opaque.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{
                 self.renderer.gbuffer_0.*.mFormat,
                 self.renderer.gbuffer_1.*.mFormat,
                 self.renderer.gbuffer_2.*.mFormat,
             };
 
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_back;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
-        }
-
-        // Tree Masked
-        {
-            const id = IdLocal.init("tree_masked");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "tree.vert";
-            shader_load_desc.mFrag.pFileName = "tree_masked.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.gbuffer_0.*.mFormat,
-                self.renderer.gbuffer_1.*.mFormat,
-                self.renderer.gbuffer_2.*.mFormat,
+            var desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("tree"),
+                .vert_shader_name = "tree.vert",
+                .frag_shader_name = "tree_opaque.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
+                .sampler_ids = &sampler_ids,
             };
+            self.createGraphicsPipeline(desc);
 
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-
-            var depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = self.renderer.depth_buffer.*.mFormat;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&pos_uv0_nor_tan_col_uv1_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            desc.id = IdLocal.init("tree_masked");
+            desc.frag_shader_name = "tree_masked.frag";
+            desc.rasterizer_state = rasterizer_cull_none;
+            self.createGraphicsPipeline(desc);
         }
 
         // Deferred
         {
-            const id = IdLocal.init("deferred");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{ self.renderer.scene_color.*.mFormat };
 
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "fullscreen.vert";
-            shader_load_desc.mFrag.pFileName = "deferred_shading.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-            const point_clamp_edge = self.samplers.getSampler(StaticSamplers.point_clamp_edge);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name), @ptrCast(linear_clamp_edge.name), @ptrCast(point_clamp_edge.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler, linear_clamp_edge.sampler, point_clamp_edge.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.scene_color.*.mFormat,
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("deferred"),
+                .vert_shader_name = "fullscreen.vert",
+                .frag_shader_name = "deferred_shading.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_none,
+                .sampler_ids = &sampler_ids,
             };
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            self.createGraphicsPipeline(desc);
         }
 
         // ImGUI Pipeline
         {
-            const id = IdLocal.init("imgui");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat };
+            var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
+            const depth_state = getDepthStateDesc(true, false, graphics.CompareMode.CMP_ALWAYS);
 
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "imgui.vert";
-            shader_load_desc.mFrag.pFileName = "imgui.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
-            blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
-            blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
-            blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE;
-            blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
-            blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
-            blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
-            blend_state_desc.mIndependentBlend = false;
-
-            var rasterizer_state_desc = std.mem.zeroes(graphics.RasterizerStateDesc);
-            rasterizer_state_desc.mCullMode = graphics.CullMode.CULL_MODE_NONE;
-            rasterizer_state_desc.mDepthBias = 0;
-            rasterizer_state_desc.mSlopeScaledDepthBias = 0.0;
-            rasterizer_state_desc.mFillMode = graphics.FillMode.FILL_MODE_SOLID;
-            rasterizer_state_desc.mFrontFace = graphics.FrontFace.FRONT_FACE_CW;
-            rasterizer_state_desc.mMultiSample = false;
-            rasterizer_state_desc.mScissor = false;
-            rasterizer_state_desc.mDepthClampEnable = true;
-
-            var render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat,
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("imgui"),
+                .vert_shader_name = "imgui.vert",
+                .frag_shader_name = "imgui.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_imgui,
+                .blend_state = self.blend_states.get(IdLocal.init("bs_transparent")).?,
+                .depth_state = depth_state,
+                .vertex_layout_id = IdLocal.init("imgui"),
+                .sampler_ids = &sampler_ids,
             };
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-
-            var depth_state = getDepthStateDesc(true, false, graphics.CompareMode.CMP_ALWAYS);
-            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = &depth_state;
-            pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = graphics.TinyImageFormat.UNDEFINED;
-
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&imgui_vertex_layout);
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            self.createGraphicsPipeline(desc);
         }
 
         // Im3d Pipelines
         {
-            var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
-            blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
-            blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
-            blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
-            blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
-            blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
-            blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
-            blend_state_desc.mIndependentBlend = false;
-
-            var rasterizer_state_desc = std.mem.zeroes(graphics.RasterizerStateDesc);
-            rasterizer_state_desc.mCullMode = graphics.CullMode.CULL_MODE_NONE;
-            rasterizer_state_desc.mFillMode = graphics.FillMode.FILL_MODE_SOLID;
+            var sampler_ids = [_]IdLocal{};
+            var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
 
             // Points
-            {
-                const id = IdLocal.init("im3d_points");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mVert.pFileName = "im3d_points_lines.vert";
-                shader_load_desc.mGeom.pFileName = "im3d_points.geom";
-                shader_load_desc.mFrag.pFileName = "im3d_points.frag";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var render_targets = [_]graphics.TinyImageFormat{
-                    self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat,
-                };
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_POINT_LIST;
-                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&im3d_vertex_layout);
-                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
-                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
-            }
-
+            var desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("im3d_points"),
+                .topology = graphics.PrimitiveTopology.PRIMITIVE_TOPO_POINT_LIST,
+                .vert_shader_name = "im3d_points_lines.vert",
+                .geom_shader_name = "im3d_points.geom",
+                .frag_shader_name = "im3d_points.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_none,
+                .blend_state = self.blend_states.get(IdLocal.init("bs_im3d")).?,
+                .vertex_layout_id = IdLocal.init("im3d"),
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
             // Lines
-            {
-                const id = IdLocal.init("im3d_lines");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mVert.pFileName = "im3d_points_lines.vert";
-                shader_load_desc.mGeom.pFileName = "im3d_lines.geom";
-                shader_load_desc.mFrag.pFileName = "im3d_lines.frag";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var render_targets = [_]graphics.TinyImageFormat{
-                    self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat,
-                };
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_LINE_LIST;
-                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&im3d_vertex_layout);
-                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
-                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
-            }
-
+            desc.id = IdLocal.init("im3d_lines");
+            desc.topology = graphics.PrimitiveTopology.PRIMITIVE_TOPO_LINE_LIST;
+            desc.geom_shader_name = "im3d_lines.geom";
+            desc.frag_shader_name = "im3d_lines.frag";
+            self.createGraphicsPipeline(desc);
             // Triangles
-            {
-                const id = IdLocal.init("im3d_triangles");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mVert.pFileName = "im3d_triangles.vert";
-                shader_load_desc.mFrag.pFileName = "im3d_triangles.frag";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var render_targets = [_]graphics.TinyImageFormat{
-                    self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat,
-                };
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&im3d_vertex_layout);
-                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_state_desc;
-                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
-            }
+            desc.id = IdLocal.init("im3d_triangles");
+            desc.topology = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
+            desc.vert_shader_name = "im3d_triangles.vert";
+            desc.geom_shader_name = null;
+            desc.frag_shader_name = "im3d_triangles.frag";
+            self.createGraphicsPipeline(desc);
         }
 
         // Post Processing
         {
-            // Bloom Extract
+            // Bloom
             {
-                const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
+                {
+                    var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                    self.createComputePipeline(IdLocal.init("bloom_extract"), "bloom_extract_and_downsample.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "downsample_bloom_all.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("apply_bloom"), "apply_bloom.comp", &sampler_ids);
+                }
 
-                self.createComputePipeline(IdLocal.init("bloom_extract"), "bloom_extract_and_downsample.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
+                {
+                    var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_border };
+                    self.createComputePipeline(IdLocal.init("upsample_and_blur"), "upsample_and_blur.comp", &sampler_ids);
+                }
+
+                {
+                    var sampler_ids = [_]IdLocal{};
+                    self.createComputePipeline(IdLocal.init("blur"),"blur.comp", &sampler_ids);
+                }
             }
 
-            // Downsample Bloom All
+            // Tonemap
             {
-                const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
-
-                self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "downsample_bloom_all.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
-            }
-
-            // Blur
-            {
-                const static_sampler_names = [_][*c]const u8{};
-                const static_samplers = [_][*c]graphics.Sampler{};
-                self.createComputePipeline(IdLocal.init("blur"), "blur.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
-            }
-
-            // Upsample and Blur
-            {
-                const linear_clamp_border = self.samplers.getSampler(StaticSamplers.linear_clamp_border);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_border.name) };
-                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_border.sampler };
-
-                self.createComputePipeline(IdLocal.init("upsample_and_blur"), "upsample_and_blur.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
-            }
-
-            // Upsample and Blur
-            {
-                const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                const static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
-
-                self.createComputePipeline(IdLocal.init("apply_bloom"), "apply_bloom.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
-            }
-
-            // Tonemapper
-            {
-                const id = IdLocal.init("tonemapper");
-                var shader: [*c]graphics.Shader = null;
-                var root_signature: [*c]graphics.RootSignature = null;
-                var pipeline: [*c]graphics.Pipeline = null;
-
-                var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-                shader_load_desc.mVert.pFileName = "fullscreen.vert";
-                shader_load_desc.mFrag.pFileName = "tonemapper.frag";
-                resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-                const linear_clamp_edge = self.samplers.getSampler(StaticSamplers.linear_clamp_edge);
-                const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_clamp_edge.name) };
-                var static_samplers = [_][*c]graphics.Sampler{ linear_clamp_edge.sampler };
-
-                var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-                root_signature_desc.mStaticSamplerCount = static_samplers.len;
-                root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-                root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-                root_signature_desc.mShaderCount = 1;
-                root_signature_desc.ppShaders = @ptrCast(&shader);
-                graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-                var render_targets = [_]graphics.TinyImageFormat{
-                    self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat,
+                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
+                var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
+                const desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("tonemap"),
+                    .vert_shader_name = "fullscreen.vert",
+                    .frag_shader_name = "tonemap.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_none,
+                    .sampler_ids = &sampler_ids,
                 };
-
-                var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-                pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-                pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-                pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-                pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-                pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-                pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-                pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-                pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
-                pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-                pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = null;
-                graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-                const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-                self.pso_map.put(id, handle) catch unreachable;
+                self.createGraphicsPipeline(desc);
             }
         }
 
         // UI
         {
-            const id = IdLocal.init("ui");
-            var shader: [*c]graphics.Shader = null;
-            var root_signature: [*c]graphics.RootSignature = null;
-            var pipeline: [*c]graphics.Pipeline = null;
-
-            var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
-            shader_load_desc.mVert.pFileName = "ui.vert";
-            shader_load_desc.mFrag.pFileName = "ui.frag";
-            resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
-
-            const linear_repeat = self.samplers.getSampler(StaticSamplers.linear_repeat);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(linear_repeat.name) };
-            var static_samplers = [_][*c]graphics.Sampler{ linear_repeat.sampler };
-
-            var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-            root_signature_desc.mStaticSamplerCount = static_samplers.len;
-            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
-            root_signature_desc.mShaderCount = 1;
-            root_signature_desc.ppShaders = @ptrCast(&shader);
-            graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
-
-            var render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat,
+            var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
+            var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("ui"),
+                .vert_shader_name = "ui.vert",
+                .frag_shader_name = "ui.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_none,
+                .blend_state = self.blend_states.get(IdLocal.init("bs_premultiplied")).?,
+                .sampler_ids = &sampler_ids,
             };
-
-            var blend_state_desc = std.mem.zeroes(graphics.BlendStateDesc);
-            blend_state_desc.mBlendModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mBlendAlphaModes[0] = graphics.BlendMode.BM_ADD;
-            blend_state_desc.mSrcFactors[0] = graphics.BlendConstant.BC_SRC_ALPHA;
-            blend_state_desc.mDstFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
-            blend_state_desc.mSrcAlphaFactors[0] = graphics.BlendConstant.BC_ONE_MINUS_SRC_ALPHA;
-            blend_state_desc.mDstAlphaFactors[0] = graphics.BlendConstant.BC_ZERO;
-            blend_state_desc.mColorWriteMasks[0] = graphics.ColorMask.COLOR_MASK_ALL;
-            blend_state_desc.mRenderTargetMask = graphics.BlendStateTargets.BLEND_STATE_TARGET_0;
-            blend_state_desc.mIndependentBlend = false;
-
-            var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
-            pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
-            pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
-            pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST;
-            pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = render_targets.len;
-            pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(&render_targets);
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
-            pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
-            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = null;
-            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = &rasterizer_cull_none;
-            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = &blend_state_desc;
-            graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
-
-            const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
-            self.pso_map.put(id, handle) catch unreachable;
+            self.createGraphicsPipeline(desc);
         }
 
         // IBL Pipelines
         {
-            const skybox = self.samplers.getSampler(StaticSamplers.skybox);
-            const static_sampler_names = [_][*c]const u8{ @ptrCast(skybox.name) };
-            const static_samplers = [_][*c]graphics.Sampler{ skybox.sampler };
-
-            self.createComputePipeline(IdLocal.init("brdf_integration"), "brdf_integration.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
-            self.createComputePipeline(IdLocal.init("compute_irradiance_map"), "compute_irradiance_map.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
-            self.createComputePipeline(IdLocal.init("compute_specular_map"), "compute_specular_map.comp", @constCast(&static_samplers), @constCast(&static_sampler_names));
+            var sampler_ids = [_]IdLocal{ StaticSamplers.skybox };
+            self.createComputePipeline(IdLocal.init("brdf_integration"), "brdf_integration.comp", &sampler_ids);
+            self.createComputePipeline(IdLocal.init("compute_irradiance_map"), "compute_irradiance_map.comp", &sampler_ids);
+            self.createComputePipeline(IdLocal.init("compute_specular_map"), "compute_specular_map.comp", &sampler_ids);
         }
     }
 
@@ -1245,7 +556,80 @@ pub const PSOManager = struct {
         self.pso_map.clearRetainingCapacity();
     }
 
-    fn createComputePipeline(self: *PSOManager, id: IdLocal, shader_name: []const u8, static_samplers: [][*c]graphics.Sampler, static_sampler_names: [][*c]const u8) void {
+    fn createGraphicsPipeline(self: *PSOManager, desc: GraphicsPipelineDesc) void {
+        var shader: [*c]graphics.Shader = null;
+        var root_signature: [*c]graphics.RootSignature = null;
+        var pipeline: [*c]graphics.Pipeline = null;
+
+        var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+        shader_load_desc.mVert.pFileName = @ptrCast(desc.vert_shader_name);
+        shader_load_desc.mFrag.pFileName = @ptrCast(desc.frag_shader_name);
+        if (desc.geom_shader_name) |shader_name| {
+            shader_load_desc.mGeom.pFileName = @ptrCast(shader_name);
+        }
+        resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
+
+        var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+        root_signature_desc.mShaderCount = 1;
+        root_signature_desc.ppShaders = @ptrCast(&shader);
+
+        if (desc.sampler_ids.len > 0) {
+            var static_sampler_names = std.mem.zeroes([8][*c]const u8);
+            var static_samplers = std.mem.zeroes([8][*c]graphics.Sampler);
+
+            for (0..desc.sampler_ids.len) |i| {
+                const sampler = self.samplers.getSampler(desc.sampler_ids[i]);
+                static_sampler_names[i] = @ptrCast(sampler.name);
+                static_samplers[i] = sampler.sampler;
+            }
+
+            root_signature_desc.mStaticSamplerCount = @intCast(desc.sampler_ids.len);
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+        }
+
+        graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+        var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+        pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_GRAPHICS;
+        pipeline_desc.__union_field1.mGraphicsDesc = std.mem.zeroes(graphics.GraphicsPipelineDesc);
+        pipeline_desc.__union_field1.mGraphicsDesc.mPrimitiveTopo = desc.topology;
+        pipeline_desc.__union_field1.mGraphicsDesc.mRenderTargetCount = @intCast(desc.render_targets.len);
+        pipeline_desc.__union_field1.mGraphicsDesc.pColorFormats = @ptrCast(desc.render_targets.ptr);
+
+        if (desc.depth_state) |state| {
+            pipeline_desc.__union_field1.mGraphicsDesc.pDepthState = @constCast(&state);
+            if (desc.depth_format) |format| {
+                pipeline_desc.__union_field1.mGraphicsDesc.mDepthStencilFormat = format;
+            }
+        }
+
+        pipeline_desc.__union_field1.mGraphicsDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+        pipeline_desc.__union_field1.mGraphicsDesc.mSampleQuality = 0;
+
+        pipeline_desc.__union_field1.mGraphicsDesc.pRootSignature = root_signature;
+        pipeline_desc.__union_field1.mGraphicsDesc.pShaderProgram = shader;
+
+        if (desc.vertex_layout_id) |layout_id| {
+            const vertex_layout = self.renderer.vertex_layouts_map.get(layout_id).?;
+            pipeline_desc.__union_field1.mGraphicsDesc.pVertexLayout = @constCast(&vertex_layout);
+        }
+
+        if (desc.rasterizer_state) |state| {
+            pipeline_desc.__union_field1.mGraphicsDesc.pRasterizerState = @constCast(&state);
+        }
+
+        if (desc.blend_state) |state| {
+            pipeline_desc.__union_field1.mGraphicsDesc.pBlendState = @constCast(&state);
+        }
+
+        graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+        const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+        self.pso_map.put(desc.id, handle) catch unreachable;
+    }
+
+    fn createComputePipeline(self: *PSOManager, id: IdLocal, shader_name: []const u8, sampler_ids: []IdLocal) void {
         var shader: [*c]graphics.Shader = null;
         var root_signature: [*c]graphics.RootSignature = null;
         var pipeline: [*c]graphics.Pipeline = null;
@@ -1255,11 +639,24 @@ pub const PSOManager = struct {
         resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
 
         var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
-        root_signature_desc.mStaticSamplerCount = @intCast(static_samplers.len);
-        root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
-        root_signature_desc.ppStaticSamplers = @ptrCast(static_samplers.ptr);
         root_signature_desc.mShaderCount = 1;
         root_signature_desc.ppShaders = @ptrCast(&shader);
+
+        if (sampler_ids.len > 0) {
+            var static_sampler_names = std.mem.zeroes([8][*c]const u8);
+            var static_samplers = std.mem.zeroes([8][*c]graphics.Sampler);
+
+            for (0..sampler_ids.len) |i| {
+                const sampler = self.samplers.getSampler(sampler_ids[i]);
+                static_sampler_names[i] = @ptrCast(sampler.name);
+                static_samplers[i] = sampler.sampler;
+            }
+
+            root_signature_desc.mStaticSamplerCount = @intCast(sampler_ids.len);
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+        }
+
         graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
 
         var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);

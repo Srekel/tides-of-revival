@@ -23,8 +23,6 @@ const geometry_render_pass = @import("renderer_system/geometry_render_pass.zig")
 const GeometryRenderPass = geometry_render_pass.GeometryRenderPass;
 const deferred_shading_render_pass = @import("renderer_system/deferred_shading_render_pass.zig");
 const DeferredShadingRenderPass = deferred_shading_render_pass.DeferredShadingRenderPass;
-const skybox_render_pass = @import("renderer_system/skybox_render_pass.zig");
-const SkyboxRenderPass = skybox_render_pass.SkyboxRenderPass;
 const atmosphere_render_pass = @import("renderer_system/atmosphere_render_pass.zig");
 const AtmosphereRenderPass = atmosphere_render_pass.AtmosphereRenderPass;
 const post_processing_render_pass = @import("renderer_system/post_processing_render_pass.zig");
@@ -48,7 +46,6 @@ pub const SystemState = struct {
     terrain_render_pass: *TerrainRenderPass,
     geometry_render_pass: *GeometryRenderPass,
     deferred_shading_render_pass: *DeferredShadingRenderPass,
-    skybox_render_pass: *SkyboxRenderPass,
     atmosphere_render_pass: *AtmosphereRenderPass,
     ui_render_pass: *UIRenderPass,
     im3d_render_pass: *Im3dRenderPass,
@@ -96,13 +93,6 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     ctx.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = deferred_shading_render_pass.unloadDescriptorSetsFn;
     ctx.renderer.render_deferred_shading_pass_user_data = deferred_shading_pass;
 
-    const skybox_pass = SkyboxRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
-    ctx.renderer.render_skybox_pass_render_fn = skybox_render_pass.renderFn;
-    ctx.renderer.render_skybox_pass_create_descriptor_sets_fn = skybox_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_skybox_pass_prepare_descriptor_sets_fn = skybox_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_skybox_pass_unload_descriptor_sets_fn = skybox_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_skybox_pass_user_data = skybox_pass;
-
     const atmosphere_pass = AtmosphereRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
     ctx.renderer.render_atmosphere_pass_render_fn = atmosphere_render_pass.renderFn;
     ctx.renderer.render_atmosphere_pass_imgui_fn = atmosphere_render_pass.renderImGuiFn;
@@ -141,7 +131,6 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .terrain_render_pass = terrain_pass,
         .geometry_render_pass = geometry_pass,
         .deferred_shading_render_pass = deferred_shading_pass,
-        .skybox_render_pass = skybox_pass,
         .atmosphere_render_pass = atmosphere_pass,
         .ui_render_pass = ui_pass,
         .im3d_render_pass = im3d_pass,
@@ -171,12 +160,6 @@ pub fn destroy(system: *SystemState) void {
     system.renderer.render_deferred_shading_pass_prepare_descriptor_sets_fn = null;
     system.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = null;
     system.renderer.render_deferred_shading_pass_user_data = null;
-
-    system.skybox_render_pass.destroy();
-    system.renderer.render_skybox_pass_render_fn = null;
-    system.renderer.render_skybox_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_skybox_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_skybox_pass_user_data = null;
 
     system.atmosphere_render_pass.destroy();
     system.renderer.render_atmosphere_pass_render_fn = null;

@@ -382,7 +382,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 self.renderer.updateBuffer(data, TonemapConstantBuffer, self.tonemap_constant_buffers[frame_index]);
             }
 
-            const pipeline_id = IdLocal.init("tonemapper");
+            const pipeline_id = IdLocal.init("tonemap");
             const pipeline = self.renderer.getPSO(pipeline_id);
 
             graphics.cmdBindPipeline(cmd_list, pipeline);
@@ -482,7 +482,7 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.upsample_and_blur_3_descriptor_set));
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.upsample_and_blur_4_descriptor_set));
 
-    root_signature = self.renderer.getRootSignature(IdLocal.init("tonemapper"));
+    root_signature = self.renderer.getRootSignature(IdLocal.init("tonemap"));
     desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
     desc.pRootSignature = root_signature;
     graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.tonemap_descriptor_set));
