@@ -4,11 +4,11 @@
 #include "../FSL/d3d.h"
 #include "../FSL/ShaderUtilities.h.fsl"
 
-CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
+cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
 {
-	DATA(float4x4, projView,          None);
-	DATA(float4x4, projViewInverted,  None);
-	DATA(float4,   camPos,            None);
+	float4x4 g_proj_view_mat;
+	float4x4 g_inv_proj_view_mat;
+	float4   g_cam_pos;
 };
 
 RES(TexCube(float4), skyboxMap, UPDATE_FREQ_NONE, t0, binding = 0);

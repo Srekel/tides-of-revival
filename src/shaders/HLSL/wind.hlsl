@@ -11,16 +11,16 @@
 
 #define FLT_EPSILON 1.192092896e-07
 
-CBUFFER(cbWind, UPDATE_FREQ_PER_FRAME, WIND_CBUFFER_REG, binding = WIND_CBUFFER_BINDING)
+cbuffer cbWind : register(WIND_CBUFFER_REG, UPDATE_FREQ_PER_FRAME)
 {
-	DATA(float4, windWorldDirectionAndSpeed, None);
-	DATA(float, windFlexNoiseScale, None);
-	DATA(float, windTurbulence, None);
-	DATA(float, windGustSpeed, None);
-	DATA(float, windGustScale, None);
-	DATA(float, windGustWorldScale, None);
-    DATA(uint, windNoiseTextureIndex, None);
-    DATA(uint, windGustTextureIndex, None);
+	float4 g_wind_world_dir_speed;
+	float g_wind_flex_noise_scale;
+	float g_wind_turbulence;
+	float g_wind_gust_speed;
+	float g_wind_gust_scale;
+	float g_wind_gust_world_scale;
+    uint g_wind_noise_texture_index;
+    uint g_wind_gust_texture_index;
 };
 
 float PositivePow(float base, float power)
@@ -50,42 +50,42 @@ struct WindData
 
 float3 texNoise(float3 worldPos, float LOD)
 {
-    Texture2D noiseMap = ResourceDescriptorHeap[Get(windNoiseTextureIndex)];
-    return SampleLvlTex2D(noiseMap, Get(g_linear_repeat_sampler), worldPos.xz, LOD).xyz - 0.5;
+    Texture2D noiseMap = ResourceDescriptorHeap[g_wind_noise_texture_index];
+    return SampleLvlTex2D(noiseMap, g_linear_repeat_sampler, worldPos.xz, LOD).xyz - 0.5;
 }
 
 float texGust(float3 worldPos, float LOD)
 {
-    Texture2D gustMap = ResourceDescriptorHeap[Get(windGustTextureIndex)];
-    return SampleLvlTex2D(gustMap, Get(g_linear_repeat_sampler), worldPos.xz, LOD).x;
+    Texture2D gustMap = ResourceDescriptorHeap[g_wind_gust_texture_index];
+    return SampleLvlTex2D(gustMap, g_linear_repeat_sampler, worldPos.xz, LOD).x;
 }
 
 WindData GetAnalyticalWind(float3 worldPosition, float3 pivotPosition, float drag, float initialBend, float time)
 {
     WindData result;
 
-    float3 normalizedDir = normalize(Get(windWorldDirectionAndSpeed).xyz);
-    float3 worldOffset = float3(1, 0, 0) * Get(windWorldDirectionAndSpeed).w * time;
-    float3 gustWorldOffset = float3(1, 0, 0) * Get(windGustSpeed) * time;
+    float3 normalizedDir = normalize(g_wind_world_dir_speed.xyz);
+    float3 worldOffset = float3(1, 0, 0) * g_wind_world_dir_speed.w * time;
+    float3 gustWorldOffset = float3(1, 0, 0) * g_wind_gust_speed * time;
 
     // Trunk noise is base wind + gusts + noise
     float3 trunk = float3(0, 0, 0);
-    if (Get(windWorldDirectionAndSpeed).w > 0.0 || Get(windTurbulence) > 0.0)
+    if (g_wind_world_dir_speed.w > 0.0 || g_wind_turbulence > 0.0)
     {
-        trunk = texNoise((pivotPosition - worldOffset) * Get(windFlexNoiseScale), 3);
+        trunk = texNoise((pivotPosition - worldOffset) * g_wind_flex_noise_scale, 3);
     }
 
     float gust = 0.0;
-    if (Get(windGustSpeed) > 0.0)
+    if (g_wind_gust_speed > 0.0)
     {
-        gust = texGust((pivotPosition - gustWorldOffset) * Get(windGustWorldScale), 3);
-        gust = pow(gust, 2) * Get(windGustScale);
+        gust = texGust((pivotPosition - gustWorldOffset) * g_wind_gust_world_scale, 3);
+        gust = pow(gust, 2) * g_wind_gust_scale;
     }
 
     float3 trunkNoise = (
-        (normalizedDir * Get(windWorldDirectionAndSpeed.w))
-        + (gust * normalizedDir * Get(windGustSpeed))
-        + (trunk * Get(windTurbulence))
+        (normalizedDir * g_wind_world_dir_speed.w)
+        + (gust * normalizedDir * g_wind_gust_speed)
+        + (trunk * g_wind_turbulence)
     ) * drag;
 
     float3 dir = trunkNoise;
@@ -93,7 +93,7 @@ WindData GetAnalyticalWind(float3 worldPosition, float3 pivotPosition, float dra
 
     result.Direction = dir;
     result.Strength = flex;
-    result.Gust = (gust * normalizedDir * Get(windGustSpeed)) + (trunk * Get(windTurbulence));
+    result.Gust = (gust * normalizedDir * g_wind_gust_speed) + (trunk * g_wind_turbulence);
 
     return result;
 }

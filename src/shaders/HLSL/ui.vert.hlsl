@@ -11,12 +11,12 @@ VSOutput VS_MAIN(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 
     uint2 quadVertexPosition = quadVertexPositions[vertexID];
 
-    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[Get(uiTransformBufferIndex)];
+    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_ui_transform_buffer_index];
     UITransform instance = instanceTransformBuffer.Load<UITransform>(instanceID * sizeof(UITransform));
 
     float2 position = float2(instance.rect[quadVertexPosition.x], instance.rect[quadVertexPosition.y]);
 
-    Out.Position = mul(Get(screenToClip), float4(position, 0.0f, 1.0f));
+    Out.Position = mul(g_screen_to_clip_mat, float4(position, 0.0f, 1.0f));
     Out.UV = quadVertexUVs[vertexID];
 
     RETURN(Out);

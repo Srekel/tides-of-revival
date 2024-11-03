@@ -7,7 +7,7 @@ VSOutput VS_MAIN(VSInput Input)
 {
     INIT_MAIN;
     VSOutput result;
-    result.Position = mul(Get(projView), Input.Position);
+    result.Position = mul(g_proj_view_mat, Input.Position);
 	result.Position = result.Position.xyww; //this makes depth buffer 1.0
 
 	result.pos = Input.Position.xyz;

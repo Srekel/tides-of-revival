@@ -4,9 +4,9 @@
 #include "../FSL/d3d.h"
 #include "../FSL/ShaderUtilities.h.fsl"
 
-CBUFFER(RootConstant, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
+cbuffer RootConstant : register(b0, UPDATE_FREQ_PER_FRAME)
 {
-    DATA(float4x4, ProjectionMatrix, None);
+    float4x4 g_proj_mat;
 };
 
 struct VS_INPUT
@@ -28,7 +28,7 @@ PS_INPUT main(VS_INPUT input)
     INIT_MAIN;
 
     PS_INPUT output;
-    output.pos = mul( Get( ProjectionMatrix ), float4(input.pos.xy, 0.f, 1.f));
+    output.pos = mul( g_proj_mat, float4(input.pos.xy, 0.f, 1.f));
     output.col = input.col;
     output.uv  = input.uv;
     return output;

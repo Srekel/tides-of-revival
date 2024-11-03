@@ -25,10 +25,10 @@ static const float2 quadVertexUVs[quadVertexCount] = {
 
 RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 
-CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
+cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
 {
-	DATA(float4x4, screenToClip, None);
-	DATA(uint, uiTransformBufferIndex, None);
+	float4x4 g_screen_to_clip_mat;
+	uint g_ui_transform_buffer_index;
 };
 
 struct UITransform

@@ -20,22 +20,22 @@ RES(Tex2D(float), shadowDepthBuffer, UPDATE_FREQ_NONE, t7, binding = 11);
 
 #include "pbr.hlsl"
 
-CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
+cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
 {
-    DATA(float4x4, projView, None);
-    DATA(float4x4, projViewInverted, None);
-    DATA(float4x4, lightProjView, None);
-    DATA(float4x4, lightProjViewInverted, None);
-    DATA(float4,   camPos,   None);
-    DATA(uint,     directionalLightsBufferIndex, None);
-    DATA(uint,     pointLightsBufferIndex, None);
-    DATA(uint,     directionalLightsCount, None);
-    DATA(uint,     pointLightsCount, None);
-    DATA(float,    applyShadows, None);
-    DATA(float,    environmentLightIntensity, None);
-    DATA(float2,   _padding, None);
-    DATA(float3,   fogColor, None);
-    DATA(float,    fogDensity, None);
+    float4x4 g_proj_view_mat;
+    float4x4 g_inv_proj_view_mat;
+    float4x4 g_light_proj_view;
+    float4x4 g_inv_light_proj_view_mat;
+    float4 g_cam_pos;
+    uint g_directional_lights_buffer_index;
+    uint g_point_lights_buffer_index;
+    uint g_directional_lights_count;
+    uint g_point_lights_count;
+    float g_apply_shadows;
+    float g_environment_light_intensity;
+    float2 _padding;
+    float3 g_fog_color;
+    float g_fog_density;
 };
 
 STRUCT(VsOut)
@@ -48,7 +48,7 @@ float4 getClipPositionFromDepth(float depth, float2 uv) {
     float x = uv.x * 2.0f - 1.0f;
     float y = (1.0f - uv.y) * 2.0f - 1.0f;
     float4 positionCS = float4(x, y, depth, 1.0f);
-    return mul(Get(projViewInverted), positionCS);
+    return mul(g_inv_proj_view_mat, positionCS);
 }
 
 float3 getWorldPositionFromDepth(float depth, float2 uv) {
@@ -138,11 +138,11 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     float depth  = SampleLvlTex2D(Get(depthBuffer), Get(g_linear_clamp_edge_sampler), Input.UV, 0).r;
 
     const float3 P = getWorldPositionFromDepth(depth, Input.UV);
-    const float3 V = normalize(Get(camPos).xyz - P);
+    const float3 V = normalize(g_cam_pos.xyz - P);
 
-    float4 positionLightSpace = mul(Get(lightProjView), float4(P, 1.0f));
+    float4 positionLightSpace = mul(g_light_proj_view, float4(P, 1.0f));
     float shadowAttenuation = 1.0f;
-    if (Get(applyShadows)) {
+    if (g_apply_shadows) {
         shadowAttenuation = ShadowTest(positionLightSpace, 2048.0f);
     }
 
@@ -154,8 +154,8 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
 
     // Point Lights
     uint i;
-    ByteAddressBuffer pointLightsBuffer = ResourceDescriptorHeap[Get(pointLightsBufferIndex)];
-    for (i = 0; i < Get(pointLightsCount); ++i) {
+    ByteAddressBuffer pointLightsBuffer = ResourceDescriptorHeap[g_point_lights_buffer_index];
+    for (i = 0; i < g_point_lights_count; ++i) {
         const PointLight pointLight = pointLightsBuffer.Load<PointLight>(i * sizeof(PointLight));
         const float3 Pl = pointLight.positionAndRadius.xyz;
         const float  radius = pointLight.positionAndRadius.w;
@@ -174,8 +174,8 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     }
 
     // Directional Lights
-    ByteAddressBuffer directionalLightsBuffer = ResourceDescriptorHeap[Get(directionalLightsBufferIndex)];
-    for (i = 0; i < Get(directionalLightsCount); ++i)
+    ByteAddressBuffer directionalLightsBuffer = ResourceDescriptorHeap[g_directional_lights_buffer_index];
+    for (i = 0; i < g_directional_lights_count; ++i)
     {
         const DirectionalLight directionalLight = directionalLightsBuffer.Load<DirectionalLight>(i * sizeof(DirectionalLight));
         const float3 L = directionalLight.directionAndShadowMap.xyz;
@@ -188,14 +188,14 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     }
 
     // IBL (Environment Light)
-    if (Get(environmentLightIntensity) >= 0.0f) {
-        Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * Get(environmentLightIntensity);
+    if (g_environment_light_intensity >= 0.0f) {
+        Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * g_environment_light_intensity;
     }
 
     // Simple depth-based fog
-    float view_distance = length(Get(camPos).xyz - P.xyz);
-    float fog_factor = exp(-Get(fogDensity) * view_distance);
-    Lo = lerp(Get(fogColor), Lo, saturate(fog_factor));
+    float view_distance = length(g_cam_pos.xyz - P.xyz);
+    float fog_factor = exp(-g_fog_density * view_distance);
+    Lo = lerp(g_fog_color, Lo, saturate(fog_factor));
 
     RETURN(float4(Lo, 1.0f));
 }

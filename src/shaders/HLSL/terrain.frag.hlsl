@@ -52,16 +52,16 @@ float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, floa
 // ======================
 void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, float3 N, float3 V, out float3 albedo, out float3 normal, out float3 arm, out float height)
 {
-    ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
+    ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[g_material_buffer_index];
     TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(layer_index * sizeof(TerrainLayerTextureIndices));
 
     Texture2D diffuseTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.diffuseIndex)];
     Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.armIndex)];
     Texture2D heightTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.heightIndex)];
     Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.normalIndex)];
-    SamplerState samplerState = Get(g_linear_repeat_sampler);
+    SamplerState samplerState = g_linear_repeat_sampler;
 
-    if (Get(triplanarMapping))
+    if (g_triplanar_mapping)
     {
         albedo = TriplanarSample(diffuseTexture, samplerState, P, triplanarWeights);
         arm = TriplanarSample(armTexture, samplerState, P, triplanarWeights);
@@ -81,16 +81,16 @@ GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
     INIT_MAIN;
     GBufferOutput Out;
 
-    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[Get(instanceDataBufferIndex)];
-    uint instanceIndex = Input.InstanceID + Get(startInstanceLocation);
+    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
+    uint instanceIndex = Input.InstanceID + g_start_instance_location;
     InstanceData instance = instanceTransformBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     const float3 P = Input.PositionWS.xyz;
 
     float3 N = normalize(Input.Normal);
     float slope = dot(N, float3(0, 1, 0));
-    slope = smoothstep(Get(blackPoint), Get(whitePoint), slope);
-    const float3 V = normalize(Get(camPos).xyz - P);
+    slope = smoothstep(g_black_point, g_white_point, slope);
+    const float3 V = normalize(g_cam_pos.xyz - P);
 
     uint grass_layer_index = 1;
     uint rock_layer_index = 2;

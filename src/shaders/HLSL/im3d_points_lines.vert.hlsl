@@ -4,11 +4,11 @@
 
 #include "im3d.hlsl"
 
-CBUFFER(cbContextData, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
+cbuffer cbContextData : register(b0, UPDATE_FREQ_PER_FRAME)
 {
-    DATA(float4x4, uViewProjMatrix, None);
-    DATA(float2, uViewport, None);
-};
+    float4x4 g_view_proj_mat;
+    float2 g_viewport;
+}
 
 struct VS_INPUT
 {
@@ -16,15 +16,15 @@ struct VS_INPUT
     float4 m_color        : COLOR;
 };
 
-VS_OUTPUT VS_MAIN(VS_INPUT _in)
+VS_OUTPUT VS_MAIN(VS_INPUT input)
 {
     INIT_MAIN;
     VS_OUTPUT Out;
 
-    Out.m_color = _in.m_color.abgr; // swizzle to correct endianness
-    Out.m_color.a *= smoothstep(0.0, 1.0, _in.m_positionSize.w / kAntialiasing);
-    Out.m_size = max(_in.m_positionSize.w, kAntialiasing);
-    Out.m_position = mul(Get(uViewProjMatrix), float4(_in.m_positionSize.xyz, 1.0));
+    Out.m_color = input.m_color.abgr; // swizzle to correct endianness
+    Out.m_color.a *= smoothstep(0.0, 1.0, input.m_positionSize.w / kAntialiasing);
+    Out.m_size = max(input.m_positionSize.w, kAntialiasing);
+    Out.m_position = mul(g_view_proj_mat, float4(input.m_positionSize.xyz, 1.0));
     Out.m_edgeDistance = 0.0;
 
     RETURN(Out);

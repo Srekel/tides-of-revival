@@ -16,19 +16,19 @@ struct InstanceData
 RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
 
-CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
+cbuffer RootConstant : register(b0)
 {
-	DATA(float4x4, projView, None);
-	DATA(float4x4, projViewInverted, None);
-	DATA(float4, camPos, None);
-	DATA(float, time, None);
+	uint g_start_instance_location;
+	uint g_instance_data_buffer_index;
+	uint g_material_buffer_index;
 };
 
-PUSH_CONSTANT(RootConstant, b0)
+cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 {
-	DATA(uint, startInstanceLocation, None);
-	DATA(uint, instanceDataBufferIndex, None);
-	DATA(uint, materialBufferIndex, None);
+	float4x4 g_proj_view_mat;
+	float4x4 g_inv_proj_view_mat;
+	float4 g_cam_pos;
+	float g_time;
 };
 
 #if defined(VL_PosNorTanUv0Col)

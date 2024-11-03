@@ -12,11 +12,11 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     Out.UV = unpack2Floats(Input.UV);
     Out.UV1 = Input.UV1;
 
-    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[Get(instanceDataBufferIndex)];
-    uint instanceIndex = instance_id + Get(startInstanceLocation);
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
+    uint instanceIndex = instance_id + g_start_instance_location;
     InstanceData instance = instance_transform_buffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
-    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[Get(materialBufferIndex)];
+    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_material_buffer_index];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
 
     float3 positionOS = Input.Position.xyz;
@@ -28,11 +28,11 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
         float3 rootWP = mul(instance.worldMat, float4(0, 0, 0, 1)).xyz;
 
         WindData windData;
-        ApplyWindDisplacement(positionWS, windData, normalWS, rootWP, material.windStifness, material.windDrag, material.windInitialBend, Get(time));
+        ApplyWindDisplacement(positionWS, windData, normalWS, rootWP, material.windStifness, material.windDrag, material.windInitialBend, g_time);
         positionOS = mul(instance.worldMatInverted, float4(positionWS, 1.0f)).xyz;
     }
 
-    float4x4 mvp = mul(Get(projView), instance.worldMat);
+    float4x4 mvp = mul(g_proj_view_mat, instance.worldMat);
     Out.Position = mul(mvp, float4(positionOS, 1.0f));
 
     RETURN(Out);

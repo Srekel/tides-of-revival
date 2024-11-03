@@ -7,11 +7,11 @@ float4 PS_MAIN(VSOutput input) : SV_Target
 {
     INIT_MAIN;
 
-    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[Get(uiTransformBufferIndex)];
+    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_ui_transform_buffer_index];
     UITransform instance = instanceTransformBuffer.Load<UITransform>(input.InstanceID * sizeof(UITransform));
 
     Texture2D texture = ResourceDescriptorHeap[NonUniformResourceIndex(instance.textureIndex)];
-    float4 color = texture.SampleLevel(Get(g_linear_repeat_sampler), input.UV, 0);
+    float4 color = texture.SampleLevel(g_linear_repeat_sampler, input.UV, 0);
     color *= instance.color;
     RETURN(color);
 }
