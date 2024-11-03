@@ -11,13 +11,13 @@ struct PS_INPUT
     float2 uv  : TEXCOORD0;
 };
 
-RES(SamplerState, sampler0, UPDATE_FREQ_NONE, s0, binding = 0);
+RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 0);
 RES(Tex2D(float4), texture0, UPDATE_FREQ_PER_FRAME, t0, binding = 1);
 
 float4 main(PS_INPUT input) : SV_Target
 {
     INIT_MAIN;
-    
-    float4 out_col = input.col * texture0.Sample(sampler0, input.uv); 
-    return out_col; 
+
+    float4 out_col = input.col * texture0.Sample(g_linear_repeat_sampler, input.uv);
+    return out_col;
 }

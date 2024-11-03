@@ -11,7 +11,7 @@
 //
 // Developed by Minigraph
 //
-// Author:  James Stanard 
+// Author:  James Stanard
 //
 // The CS for downsampling 16x16 blocks of pixels down to 8x8, 4x4, 2x2, and 1x1 blocks.
 
@@ -22,7 +22,7 @@ RWTexture2D<float3> result_1 : register( u0, UPDATE_FREQ_PER_FRAME );
 RWTexture2D<float3> result_2 : register( u1, UPDATE_FREQ_PER_FRAME );
 RWTexture2D<float3> result_3 : register( u2, UPDATE_FREQ_PER_FRAME );
 RWTexture2D<float3> result_4 : register( u3, UPDATE_FREQ_PER_FRAME );
-SamplerState bilinear_clamp_sampler : register( s0 );
+SamplerState g_linear_clamp_edge_sampler : register( s0 );
 
 cbuffer cb0 : register(b0, UPDATE_FREQ_PER_FRAME)
 {
@@ -39,7 +39,7 @@ void main( uint group_index : SV_GroupIndex, uint3 dispatch_thread_id : SV_Dispa
 
     // Downsample and store the 8x8 block
     float2 centerUV = (float2(dispatch_thread_id.xy) * 2.0f + 1.0f) * g_inverse_dimensions;
-    float3 avgPixel = bloom_buffer.SampleLevel(bilinear_clamp_sampler, centerUV, 0.0f);
+    float3 avgPixel = bloom_buffer.SampleLevel(g_linear_clamp_edge_sampler, centerUV, 0.0f);
     g_tile[group_index] = avgPixel;
     result_1[dispatch_thread_id.xy] = avgPixel;
 

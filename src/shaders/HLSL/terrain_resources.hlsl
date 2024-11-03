@@ -20,8 +20,8 @@ struct TerrainLayerTextureIndices
 	uint heightIndex;
 };
 
-RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
-RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s1, binding = 2);
+RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
+RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
 
 PUSH_CONSTANT(RootConstant, b0)
 {

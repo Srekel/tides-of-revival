@@ -17,7 +17,7 @@ void PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
 
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
-        float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
+        float4 baseColorSample = baseColorTexture.Sample(Get(g_linear_repeat_sampler), Input.UV);
         clip(baseColorSample.a - 0.5);
     }
 }

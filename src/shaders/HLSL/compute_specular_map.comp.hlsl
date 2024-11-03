@@ -43,7 +43,7 @@ PUSH_CONSTANT(RootConstant, b0)
 
 RES(TexCube(float4), srcTexture, UPDATE_FREQ_NONE, t1, binding = 1);
 RES(WTex2DArray(float4), dstTexture, UPDATE_FREQ_PER_DRAW, u2, binding = 2);
-RES(SamplerState, skyboxSampler, UPDATE_FREQ_NONE, s3, binding = 3);
+RES(SamplerState, g_skybox_sampler, UPDATE_FREQ_NONE, s3, binding = 3);
 
 float RadicalInverse_VdC(uint bits)
 {
@@ -132,7 +132,7 @@ void CS_MAIN(uint3 DTid : SV_DispatchThreadID)
 	float totalWeight = 0.0;
 	float4 prefilteredColor = float4(0.0, 0.0, 0.0, 0.0);
 
-	float2 dim = float2(GetDimensions(Get(srcTexture), Get(skyboxSampler)));
+	float2 dim = float2(GetDimensions(Get(srcTexture), Get(g_skybox_sampler)));
 	float srcTextureSize = max(dim[0], dim[1]);
 
 	for (int i = 0; i < SampleCount; ++i)
@@ -155,7 +155,7 @@ void CS_MAIN(uint3 DTid : SV_DispatchThreadID)
 
 			float mipLevel = mipRoughness == 0.0 ? 0.0 : max(0.5 * log2(saSample / saTexel) + 1.0f, 0.0f);
 
-			prefilteredColor += SampleLvlTexCube(Get(srcTexture), Get(skyboxSampler), L, mipLevel) * NdotL;
+			prefilteredColor += SampleLvlTexCube(Get(srcTexture), Get(g_skybox_sampler), L, mipLevel) * NdotL;
 
 			totalWeight += NdotL;
 		}

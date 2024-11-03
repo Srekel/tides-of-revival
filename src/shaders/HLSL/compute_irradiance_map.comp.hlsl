@@ -32,7 +32,7 @@ STATIC float SampleDelta = 0.125f;
 
 RES(TexCube(float4), srcTexture, UPDATE_FREQ_NONE, t0, binding = 0);
 RES(WTex2DArray(float4), dstTexture, UPDATE_FREQ_NONE, u2, binding = 2);
-RES(SamplerState, skyboxSampler, UPDATE_FREQ_NONE, s3, binding = 3);
+RES(SamplerState, g_skybox_sampler, UPDATE_FREQ_NONE, s3, binding = 3);
 
 float4 computeIrradiance(float3 N)
 {
@@ -54,7 +54,7 @@ float4 computeIrradiance(float3 N)
 			// tangent space to world
 			float3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * N;
 
-			float4 sampledValue = SampleLvlTexCube(Get(srcTexture), Get(skyboxSampler), sampleVec, 0);
+			float4 sampledValue = SampleLvlTexCube(Get(srcTexture), Get(g_skybox_sampler), sampleVec, 0);
 
 			irradiance += float4(sampledValue.rgb * cos(theta) * sin(theta), sampledValue.a);
 			nrSamples++;

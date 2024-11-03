@@ -25,7 +25,7 @@ Texture2D<float4> blue_noise_2d_texture : register(t1, UPDATE_FREQ_PER_FRAME);
 
 RWTexture2D<float4> rw_texture_2d : register(u0, UPDATE_FREQ_PER_FRAME);
 
-SamplerState sampler_linear_clamp : register(s0, UPDATE_FREQ_PER_FRAME);
+SamplerState g_linear_clamp_edge_sampler : register(s0, UPDATE_FREQ_PER_FRAME);
 // TODO(gmodarelli): Enable Shadow Map
 // SamplerComparisonState sampler_shadow : register(s1, UPDATE_FREQ_PER_FRAME);
 

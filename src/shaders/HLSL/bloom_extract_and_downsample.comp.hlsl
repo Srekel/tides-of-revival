@@ -23,7 +23,7 @@ float RGBToLuminance( float3 x )
     return dot( x, float3(0.212671, 0.715160, 0.072169) );        // Defined by sRGB/Rec.709 gamut
 }
 
-SamplerState bilinear_clamp_sampler : register( s0 );
+SamplerState g_linear_clamp_edge_sampler : register( s0 );
 Texture2D<float3> source_tex : register( t0, UPDATE_FREQ_PER_FRAME );
 RWTexture2D<float3> bloom_result : register( u0, UPDATE_FREQ_PER_FRAME );
 
@@ -42,10 +42,10 @@ void main( uint3 DTid : SV_DispatchThreadID )
     float2 offset = g_inverse_output_size * 0.25;
 
     // Use 4 bilinear samples to guarantee we don't undersample when downsizing by more than 2x
-    float3 color1 = source_tex.SampleLevel( bilinear_clamp_sampler, uv + float2(-offset.x, -offset.y), 0 );
-    float3 color2 = source_tex.SampleLevel( bilinear_clamp_sampler, uv + float2( offset.x, -offset.y), 0 );
-    float3 color3 = source_tex.SampleLevel( bilinear_clamp_sampler, uv + float2(-offset.x,  offset.y), 0 );
-    float3 color4 = source_tex.SampleLevel( bilinear_clamp_sampler, uv + float2( offset.x,  offset.y), 0 );
+    float3 color1 = source_tex.SampleLevel( g_linear_clamp_edge_sampler, uv + float2(-offset.x, -offset.y), 0 );
+    float3 color2 = source_tex.SampleLevel( g_linear_clamp_edge_sampler, uv + float2( offset.x, -offset.y), 0 );
+    float3 color3 = source_tex.SampleLevel( g_linear_clamp_edge_sampler, uv + float2(-offset.x,  offset.y), 0 );
+    float3 color4 = source_tex.SampleLevel( g_linear_clamp_edge_sampler, uv + float2( offset.x,  offset.y), 0 );
 
     float luma1 = RGBToLuminance(color1);
     float luma2 = RGBToLuminance(color2);

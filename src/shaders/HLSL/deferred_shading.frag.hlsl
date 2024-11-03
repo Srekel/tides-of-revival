@@ -4,9 +4,9 @@
 #include "../FSL/d3d.h"
 #include "utils.hlsl"
 
-RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
-RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s1, binding = 2);
-RES(SamplerState, pointSampler, UPDATE_FREQ_NONE, s2, binding = 3);
+RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
+RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
+RES(SamplerState, g_point_repeat_sampler, UPDATE_FREQ_NONE, s2, binding = 3);
 
 RES(Tex2D(float2), brdfIntegrationMap, UPDATE_FREQ_NONE, t0, binding = 4);
 RES(TexCube(float4), irradianceMap, UPDATE_FREQ_NONE, t1, binding = 5);
@@ -58,7 +58,7 @@ float3 getWorldPositionFromDepth(float depth, float2 uv) {
 
 float ShadowFetch(Texture2D<float> shadowMap, float2 uv, int2 offset, float depth)
 {
-    return step(depth, SampleLvlOffsetTex2D(shadowMap, Get(pointSampler), uv, 0, offset).r);
+    return step(depth, SampleLvlOffsetTex2D(shadowMap, Get(g_point_repeat_sampler), uv, 0, offset).r);
 }
 
 float ShadowFetchBilinear(Texture2D<float> shadowMap, float2 uv, float2 uvFrac, int2 offset, float depth)
@@ -127,15 +127,15 @@ float ShadowTest(float4 Pl, float2 shadowMapDimensions)
 float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     INIT_MAIN;
 
-    float4 baseColor  = SampleLvlTex2D(Get(gBuffer0), Get(bilinearClampSampler), Input.UV, 0);
+    float4 baseColor  = SampleLvlTex2D(Get(gBuffer0), Get(g_linear_clamp_edge_sampler), Input.UV, 0);
     if (baseColor.a <= 0)
     {
         RETURN(float4(0.0, 0.0, 0.0, 0.0));
     }
 
-    float3 N = normalize(SampleLvlTex2D(Get(gBuffer1), Get(bilinearClampSampler), Input.UV, 0).rgb * 2.0f - 1.0f);
-    float3 armSample = SampleLvlTex2D(Get(gBuffer2), Get(bilinearClampSampler), Input.UV, 0).rgb;
-    float depth  = SampleLvlTex2D(Get(depthBuffer), Get(bilinearClampSampler), Input.UV, 0).r;
+    float3 N = normalize(SampleLvlTex2D(Get(gBuffer1), Get(g_linear_clamp_edge_sampler), Input.UV, 0).rgb * 2.0f - 1.0f);
+    float3 armSample = SampleLvlTex2D(Get(gBuffer2), Get(g_linear_clamp_edge_sampler), Input.UV, 0).rgb;
+    float depth  = SampleLvlTex2D(Get(depthBuffer), Get(g_linear_clamp_edge_sampler), Input.UV, 0).r;
 
     const float3 P = getWorldPositionFromDepth(depth, Input.UV);
     const float3 V = normalize(Get(camPos).xyz - P);

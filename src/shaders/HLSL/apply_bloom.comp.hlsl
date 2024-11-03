@@ -11,7 +11,7 @@
 //
 // Developed by Minigraph
 //
-// Author:  James Stanard 
+// Author:  James Stanard
 //
 
 // #include "ShaderUtility.hlsli"
@@ -22,7 +22,7 @@ Texture2D<float3> bloom_buffer : register( t0, UPDATE_FREQ_PER_FRAME );
 RWTexture2D<float3> scene_color : register( u0, UPDATE_FREQ_PER_FRAME );
 // TODO(gmodarelli): Implement Luma
 // RWTexture2D<float> OutLuma : register( u1 );
-SamplerState linear_clamp_sampler : register( s0 );
+SamplerState g_linear_clamp_edge_sampler : register( s0 );
 
 cbuffer cb0 : register(b0, UPDATE_FREQ_PER_FRAME)
 {
@@ -36,7 +36,7 @@ void main( uint3 dispatch_thread_id : SV_DispatchThreadID )
     float2 tex_coord = (dispatch_thread_id.xy + 0.5) * g_rpc_buffer_dimensions;
 
     // Load LDR and bloom
-    float3 ldr_color = scene_color[dispatch_thread_id.xy] + g_bloom_strength * bloom_buffer.SampleLevel(linear_clamp_sampler, tex_coord, 0);
+    float3 ldr_color = scene_color[dispatch_thread_id.xy] + g_bloom_strength * bloom_buffer.SampleLevel(g_linear_clamp_edge_sampler, tex_coord, 0);
 
     scene_color[dispatch_thread_id.xy] = ldr_color;
     // TODO(gmodarelli): Implement Luma

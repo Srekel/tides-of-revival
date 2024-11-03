@@ -12,7 +12,7 @@ CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
 };
 
 RES(TexCube(float4), skyboxMap, UPDATE_FREQ_NONE, t0, binding = 0);
-RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
+RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 
 STRUCT(VSInput) {
 	DATA(float4, Position, POSITION);

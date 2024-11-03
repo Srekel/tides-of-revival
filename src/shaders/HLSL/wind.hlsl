@@ -51,13 +51,13 @@ struct WindData
 float3 texNoise(float3 worldPos, float LOD)
 {
     Texture2D noiseMap = ResourceDescriptorHeap[Get(windNoiseTextureIndex)];
-    return SampleLvlTex2D(noiseMap, Get(bilinearRepeatSampler), worldPos.xz, LOD).xyz - 0.5;
+    return SampleLvlTex2D(noiseMap, Get(g_linear_repeat_sampler), worldPos.xz, LOD).xyz - 0.5;
 }
 
 float texGust(float3 worldPos, float LOD)
 {
     Texture2D gustMap = ResourceDescriptorHeap[Get(windGustTextureIndex)];
-    return SampleLvlTex2D(gustMap, Get(bilinearRepeatSampler), worldPos.xz, LOD).x;
+    return SampleLvlTex2D(gustMap, Get(g_linear_repeat_sampler), worldPos.xz, LOD).x;
 }
 
 WindData GetAnalyticalWind(float3 worldPosition, float3 pivotPosition, float drag, float initialBend, float time)

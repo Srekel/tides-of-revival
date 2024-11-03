@@ -11,7 +11,7 @@
 //
 // Developed by Minigraph
 //
-// Author:  James Stanard 
+// Author:  James Stanard
 //
 // The CS for combining a lower resolution bloom buffer with a higher resolution buffer
 // (via bilinear upsampling) and then guassian blurring the resultant buffer.
@@ -25,7 +25,7 @@
 
 Texture2D<float3> higher_res_buffer : register( t0, UPDATE_FREQ_PER_DRAW );
 Texture2D<float3> lower_res_buffer : register( t1, UPDATE_FREQ_PER_DRAW );
-SamplerState linear_border_sampler : register( s1 );
+SamplerState g_linear_clamp_border_sampler : register( s1 );
 RWTexture2D<float3> result : register( u0, UPDATE_FREQ_PER_DRAW );
 
 cbuffer cb0 : register(b0, UPDATE_FREQ_PER_DRAW)
@@ -96,7 +96,7 @@ void BlurHorizontally( uint out_index, uint leftmost_index )
     Load2Pixels( leftmost_index + 2, s4, s5 );
     Load2Pixels( leftmost_index + 3, s6, s7 );
     Load2Pixels( leftmost_index + 4, s8, s9 );
-    
+
     Store1Pixel(out_index  , BlurPixels(s0, s1, s2, s3, s4, s5, s6, s7, s8));
     Store1Pixel(out_index+1, BlurPixels(s1, s2, s3, s4, s5, s6, s7, s8, s9));
 }
@@ -135,12 +135,12 @@ void main( uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID
     float2 uvLL = float2(uvUL.x, uvLR.y);
     int destIdx = group_thread_id.x + (group_thread_id.y << 4);
 
-    float3 pixel1a = lerp(higher_res_buffer[thread_ul + uint2(0, 0)], lower_res_buffer.SampleLevel(linear_border_sampler, uvUL, 0.0f), g_upsample_blend_factor);
-    float3 pixel1b = lerp(higher_res_buffer[thread_ul + uint2(1, 0)], lower_res_buffer.SampleLevel(linear_border_sampler, uvUR, 0.0f), g_upsample_blend_factor);
+    float3 pixel1a = lerp(higher_res_buffer[thread_ul + uint2(0, 0)], lower_res_buffer.SampleLevel(g_linear_clamp_border_sampler, uvUL, 0.0f), g_upsample_blend_factor);
+    float3 pixel1b = lerp(higher_res_buffer[thread_ul + uint2(1, 0)], lower_res_buffer.SampleLevel(g_linear_clamp_border_sampler, uvUR, 0.0f), g_upsample_blend_factor);
     Store2Pixels(destIdx+0, pixel1a, pixel1b);
 
-    float3 pixel2a = lerp(higher_res_buffer[thread_ul + uint2(0, 1)], lower_res_buffer.SampleLevel(linear_border_sampler, uvLL, 0.0f), g_upsample_blend_factor);
-    float3 pixel2b = lerp(higher_res_buffer[thread_ul + uint2(1, 1)], lower_res_buffer.SampleLevel(linear_border_sampler, uvLR, 0.0f), g_upsample_blend_factor);
+    float3 pixel2a = lerp(higher_res_buffer[thread_ul + uint2(0, 1)], lower_res_buffer.SampleLevel(g_linear_clamp_border_sampler, uvLL, 0.0f), g_upsample_blend_factor);
+    float3 pixel2b = lerp(higher_res_buffer[thread_ul + uint2(1, 1)], lower_res_buffer.SampleLevel(g_linear_clamp_border_sampler, uvLR, 0.0f), g_upsample_blend_factor);
     Store2Pixels(destIdx+8, pixel2a, pixel2b);
 
     GroupMemoryBarrierWithGroupSync();

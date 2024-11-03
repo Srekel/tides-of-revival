@@ -149,7 +149,7 @@ SingleScatteringResult IntegrateScatteredLuminance(
 		float sun_zenith_cos_angle = dot(sun_dir, up_vector);
 		float2 uv;
 		LutTransmittanceParamsToUv(atmosphere, p_height, sun_zenith_cos_angle, uv);
-		float3 transmittance_to_sun = transmittance_lut_texture.SampleLevel(sampler_linear_clamp, uv, 0).rgb;
+		float3 transmittance_to_sun = transmittance_lut_texture.SampleLevel(g_linear_clamp_edge_sampler, uv, 0).rgb;
 
 		float3 phase_times_scattering;
 		if (mie_ray_phase)
@@ -229,7 +229,7 @@ SingleScatteringResult IntegrateScatteredLuminance(
 		float sun_zenith_cos_angle = dot(sun_dir, up_vector);
 		float2 uv;
 		LutTransmittanceParamsToUv(atmosphere, p_height, sun_zenith_cos_angle, uv);
-		float3 transmittance_to_sun = transmittance_lut_texture.SampleLevel(sampler_linear_clamp, uv, 0).rgb;
+		float3 transmittance_to_sun = transmittance_lut_texture.SampleLevel(g_linear_clamp_edge_sampler, uv, 0).rgb;
 
 		const float n_dot_l = saturate(dot(normalize(up_vector), normalize(sun_dir)));
 		L += global_l * transmittance_to_sun * throughput * n_dot_l * atmosphere.ground_albedo / PI;

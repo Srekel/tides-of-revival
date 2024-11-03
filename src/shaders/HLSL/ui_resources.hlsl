@@ -23,7 +23,7 @@ static const float2 quadVertexUVs[quadVertexCount] = {
     float2(1.0, 0.0)
 };
 
-RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
+RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 
 CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
 {

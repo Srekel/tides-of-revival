@@ -59,7 +59,7 @@ void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, flo
     Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.armIndex)];
     Texture2D heightTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.heightIndex)];
     Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.normalIndex)];
-    SamplerState samplerState = Get(bilinearRepeatSampler);
+    SamplerState samplerState = Get(g_linear_repeat_sampler);
 
     if (Get(triplanarMapping))
     {

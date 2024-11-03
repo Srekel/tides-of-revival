@@ -294,7 +294,7 @@ float3 GetMultipleScattering(AtmosphereParameters atmosphere, float3 scattering,
 	float2 uv = saturate(float2(view_zenith_cos_angle*0.5f + 0.5f, (length(worlPos) - atmosphere.bottom_radius) / (atmosphere.top_radius - atmosphere.bottom_radius)));
 	uv = float2(FromUnitToSubUvs(uv.x, multi_scattering_LUT_res), FromUnitToSubUvs(uv.y, multi_scattering_LUT_res));
 
-	float3 multi_scattered_luminance = multi_scat_texture.SampleLevel(sampler_linear_clamp, uv, 0).rgb;
+	float3 multi_scattered_luminance = multi_scat_texture.SampleLevel(g_linear_clamp_edge_sampler, uv, 0).rgb;
 	return multi_scattered_luminance;
 }
 

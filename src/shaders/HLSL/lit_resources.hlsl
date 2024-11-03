@@ -13,8 +13,8 @@ struct InstanceData
 	float3 _padding;
 };
 
-RES(SamplerState, bilinearRepeatSampler, UPDATE_FREQ_NONE, s0, binding = 1);
-RES(SamplerState, bilinearClampSampler, UPDATE_FREQ_NONE, s1, binding = 2);
+RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
+RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
 
 CBUFFER(cbFrame, UPDATE_FREQ_PER_FRAME, b1, binding = 0)
 {

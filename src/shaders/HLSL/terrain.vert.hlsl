@@ -21,7 +21,7 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 
 
     Texture2D heightmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.heightmapTextureIndex)];
-    float height = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0).r;
+    float height = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0).r;
     float3 position = Input.Position.xyz;
     position.y += height;
 
@@ -33,24 +33,24 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     float vertex_spacing = 1u << instance.lod;
 
 #if 0
-    float height_0 = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0).r;
-    float height_1 = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(1, 0)).r;
-    float height_2 = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(0, 1)).r;
+    float height_0 = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0).r;
+    float height_1 = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(1, 0)).r;
+    float height_2 = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(0, 1)).r;
 
     float3 p0 = float3(0, height_0, 0);
     float3 p1 = float3(vertex_spacing, height_1, 0);
     float3 p2 = float3(0, height_2, vertex_spacing);
     float3 normal = normalize(cross(p2 - p0, p1 - p0));
 #else
-    float zb = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(0, -1)).r;
-    float zc = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(1, -1)).r;
-    float zd = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(1, 0)).r;
-    float ze = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(1, 1)).r;
-    float zf = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(0, 1)).r;
-    float zg = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(-1, 1)).r;
-    float zh = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(-1, 0)).r;
-    float zi = heightmap.SampleLevel(Get(bilinearClampSampler), Out.UV, 0, int2(-1, -1)).r;
- 
+    float zb = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(0, -1)).r;
+    float zc = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(1, -1)).r;
+    float zd = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(1, 0)).r;
+    float ze = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(1, 1)).r;
+    float zf = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(0, 1)).r;
+    float zg = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(-1, 1)).r;
+    float zh = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(-1, 0)).r;
+    float zi = heightmap.SampleLevel(Get(g_linear_clamp_edge_sampler), Out.UV, 0, int2(-1, -1)).r;
+
     float x = zg + 2 * zh + zi - zc - 2 * zd - ze;
     float z = 2 * zb + zc + zi - ze - 2 * zf - zg;
     float y = 8.0f * vertex_spacing;

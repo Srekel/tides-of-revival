@@ -150,7 +150,7 @@ cbuffer ConstantBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
     uint g_tonemap_type;
 };
 
-SamplerState g_bilinear_clamp_sampler : register(s0, UPDATE_FREQ_NONE);
+SamplerState g_linear_clamp_edge_sampler : register(s0, UPDATE_FREQ_NONE);
 Texture2D<float4> g_scene_color : register(t0, UPDATE_FREQ_PER_FRAME);
 
 struct VsOut
@@ -162,7 +162,7 @@ struct VsOut
 float4 PS_MAIN(VsOut Input) : SV_TARGET {
     float4 Out = float4(0, 0, 0, 1);
 
-    float3 color = SampleLvlTex2D(g_scene_color, g_bilinear_clamp_sampler, Input.UV, 0).rgb;
+    float3 color = SampleLvlTex2D(g_scene_color, g_linear_clamp_edge_sampler, Input.UV, 0).rgb;
 
     if (g_tonemap_type == 0)
     {

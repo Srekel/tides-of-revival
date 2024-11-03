@@ -22,7 +22,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     float3 baseColor = float3(0, 0, 0);
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
-        float4 baseColorSample = baseColorTexture.Sample(Get(bilinearRepeatSampler), Input.UV);
+        float4 baseColorSample = baseColorTexture.Sample(Get(g_linear_repeat_sampler), Input.UV);
         baseColor = baseColorSample.rgb;
     } else {
         baseColor = sRGBToLinear_Float3(Input.Color.rgb);
@@ -32,7 +32,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     float3x3 TBN = ComputeTBN(Input.Normal, Input.Tangent);
     if (hasValidTexture(material.normalTextureIndex)) {
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
-        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, Get(bilinearRepeatSampler), Input.UV), 1.0f);
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, Get(g_linear_repeat_sampler), Input.UV), 1.0f);
         N = normalize(mul(tangentNormal, TBN));
     }
 
@@ -41,7 +41,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     float occlusion = 1.0f;
     if (hasValidTexture(material.armTextureIndex)) {
         Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.armTextureIndex)];
-        float3 armSample = armTexture.Sample(Get(bilinearRepeatSampler), Input.UV).rgb;
+        float3 armSample = armTexture.Sample(Get(g_linear_repeat_sampler), Input.UV).rgb;
         occlusion = armSample.r;
         roughness = armSample.g;
         metallic = armSample.b;
@@ -50,7 +50,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     if (material.detailFeature)
     {
         Texture2D detailMaskTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailMaskTextureIndex)];
-        float detailMask = detailMaskTexture.Sample(Get(bilinearRepeatSampler), Input.UV).r;
+        float detailMask = detailMaskTexture.Sample(Get(g_linear_repeat_sampler), Input.UV).r;
         float2 detailUV = Input.UV;
         if (material.detailUseUV2)
         {
@@ -59,18 +59,18 @@ GBufferOutput PS_MAIN( VSOutput Input) {
 
         // Blend detail normal
         Texture2D detailNormalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailNormalTextureIndex)];
-        float3 tangentNormal = ReconstructNormal(SampleTex2D(detailNormalTexture, Get(bilinearRepeatSampler), Input.UV), 1.0f);
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(detailNormalTexture, Get(g_linear_repeat_sampler), Input.UV), 1.0f);
         float3 detailN = normalize(mul(tangentNormal, TBN));
         N = lerp(N, detailN, detailMask);
 
         // Blend base color
         Texture2D detailBaseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailBaseColorTextureIndex)];
-        float3 detailBaseColor = detailBaseColorTexture.Sample(Get(bilinearClampSampler), Input.UV).rgb;
+        float3 detailBaseColor = detailBaseColorTexture.Sample(Get(g_linear_clamp_edge_sampler), Input.UV).rgb;
         baseColor = lerp(baseColor, detailBaseColor, detailMask);
 
         // Blend ARM
         Texture2D detailArmTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailArmTextureIndex)];
-        float3 detailArmSample = detailArmTexture.Sample(Get(bilinearRepeatSampler), Input.UV).rgb;
+        float3 detailArmSample = detailArmTexture.Sample(Get(g_linear_repeat_sampler), Input.UV).rgb;
         occlusion = lerp(occlusion, detailArmSample.r, detailMask);
         roughness = lerp(roughness, detailArmSample.g, detailMask);
         metallic = lerp(metallic, detailArmSample.b, detailMask);
