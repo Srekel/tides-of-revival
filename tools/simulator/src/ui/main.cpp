@@ -151,13 +151,11 @@ void runUI(const SimulatorAPI *api)
 		{
 			EnterCriticalSection(&CriticalSectionDequeue);
 			compute_do_it_now = false;
-			// NOTE(gmodarelli): 4 is .generate :P
-			if (compute_job.compute_id == 3)
+			if (compute_job.compute_id == 3) // ComputeId.fbm
 			{
 				g_d3d11.dispatch_float_generate(compute_job);
 			}
-			// NOTE(gmodarelli): 4 is .reduce :P
-			else if (compute_job.compute_id == 4)
+			else if (compute_job.compute_id == 5) // ComputeId.upsample_blur
 			{
 				g_d3d11.dispatch_float_reduce(compute_job);
 			}

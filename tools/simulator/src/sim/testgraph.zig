@@ -229,8 +229,10 @@ fn doNode_fbm(ctx: *Context) void {
     remap_settings.to_max = 1;
     var compute_info = graph.ComputeInfo{
         .compute_id = .remap,
-        .buffer_width = @intCast(fbm_image.size.width),
-        .buffer_height = @intCast(fbm_image.size.height),
+        .buffer_width_in = @intCast(fbm_image.size.width),
+        .buffer_height_in = @intCast(fbm_image.size.height),
+        .buffer_width_out = @intCast(fbm_image.size.width),
+        .buffer_height_out = @intCast(fbm_image.size.height),
         .in = fbm_image.pixels.ptr,
         .out = scratch_image.pixels.ptr,
         .data_size = @sizeOf(RemapSettings),
@@ -322,30 +324,9 @@ fn doNode_fbm_trees(ctx: *Context) void {
             ._padding = .{ 0, 0 },
         };
 
-        var compute_info = graph.ComputeInfo{
-            .compute_id = .fbm,
-            .buffer_width = @intCast(fbm_trees_image.size.width),
-            .buffer_height = @intCast(fbm_trees_image.size.height),
-            .in = null,
-            .out = fbm_trees_image.pixels.ptr,
-            .data_size = @sizeOf(GenerateFBMSettings),
-            .data = std.mem.asBytes(&generate_fbm_settings),
-        };
-        ctx.compute_fn(&compute_info);
-
-        // Reduce min
-        compute_info.compute_id = .reduce;
-        compute_info.compute_operator_id = .min;
-        compute_info.in = fbm_trees_image.pixels.ptr;
-        compute_info.out = scratch_image.pixels.ptr;
-        compute_info.data_size = 0;
-        compute_info.data = null;
-        ctx.compute_fn(&compute_info);
-        fbm_trees_image.height_min = scratch_image.pixels[0];
-        // Reduce max
-        compute_info.compute_operator_id = .max;
-        ctx.compute_fn(&compute_info);
-        fbm_trees_image.height_max = scratch_image.pixels[0];
+        compute.fbm(&fbm_trees_image, generate_fbm_settings);
+        compute.min(&fbm_image, &scratch_image);
+        compute.max(&fbm_image, &scratch_image);
     }
 
     remap_settings.from_min = fbm_trees_image.height_min;
@@ -354,8 +335,10 @@ fn doNode_fbm_trees(ctx: *Context) void {
     remap_settings.to_max = 1;
     var compute_info = graph.ComputeInfo{
         .compute_id = .remap,
-        .buffer_width = @intCast(fbm_trees_image.size.width),
-        .buffer_height = @intCast(fbm_trees_image.size.height),
+        .buffer_width_in = @intCast(fbm_trees_image.size.width),
+        .buffer_height_in = @intCast(fbm_trees_image.size.height),
+        .buffer_width_out = @intCast(fbm_trees_image.size.width),
+        .buffer_height_out = @intCast(fbm_trees_image.size.height),
         .in = fbm_trees_image.pixels.ptr,
         .out = scratch_image.pixels.ptr,
         .data_size = @sizeOf(RemapSettings),
@@ -372,8 +355,10 @@ fn doNode_fbm_trees(ctx: *Context) void {
     };
     var compute_info_square = graph.ComputeInfo{
         .compute_id = .square,
-        .buffer_width = @intCast(fbm_trees_image.size.width),
-        .buffer_height = @intCast(fbm_trees_image.size.height),
+        .buffer_width_in = @intCast(fbm_trees_image.size.width),
+        .buffer_height_in = @intCast(fbm_trees_image.size.height),
+        .buffer_width_out = @intCast(fbm_trees_image.size.width),
+        .buffer_height_out = @intCast(fbm_trees_image.size.height),
         .in = fbm_trees_image.pixels.ptr,
         .out = scratch_image.pixels.ptr,
         .data_size = @sizeOf(SquareSettings),

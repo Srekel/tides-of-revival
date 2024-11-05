@@ -1,11 +1,12 @@
 const std = @import("std");
 
 pub const ComputeId = enum(u32) {
-    remap = 0,
-    square = 1,
-    gradient = 2,
-    fbm = 3,
-    reduce = 4,
+    remap,
+    square,
+    gradient,
+    fbm,
+    upsample_blur,
+    reduce,
 };
 
 pub const ComputeOperatorId = enum(u32) {
@@ -19,8 +20,10 @@ pub const ComputeInfo = extern struct {
     compute_operator_id: ComputeOperatorId = .none,
     in: [*c]f32,
     out: [*c]f32,
-    buffer_width: u32,
-    buffer_height: u32,
+    buffer_width_in: u32,
+    buffer_height_in: u32,
+    buffer_width_out: u32,
+    buffer_height_out: u32,
     data: [*c]const u8,
     data_size: u32,
 };

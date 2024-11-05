@@ -53,8 +53,10 @@ struct ComputeInfo
     unsigned compute_operator_id;
     float *input_datas;
     float *output_datas;
-    uint32_t buffer_width;
-    uint32_t buffer_height;
+    uint32_t buffer_width_in;
+    uint32_t buffer_height_in;
+    uint32_t buffer_width_out;
+    uint32_t buffer_height_out;
     void *shader_settings;
     unsigned shader_settings_size;
 };
