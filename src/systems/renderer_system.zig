@@ -17,20 +17,13 @@ const zm = @import("zmath");
 const zgui = @import("zgui");
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 
-const terrain_render_pass = @import("renderer_system/terrain_render_pass.zig");
-const TerrainRenderPass = terrain_render_pass.TerrainRenderPass;
-const geometry_render_pass = @import("renderer_system/geometry_render_pass.zig");
-const GeometryRenderPass = geometry_render_pass.GeometryRenderPass;
-const deferred_shading_render_pass = @import("renderer_system/deferred_shading_render_pass.zig");
-const DeferredShadingRenderPass = deferred_shading_render_pass.DeferredShadingRenderPass;
-const atmosphere_render_pass = @import("renderer_system/atmosphere_render_pass.zig");
-const AtmosphereRenderPass = atmosphere_render_pass.AtmosphereRenderPass;
-const post_processing_render_pass = @import("renderer_system/post_processing_render_pass.zig");
-const PostProcessingRenderPass = post_processing_render_pass.PostProcessingRenderPass;
-const ui_render_pass = @import("renderer_system/ui_render_pass.zig");
-const UIRenderPass = ui_render_pass.UIRenderPass;
-const im3d_render_pass = @import("renderer_system/im3d_render_pass.zig");
-const Im3dRenderPass = im3d_render_pass.Im3dRenderPass;
+const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
+const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
+const DeferredShadingRenderPass = @import("renderer_system/deferred_shading_render_pass.zig").DeferredShadingRenderPass;
+const AtmosphereRenderPass = @import("renderer_system/atmosphere_render_pass.zig").AtmosphereRenderPass;
+const PostProcessingRenderPass = @import("renderer_system/post_processing_render_pass.zig").PostProcessingRenderPass;
+const UIRenderPass = @import("renderer_system/ui_render_pass.zig").UIRenderPass;
+const Im3dRenderPass = @import("renderer_system/im3d_render_pass.zig").Im3dRenderPass;
 
 const font = zforge.font;
 const graphics = zforge.graphics;
@@ -68,60 +61,26 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     const pre_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PreUpdate", ecs.PreUpdate, fd.NOCOMP, preUpdate, .{ .ctx = system });
     const post_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PostUpdate", ecs.PostUpdate, fd.NOCOMP, postUpdate, .{ .ctx = system });
 
-    const geometry_pass = GeometryRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.prefab_mgr, ctx.allocator);
-    ctx.renderer.render_gbuffer_pass_render_fn = geometry_render_pass.renderFn;
-    ctx.renderer.render_gbuffer_pass_render_shadow_map_fn = geometry_render_pass.renderShadowMapFn;
-    ctx.renderer.render_gbuffer_pass_create_descriptor_sets_fn = geometry_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = geometry_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_gbuffer_pass_unload_descriptor_sets_fn = geometry_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_gbuffer_pass_user_data = geometry_pass;
+    const geometry_pass = ctx.allocator.create(GeometryRenderPass) catch unreachable;
+    geometry_pass.init(ctx.renderer, ctx.ecsu_world, ctx.prefab_mgr, ctx.allocator);
 
-    const terrain_pass = TerrainRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
-    ctx.renderer.render_terrain_pass_render_fn = terrain_render_pass.renderFn;
-    ctx.renderer.render_terrain_pass_imgui_fn = terrain_render_pass.renderImGuiFn;
-    ctx.renderer.render_terrain_pass_render_shadow_map_fn = terrain_render_pass.renderShadowMapFn;
-    ctx.renderer.render_terrain_pass_create_descriptor_sets_fn = terrain_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_terrain_pass_prepare_descriptor_sets_fn = terrain_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_terrain_pass_unload_descriptor_sets_fn = terrain_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_terrain_pass_user_data = terrain_pass;
+    const terrain_pass = ctx.allocator.create(TerrainRenderPass) catch unreachable;
+    terrain_pass.init(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
 
-    const deferred_shading_pass = DeferredShadingRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
-    ctx.renderer.render_deferred_shading_pass_render_fn = deferred_shading_render_pass.renderFn;
-    ctx.renderer.render_deferred_shading_pass_imgui_fn = deferred_shading_render_pass.renderImGuiFn;
-    ctx.renderer.render_deferred_shading_pass_create_descriptor_sets_fn = deferred_shading_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_deferred_shading_pass_prepare_descriptor_sets_fn = deferred_shading_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = deferred_shading_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_deferred_shading_pass_user_data = deferred_shading_pass;
+    const deferred_shading_pass = ctx.allocator.create(DeferredShadingRenderPass) catch unreachable;
+    deferred_shading_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
 
-    const atmosphere_pass = AtmosphereRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
-    ctx.renderer.render_atmosphere_pass_render_fn = atmosphere_render_pass.renderFn;
-    ctx.renderer.render_atmosphere_pass_imgui_fn = atmosphere_render_pass.renderImGuiFn;
-    ctx.renderer.render_atmosphere_pass_create_descriptor_sets_fn = atmosphere_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_atmosphere_pass_prepare_descriptor_sets_fn = atmosphere_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_atmosphere_pass_unload_descriptor_sets_fn = atmosphere_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_atmosphere_pass_user_data = atmosphere_pass;
+    const atmosphere_pass = ctx.allocator.create(AtmosphereRenderPass) catch unreachable;
+    atmosphere_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
 
-    const post_processing_pass = PostProcessingRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
-    ctx.renderer.render_post_processing_pass_render_fn = post_processing_render_pass.renderFn;
-    ctx.renderer.render_post_processing_pass_imgui_fn = post_processing_render_pass.renderImGuiFn;
-    ctx.renderer.render_post_processing_pass_create_descriptor_sets_fn = post_processing_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_post_processing_pass_prepare_descriptor_sets_fn = post_processing_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_post_processing_pass_unload_descriptor_sets_fn = post_processing_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_post_processing_pass_user_data = post_processing_pass;
+    const post_processing_pass = ctx.allocator.create(PostProcessingRenderPass) catch unreachable;
+    post_processing_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
 
-    const ui_pass = UIRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
-    ctx.renderer.render_ui_pass_render_fn = ui_render_pass.renderFn;
-    ctx.renderer.render_ui_pass_create_descriptor_sets_fn = ui_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_ui_pass_prepare_descriptor_sets_fn = ui_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_ui_pass_unload_descriptor_sets_fn = ui_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_ui_pass_user_data = ui_pass;
+    const ui_pass = ctx.allocator.create(UIRenderPass) catch unreachable;
+    ui_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
 
-    const im3d_pass = Im3dRenderPass.create(ctx.renderer, ctx.ecsu_world, ctx.allocator);
-    ctx.renderer.render_im3d_pass_render_fn = im3d_render_pass.renderFn;
-    ctx.renderer.render_im3d_pass_create_descriptor_sets_fn = im3d_render_pass.createDescriptorSetsFn;
-    ctx.renderer.render_im3d_pass_prepare_descriptor_sets_fn = im3d_render_pass.prepareDescriptorSetsFn;
-    ctx.renderer.render_im3d_pass_unload_descriptor_sets_fn = im3d_render_pass.unloadDescriptorSetsFn;
-    ctx.renderer.render_im3d_pass_user_data = im3d_pass;
+    const im3d_pass = ctx.allocator.create(Im3dRenderPass) catch unreachable;
+    im3d_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
 
     system.* = .{
         .allocator = ctx.allocator,
@@ -144,40 +103,11 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
 
 pub fn destroy(system: *SystemState) void {
     system.terrain_render_pass.destroy();
-    system.renderer.render_terrain_pass_render_fn = null;
-    system.renderer.render_terrain_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_terrain_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_terrain_pass_user_data = null;
-
     system.geometry_render_pass.destroy();
-    system.renderer.render_gbuffer_pass_render_fn = null;
-    system.renderer.render_gbuffer_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_gbuffer_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_gbuffer_pass_user_data = null;
-
     system.deferred_shading_render_pass.destroy();
-    system.renderer.render_deferred_shading_pass_render_fn = null;
-    system.renderer.render_deferred_shading_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_deferred_shading_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_deferred_shading_pass_user_data = null;
-
     system.atmosphere_render_pass.destroy();
-    system.renderer.render_atmosphere_pass_render_fn = null;
-    system.renderer.render_atmosphere_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_atmosphere_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_atmosphere_pass_user_data = null;
-
     system.ui_render_pass.destroy();
-    system.renderer.render_ui_pass_render_fn = null;
-    system.renderer.render_ui_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_ui_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_ui_pass_user_data = null;
-
     system.im3d_render_pass.destroy();
-    system.renderer.render_im3d_pass_render_fn = null;
-    system.renderer.render_im3d_pass_prepare_descriptor_sets_fn = null;
-    system.renderer.render_im3d_pass_unload_descriptor_sets_fn = null;
-    system.renderer.render_im3d_pass_user_data = null;
 
     system.allocator.destroy(system);
 }

@@ -27,10 +27,26 @@ pub const ReloadDesc = graphics.ReloadDesc;
 
 pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
 pub const renderPassImGuiFn = ?*const fn (user_data: *anyopaque) void;
-pub const renderPassRenderShadowMapFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
 pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
+
+pub const RenderPass = struct {
+    render_shadow_pass_fn: renderPassRenderFn = null,
+    render_gbuffer_pass_fn: renderPassRenderFn = null,
+    render_deferred_pass_fn: renderPassRenderFn = null,
+    render_atmosphere_pass_fn: renderPassRenderFn = null,
+    render_post_processing_pass_fn: renderPassRenderFn = null,
+    render_ui_pass_fn: renderPassRenderFn = null,
+
+    render_imgui_fn: renderPassImGuiFn = null,
+
+    create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
+    prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
+    unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
+
+    user_data: *anyopaque,
+};
 
 pub const opaque_pipelines = pso.opaque_pipelines;
 pub const masked_pipelines = pso.masked_pipelines;
@@ -97,57 +113,9 @@ pub const Renderer = struct {
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
     pso_manager: pso.PSOManager = undefined,
-    render_terrain_pass_user_data: ?*anyopaque = null,
-    render_terrain_pass_imgui_fn: renderPassImGuiFn = null,
-    render_terrain_pass_render_fn: renderPassRenderFn = null,
-    render_terrain_pass_render_shadow_map_fn: renderPassRenderShadowMapFn = null,
-    render_terrain_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_terrain_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_terrain_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
-    render_gbuffer_pass_user_data: ?*anyopaque = null,
-    render_gbuffer_pass_imgui_fn: renderPassImGuiFn = null,
-    render_gbuffer_pass_render_fn: renderPassRenderFn = null,
-    render_gbuffer_pass_render_shadow_map_fn: renderPassRenderShadowMapFn = null,
-    render_gbuffer_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_gbuffer_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_gbuffer_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
-    render_deferred_shading_pass_user_data: ?*anyopaque = null,
-    render_deferred_shading_pass_imgui_fn: renderPassImGuiFn = null,
-    render_deferred_shading_pass_render_fn: renderPassRenderFn = null,
-    render_deferred_shading_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_deferred_shading_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_deferred_shading_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
-    render_atmosphere_pass_user_data: ?*anyopaque = null,
-    render_atmosphere_pass_imgui_fn: renderPassImGuiFn = null,
-    render_atmosphere_pass_render_fn: renderPassRenderFn = null,
-    render_atmosphere_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_atmosphere_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_atmosphere_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
-    render_post_processing_pass_user_data: ?*anyopaque = null,
-    render_post_processing_pass_imgui_fn: renderPassImGuiFn = null,
-    render_post_processing_pass_render_fn: renderPassRenderFn = null,
-    render_post_processing_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_post_processing_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_post_processing_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
+    render_passes: std.ArrayList(*RenderPass) = undefined,
     render_imgui: bool = false,
-    render_ui_pass_user_data: ?*anyopaque = null,
-    render_ui_pass_imgui_fn: renderPassImGuiFn = null,
-    render_ui_pass_render_fn: renderPassRenderFn = null,
-    render_ui_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_ui_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_ui_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
-    render_im3d_pass_user_data: ?*anyopaque = null,
-    render_im3d_pass_imgui_fn: renderPassImGuiFn = null,
-    render_im3d_pass_render_fn: renderPassRenderFn = null,
-    render_im3d_pass_create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    render_im3d_pass_prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    render_im3d_pass_unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
 
     pub const Error = error{
         NotInitialized,
@@ -352,6 +320,8 @@ pub const Renderer = struct {
         };
         self.materials_buffer = self.createBindlessBuffer(buffer_data, "Materials Buffer");
 
+        self.render_passes = std.ArrayList(*RenderPass).init(allocator);
+
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
     }
@@ -386,6 +356,8 @@ pub const Renderer = struct {
         self.material_pool.deinit();
         self.materials.deinit();
 
+        self.render_passes.deinit();
+
         self.vertex_layouts_map.deinit();
 
         graphics.exitQueue(self.renderer, self.graphics_queue);
@@ -404,6 +376,24 @@ pub const Renderer = struct {
         font.platformExitFontSystem();
         log.exitLog();
         file_system.exitFileSystem();
+    }
+
+    pub fn registerRenderPass(self: *Renderer, render_pass: *RenderPass) void {
+        self.render_passes.append(render_pass) catch unreachable;
+    }
+
+    pub fn unregisterRenderPass(self: *Renderer, render_pass: *RenderPass) void {
+        var render_pass_index: usize = self.render_passes.items.len;
+
+        for (self.render_passes.items, 0..) |rp, i| {
+            if (rp == render_pass) {
+                render_pass_index = i;
+            }
+        }
+
+        if (render_pass_index < self.render_passes.items.len) {
+            _ = self.render_passes.orderedRemove(render_pass_index);
+        }
     }
 
     pub fn onLoad(self: *Renderer, reload_desc: graphics.ReloadDesc) Error!void {
@@ -438,61 +428,17 @@ pub const Renderer = struct {
                 @as(zgui.backend.D3D12_GPU_DESCRIPTOR_HANDLE, @bitCast(gpu_desc_handle)),
             );
 
-            if (self.render_terrain_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
-            }
-
-            if (self.render_gbuffer_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
-            }
-
-            if (self.render_deferred_shading_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
-            }
-
-            if (self.render_atmosphere_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_atmosphere_pass_user_data.?);
-            }
-
-            if (self.render_post_processing_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_post_processing_pass_user_data.?);
-            }
-
-            if (self.render_ui_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_ui_pass_user_data.?);
-            }
-
-            if (self.render_im3d_pass_create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                create_descriptor_sets_fn(self.render_im3d_pass_user_data.?);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.create_descriptor_sets_fn) |create_descriptor_sets_fn| {
+                    create_descriptor_sets_fn(render_pass.user_data);
+                }
             }
         }
 
-        if (self.render_terrain_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_terrain_pass_user_data.?);
-        }
-
-        if (self.render_gbuffer_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_gbuffer_pass_user_data.?);
-        }
-
-        if (self.render_deferred_shading_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_deferred_shading_pass_user_data.?);
-        }
-
-        if (self.render_atmosphere_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_atmosphere_pass_user_data.?);
-        }
-
-        if (self.render_post_processing_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_post_processing_pass_user_data.?);
-        }
-
-        if (self.render_ui_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_ui_pass_user_data.?);
-        }
-
-        if (self.render_im3d_pass_prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-            prepare_descriptor_sets_fn(self.render_im3d_pass_user_data.?);
+        for (self.render_passes.items) |render_pass| {
+            if (render_pass.prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
+                prepare_descriptor_sets_fn(render_pass.user_data);
+            }
         }
 
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
@@ -521,45 +467,9 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER) {
-            if (self.render_terrain_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_terrain_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
-            if (self.render_gbuffer_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_gbuffer_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
-            if (self.render_deferred_shading_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_deferred_shading_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
-            if (self.render_atmosphere_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_atmosphere_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
-            if (self.render_post_processing_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_post_processing_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
-            if (self.render_ui_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_ui_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
-                }
-            }
-
-            if (self.render_im3d_pass_unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                if (self.render_im3d_pass_user_data) |user_data| {
-                    unload_descriptor_sets_fn(user_data);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
+                    unload_descriptor_sets_fn(render_pass.user_data);
                 }
             }
         }
@@ -613,47 +523,12 @@ pub const Renderer = struct {
                     }
                 }
 
-                if (self.render_terrain_pass_imgui_fn) |render_fn| {
-                    if (self.render_terrain_pass_user_data) |user_data| {
-                        render_fn(user_data);
+                for (self.render_passes.items) |render_pass| {
+                    if (render_pass.render_imgui_fn) |render_imgui_fn| {
+                        render_imgui_fn(render_pass.user_data);
                     }
                 }
 
-                if (self.render_gbuffer_pass_imgui_fn) |render_fn| {
-                    if (self.render_gbuffer_pass_user_data) |user_data| {
-                        render_fn(user_data);
-                    }
-                }
-
-                if (self.render_deferred_shading_pass_imgui_fn) |render_fn| {
-                    if (self.render_deferred_shading_pass_user_data) |user_data| {
-                        render_fn(user_data);
-                    }
-                }
-
-                if (self.render_atmosphere_pass_imgui_fn) |render_fn| {
-                    if (self.render_atmosphere_pass_user_data) |user_data| {
-                        render_fn(user_data);
-                    }
-                }
-
-                if (self.render_post_processing_pass_imgui_fn) |render_fn| {
-                    if (self.render_post_processing_pass_user_data) |user_data| {
-                        render_fn(user_data);
-                    }
-                }
-
-                if (self.render_ui_pass_imgui_fn) |render_fn| {
-                    if (self.render_ui_pass_user_data) |user_data| {
-                        render_fn(user_data);
-                    }
-                }
-
-                if (self.render_im3d_pass_imgui_fn) |render_fn| {
-                    if (self.render_im3d_pass_user_data) |user_data| {
-                        render_fn(user_data);
-                    }
-                }
                 zgui.end();
             }
         }
@@ -715,15 +590,9 @@ pub const Renderer = struct {
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, 2048.0, 2048.0, 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, 2048, 2048);
 
-            if (self.render_terrain_pass_render_shadow_map_fn) |render_fn| {
-                if (self.render_terrain_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
-                }
-            }
-
-            if (self.render_gbuffer_pass_render_shadow_map_fn) |render_fn| {
-                if (self.render_gbuffer_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_shadow_pass_fn) |render_shadow_pass_fn| {
+                    render_shadow_pass_fn(cmd_list, render_pass.user_data);
                 }
             }
 
@@ -766,15 +635,9 @@ pub const Renderer = struct {
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
-            if (self.render_terrain_pass_render_fn) |render_fn| {
-                if (self.render_terrain_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
-                }
-            }
-
-            if (self.render_gbuffer_pass_render_fn) |render_fn| {
-                if (self.render_gbuffer_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_gbuffer_pass_fn) |render_gbuffer_pass_fn| {
+                    render_gbuffer_pass_fn(cmd_list, render_pass.user_data);
                 }
             }
 
@@ -811,9 +674,9 @@ pub const Renderer = struct {
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
-            if (self.render_deferred_shading_pass_render_fn) |render_fn| {
-                if (self.render_deferred_shading_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_deferred_pass_fn) |render_deferred_pass_fn| {
+                    render_deferred_pass_fn(cmd_list, render_pass.user_data);
                 }
             }
 
@@ -829,9 +692,9 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            if (self.render_atmosphere_pass_render_fn) |render_fn| {
-                if (self.render_atmosphere_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_atmosphere_pass_fn) |render_atmosphere_pass_fn| {
+                    render_atmosphere_pass_fn(cmd_list, render_pass.user_data);
                 }
             }
 
@@ -847,9 +710,9 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            if (self.render_post_processing_pass_render_fn) |render_fn| {
-                if (self.render_post_processing_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_post_processing_pass_fn) |render_post_processing_pass_fn| {
+                    render_post_processing_pass_fn(cmd_list, render_pass.user_data);
                 }
             }
 
@@ -863,29 +726,13 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "UI Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            if (self.render_ui_pass_render_fn) |render_fn| {
-                if (self.render_ui_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_ui_pass_fn) |render_ui_pass_fn| {
+                    render_ui_pass_fn(cmd_list, render_pass.user_data);
                 }
             }
 
             profiler.cmdEndGpuTimestampQuery(cmd_list, self.ui_pass_profile_token);
-        }
-
-        // Im3D Pass
-        {
-            self.im3d_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Im3D Pass", .{ .bUseMarker = true });
-
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Im3D Pass", 0x00_ff_00_00);
-            defer trazy_zone1.End();
-
-            if (self.render_im3d_pass_render_fn) |render_fn| {
-                if (self.render_im3d_pass_user_data) |user_data| {
-                    render_fn(cmd_list, user_data);
-                }
-            }
-
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.im3d_pass_profile_token);
         }
 
         // ImGUI Pass

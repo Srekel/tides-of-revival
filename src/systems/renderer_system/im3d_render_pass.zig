@@ -25,6 +25,7 @@ pub const Im3dRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+    render_pass: renderer.RenderPass,
     lines_vertex_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     triangles_vertex_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     points_vertex_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -34,7 +35,7 @@ pub const Im3dRenderPass = struct {
     triangles_descriptor_set: [*c]graphics.DescriptorSet,
     points_descriptor_set: [*c]graphics.DescriptorSet,
 
-    pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *Im3dRenderPass {
+    pub fn init(self: *Im3dRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
         const uniform_frame_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -86,11 +87,11 @@ pub const Im3dRenderPass = struct {
             break :blk buffers;
         };
 
-        const pass = allocator.create(Im3dRenderPass) catch unreachable;
-        pass.* = .{
+        self.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
+            .render_pass = undefined,
             .lines_vertex_buffers = lines_vertex_buffers,
             .triangles_vertex_buffers = triangles_vertex_buffers,
             .points_vertex_buffers = points_vertex_buffers,
@@ -101,15 +102,24 @@ pub const Im3dRenderPass = struct {
             .points_descriptor_set = undefined,
         };
 
-        createDescriptorSets(@ptrCast(pass));
-        prepareDescriptorSets(@ptrCast(pass));
+        createDescriptorSets(@ptrCast(self));
+        prepareDescriptorSets(@ptrCast(self));
 
-        return pass;
+        self.render_pass = renderer.RenderPass{
+            .create_descriptor_sets_fn = createDescriptorSets,
+            .prepare_descriptor_sets_fn = prepareDescriptorSets,
+            .unload_descriptor_sets_fn = unloadDescriptorSets,
+            .render_ui_pass_fn = render,
+            .user_data = @ptrCast(self),
+        };
+        rctx.registerRenderPass(&self.render_pass);
     }
 
     pub fn destroy(self: *Im3dRenderPass) void {
-        graphics.removeDescriptorSet(self.renderer.renderer, self.lines_descriptor_set);
-        graphics.removeDescriptorSet(self.renderer.renderer, self.triangles_descriptor_set);
+        self.renderer.unregisterRenderPass(&self.render_pass);
+
+        unloadDescriptorSets(@ptrCast(self));
+
         self.allocator.destroy(self);
     }
 };
@@ -120,11 +130,6 @@ pub const Im3dRenderPass = struct {
 // ██╔══██╗██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
-
-pub const renderFn: renderer.renderPassRenderFn = render;
-pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
-pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
-pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
 fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Im3D", 0x00_ff_ff_00);

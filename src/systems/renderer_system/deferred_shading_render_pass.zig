@@ -73,6 +73,7 @@ pub const DeferredShadingRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+    render_pass: renderer.RenderPass,
 
     brdf_lut_texture: renderer.TextureHandle,
     irradiance_texture: renderer.TextureHandle,
@@ -95,7 +96,7 @@ pub const DeferredShadingRenderPass = struct {
     query_directional_lights: ecsu.Query,
     query_point_lights: ecsu.Query,
 
-    pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *DeferredShadingRenderPass {
+    pub fn init(self: *DeferredShadingRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
         const point_lights = std.ArrayList(PointLight).init(allocator);
         const directional_lights = std.ArrayList(DirectionalLight).init(allocator);
 
@@ -204,11 +205,11 @@ pub const DeferredShadingRenderPass = struct {
             .fog_density = 0.00003,
         };
 
-        const pass = allocator.create(DeferredShadingRenderPass) catch unreachable;
-        pass.* = .{
+        self.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
+            .render_pass = undefined,
             .brdf_lut_texture = brdf_lut_texture,
             .irradiance_texture = irradiance_texture,
             .specular_texture = specular_texture,
@@ -228,21 +229,24 @@ pub const DeferredShadingRenderPass = struct {
             .query_point_lights = query_point_lights,
         };
 
-        createDescriptorSets(@ptrCast(pass));
-        prepareDescriptorSets(@ptrCast(pass));
+        createDescriptorSets(@ptrCast(self));
+        prepareDescriptorSets(@ptrCast(self));
 
-        return pass;
+        self.render_pass = renderer.RenderPass{
+            .create_descriptor_sets_fn = createDescriptorSets,
+            .prepare_descriptor_sets_fn = prepareDescriptorSets,
+            .unload_descriptor_sets_fn = unloadDescriptorSets,
+            .render_imgui_fn = renderImGui,
+            .render_deferred_pass_fn = render,
+            .user_data = @ptrCast(self),
+        };
+        rctx.registerRenderPass(&self.render_pass);
     }
 
     pub fn destroy(self: *DeferredShadingRenderPass) void {
-        graphics.removeDescriptorSet(self.renderer.renderer, self.brdf_descriptor_set);
-        graphics.removeDescriptorSet(self.renderer.renderer, self.irradiance_descriptor_set);
-        for (self.specular_descriptor_sets) |descriptor_set| {
-            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
-        }
-        for (self.deferred_descriptor_sets) |descriptor_set| {
-            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
-        }
+        self.renderer.unregisterRenderPass(&self.render_pass);
+
+        unloadDescriptorSets(@ptrCast(self));
 
         self.query_directional_lights.deinit();
         self.query_point_lights.deinit();
@@ -258,12 +262,6 @@ pub const DeferredShadingRenderPass = struct {
 // ██╔══██╗██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
-
-pub const renderFn: renderer.renderPassRenderFn = render;
-pub const renderImGuiFn: renderer.renderPassImGuiFn = renderImGui;
-pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
-pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
-pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
 fn renderImGui(user_data: *anyopaque) void {
     if (zgui.collapsingHeader("Deferred Shading", .{})) {

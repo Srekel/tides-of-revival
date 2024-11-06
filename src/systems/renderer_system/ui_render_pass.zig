@@ -31,6 +31,7 @@ pub const UIRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+    render_pass: renderer.RenderPass,
     index_buffer: renderer.BufferHandle,
     uniform_frame_data: UniformFrameData,
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -39,7 +40,7 @@ pub const UIRenderPass = struct {
     instance_data_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     query_ui_images: ecsu.Query,
 
-    pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) *UIRenderPass {
+    pub fn init(self: *UIRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
         const uniform_frame_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -79,11 +80,11 @@ pub const UIRenderPass = struct {
         _ = query_builder_ui.withReadonly(fd.UIImage);
         const query_ui_images = query_builder_ui.buildQuery();
 
-        const pass = allocator.create(UIRenderPass) catch unreachable;
-        pass.* = .{
+        self.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
+            .render_pass = undefined,
             .index_buffer = index_buffer,
             .uniform_frame_data = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers = uniform_frame_buffers,
@@ -93,16 +94,26 @@ pub const UIRenderPass = struct {
             .query_ui_images = query_ui_images,
         };
 
-        createDescriptorSets(@ptrCast(pass));
-        prepareDescriptorSets(@ptrCast(pass));
+        createDescriptorSets(@ptrCast(self));
+        prepareDescriptorSets(@ptrCast(self));
 
-        return pass;
+        self.render_pass = renderer.RenderPass{
+            .create_descriptor_sets_fn = createDescriptorSets,
+            .prepare_descriptor_sets_fn = prepareDescriptorSets,
+            .unload_descriptor_sets_fn = unloadDescriptorSets,
+            .render_ui_pass_fn = render,
+            .user_data = @ptrCast(self),
+        };
+        rctx.registerRenderPass(&self.render_pass);
     }
 
     pub fn destroy(self: *UIRenderPass) void {
+        self.renderer.unregisterRenderPass(&self.render_pass);
+
         self.query_ui_images.deinit();
         self.instance_data.deinit();
-        graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_set);
+
+        unloadDescriptorSets(@ptrCast(self));
         self.allocator.destroy(self);
     }
 };
@@ -113,11 +124,6 @@ pub const UIRenderPass = struct {
 // ██╔══██╗██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
-
-pub const renderFn: renderer.renderPassRenderFn = render;
-pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
-pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
-pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
 
 fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "UI Render Pass", 0x00_ff_ff_00);

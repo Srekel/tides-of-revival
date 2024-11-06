@@ -76,6 +76,7 @@ pub const GeometryRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
+    render_pass: renderer.RenderPass,
     prefab_mgr: *PrefabManager,
     query_static_mesh: ecsu.Query,
 
@@ -109,7 +110,7 @@ pub const GeometryRenderPass = struct {
     shadow_caster_draw_calls: [max_entity_types]std.ArrayList(DrawCallInstanced),
     shadow_caster_draw_calls_push_constants: [max_entity_types]std.ArrayList(DrawCallPushConstants),
 
-    pub fn create(rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) *GeometryRenderPass {
+    pub fn init(self: *GeometryRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         const wind_noise_texture = rctx.loadTexture("textures/noise/3d_noise.dds");
         const wind_gust_texture = rctx.loadTexture("textures/noise/gust_noise.dds");
 
@@ -220,11 +221,11 @@ pub const GeometryRenderPass = struct {
             .withReadonly(fd.StaticMesh);
         const query_static_mesh = query_builder_mesh.buildQuery();
 
-        const pass = allocator.create(GeometryRenderPass) catch unreachable;
-        pass.* = .{
+        self.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
             .renderer = rctx,
+            .render_pass = undefined,
             .prefab_mgr = prefab_mgr,
             .wind_frame_data = wind_frame_data,
             .wind_frame_buffers = wind_frame_buffers,
@@ -250,22 +251,25 @@ pub const GeometryRenderPass = struct {
             .query_static_mesh = query_static_mesh,
         };
 
-        createDescriptorSets(@ptrCast(pass));
-        prepareDescriptorSets(@ptrCast(pass));
+        createDescriptorSets(@ptrCast(self));
+        prepareDescriptorSets(@ptrCast(self));
 
-        return pass;
+        self.render_pass = renderer.RenderPass{
+            .create_descriptor_sets_fn = createDescriptorSets,
+            .prepare_descriptor_sets_fn = prepareDescriptorSets,
+            .unload_descriptor_sets_fn = unloadDescriptorSets,
+            .render_gbuffer_pass_fn =  renderGBuffer,
+            .render_shadow_pass_fn = renderShadowMap,
+            .user_data = @ptrCast(self),
+        };
+        rctx.registerRenderPass(&self.render_pass);
     }
 
     pub fn destroy(self: *GeometryRenderPass) void {
+        self.renderer.unregisterRenderPass(&self.render_pass);
         self.query_static_mesh.deinit();
 
-        for (self.descriptor_sets) |descriptor_set| {
-            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
-        }
-
-        for (self.shadows_descriptor_sets) |descriptor_set| {
-            graphics.removeDescriptorSet(self.renderer.renderer, descriptor_set);
-        }
+        unloadDescriptorSets(@ptrCast(self));
 
         self.draw_calls_info.deinit();
 
@@ -294,12 +298,6 @@ pub const GeometryRenderPass = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
-pub const renderFn: renderer.renderPassRenderFn = render;
-pub const renderShadowMapFn: renderer.renderPassRenderShadowMapFn = renderShadowMap;
-pub const createDescriptorSetsFn: renderer.renderPassCreateDescriptorSetsFn = createDescriptorSets;
-pub const prepareDescriptorSetsFn: renderer.renderPassPrepareDescriptorSetsFn = prepareDescriptorSets;
-pub const unloadDescriptorSetsFn: renderer.renderPassUnloadDescriptorSetsFn = unloadDescriptorSets;
-
 fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c]graphics.Cmd) void {
     const vertex_layout = self.renderer.getVertexLayout(mesh.vertex_layout_id).?;
     const vertex_buffer_count_max = 12; // TODO(gmodarelli): Use MAX_SEMANTICS
@@ -314,7 +312,7 @@ fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c
     graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
 }
 
-fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "GBuffer: Geometry Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
