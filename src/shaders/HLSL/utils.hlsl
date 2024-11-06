@@ -33,7 +33,7 @@ INLINE float3 UnpackNormals(float2 uv, float3 viewDirection, Tex2D(float4) norma
 	float3 T = crossPdyN * dUVdx.x + crossNPdx * dUVdy.x;
 	float3 B = crossPdyN * dUVdx.y + crossNPdx * dUVdy.y;
 
-	float invScale = rsqrt(max(dot(T, T), dot(B, B)) + 0.0001f);
+	float invScale = rsqrt(max(0.0001f, max(dot(T, T), dot(B, B))));
 
 	float3x3 TBN = make_f3x3_rows(T * invScale, B * invScale, N);
 	return normalize(mul(tangentNormal, TBN));

@@ -26,6 +26,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
     ecs.COMPONENT(ecs_world, StaticMesh);
+    ecs.COMPONENT(ecs_world, Water);
     ecs.COMPONENT(ecs_world, SkyLight);
     ecs.COMPONENT(ecs_world, UIImage);
     ecs.COMPONENT(ecs_world, CICamera);
@@ -442,6 +443,10 @@ pub const StaticMesh = struct {
 
     material_count: u32,
     materials: [renderer.sub_mesh_max_count]MaterialHandle,
+};
+
+pub const Water = struct {
+    mesh_handle: MeshHandle,
 };
 
 // ███████╗██╗  ██╗██╗   ██╗██████╗  ██████╗ ██╗  ██╗

@@ -36,6 +36,7 @@ pub const RenderPass = struct {
     render_gbuffer_pass_fn: renderPassRenderFn = null,
     render_deferred_pass_fn: renderPassRenderFn = null,
     render_atmosphere_pass_fn: renderPassRenderFn = null,
+    render_water_pass_fn: renderPassRenderFn = null,
     render_post_processing_pass_fn: renderPassRenderFn = null,
     render_ui_pass_fn: renderPassRenderFn = null,
 
@@ -78,9 +79,9 @@ pub const Renderer = struct {
     deferred_pass_profile_token: profiler.ProfileToken = undefined,
     skybox_pass_profile_token: profiler.ProfileToken = undefined,
     atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
+    water_pass_profile_token: profiler.ProfileToken = undefined,
     post_processing_pass_profile_token: profiler.ProfileToken = undefined,
     ui_pass_profile_token: profiler.ProfileToken = undefined,
-    im3d_pass_profile_token: profiler.ProfileToken = undefined,
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
     depth_buffer: [*c]graphics.RenderTarget = null,
@@ -507,9 +508,9 @@ pub const Renderer = struct {
                         zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
                         zgui.text("\tSkybox Pass: {d}", .{profiler.getGpuProfileAvgTime(self.skybox_pass_profile_token)});
                         zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
+                        zgui.text("\tWater Pass: {d}", .{profiler.getGpuProfileAvgTime(self.water_pass_profile_token)});
                         zgui.text("\tPost Processing Pass: {d}", .{profiler.getGpuProfileAvgTime(self.post_processing_pass_profile_token)});
                         zgui.text("\tUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.ui_pass_profile_token)});
-                        zgui.text("\tIm3D Pass: {d}", .{profiler.getGpuProfileAvgTime(self.im3d_pass_profile_token)});
                         zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
                     }
                 }
@@ -701,6 +702,24 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
 
             profiler.cmdEndGpuTimestampQuery(cmd_list, self.atmosphere_pass_profile_token);
+        }
+
+        // Water Pass
+        {
+            self.water_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Water", .{ .bUseMarker = true });
+
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Water", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_water_pass_fn) |render_water_pass_fn| {
+                    render_water_pass_fn(cmd_list, render_pass.user_data);
+                }
+            }
+
+            graphics.cmdBindRenderTargets(cmd_list, null);
+
+            profiler.cmdEndGpuTimestampQuery(cmd_list, self.water_pass_profile_token);
         }
 
         // Post Processing

@@ -21,6 +21,7 @@ const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").Ter
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
 const DeferredShadingRenderPass = @import("renderer_system/deferred_shading_render_pass.zig").DeferredShadingRenderPass;
 const AtmosphereRenderPass = @import("renderer_system/atmosphere_render_pass.zig").AtmosphereRenderPass;
+const WaterRenderPass = @import("renderer_system/water_render_pass.zig").WaterRenderPass;
 const PostProcessingRenderPass = @import("renderer_system/post_processing_render_pass.zig").PostProcessingRenderPass;
 const UIRenderPass = @import("renderer_system/ui_render_pass.zig").UIRenderPass;
 const Im3dRenderPass = @import("renderer_system/im3d_render_pass.zig").Im3dRenderPass;
@@ -40,6 +41,7 @@ pub const SystemState = struct {
     geometry_render_pass: *GeometryRenderPass,
     deferred_shading_render_pass: *DeferredShadingRenderPass,
     atmosphere_render_pass: *AtmosphereRenderPass,
+    water_render_pass: *WaterRenderPass,
     ui_render_pass: *UIRenderPass,
     im3d_render_pass: *Im3dRenderPass,
     render_imgui: bool,
@@ -73,6 +75,9 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
     const atmosphere_pass = ctx.allocator.create(AtmosphereRenderPass) catch unreachable;
     atmosphere_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
 
+    const water_pass = ctx.allocator.create(WaterRenderPass) catch unreachable;
+    water_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+
     const post_processing_pass = ctx.allocator.create(PostProcessingRenderPass) catch unreachable;
     post_processing_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
 
@@ -91,6 +96,7 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .geometry_render_pass = geometry_pass,
         .deferred_shading_render_pass = deferred_shading_pass,
         .atmosphere_render_pass = atmosphere_pass,
+        .water_render_pass = water_pass,
         .ui_render_pass = ui_pass,
         .im3d_render_pass = im3d_pass,
         .render_imgui = false,
@@ -106,6 +112,7 @@ pub fn destroy(system: *SystemState) void {
     system.geometry_render_pass.destroy();
     system.deferred_shading_render_pass.destroy();
     system.atmosphere_render_pass.destroy();
+    system.water_render_pass.destroy();
     system.ui_render_pass.destroy();
     system.im3d_render_pass.destroy();
 

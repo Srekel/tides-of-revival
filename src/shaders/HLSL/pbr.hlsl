@@ -30,15 +30,15 @@ struct DirectionalLight
 //
 // LIGHTING FUNCTIONS
 //
+float pow5(float value)
+{
+	return (value * value) * (value * value) * value;
+}
+
 float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 {
 	float3 ret = float3(0.0, 0.0, 0.0);
-	// pow(1.0 - cosTheta, 5.0)
-	float x = 1.0 - cosTheta;
-	// NOTE(gmodarelli): Replacing pow(x, 5.0) with 3 multiplies to avoid
-	// generating nan in case cosTheta is > 1.0
-	// 3 multiplies are also faster
-	float powTheta = (x * x) * (x * x) * x;
+	float powTheta = pow5(1.0 - cosTheta);
 	float invRough = float(1.0 - roughness);
 
 	ret.x = F0.x + (max(invRough, F0.x) - F0.x) * powTheta;
@@ -50,12 +50,7 @@ float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 
 float3 FresnelSchlick(float cosTheta, float3 F0)
 {
-	// pow(1.0 - cosTheta, 5.0)
-	float x = 1.0 - cosTheta;
-	// NOTE(gmodarelli): Replacing pow(x, 5.0) with 3 multiplies to avoid
-	// generating nan in case cosTheta is > 1.0
-	// 3 multiplies are also faster
-	return F0 + (1.0f - F0) * ((x * x) * (x * x) * x);
+	return F0 + (1.0f - F0) * pow5(1.0 - cosTheta);
 }
 
 float DistributionGGX(float3 N, float3 H, float roughness)

@@ -138,6 +138,26 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     bow_ent.childOf(player_camera_ent);
 
+    // ██╗    ██╗ █████╗ ████████╗███████╗██████╗
+    // ██║    ██║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗
+    // ██║ █╗ ██║███████║   ██║   █████╗  ██████╔╝
+    // ██║███╗██║██╔══██║   ██║   ██╔══╝  ██╔══██╗
+    // ╚███╔███╔╝██║  ██║   ██║   ███████╗██║  ██║
+    //  ╚══╝╚══╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+
+    const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
+    const static_mesh_component = plane_prefab.get(fd.StaticMesh);
+    const mesh_handle = static_mesh_component.?.mesh_handle;
+
+    const water_position = fd.Position.init(8190.7, 433.05, 8182);
+    const water_scale = 10.0;
+    var water_ent = ecsu_world.newEntity();
+    water_ent.set(water_position);
+    water_ent.set(fd.Rotation{});
+    water_ent.set(fd.Scale.createScalar(water_scale));
+    water_ent.set(fd.Transform.initWithScale(water_position.x, water_position.y, water_position.z, water_scale));
+    water_ent.set(fd.Water{.mesh_handle = mesh_handle });
+
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
     environment_info.sun = sun_ent;

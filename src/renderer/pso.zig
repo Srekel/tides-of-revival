@@ -479,6 +479,29 @@ pub const PSOManager = struct {
             self.createGraphicsPipeline(desc);
         }
 
+        // Water
+        {
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{
+                self.renderer.scene_color.*.mFormat,
+            };
+
+            const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_GEQUAL);
+
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("water"),
+                .vert_shader_name = "water.vert",
+                .frag_shader_name = "water.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
+        }
+
         // Post Processing
         {
             // Bloom
