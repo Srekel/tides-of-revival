@@ -13,7 +13,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-float g_landscapeWaterColor[3] = {0.0f, 0.58f, 1.0f};
+float g_landscapeWaterColor[3] = {0.0f, 0.5f, 1.0f};
 float g_landscapeLandColor[3] = {0.15f, 0.5f, 0.0f};
 float g_landscapeShoreColor[3] = {1.0f, 0.0f, 0.0f};
 float g_landscapeMountainColor[3] = {0.5f, 0.5f, 0.5f};

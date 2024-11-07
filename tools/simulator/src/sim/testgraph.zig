@@ -42,8 +42,10 @@ pub fn getGraph() *const graph.Graph {
     return &self;
 }
 
-const DRY_RUN = true;
-const kilometers = if (DRY_RUN) 2 else 16;
+const preview_size = 512;
+
+const DRY_RUN = false;
+const kilometers = if (DRY_RUN) 16 else 16;
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
 const world_settings: types.WorldSettings = .{
     .size = world_size,
@@ -69,6 +71,8 @@ var fbm_settings = nodes.fbm.FbmSettings{
 var fbm_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var gradient_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var scratch_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var scratch_image2: types.ImageF32 = types.ImageF32.square(world_settings.size.width); // HACK
+var water_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var cities: std.ArrayList([3]f32) = undefined;
 
 var fbm_trees_settings = nodes.fbm.FbmSettings{
@@ -93,24 +97,26 @@ pub fn start(ctx: *Context) void {
     heightmap2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     gradient_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
-    preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
-    preview_fbm_trees_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
-    preview_heightmap_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
-    preview_heightmap2_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
-    preview_gradient_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, 512 * 512) catch unreachable;
+    scratch_image2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    water_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size * 4) catch unreachable;
+    preview_fbm_trees_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_heightmap_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_heightmap2_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_gradient_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     // INITIALIZE LOCAL
     voronoi_settings.seed = 0;
     voronoi_settings.size = world_size.width;
     voronoi_settings.radius = 1;
-    voronoi_settings.num_relaxations = 10;
+    voronoi_settings.num_relaxations = 5;
     cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
 
     voronoi_points = @TypeOf(voronoi_points).init(std.heap.c_allocator);
 
     // Start!
-    ctx.next_nodes.appendAssumeCapacity(doNode_GenerateVoronoiMap);
-    ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
+    ctx.next_nodes.append(doNode_GenerateVoronoiMap) catch unreachable;
+    // ctx.next_nodes.insert(0, doNode_fbm) catch unreachable;
 }
 
 pub fn exit(ctx: *Context) void {
@@ -119,7 +125,7 @@ pub fn exit(ctx: *Context) void {
     _ = name_grid; // autofix
     // ctx.resources.put(name_grid, &voronoi);
 
-    // ctx.next_nodes.appendAssumeCapacity(heightmap_output.start);
+    // ctx.next_nodes.insert(0, heightmap_output.start) catch unreachable;
 }
 
 fn doNode_GenerateVoronoiMap(ctx: *Context) void {
@@ -135,11 +141,11 @@ fn doNode_GenerateVoronoiMap(ctx: *Context) void {
         .voronoi_grid = voronoi.diagram,
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
-    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, 512, 512);
+    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
     const preview_grid_key = "GenerateVoronoiMap1.voronoi";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size * 4] });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_generate_landscape_from_image);
+    ctx.next_nodes.insert(0, doNode_generate_landscape_from_image) catch unreachable;
 }
 
 fn doNode_generate_landscape_from_image(ctx: *Context) void {
@@ -150,11 +156,11 @@ fn doNode_generate_landscape_from_image(ctx: *Context) void {
 
     cpp_nodes.generate_landscape_from_image(&c_voronoi, "content/tides_2.0.png");
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, 512, 512);
+    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
     const preview_grid_key = "generate_landscape_from_image.voronoi";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size * 4] });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_beaches);
+    ctx.next_nodes.insert(0, doNode_beaches) catch unreachable;
 }
 
 fn doNode_beaches(ctx: *Context) void {
@@ -165,11 +171,36 @@ fn doNode_beaches(ctx: *Context) void {
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, 512, 512);
-    const preview_grid_key = "beaches.voronoi";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. 512 * 512 * 4] });
+    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
+    // const preview_grid_key = "beaches.voronoi";
+    // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size * 4] });
 
-    // ctx.next_nodes.appendAssumeCapacity(doNode_fbm);
+    scratch_image.size.width = preview_size;
+    scratch_image.size.height = preview_size;
+    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size * 4], &scratch_image);
+
+    // types.image_preview_f32(water_image, &preview_fbm_image);
+    // const preview_grid_key2 = "beaches.voronoi";
+    // ctx.previews.putAssumeCapacity(preview_grid_key2, .{ .data = preview_fbm_image.asBytes() });
+
+    const upsamples = std.math.log2(world_size.width / scratch_image.size.width);
+    for (0..upsamples) |i| {
+        _ = i; // autofix
+        scratch_image2.size.width = scratch_image.size.width * 2;
+        scratch_image2.size.height = scratch_image.size.height * 2;
+        compute.upsample_blur(&scratch_image, &scratch_image2);
+        scratch_image.size.width = scratch_image2.size.width;
+        scratch_image.size.height = scratch_image2.size.height;
+        scratch_image.swap(&scratch_image2);
+    }
+
+    water_image.copy(scratch_image);
+
+    types.image_preview_f32(scratch_image, &preview_fbm_image);
+    const preview_grid_key3 = "beaches2.voronoi";
+    ctx.previews.putAssumeCapacity(preview_grid_key3, .{ .data = preview_fbm_image.asBytes() });
+
+    ctx.next_nodes.insert(0, doNode_fbm) catch unreachable;
 }
 
 const GenerateFBMSettings = extern struct {
@@ -205,7 +236,7 @@ var remap_settings = RemapSettings{
     .height = world_size.height,
 };
 
-var preview_fbm_image = types.ImageRGBA.square(512);
+var preview_fbm_image = types.ImageRGBA.square(preview_size * 2);
 fn doNode_fbm(ctx: *Context) void {
     const generate_fbm_settings = GenerateFBMSettings{
         .width = @intCast(fbm_image.size.width),
@@ -247,11 +278,11 @@ fn doNode_fbm(ctx: *Context) void {
     const preview_grid_key = "fbm.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_image.asBytes() });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_heightmap);
+    ctx.next_nodes.insert(0, doNode_heightmap) catch unreachable;
 }
 
-var preview_heightmap_image = types.ImageRGBA.square(512);
-var preview_heightmap2_image = types.ImageRGBA.square(512);
+var preview_heightmap_image = types.ImageRGBA.square(preview_size);
+var preview_heightmap2_image = types.ImageRGBA.square(preview_size);
 fn doNode_heightmap(ctx: *Context) void {
     heightmap.copy(fbm_image);
     heightmap.remap(0, world_settings.terrain_height_max);
@@ -260,11 +291,12 @@ fn doNode_heightmap(ctx: *Context) void {
     const preview_key = "heightmap.image";
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_heightmap_image.asBytes() });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_gradient);
-    ctx.next_nodes.appendAssumeCapacity(doNode_heightmap_file);
+    ctx.next_nodes.insert(0, doNode_water) catch unreachable;
+    ctx.next_nodes.insert(1, doNode_gradient) catch unreachable;
+    ctx.next_nodes.insert(2, doNode_heightmap_file) catch unreachable;
 }
 
-var preview_gradient_image = types.ImageRGBA.square(512);
+var preview_gradient_image = types.ImageRGBA.square(preview_size);
 fn doNode_gradient(ctx: *Context) void {
     compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
     compute.min(&gradient_image, &scratch_image);
@@ -280,25 +312,33 @@ fn doNode_gradient(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
 
     heightmap2.copy(heightmap);
-    for (0..3) |_| {
-        nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
-        nodes.gradient.terrace(heightmap2, gradient_image, &heightmap, &scratch_image);
-    }
-    nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
+    // for (0..3) |_| {
+    //     nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
+    //     nodes.gradient.terrace(heightmap2, gradient_image, &heightmap, &scratch_image);
+    // }
+    // nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
 
-    types.image_preview_f32(heightmap2, &preview_heightmap2_image);
-    const preview_key2 = "heightmap2.image";
-    ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
+    // types.image_preview_f32(heightmap2, &preview_heightmap2_image);
+    // const preview_key2 = "heightmap2.image";
+    // ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_cities);
-    ctx.next_nodes.appendAssumeCapacity(doNode_fbm_trees);
+    ctx.next_nodes.insert(0, doNode_cities) catch unreachable;
+    ctx.next_nodes.insert(1, doNode_fbm_trees) catch unreachable;
 }
 
-var preview_cities_image = types.ImageRGBA.square(512);
+fn doNode_water(ctx: *Context) void {
+    nodes.experiments.water(water_image, &heightmap);
+
+    types.image_preview_f32(heightmap, &preview_heightmap2_image);
+    const preview_key2 = "heightmap_waterify.image";
+    ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
+}
+
+var preview_cities_image = types.ImageRGBA.square(preview_size);
 fn doNode_cities(ctx: *Context) void {
     _ = ctx; // autofix
     if (!DRY_RUN) {
-        nodes.experiments.cities(world_settings, heightmap2, gradient_image, &cities);
+        nodes.experiments.cities(world_settings, heightmap, gradient_image, &cities);
     }
 
     // preview_cities_image.copy(preview_heightmap_image);
@@ -307,7 +347,7 @@ fn doNode_cities(ctx: *Context) void {
     // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_cities_image.asBytes() });
 }
 
-var preview_fbm_trees_image = types.ImageRGBA.square(512);
+var preview_fbm_trees_image = types.ImageRGBA.square(preview_size);
 fn doNode_fbm_trees(ctx: *Context) void {
     // CPU FBM
     // nodes.fbm.fbm(&fbm_trees_settings, &fbm_trees_image);
@@ -375,22 +415,22 @@ fn doNode_fbm_trees(ctx: *Context) void {
     const preview_grid_key = "fbm_trees.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_fbm_trees_image.asBytes() });
 
-    ctx.next_nodes.appendAssumeCapacity(doNode_trees);
+    ctx.next_nodes.insert(0, doNode_trees) catch unreachable;
 }
 
-var preview_trees_image = types.ImageRGBA.square(512);
+var preview_trees_image = types.ImageRGBA.square(preview_size);
 fn doNode_trees(ctx: *Context) void {
     _ = ctx; // autofix
     var trees = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
     nodes.experiments.points_distribution_grid(fbm_trees_image, 0.6, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees);
     if (!DRY_RUN) {
-        nodes.experiments.write_trees(heightmap2, trees);
+        nodes.experiments.write_trees(heightmap, trees);
     }
 }
 
 fn doNode_heightmap_file(ctx: *Context) void {
     _ = ctx; // autofix
     if (!DRY_RUN) {
-        nodes.heightmap_format.heightmap_format(world_settings, heightmap2);
+        nodes.heightmap_format.heightmap_format(world_settings, heightmap);
     }
 }

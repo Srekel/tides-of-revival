@@ -3,6 +3,7 @@ const types = @import("../types.zig");
 const grid = @import("../grid.zig");
 const zm = @import("zmath");
 const znoise = @import("znoise");
+const nodes = @import("nodes.zig");
 
 pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gradient: types.ImageF32, cities_out: *std.ArrayList([3]f32)) void {
     _ = world_settings; // autofix
@@ -121,6 +122,30 @@ pub fn write_trees(heightmap: types.ImageF32, points: types.PatchDataPts2d) void
             const file = std.fs.cwd().createFile(namebufslice, .{ .read = true }) catch unreachable;
             defer file.close();
             _ = file.writeAll(output_file_data.items) catch unreachable;
+        }
+    }
+}
+
+// pub fn voronoi_to_water(voronoi_image: types.ImageRGBA, water_image: *types.ImageF32) void {
+pub fn voronoi_to_water(voronoi_image: []u8, water_image: *types.ImageF32) void {
+    for (0..water_image.size.height) |y| {
+        for (0..water_image.size.width) |x| {
+            const voronoi_index = (x + y * water_image.size.width) * 4;
+            if (voronoi_image[voronoi_index] == 38) {
+                water_image.set(x, y, 1);
+            } else if (voronoi_image[voronoi_index] == 255) {
+                water_image.set(x, y, 0.5);
+            }
+        }
+    }
+}
+
+pub fn water(water_image: types.ImageF32, heightmap: *types.ImageF32) void {
+    for (0..water_image.size.height) |y| {
+        for (0..water_image.size.width) |x| {
+            const height_curr = heightmap.get(x, y);
+            const water_curr = water_image.get(x, y);
+            heightmap.set(x, y, height_curr * water_curr);
         }
     }
 }
