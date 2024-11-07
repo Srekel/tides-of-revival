@@ -67,3 +67,15 @@ pub fn max(image_in: *types.ImageF32, scratch: *types.ImageF32) void {
 pub fn fbm(image_out: *types.ImageF32, settings: anytype) void {
     compute_f32_1(.fbm, null, image_out, settings);
 }
+
+pub fn upsample_blur(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
+    const settings: extern struct {
+        buffer_width: u32,
+        buffer_height: u32,
+        padding: [2]f32 = undefined,
+    } = .{
+        .buffer_width = @intCast(image_in.size.width),
+        .buffer_height = @intCast(image_in.size.height),
+    };
+    compute_f32_1(.upsample_blur, image_in, image_out, settings);
+}

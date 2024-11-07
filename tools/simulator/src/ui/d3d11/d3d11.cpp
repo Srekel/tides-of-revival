@@ -72,6 +72,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/fbm.hlsl", "CSGenerateFBM", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    compile_compute_shader(L"shaders/upsample_blur.hlsl", "CSUpsampleBlur", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     // Parallel Reduce (Min/Max)
     {
