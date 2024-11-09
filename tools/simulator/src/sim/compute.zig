@@ -5,36 +5,48 @@ const graph = @import("graph.zig");
 pub var compute_fn: graph.fn_compute = undefined;
 
 pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, image_out_1: *types.ImageF32, data: anytype) void {
-    const width = if (image_in_1 != null) image_in_1.?.size.width else image_out_1.size.width;
-    const height = if (image_in_1 != null) image_in_1.?.size.height else image_out_1.size.height;
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
-        .buffer_width_in = @intCast(width),
-        .buffer_height_in = @intCast(height),
-        .buffer_width_out = @intCast(image_out_1.size.width),
-        .buffer_height_out = @intCast(image_out_1.size.height),
-        .in = if (image_in_1 != null) image_in_1.?.pixels.ptr else null,
-        .out = image_out_1.pixels.ptr,
+        .in_buffers = .{.{
+            .data = if (image_in_1 != null) image_in_1.?.pixels.ptr else null,
+            .width = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.width else 0)),
+            .height = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.height else 0)),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        .out_buffers = .{.{
+            .data = image_out_1.pixels.ptr,
+            .width = @as(u32, @intCast(image_out_1.size.width)),
+            .height = @as(u32, @intCast(image_out_1.size.height)),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        .in_count = if (image_in_1 != null) 1 else 0,
+        .out_count = 1,
         .data_size = @sizeOf(@TypeOf(data)),
         .data = std.mem.asBytes(&data),
     };
+
     compute_fn(&compute_info);
 }
 
 pub fn compute_reduce_f32_1(compute_id: graph.ComputeId, operator_id: graph.ComputeOperatorId, image_in_1: *types.ImageF32, image_out_1: *types.ImageF32) void {
-    var compute_info_gradient = graph.ComputeInfo{
+    var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
         .compute_operator_id = operator_id,
-        .buffer_width_in = @intCast(image_in_1.size.width),
-        .buffer_height_in = @intCast(image_in_1.size.height),
-        .buffer_width_out = @intCast(image_out_1.size.width),
-        .buffer_height_out = @intCast(image_out_1.size.height),
-        .in = image_in_1.pixels.ptr,
-        .out = image_out_1.pixels.ptr,
+        .in_buffers = .{.{
+            .data = image_in_1.pixels.ptr,
+            .width = @as(u32, @intCast(image_in_1.size.width)),
+            .height = @as(u32, @intCast(image_in_1.size.height)),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        .out_buffers = .{.{
+            .data = image_out_1.pixels.ptr,
+            .width = @as(u32, @intCast(image_out_1.size.width)),
+            .height = @as(u32, @intCast(image_out_1.size.height)),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        .in_count = 1,
+        .out_count = 1,
         .data_size = 0,
         .data = null,
     };
-    compute_fn(&compute_info_gradient);
+
+    compute_fn(&compute_info);
 }
 
 pub const GradientData = extern struct {

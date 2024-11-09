@@ -47,16 +47,21 @@ struct ComputeShader : NoCopy
     const char *name;
 };
 
+struct ComputeBuffer
+{
+    float *data;
+    uint32_t width;
+    uint32_t height;
+};
+
 struct ComputeInfo
 {
     unsigned compute_id;
     unsigned compute_operator_id;
-    float *input_datas;
-    float *output_datas;
-    uint32_t buffer_width_in;
-    uint32_t buffer_height_in;
-    uint32_t buffer_width_out;
-    uint32_t buffer_height_out;
+    ComputeBuffer in_buffers[8];
+    ComputeBuffer out_buffers[8];
+    uint32_t in_count;
+    uint32_t out_count;
     void *shader_settings;
     unsigned shader_settings_size;
 };

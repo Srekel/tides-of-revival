@@ -15,15 +15,19 @@ pub const ComputeOperatorId = enum(u32) {
     max = 2,
 };
 
+pub const ComputeBuffer = extern struct {
+    data: [*c]f32 = null,
+    width: u32 = 0,
+    height: u32 = 0,
+};
+
 pub const ComputeInfo = extern struct {
     compute_id: ComputeId,
     compute_operator_id: ComputeOperatorId = .none,
-    in: [*c]f32,
-    out: [*c]f32,
-    buffer_width_in: u32,
-    buffer_height_in: u32,
-    buffer_width_out: u32,
-    buffer_height_out: u32,
+    in_buffers: [8]ComputeBuffer,
+    out_buffers: [8]ComputeBuffer,
+    in_count: u32,
+    out_count: u32,
     data: [*c]const u8,
     data_size: u32,
 };

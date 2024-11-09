@@ -407,8 +407,8 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     OutputDebugStringA("dispatch_float_shader START\n");
     void *shader_settings = job.shader_settings;
     size_t shader_settings_size = job.shader_settings_size;
-    float *input_data = &job.input_datas[0];
-    float *output_data = &job.output_datas[0];
+    float *input_data = job.in_buffers[0].data;
+    float *output_data = job.out_buffers[0].data;
 
     ComputeShader &shader = m_compute_shaders[job.compute_id];
     assert(m_device);
@@ -424,9 +424,9 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     ID3D11Buffer *readback_buffer = nullptr;
 
     create_constant_buffer(shader_settings_size, shader_settings, "User CB", &shader_settings_buffer);
-    create_structured_buffer(sizeof(float), job.buffer_width_in * job.buffer_height_in, (void *)input_data, "Input Buffer", &input_buffer);
-    create_structured_buffer(sizeof(float), job.buffer_width_out * job.buffer_height_out, nullptr, "Output Buffer", &output_buffer);
-    create_readback_buffer(sizeof(float), job.buffer_width_out * job.buffer_height_out, "Readback Buffer", &readback_buffer);
+    create_structured_buffer(sizeof(float), job.in_buffers[0].width * job.in_buffers[0].height, (void *)input_data, "Input Buffer", &input_buffer);
+    create_structured_buffer(sizeof(float), job.out_buffers[0].width * job.out_buffers[0].height, nullptr, "Output Buffer", &output_buffer);
+    create_readback_buffer(sizeof(float), job.out_buffers[0].width * job.out_buffers[0].height, "Readback Buffer", &readback_buffer);
 
     assert(shader_settings_buffer);
     assert(input_buffer);
@@ -447,7 +447,7 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
         m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
         m_device_context->CSSetShaderResources(0, 1, &input_buffer_srv);
         m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
-        m_device_context->Dispatch(job.buffer_width_in / shader.thread_group_size[0] + 1, job.buffer_height_in / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
+        m_device_context->Dispatch(job.in_buffers[0].width / shader.thread_group_size[0] + 1, job.in_buffers[0].height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
         cleanup_compute_shader_context(m_device_context);
     }
 
@@ -456,13 +456,13 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
         m_device_context->CopyResource(readback_buffer, output_buffer);
 
         D3D11_MAPPED_SUBRESOURCE subresource = {};
-        subresource.RowPitch = job.buffer_width_out * sizeof(float);
-        subresource.DepthPitch = job.buffer_height_out * sizeof(float);
+        subresource.RowPitch = job.out_buffers[0].width * sizeof(float);
+        subresource.DepthPitch = job.out_buffers[0].height * sizeof(float);
         m_device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
 
         if (subresource.pData)
         {
-            memcpy((void *)output_data, subresource.pData, job.buffer_width_out * job.buffer_height_out * sizeof(float));
+            memcpy((void *)output_data, subresource.pData, job.out_buffers[0].width * job.out_buffers[0].height * sizeof(float));
         }
 
         m_device_context->Unmap(readback_buffer, 0);
@@ -486,10 +486,10 @@ void D3D11::dispatch_float_reduce(ComputeInfo job)
     assert(m_device);
     assert(m_device_context);
 
-    int32_t buffer_width = job.buffer_width_in;
-    int32_t buffer_height = job.buffer_height_in;
-    float *input_data = &job.input_datas[0];
-    float *output_data = &job.output_datas[0];
+    int32_t buffer_width = job.in_buffers[0].width;
+    int32_t buffer_height = job.in_buffers[0].height;
+    const float *input_data = job.in_buffers[0].data;
+    float *output_data = job.out_buffers[0].data;
     assert(input_data);
     assert(output_data);
 
@@ -587,9 +587,9 @@ void D3D11::dispatch_float_generate(ComputeInfo job)
     OutputDebugStringA("dispatch_float_generate START\n");
     void *shader_settings = job.shader_settings;
     size_t shader_settings_size = job.shader_settings_size;
-    int32_t buffer_width = job.buffer_width_out;
-    int32_t buffer_height = job.buffer_height_out;
-    float *output_data = &job.output_datas[0];
+    int32_t buffer_width = job.out_buffers[0].width;
+    int32_t buffer_height = job.out_buffers[0].height;
+    float *output_data = job.out_buffers[0].data;
 
     ComputeShader &shader = m_compute_shaders[job.compute_id];
     assert(m_device);
