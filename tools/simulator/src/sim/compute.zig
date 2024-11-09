@@ -79,3 +79,43 @@ pub fn upsample_blur(image_in: *types.ImageF32, image_out: *types.ImageF32) void
     };
     compute_f32_1(.upsample_blur, image_in, image_out, settings);
 }
+
+const RemapSettings = extern struct {
+    from_min: f32,
+    from_max: f32,
+    to_min: f32,
+    to_max: f32,
+    width: u32,
+    height: u32,
+    _padding: [2]f32 = undefined,
+};
+
+pub fn remap(image_in: *types.ImageF32, image_out: *types.ImageF32, to_min: f32, to_max: f32) void {
+    compute_f32_1(.remap, image_in, image_out, RemapSettings{
+        .from_min = image_in.height_min,
+        .from_max = image_in.height_max,
+        .to_min = to_min,
+        .to_max = to_max,
+        .width = @intCast(image_in.size.width),
+        .height = @intCast(image_in.size.height),
+    });
+    image_out.height_min = to_min;
+    image_out.height_max = to_max;
+    image_in.swap(image_out);
+}
+
+const SquareSettings = extern struct {
+    width: u32,
+    height: u32,
+    _padding: [2]f32 = undefined,
+};
+
+pub fn square(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
+    compute_f32_1(.square, image_in, image_out, SquareSettings{
+        .width = @intCast(image_in.size.width),
+        .height = @intCast(image_in.size.height),
+    });
+    image_out.height_min = image_in.height_min * image_in.height_min;
+    image_out.height_max = image_in.height_max * image_in.height_max;
+    image_in.swap(image_out);
+}

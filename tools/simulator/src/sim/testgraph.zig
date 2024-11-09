@@ -213,29 +213,6 @@ const GenerateFBMSettings = extern struct {
     _padding: [2]f32,
 };
 
-const SquareSettings = extern struct {
-    width: u32,
-    height: u32,
-    _padding: [2]f32 = undefined,
-};
-const RemapSettings = extern struct {
-    from_min: f32,
-    from_max: f32,
-    to_min: f32,
-    to_max: f32,
-    width: u32,
-    height: u32,
-    _padding: [2]f32 = undefined,
-};
-var remap_settings = RemapSettings{
-    .from_min = undefined,
-    .from_max = undefined,
-    .to_min = 0,
-    .to_max = 1,
-    .width = world_size.width,
-    .height = world_size.height,
-};
-
 var preview_fbm_image = types.ImageRGBA.square(preview_size * 2);
 fn doNode_fbm(ctx: *Context) void {
     const generate_fbm_settings = GenerateFBMSettings{
@@ -252,27 +229,7 @@ fn doNode_fbm(ctx: *Context) void {
     compute.min(&fbm_image, &scratch_image);
     compute.max(&fbm_image, &scratch_image);
 
-    // nodes.fbm.fbm(&fbm_settings, &fbm_image);
-
-    remap_settings.from_min = fbm_image.height_min;
-    remap_settings.from_max = fbm_image.height_max;
-    remap_settings.to_min = 0;
-    remap_settings.to_max = 1;
-    var compute_info = graph.ComputeInfo{
-        .compute_id = .remap,
-        .buffer_width_in = @intCast(fbm_image.size.width),
-        .buffer_height_in = @intCast(fbm_image.size.height),
-        .buffer_width_out = @intCast(fbm_image.size.width),
-        .buffer_height_out = @intCast(fbm_image.size.height),
-        .in = fbm_image.pixels.ptr,
-        .out = scratch_image.pixels.ptr,
-        .data_size = @sizeOf(RemapSettings),
-        .data = std.mem.asBytes(&remap_settings),
-    };
-    ctx.compute_fn(&compute_info);
-    scratch_image.height_min = 0;
-    scratch_image.height_max = 1;
-    fbm_image.swap(&scratch_image);
+    compute.remap(&fbm_image, &scratch_image, 0, 1);
 
     types.image_preview_f32(fbm_image, &preview_fbm_image);
     const preview_grid_key = "fbm.image";
@@ -369,47 +326,9 @@ fn doNode_fbm_trees(ctx: *Context) void {
         compute.max(&fbm_image, &scratch_image);
     }
 
-    remap_settings.from_min = fbm_trees_image.height_min;
-    remap_settings.from_max = fbm_trees_image.height_max;
-    remap_settings.to_min = 0;
-    remap_settings.to_max = 1;
-    var compute_info = graph.ComputeInfo{
-        .compute_id = .remap,
-        .buffer_width_in = @intCast(fbm_trees_image.size.width),
-        .buffer_height_in = @intCast(fbm_trees_image.size.height),
-        .buffer_width_out = @intCast(fbm_trees_image.size.width),
-        .buffer_height_out = @intCast(fbm_trees_image.size.height),
-        .in = fbm_trees_image.pixels.ptr,
-        .out = scratch_image.pixels.ptr,
-        .data_size = @sizeOf(RemapSettings),
-        .data = std.mem.asBytes(&remap_settings),
-    };
-    ctx.compute_fn(&compute_info);
-    scratch_image.height_min = 0;
-    scratch_image.height_max = 1;
-    fbm_trees_image.swap(&scratch_image);
+    compute.remap(&fbm_trees_image, &scratch_image, 0, 1);
 
-    const square_settings = SquareSettings{
-        .width = world_size.width,
-        .height = world_size.height,
-    };
-    var compute_info_square = graph.ComputeInfo{
-        .compute_id = .square,
-        .buffer_width_in = @intCast(fbm_trees_image.size.width),
-        .buffer_height_in = @intCast(fbm_trees_image.size.height),
-        .buffer_width_out = @intCast(fbm_trees_image.size.width),
-        .buffer_height_out = @intCast(fbm_trees_image.size.height),
-        .in = fbm_trees_image.pixels.ptr,
-        .out = scratch_image.pixels.ptr,
-        .data_size = @sizeOf(SquareSettings),
-        .data = std.mem.asBytes(&square_settings),
-    };
-    ctx.compute_fn(&compute_info_square);
-    scratch_image.height_min = fbm_trees_image.height_min * fbm_trees_image.height_min;
-    scratch_image.height_max = fbm_trees_image.height_max * fbm_trees_image.height_max;
-    fbm_trees_image.swap(&scratch_image);
-
-    // nodes.math.square(&fbm_trees_image);
+    compute.square(&fbm_trees_image, &scratch_image);
 
     types.image_preview_f32(fbm_trees_image, &preview_fbm_trees_image);
     const preview_grid_key = "fbm_trees.image";
