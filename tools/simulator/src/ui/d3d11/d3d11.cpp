@@ -74,6 +74,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/upsample_blur.hlsl", "CSUpsampleBlur", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    // compile_compute_shader(L"shaders/downsample.hlsl", "CSDownsample", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     // Parallel Reduce (Min/Max)
     {
@@ -248,6 +250,7 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, const D3D
         }
 
         SAFE_RELEASE(shader_blob);
+        assert(false);
         return hr;
     }
 
@@ -265,6 +268,14 @@ HRESULT D3D11::compile_compute_shader(LPCWSTR path, const char *entry, const D3D
 
     out_compute_shader->reflection->GetThreadGroupSize(&out_compute_shader->thread_group_size[0], &out_compute_shader->thread_group_size[1], &out_compute_shader->thread_group_size[2]);
     out_compute_shader->name = entry;
+
+    // D3D11_SHADER_VARIABLE_DESC desc;
+    // ID3D11ShaderReflectionVariable *var_use_input = out_compute_shader->reflection->GetVariableByName("use_input");
+    // if (SUCCEEDED(var_use_input->GetDesc(&desc)))
+    // {
+    //     unsigned use_input = *(unsigned *)(desc.DefaultValue);
+    //     use_input++;
+    // }
 
     return hr;
 }
@@ -468,8 +479,15 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
             m_device_context->CSSetUnorderedAccessViews(i_buf, job.out_count, &output_buffers_uav[i_buf], nullptr);
         }
 
+        // unsigned width = shader.use_input ? job.in_buffers[shader.buffer_width_index] : job.out_buffers[shader.buffer_width_index];
+
         // What should be passed in here? 👇👇
-        m_device_context->Dispatch(job.in_buffers[0].width / shader.thread_group_size[0] + 1, job.in_buffers[0].height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
+        m_device_context->Dispatch(
+            job.in_buffers[0].width / shader.thread_group_size[0] + 1,
+            job.in_buffers[0].height / shader.thread_group_size[1] + 1,
+            // width / shader.thread_group_size[0] + 1,
+            // job.out_buffers[0].height / shader.thread_group_size[1] + 1,
+            shader.thread_group_size[2]);
 
         cleanup_compute_shader_context(m_device_context);
     }

@@ -6,6 +6,7 @@ pub const ComputeId = enum(u32) {
     gradient,
     fbm,
     upsample_blur,
+    downsample,
     reduce,
 };
 

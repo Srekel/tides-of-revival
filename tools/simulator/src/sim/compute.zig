@@ -92,6 +92,18 @@ pub fn upsample_blur(image_in: *types.ImageF32, image_out: *types.ImageF32) void
     compute_f32_1(.upsample_blur, image_in, image_out, settings);
 }
 
+pub fn downsample(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
+    const settings: extern struct {
+        buffer_width: u32,
+        buffer_height: u32,
+        padding: [2]f32 = undefined,
+    } = .{
+        .buffer_width = @intCast(image_in.size.width),
+        .buffer_height = @intCast(image_in.size.height),
+    };
+    compute_f32_1(.downsample, image_in, image_out, settings);
+}
+
 const RemapSettings = extern struct {
     from_min: f32,
     from_max: f32,

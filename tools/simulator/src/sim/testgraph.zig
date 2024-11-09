@@ -183,6 +183,17 @@ fn doNode_beaches(ctx: *Context) void {
     // const preview_grid_key2 = "beaches.voronoi";
     // ctx.previews.putAssumeCapacity(preview_grid_key2, .{ .data = preview_fbm_image.asBytes() });
 
+    // const downsamples = 4;
+    // for (0..downsamples) |i| {
+    //     _ = i; // autofix
+    //     scratch_image2.size.width = scratch_image.size.width / 2;
+    //     scratch_image2.size.height = scratch_image.size.height / 2;
+    //     compute.downsample(&scratch_image, &scratch_image2);
+    //     scratch_image.size.width = scratch_image2.size.width;
+    //     scratch_image.size.height = scratch_image2.size.height;
+    //     scratch_image.swap(&scratch_image2);
+    // }
+
     const upsamples = std.math.log2(world_size.width / scratch_image.size.width);
     for (0..upsamples) |i| {
         _ = i; // autofix

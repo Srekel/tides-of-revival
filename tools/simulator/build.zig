@@ -172,6 +172,8 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     dll_ui.step.dependOn(&shader_fbm.step);
     var shader_upsample_blur = b.addInstallFile(b.path("src/ui/d3d11/shaders/upsample_blur.hlsl"), "bin/shaders/upsample_blur.hlsl");
     dll_ui.step.dependOn(&shader_upsample_blur.step);
+    var shader_downsample = b.addInstallFile(b.path("src/ui/d3d11/shaders/downsample.hlsl"), "bin/shaders/downsample.hlsl");
+    dll_ui.step.dependOn(&shader_downsample.step);
     var shader_parallel_reduce = b.addInstallFile(b.path("src/ui/d3d11/shaders/parallel_reduce.hlsl"), "bin/shaders/parallel_reduce.hlsl");
     dll_ui.step.dependOn(&shader_parallel_reduce.step);
 
