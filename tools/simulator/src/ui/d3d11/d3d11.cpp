@@ -419,63 +419,96 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     assert(output_data);
 
     ID3D11Buffer *shader_settings_buffer = nullptr;
-    ID3D11Buffer *input_buffer = nullptr;
-    ID3D11Buffer *output_buffer = nullptr;
-    ID3D11Buffer *readback_buffer = nullptr;
+    ID3D11Buffer *input_buffers[8];
+    ID3D11Buffer *output_buffers[8];
+    ID3D11Buffer *readback_buffers[8];
 
     create_constant_buffer(shader_settings_size, shader_settings, "User CB", &shader_settings_buffer);
-    create_structured_buffer(sizeof(float), job.in_buffers[0].width * job.in_buffers[0].height, (void *)input_data, "Input Buffer", &input_buffer);
-    create_structured_buffer(sizeof(float), job.out_buffers[0].width * job.out_buffers[0].height, nullptr, "Output Buffer", &output_buffer);
-    create_readback_buffer(sizeof(float), job.out_buffers[0].width * job.out_buffers[0].height, "Readback Buffer", &readback_buffer);
+    for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+    {
+        ComputeBuffer &buffer = job.in_buffers[i_buf];
+        create_structured_buffer(sizeof(float), buffer.width * buffer.height, (void *)buffer.data, "Input Buffer", &input_buffers[i_buf]);
+        assert(input_buffers[i_buf]);
+    }
+    for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
+    {
+        ComputeBuffer &buffer = job.out_buffers[i_buf];
+        create_structured_buffer(sizeof(float), buffer.width * buffer.height, nullptr, "Output Buffer", &output_buffers[i_buf]);
+        create_readback_buffer(sizeof(float), buffer.width * buffer.height, "Readback Buffer", &readback_buffers[i_buf]);
+        assert(output_buffers[i_buf]);
+        assert(readback_buffers[i_buf]);
+    }
 
     assert(shader_settings_buffer);
-    assert(input_buffer);
-    assert(output_buffer);
-    assert(readback_buffer);
 
-    ID3D11ShaderResourceView *input_buffer_srv = nullptr;
-    ID3D11UnorderedAccessView *output_buffer_uav = nullptr;
-    create_buffer_srv(input_buffer, &input_buffer_srv);
-    create_buffer_uav(output_buffer, &output_buffer_uav);
+    ID3D11ShaderResourceView *input_buffers_srv[8];
+    ID3D11UnorderedAccessView *output_buffers_uav[8];
 
-    assert(input_buffer_srv);
-    assert(output_buffer_uav);
+    for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+    {
+        create_buffer_srv(input_buffers[i_buf], &input_buffers_srv[i_buf]);
+        assert(input_buffers_srv[i_buf]);
+    }
+    for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
+    {
+        create_buffer_uav(output_buffers[i_buf], &output_buffers_uav[i_buf]);
+        assert(output_buffers_uav[i_buf]);
+    }
 
     // Run the compute shader
     {
         m_device_context->CSSetShader(shader.compute_shader, nullptr, 0);
         m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
-        m_device_context->CSSetShaderResources(0, 1, &input_buffer_srv);
-        m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
+        for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+        {
+            m_device_context->CSSetShaderResources(i_buf, job.in_count, &input_buffers_srv[i_buf]);
+        }
+        for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
+        {
+            m_device_context->CSSetUnorderedAccessViews(i_buf, job.out_count, &output_buffers_uav[i_buf], nullptr);
+        }
+
+        // What should be passed in here? 👇👇
         m_device_context->Dispatch(job.in_buffers[0].width / shader.thread_group_size[0] + 1, job.in_buffers[0].height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
+
         cleanup_compute_shader_context(m_device_context);
     }
 
     // Read back data
     {
-        m_device_context->CopyResource(readback_buffer, output_buffer);
-
-        D3D11_MAPPED_SUBRESOURCE subresource = {};
-        subresource.RowPitch = job.out_buffers[0].width * sizeof(float);
-        subresource.DepthPitch = job.out_buffers[0].height * sizeof(float);
-        m_device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
-
-        if (subresource.pData)
+        for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
         {
-            memcpy((void *)output_data, subresource.pData, job.out_buffers[0].width * job.out_buffers[0].height * sizeof(float));
-        }
+            ComputeBuffer &buffer = job.out_buffers[i_buf];
+            m_device_context->CopyResource(readback_buffers[i_buf], output_buffers[i_buf]);
 
-        m_device_context->Unmap(readback_buffer, 0);
+            D3D11_MAPPED_SUBRESOURCE subresource = {};
+            subresource.RowPitch = buffer.width * sizeof(float);
+            subresource.DepthPitch = buffer.height * sizeof(float);
+            m_device_context->Map(readback_buffers[i_buf], 0, D3D11_MAP_READ, 0, &subresource);
+
+            if (subresource.pData)
+            {
+                memcpy((void *)output_data, subresource.pData, buffer.width * buffer.height * sizeof(float));
+            }
+
+            m_device_context->Unmap(readback_buffers[i_buf], 0);
+        }
     }
 
     // Cleanup GPU Resources
     {
-        SAFE_RELEASE(input_buffer_srv);
-        SAFE_RELEASE(output_buffer_uav);
-        SAFE_RELEASE(input_buffer);
-        SAFE_RELEASE(output_buffer);
+        for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+        {
+            SAFE_RELEASE(input_buffers_srv[i_buf]);
+            SAFE_RELEASE(input_buffers[i_buf]);
+        }
+        for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+        {
+            SAFE_RELEASE(output_buffers_uav[i_buf]);
+            SAFE_RELEASE(output_buffers[i_buf]);
+            SAFE_RELEASE(readback_buffers[i_buf]);
+        }
         SAFE_RELEASE(shader_settings_buffer);
-        SAFE_RELEASE(readback_buffer);
     }
     OutputDebugStringA("dispatch_float_shader DONE\n");
 }
