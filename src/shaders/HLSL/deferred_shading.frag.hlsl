@@ -8,9 +8,9 @@ RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
 RES(SamplerState, g_point_repeat_sampler, UPDATE_FREQ_NONE, s2, binding = 3);
 
-RES(Tex2D(float2), brdfIntegrationMap, UPDATE_FREQ_NONE, t0, binding = 4);
-RES(TexCube(float4), irradianceMap, UPDATE_FREQ_NONE, t1, binding = 5);
-RES(TexCube(float4), specularMap, UPDATE_FREQ_NONE, t2, binding = 6);
+RES(Tex2D(float2), g_brdf_integration_map, UPDATE_FREQ_NONE, t0, binding = 4);
+RES(TexCube(float4), g_irradiance_map, UPDATE_FREQ_NONE, t1, binding = 5);
+RES(TexCube(float4), g_specular_map, UPDATE_FREQ_NONE, t2, binding = 6);
 
 RES(Tex2D(float4), gBuffer0, UPDATE_FREQ_NONE, t3, binding = 7);
 RES(Tex2D(float4), gBuffer1, UPDATE_FREQ_NONE, t4, binding = 8);

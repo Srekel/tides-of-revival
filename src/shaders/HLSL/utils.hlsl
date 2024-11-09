@@ -9,6 +9,11 @@ float3 ReconstructNormal(float4 sampleNormal, float intensity)
 	return tangentNormal;
 }
 
+float3 NormalBlend(float3 normal1, float3 normal2)
+{
+	return normalize(float3(normal1.xy + normal2.xy, normal1.z * normal2.z));
+}
+
 float3x3 ComputeTBN(float3 normal, float4 tangent)
 {
 	normal = normalize(normal);

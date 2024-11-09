@@ -217,7 +217,7 @@ pub const PSOManager = struct {
         {
             // Transmittance LUT
             {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
                 const render_targets = [_]graphics.TinyImageFormat{atmosphere_render_pass.transmittance_lut_format};
                 const desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("transmittance_lut"),
@@ -232,13 +232,13 @@ pub const PSOManager = struct {
 
             // Multi Scattering
             {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
                 self.createComputePipeline(IdLocal.init("multi_scattering"), "render_multi_scattering.comp", &sampler_ids);
             }
 
             // Sky Ray Marching
             {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
                 const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
                 const desc = GraphicsPipelineDesc{
@@ -412,7 +412,7 @@ pub const PSOManager = struct {
         // Deferred
         {
             var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{ self.renderer.scene_color.*.mFormat };
+            const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
             const desc = GraphicsPipelineDesc{
                 .id = IdLocal.init("deferred"),
@@ -427,8 +427,8 @@ pub const PSOManager = struct {
 
         // ImGUI Pipeline
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat };
-            var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
+            var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
             const depth_state = getDepthStateDesc(true, false, graphics.CompareMode.CMP_ALWAYS);
 
             const desc = GraphicsPipelineDesc{
@@ -448,7 +448,7 @@ pub const PSOManager = struct {
         // Im3d Pipelines
         {
             var sampler_ids = [_]IdLocal{};
-            var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
 
             // Points
             var desc = GraphicsPipelineDesc{
@@ -476,6 +476,25 @@ pub const PSOManager = struct {
             desc.vert_shader_name = "im3d_triangles.vert";
             desc.geom_shader_name = null;
             desc.frag_shader_name = "im3d_triangles.frag";
+            self.createGraphicsPipeline(desc);
+        }
+
+        // Copy Scene Color and Depth
+        {
+            var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
+            const render_targets = [_]graphics.TinyImageFormat{
+                self.renderer.scene_color_copy.*.mFormat,
+                self.renderer.depth_buffer_copy.*.mFormat,
+            };
+
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("copy_scene_color_and_depth"),
+                .vert_shader_name = "fullscreen.vert",
+                .frag_shader_name = "copy_scene_color_and_depth.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_none,
+                .sampler_ids = &sampler_ids,
+            };
             self.createGraphicsPipeline(desc);
         }
 
@@ -507,27 +526,27 @@ pub const PSOManager = struct {
             // Bloom
             {
                 {
-                    var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_edge };
+                    var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
                     self.createComputePipeline(IdLocal.init("bloom_extract"), "bloom_extract_and_downsample.comp", &sampler_ids);
                     self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "downsample_bloom_all.comp", &sampler_ids);
                     self.createComputePipeline(IdLocal.init("apply_bloom"), "apply_bloom.comp", &sampler_ids);
                 }
 
                 {
-                    var sampler_ids = [_]IdLocal{ StaticSamplers.linear_clamp_border };
+                    var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_border};
                     self.createComputePipeline(IdLocal.init("upsample_and_blur"), "upsample_and_blur.comp", &sampler_ids);
                 }
 
                 {
                     var sampler_ids = [_]IdLocal{};
-                    self.createComputePipeline(IdLocal.init("blur"),"blur.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("blur"), "blur.comp", &sampler_ids);
                 }
             }
 
             // Tonemap
             {
                 var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
-                var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
+                var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
                 const desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("tonemap"),
                     .vert_shader_name = "fullscreen.vert",
@@ -543,7 +562,7 @@ pub const PSOManager = struct {
         // UI
         {
             var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
-            var render_targets = [_]graphics.TinyImageFormat{ self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat };
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
             const desc = GraphicsPipelineDesc{
                 .id = IdLocal.init("ui"),
                 .vert_shader_name = "ui.vert",
@@ -558,7 +577,7 @@ pub const PSOManager = struct {
 
         // IBL Pipelines
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.skybox };
+            var sampler_ids = [_]IdLocal{StaticSamplers.skybox};
             self.createComputePipeline(IdLocal.init("brdf_integration"), "brdf_integration.comp", &sampler_ids);
             self.createComputePipeline(IdLocal.init("compute_irradiance_map"), "compute_irradiance_map.comp", &sampler_ids);
             self.createComputePipeline(IdLocal.init("compute_specular_map"), "compute_specular_map.comp", &sampler_ids);
@@ -749,7 +768,7 @@ const StaticSamplers = struct {
 
             var sampler: [*c]graphics.Sampler = null;
             graphics.addSampler(renderer, &desc, &sampler);
-            static_samplers.samplers_map.put(linear_clamp_edge, . { .sampler = sampler, .name = "g_linear_clamp_edge_sampler" }) catch unreachable;
+            static_samplers.samplers_map.put(linear_clamp_edge, .{ .sampler = sampler, .name = "g_linear_clamp_edge_sampler" }) catch unreachable;
         }
 
         {
@@ -763,7 +782,7 @@ const StaticSamplers = struct {
 
             var sampler: [*c]graphics.Sampler = null;
             graphics.addSampler(renderer, &desc, &sampler);
-            static_samplers.samplers_map.put(linear_clamp_border, . { .sampler = sampler, .name = "g_linear_clamp_border_sampler" }) catch unreachable;
+            static_samplers.samplers_map.put(linear_clamp_border, .{ .sampler = sampler, .name = "g_linear_clamp_border_sampler" }) catch unreachable;
         }
 
         {

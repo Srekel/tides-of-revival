@@ -126,14 +126,14 @@ float3 EnvironmentBRDF(float3 N, float3 V, float3 albedo, float roughness, float
 	float3 kS = F;
 	float3 kD = (float3(1.0f, 1.0f, 1.0f) - kS) * (1.0f - metalness);
 
-	float3 irradiance = SampleTexCube(Get(irradianceMap), Get(g_linear_repeat_sampler), N).rgb;
-	float3 specular = SampleLvlTexCube(Get(specularMap), Get(g_linear_repeat_sampler), R, roughness * 4).rgb;
+	float3 irradiance = SampleTexCube(g_irradiance_map, Get(g_linear_repeat_sampler), N).rgb;
+	float3 specular = SampleLvlTexCube(g_specular_map, Get(g_linear_repeat_sampler), R, roughness * 4).rgb;
 
 	float2 maxNVRough = float2(max(dot(N, V), 0.0), roughness);
-	float2 brdf = SampleTex2D(Get(brdfIntegrationMap), Get(g_linear_clamp_edge_sampler), maxNVRough).rg;
+	float2 brdf = SampleTex2D(g_brdf_integration_map, Get(g_linear_clamp_edge_sampler), maxNVRough).rg;
 
 	float3 Is = specular * (F * brdf.x + brdf.y);
-	float3 Id = kD * irradiance * albedo;
+	float3 Id = kD * irradiance * max(float3(0.04, 0.04, 0.04), albedo);
 
 	return Is + Id;
 }

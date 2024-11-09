@@ -31,6 +31,11 @@ pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) 
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
+pub const brdf_lut_texture_size: u32 = 512;
+pub const irradiance_texture_size: u32 = 32;
+pub const specular_texture_size: u32 = 128;
+pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
+
 pub const RenderPass = struct {
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
@@ -85,11 +90,18 @@ pub const Renderer = struct {
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
     depth_buffer: [*c]graphics.RenderTarget = null,
+    depth_buffer_copy: [*c]graphics.RenderTarget = null,
     shadow_depth_buffer: [*c]graphics.RenderTarget = null,
     gbuffer_0: [*c]graphics.RenderTarget = null,
     gbuffer_1: [*c]graphics.RenderTarget = null,
     gbuffer_2: [*c]graphics.RenderTarget = null,
     scene_color: [*c]graphics.RenderTarget = null,
+    scene_color_copy: [*c]graphics.RenderTarget = null,
+
+    // IBL Textures
+    brdf_lut_texture: TextureHandle = undefined,
+    irradiance_texture: TextureHandle = undefined,
+    specular_texture: TextureHandle = undefined,
 
     // Bloom Render Targets
     bloom_width: u32 = 0,
@@ -320,6 +332,8 @@ pub const Renderer = struct {
             .size = 1000 * @sizeOf(Material),
         };
         self.materials_buffer = self.createBindlessBuffer(buffer_data, "Materials Buffer");
+
+        self.createIBLTextures();
 
         self.render_passes = std.ArrayList(*RenderPass).init(allocator);
 
@@ -1203,6 +1217,9 @@ pub const Renderer = struct {
             rt_desc.mSampleQuality = 0;
             rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.depth_buffer);
+            rt_desc.pName = "Depth Buffer Copy";
+            rt_desc.mFormat = graphics.TinyImageFormat.R32_SFLOAT;
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.depth_buffer_copy);
         }
 
         {
@@ -1272,7 +1289,7 @@ pub const Renderer = struct {
 
         {
             var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Scene Color Buffer";
+            rt_desc.pName = "Scene Color";
             rt_desc.mArraySize = 1;
             rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
             rt_desc.mDepth = 1;
@@ -1285,6 +1302,8 @@ pub const Renderer = struct {
             rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
             rt_desc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE;
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color);
+            rt_desc.pName = "Scene Color Copy";
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color_copy);
         }
 
         createBloomUAVs(self);
@@ -1293,10 +1312,12 @@ pub const Renderer = struct {
     fn destroyRenderTargets(self: *Renderer) void {
         graphics.removeRenderTarget(self.renderer, self.shadow_depth_buffer);
         graphics.removeRenderTarget(self.renderer, self.depth_buffer);
+        graphics.removeRenderTarget(self.renderer, self.depth_buffer_copy);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_0);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_1);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_2);
         graphics.removeRenderTarget(self.renderer, self.scene_color);
+        graphics.removeRenderTarget(self.renderer, self.scene_color_copy);
 
         self.destroyBloomUAVs();
     }
@@ -1386,6 +1407,59 @@ pub const Renderer = struct {
         texture = self.getTexture(self.bloom_uav5[1]);
         resource_loader.removeResource__Overload2(texture);
         self.texture_pool.removeAssumeLive(self.bloom_uav5[1]);
+    }
+
+    fn createIBLTextures(self: *Renderer) void {
+        // Create empty texture for BRDF integration map
+        {
+            var desc = std.mem.zeroes(graphics.TextureDesc);
+            desc.mWidth = brdf_lut_texture_size;
+            desc.mHeight = brdf_lut_texture_size;
+            desc.mDepth = 1;
+            desc.mArraySize = 1;
+            desc.mMipLevels = 1;
+            desc.mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
+            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
+            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            desc.bBindless = false;
+            desc.pName = "BRDF LUT";
+            self.brdf_lut_texture = self.createTexture(desc);
+        }
+
+        // Create empty texture for Irradiance map
+        {
+            var desc = std.mem.zeroes(graphics.TextureDesc);
+            desc.mWidth = irradiance_texture_size;
+            desc.mHeight = irradiance_texture_size;
+            desc.mDepth = 1;
+            desc.mArraySize = 6;
+            desc.mMipLevels = 1;
+            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
+            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
+            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            desc.bBindless = false;
+            desc.pName = "Irradiance Map";
+            self.irradiance_texture = self.createTexture(desc);
+        }
+
+        // Create empty texture for Specular map
+        {
+            var desc = std.mem.zeroes(graphics.TextureDesc);
+            desc.mWidth = specular_texture_size;
+            desc.mHeight = specular_texture_size;
+            desc.mDepth = 1;
+            desc.mArraySize = 6;
+            desc.mMipLevels = specular_texture_mips;
+            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
+            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
+            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            desc.bBindless = false;
+            desc.pName = "Specular Map";
+            self.specular_texture = self.createTexture(desc);
+        }
     }
 
     fn createResolutionIndependentRenderTargets(self: *Renderer) void {

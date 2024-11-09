@@ -250,6 +250,7 @@ pub const TerrainRenderPass = struct {
             .unload_descriptor_sets_fn = unloadDescriptorSets,
             .render_gbuffer_pass_fn =  renderGBuffer,
             .render_shadow_pass_fn = renderShadowMap,
+            .render_imgui_fn = renderImGui,
             .user_data = @ptrCast(self),
         };
         rctx.registerRenderPass(&self.render_pass);

@@ -64,20 +64,12 @@ const DirectionalLight = extern struct {
 const point_lights_count_max: u32 = 1024;
 const directional_lights_count_max: u32 = 8;
 
-const brdf_lut_texture_size: u32 = 512;
-const irradiance_texture_size: u32 = 32;
-const specular_texture_size: u32 = 128;
-const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
-
 pub const DeferredShadingRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
     render_pass: renderer.RenderPass,
 
-    brdf_lut_texture: renderer.TextureHandle,
-    irradiance_texture: renderer.TextureHandle,
-    specular_texture: renderer.TextureHandle,
     needs_to_compute_ibl_maps: bool,
     brdf_descriptor_set: [*c]graphics.DescriptorSet,
     irradiance_descriptor_set: [*c]graphics.DescriptorSet,
@@ -135,57 +127,6 @@ pub const DeferredShadingRenderPass = struct {
             break :blk buffers;
         };
 
-        // Create empty texture for BRDF integration map
-        const brdf_lut_texture = blk: {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = brdf_lut_texture_size;
-            desc.mHeight = brdf_lut_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 1;
-            desc.mMipLevels = 1;
-            desc.mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "BRDF LUT";
-            break :blk rctx.createTexture(desc);
-        };
-
-        // Create empty texture for Irradiance map
-        const irradiance_texture = blk: {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = irradiance_texture_size;
-            desc.mHeight = irradiance_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 6;
-            desc.mMipLevels = 1;
-            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "Irradiance Map";
-            break :blk rctx.createTexture(desc);
-        };
-
-        // Create empty texture for Specular map
-        const specular_texture = blk: {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = specular_texture_size;
-            desc.mHeight = specular_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 6;
-            desc.mMipLevels = specular_texture_mips;
-            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "Specular Map";
-            break :blk rctx.createTexture(desc);
-        };
-
         var query_builder_directional_lights = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_directional_lights
             .withReadonly(fd.Rotation)
@@ -210,9 +151,6 @@ pub const DeferredShadingRenderPass = struct {
             .ecsu_world = ecsu_world,
             .renderer = rctx,
             .render_pass = undefined,
-            .brdf_lut_texture = brdf_lut_texture,
-            .irradiance_texture = irradiance_texture,
-            .specular_texture = specular_texture,
             .needs_to_compute_ibl_maps = true,
             .brdf_descriptor_set = undefined,
             .irradiance_descriptor_set = undefined,
@@ -317,9 +255,9 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             defer new_trazy_zone.End();
 
             var hdir_texture = self.renderer.getTexture(sky_light_comps.sky_light.hdri);
-            var brdf_lut_texture = self.renderer.getTexture(self.brdf_lut_texture);
-            var irradiance_texture = self.renderer.getTexture(self.irradiance_texture);
-            var specular_texture = self.renderer.getTexture(self.specular_texture);
+            var brdf_lut_texture = self.renderer.getTexture(self.renderer.brdf_lut_texture);
+            var irradiance_texture = self.renderer.getTexture(self.renderer.irradiance_texture);
+            var specular_texture = self.renderer.getTexture(self.renderer.specular_texture);
 
             // Compute the BRDF Integration Map
             {
@@ -338,7 +276,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 graphics.cmdBindDescriptorSet(cmd_list, 0, self.brdf_descriptor_set);
                 // TODO(gmodarelli): Read shader reflections to get the thread group size. We need bindings for IShaderReflection.h
                 const thread_group_size = [3]u32{ 16, 16, 1 };
-                graphics.cmdDispatch(cmd_list, brdf_lut_texture_size / thread_group_size[0], brdf_lut_texture_size / thread_group_size[1], thread_group_size[2]);
+                graphics.cmdDispatch(cmd_list, renderer.brdf_lut_texture_size / thread_group_size[0], renderer.brdf_lut_texture_size / thread_group_size[1], thread_group_size[2]);
 
                 const output_barrier = [_]graphics.TextureBarrier{
                     graphics.TextureBarrier.init(brdf_lut_texture, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
@@ -366,7 +304,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 graphics.cmdBindDescriptorSet(cmd_list, 0, self.irradiance_descriptor_set);
                 // TODO(gmodarelli): Read shader reflections to get the thread group size. We need bindings for IShaderReflection.h
                 const thread_group_size = [3]u32{ 16, 16, 1 };
-                graphics.cmdDispatch(cmd_list, irradiance_texture_size / thread_group_size[0], irradiance_texture_size / thread_group_size[1], 6);
+                graphics.cmdDispatch(cmd_list, renderer.irradiance_texture_size / thread_group_size[0], renderer.irradiance_texture_size / thread_group_size[1], 6);
 
                 const output_barrier = [_]graphics.TextureBarrier{
                     graphics.TextureBarrier.init(irradiance_texture, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
@@ -395,10 +333,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                 std.debug.assert(root_constant_index != std.math.maxInt(u32));
 
-                for (0..specular_texture_mips) |i| {
+                for (0..renderer.specular_texture_mips) |i| {
                     const push_constants = PrecomputedSkyData{
-                        .mip_size = specular_texture_size >> @intCast(i),
-                        .roughness = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(specular_texture_mips - 1)),
+                        .mip_size = renderer.specular_texture_size >> @intCast(i),
+                        .roughness = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(renderer.specular_texture_mips - 1)),
                     };
                     graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
 
@@ -412,7 +350,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                     // TODO(gmodarelli): Read shader reflections to get the thread group size. We need bindings for IShaderReflection.h
                     const thread_group_size = [3]u32{ 16, 16, 6 };
-                    graphics.cmdDispatch(cmd_list, @max(1, (specular_texture_size >> @intCast(i)) / thread_group_size[0]), @max(1, (specular_texture_size >> @intCast(i)) / thread_group_size[1]), 6);
+                    graphics.cmdDispatch(cmd_list, @max(1, (renderer.specular_texture_size >> @intCast(i)) / thread_group_size[0]), @max(1, (renderer.specular_texture_size >> @intCast(i)) / thread_group_size[1]), 6);
                 }
 
                 const output_barrier = [_]graphics.TextureBarrier{
@@ -606,18 +544,18 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     var params: [8]graphics.DescriptorData = undefined;
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var brdf_lut_texture = self.renderer.getTexture(self.brdf_lut_texture);
-        var irradiance_texture = self.renderer.getTexture(self.irradiance_texture);
-        var specular_texture = self.renderer.getTexture(self.specular_texture);
+        var brdf_lut_texture = self.renderer.getTexture(self.renderer.brdf_lut_texture);
+        var irradiance_texture = self.renderer.getTexture(self.renderer.irradiance_texture);
+        var specular_texture = self.renderer.getTexture(self.renderer.specular_texture);
 
         params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "brdfIntegrationMap";
+        params[0].pName = "g_brdf_integration_map";
         params[0].__union_field3.ppTextures = @ptrCast(&brdf_lut_texture);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "irradianceMap";
+        params[1].pName = "g_irradiance_map";
         params[1].__union_field3.ppTextures = @ptrCast(&irradiance_texture);
         params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "specularMap";
+        params[2].pName = "g_specular_map";
         params[2].__union_field3.ppTextures = @ptrCast(&specular_texture);
         params[3] = std.mem.zeroes(graphics.DescriptorData);
         params[3].pName = "gBuffer0";
