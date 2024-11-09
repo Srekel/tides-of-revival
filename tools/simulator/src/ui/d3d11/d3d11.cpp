@@ -5,6 +5,9 @@
 static uint32_t get_reduce_compute_id(uint32_t thread_group_x);
 static void cleanup_compute_shader_context(ID3D11DeviceContext *ctx);
 
+#define OPERATOR_MIN(a, b) ((a < b) ? a : b);
+#define OPERATOR_MAX(a, b) ((a > b) ? a : b);
+
 struct ParallelReductionConstantBuffer
 {
     float m_first_pass;
@@ -13,6 +16,7 @@ struct ParallelReductionConstantBuffer
     uint32_t m_operator;
 };
 
+static uint32_t k_max_thread_groups_per_dimension = 65535;
 static uint32_t k_parallel_reduction_magic_value = 1024;
 
 void Texture2D::update_content(ID3D11DeviceContext *device_context, unsigned char *data)
@@ -74,7 +78,7 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/upsample_blur.hlsl", "CSUpsampleBlur", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    // compile_compute_shader(L"shaders/downsample.hlsl", "CSDownsample", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/downsample.hlsl", "CSDownsample", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
 
     // Parallel Reduce (Min/Max)
@@ -539,97 +543,135 @@ void D3D11::dispatch_float_reduce(ComputeInfo job)
 
     int32_t buffer_width = job.in_buffers[0].width;
     int32_t buffer_height = job.in_buffers[0].height;
-    const float *input_data = job.in_buffers[0].data;
-    float *output_data = job.out_buffers[0].data;
-    assert(input_data);
-    assert(output_data);
 
-    ID3D11Buffer *constant_buffer = nullptr;
-    ID3D11Buffer *data_buffer = nullptr;
-    ID3D11Buffer *output_buffer = nullptr;
-    ID3D11Buffer *readback_buffer = nullptr;
+    uint32_t buffer_elements = buffer_width * buffer_height;
+    uint32_t thread_groups_size = buffer_elements / k_parallel_reduction_magic_value;
+    uint32_t reduction_iterations = 1;
+    uint32_t buffer_adjusted_size = buffer_width;
 
-    create_constant_buffer(sizeof(ParallelReductionConstantBuffer), nullptr, "Constant Buffer", &constant_buffer);
-    create_structured_buffer(sizeof(float), buffer_width * buffer_height, (void *)input_data, "Data Buffer", &data_buffer);
-    create_structured_buffer(sizeof(float), buffer_width * buffer_height / k_parallel_reduction_magic_value, nullptr, "Output Buffer", &output_buffer);
-    create_readback_buffer(sizeof(float), buffer_width * buffer_height / k_parallel_reduction_magic_value, "Readback Buffer", &readback_buffer);
-
-    assert(constant_buffer);
-    assert(data_buffer);
-    assert(output_buffer);
-    assert(readback_buffer);
-
-    ID3D11ShaderResourceView *data_buffer_srv = nullptr;
-    ID3D11UnorderedAccessView *output_buffer_uav = nullptr;
-    create_buffer_srv(data_buffer, &data_buffer_srv);
-    create_buffer_uav(output_buffer, &output_buffer_uav);
-    assert(data_buffer_srv);
-    assert(output_buffer_uav);
-
-    ComputeShader *parallel_reduce_shader = &m_compute_shaders[job.compute_id];
-    assert(parallel_reduce_shader->compute_shader);
-
-    uint32_t buffer_size = buffer_width * buffer_height;
-    for (uint32_t thread_group_x = buffer_size; thread_group_x >= k_parallel_reduction_magic_value;)
+    while (thread_groups_size > k_max_thread_groups_per_dimension)
     {
-        ParallelReductionConstantBuffer constant_buffer_data = {
-            .m_first_pass = thread_group_x == buffer_size ? 1.0f : 0.0f,
-            .m_buffer_width = (uint32_t)buffer_width,
-            .m_buffer_height = (uint32_t)buffer_height,
-            .m_operator = (uint32_t)job.compute_operator_id,
-        };
+        buffer_adjusted_size >>= 1;
+        buffer_elements = buffer_adjusted_size * buffer_adjusted_size;
+        thread_groups_size = buffer_elements / k_parallel_reduction_magic_value;
+        reduction_iterations++;
+    }
 
-        thread_group_x /= k_parallel_reduction_magic_value;
-        update_constant_buffer(sizeof(constant_buffer_data), &constant_buffer_data, constant_buffer);
+    float reductions[16];
+    memset(&reductions, 0.0, sizeof(float) * 16);
 
-        m_device_context->CSSetShader(parallel_reduce_shader->compute_shader, nullptr, 0);
-        m_device_context->CSSetConstantBuffers(0, 1, &constant_buffer);
-        m_device_context->CSSetShaderResources(0, 1, &data_buffer_srv);
-        m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
-        m_device_context->Dispatch(thread_group_x, 1, 1);
-        cleanup_compute_shader_context(m_device_context);
+    for (uint32_t reduction_index = 0; reduction_index < reduction_iterations; reduction_index++)
+    {
+        const float *input_data = job.in_buffers[0].data + (reduction_index * buffer_adjusted_size * buffer_adjusted_size);
+        float *output_data = job.out_buffers[0].data + (reduction_index * buffer_adjusted_size * buffer_adjusted_size);
+        assert(input_data);
+        assert(output_data);
 
-        if (thread_group_x < k_parallel_reduction_magic_value && thread_group_x != 1)
+        ID3D11Buffer *constant_buffer = nullptr;
+        ID3D11Buffer *data_buffer = nullptr;
+        ID3D11Buffer *output_buffer = nullptr;
+        ID3D11Buffer *readback_buffer = nullptr;
+
+        create_constant_buffer(sizeof(ParallelReductionConstantBuffer), nullptr, "Constant Buffer", &constant_buffer);
+        create_structured_buffer(sizeof(float), buffer_elements, (void *)input_data, "Data Buffer", &data_buffer);
+        create_structured_buffer(sizeof(float), buffer_elements / k_parallel_reduction_magic_value, nullptr, "Output Buffer", &output_buffer);
+        create_readback_buffer(sizeof(float), buffer_elements / k_parallel_reduction_magic_value, "Readback Buffer", &readback_buffer);
+
+        assert(constant_buffer);
+        assert(data_buffer);
+        assert(output_buffer);
+        assert(readback_buffer);
+
+        ID3D11ShaderResourceView *data_buffer_srv = nullptr;
+        ID3D11UnorderedAccessView *output_buffer_uav = nullptr;
+        create_buffer_srv(data_buffer, &data_buffer_srv);
+        create_buffer_uav(output_buffer, &output_buffer_uav);
+        assert(data_buffer_srv);
+        assert(output_buffer_uav);
+
+        ComputeShader *parallel_reduce_shader = &m_compute_shaders[job.compute_id];
+        assert(parallel_reduce_shader->compute_shader);
+
+        for (uint32_t thread_group_x = buffer_elements; thread_group_x >= k_parallel_reduction_magic_value;)
         {
-            parallel_reduce_shader = &m_compute_shaders[get_reduce_compute_id(thread_group_x)];
-            constant_buffer_data.m_first_pass = 0.0f;
+            ParallelReductionConstantBuffer constant_buffer_data = {
+                .m_first_pass = thread_group_x == buffer_elements ? 1.0f : 0.0f,
+                .m_buffer_width = (uint32_t)buffer_width,
+                .m_buffer_height = (uint32_t)buffer_height,
+                .m_operator = (uint32_t)job.compute_operator_id,
+            };
+
+            thread_group_x /= k_parallel_reduction_magic_value;
             update_constant_buffer(sizeof(constant_buffer_data), &constant_buffer_data, constant_buffer);
 
             m_device_context->CSSetShader(parallel_reduce_shader->compute_shader, nullptr, 0);
             m_device_context->CSSetConstantBuffers(0, 1, &constant_buffer);
             m_device_context->CSSetShaderResources(0, 1, &data_buffer_srv);
             m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
-            m_device_context->Dispatch(1, 1, 1);
+            m_device_context->Dispatch(thread_group_x, 1, 1);
             cleanup_compute_shader_context(m_device_context);
+
+            if (thread_group_x < k_parallel_reduction_magic_value && thread_group_x != 1)
+            {
+                parallel_reduce_shader = &m_compute_shaders[get_reduce_compute_id(thread_group_x)];
+                constant_buffer_data.m_first_pass = 0.0f;
+                update_constant_buffer(sizeof(constant_buffer_data), &constant_buffer_data, constant_buffer);
+
+                m_device_context->CSSetShader(parallel_reduce_shader->compute_shader, nullptr, 0);
+                m_device_context->CSSetConstantBuffers(0, 1, &constant_buffer);
+                m_device_context->CSSetShaderResources(0, 1, &data_buffer_srv);
+                m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
+                m_device_context->Dispatch(1, 1, 1);
+                cleanup_compute_shader_context(m_device_context);
+            }
         }
-    }
 
-    // Read back data
-    {
-        m_device_context->CopyResource(readback_buffer, output_buffer);
-
-        D3D11_MAPPED_SUBRESOURCE subresource = {};
-        subresource.RowPitch = buffer_width * sizeof(float);
-        subresource.DepthPitch = buffer_height / k_parallel_reduction_magic_value * sizeof(float);
-        m_device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
-
-        if (subresource.pData)
+        // Read back data
         {
-            memcpy((void *)output_data, subresource.pData, sizeof(float));
+            m_device_context->CopyResource(readback_buffer, output_buffer);
+
+            D3D11_MAPPED_SUBRESOURCE subresource = {};
+            subresource.RowPitch = buffer_adjusted_size / k_parallel_reduction_magic_value * sizeof(float);
+            subresource.DepthPitch = 1;
+            m_device_context->Map(readback_buffer, 0, D3D11_MAP_READ, 0, &subresource);
+
+            if (subresource.pData)
+            {
+                memcpy((void *)output_data, subresource.pData, sizeof(float));
+            }
+
+            m_device_context->Unmap(readback_buffer, 0);
         }
 
-        m_device_context->Unmap(readback_buffer, 0);
+        // Cleanup GPU Resources
+        {
+            SAFE_RELEASE(data_buffer_srv);
+            SAFE_RELEASE(output_buffer_uav);
+            SAFE_RELEASE(data_buffer);
+            SAFE_RELEASE(output_buffer);
+            SAFE_RELEASE(constant_buffer);
+            SAFE_RELEASE(readback_buffer);
+        }
+
+        reductions[reduction_index] = output_data[0];
     }
 
-    // Cleanup GPU Resources
+    // Calculate the final value
+    float final_reduction = reductions[0];
+    for (uint32_t i = 1; i < reduction_iterations; i++)
     {
-        SAFE_RELEASE(data_buffer_srv);
-        SAFE_RELEASE(output_buffer_uav);
-        SAFE_RELEASE(data_buffer);
-        SAFE_RELEASE(output_buffer);
-        SAFE_RELEASE(constant_buffer);
-        SAFE_RELEASE(readback_buffer);
+        if (job.compute_operator_id == 1) // MIN
+        {
+            final_reduction = OPERATOR_MIN(final_reduction, reductions[i]);
+        }
+        else if (job.compute_operator_id == 2) // MAX
+        {
+            final_reduction = OPERATOR_MAX(final_reduction, reductions[i]);
+        }
     }
+
+    job.out_buffers[0].data[0] = final_reduction;
+
     OutputDebugStringA("dispatch_float_reduce DONE\n");
 }
 
