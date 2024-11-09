@@ -138,25 +138,39 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     bow_ent.childOf(player_camera_ent);
 
-    // ██╗    ██╗ █████╗ ████████╗███████╗██████╗
-    // ██║    ██║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗
-    // ██║ █╗ ██║███████║   ██║   █████╗  ██████╔╝
-    // ██║███╗██║██╔══██║   ██║   ██╔══╝  ██╔══██╗
-    // ╚███╔███╔╝██║  ██║   ██║   ███████╗██║  ██║
-    //  ╚══╝╚══╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+    //  ██████╗  ██████╗███████╗ █████╗ ███╗   ██╗
+    // ██╔═══██╗██╔════╝██╔════╝██╔══██╗████╗  ██║
+    // ██║   ██║██║     █████╗  ███████║██╔██╗ ██║
+    // ██║   ██║██║     ██╔══╝  ██╔══██║██║╚██╗██║
+    // ╚██████╔╝╚██████╗███████╗██║  ██║██║ ╚████║
+    //  ╚═════╝  ╚═════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝
+    //
 
     const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
     const static_mesh_component = plane_prefab.get(fd.StaticMesh);
     const mesh_handle = static_mesh_component.?.mesh_handle;
+    const ocean_plane_scale: f32 = @floatFromInt(config.km_size);
+    const ocean_tiles_x = config.world_size_x / config.km_size;
+    const ocean_tiles_z = config.world_size_z / config.km_size;
 
-    const water_position = fd.Position.init(8190.7, 433.05, 8182);
-    const water_scale = 10.0;
-    var water_ent = ecsu_world.newEntity();
-    water_ent.set(water_position);
-    water_ent.set(fd.Rotation{});
-    water_ent.set(fd.Scale.createScalar(water_scale));
-    water_ent.set(fd.Transform.initWithScale(water_position.x, water_position.y, water_position.z, water_scale));
-    water_ent.set(fd.Water{.mesh_handle = mesh_handle });
+    for(0..ocean_tiles_z) |z| {
+        for(0..ocean_tiles_x) |x| {
+            const ocean_plane_position = fd.Position.init(
+                @as(f32, @floatFromInt(x)) * ocean_plane_scale + ocean_plane_scale * 0.5,
+                config.sea_level,
+                @as(f32, @floatFromInt(z)) * ocean_plane_scale + ocean_plane_scale * 0.5);
+            var ocean_plane_ent = ecsu_world.newEntity();
+            ocean_plane_ent.set(ocean_plane_position);
+            ocean_plane_ent.set(fd.Rotation{});
+            ocean_plane_ent.set(fd.Scale.createScalar(ocean_plane_scale));
+            ocean_plane_ent.set(fd.Transform.initWithScale(
+                ocean_plane_position.x,
+                ocean_plane_position.y,
+                ocean_plane_position.z,
+                ocean_plane_scale));
+            ocean_plane_ent.set(fd.Water{.mesh_handle = mesh_handle });
+        }
+    }
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
