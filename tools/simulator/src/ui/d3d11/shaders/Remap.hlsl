@@ -21,6 +21,6 @@ void CSRemap(uint3 dispatch_thread_id : SV_DispatchThreadID)
     if (dispatch_thread_id.x < g_buffer_width && dispatch_thread_id.y < g_buffer_height)
     {
         uint index = dispatch_thread_id.x + dispatch_thread_id.y * g_buffer_width;
-        g_output_buffer[index] = Remap(g_input_buffer[index], g_from, g_to);
+        g_output_buffer[index] = clamp( Remap(g_input_buffer[index], g_from, g_to), g_to.x, g_to.y);
     }
 }
