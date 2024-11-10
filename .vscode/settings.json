@@ -13,6 +13,7 @@
         ".git/objects",
         ".vscode",
         ".vscode-insiders",
+        "release_build",
         "external"
     ],
     "files.eol": "\n",

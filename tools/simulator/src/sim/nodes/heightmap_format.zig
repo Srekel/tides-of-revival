@@ -81,7 +81,7 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
                 writer.writeStruct(header) catch unreachable;
 
                 if (range_diff == 0) {
-                    unreachable; // TODO handle
+                    continue; // TODO handle
                 }
 
                 // EDGES

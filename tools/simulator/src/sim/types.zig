@@ -125,7 +125,7 @@ pub fn image_preview_f32(image_in: ImageF32, preview_image: *ImageRGBA) void {
             const index_in_x = x * scale[0];
             const index_in_y = y * scale[1];
             const value_in = image_in.pixels[index_in_x + index_in_y * image_in.size.width];
-            const value_out: u8 = @intFromFloat(value_in * scale_factor_u8);
+            const value_out: u8 = @intFromFloat(@min(value_in * scale_factor_u8, 255));
             preview_image.pixels[x + y * preview_image.size.width][0] = value_out;
             preview_image.pixels[x + y * preview_image.size.width][1] = value_out;
             preview_image.pixels[x + y * preview_image.size.width][2] = value_out;
