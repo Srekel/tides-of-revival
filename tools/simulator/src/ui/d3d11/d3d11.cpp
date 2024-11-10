@@ -487,8 +487,8 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
 
         // What should be passed in here? 👇👇
         m_device_context->Dispatch(
-            job.in_buffers[0].width / shader.thread_group_size[0] + 1,
-            job.in_buffers[0].height / shader.thread_group_size[1] + 1,
+            job.in_buffers[0].width / shader.thread_group_size[0],
+            job.in_buffers[0].height / shader.thread_group_size[1],
             // width / shader.thread_group_size[0] + 1,
             // job.out_buffers[0].height / shader.thread_group_size[1] + 1,
             shader.thread_group_size[2]);
@@ -713,7 +713,7 @@ void D3D11::dispatch_float_generate(ComputeInfo job)
         m_device_context->CSSetShader(shader.compute_shader, nullptr, 0);
         m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
         m_device_context->CSSetUnorderedAccessViews(0, 1, &output_buffer_uav, nullptr);
-        m_device_context->Dispatch(buffer_width / shader.thread_group_size[0] + 1, buffer_height / shader.thread_group_size[1] + 1, shader.thread_group_size[2]);
+        m_device_context->Dispatch(buffer_width / shader.thread_group_size[0], buffer_height / shader.thread_group_size[1], shader.thread_group_size[2]);
         cleanup_compute_shader_context(m_device_context);
     }
 
