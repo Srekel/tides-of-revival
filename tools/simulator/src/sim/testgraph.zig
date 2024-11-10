@@ -99,7 +99,7 @@ pub fn start(ctx: *Context) void {
     scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     water_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
-    preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size * 4) catch unreachable;
+    preview_fbm_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * 2 * preview_size * 2) catch unreachable;
     preview_fbm_trees_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_heightmap_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_heightmap2_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;

@@ -51,7 +51,7 @@ Preview gPreviews[] = {
 	{.name = "generate_landscape_from_image.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "beaches.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "beaches2.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},
-	{.name = "fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},
 	{.name = "heightmap.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "heightmap2.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "gradient.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
