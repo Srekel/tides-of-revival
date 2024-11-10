@@ -7,6 +7,7 @@ pub const ComputeId = enum(u32) {
     fbm,
     upsample_blur,
     downsample,
+    terrace,
     reduce,
 };
 

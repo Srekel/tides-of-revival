@@ -44,8 +44,8 @@ pub fn getGraph() *const graph.Graph {
 
 const preview_size = 512;
 
-const DRY_RUN = false;
-const kilometers = if (DRY_RUN) 16 else 16;
+const DRY_RUN = true;
+const kilometers = if (DRY_RUN) 2 else 16;
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
 const world_settings: types.WorldSettings = .{
     .size = world_size,
@@ -282,16 +282,17 @@ fn doNode_gradient(ctx: *Context) void {
     const preview_grid_key = "gradient.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
 
-    heightmap2.copy(heightmap);
-    // for (0..3) |_| {
-    //     nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
-    //     nodes.gradient.terrace(heightmap2, gradient_image, &heightmap, &scratch_image);
-    // }
-    // nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
+    // heightmap2.copy(heightmap);
+    for (0..10) |_| {
+        compute.terrace(&gradient_image, &heightmap, &scratch_image);
+        compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
+        compute.min(&gradient_image, &scratch_image);
+        compute.max(&gradient_image, &scratch_image);
+    }
 
-    // types.image_preview_f32(heightmap2, &preview_heightmap2_image);
-    // const preview_key2 = "heightmap2.image";
-    // ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
+    types.image_preview_f32(heightmap, &preview_heightmap2_image);
+    const preview_key2 = "heightmap_terraced.image";
+    ctx.previews.putAssumeCapacity(preview_key2, .{ .data = preview_heightmap2_image.asBytes() });
 
     ctx.next_nodes.insert(0, doNode_cities) catch unreachable;
     ctx.next_nodes.insert(1, doNode_fbm_trees) catch unreachable;

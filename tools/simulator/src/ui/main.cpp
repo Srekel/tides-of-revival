@@ -53,10 +53,10 @@ Preview gPreviews[] = {
 	{.name = "beaches2.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},
 	{.name = "fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},
 	{.name = "heightmap.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
-	{.name = "heightmap2.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "heightmap_waterify.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "heightmap_terraced.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "gradient.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "fbm_trees.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
-	{.name = "heightmap_waterify.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 };
 constexpr unsigned PREVIEW_COUNT = sizeof(gPreviews) / sizeof(gPreviews[0]);
 
@@ -158,7 +158,7 @@ void runUI(const SimulatorAPI *api)
 			{
 				g_d3d11.dispatch_float_generate(compute_job);
 			}
-			else if (compute_job.compute_id == 6) // ComputeId.reduce
+			else if (compute_job.compute_id == 7) // ComputeId.reduce
 			{
 				g_d3d11.dispatch_float_reduce(compute_job);
 			}

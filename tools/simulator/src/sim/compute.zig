@@ -26,6 +26,30 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
     compute_fn(&compute_info);
 }
 
+pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, image_out_1: *types.ImageF32, data: anytype) void {
+    var compute_info = graph.ComputeInfo{
+        .compute_id = compute_id,
+        .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
+        .out_buffers = .{.{
+            .data = image_out_1.pixels.ptr,
+            .width = @as(u32, @intCast(image_out_1.size.width)),
+            .height = @as(u32, @intCast(image_out_1.size.height)),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        .in_count = @intCast(images_in.len),
+        .out_count = 1,
+        .data_size = @sizeOf(@TypeOf(data)),
+        .data = std.mem.asBytes(&data),
+    };
+
+    for (images_in, compute_info.in_buffers[0..images_in.len]) |image_in, *in_buffer| {
+        in_buffer.data = image_in.pixels.ptr;
+        in_buffer.width = @intCast(image_in.size.width);
+        in_buffer.height = @intCast(image_in.size.height);
+    }
+
+    compute_fn(&compute_info);
+}
+
 pub fn compute_reduce_f32_1(compute_id: graph.ComputeId, operator_id: graph.ComputeOperatorId, image_in_1: *types.ImageF32, image_out_1: *types.ImageF32) void {
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
@@ -142,4 +166,26 @@ pub fn square(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
     image_out.height_min = image_in.height_min * image_in.height_min;
     image_out.height_max = image_in.height_max * image_in.height_max;
     image_in.swap(image_out);
+}
+
+const TerraceSettings = extern struct {
+    width: u32,
+    height: u32,
+    _padding: [2]f32 = undefined,
+};
+
+pub fn terrace(gradient_in: *types.ImageF32, height_in: *types.ImageF32, height_out: *types.ImageF32) void {
+    var in_buffers = [_]*types.ImageF32{ gradient_in, height_in };
+    compute_f32_n(
+        .square,
+        in_buffers[0..],
+        height_out,
+        SquareSettings{
+            .width = @intCast(gradient_in.size.width),
+            .height = @intCast(gradient_in.size.height),
+        },
+    );
+    height_out.height_min = height_in.height_min;
+    height_out.height_max = height_in.height_max;
+    height_in.swap(height_out);
 }
