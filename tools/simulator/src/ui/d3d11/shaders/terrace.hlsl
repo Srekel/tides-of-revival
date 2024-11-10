@@ -6,7 +6,7 @@ cbuffer constant_buffer_0 : register(b0)
 };
 
 StructuredBuffer<float> g_input_buffer_gradient : register(t0);
-StructuredBuffer<float> g_input_buffer_height : register(t0);
+StructuredBuffer<float> g_input_buffer_height : register(t1);
 RWStructuredBuffer<float> g_output_buffer : register(u0);
 
 [numthreads(32, 32, 1)] void CSTerrace(uint3 DTid : SV_DispatchThreadID)
@@ -23,7 +23,7 @@ RWStructuredBuffer<float> g_output_buffer : register(u0);
         DTid.y >= g_in_buffer_height - range - 1)
     {
         const uint index = DTid.x + DTid.y * g_in_buffer_width;
-        g_output_buffer[index] = g_input_buffer[index];
+        g_output_buffer[index] = g_input_buffer_height[index];
         return;
     }
 
@@ -48,7 +48,7 @@ RWStructuredBuffer<float> g_output_buffer : register(u0);
             float distance = sqrt(dist_x * dist_x + dist_y * dist_y);
             float distance_score = clamp(1 - distance / range, 0, 1);
             float gradient_score = clamp(1 - gradient, 0, 1);
-            score = gradient_score * distance_score;
+            float score = gradient_score * distance_score;
             if (score > best_score)
             {
                 best_score = score;

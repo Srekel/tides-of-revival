@@ -83,6 +83,8 @@ bool D3D11::create_device(HWND hwnd)
     compile_compute_shader(L"shaders/terrace.hlsl", "CSTerrace", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
 
+    assert(m_compute_shader_count + 10 < 32);
+
     // Parallel Reduce (Min/Max)
     {
         {
@@ -424,16 +426,11 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     OutputDebugStringA("dispatch_float_shader START\n");
     void *shader_settings = job.shader_settings;
     size_t shader_settings_size = job.shader_settings_size;
-    float *input_data = job.in_buffers[0].data;
-    float *output_data = job.out_buffers[0].data;
 
     ComputeShader &shader = m_compute_shaders[job.compute_id];
     assert(m_device);
     assert(m_device_context);
     assert(shader.compute_shader);
-
-    assert(input_data);
-    assert(output_data);
 
     ID3D11Buffer *shader_settings_buffer = nullptr;
     ID3D11Buffer *input_buffers[8];
@@ -512,7 +509,7 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
 
             if (subresource.pData)
             {
-                memcpy((void *)output_data, subresource.pData, buffer.width * buffer.height * sizeof(float));
+                memcpy((void *)buffer.data, subresource.pData, buffer.width * buffer.height * sizeof(float));
             }
 
             m_device_context->Unmap(readback_buffers[i_buf], 0);
