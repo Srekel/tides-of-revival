@@ -29,8 +29,10 @@ void CSUpsampleBlur(uint3 DTid : SV_DispatchThreadID) {
         DTid.y <= 1 ||
         DTid.y >= g_in_buffer_height - 2)
     {
-        uint index = DTid.x * 2 + DTid.y * 2 * out_buffer_width;
-        g_output_buffer[index] = 0; // todo
+        g_output_buffer[(DTid.x * 2 + 0) + (DTid.y * 2 + 0) * out_buffer_width] = 0.0;
+        g_output_buffer[(DTid.x * 2 + 1) + (DTid.y * 2 + 0) * out_buffer_width] = 0.0;
+        g_output_buffer[(DTid.x * 2 + 1) + (DTid.y * 2 + 1) * out_buffer_width] = 0.0;
+        g_output_buffer[(DTid.x * 2 + 0) + (DTid.y * 2 + 1) * out_buffer_width] = 0.0;
         return;
     }
 
