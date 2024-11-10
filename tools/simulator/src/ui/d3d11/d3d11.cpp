@@ -475,11 +475,11 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
         m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
         for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
         {
-            m_device_context->CSSetShaderResources(i_buf, job.in_count, &input_buffers_srv[i_buf]);
+            m_device_context->CSSetShaderResources(i_buf, 1, &input_buffers_srv[i_buf]);
         }
         for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
         {
-            m_device_context->CSSetUnorderedAccessViews(i_buf, job.out_count, &output_buffers_uav[i_buf], nullptr);
+            m_device_context->CSSetUnorderedAccessViews(i_buf, 1, &output_buffers_uav[i_buf], nullptr);
         }
 
         // unsigned width = shader.use_input ? job.in_buffers[shader.buffer_width_index] : job.out_buffers[shader.buffer_width_index];
@@ -523,7 +523,7 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
             SAFE_RELEASE(input_buffers_srv[i_buf]);
             SAFE_RELEASE(input_buffers[i_buf]);
         }
-        for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+        for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
         {
             SAFE_RELEASE(output_buffers_uav[i_buf]);
             SAFE_RELEASE(output_buffers[i_buf]);
