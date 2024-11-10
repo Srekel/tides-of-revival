@@ -13,9 +13,10 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-float g_landscapeWaterColor[3] = {0.0f, 0.5f, 1.0f};
-float g_landscapeLandColor[3] = {0.15f, 0.5f, 0.0f};
-float g_landscapeShoreColor[3] = {1.0f, 0.0f, 0.0f};
+float g_landscapeWaterColor[3] = {0.0f, 0.0f, 1.0f};
+float g_landscapeHillColor[3] = {0.0f, 0.5f, 0.0f};
+float g_landscapePlainsColor[3] = {0.0f, 1.0f, 0.0f};
+float g_landscapeShoreColor[3] = {1.0f, 1.0f, 0.0f};
 float g_landscapeMountainColor[3] = {0.5f, 0.5f, 0.5f};
 
 static inline jcv_point remap(const jcv_point *pt, const jcv_point *min, const jcv_point *max, const jcv_point *scale);
@@ -44,21 +45,25 @@ void generate_landscape_from_image(Voronoi *grid, const char *image_path)
 		assert(image_y >= 0 && image_y < image_height);
 
 		unsigned char *sample = &image_data[(image_x + image_y * image_width) * image_channels];
-		if (sample[0] == 38 && sample[1] == 127 && sample[2] == 0)
+		if (sample[0] == 0 && sample[1] == 255 && sample[2] == 0)
 		{
-			cell.cell_type = LAND;
+			cell.cell_type = PLAINS;
 		}
-		else if (sample[0] == 0 && sample[1] == 148 && sample[2] == 255)
+		else if (sample[0] == 0 && sample[1] == 0 && sample[2] == 255)
 		{
 			cell.cell_type = WATER;
 		}
-		else if (sample[0] == 128 && sample[1] == 128 && sample[2] == 128)
+		else if (sample[0] == 0 && sample[1] == 127 && sample[2] == 0)
 		{
-			cell.cell_type = MOUNTAIN;
+			cell.cell_type = HILLS;
 		}
+		// else if (sample[0] == 0 && sample[1] == 128 && sample[2] == 128)
+		// {
+		// 	cell.cell_type = SHORE;
+		// }
 		else
 		{
-			cell.cell_type = LAND;
+			cell.cell_type = PLAINS;
 		}
 	}
 
@@ -233,11 +238,17 @@ unsigned char *generate_landscape_preview(Voronoi *grid, uint32_t image_width, u
 			unsigned char color_tri[4];
 			color_tri[0] = color_tri[1] = color_tri[2] = (int)(cell.noise_value * 255.0f);
 			color_tri[3] = 255;
-			if (cell.cell_type == LAND)
+			if (cell.cell_type == PLAINS)
 			{
-				color_tri[0] = (unsigned char)(g_landscapeLandColor[0] * 255.0f);
-				color_tri[1] = (unsigned char)(g_landscapeLandColor[1] * 255.0f);
-				color_tri[2] = (unsigned char)(g_landscapeLandColor[2] * 255.0f);
+				color_tri[0] = (unsigned char)(g_landscapePlainsColor[0] * 255.0f);
+				color_tri[1] = (unsigned char)(g_landscapePlainsColor[1] * 255.0f);
+				color_tri[2] = (unsigned char)(g_landscapePlainsColor[2] * 255.0f);
+			}
+			else if (cell.cell_type == HILLS)
+			{
+				color_tri[0] = (unsigned char)(g_landscapeHillColor[0] * 255.0f);
+				color_tri[1] = (unsigned char)(g_landscapeHillColor[1] * 255.0f);
+				color_tri[2] = (unsigned char)(g_landscapeHillColor[2] * 255.0f);
 			}
 			else if (cell.cell_type == WATER)
 			{

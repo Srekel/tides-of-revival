@@ -171,13 +171,16 @@ fn doNode_beaches(ctx: *Context) void {
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
+    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size / 2, preview_size / 2);
     // const preview_grid_key = "beaches.voronoi";
     // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size * 4] });
 
-    scratch_image.size.width = preview_size;
-    scratch_image.size.height = preview_size;
-    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size * 4], &scratch_image);
+    const downsamples = 1;
+    _ = downsamples; // autofix
+    scratch_image.size.width = preview_size / 2;
+    scratch_image.size.height = preview_size / 2;
+
+    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size * 4 / 4], &scratch_image);
 
     // types.image_preview_f32(water_image, &preview_fbm_image);
     // const preview_grid_key2 = "beaches.voronoi";

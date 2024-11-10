@@ -130,11 +130,18 @@ pub fn write_trees(heightmap: types.ImageF32, points: types.PatchDataPts2d) void
 pub fn voronoi_to_water(voronoi_image: []u8, water_image: *types.ImageF32) void {
     for (0..water_image.size.height) |y| {
         for (0..water_image.size.width) |x| {
-            const voronoi_index = (x + y * water_image.size.width) * 4;
-            if (voronoi_image[voronoi_index] == 38) {
-                water_image.set(x, y, 1);
-            } else if (voronoi_image[voronoi_index] == 255) {
+            const voronoi_index_r = (x + y * water_image.size.width) * 4;
+            _ = voronoi_index_r; // autofix
+            const voronoi_index_g = (x + y * water_image.size.width) * 4 + 1;
+            if (voronoi_image[voronoi_index_g] == 255) {
+                // PLAINS
                 water_image.set(x, y, 0.5);
+            } else if (voronoi_image[voronoi_index_g] == 0) {
+                // WATER
+                water_image.set(x, y, 0.2);
+            } else if (voronoi_image[voronoi_index_g] == 127) {
+                // HILLS
+                water_image.set(x, y, 1);
             }
         }
     }
