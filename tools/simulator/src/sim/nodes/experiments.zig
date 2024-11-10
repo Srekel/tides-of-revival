@@ -115,6 +115,10 @@ pub fn write_trees(heightmap: types.ImageF32, points: types.PatchDataPts2d) void
                     @as(u64, @intFromFloat(@trunc(prop[0]))),
                     @as(u64, @intFromFloat(@trunc(prop[1]))),
                 );
+                if (height < 150) {
+                    continue; // HACK
+                }
+
                 const rot = 0;
                 writer.print("tree,{d:.3},{d:.3},{d:.3},{}\n", .{ prop[0], height, prop[1], rot }) catch unreachable;
             }
