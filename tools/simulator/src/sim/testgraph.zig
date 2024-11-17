@@ -197,6 +197,7 @@ fn doNode_beaches(ctx: *Context) void {
     //     scratch_image.swap(&scratch_image2);
     // }
 
+    types.saveImageF32(scratch_image, "scratch_image", false);
     const upsamples = std.math.log2(world_size.width / scratch_image.size.width);
     for (0..upsamples) |i| {
         _ = i; // autofix
@@ -206,6 +207,7 @@ fn doNode_beaches(ctx: *Context) void {
         scratch_image.size.width = scratch_image2.size.width;
         scratch_image.size.height = scratch_image2.size.height;
         scratch_image.swap(&scratch_image2);
+        types.saveImageF32(scratch_image, "scratch_image", false);
     }
 
     water_image.copy(scratch_image);
@@ -283,11 +285,18 @@ fn doNode_gradient(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
 
     // heightmap2.copy(heightmap);
-    for (0..10) |_| {
-        compute.terrace(&gradient_image, &heightmap, &scratch_image);
-        compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
-        compute.min(&gradient_image, &scratch_image);
-        compute.max(&gradient_image, &scratch_image);
+    types.saveImageF32(gradient_image, "gradient_image_b4terrace", false);
+    types.saveImageF32(heightmap, "heightmap_b4terrace", false);
+    for (0..3) |_| {
+        for (0..1) |_| {
+            compute.terrace(&gradient_image, &heightmap, &scratch_image);
+            compute.min(&heightmap, &scratch_image);
+            compute.max(&heightmap, &scratch_image);
+            types.saveImageF32(heightmap, "heightmap", false);
+        }
+        // compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
+        // compute.min(&gradient_image, &scratch_image);
+        // compute.max(&gradient_image, &scratch_image);
     }
 
     types.image_preview_f32(heightmap, &preview_heightmap2_image);

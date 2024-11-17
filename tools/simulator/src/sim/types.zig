@@ -1,5 +1,6 @@
 const std = @import("std");
 const zm = @import("zmath");
+const zigimg = @import("zigimg");
 
 pub const Vec2 = struct {
     x: f32,
@@ -158,6 +159,43 @@ pub fn castSliceToSlice(comptime T: type, slice: anytype) []T {
     const bytes = std.mem.sliceAsBytes(slice);
     const new_slice = std.mem.bytesAsSlice(T, bytes);
     return @constCast(new_slice);
+}
+
+var image_index: i32 = 0;
+pub fn saveImageF32(image_in: ImageF32, name: []const u8, heatmap: bool) void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    const allocator = gpa.allocator();
+
+    const pixel_format = if (heatmap) zigimg.PixelFormat.rgba32 else zigimg.PixelFormat.grayscale8;
+    var image = zigimg.Image.create(
+        allocator,
+        image_in.size.width,
+        image_in.size.height,
+        pixel_format,
+    ) catch unreachable;
+
+    defer image.deinit();
+
+    const scale_factor_u8 = 255 / image_in.height_max;
+
+    for (0..image_in.size.height) |y| {
+        for (0..image_in.size.width) |x| {
+            const index = x + y * image_in.size.width;
+            const value_in = image_in.pixels[index];
+            const value_out: u8 = @intFromFloat(value_in * scale_factor_u8);
+            image.pixels.grayscale8[index].value = value_out;
+        }
+    }
+
+    image_index += 1;
+    var buf: [100]u8 = undefined;
+    const filename = std.fmt.bufPrint(&buf, "simulator_{}_{str}.png", .{
+        image_index,
+        name,
+    }) catch unreachable;
+    image.writeToFilePath(filename, .{ .png = .{} }) catch unreachable;
 }
 
 pub const WorldSettings = struct {

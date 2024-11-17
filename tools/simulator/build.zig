@@ -39,6 +39,13 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{},
     }));
 
+    // zigimg
+    const zigimg = b.dependency("zigimg", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("zigimg", zigimg.module("zigimg"));
+
     // ZIG GAMEDEV
     // zjobs
     const zjobs = b.dependency("zjobs", .{});

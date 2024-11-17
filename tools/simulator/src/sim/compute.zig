@@ -3,6 +3,8 @@ const types = @import("types.zig");
 const graph = @import("graph.zig");
 
 pub var compute_fn: graph.fn_compute = undefined;
+var id: i32 = 0;
+var textbuf: [1024]u8 = .{};
 
 pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, image_out_1: *types.ImageF32, data: anytype) void {
     var compute_info = graph.ComputeInfo{
@@ -26,17 +28,13 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
     compute_fn(&compute_info);
 }
 
-pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, image_out_1: *types.ImageF32, data: anytype) void {
+pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, data: anytype) void {
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
         .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
-        .out_buffers = .{.{
-            .data = image_out_1.pixels.ptr,
-            .width = @as(u32, @intCast(image_out_1.size.width)),
-            .height = @as(u32, @intCast(image_out_1.size.height)),
-        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        .out_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
         .in_count = @intCast(images_in.len),
-        .out_count = 1,
+        .out_count = @intCast(images_out.len),
         .data_size = @sizeOf(@TypeOf(data)),
         .data = std.mem.asBytes(&data),
     };
@@ -45,6 +43,12 @@ pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, 
         in_buffer.data = image_in.pixels.ptr;
         in_buffer.width = @intCast(image_in.size.width);
         in_buffer.height = @intCast(image_in.size.height);
+    }
+
+    for (images_out, compute_info.out_buffers[0..images_out.len]) |image_out, *out_buffer| {
+        out_buffer.data = image_out.pixels.ptr;
+        out_buffer.width = @intCast(image_out.size.width);
+        out_buffer.height = @intCast(image_out.size.height);
     }
 
     compute_fn(&compute_info);
@@ -171,21 +175,33 @@ pub fn square(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
 const TerraceSettings = extern struct {
     width: u32,
     height: u32,
-    _padding: [2]f32 = undefined,
+    gradient_max: f32,
+    _padding: [1]f32 = undefined,
 };
 
 pub fn terrace(gradient_in: *types.ImageF32, height_in: *types.ImageF32, height_out: *types.ImageF32) void {
+    var gradient_out_img = types.ImageF32.square(gradient_in.size.width);
+    gradient_out_img.pixels = std.heap.c_allocator.alloc(f32, height_in.pixels.len) catch unreachable;
+    gradient_out_img.height_max = gradient_in.height_max;
+
     var in_buffers = [_]*types.ImageF32{ gradient_in, height_in };
-    compute_f32_n(
-        .square,
-        in_buffers[0..],
+    var out_buffers = [_]*types.ImageF32{
         height_out,
-        SquareSettings{
+        &gradient_out_img,
+    };
+    compute_f32_n(
+        .terrace,
+        in_buffers[0..],
+        out_buffers[0..],
+        TerraceSettings{
             .width = @intCast(gradient_in.size.width),
             .height = @intCast(gradient_in.size.height),
+            .gradient_max = gradient_in.height_max,
         },
     );
     height_out.height_min = height_in.height_min;
     height_out.height_max = height_in.height_max;
     height_in.swap(height_out);
+
+    types.saveImageF32(gradient_out_img, "gradient_out", false);
 }
