@@ -416,14 +416,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.quads_to_render.clearRetainingCapacity();
     self.quads_to_load.clearRetainingCapacity();
 
-
     {
-        const player_entity = util.getPlayer(self.ecsu_world);
-        const player_comps = player_entity.?.getComps(struct {
-            transform: *const fd.Transform,
-        });
-        const player_position = player_comps.transform.getPos00();
-        const player_point = [2]f32{ player_position[0], player_position[2] };
+        const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
         var sector_index: u32 = 0;
         while (sector_index < lod_3_patches_total) : (sector_index += 1) {
@@ -431,7 +425,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
             collectQuadsToRenderForSector(
                 self,
-                player_point,
+                camera_point,
                 lod_load_range,
                 lod3_node,
                 sector_index,

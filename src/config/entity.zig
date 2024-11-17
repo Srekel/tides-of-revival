@@ -84,6 +84,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .range = 2,
         .physics = true,
         .navmesh = true,
+        // .props = true,
     });
     player_ent.set(fd.Input{ .active = !DEBUG_CAMERA_ACTIVE, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
@@ -153,12 +154,13 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     const ocean_tiles_x = config.world_size_x / config.km_size;
     const ocean_tiles_z = config.world_size_z / config.km_size;
 
-    for(0..ocean_tiles_z) |z| {
-        for(0..ocean_tiles_x) |x| {
+    for (0..ocean_tiles_z) |z| {
+        for (0..ocean_tiles_x) |x| {
             const ocean_plane_position = fd.Position.init(
                 @as(f32, @floatFromInt(x)) * ocean_plane_scale + ocean_plane_scale * 0.5,
                 config.sea_level,
-                @as(f32, @floatFromInt(z)) * ocean_plane_scale + ocean_plane_scale * 0.5);
+                @as(f32, @floatFromInt(z)) * ocean_plane_scale + ocean_plane_scale * 0.5,
+            );
             var ocean_plane_ent = ecsu_world.newEntity();
             ocean_plane_ent.set(ocean_plane_position);
             ocean_plane_ent.set(fd.Rotation{});
@@ -167,8 +169,9 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
                 ocean_plane_position.x,
                 ocean_plane_position.y,
                 ocean_plane_position.z,
-                ocean_plane_scale));
-            ocean_plane_ent.set(fd.Water{.mesh_handle = mesh_handle });
+                ocean_plane_scale,
+            ));
+            ocean_plane_ent.set(fd.Water{ .mesh_handle = mesh_handle });
         }
     }
 
