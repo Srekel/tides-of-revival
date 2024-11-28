@@ -171,16 +171,20 @@ fn doNode_beaches(ctx: *Context) void {
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size / 2, preview_size / 2);
+    const downsamples = 2;
+    const downsample_divistor = std.math.pow(u32, 2, downsamples);
+    const preview_grid = cpp_nodes.generate_landscape_preview(
+        &c_voronoi,
+        preview_size / downsample_divistor,
+        preview_size / downsample_divistor,
+    );
     // const preview_grid_key = "beaches.voronoi";
     // ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size * 4] });
 
-    const downsamples = 1;
-    _ = downsamples; // autofix
-    scratch_image.size.width = preview_size / 2;
-    scratch_image.size.height = preview_size / 2;
+    scratch_image.size.width = preview_size / downsample_divistor;
+    scratch_image.size.height = preview_size / downsample_divistor;
 
-    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size * 4 / 4], &scratch_image);
+    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size], &scratch_image);
 
     // types.image_preview_f32(water_image, &preview_fbm_image);
     // const preview_grid_key2 = "beaches.voronoi";
@@ -279,7 +283,9 @@ fn doNode_gradient(ctx: *Context) void {
     // compute.max(&gradient_image, &scratch_image);
 
     nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
-    nodes.math.rerangify(&gradient_image);
+    // nodes.math.rerangify(&gradient_image);
+    // nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+    // gradient_image.height_min = 0;
 
     types.image_preview_f32(gradient_image, &preview_gradient_image);
     const preview_grid_key = "gradient.image";
@@ -288,7 +294,7 @@ fn doNode_gradient(ctx: *Context) void {
     // heightmap2.copy(heightmap);
     types.saveImageF32(gradient_image, "gradient_image_b4terrace", false);
     types.saveImageF32(heightmap, "heightmap_b4terrace", false);
-    for (0..1) |_| {
+    for (0..5) |_| {
         for (0..1) |_| {
             compute.terrace(&gradient_image, &heightmap, &scratch_image);
             compute.min(&heightmap, &scratch_image);
