@@ -117,7 +117,7 @@ pub fn upsample_blur(image_in: *types.ImageF32, image_out: *types.ImageF32) void
         .buffer_width = @intCast(image_in.size.width),
         .buffer_height = @intCast(image_in.size.height),
     };
-    compute_f32_1(.upsample_blur, image_in, image_out, settings);
+    compute_f32_1(.upsample_bilinear, image_in, image_out, settings);
 }
 
 pub fn downsample(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
@@ -202,6 +202,4 @@ pub fn terrace(gradient_in: *types.ImageF32, height_in: *types.ImageF32, height_
     height_out.height_min = height_in.height_min;
     height_out.height_max = height_in.height_max;
     height_in.swap(height_out);
-
-    types.saveImageF32(gradient_out_img, "gradient_out", false);
 }

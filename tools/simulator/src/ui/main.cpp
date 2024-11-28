@@ -158,7 +158,7 @@ void runUI(const SimulatorAPI *api)
 			{
 				g_d3d11.dispatch_float_generate(compute_job);
 			}
-			else if (compute_job.compute_id == 7) // ComputeId.reduce
+			else if (compute_job.compute_id == 8) // ComputeId.reduce
 			{
 				g_d3d11.dispatch_float_reduce(compute_job);
 			}

@@ -13,6 +13,10 @@ const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
 });
 
+const DRY_RUN = false;
+const kilometers = if (DRY_RUN) 2 else 16;
+const preview_size = 512;
+
 pub const self: graph.Graph = .{
     .nodes = &.{
         .{
@@ -42,10 +46,6 @@ pub fn getGraph() *const graph.Graph {
     return &self;
 }
 
-const preview_size = 512;
-
-const DRY_RUN = true;
-const kilometers = if (DRY_RUN) 2 else 16;
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
 const world_settings: types.WorldSettings = .{
     .size = world_size,
@@ -78,7 +78,7 @@ var cities: std.ArrayList([3]f32) = undefined;
 var fbm_trees_settings = nodes.fbm.FbmSettings{
     .seed = 123,
     .frequency = 0.005,
-    .octaves = 5,
+    .octaves = 7,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
 };
@@ -186,7 +186,7 @@ fn doNode_beaches(ctx: *Context) void {
     // const preview_grid_key2 = "beaches.voronoi";
     // ctx.previews.putAssumeCapacity(preview_grid_key2, .{ .data = preview_fbm_image.asBytes() });
 
-    // const downsamples = 4;
+    // const downsamples = 1;
     // for (0..downsamples) |i| {
     //     _ = i; // autofix
     //     scratch_image2.size.width = scratch_image.size.width / 2;
@@ -197,20 +197,22 @@ fn doNode_beaches(ctx: *Context) void {
     //     scratch_image.swap(&scratch_image2);
     // }
 
-    types.saveImageF32(scratch_image, "scratch_image", false);
+    types.saveImageF32(scratch_image, "water", false);
     const upsamples = std.math.log2(world_size.width / scratch_image.size.width);
     for (0..upsamples) |i| {
         _ = i; // autofix
         scratch_image2.size.width = scratch_image.size.width * 2;
         scratch_image2.size.height = scratch_image.size.height * 2;
+        scratch_image2.zeroClear();
         compute.upsample_blur(&scratch_image, &scratch_image2);
         scratch_image.size.width = scratch_image2.size.width;
         scratch_image.size.height = scratch_image2.size.height;
         scratch_image.swap(&scratch_image2);
-        types.saveImageF32(scratch_image, "scratch_image", false);
+        types.saveImageF32(scratch_image, "upblur", false);
     }
 
     water_image.copy(scratch_image);
+    types.saveImageF32(scratch_image, "water", false);
 
     types.image_preview_f32(scratch_image, &preview_fbm_image);
     const preview_grid_key3 = "beaches2.voronoi";
@@ -244,6 +246,7 @@ fn doNode_fbm(ctx: *Context) void {
     compute.fbm(&fbm_image, generate_fbm_settings);
     compute.min(&fbm_image, &scratch_image);
     compute.max(&fbm_image, &scratch_image);
+    nodes.math.rerangify(&fbm_image);
 
     compute.remap(&fbm_image, &scratch_image, 0, 1);
 
@@ -271,14 +274,12 @@ fn doNode_heightmap(ctx: *Context) void {
 
 var preview_gradient_image = types.ImageRGBA.square(preview_size);
 fn doNode_gradient(ctx: *Context) void {
-    compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
-    compute.min(&gradient_image, &scratch_image);
-    compute.max(&gradient_image, &scratch_image);
+    // compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
+    // compute.min(&gradient_image, &scratch_image);
+    // compute.max(&gradient_image, &scratch_image);
 
-    // nodes.math.rerangify(&gradient_image);
-    // fbm_trees_image.swap(&scratch_image);
-
-    // nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+    nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+    nodes.math.rerangify(&gradient_image);
 
     types.image_preview_f32(gradient_image, &preview_gradient_image);
     const preview_grid_key = "gradient.image";
@@ -287,16 +288,18 @@ fn doNode_gradient(ctx: *Context) void {
     // heightmap2.copy(heightmap);
     types.saveImageF32(gradient_image, "gradient_image_b4terrace", false);
     types.saveImageF32(heightmap, "heightmap_b4terrace", false);
-    for (0..3) |_| {
+    for (0..1) |_| {
         for (0..1) |_| {
             compute.terrace(&gradient_image, &heightmap, &scratch_image);
             compute.min(&heightmap, &scratch_image);
             compute.max(&heightmap, &scratch_image);
+            nodes.math.rerangify(&heightmap);
             types.saveImageF32(heightmap, "heightmap", false);
         }
         // compute.gradient(&heightmap, &gradient_image, 1 / world_settings.terrain_height_max);
         // compute.min(&gradient_image, &scratch_image);
         // compute.max(&gradient_image, &scratch_image);
+        // nodes.math.rerangify(&g);
     }
 
     types.image_preview_f32(heightmap, &preview_heightmap2_image);
@@ -346,8 +349,9 @@ fn doNode_fbm_trees(ctx: *Context) void {
         };
 
         compute.fbm(&fbm_trees_image, generate_fbm_settings);
-        compute.min(&fbm_image, &scratch_image);
-        compute.max(&fbm_image, &scratch_image);
+        compute.min(&fbm_trees_image, &scratch_image);
+        compute.max(&fbm_trees_image, &scratch_image);
+        nodes.math.rerangify(&fbm_trees_image);
     }
 
     compute.remap(&fbm_trees_image, &scratch_image, 0, 1);

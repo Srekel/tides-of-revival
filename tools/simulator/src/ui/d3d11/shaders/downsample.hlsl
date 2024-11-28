@@ -19,5 +19,5 @@ void CSDownsample(uint3 DTid : SV_DispatchThreadID) {
     uint input_index = (DTid.x) + (DTid.y) * g_in_buffer_width;
     uint output_index = floor(DTid.x / 2) + floor(DTid.y / 2) * out_buffer_width;
     float3 color = g_input_buffer[input_index];
-    g_output_buffer[output_index] = color * 0.25;
+    g_output_buffer[output_index] += color * 0.25;
 }

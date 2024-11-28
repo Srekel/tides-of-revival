@@ -167,24 +167,12 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     dll_ui.linkSystemLibrary("Dwmapi");
 
     // Install shaders
-    var shader_remap = b.addInstallFile(b.path("src/ui/d3d11/shaders/remap.hlsl"), "bin/shaders/remap.hlsl");
-    dll_ui.step.dependOn(&shader_remap.step);
-    var shader_square = b.addInstallFile(b.path("src/ui/d3d11/shaders/square.hlsl"), "bin/shaders/square.hlsl");
-    dll_ui.step.dependOn(&shader_square.step);
-    var shader_gradient = b.addInstallFile(b.path("src/ui/d3d11/shaders/gradient.hlsl"), "bin/shaders/gradient.hlsl");
-    dll_ui.step.dependOn(&shader_gradient.step);
-    var shader_fast_noise_lite = b.addInstallFile(b.path("src/ui/d3d11/shaders/FastNoiseLite.hlsl"), "bin/shaders/FastNoiseLite.hlsl");
-    dll_ui.step.dependOn(&shader_fast_noise_lite.step);
-    var shader_fbm = b.addInstallFile(b.path("src/ui/d3d11/shaders/fbm.hlsl"), "bin/shaders/fbm.hlsl");
-    dll_ui.step.dependOn(&shader_fbm.step);
-    var shader_upsample_blur = b.addInstallFile(b.path("src/ui/d3d11/shaders/upsample_blur.hlsl"), "bin/shaders/upsample_blur.hlsl");
-    dll_ui.step.dependOn(&shader_upsample_blur.step);
-    var shader_downsample = b.addInstallFile(b.path("src/ui/d3d11/shaders/downsample.hlsl"), "bin/shaders/downsample.hlsl");
-    dll_ui.step.dependOn(&shader_downsample.step);
-    var shader_terrace = b.addInstallFile(b.path("src/ui/d3d11/shaders/terrace.hlsl"), "bin/shaders/terrace.hlsl");
-    dll_ui.step.dependOn(&shader_terrace.step);
-    var shader_parallel_reduce = b.addInstallFile(b.path("src/ui/d3d11/shaders/parallel_reduce.hlsl"), "bin/shaders/parallel_reduce.hlsl");
-    dll_ui.step.dependOn(&shader_parallel_reduce.step);
+    var shaders = b.addInstallDirectory(.{
+        .source_dir = b.path("src/ui/d3d11/shaders"),
+        .install_dir = .{ .custom = "" },
+        .install_subdir = b.pathJoin(&.{ "bin", "shaders" }),
+    });
+    dll_ui.step.dependOn(&shaders.step);
 
     // Link in our cpp library of nodes
     b.installArtifact(dll_ui);
