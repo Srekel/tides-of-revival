@@ -32,6 +32,9 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
         return;
     }
 
+    float curr_gradient = sat(2*30*g_input_buffer_gradient[index_in]);
+    float curr_height = g_input_buffer_height[index_in];
+
     uint index_best = 0;
     float best_score_dist = 0;
     float best_score_gradient = 0;
@@ -50,13 +53,20 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
             uint index_x = DTid.x + x * step_dist - steps_half * step_dist;
             uint index_y = DTid.y + y * step_dist - steps_half * step_dist;
             uint index_sample = index_x + index_y * g_in_buffer_width;
+            float height_sample = g_input_buffer_height[index_sample];
+            if (height_sample < curr_height)  {
+                continue;
+            }
+
+
             float gradient = 30 * g_input_buffer_gradient[index_sample];
             float dist_x = ((float)x - (float)steps_half);
             float dist_y = ((float)y - (float)steps_half);
             // float distance = range; // sqrt(dist_x * dist_x + dist_y * dist_y);
             float distance = sqrt(dist_x * dist_x + dist_y * dist_y);
             // float distance = dist_x * dist_x + dist_y * dist_y;
-            float distance_score = clamp(1 - distance / range, 0, 1);
+            // float distance = 1;
+            float distance_score = clamp(1 - distance / (float)range, 0, 1);
             float gradient_score = clamp(1 - gradient * gradient, 0, 1);
             float score = gradient_score * distance_score;
             // total_score += score;
@@ -76,10 +86,13 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
         }
     }
 
-    float curr_gradient = 0.5 + 15 * g_input_buffer_gradient[index_in];
-    float curr_height = g_input_buffer_height[index_in];
     float best_height = g_input_buffer_height[index_best];
-    float new_height = lerp(curr_height, best_height, best_score_dist * curr_gradient);
-    // float new_height = total_height / total_score;
-    g_output_buffer[index_in] = new_height;
+    if (abs(best_height- curr_height) < 0.01) {
+        g_output_buffer[index_in] = curr_height;
+    }
+    else {
+        // float new_height = lerp(curr_height, best_height, best_score_dist * curr_gradient);
+        // g_output_buffer[index_in] = new_height;
+        g_output_buffer[index_in] = curr_height;
+    }
 }
