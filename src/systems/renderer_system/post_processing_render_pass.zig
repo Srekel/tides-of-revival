@@ -43,11 +43,11 @@ const ApplyBloomConstantBuffer = struct {
 };
 
 const ColorGradingSettings = struct {
-    post_exposure: f32 = 0.0,
-    contrast: f32 = 0.0,
+    post_exposure: f32 = 0.5,
+    contrast: f32 = 2.0,
     color_filter: [3]f32 = .{ 1.0, 1.0, 1.0 },
     hue_shift: f32 = 0.0,
-    saturation: f32 = 0.0,
+    saturation: f32 = 45.0,
 };
 
 // Tonemap Constant Buffer
