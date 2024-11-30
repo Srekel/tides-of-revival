@@ -15,7 +15,7 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
 [numthreads(32, 32, 1)] void CSTerrace(uint3 DTid : SV_DispatchThreadID)
 {
     const uint step_dist = 1;
-    const uint steps = 15;
+    const uint steps = 35;
     const uint steps_half = floor(steps / 2); // 7
     const uint range = step_dist * steps;     // 15
 
@@ -32,10 +32,10 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
         return;
     }
 
-    float curr_gradient = saturate(-0.2 + 2*30*g_input_buffer_gradient[index_in]);
+    float curr_gradient = saturate(-0.2 + 14*30*g_input_buffer_gradient[index_in]);
     float curr_height = g_input_buffer_height[index_in];
 
-    uint index_best = 0;
+    uint index_best = index_in;
     float best_score_dist = 0;
     float best_score_gradient = 0;
     // float total_score = 0;
@@ -66,9 +66,10 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
             float distance = sqrt(dist_x * dist_x + dist_y * dist_y);
             // float distance = dist_x * dist_x + dist_y * dist_y;
             // float distance = 1;
-            float distance_score = clamp(1 - 0.5 * distance / (float)range, 0, 1);
+            float distance_score = clamp(1 - distance / (float)range, 0, 1);
             float gradient_score = clamp(1 - gradient * gradient, 0, 1);
             float score = gradient_score * distance_score;
+            score = lerp(score, gradient_score, 0.995);
             // total_score += score;
 
             // float best_height = g_input_buffer_height[index_sample];
@@ -77,7 +78,7 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
 
             if (score > best_score_dist)
             {
-                best_score_gradient = gradient_score;
+                best_score_gradient = distance_score;
                 best_score_dist = score;
                 index_best = index_sample;
                 // g_output_buffer_score[index_in].x = index_x;
@@ -91,8 +92,18 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
     //     g_output_buffer[index_in] = curr_height;
     // }
     // else {
-    g_output_buffer_gradient[index_in] = best_score_dist * curr_gradient;
-        float new_height = lerp(curr_height, best_height, best_score_dist * curr_gradient*best_score_dist * curr_gradient);
+    float final_score = best_score_dist * curr_gradient * curr_gradient;
+
+    final_score = saturate(final_score*final_score*3);
+    float new_height = lerp(curr_height, best_height, final_score);
+    g_output_buffer[index_in] = new_height;
+    g_output_buffer_gradient[index_in] = best_score_gradient;
+    if (DTid.x == 40) {
+        g_output_buffer_gradient[index_in] = 0;
+    }
+    if (DTid.x == 41) {
+        g_output_buffer_gradient[index_in] = 1;
+    }
         // g_output_buffer[index_in] = new_height;
     //     g_output_buffer[index_in] = curr_height;
     // }
