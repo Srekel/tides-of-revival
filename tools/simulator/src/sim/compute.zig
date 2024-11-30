@@ -1,6 +1,7 @@
 const std = @import("std");
 const types = @import("types.zig");
 const graph = @import("graph.zig");
+const nodes = @import("nodes/nodes.zig");
 
 pub var compute_fn: graph.fn_compute = undefined;
 var id: i32 = 0;
@@ -202,4 +203,7 @@ pub fn terrace(gradient_in: *types.ImageF32, height_in: *types.ImageF32, height_
     height_out.height_min = height_in.height_min;
     height_out.height_max = height_in.height_max;
     height_in.swap(height_out);
+
+    nodes.math.rerangify(&gradient_out_img);
+    types.saveImageF32(gradient_out_img, "terrace_score", false);
 }

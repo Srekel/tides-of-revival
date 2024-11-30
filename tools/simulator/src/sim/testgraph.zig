@@ -291,14 +291,16 @@ fn doNode_gradient(ctx: *Context) void {
     const preview_grid_key = "gradient.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_gradient_image.asBytes() });
 
-    // heightmap2.copy(heightmap);
+    heightmap2.copy(heightmap);
     types.saveImageF32(gradient_image, "gradient_image_b4terrace", false);
     types.saveImageF32(heightmap, "heightmap_b4terrace", false);
-    for (0..5) |_| {
+    for (0..1) |_| {
         for (0..1) |_| {
+            // nodes.gradient.terrace(heightmap, gradient_image, &heightmap2, &scratch_image);
+            // heightmap.swap(&heightmap2);
             compute.terrace(&gradient_image, &heightmap, &scratch_image);
-            compute.min(&heightmap, &scratch_image);
-            compute.max(&heightmap, &scratch_image);
+            // compute.min(&heightmap, &scratch_image);
+            // compute.max(&heightmap, &scratch_image);
             nodes.math.rerangify(&heightmap);
             types.saveImageF32(heightmap, "heightmap", false);
         }

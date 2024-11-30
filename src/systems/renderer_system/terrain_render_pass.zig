@@ -18,7 +18,7 @@ const zm = @import("zmath");
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
-const lod_load_range = 300;
+const lod_load_range = 1300;
 const max_instances = 16384;
 const invalid_index = std.math.maxInt(u32);
 const lod_3_patches_side = config.world_size_x / config.largest_patch_width;
@@ -248,7 +248,7 @@ pub const TerrainRenderPass = struct {
             .create_descriptor_sets_fn = createDescriptorSets,
             .prepare_descriptor_sets_fn = prepareDescriptorSets,
             .unload_descriptor_sets_fn = unloadDescriptorSets,
-            .render_gbuffer_pass_fn =  renderGBuffer,
+            .render_gbuffer_pass_fn = renderGBuffer,
             .render_shadow_pass_fn = renderShadowMap,
             .render_imgui_fn = renderImGui,
             .user_data = @ptrCast(self),
