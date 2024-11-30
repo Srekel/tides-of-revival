@@ -85,6 +85,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET {
     float3 color = SampleLvlTex2D(g_scene_color, g_linear_clamp_edge_sampler, Input.UV, 0).rgb;
 
     // Color Grading
+    // https://catlikecoding.com/unity/tutorials/custom-srp/color-grading/
     color = min(color, 60.0);
     color = ColorGradePostExposure(color);
     color = ColorGradeContrast(color);

@@ -454,7 +454,7 @@ fn renderImGui(user_data: *anyopaque) void {
         _ = zgui.dragFloat("Strength", .{ .v = &self.bloom_settings.bloom_strength, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
     }
 
-    if (zgui.collapsingHeader("Color Adjustments", .{})) {
+    if (zgui.collapsingHeader("Color Grading", .{})) {
         _ = zgui.inputFloat("Post Exposure", .{ .v = &self.color_grading_settings.post_exposure });
         _ = zgui.dragFloat("Contrast", .{ .v = &self.color_grading_settings.contrast, .cfmt = "%.2f", .min = -100.0, .max = 100.0, .speed = 0.1 });
         _ = zgui.colorEdit3("Color Filter", .{ .col = &self.color_grading_settings.color_filter });
