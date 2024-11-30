@@ -42,25 +42,22 @@ const ApplyBloomConstantBuffer = struct {
     bloom_strength: f32,
 };
 
-// Tonemap Settings
-// ================
-const TonemapType = enum(u32) {
-    AMD,
-    ACES,
-    Uncharted2,
-    Reinhard,
-    DX11SDK,
-    TonyMcMapFace,
-};
-
-const TonemapSettings = struct {
-    tonemap_type: TonemapType = .TonyMcMapFace,
+const ColorGradingSettings = struct {
+    post_exposure: f32 = 0.0,
+    contrast: f32 = 0.0,
+    color_filter: [3]f32 = .{ 1.0, 1.0, 1.0 },
+    hue_shift: f32 = 0.0,
+    saturation: f32 = 0.0,
 };
 
 // Tonemap Constant Buffer
 // =======================
 const TonemapConstantBuffer = struct {
-    tonemap_type: u32,
+    color_filter: [3]f32,
+    post_exposure: f32,
+    contrast: f32,
+    hue_shift: f32,
+    saturation: f32,
     tony_mc_mapface_lut_texture_index: u32 = std.math.maxInt(u32),
 };
 
@@ -90,7 +87,7 @@ pub const PostProcessingRenderPass = struct {
 
     // Tonemap
     // =======
-    tonemap_settings: TonemapSettings,
+    color_grading_settings: ColorGradingSettings,
     tonemap_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     tonemap_descriptor_set: [*c]graphics.DescriptorSet,
     tony_mc_mapface_lut: renderer.TextureHandle,
@@ -163,7 +160,7 @@ pub const PostProcessingRenderPass = struct {
             .upsample_and_blur_3_descriptor_set = undefined,
             .upsample_and_blur_4_descriptor_set = undefined,
             .apply_bloom_descriptor_set = undefined,
-            .tonemap_settings = .{},
+            .color_grading_settings = .{},
             .tonemap_constant_buffers = tonemap_constant_buffers,
             .tonemap_descriptor_set = undefined,
             .tony_mc_mapface_lut = tony_mc_mapface_lut,
@@ -376,8 +373,15 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             // Update constant buffer
             {
                 var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
-                constant_buffer_data.tonemap_type = @intFromEnum(self.tonemap_settings.tonemap_type);
                 constant_buffer_data.tony_mc_mapface_lut_texture_index = self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut);
+                // Exposure is measured in stops, so we need raise 2 to the power of the configured value
+                constant_buffer_data.post_exposure = std.math.pow(f32, 2.0, self.color_grading_settings.post_exposure);
+                // Contrast and saturation need to be remaped from [-100, 100] to [0, 2]
+                constant_buffer_data.contrast = self.color_grading_settings.contrast * 0.01 + 1.0;
+                constant_buffer_data.saturation = self.color_grading_settings.saturation * 0.01 + 1.0;
+                // HueShift needs to be remapped from [-180, 180] to [-1, 1]
+                constant_buffer_data.hue_shift = self.color_grading_settings.hue_shift / 360.0;
+                @memcpy(&constant_buffer_data.color_filter, &self.color_grading_settings.color_filter);
 
                 const data = renderer.Slice{
                     .data = @ptrCast(&constant_buffer_data),
@@ -450,8 +454,13 @@ fn renderImGui(user_data: *anyopaque) void {
         _ = zgui.dragFloat("Strength", .{ .v = &self.bloom_settings.bloom_strength, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
     }
 
-    if (zgui.collapsingHeader("Tonemap", .{})) {
-        _ = zgui.comboFromEnum("Type", &self.tonemap_settings.tonemap_type);
+    if (zgui.collapsingHeader("Color Adjustments", .{})) {
+        _ = zgui.inputFloat("Post Exposure", .{ .v = &self.color_grading_settings.post_exposure });
+        _ = zgui.dragFloat("Contrast", .{ .v = &self.color_grading_settings.contrast, .cfmt = "%.2f", .min = -100.0, .max = 100.0, .speed = 0.1 });
+        _ = zgui.colorEdit3("Color Filter", .{ .col = &self.color_grading_settings.color_filter });
+        // TODO
+        // _ = zgui.dragFloat("Hue Shift", .{ .v = &self.color_grading_settings.hue_shift, .cfmt = "%.2f", .min = -180.0, .max = 180.0, .speed = 0.1 });
+        _ = zgui.dragFloat("Saturation", .{ .v = &self.color_grading_settings.saturation, .cfmt = "%.2f", .min = -100.0, .max = 100.0, .speed = 0.1 });
     }
 }
 

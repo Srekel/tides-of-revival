@@ -44,6 +44,14 @@ INLINE float3 UnpackNormals(float2 uv, float3 viewDirection, Tex2D(float4) norma
 	return normalize(mul(tangentNormal, TBN));
 }
 
+//  ██████╗ ██████╗ ██╗      ██████╗ ██████╗     ██╗   ██╗████████╗██╗██╗     ██╗██╗████████╗███████╗███████╗
+// ██╔════╝██╔═══██╗██║     ██╔═══██╗██╔══██╗    ██║   ██║╚══██╔══╝██║██║     ██║██║╚══██╔══╝██╔════╝██╔════╝
+// ██║     ██║   ██║██║     ██║   ██║██████╔╝    ██║   ██║   ██║   ██║██║     ██║██║   ██║   █████╗  ███████╗
+// ██║     ██║   ██║██║     ██║   ██║██╔══██╗    ██║   ██║   ██║   ██║██║     ██║██║   ██║   ██╔══╝  ╚════██║
+// ╚██████╗╚██████╔╝███████╗╚██████╔╝██║  ██║    ╚██████╔╝   ██║   ██║███████╗██║██║   ██║   ███████╗███████║
+//  ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝     ╚═════╝    ╚═╝   ╚═╝╚══════╝╚═╝╚═╝   ╚═╝   ╚══════╝╚══════╝
+
+
 INLINE float sRGBToLinear(float s)
 {
 	if (s <= 0.04045f) return s / 12.92f;
@@ -69,6 +77,75 @@ INLINE float3 LinearTosRGB_Float3(float3 l) {
 		LinearTosRGB(l.r),
 		LinearTosRGB(l.g),
 		LinearTosRGB(l.b)
+	);
+}
+
+float Luminance(float3 linear_color)
+{
+    return dot(linear_color, float3(0.2126729f, 0.7151522f, 0.0721750f));
+}
+
+// https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2017-03-alexa-logc-curve-in-vfx-data.pdf
+struct LogCParameters
+{
+	float cut;
+	float a;
+	float b;
+	float c;
+	float d;
+	float e;
+	float f;
+};
+
+static const LogCParameters k_log_c_paramenters = {
+    0.011361, // cut
+    5.555556, // a
+    0.047996, // b
+    0.244161, // c
+    0.386036, // d
+    5.301883, // e
+    0.092819  // f
+};
+
+float LinearToLogC_float(float value)
+{
+	if (value > k_log_c_paramenters.cut)
+	{
+		return k_log_c_paramenters.c * log10(max(k_log_c_paramenters.a * value + k_log_c_paramenters.b, 0.0)) + k_log_c_paramenters.d;
+	}
+	else
+	{
+		return k_log_c_paramenters.e * value + k_log_c_paramenters.f;
+	}
+}
+
+float LogCToLinear_float(float value)
+{
+    if (value > k_log_c_paramenters.e * k_log_c_paramenters.cut + k_log_c_paramenters.f)
+	{
+        return (pow(10.0, (value - k_log_c_paramenters.d) / k_log_c_paramenters.c) - k_log_c_paramenters.b) / k_log_c_paramenters.a;
+	}
+    else
+	{
+        return (value - k_log_c_paramenters.f) / k_log_c_paramenters.e;
+	}
+}
+
+float3 LinearToLogC(float3 color)
+{
+	return float3(
+		LinearToLogC_float(color.r),
+		LinearToLogC_float(color.g),
+		LinearToLogC_float(color.b)
+	);
+}
+
+float3 LogCToLinear(float3 color)
+{
+	return float3(
+		LogCToLinear_float(color.r),
+		LogCToLinear_float(color.g),
+		LogCToLinear_float(color.b)
 	);
 }
 

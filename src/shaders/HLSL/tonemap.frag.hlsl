@@ -4,150 +4,37 @@
 #include "../FSL/d3d.h"
 #include "utils.hlsl"
 
-// AMD Cauldron code
+// ████████╗ ██████╗ ███╗   ██╗██╗   ██╗    ███╗   ███╗ ██████╗    ███╗   ███╗ █████╗ ██████╗ ███████╗ █████╗  ██████╗███████╗
+// ╚══██╔══╝██╔═══██╗████╗  ██║╚██╗ ██╔╝    ████╗ ████║██╔════╝    ████╗ ████║██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝
+//    ██║   ██║   ██║██╔██╗ ██║ ╚████╔╝     ██╔████╔██║██║         ██╔████╔██║███████║██████╔╝█████╗  ███████║██║     █████╗
+//    ██║   ██║   ██║██║╚██╗██║  ╚██╔╝      ██║╚██╔╝██║██║         ██║╚██╔╝██║██╔══██║██╔═══╝ ██╔══╝  ██╔══██║██║     ██╔══╝
+//    ██║   ╚██████╔╝██║ ╚████║   ██║       ██║ ╚═╝ ██║╚██████╗    ██║ ╚═╝ ██║██║  ██║██║     ██║     ██║  ██║╚██████╗███████╗
+//    ╚═╝    ╚═════╝ ╚═╝  ╚═══╝   ╚═╝       ╚═╝     ╚═╝ ╚═════╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝
 //
-// Copyright(c) 2020 Advanced Micro Devices, Inc.All rights reserved.
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files(the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions :
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
-
-//--------------------------------------------------------------------------------------
-// AMD Tonemapper
-//--------------------------------------------------------------------------------------
-// General tonemapping operator, build 'b' term.
-float ColToneB(float hdrMax, float contrast, float shoulder, float midIn, float midOut)
+// https://github.com/h3r2tic/tony-mc-mapface
+float3 tony_mc_mapface(float3 stimulus, Texture3D<float3> lut, SamplerState linear_clamp_edge)
 {
-    return
-        -((-pow(midIn, contrast) + (midOut*(pow(hdrMax, contrast*shoulder)*pow(midIn, contrast) -
-            pow(hdrMax, contrast)*pow(midIn, contrast*shoulder)*midOut)) /
-            (pow(hdrMax, contrast*shoulder)*midOut - pow(midIn, contrast*shoulder)*midOut)) /
-            (pow(midIn, contrast*shoulder)*midOut));
-}
+    // Apply a non-linear transform that the LUT is encoded with.
+    const float3 encoded = stimulus / (stimulus + 1.0);
 
-// General tonemapping operator, build 'c' term.
-float ColToneC(float hdrMax, float contrast, float shoulder, float midIn, float midOut)
-{
-    return (pow(hdrMax, contrast*shoulder)*pow(midIn, contrast) - pow(hdrMax, contrast)*pow(midIn, contrast*shoulder)*midOut) /
-           (pow(hdrMax, contrast*shoulder)*midOut - pow(midIn, contrast*shoulder)*midOut);
-}
+    // Align the encoded range to texel centers.
+    const float LUT_DIMS = 48.0;
+    const float3 uv = encoded * ((LUT_DIMS - 1.0) / LUT_DIMS) + 0.5 / LUT_DIMS;
 
-// General tonemapping operator, p := {contrast,shoulder,b,c}.
-float ColTone(float x, float4 p)
-{
-    float z = pow(x, p.r);
-    return z / (pow(z, p.g)*p.b + p.a);
-}
+    // Note: for OpenGL, do `uv.y = 1.0 - uv.y`
 
-float3 AMDTonemapper(float3 color)
-{
-    static float hdrMax = 16.0; // How much HDR range before clipping. HDR modes likely need this pushed up to say 25.0.
-    static float contrast = 2.0; // Use as a baseline to tune the amount of contrast the tonemapper has.
-    static float shoulder = 1.0; // Likely don�t need to mess with this factor, unless matching existing tonemapper is not working well..
-    static float midIn = 0.18; // most games will have a {0.0 to 1.0} range for LDR so midIn should be 0.18.
-    static float midOut = 0.18; // Use for LDR. For HDR10 10:10:10:2 use maybe 0.18/25.0 to start. For scRGB, I forget what a good starting point is, need to re-calculate.
-
-    float b = ColToneB(hdrMax, contrast, shoulder, midIn, midOut);
-    float c = ColToneC(hdrMax, contrast, shoulder, midIn, midOut);
-
-    #define EPS 1e-6f
-    float peak = max(color.r, max(color.g, color.b));
-    peak = max(EPS, peak);
-
-    float3 ratio = color / peak;
-    peak = ColTone(peak, float4(contrast, shoulder, b, c) );
-    // then process ratio
-
-    // probably want send these pre-computed (so send over saturation/crossSaturation as a constant)
-    float crosstalk = 4.0; // controls amount of channel crosstalk
-    float saturation = contrast; // full tonal range saturation control
-    float crossSaturation = contrast*16.0; // crosstalk saturation
-
-    float white = 1.0;
-
-    // wrap crosstalk in transform
-    ratio = pow(abs(ratio), saturation / crossSaturation);
-    ratio = lerp(ratio, white, pow(peak, crosstalk));
-    ratio = pow(abs(ratio), crossSaturation);
-
-    // then apply ratio to peak
-    color = peak * ratio;
-    return color;
-}
-
-//--------------------------------------------------------------------------------------
-// The tone mapper used in HDRToneMappingCS11
-//--------------------------------------------------------------------------------------
-float3 DX11DSK(float3 color)
-{
-    float  MIDDLE_GRAY = 0.72f;
-    float  LUM_WHITE = 1.5f;
-
-    // Tone mapping
-    color.rgb *= MIDDLE_GRAY;
-    color.rgb *= (1.0f + color/LUM_WHITE);
-    color.rgb /= (1.0f + color);
-
-    return color;
-}
-
-//--------------------------------------------------------------------------------------
-// Reinhard
-//--------------------------------------------------------------------------------------
-float3 Reinhard(float3 color)
-{
-    return color/(1+color);
-}
-
-//--------------------------------------------------------------------------------------
-// Hable's filmic
-//--------------------------------------------------------------------------------------
-float3 Uncharted2TonemapOp(float3 x)
-{
-    float A = 0.15;
-    float B = 0.50;
-    float C = 0.10;
-    float D = 0.20;
-    float E = 0.02;
-    float F = 0.30;
-
-    return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
-}
-
-float3 Uncharted2Tonemap(float3 color)
-{
-    float W = 11.2;
-    return Uncharted2TonemapOp(2.0 * color) / Uncharted2TonemapOp(W);
-}
-
-//--------------------------------------------------------------------------------------
-// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-//--------------------------------------------------------------------------------------
-float3 ACESFilm(float3 x)
-{
-    float a = 2.51f;
-    float b = 0.03f;
-    float c = 2.43f;
-    float d = 0.59f;
-    float e = 0.14f;
-    return saturate((x*(a*x + b)) / (x*(c*x + d) + e));
+    return lut.SampleLevel(linear_clamp_edge, uv, 0);
 }
 
 cbuffer ConstantBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
-    uint g_tonemap_type;
+    // Color Grading settings
+    float3 g_color_filter;
+    float g_post_exposure;
+    float g_contrast;
+    float g_hue_shift;
+    float g_saturation;
+    // Tonemapper LUT
     uint g_tony_mc_mapface_lut_index;
 };
 
@@ -160,18 +47,28 @@ struct VsOut
 	float2 UV : TEXCOORD0;
 };
 
-float3 tony_mc_mapface(float3 stimulus) {
-    // Apply a non-linear transform that the LUT is encoded with.
-    const float3 encoded = stimulus / (stimulus + 1.0);
+float3 ColorGradePostExposure(float3 color)
+{
+    return color * g_post_exposure;
+}
 
-    // Align the encoded range to texel centers.
-    const float LUT_DIMS = 48.0;
-    const float3 uv = encoded * ((LUT_DIMS - 1.0) / LUT_DIMS) + 0.5 / LUT_DIMS;
+float3 ColorGradeContrast(float3 color)
+{
+    const float acescc_midgray = 0.4135884f;
+    color = LinearToLogC(color);
+    color = (color - acescc_midgray) * g_contrast + acescc_midgray;
+    return LogCToLinear(color);
+}
 
-    // Note: for OpenGL, do `uv.y = 1.0 - uv.y`
+float3 ColorGradeColorFilter(float3 color)
+{
+    return color * g_color_filter;
+}
 
-    Texture3D<float3> tony_mc_mapface_lut = ResourceDescriptorHeap[g_tony_mc_mapface_lut_index];
-    return tony_mc_mapface_lut.SampleLevel(g_linear_clamp_edge_sampler, uv, 0);
+float3 ColorGradeSaturation(float3 color)
+{
+    float luminance = Luminance(color);
+    return (color - luminance) * g_saturation + luminance;
 }
 
 float4 PS_MAIN(VsOut Input) : SV_TARGET {
@@ -179,31 +76,18 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET {
 
     float3 color = SampleLvlTex2D(g_scene_color, g_linear_clamp_edge_sampler, Input.UV, 0).rgb;
 
-    if (g_tonemap_type == 0)
-    {
-        color = AMDTonemapper(color);
-    }
-    else if (g_tonemap_type == 1)
-    {
-        color = ACESFilm(color);
-    }
-    else if (g_tonemap_type == 2)
-    {
-        color = Uncharted2Tonemap(color);
-    }
-    else if (g_tonemap_type == 3)
-    {
-        color = Reinhard(color);
-    }
-    else if (g_tonemap_type == 4)
-    {
-        color = DX11DSK(color);
-    }
-    else if (g_tonemap_type == 5)
-    {
-        color = tony_mc_mapface(color);
-    }
+    // Color Grading
+    color = min(color, 60.0);
+    color = ColorGradePostExposure(color);
+    color = ColorGradeContrast(color);
+    color = ColorGradeColorFilter(color);
+    color = max(color, 0.0);
+    color = ColorGradeSaturation(color);
+    color = max(color, 0.0);
 
+    // Tone mapping
+    Texture3D<float3> tony_mc_mapface_lut = ResourceDescriptorHeap[g_tony_mc_mapface_lut_index];
+    color = tony_mc_mapface(color, tony_mc_mapface_lut, g_linear_clamp_edge_sampler);
     Out.rgb = color;
 
     return Out;
