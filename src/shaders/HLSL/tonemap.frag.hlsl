@@ -148,6 +148,7 @@ float3 ACESFilm(float3 x)
 cbuffer ConstantBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
     uint g_tonemap_type;
+    uint g_tony_mc_mapface_lut_index;
 };
 
 SamplerState g_linear_clamp_edge_sampler : register(s0, UPDATE_FREQ_NONE);
@@ -158,6 +159,20 @@ struct VsOut
 	float4 Position : SV_Position;
 	float2 UV : TEXCOORD0;
 };
+
+float3 tony_mc_mapface(float3 stimulus) {
+    // Apply a non-linear transform that the LUT is encoded with.
+    const float3 encoded = stimulus / (stimulus + 1.0);
+
+    // Align the encoded range to texel centers.
+    const float LUT_DIMS = 48.0;
+    const float3 uv = encoded * ((LUT_DIMS - 1.0) / LUT_DIMS) + 0.5 / LUT_DIMS;
+
+    // Note: for OpenGL, do `uv.y = 1.0 - uv.y`
+
+    Texture3D<float3> tony_mc_mapface_lut = ResourceDescriptorHeap[g_tony_mc_mapface_lut_index];
+    return tony_mc_mapface_lut.SampleLevel(g_linear_clamp_edge_sampler, uv, 0);
+}
 
 float4 PS_MAIN(VsOut Input) : SV_TARGET {
     float4 Out = float4(0, 0, 0, 1);
@@ -183,6 +198,10 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET {
     else if (g_tonemap_type == 4)
     {
         color = DX11DSK(color);
+    }
+    else if (g_tonemap_type == 5)
+    {
+        color = tony_mc_mapface(color);
     }
 
     Out.rgb = color;

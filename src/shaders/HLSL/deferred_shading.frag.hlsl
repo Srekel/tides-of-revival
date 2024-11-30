@@ -18,6 +18,7 @@ RES(Tex2D(float4), gBuffer2, UPDATE_FREQ_NONE, t5, binding = 9);
 RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t6, binding = 10);
 RES(Tex2D(float), shadowDepthBuffer, UPDATE_FREQ_NONE, t7, binding = 11);
 
+#define BRDF_FUNCTION FILAMENT_BRDF
 #include "pbr.hlsl"
 
 cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
@@ -170,7 +171,13 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const float  intensity = pointLight.colorAndIntensity.a;
         const float3 radiance = color * intensity * attenuation;
 
-        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadowAttenuation;
+#if BRDF_FUNCTION==FILAMENT_BRDF
+        // TODO: Specify reflectance per material
+        const float3 brdf = FilamentBRDF(N, V, L, baseColor.rgb, roughness, metalness, 0.5f);
+#else
+        const float3 brdf = BRDF(N, V, L, baseColor.rgb, roughness, metalness);
+#endif
+        Lo += brdf * radiance * NdotL * shadowAttenuation;
     }
 
     // Directional Lights
@@ -184,7 +191,13 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         const float  intensity = directionalLight.colorAndIntensity.a;
         const float3 radiance = color * intensity;
 
-        Lo += BRDF(N, V, L, baseColor.rgb, roughness, metalness) * radiance * NdotL * shadowAttenuation;
+#if BRDF_FUNCTION==FILAMENT_BRDF
+        // TODO: Specify reflectance per material
+        const float3 brdf = FilamentBRDF(N, V, L, baseColor.rgb, roughness, metalness, 0.5f);
+#else
+        const float3 brdf = BRDF(N, V, L, baseColor.rgb, roughness, metalness);
+#endif
+        Lo += brdf * radiance * NdotL * shadowAttenuation;
     }
 
     // IBL (Environment Light)

@@ -73,7 +73,7 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0 {
     float3 L = normalize(-g_sun_direction.xyz);
     float3 radiance = g_sun_color_intensity.rgb * g_sun_color_intensity.a;
     float n_dot_l = max(dot(N, L), 0.0f);
-    float3 lit_surface = BRDF(N, V, L, float3(0, 0, 0), material.m_surface_roughness, 0) * radiance * n_dot_l;
+    float3 lit_surface = FilamentBRDF(N, V, L, float3(0, 0, 0), material.m_surface_roughness, 0, 1.0f) * radiance * n_dot_l;
     lit_surface += EnvironmentBRDF(N, V, float3(0, 0, 0), material.m_surface_roughness, 0) * 0.3f;
 
     // Blending underwater and surface color

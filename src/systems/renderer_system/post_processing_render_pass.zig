@@ -50,16 +50,18 @@ const TonemapType = enum(u32) {
     Uncharted2,
     Reinhard,
     DX11SDK,
+    TonyMcMapFace,
 };
 
 const TonemapSettings = struct {
-    tonemap_type: TonemapType = .ACES,
+    tonemap_type: TonemapType = .TonyMcMapFace,
 };
 
 // Tonemap Constant Buffer
 // =======================
 const TonemapConstantBuffer = struct {
     tonemap_type: u32,
+    tony_mc_mapface_lut_texture_index: u32 = std.math.maxInt(u32),
 };
 
 pub const PostProcessingRenderPass = struct {
@@ -91,6 +93,7 @@ pub const PostProcessingRenderPass = struct {
     tonemap_settings: TonemapSettings,
     tonemap_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     tonemap_descriptor_set: [*c]graphics.DescriptorSet,
+    tony_mc_mapface_lut: renderer.TextureHandle,
 
     pub fn init(self: *PostProcessingRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
         const bloom_extract_constant_buffers = blk: {
@@ -140,6 +143,8 @@ pub const PostProcessingRenderPass = struct {
             break :blk buffers;
         };
 
+        const tony_mc_mapface_lut = rctx.loadTexture("textures/lut/tony_mc_mapface.dds");
+
         self.* = .{
             .allocator = allocator,
             .ecsu_world = ecsu_world,
@@ -161,6 +166,7 @@ pub const PostProcessingRenderPass = struct {
             .tonemap_settings = .{},
             .tonemap_constant_buffers = tonemap_constant_buffers,
             .tonemap_descriptor_set = undefined,
+            .tony_mc_mapface_lut = tony_mc_mapface_lut,
         };
 
         createDescriptorSets(@ptrCast(self));
@@ -371,6 +377,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             {
                 var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
                 constant_buffer_data.tonemap_type = @intFromEnum(self.tonemap_settings.tonemap_type);
+                constant_buffer_data.tony_mc_mapface_lut_texture_index = self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut);
 
                 const data = renderer.Slice{
                     .data = @ptrCast(&constant_buffer_data),
