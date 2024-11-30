@@ -357,7 +357,9 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     //     gfx_state.setViewMode(.depth);
     // }
 
-    world_patch_mgr.tickOne();
+    for (0..10) |_| {
+        world_patch_mgr.tickOne();
+    }
     update(ecsu_world, stats.delta_time);
 
     if (tl_giant_ant_spawn_ctx) |ctx| {

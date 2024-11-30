@@ -294,11 +294,11 @@ fn doNode_gradient(ctx: *Context) void {
     // heightmap2.copy(heightmap);
     types.saveImageF32(gradient_image, "gradient_image_b4terrace", false);
     types.saveImageF32(heightmap, "heightmap_b4terrace", false);
-    for (0..5) |_| {
+    for (0..0) |_| {
         for (0..1) |_| {
             compute.terrace(&gradient_image, &heightmap, &scratch_image);
-            compute.min(&heightmap, &scratch_image);
-            compute.max(&heightmap, &scratch_image);
+            // compute.min(&heightmap, &scratch_image);
+            // compute.max(&heightmap, &scratch_image);
             nodes.math.rerangify(&heightmap);
             types.saveImageF32(heightmap, "heightmap", false);
         }

@@ -32,7 +32,7 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
         return;
     }
 
-    float curr_gradient = sat(2*30*g_input_buffer_gradient[index_in]);
+    float curr_gradient = saturate(-0.2 + 2*30*g_input_buffer_gradient[index_in]);
     float curr_height = g_input_buffer_height[index_in];
 
     uint index_best = 0;
@@ -66,7 +66,7 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
             float distance = sqrt(dist_x * dist_x + dist_y * dist_y);
             // float distance = dist_x * dist_x + dist_y * dist_y;
             // float distance = 1;
-            float distance_score = clamp(1 - distance / (float)range, 0, 1);
+            float distance_score = clamp(1 - 0.5 * distance / (float)range, 0, 1);
             float gradient_score = clamp(1 - gradient * gradient, 0, 1);
             float score = gradient_score * distance_score;
             // total_score += score;
@@ -87,12 +87,14 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
     }
 
     float best_height = g_input_buffer_height[index_best];
-    if (abs(best_height- curr_height) < 0.01) {
-        g_output_buffer[index_in] = curr_height;
-    }
-    else {
-        // float new_height = lerp(curr_height, best_height, best_score_dist * curr_gradient);
+    // if (abs(best_height- curr_height) < 0.01) {
+    //     g_output_buffer[index_in] = curr_height;
+    // }
+    // else {
+    g_output_buffer_gradient[index_in] = best_score_dist * curr_gradient;
+        float new_height = lerp(curr_height, best_height, best_score_dist * curr_gradient*best_score_dist * curr_gradient);
         // g_output_buffer[index_in] = new_height;
-        g_output_buffer[index_in] = curr_height;
-    }
+    //     g_output_buffer[index_in] = curr_height;
+    // }
+    //     g_output_buffer[index_in] = curr_height;
 }
