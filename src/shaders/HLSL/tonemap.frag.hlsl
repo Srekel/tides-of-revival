@@ -65,6 +65,14 @@ float3 ColorGradeColorFilter(float3 color)
     return color * g_color_filter;
 }
 
+float3 ColorGradeHueShift(float3 color)
+{
+    color = RgbToHsv(color);
+    float hue = color.x + g_hue_shift;
+    color.x = RotateHue(hue, 0.0, 1.0);
+    return HsvToRgb(color);
+}
+
 float3 ColorGradeSaturation(float3 color)
 {
     float luminance = Luminance(color);
@@ -82,6 +90,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET {
     color = ColorGradeContrast(color);
     color = ColorGradeColorFilter(color);
     color = max(color, 0.0);
+    color = ColorGradeHueShift(color);
     color = ColorGradeSaturation(color);
     color = max(color, 0.0);
 

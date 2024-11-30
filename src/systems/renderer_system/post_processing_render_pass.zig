@@ -458,8 +458,7 @@ fn renderImGui(user_data: *anyopaque) void {
         _ = zgui.inputFloat("Post Exposure", .{ .v = &self.color_grading_settings.post_exposure });
         _ = zgui.dragFloat("Contrast", .{ .v = &self.color_grading_settings.contrast, .cfmt = "%.2f", .min = -100.0, .max = 100.0, .speed = 0.1 });
         _ = zgui.colorEdit3("Color Filter", .{ .col = &self.color_grading_settings.color_filter });
-        // TODO
-        // _ = zgui.dragFloat("Hue Shift", .{ .v = &self.color_grading_settings.hue_shift, .cfmt = "%.2f", .min = -180.0, .max = 180.0, .speed = 0.1 });
+        _ = zgui.dragFloat("Hue Shift", .{ .v = &self.color_grading_settings.hue_shift, .cfmt = "%.2f", .min = -180.0, .max = 180.0, .speed = 0.1 });
         _ = zgui.dragFloat("Saturation", .{ .v = &self.color_grading_settings.saturation, .cfmt = "%.2f", .min = -100.0, .max = 100.0, .speed = 0.1 });
     }
 }
