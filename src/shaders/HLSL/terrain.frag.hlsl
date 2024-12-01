@@ -4,6 +4,9 @@
 #include "terrain_resources.hlsl"
 #include "utils.hlsl"
 
+#define HEIGHBLEND_ENABLED 0
+
+#if HEIGHBLEND_ENABLED
 // Height-based blending
 // =====================
 void CalculateBlendingFactors(float height1, float height2, float a1, float a2, out float b1, out float b2)
@@ -19,6 +22,7 @@ float3 HeightBlend(float3 sample1, float3 sample2, float b1, float b2)
 {
     return (sample1 * b1 + sample2 * b2) / (b1 + b2);
 }
+#endif
 
 float3 GetTriplanarWeights(float3 normalWS)
 {
@@ -48,28 +52,24 @@ float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, floa
 // ======================
 void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, float3 N, float3 V, out float3 albedo, out float3 normal, out float3 arm, out float height)
 {
+    SamplerState samplerState = g_linear_repeat_sampler;
     TerrainLayerTextureIndices terrain_layer = g_layers[layer_index];
 
     Texture2D diffuseTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.diffuseIndex)];
-    Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.armIndex)];
-    Texture2D heightTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.heightIndex)];
-    Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.normalIndex)];
-    SamplerState samplerState = g_linear_repeat_sampler;
+    albedo = TriplanarSample(diffuseTexture, samplerState, P, triplanarWeights);
 
-    if (g_triplanar_mapping)
-    {
-        albedo = TriplanarSample(diffuseTexture, samplerState, P, triplanarWeights);
-        arm = TriplanarSample(armTexture, samplerState, P, triplanarWeights);
-        height = TriplanarSample(heightTexture, samplerState, P, triplanarWeights).r;
-        normal = TriplanarSampleNormals(normalTexture, samplerState, P, N, -V, triplanarWeights);
-    }
-    else
-    {
-        albedo = diffuseTexture.Sample(samplerState, P.yz).rgb;
-        arm = armTexture.Sample(samplerState, P.yz).rgb;
-        height = heightTexture.Sample(samplerState, P.yz).r;
-        normal = UnpackNormals(P.xz, -V, normalTexture, samplerState, N, 1.0f);
-    }
+    Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.armIndex)];
+    arm = TriplanarSample(armTexture, samplerState, P, triplanarWeights);
+
+    Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.normalIndex)];
+    normal = TriplanarSampleNormals(normalTexture, samplerState, P, N, -V, triplanarWeights);
+
+#if HEIGHBLEND_ENABLED
+    Texture2D heightTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.heightIndex)];
+    height = TriplanarSample(heightTexture, samplerState, P, triplanarWeights).r;
+#else
+    height = 0;
+#endif
 }
 
 GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
@@ -82,7 +82,9 @@ GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
 
     const float3 P = Input.PositionWS.xyz;
 
-    float3 N = normalize(Input.Normal);
+    Texture2D normalmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.normalmapTextureIndex)];
+    float3 N = normalize(normalmap.SampleLevel(g_linear_repeat_sampler, Input.UV, 0).rgb * 2.0 - 1.0);
+
     float slope = dot(N, float3(0, 1, 0));
     slope = smoothstep(g_black_point, g_white_point, slope);
     const float3 V = normalize(g_cam_pos.xyz - P);
@@ -108,26 +110,17 @@ GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
     float rock_height;
     SampleTerrainLayer(rock_layer_index, triplanarWeights, worldSpaceUV * 0.1f, N, V, rock_albedo, rock_normal, rock_arm, rock_height);
 
-#if 0
-    float3 albedo = lerp(rock_albedo, grass_albedo, slope);
-    N = lerp(rock_normal, grass_normal, slope);
-    float3 arm = lerp(rock_arm, grass_arm, slope);
-#else
+#if HEIGHBLEND_ENABLED
     float b1, b2;
     CalculateBlendingFactors(grass_height, rock_height, slope, 1.0f - slope, b1, b2);
     float3 albedo = HeightBlend(grass_albedo.rgb, rock_albedo.rgb, b1, b2);
     N = normalize(HeightBlend(grass_normal, rock_normal, b1, b2));
     float3 arm = HeightBlend(grass_arm, rock_arm, b1, b2);
+#else
+    float3 albedo = lerp(rock_albedo, grass_albedo, slope);
+    N = lerp(rock_normal, grass_normal, slope);
+    float3 arm = lerp(rock_arm, grass_arm, slope);
 #endif
-
-    // const float3 lod_colors[4] = {
-    //     float3(1, 0, 0),
-    //     float3(0, 1, 0),
-    //     float3(0, 0, 1),
-    //     float3(0, 1, 1)
-    // };
-
-    // Out.GBuffer0 = float4(lod_colors[instance.lod], 1.0f);
 
     Out.GBuffer0 = float4(albedo, 1.0f);
     Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
