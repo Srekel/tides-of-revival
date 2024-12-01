@@ -75,7 +75,7 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
             // float best_height = g_input_buffer_height[index_sample];
             // float new_height = lerp(curr_height, best_height, best_score_dist);
             // total_height += best_height * score;
-
+-
             if (score > best_score_dist)
             {
                 best_score_gradient = distance_score;
@@ -88,16 +88,27 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
     }
 
     float best_height = g_input_buffer_height[index_best];
+
+
+    float varying_score = saturate(
+        1 + 
+        0.5 * sin(DTid.x * 0.0057+DTid.y * 0.005) + 
+        // sin(DTid.y * 0.005) + 
+        0.5 * cos(DTid.x * 0.0011 + DTid.y * 0.0131)
+        // cos(DTid.y * 0.031)
+    );
+    // varying_score = 1 - (varying_score * varying_score);
+
     // if (abs(best_height- curr_height) < 0.01) {
     //     g_output_buffer[index_in] = curr_height;
     // }
     // else {
-    float final_score = best_score_dist * curr_gradient * curr_gradient;
+    float final_score = best_score_dist * curr_gradient * curr_gradient * varying_score;
 
     final_score = saturate(final_score*final_score*3);
     float new_height = lerp(curr_height, best_height, final_score);
     g_output_buffer[index_in] = new_height;
-    g_output_buffer_gradient[index_in] = best_score_gradient;
+    g_output_buffer_gradient[index_in] = final_score;
     if (DTid.x == 40) {
         g_output_buffer_gradient[index_in] = 0;
     }
