@@ -171,7 +171,7 @@ fn doNode_beaches(ctx: *Context) void {
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
 
-    const downsamples = 2;
+    const downsamples = 3;
     const downsample_divistor = std.math.pow(u32, 2, downsamples);
     const preview_grid = cpp_nodes.generate_landscape_preview(
         &c_voronoi,

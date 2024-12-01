@@ -18,7 +18,7 @@ const zm = @import("zmath");
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
-const lod_load_range = 1300;
+const lod_load_range = 4300;
 const max_instances = 16384;
 const invalid_index = std.math.maxInt(u32);
 const lod_3_patches_side = config.world_size_x / config.largest_patch_width;
