@@ -299,6 +299,12 @@ pub const PSOManager = struct {
             self.createGraphicsPipeline(desc);
         }
 
+        // Normal map from height map
+        {
+            var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
+            self.createComputePipeline(IdLocal.init("normal_from_height"), "normal_from_height.comp", &sampler_ids);
+        }
+
         // Shadows Lit
         {
             var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };

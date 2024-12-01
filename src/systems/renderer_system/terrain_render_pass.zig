@@ -71,6 +71,20 @@ const PushConstants = struct {
     instance_material_buffer_index: u32,
 };
 
+const NormalInfo = struct {
+    heightmap_handle: renderer.TextureHandle,
+    normalmap_handle: renderer.TextureHandle,
+    texture_resolution: u32,
+    lod: u32,
+};
+
+const NormalFromHeightRootConstants = struct {
+    heightmap_index: u32,
+    normalmap_index: u32,
+    texture_resolution: u32,
+    lod: u32,
+};
+
 pub const TerrainRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
@@ -95,6 +109,7 @@ pub const TerrainRenderPass = struct {
     terrain_lod_meshes: std.ArrayList(renderer.MeshHandle),
     quads_to_render: std.ArrayList(u32),
     quads_to_load: std.ArrayList(u32),
+    normals_to_generate: std.ArrayList(NormalInfo),
 
     heightmap_patch_type_id: world_patch_manager.PatchTypeId,
 
@@ -112,6 +127,7 @@ pub const TerrainRenderPass = struct {
         var terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(allocator, max_quad_tree_nodes) catch unreachable;
         const quads_to_render = std.ArrayList(u32).init(allocator);
         const quads_to_load = std.ArrayList(u32).init(allocator);
+        const normals_to_generate = std.ArrayList(NormalInfo).init(allocator);
 
         // Create initial sectors
         {
@@ -130,6 +146,7 @@ pub const TerrainRenderPass = struct {
                         .mesh_lod = 3,
                         .patch_index = [2]u32{ patch_x, patch_y },
                         .heightmap_handle = null,
+                        .normalmap_handle = null,
                     });
                 }
             }
@@ -153,11 +170,38 @@ pub const TerrainRenderPass = struct {
         loadMesh(rctx, "prefabs/environment/terrain/terrain_patch_1.bin", &meshes) catch unreachable;
         loadMesh(rctx, "prefabs/environment/terrain/terrain_patch_2.bin", &meshes) catch unreachable;
         loadMesh(rctx, "prefabs/environment/terrain/terrain_patch_3.bin", &meshes) catch unreachable;
-
         const heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_heightmap);
+
+        self.* = .{
+            .allocator = allocator,
+            .ecsu_world = ecsu_world,
+            .renderer = rctx,
+            .render_pass = undefined,
+            .world_patch_mgr = world_patch_mgr,
+            .terrain_render_settings = terrain_render_settings,
+            .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
+            .shadows_uniform_frame_buffers = undefined,
+            .shadows_descriptor_set = undefined,
+            .uniform_frame_data = std.mem.zeroes(UniformFrameData),
+            .uniform_frame_buffers = undefined,
+            .descriptor_set = undefined,
+            .instance_data_buffers = undefined,
+            .instance_data = allocator.create([max_instances]InstanceData) catch unreachable,
+            .frame_instance_count = 0,
+            .terrain_layers_buffer = undefined,
+            .terrain_lod_meshes = meshes,
+            .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
+            .quads_to_render = quads_to_render,
+            .quads_to_load = quads_to_load,
+            .normals_to_generate = normals_to_generate,
+            .heightmap_patch_type_id = heightmap_patch_type_id,
+            .cam_pos_old = .{ -100000, 0, -100000 }, // NOTE(Anders): Assumes only one camera
+        };
+
 
         var terrain_layers = std.ArrayList(TerrainLayer).init(arena);
         loadResources(
+            self,
             allocator,
             rctx,
             &terrain_quad_tree_nodes,
@@ -216,30 +260,10 @@ pub const TerrainRenderPass = struct {
             break :blk buffers;
         };
 
-        self.* = .{
-            .allocator = allocator,
-            .ecsu_world = ecsu_world,
-            .renderer = rctx,
-            .render_pass = undefined,
-            .world_patch_mgr = world_patch_mgr,
-            .terrain_render_settings = terrain_render_settings,
-            .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
-            .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
-            .shadows_descriptor_set = undefined,
-            .uniform_frame_data = std.mem.zeroes(UniformFrameData),
-            .uniform_frame_buffers = uniform_frame_buffers,
-            .descriptor_set = undefined,
-            .instance_data_buffers = instance_data_buffers,
-            .instance_data = allocator.create([max_instances]InstanceData) catch unreachable,
-            .frame_instance_count = 0,
-            .terrain_layers_buffer = terrain_layers_buffer,
-            .terrain_lod_meshes = meshes,
-            .terrain_quad_tree_nodes = terrain_quad_tree_nodes,
-            .quads_to_render = quads_to_render,
-            .quads_to_load = quads_to_load,
-            .heightmap_patch_type_id = heightmap_patch_type_id,
-            .cam_pos_old = .{ -100000, 0, -100000 }, // NOTE(Anders): Assumes only one camera
-        };
+        self.shadows_uniform_frame_buffers = shadows_uniform_frame_buffers;
+        self.uniform_frame_buffers = uniform_frame_buffers;
+        self.instance_data_buffers = instance_data_buffers;
+        self.terrain_layers_buffer = terrain_layers_buffer;
 
         createDescriptorSets(@ptrCast(self));
         prepareDescriptorSets(@ptrCast(self));
@@ -265,6 +289,7 @@ pub const TerrainRenderPass = struct {
         self.terrain_quad_tree_nodes.deinit();
         self.quads_to_render.deinit();
         self.quads_to_load.deinit();
+        self.normals_to_generate.deinit();
         self.allocator.destroy(self.instance_data);
         self.allocator.destroy(self);
     }
@@ -412,9 +437,40 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
+    if (self.normals_to_generate.items.len > 0) {
+        const pipeline_id = IdLocal.init("normal_from_height");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+        const root_signature = self.renderer.getRootSignature(pipeline_id);
+        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+
+        for (self.normals_to_generate.items) |normals_info| {
+            const heightmap_texture_index = self.renderer.getTextureBindlessIndex(normals_info.heightmap_handle);
+            const normalmap_texture_index = self.renderer.getTextureBindlessIndex(normals_info.normalmap_handle);
+            const push_constants = NormalFromHeightRootConstants{
+                .heightmap_index = heightmap_texture_index,
+                .normalmap_index = normalmap_texture_index,
+                .texture_resolution = normals_info.texture_resolution,
+                .lod = normals_info.lod,
+            };
+
+            graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
+            // 9 == 65 / 8 + 1
+            graphics.cmdDispatch(cmd_list, 9, 9, 1);
+
+            const normalmap_texture = self.renderer.getTexture(normals_info.normalmap_handle);
+            const output_barrier = [_]graphics.TextureBarrier{
+                graphics.TextureBarrier.init(normalmap_texture, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+            };
+            graphics.cmdResourceBarrier(cmd_list, 0, null, output_barrier.len, @constCast(&output_barrier), 0, null);
+        }
+    }
+
     // Reset transforms, materials and draw calls array list
     self.quads_to_render.clearRetainingCapacity();
     self.quads_to_load.clearRetainingCapacity();
+    self.normals_to_generate.clearRetainingCapacity();
 
     {
         const camera_point = [2]f32{ camera_position[0], camera_position[2] };
@@ -516,6 +572,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     for (self.quads_to_load.items) |quad_index| {
         const node = &self.terrain_quad_tree_nodes.items[quad_index];
         loadNodeHeightmap(
+            self,
             node,
             self.renderer,
             self.world_patch_mgr,
@@ -639,6 +696,7 @@ const QuadTreeNode = struct {
     patch_index: [2]u32,
     // TODO(gmodarelli): Do not store these here when we implement streaming
     heightmap_handle: ?renderer.TextureHandle,
+    normalmap_handle: ?renderer.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
         return (point[0] > (self.center[0] - self.size[0]) and
@@ -778,6 +836,7 @@ fn loadTerrainLayer(rctx: *renderer.Renderer, name: []const u8) !TerrainLayer {
 }
 
 fn loadNodeHeightmap(
+    self: *TerrainRenderPass,
     node: *QuadTreeNode,
     rctx: *renderer.Renderer,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
@@ -809,10 +868,49 @@ fn loadNodeHeightmap(
         ) catch unreachable;
 
         node.heightmap_handle = rctx.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
+
+        if (node.normalmap_handle != null) {
+            return;
+        }
+
+        // Create normal map for this node's heightmap
+        {
+            var desc = std.mem.zeroes(graphics.TextureDesc);
+            desc.mWidth = 65;
+            desc.mHeight = 65;
+            desc.mDepth = 1;
+            desc.mArraySize = 1;
+            desc.mMipLevels = 1;
+            desc.mFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
+            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS;
+            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
+            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            desc.bBindless = true;
+
+            var normal_namebuf: [256]u8 = undefined;
+            const normal_debug_name = std.fmt.bufPrintZ(
+                normal_namebuf[0..normal_namebuf.len],
+                "lod{d}/normalmap_x{d}_z{d}",
+                .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
+            ) catch unreachable;
+
+            desc.pName = normal_debug_name;
+            node.normalmap_handle = rctx.createTexture(desc);
+        }
+
+        const normal_info = NormalInfo{
+            .heightmap_handle = node.heightmap_handle.?,
+            .normalmap_handle = node.normalmap_handle.?,
+            .texture_resolution = 65,
+            .lod = node.mesh_lod,
+        };
+
+        self.normals_to_generate.append(normal_info) catch unreachable;
     }
 }
 
 fn loadResources(
+    self: *TerrainRenderPass,
     allocator: std.mem.Allocator,
     rctx: *renderer.Renderer,
     quad_tree_nodes: *std.ArrayList(QuadTreeNode),
@@ -864,6 +962,7 @@ fn loadResources(
         while (i < quad_tree_nodes.items.len) : (i += 1) {
             const node = &quad_tree_nodes.items[i];
             loadNodeHeightmap(
+                self,
                 node,
                 rctx,
                 world_patch_mgr,
@@ -895,6 +994,7 @@ fn divideQuadTreeNode(
             .mesh_lod = node.mesh_lod - 1,
             .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
             .heightmap_handle = null,
+            .normalmap_handle = null,
         };
 
         node.child_indices[child_index] = @as(u32, @intCast(nodes.items.len));
