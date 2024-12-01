@@ -20,14 +20,10 @@ float3 HeightBlend(float3 sample1, float3 sample2, float b1, float b2)
     return (sample1 * b1 + sample2 * b2) / (b1 + b2);
 }
 
-// Triplanar Sampling
-// ==================
-float3 GetTriplanarWeights(float3 normal)
+float3 GetTriplanarWeights(float3 normalWS)
 {
-    float3 blending = abs(normal);
-    blending = normalize(max(blending, 0.00001));
-    float b = blending.x + blending.y + blending.z;
-    return blending / b;
+    float3 triplanar_weights = abs(normalWS);
+    return triplanar_weights / (triplanar_weights.x + triplanar_weights.y + triplanar_weights.z + 0.00001);
 }
 
 float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 uv, float3 weights)
@@ -52,13 +48,12 @@ float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, floa
 // ======================
 void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, float3 N, float3 V, out float3 albedo, out float3 normal, out float3 arm, out float height)
 {
-    ByteAddressBuffer terrain_layers_buffer = ResourceDescriptorHeap[g_material_buffer_index];
-    TerrainLayerTextureIndices terrain_layers = terrain_layers_buffer.Load<TerrainLayerTextureIndices>(layer_index * sizeof(TerrainLayerTextureIndices));
+    TerrainLayerTextureIndices terrain_layer = g_layers[layer_index];
 
-    Texture2D diffuseTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.diffuseIndex)];
-    Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.armIndex)];
-    Texture2D heightTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.heightIndex)];
-    Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layers.normalIndex)];
+    Texture2D diffuseTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.diffuseIndex)];
+    Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.armIndex)];
+    Texture2D heightTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.heightIndex)];
+    Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.normalIndex)];
     SamplerState samplerState = g_linear_repeat_sampler;
 
     if (g_triplanar_mapping)

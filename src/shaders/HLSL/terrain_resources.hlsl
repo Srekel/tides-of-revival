@@ -8,8 +8,9 @@ struct InstanceData
 {
 	float4x4 worldMat;
 	uint heightmapTextureIndex;
+	uint normalmapTextureIndex;
 	uint lod;
-	uint2 _padding1;
+	uint _padding1;
 };
 
 struct TerrainLayerTextureIndices
@@ -27,7 +28,6 @@ cbuffer RootConstant : register(b0)
 {
 	uint g_start_instance_location;
 	uint g_instance_data_buffer_index;
-	uint g_material_buffer_index;
 };
 
 cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
@@ -39,6 +39,11 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float g_black_point;
 	float g_white_point;
 	float _padding;
+};
+
+cbuffer cbMaterial : register(b2, UPDATE_FREQ_PER_FRAME)
+{
+	TerrainLayerTextureIndices g_layers[4];
 };
 
 STRUCT(VSInput)

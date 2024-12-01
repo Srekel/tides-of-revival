@@ -19,7 +19,6 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     uint instanceIndex = instance_id + g_start_instance_location;
     InstanceData instance = instance_transform_buffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
-
     Texture2D heightmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.heightmapTextureIndex)];
     float height = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV, 0).r;
     float3 position = Input.Position.xyz;
