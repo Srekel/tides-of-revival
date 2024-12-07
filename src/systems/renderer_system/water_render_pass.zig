@@ -304,14 +304,13 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         zm.storeArr3(&self.uniform_light_data.sun_direction, z_sun_forward);
         self.uniform_light_data.sun_color_intensity = [4]f32{ sun_light.?.color.r, sun_light.?.color.g, sun_light.?.color.b, sun_light.?.intensity };
 
-
         // Update Light Buffer
         {
             const data = renderer.Slice{
                 .data = @ptrCast(&self.uniform_light_data),
                 .size = @sizeOf(UniformLightData),
             };
-            self.renderer.updateBuffer(data, UniformLightData, self.uniform_frame_buffers[frame_index]);
+            self.renderer.updateBuffer(data, UniformLightData, self.uniform_light_buffers[frame_index]);
         }
 
         self.instance_data.clearRetainingCapacity();
