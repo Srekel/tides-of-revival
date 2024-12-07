@@ -78,6 +78,7 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0 {
 
     // Blending underwater and surface color
     float3 color = lerp(underwater_color, lit_surface + underwater_color, material.m_surface_opacity);
+    color = lit_surface;
     // Transparent edges
     color = lerp(scene_color, color, saturate(water_depth));
 
