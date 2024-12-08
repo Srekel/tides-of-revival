@@ -948,7 +948,17 @@ fn cullAndBatchDrawCalls(
                 continue;
             }
 
-            // TODO(gmodarelli): Implement frustum culling
+            // TODO(gmodarelli): If we're in a shadow-casting pass, we should use the "light's camera frustum"
+            const mesh = self.renderer.getMesh(comps.mesh.mesh_handle);
+            var world: [16]f32 = undefined;
+            storeMat44(comps.transform.matrix[0..], &world);
+            const z_world = zm.loadMat(world[0..]);
+            const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
+            var aabb_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&aabb_center, zm.mul(z_aabbcenter, z_world));
+            if (!camera_comps.camera.isVisible(aabb_center, mesh.geometry.*.mRadius)) {
+                continue;
+            }
 
             var draw_call_info = DrawCallInfo{
                 .pipeline_id = undefined,
