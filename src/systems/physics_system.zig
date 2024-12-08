@@ -14,6 +14,7 @@ const config = @import("../config/config.zig");
 const util = @import("../util.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 const context = @import("../core/context.zig");
+const patch_types = @import("../worldpatch/patch_types.zig");
 
 const patch_side_vertex_count = config.patch_resolution;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
@@ -445,7 +446,7 @@ fn updatePatches(system: *SystemState) void {
             continue;
         }
 
-        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, f32);
+        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, patch_types.Heightmap);
         if (patch_info.data_opt) |data| {
             // _ = data;
 
@@ -520,7 +521,7 @@ fn updatePatches(system: *SystemState) void {
             for (0..width) |z| {
                 for (0..width) |x| {
                     const index = @as(u32, @intCast(x + z * config.patch_resolution));
-                    const height = data[index];
+                    const height = data.heightmap[index];
                     const sample = &samples[x + z * width];
                     sample.* = height;
                     // sample.* = data[0] + @floatFromInt(f32, x + z) * 0.1;

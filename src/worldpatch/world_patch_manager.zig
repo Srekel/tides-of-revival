@@ -481,17 +481,17 @@ pub const WorldPatchManager = struct {
         }
     }
 
-    pub fn tryGetPatch(self: WorldPatchManager, patch_lookup: PatchLookup, comptime T: type) struct { status: PatchStatus, data_opt: ?[]T } {
+    pub fn tryGetPatch(self: WorldPatchManager, patch_lookup: PatchLookup, comptime T: type) struct { status: PatchStatus, data_opt: ?*T } {
         const patch_handle_opt = self.handle_map_by_lookup.get(patch_lookup);
         if (patch_handle_opt) |patch_handle| {
             const patch: *Patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
             if (patch.data) |data| {
-                const data_aligned: []align(@alignOf(T)) u8 = @alignCast(data);
-                const slice = std.mem.bytesAsSlice(T, data_aligned);
+                const data_aligned: []align(@alignOf(*T)) u8 = @alignCast(data);
+                const value = std.mem.bytesAsValue(T, data_aligned);
                 // const data_aligned : align(@alignOf(T)) []u8 = @alignCast(data);
                 return .{
                     .status = patch.status,
-                    .data_opt = slice,
+                    .data_opt = value,
                 };
             }
             return .{ .status = patch.status, .data_opt = null };

@@ -14,6 +14,7 @@ const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const world_patch_manager = @import("../../worldpatch/world_patch_manager.zig");
 const zm = @import("zmath");
+const patch_types = @import("../../worldpatch/patch_types.zig");
 
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
@@ -366,11 +367,11 @@ pub const TerrainRenderPass = struct {
             .patch_type_id = self.heightmap_patch_type_id,
         };
 
-        const patch_info = self.world_patch_mgr.tryGetPatch(lookup, u8);
+        const patch_info = self.world_patch_mgr.tryGetPatch(lookup, patch_types.Heightmap);
         if (patch_info.data_opt) |data| {
             const data_slice = renderer.Slice{
-                .data = @as(*anyopaque, @ptrCast(data)),
-                .size = data.len,
+                .data = @as(*anyopaque, @ptrCast(data.heightmap[0..].ptr)),
+                .size = data.heightmap.len * 4, // f32 -> u8
             };
 
             var namebuf: [256]u8 = undefined;
@@ -421,7 +422,6 @@ pub const TerrainRenderPass = struct {
             self.normals_to_generate.append(normal_info) catch unreachable;
         }
     }
-
 };
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗
