@@ -329,6 +329,15 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
             var instance_data = std.mem.zeroes(InstanceData);
             storeMat44(comps.transform.matrix[0..], &instance_data.object_to_world);
+
+            const z_world = zm.loadMat(instance_data.object_to_world[0..]);
+            const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
+            var aabb_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&aabb_center, zm.mul(z_aabbcenter, z_world));
+            if (!camera_comps.camera.isVisible(aabb_center, mesh.geometry.*.mRadius)) {
+                continue;
+            }
+
             storeMat44(comps.transform.inv_matrix[0..], &instance_data.world_to_object);
             // NOTE(gmodarelli): We're using a single material for now
             instance_data.material_buffer_offset = 0;
