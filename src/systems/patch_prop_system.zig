@@ -224,7 +224,7 @@ fn updatePatches(system: *SystemState) void {
             rot: f32,
         };
 
-        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, Prop);
+        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, []Prop);
         if (patch_info.status != .not_loaded) {
             patch.loaded = true;
             if (patch_info.status == .loaded_empty or patch_info.status == .nonexistent) {
@@ -238,7 +238,7 @@ fn updatePatches(system: *SystemState) void {
             const city_id = IdLocal.init("city");
             var rand1 = std.rand.DefaultPrng.init(data.len);
             var rand = rand1.random();
-            for (data) |prop| {
+            for (data.*) |prop| {
                 const prop_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
                 const prop_scale: f32 = 1.0 + rand.float(f32) * 0.2;
                 const prop_rot = fd.Rotation.initFromEuler(0, prop.rot + std.math.pi * 0.5, 0);

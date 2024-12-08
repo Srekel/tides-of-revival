@@ -15,6 +15,7 @@ const config = @import("../../config/config.zig");
 const util = @import("../../util.zig");
 const EventManager = @import("../../core/event_manager.zig").EventManager;
 const context = @import("../../core/context.zig");
+const patch_types = @import("../../worldpatch/patch_types.zig");
 
 const zignav = @import("zignav");
 const Recast = zignav.Recast;
@@ -300,21 +301,21 @@ fn readVertices(
 }
 
 fn updatePatches(system: *SystemState) void {
-    var patch_data: [9][]f32 = undefined;
+    var patch_data: [9][]patch_types.Heightmap = undefined;
 
     patch_loop: for (system.patches.items) |*patch| {
         if (patch.poly_mesh_opt) |_| {
             continue;
         }
 
-        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, f32);
+        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, patch_types.Heightmap);
         if (patch_info.data_opt == null) {
             continue;
         }
         patch_data[5] = patch_info.data_opt.?;
 
         for (patch.lookup_neighbors, 0..8) |neighbor, neighbor_index| {
-            const patch_info_neighbor = system.world_patch_mgr.tryGetPatch(neighbor, f32);
+            const patch_info_neighbor = system.world_patch_mgr.tryGetPatch(neighbor, patch_types.Heightmap);
             if (patch_info_neighbor.data_opt == null) {
                 continue :patch_loop;
             }

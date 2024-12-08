@@ -17,11 +17,6 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
     });
 
     _ = world_patch_mgr.registerPatchType(.{
-        .id = config.patch_type_splatmap,
-        .loadFn = splatmapLoad,
-    });
-
-    _ = world_patch_mgr.registerPatchType(.{
         .id = config.patch_type_props,
         .loadFn = propsLoad,
     });
@@ -33,6 +28,12 @@ pub fn registerPatchTypes(world_patch_mgr: *world_patch_manager.WorldPatchManage
 // ██╔══██║██╔══╝  ██║██║   ██║██╔══██║   ██║   ██║╚██╔╝██║██╔══██║██╔═══╝
 // ██║  ██║███████╗██║╚██████╔╝██║  ██║   ██║   ██║ ╚═╝ ██║██║  ██║██║
 // ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
+
+pub const Heightmap = struct {
+    heightmap: [config.patch_samples]f32,
+    min: f32,
+    max: f32,
+};
 
 fn heightmapDependencies(
     patch_lookup: world_patch_manager.PatchLookup,
@@ -80,7 +81,10 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     // _ = height_max;
 
     const height_max_mapped_edge: f32 = @floatFromInt(std.math.pow(u32, 2, 30));
-    var patch_data: []f32 = ctx.allocator.alloc(f32, config.patch_samples) catch unreachable;
+    var heightmap: *Heightmap = ctx.allocator.create(Heightmap) catch unreachable;
+    heightmap.min = header.height_min;
+    heightmap.max = header.height_max;
+    var patch_data: []f32 = heightmap.heightmap[0..];
 
     // EDGES
     const edges = config.HeightmapHeader.getEdgeSlices(heightmap_data);
@@ -132,7 +136,7 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
         },
         else => unreachable,
     }
-    patch.data = std.mem.sliceAsBytes(patch_data);
+    patch.data = std.mem.asBytes(heightmap);
 
     // std.log.debug("loaded patch ({any},{any}) type:{any}, lod:{any}", .{
     //     patch.lookup.patch_x,
@@ -166,41 +170,22 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
     // }
 }
 
-// ███████╗██████╗ ██╗      █████╗ ████████╗███╗   ███╗ █████╗ ██████╗
-// ██╔════╝██╔══██╗██║     ██╔══██╗╚══██╔══╝████╗ ████║██╔══██╗██╔══██╗
-// ███████╗██████╔╝██║     ███████║   ██║   ██╔████╔██║███████║██████╔╝
-// ╚════██║██╔═══╝ ██║     ██╔══██║   ██║   ██║╚██╔╝██║██╔══██║██╔═══╝
-// ███████║██║     ███████╗██║  ██║   ██║   ██║ ╚═╝ ██║██║  ██║██║
-// ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝
-
-fn splatmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeContext) void {
-    var splatmap_namebuf: [256]u8 = undefined;
-    const splatmap_path = std.fmt.bufPrintZ(
-        splatmap_namebuf[0..splatmap_namebuf.len],
-        "content/patch/splatmap/lod{}/splatmap_x{}_z{}.png",
-        .{
-            patch.lookup.lod,
-            patch.lookup.patch_x,
-            patch.lookup.patch_z,
-        },
-    ) catch unreachable;
-
-    const splatmap_asset_id = IdLocal.init(splatmap_path);
-    const splatmap_data = ctx.asset_mgr.loadAssetBlocking(splatmap_asset_id, .instant_blocking);
-    var splatmap_image = zstbi.Image.loadFromMemory(splatmap_data, 1) catch unreachable;
-    defer splatmap_image.deinit();
-
-    const data = ctx.allocator.alloc(u8, splatmap_image.data.len) catch unreachable;
-    @memcpy(data, splatmap_image.data);
-    patch.data = data;
-}
-
 // ██████╗ ██████╗  ██████╗ ██████╗ ███████╗
 // ██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔════╝
 // ██████╔╝██████╔╝██║   ██║██████╔╝███████╗
 // ██╔═══╝ ██╔══██╗██║   ██║██╔═══╝ ╚════██║
 // ██║     ██║  ██║╚██████╔╝██║     ███████║
 // ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚══════╝
+
+pub const Prop = struct {
+    id: IdLocal,
+    pos: [3]f32,
+    rot: f32,
+};
+
+pub const Props = struct {
+    list: []Prop,
+};
 
 fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTypeContext) void {
     var props_namebuf: [256]u8 = undefined;
@@ -219,12 +204,6 @@ fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTy
         patch.status = .nonexistent;
         return;
     }
-
-    const Prop = struct {
-        id: IdLocal,
-        pos: [3]f32,
-        rot: f32,
-    };
 
     const props_data = ctx.asset_mgr.loadAssetBlocking(props_asset_id, .instant_blocking);
     if (props_data.len == 0) {
@@ -264,5 +243,10 @@ fn propsLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.PatchTy
         props.appendAssumeCapacity(prop);
     }
 
-    patch.data = std.mem.sliceAsBytes(props.items);
+    var data = ctx.allocator.alignedAlloc(u8, 64, @sizeOf(Props) + @sizeOf(Prop) * props.items.len) catch unreachable;
+    var props_instance = std.mem.bytesAsValue(Props, data[0..@sizeOf(Props)]);
+    const proplist = std.mem.bytesAsSlice(Prop, data[@sizeOf(Props)..]);
+    props_instance.list = proplist;
+    @memcpy(proplist, props.items);
+    patch.data = std.mem.asBytes(props_instance);
 }
