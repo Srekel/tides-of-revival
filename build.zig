@@ -196,6 +196,28 @@ pub fn build(b: *std.Build) void {
     @import("zwin32").install_directml(&exe.step, .bin);
     @import("system_sdk").addLibraryPathsTo(exe);
 
+    // zwindows
+    const zwindows_dependency = b.dependency("zwindows", .{
+        .zxaudio2_debug_layer = (builtin.mode == .Debug),
+        .zd3d12_debug_layer = (builtin.mode == .Debug),
+        .zd3d12_gbv = b.option("zd3d12_gbv", "Enable GPU-Based Validation") orelse false,
+    });
+
+    // Import the Windows API bindings
+    exe.root_module.addImport("zwindows", zwindows_dependency.module("zwindows"));
+
+    // Import the optional zd3d12 helper library
+    exe.root_module.addImport("zd3d12", zwindows_dependency.module("zd3d12"));
+
+    // Import the optional zxaudio2 helper library
+    exe.root_module.addImport("zxaudio2", zwindows_dependency.module("zxaudio2"));
+
+    // Install vendored binaries
+    const zwindows = @import("zwindows");
+    try zwindows.install_xaudio2(&exe.step, zwindows_dependency, .bin);
+    try zwindows.install_d3d12(&exe.step, zwindows_dependency, .bin);
+    try zwindows.install_directml(&exe.step, zwindows_dependency, .bin);
+
     // WWise
     // const wwise_dependency = b.dependency("wwise-zig", .{
     //     .target = target,

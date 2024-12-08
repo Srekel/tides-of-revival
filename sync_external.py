@@ -53,8 +53,13 @@ def sync_zig_exe(build):
     if os.path.isfile(filename):
         print("...already found: external/" + filename)
         return
-    url = "https://ziglang.org/builds/" + filename
-    urllib.request.urlretrieve(url, filename)
+    try:
+        url = "https://ziglang.org/builds/" + filename
+        urllib.request.urlretrieve(url, filename)
+    except:
+        print("Didn't find on zig.com, trying machengine.org")
+        url = "https://pkg.machengine.org/zig/" + filename
+        urllib.request.urlretrieve(url, filename)
     print("...saved at: external/" + filename)
     print("Important: You need to copy this over your existing zig.exe")
 
@@ -79,22 +84,12 @@ def main():
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "93a0fb37b4d939abefee7aca22aa5bf3efefe8d5",
-    )
-    sync_lib(
-        "wwise-zig",
-        "https://github.com/Cold-Bytes-Games/wwise-zig.git",
-        "4888fd81f3a905c7bb1cc5d91547503dbc0b3e1b",
+        "ba14f387b22210667a2941c1e5e4170eb1854957",
     )
     sync_lib(
         "zig-args",
         "https://github.com/MasterQ32/zig-args.git",
-        "872272205d95bdba33798c94e72c5387a31bc806",
-    )
-    sync_lib(
-        "zig-gamedev",
-        "https://github.com/Srekel/zig-gamedev.git",
-        "c5eecaf58fdb88b35a5491a3bbdd71ba5d393300",
+        "0abdd6947a70e6d8cc83b66228cea614aa856206",
     )
     sync_lib(
         "zig-im3d",
@@ -104,7 +99,7 @@ def main():
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
-        "563531ac08d70821e9679f4fe01273356b7d2a8a",
+        "5b5d718159c6ec223a54c9bb960690576e5df9c2",
     )
     sync_lib(
         "zig-recastnavigation",
@@ -116,7 +111,7 @@ def main():
     sync_lib(
         "FastNoiseLite",
         "https://github.com/Auburn/FastNoiseLite",
-        "72d212e005e62c886c06f55f740571116f361571",
+        "5944f97c2681c6f63ead24bfe6501f33c5cc72a3",
     )
     sync_lib(
         "imgui",
@@ -126,12 +121,12 @@ def main():
     sync_lib(
         "poisson-disk-sampling",
         "https://github.com/thinks/poisson-disk-sampling",
-        "11575d53f9b123b69e4963bb68251334181ad22d",
+        "c126f1712b53103ac2039a8430b7d77b38f75ab9",
     )
     sync_lib(
         "stb",
         "https://github.com/nothings/stb",
-        "f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31",
+        "5c205738c191bcb0abc65c4febfa9bd25ff35234",
     )
     sync_lib(
         "voronoi",
@@ -139,7 +134,14 @@ def main():
         "e4b62e3a765c1ecf80ca3b759f456bcf0b51dc37",
     )
 
-    sync_zig_exe("0.13.0")
+    ## ZIG-GAMEDEV
+    sync_lib(
+        "zwindows",
+        "https://github.com/zig-gamedev/zwindows",
+        "0817cfbd455b03b4cd09005514d49504265438a9",
+    )
+
+    sync_zig_exe("0.14.0-dev.1911+3bf89f55c")
 
     os.chdir("..")
     print("Done syncing external!")
