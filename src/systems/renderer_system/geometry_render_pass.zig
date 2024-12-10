@@ -217,8 +217,9 @@ pub const GeometryRenderPass = struct {
         // Queries
         var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_mesh
+            .withReadonly(fd.StaticMesh)
             .withReadonly(fd.Transform)
-            .withReadonly(fd.StaticMesh);
+            .withReadonly(fd.Scale);
         const query_static_mesh = query_builder_mesh.buildQuery();
 
         self.* = .{
@@ -916,8 +917,9 @@ fn cullAndBatchDrawCalls(
     const camera_position = camera_comps.transform.getPos00();
 
     var entity_iterator = self.query_static_mesh.iterator(struct {
-        transform: *const fd.Transform,
         mesh: *const fd.StaticMesh,
+        transform: *const fd.Transform,
+        scale: *const fd.Scale,
     });
     trazy_zone1.End();
 
@@ -954,9 +956,10 @@ fn cullAndBatchDrawCalls(
             storeMat44(comps.transform.matrix[0..], &world);
             const z_world = zm.loadMat(world[0..]);
             const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
-            var aabb_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
-            zm.storeArr3(&aabb_center, zm.mul(z_aabbcenter, z_world));
-            if (!camera_comps.camera.isVisible(aabb_center, mesh.geometry.*.mRadius)) {
+            var bounding_sphere_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&bounding_sphere_center, zm.mul(z_aabbcenter, z_world));
+            const bounding_sphere_radius = mesh.geometry.*.mRadius * @max(comps.scale.x, @max(comps.scale.y, comps.scale.z));
+            if (!camera_comps.camera.isVisible(bounding_sphere_center, bounding_sphere_radius)) {
                 continue;
             }
 
