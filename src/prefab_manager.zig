@@ -36,6 +36,36 @@ pub const PrefabManager = struct {
         self.material_hash_map.deinit();
     }
 
+    pub fn createHierarchicalStaticMeshPrefab(self: *@This(), path: [:0]const u8, id: IdLocal, vertex_layout_id: IdLocal, world: ecsu.World) ecsu.Entity {
+        const existing_prefab = self.prefab_hash_map.get(id);
+        if (existing_prefab) |prefab| {
+            return prefab;
+        }
+
+        var entity = world.newPrefab(path);
+        entity.setOverride(fd.Forward{});
+
+        // Set position, rotation and scale
+        var position = fd.Position.init(0, 0, 0);
+        var rotation = fd.Rotation{};
+        var scale = fd.Scale.createScalar(1);
+        entity.setOverride(position);
+        entity.setOverride(rotation);
+        entity.setOverride(scale);
+
+        // Set transform
+        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
+        transform.setPos(position.elems().*);
+        transform.setScale(scale.elems().*);
+        entity.setOverride(transform);
+
+        const hierarchical_static_mesh = self.loadHierarchicalMesh(path, vertex_layout_id);
+        entity.setOverride(hierarchical_static_mesh);
+
+        self.prefab_hash_map.put(id, entity) catch unreachable;
+        return entity;
+    }
+
     pub fn loadPrefabFromBinary(self: *@This(), path: [:0]const u8, id: IdLocal, vertex_layout_id: IdLocal, world: ecsu.World) ecsu.Entity {
         const existing_prefab = self.prefab_hash_map.get(id);
         if (existing_prefab) |prefab| {
@@ -98,4 +128,48 @@ pub const PrefabManager = struct {
 
         return null;
     }
+
+    fn loadHierarchicalMesh(self: *@This(), path: [:0]const u8, vertex_layout_id: IdLocal) fd.HierarchicalStaticMesh {
+        var hierarchical_mesh = std.mem.zeroes(fd.HierarchicalStaticMesh);
+
+        // Try to load LODs
+        for (0..renderer.mesh_lod_max_count) |lod| {
+            var content_lod_path_buffer: [256]u8 = undefined;
+            const content_lod_path = std.fmt.bufPrintZ(
+                content_lod_path_buffer[0..content_lod_path_buffer.len],
+                "content/{s}_LOD{d}.bin",
+                .{path, lod},
+            ) catch unreachable;
+
+            _ = std.fs.cwd().statFile(content_lod_path) catch |err| switch (err) {
+                else => continue
+            };
+
+            var lod_path_buffer: [256]u8 = undefined;
+            const lod_path = std.fmt.bufPrintZ(
+                lod_path_buffer[0..lod_path_buffer.len],
+                "{s}_LOD{d}.bin",
+                .{path, lod},
+            ) catch unreachable;
+
+            hierarchical_mesh.static_meshes[hierarchical_mesh.static_mesh_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            hierarchical_mesh.static_mesh_count += 1;
+        }
+
+        // Load non-lodded mesh
+        if (hierarchical_mesh.static_mesh_count == 0) {
+            var lod_path_buffer: [256]u8 = undefined;
+            const lod_path = std.fmt.bufPrintZ(
+                lod_path_buffer[0..lod_path_buffer.len],
+                "{s}.bin",
+                .{path},
+            ) catch unreachable;
+
+            hierarchical_mesh.static_meshes[hierarchical_mesh.static_mesh_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            hierarchical_mesh.static_mesh_count += 1;
+        }
+
+        return hierarchical_mesh;
+    }
+
 };

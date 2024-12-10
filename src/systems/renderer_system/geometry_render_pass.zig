@@ -217,7 +217,7 @@ pub const GeometryRenderPass = struct {
         // Queries
         var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_mesh
-            .withReadonly(fd.StaticMesh)
+            .withReadonly(fd.HierarchicalStaticMesh)
             .withReadonly(fd.Transform)
             .withReadonly(fd.Scale);
         const query_static_mesh = query_builder_mesh.buildQuery();
@@ -917,7 +917,7 @@ fn cullAndBatchDrawCalls(
     const camera_position = camera_comps.transform.getPos00();
 
     var entity_iterator = self.query_static_mesh.iterator(struct {
-        mesh: *const fd.StaticMesh,
+        mesh: *const fd.HierarchicalStaticMesh,
         transform: *const fd.Transform,
         scale: *const fd.Scale,
     });
@@ -942,7 +942,8 @@ fn cullAndBatchDrawCalls(
         const max_draw_distance_squared = max_draw_distance * max_draw_distance;
 
         while (entity_iterator.next()) |comps| {
-            const sub_mesh_count = comps.mesh.material_count;
+            var static_mesh = comps.mesh.static_meshes[0];
+            var sub_mesh_count = static_mesh.material_count;
             if (sub_mesh_count == 0) continue;
 
             // Distance culling
@@ -951,7 +952,7 @@ fn cullAndBatchDrawCalls(
             }
 
             // TODO(gmodarelli): If we're in a shadow-casting pass, we should use the "light's camera frustum"
-            const mesh = self.renderer.getMesh(comps.mesh.mesh_handle);
+            const mesh = self.renderer.getMesh(static_mesh.mesh_handle);
             var world: [16]f32 = undefined;
             storeMat44(comps.transform.matrix[0..], &world);
             const z_world = zm.loadMat(world[0..]);
@@ -963,16 +964,20 @@ fn cullAndBatchDrawCalls(
                 continue;
             }
 
+            // LOD Selection
+            static_mesh = selectLOD(comps.mesh, camera_position, comps.transform.getPos00());
+            sub_mesh_count = static_mesh.material_count;
+
             var draw_call_info = DrawCallInfo{
                 .pipeline_id = undefined,
-                .mesh_handle = comps.mesh.mesh_handle,
+                .mesh_handle = static_mesh.mesh_handle,
                 .sub_mesh_index = undefined,
             };
 
             for (0..sub_mesh_count) |sub_mesh_index| {
                 draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
 
-                const material_handle = comps.mesh.materials[sub_mesh_index];
+                const material_handle = static_mesh.materials[sub_mesh_index];
                 const pipeline_ids = self.renderer.getMaterialPipelineIds(material_handle);
                 const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_handle);
 
@@ -1113,6 +1118,40 @@ inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [
     }
 
     return false;
+}
+
+fn selectLOD(hierarchical_static_mesh: *const fd.HierarchicalStaticMesh, camera_position: [3]f32, entity_position: [3]f32) fd.StaticMesh {
+    if (hierarchical_static_mesh.static_mesh_count == 1) {
+        return hierarchical_static_mesh.static_meshes[0];
+    }
+
+    const dx = camera_position[0] - entity_position[0];
+    const dy = camera_position[1] - entity_position[1];
+    const dz = camera_position[2] - entity_position[2];
+    const distance_squared = (dx * dx + dy * dy + dz * dz);
+
+    const lod0_distance_squared = 10.0 * 10.0;
+    const lod1_distance_squared = 20.0 * 20.0;
+    const lod2_distance_squared = 30.0 * 30.0;
+    const lod3_distance_squared = 40.0 * 40.0;
+
+    if (distance_squared <= lod0_distance_squared) {
+        return hierarchical_static_mesh.static_meshes[0];
+    }
+
+    if (distance_squared <= lod1_distance_squared and hierarchical_static_mesh.static_mesh_count >= 2) {
+        return hierarchical_static_mesh.static_meshes[1];
+    }
+
+    if (distance_squared <= lod2_distance_squared and hierarchical_static_mesh.static_mesh_count >= 3) {
+        return hierarchical_static_mesh.static_meshes[2];
+    }
+
+    if (distance_squared <= lod3_distance_squared and hierarchical_static_mesh.static_mesh_count >= 4) {
+        return hierarchical_static_mesh.static_meshes[3];
+    }
+
+    return hierarchical_static_mesh.static_meshes[0];
 }
 
 inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {

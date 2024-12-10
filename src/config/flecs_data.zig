@@ -25,6 +25,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Transform);
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
+    ecs.COMPONENT(ecs_world, HierarchicalStaticMesh);
     ecs.COMPONENT(ecs_world, StaticMesh);
     ecs.COMPONENT(ecs_world, Water);
     ecs.COMPONENT(ecs_world, SkyLight);
@@ -443,6 +444,12 @@ pub const StaticMesh = struct {
 
     material_count: u32,
     materials: [renderer.sub_mesh_max_count]MaterialHandle,
+};
+
+
+pub const HierarchicalStaticMesh = struct {
+    static_mesh_count: u32,
+    static_meshes: [renderer.mesh_lod_max_count]StaticMesh,
 };
 
 pub const Water = struct {

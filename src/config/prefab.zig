@@ -51,13 +51,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     const pos_uv0_nor_tan_col_uv1_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col_uv1");
 
     {
-        player = prefab_mgr.loadPrefabFromBinary("prefabs/characters/player/player.bin", player_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        player = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/characters/player/player", player_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         player.setOverride(fd.Dynamic{});
 
-        const static_mesh_component = player.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = default_material_handle;
+        const hierarchical_static_mesh_component = player.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+            }
         }
     }
 
@@ -70,13 +72,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.normal = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
         const material_handle = prefab_mgr.rctx.uploadMaterial(material) catch unreachable;
 
-        matball = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/matball.bin", matball_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        matball = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/matball", matball_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         matball.setOverride(fd.Dynamic{});
 
-        const static_mesh_component = matball.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = material_handle;
+        const hierarchical_static_mesh_component = matball.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+            }
         }
     }
 
@@ -87,13 +91,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/color_calibrator/color_checker_albedo.dds");
         const material_handle = prefab_mgr.rctx.uploadMaterial(material) catch unreachable;
 
-        color_calibrator = prefab_mgr.loadPrefabFromBinary("prefabs/props/color_calibrator/color_calibrator.bin", color_calibrator_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        color_calibrator = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/color_calibrator/color_calibrator", color_calibrator_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         color_calibrator.setOverride(fd.Dynamic{});
 
-        const static_mesh_component = color_calibrator.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = material_handle;
+        const hierarchical_static_mesh_component = color_calibrator.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+            }
         }
     }
 
@@ -106,13 +112,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.normal = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_normal.dds");
         const material_handle = prefab_mgr.rctx.uploadMaterial(material) catch unreachable;
 
-        giant_ant = prefab_mgr.loadPrefabFromBinary("prefabs/creatures/giant_ant/giant_ant.bin", giant_ant_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        giant_ant = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/giant_ant/giant_ant", giant_ant_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         giant_ant.setOverride(fd.Dynamic{});
 
-        const static_mesh_component = giant_ant.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = material_handle;
+        const hierarchical_static_mesh_component = giant_ant.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+            }
         }
     }
 
@@ -125,60 +133,82 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.normal = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_normal.dds");
         const material_handle = prefab_mgr.rctx.uploadMaterial(material) catch unreachable;
 
-        bow = prefab_mgr.loadPrefabFromBinary("prefabs/props/bow_arrow/bow.bin", bow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        bow.setOverride(fd.Dynamic{});
-        var static_mesh_component = bow.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = material_handle;
+        {
+            bow = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/bow_arrow/bow", bow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+            bow.setOverride(fd.Dynamic{});
+
+            const hierarchical_static_mesh_component = bow.getMut(fd.HierarchicalStaticMesh);
+            if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+                for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                    hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                    hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+                }
+            }
         }
 
-        var arrow = prefab_mgr.loadPrefabFromBinary("prefabs/props/bow_arrow/arrow.bin", arrow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        arrow.setOverride(fd.Dynamic{});
-        static_mesh_component = arrow.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = material_handle;
+        {
+            var arrow = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/bow_arrow/arrow", arrow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+            arrow.setOverride(fd.Dynamic{});
+
+            const hierarchical_static_mesh_component = arrow.getMut(fd.HierarchicalStaticMesh);
+            if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+                for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                    hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                    hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+                }
+            }
         }
     }
 
     {
-        default_cube = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cube.bin", cube_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        default_cube = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_cube", cube_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         default_cube.setOverride(fd.Dynamic{});
-        const static_mesh_component = default_cube.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = default_material_handle;
+
+        const hierarchical_static_mesh_component = default_cube.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+            }
         }
     }
 
     {
-        var cylinder = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_cylinder.bin", cylinder_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        var cylinder = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_cylinder", cylinder_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         cylinder.setOverride(fd.Dynamic{});
-        const static_mesh_component = cylinder.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = default_material_handle;
+
+        const hierarchical_static_mesh_component = cylinder.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+            }
         }
     }
 
     {
-        var plane = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_plane.bin", plane_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        var plane = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_plane", plane_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         plane.setOverride(fd.Dynamic{});
-        const static_mesh_component = plane.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = default_material_handle;
+
+        const hierarchical_static_mesh_component = plane.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+            }
         }
     }
 
     {
-        var sphere = prefab_mgr.loadPrefabFromBinary("prefabs/primitives/primitive_sphere.bin", sphere_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        var sphere = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_sphere", sphere_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         sphere.setOverride(fd.Dynamic{});
-        const static_mesh_component = sphere.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 1;
-            static_mesh.materials[0] = default_material_handle;
+
+        const hierarchical_static_mesh_component = sphere.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 1;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+            }
         }
     }
 
@@ -215,15 +245,16 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         stone_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_normal.dds");
         const stone_material_handle = prefab_mgr.rctx.uploadMaterial(stone_material) catch unreachable;
 
-        var medium_house = prefab_mgr.loadPrefabFromBinary("prefabs/buildings/medium_house/medium_house.bin", medium_house_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        const static_mesh_component = medium_house.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 4;
-
-            static_mesh.materials[0] = roof_material_handle;
-            static_mesh.materials[1] = wood_material_handle;
-            static_mesh.materials[2] = plaster_material_handle;
-            static_mesh.materials[3] = stone_material_handle;
+        var medium_house = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medium_house/medium_house", medium_house_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        const hierarchical_static_mesh_component = medium_house.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 4;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = roof_material_handle;
+                hierarchical_static_mesh.static_meshes[i].materials[1] = wood_material_handle;
+                hierarchical_static_mesh.static_meshes[i].materials[2] = plaster_material_handle;
+                hierarchical_static_mesh.static_meshes[i].materials[3] = stone_material_handle;
+            }
         }
     }
 
@@ -262,13 +293,14 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_atlas_v2_material.wind_shiver_directionality = 0.4;
         const beech_atlas_v2_material_handle = prefab_mgr.rctx.uploadMaterial(beech_atlas_v2_material) catch unreachable;
 
-        var beech_tree_04 = prefab_mgr.loadPrefabFromBinary("prefabs/environment/beech/beech_tree_04_LOD0.bin", beech_tree_04_id, pos_uv0_nor_tan_col_uv1_vertex_layout, ecsu_world);
-        const static_mesh_component = beech_tree_04.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            static_mesh.material_count = 2;
-
-            static_mesh.materials[0] = beech_trunk_04_material_handle;
-            static_mesh.materials[1] = beech_atlas_v2_material_handle;
+        var beech_tree_04 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/environment/beech/beech_tree_04", beech_tree_04_id, pos_uv0_nor_tan_col_uv1_vertex_layout, ecsu_world);
+        const hierarchical_static_mesh_component = beech_tree_04.getMut(fd.HierarchicalStaticMesh);
+        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
+            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
+                hierarchical_static_mesh.static_meshes[i].material_count = 2;
+                hierarchical_static_mesh.static_meshes[i].materials[0] = beech_trunk_04_material_handle;
+                hierarchical_static_mesh.static_meshes[i].materials[1] = beech_atlas_v2_material_handle;
+            }
         }
     }
 }
