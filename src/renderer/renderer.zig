@@ -1542,6 +1542,7 @@ pub const Slice = extern struct {
     size: u64,
 };
 
+pub const mesh_lod_max_count: u32 = 4;
 pub const sub_mesh_max_count: u32 = 32;
 
 pub const FrameStats = struct {
