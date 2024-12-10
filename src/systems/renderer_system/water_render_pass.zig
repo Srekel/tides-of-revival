@@ -146,7 +146,8 @@ pub const WaterRenderPass = struct {
         var query_builder_water = ecsu.QueryBuilder.init(ecsu_world);
         _ = query_builder_water
             .withReadonly(fd.Transform)
-            .withReadonly(fd.Water);
+            .withReadonly(fd.Water)
+            .withReadonly(fd.Scale);
         const query_water = query_builder_water.buildQuery();
 
         const water_normal_handle = rctx.loadTexture("prefabs/environment/water/water_normal.dds");
@@ -317,6 +318,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         var entity_iterator = self.query_water.iterator(struct {
             transform: *const fd.Transform,
             water: *const fd.Water,
+            scale: *const fd.Scale,
         });
         var first_iteration = true;
         var mesh: renderer.Mesh = undefined;
@@ -332,9 +334,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
             const z_world = zm.loadMat(instance_data.object_to_world[0..]);
             const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
-            var aabb_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
-            zm.storeArr3(&aabb_center, zm.mul(z_aabbcenter, z_world));
-            if (!camera_comps.camera.isVisible(aabb_center, mesh.geometry.*.mRadius)) {
+            var bounding_sphere_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
+            zm.storeArr3(&bounding_sphere_center, zm.mul(z_aabbcenter, z_world));
+            const bounding_sphere_radius = mesh.geometry.*.mRadius * @max(comps.scale.x, @max(comps.scale.y, comps.scale.z));
+            if (!camera_comps.camera.isVisible(bounding_sphere_center, bounding_sphere_radius)) {
                 continue;
             }
 
