@@ -153,6 +153,8 @@ pub const TerrainRenderPass = struct {
                         .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
                         .mesh_lod = 3,
                         .patch_index = [2]u32{ patch_x, patch_y },
+                        .bounding_sphere_center = undefined,
+                        .bounding_sphere_radius = 0.0,
                         .heightmap_handle = null,
                         .normalmap_handle = null,
                     });
@@ -369,6 +371,17 @@ pub const TerrainRenderPass = struct {
 
         const patch_info = self.world_patch_mgr.tryGetPatch(lookup, patch_types.Heightmap);
         if (patch_info.data_opt) |data| {
+            // Node Bounding Sphere
+            {
+                node.bounding_sphere_center[0] = node.center[0];
+                node.bounding_sphere_center[1] = (data.min + data.max) * 0.5;
+                node.bounding_sphere_center[2] = node.center[1];
+
+                // NOTE: This should be divided by 2, but we leave it like this to have a bit of margin
+                const node_diagonal = node.size[0] * std.math.sqrt2;
+                node.bounding_sphere_radius = @max(node_diagonal, (data.max - data.min));
+            }
+
             const data_slice = renderer.Slice{
                 .data = @as(*anyopaque, @ptrCast(data.heightmap[0..].ptr)),
                 .size = data.heightmap.len * 4, // f32 -> u8
@@ -640,6 +653,20 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     self.frame_instance_count = 0;
     {
+        const nodes_count: i32 = @intCast(self.quads_to_render.items.len);
+        var node_index: i32 = nodes_count - 1;
+
+        // CPU Frustum culling
+        while (node_index >= 0) : (node_index -= 1) {
+            const quad_index = self.quads_to_render.items[@intCast(node_index)];
+            const quad = &self.terrain_quad_tree_nodes.items[@intCast(quad_index)];
+
+            if (!camera_comps.camera.isVisible(quad.bounding_sphere_center, quad.bounding_sphere_radius)) {
+                _ = self.quads_to_render.orderedRemove(@intCast(node_index));
+                continue;
+            }
+        }
+
         // TODO: Batch quads together by mesh lod
         for (self.quads_to_render.items, 0..) |quad_index, instance_index| {
             const quad = &self.terrain_quad_tree_nodes.items[quad_index];
@@ -833,6 +860,9 @@ const QuadTreeNode = struct {
     child_indices: [4]u32,
     mesh_lod: u32,
     patch_index: [2]u32,
+    // Bounding Sphere
+    bounding_sphere_center: [3]f32,
+    bounding_sphere_radius: f32,
     // TODO(gmodarelli): Do not store these here when we implement streaming
     heightmap_handle: ?renderer.TextureHandle,
     normalmap_handle: ?renderer.TextureHandle,
@@ -933,6 +963,8 @@ fn divideQuadTreeNode(
             .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
             .mesh_lod = node.mesh_lod - 1,
             .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
+            .bounding_sphere_center = undefined,
+            .bounding_sphere_radius = 0.0,
             .heightmap_handle = null,
             .normalmap_handle = null,
         };
