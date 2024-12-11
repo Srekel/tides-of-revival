@@ -143,7 +143,7 @@ pub const DeferredShadingRenderPass = struct {
             .apply_shadows = true,
             .environment_light_intensity = 0.35,
             .fog_color = fd.ColorRGB.init(0.3, 0.3, 0.3),
-            .fog_density = 0.00003,
+            .fog_density = 0.00000,
         };
 
         self.* = .{

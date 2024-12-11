@@ -17,8 +17,8 @@ const resource_loader = zforge.resource_loader;
 // Bloom Settings
 // ==============
 const BloomSettings = struct {
-    bloom_threshold: f32 = 4.0,
-    bloom_strength: f32 = 0.10,
+    bloom_threshold: f32 = 0.15,
+    bloom_strength: f32 = 1.0,
 };
 
 // Bloom Constant Buffers
@@ -450,7 +450,7 @@ fn upsampleAndBlur(
 fn renderImGui(user_data: *anyopaque) void {
     const self: *PostProcessingRenderPass = @ptrCast(@alignCast(user_data));
     if (zgui.collapsingHeader("Bloom", .{})) {
-        _ = zgui.dragFloat("Threshold", .{ .v = &self.bloom_settings.bloom_threshold, .cfmt = "%.2f", .min = 0.1, .max = 10.0, .speed = 0.1 });
+        _ = zgui.dragFloat("Threshold", .{ .v = &self.bloom_settings.bloom_threshold, .cfmt = "%.2f", .min = 0.05, .max = 1.0, .speed = 0.01 });
         _ = zgui.dragFloat("Strength", .{ .v = &self.bloom_settings.bloom_strength, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
     }
 
