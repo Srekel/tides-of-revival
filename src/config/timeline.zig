@@ -42,7 +42,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     zm.storeArr4(&capsule_rot, capsule_rot_z);
 
     const group_angle = std.crypto.random.float(f32) * std.math.pi * 2;
-    const to_spawn = 0 + @divFloor(ctx.stage, 1);
+    const to_spawn = 0 + @divFloor(ctx.stage, 2);
     std.log.info("stage {} to_spawn {}\n", .{ ctx.stage, to_spawn });
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
