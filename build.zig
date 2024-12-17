@@ -1,5 +1,7 @@
 const std = @import("std");
 const Builder = std.build.Builder;
+// const builtin = std.builtin.;
+const builtin = @import("builtin");
 
 const zforge = @import("external/The-Forge/build.zig");
 // const wwise_zig = @import("wwise-zig");
@@ -200,7 +202,7 @@ pub fn build(b: *std.Build) void {
     const zwindows_dependency = b.dependency("zwindows", .{
         .zxaudio2_debug_layer = (builtin.mode == .Debug),
         .zd3d12_debug_layer = (builtin.mode == .Debug),
-        .zd3d12_gbv = b.option("zd3d12_gbv", "Enable GPU-Based Validation") orelse false,
+        .zd3d12_gbv = b.option(bool, "zd3d12_gbv", "Enable GPU-Based Validation") orelse false,
     });
 
     // Import the Windows API bindings
