@@ -67,8 +67,8 @@ pub const World = struct {
         const rel_info = @typeInfo(Relation);
         const obj_info = @typeInfo(Object);
 
-        std.debug.assert(rel_info == .Struct or rel_info == .Type or Relation == ecs.entity_t or Relation == ecs.entity_t or Relation == c_int);
-        std.debug.assert(obj_info == .Struct or obj_info == .Type or Object == ecs.entity_t or Object == ecs.entity_t);
+        std.debug.assert(rel_info == .@"struct" or rel_info == .type or Relation == ecs.entity_t or Relation == ecs.entity_t or Relation == c_int);
+        std.debug.assert(obj_info == .@"struct" or obj_info == .type or Object == ecs.entity_t or Object == ecs.entity_t);
 
         const rel_id = switch (Relation) {
             c_int => @as(ecs.entity_t, @intCast(relation)),
@@ -90,7 +90,7 @@ pub const World = struct {
 
     /// bulk registers a tuple of Types
     pub fn registerComponents(self: World, types: anytype) void {
-        std.debug.assert(@typeInfo(@TypeOf(types)) == .Struct);
+        std.debug.assert(@typeInfo(@TypeOf(types)) == .@"struct");
         inline for (types) |t| {
             _ = self.componentId(t);
         }
@@ -182,7 +182,7 @@ pub const World = struct {
 
     /// creates a Filter using the passed in struct
     pub fn filter(self: World, comptime Components: type) ecsu.Filter {
-        std.debug.assert(@typeInfo(Components) == .Struct);
+        std.debug.assert(@typeInfo(Components) == .@"struct");
         var desc = ecsu.meta.generateFilterDesc(self, Components);
         return ecsu.Filter.init(self.world, &desc);
     }
@@ -190,16 +190,16 @@ pub const World = struct {
     /// probably temporary until we find a better way to handle it better, but a way to
     /// iterate the passed components of children of the parent entity
     pub fn filterParent(self: World, comptime Components: type, parent: ecs.entity_t) ecsu.Filter {
-        std.debug.assert(@typeInfo(Components) == .Struct);
+        std.debug.assert(@typeInfo(Components) == .@"struct");
         var desc = ecsu.meta.generateFilterDesc(self, Components);
-        const component_info = @typeInfo(Components).Struct;
+        const component_info = @typeInfo(Components).@"struct";
         desc.terms[component_info.fields.len].id = self.pair(ecs.ChildOf, parent);
         return ecsu.Filter.init(self, &desc);
     }
 
     /// creates a Query using the passed in struct
     pub fn query(self: World, comptime Components: type) ecsu.Query {
-        std.debug.assert(@typeInfo(Components) == .Struct);
+        std.debug.assert(@typeInfo(Components) == .@"struct");
         var desc = std.mem.zeroes(ecs.query_desc_t);
         desc.filter = ecsu.meta.generateFilterDesc(self, Components);
 
@@ -220,7 +220,7 @@ pub const World = struct {
 
     /// adds a system to the World using the passed in struct
     pub fn system(self: World, comptime Components: type, phase: ecsu.Phase) void {
-        std.debug.assert(@typeInfo(Components) == .Struct);
+        std.debug.assert(@typeInfo(Components) == .@"struct");
         std.debug.assert(@hasDecl(Components, "run"));
         std.debug.assert(@hasDecl(Components, "name"));
 
@@ -249,7 +249,7 @@ pub const World = struct {
 
     /// adds an observer system to the World using the passed in struct (see systems)
     pub fn observer(self: World, comptime Components: type, event: ecs.entity_t, ctx: ?*anyopaque) void {
-        std.debug.assert(@typeInfo(Components) == .Struct);
+        std.debug.assert(@typeInfo(Components) == .@"struct");
         std.debug.assert(@hasDecl(Components, "run"));
         std.debug.assert(@hasDecl(Components, "name"));
 
@@ -282,10 +282,10 @@ pub const World = struct {
 
     /// sets a component on entity. Can be either a pointer to a struct or a struct
     pub fn set(self: *World, entity: ecs.entity_t, ptr_or_struct: anytype) void {
-        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
+        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .@"struct");
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .pointer) ptr_or_struct else &ptr_or_struct;
         _ = ecs.set_id(self.world, entity, self.componentId(T), @sizeOf(T), component);
     }
 
@@ -320,30 +320,30 @@ pub const World = struct {
     }
 
     pub fn setSingleton(self: World, ptr_or_struct: anytype) void {
-        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
+        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .@"struct");
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .pointer) ptr_or_struct else &ptr_or_struct;
         _ = ecs.set_id(self.world, self.componentId(T), self.componentId(T), @sizeOf(T), component);
     }
 
     // TODO: use ecs_get_mut_id optionally based on a bool perhaps or maybe if the passed in type is a pointer?
     pub fn getSingleton(self: World, comptime T: type) ?*const T {
-        std.debug.assert(@typeInfo(T) == .Struct);
+        std.debug.assert(@typeInfo(T) == .@"struct");
         const val = ecs.get_id(self.world, self.componentId(T), self.componentId(T));
         if (val == null) return null;
         return @as(*const T, @ptrCast(@alignCast(val)));
     }
 
     pub fn getSingletonMut(self: World, comptime T: type) ?*T {
-        std.debug.assert(@typeInfo(T) == .Struct);
+        std.debug.assert(@typeInfo(T) == .@"struct");
         const val = ecs.get_mut_id(self.world, self.componentId(T), self.componentId(T));
         if (val == null) return null;
         return @as(*T, @ptrCast(@alignCast(val)));
     }
 
     pub fn removeSingleton(self: World, comptime T: type) void {
-        std.debug.assert(@typeInfo(T) == .Struct);
+        std.debug.assert(@typeInfo(T) == .@"struct");
         ecs.remove_id(self.world, self.componentId(T), self.componentId(T));
     }
 };

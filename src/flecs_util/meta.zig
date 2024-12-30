@@ -60,18 +60,18 @@ pub fn componentId(world: *ecs.world_t, comptime T: type) ecs.id_t {
 /// given a pointer or optional pointer returns the base struct type.
 pub fn FinalChild(comptime T: type) type {
     switch (@typeInfo(T)) {
-        .Pointer => |info| switch (info.size) {
+        .pointer => |info| switch (info.size) {
             .One => switch (@typeInfo(info.child)) {
-                .Struct => return info.child,
-                .Optional => |opt_info| return opt_info.child,
+                .@"struct" => return info.child,
+                .optional => |opt_info| return opt_info.child,
                 else => {
                     @compileError("Expected pointer or optional pointer, found '" ++ @typeInfo(info.child) ++ "'");
                 },
             },
             else => {},
         },
-        .Optional => |info| return FinalChild(info.child),
-        .Struct => return T,
+        .optional => |info| return FinalChild(info.child),
+        .@"struct" => return T,
         else => {},
     }
     @compileError("Expected pointer or optional pointer, found '" ++ @typeName(T) ++ "'");
@@ -84,21 +84,21 @@ pub fn PointerToMany(comptime T: type) type {
     var PointerT = T;
 
     switch (@typeInfo(T)) {
-        .Optional => |opt_info| switch (@typeInfo(opt_info.child)) {
-            .Pointer => |ptr_info| {
+        .optional => |opt_info| switch (@typeInfo(opt_info.child)) {
+            .pointer => |ptr_info| {
                 is_const = ptr_info.is_const;
                 is_optional = true;
                 PointerT = opt_info.child;
             },
             else => unreachable,
         },
-        .Pointer => |ptr_info| is_const = ptr_info.is_const,
+        .pointer => |ptr_info| is_const = ptr_info.is_const,
         else => unreachable,
     }
 
-    const info = @typeInfo(PointerT).Pointer;
+    const info = @typeInfo(PointerT).pointer;
     const InnerType = @Type(.{
-        .Pointer = .{
+        .pointer = .{
             .size = .Many,
             .is_const = is_const,
             .is_volatile = info.is_volatile,
@@ -111,7 +111,7 @@ pub fn PointerToMany(comptime T: type) type {
     });
 
     if (is_optional) return @Type(.{
-        .Optional = .{
+        .optional = .{
             .child = InnerType,
         },
     });
@@ -132,7 +132,7 @@ pub fn argCount(comptime function: anytype) usize {
 /// constness and optionality are retained.
 pub fn TableIteratorData(comptime Components: type) type {
     const src_fields = std.meta.fields(Components);
-    const StructField = std.builtin.Type.StructField;
+    const StructField = std.builtin.type.StructField;
     var fields: [src_fields.len]StructField = undefined;
 
     for (src_fields, 0..) |field, i| {
@@ -146,10 +146,10 @@ pub fn TableIteratorData(comptime Components: type) type {
         };
     }
 
-    return @Type(.{ .Struct = .{
+    return @Type(.{ .@"struct" = .{
         .layout = .auto,
         .fields = &fields,
-        .decls = &[_]std.builtin.Type.Declaration{},
+        .decls = &[_]std.builtin.type.Declaration{},
         .is_tuple = false,
     } });
 }
@@ -157,8 +157,8 @@ pub fn TableIteratorData(comptime Components: type) type {
 /// returns a tuple consisting of the field values of value
 pub fn fieldsTuple(value: anytype) FieldsTupleType(@TypeOf(value)) {
     const T = @TypeOf(value);
-    assert(@typeInfo(T) == .Struct);
-    const ti = @typeInfo(T).Struct;
+    assert(@typeInfo(T) == .@"struct");
+    const ti = @typeInfo(T).@"struct";
     const FieldsTuple = FieldsTupleType(T);
 
     var tuple: FieldsTuple = undefined;
@@ -172,12 +172,12 @@ pub fn fieldsTuple(value: anytype) FieldsTupleType(@TypeOf(value)) {
 
 /// returns the Type of the tuple version of T
 pub fn FieldsTupleType(comptime T: type) type {
-    const ti = @typeInfo(T).Struct;
+    const ti = @typeInfo(T).@"struct";
     return @Type(.{
-        .Struct = .{
+        .@"struct" = .{
             .layout = ti.layout,
             .fields = ti.fields,
-            .decls = &[0]std.builtin.Type.Declaration{},
+            .decls = &[0]std.builtin.type.Declaration{},
             .is_tuple = true,
         },
     });
@@ -186,7 +186,7 @@ pub fn FieldsTupleType(comptime T: type) type {
 pub fn validateIterator(comptime Components: type, iter: *const ecs.iter_t) void {
     if (@import("builtin").mode == .Debug) {
         var index: usize = 0;
-        const component_info = @typeInfo(Components).Struct;
+        const component_info = @typeInfo(Components).@"struct";
         if (component_info.fields.len == 0) {
             return;
         }
@@ -195,7 +195,7 @@ pub fn validateIterator(comptime Components: type, iter: *const ecs.iter_t) void
         inline for (component_info.fields) |field| {
             // skip filters since they arent returned when we iterate
             while (terms[index].inout == .InOutNone) : (index += 1) {}
-            const is_optional = @typeInfo(field.type) == .Optional;
+            const is_optional = @typeInfo(field.type) == .optional;
             const col_type = FinalChild(field.type);
             const type_entity = ecs.id(col_type);
 
@@ -212,8 +212,8 @@ pub fn validateIterator(comptime Components: type, iter: *const ecs.iter_t) void
             if (terms[index].inout == .In) assert(is_const);
 
             // validate that optionals (?* types in the struct) match up with valid opers
-            if (is_optional) assert(terms[index].oper == .Or or terms[index].oper == .Optional);
-            if (terms[index].oper == .Or or terms[index].oper == .Optional) assert(is_optional);
+            if (is_optional) assert(terms[index].oper == .Or or terms[index].oper == .optional);
+            if (terms[index].oper == .Or or terms[index].oper == .optional) assert(is_optional);
 
             index += 1;
         }
@@ -232,7 +232,7 @@ pub fn validateOrderByFn(comptime func: anytype) void {
         assert(ti.Fn.args[2].arg_type.? == ecs.entity_t);
         assert(ti.Fn.args[1].arg_type.? == ti.Fn.args[3].arg_type.?);
         assert(isConst(ti.Fn.args[1].arg_type.?));
-        assert(@typeInfo(ti.Fn.args[1].arg_type.?) == .Pointer);
+        assert(@typeInfo(ti.Fn.args[1].arg_type.?) == .pointer);
     }
 }
 
@@ -241,7 +241,7 @@ pub fn validateOrderByType(comptime Components: type, comptime T: type) void {
     if (@import("builtin").mode == .Debug) {
         var valid = false;
 
-        const component_info = @typeInfo(Components).Struct;
+        const component_info = @typeInfo(Components).@"struct";
         inline for (component_info.fields) |field| {
             if (FinalChild(field.type) == T) {
                 valid = true;
@@ -266,10 +266,10 @@ pub fn validateOrderByType(comptime Components: type, comptime T: type) void {
 /// checks a Pointer or Optional for constness. Any other types passed in will error.
 pub fn isConst(comptime T: type) bool {
     switch (@typeInfo(T)) {
-        .Pointer => |ptr| return ptr.is_const,
-        .Optional => |opt| {
+        .pointer => |ptr| return ptr.is_const,
+        .optional => |opt| {
             switch (@typeInfo(opt.child)) {
-                .Pointer => |ptr| return ptr.is_const,
+                .pointer => |ptr| return ptr.is_const,
                 else => {},
             }
         },
@@ -285,7 +285,7 @@ pub fn isConst(comptime T: type) bool {
 //     var desc = std.mem.zeroInit(flecs.c.EcsStructDesc, .{ .entity = entity });
 
 //     switch (@typeInfo(T)) {
-//         .Struct => |si| {
+//         .@"struct" => |si| {
 //             // tags have no size so ignore them
 //             if (@sizeOf(T) == 0) return;
 
@@ -316,16 +316,16 @@ pub fn isConst(comptime T: type) bool {
 //                     []const u8 => flecs.c.FLECS__Eecs_string_t,
 //                     [*]const u8 => flecs.c.FLECS__Eecs_string_t,
 //                     else => switch (@typeInfo(field.type)) {
-//                         .Pointer => flecs.c.FLECS__Eecs_uptr_t,
+//                         .pointer => flecs.c.FLECS__Eecs_uptr_t,
 
-//                         .Struct => componentId(world, field.type),
+//                         .@"struct" => componentId(world, field.type),
 
 //                         .Enum => blk: {
 //                             var enum_desc = std.mem.zeroes(ecs.enum_desc_t);
 //                             // TODO
 //                             enum_desc.entity = ecsu.meta.componentHandle(T).*;
 
-//                             inline for (@typeInfo(field.type).Enum.fields, 0..) |f, index| {
+//                             inline for (@typeInfo(field.type).@"enum".fields, 0..) |f, index| {
 //                                 enum_desc.constants[index] = std.mem.zeroInit(ecs.enum_constant_t, .{
 //                                     .name = f.name.ptr,
 //                                     .value = @intCast(f.value),
@@ -360,16 +360,16 @@ pub fn isConst(comptime T: type) bool {
 
 /// given a struct of Components with optional embedded "metadata", "name", "order_by" data it generates an EcsFilterDesc
 pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filter_desc_t {
-    assert(@typeInfo(Components) == .Struct);
+    assert(@typeInfo(Components) == .@"struct");
     var desc = std.mem.zeroes(ecs.filter_desc_t);
 
     // first, extract what we can from the Components fields
-    const component_info = @typeInfo(Components).Struct;
+    const component_info = @typeInfo(Components).@"struct";
     inline for (component_info.fields, 0..) |field, i| {
         desc.terms[i].id = world.componentId(ecsu.meta.FinalChild(field.type));
 
-        if (@typeInfo(field.type) == .Optional)
-            desc.terms[i].oper = .Optional;
+        if (@typeInfo(field.type) == .optional)
+            desc.terms[i].oper = .optional;
 
         if (ecsu.meta.isConst(field.type))
             desc.terms[i].inout = .In;
@@ -392,9 +392,9 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
                     assert(ti.oper == .ecs_or);
                     if (ti.or_term_type) |or_term_type| {
                         // ensure the term is optional. If the second Or term is present ensure it is optional as well.
-                        assert(desc.terms[term_index].oper == .Optional);
+                        assert(desc.terms[term_index].oper == .optional);
                         if (getTermIndex(or_term_type, null, &desc, component_info.fields)) |or_term_index| {
-                            assert(desc.terms[or_term_index].oper == .Optional);
+                            assert(desc.terms[or_term_index].oper == .optional);
                         }
 
                         desc.terms[next_term_index].id = world.componentId(ti.term_type);
@@ -415,10 +415,10 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
 
                     // the only valid oper left is Or since Not terms cant be in Components struct
                     if (ti.oper == .ecs_or) {
-                        assert(desc.terms[term_index].oper == .Optional);
+                        assert(desc.terms[term_index].oper == .optional);
 
                         if (getTermIndex(ti.or_term_type.?, null, &desc, component_info.fields)) |or_term_index| {
-                            assert(desc.terms[or_term_index].oper == .Optional);
+                            assert(desc.terms[or_term_index].oper == .optional);
                             desc.terms[or_term_index].oper = ti.oper;
                         } else unreachable;
                         desc.terms[term_index].oper = ti.oper;
@@ -466,7 +466,7 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
 }
 
 /// gets the index into the terms array of this type or null if it isnt found (likely a new filter term)
-pub fn getTermIndex(comptime T: type, field_name: ?[]const u8, filter: *ecs.filter_desc_t, fields: []const std.builtin.Type.StructField) ?usize {
+pub fn getTermIndex(comptime T: type, field_name: ?[]const u8, filter: *ecs.filter_desc_t, fields: []const std.builtin.type.StructField) ?usize {
     if (fields.len == 0) return null;
     const comp_id = ecsu.meta.componentId(T).*;
 

@@ -49,7 +49,7 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
     var query_builder_transform_parent_term = query_builder_transform.manualTerm();
     query_builder_transform_parent_term.id = ecsu_world.componentId(fd.Transform);
     query_builder_transform_parent_term.inout = .In;
-    query_builder_transform_parent_term.oper = .Optional;
+    query_builder_transform_parent_term.oper = .optional;
     query_builder_transform_parent_term.src.flags = ecs.Parent | ecs.Cascade;
     const query_transform = query_builder_transform.buildQuery();
 

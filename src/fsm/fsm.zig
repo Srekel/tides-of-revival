@@ -62,19 +62,19 @@ pub const State = struct {
     // pub fn initImpl(implPtr: anytype) Self {
     //     const ImplPtrType = @TypeOf(implPtr);
     //     const ptr_info = @typeInfo(ImplPtrType);
-    //     const alignment = ptr_info.Pointer.alignment;
+    //     const alignment = ptr_info.pointer.alignment;
     //     const gen = struct {
     //         pub fn enterImpl(pointer: *anyopaque) ?u32 {
     //             const self = @ptrCast(ImplPtrType, @alignCast(alignment, pointer));
-    //             return @call(.{ .modifier = .always_inline }, ptr_info.Pointer.child.next, .{self});
+    //             return @call(.{ .modifier = .always_inline }, ptr_info.pointer.child.next, .{self});
     //         }
     //         pub fn exitImpl(pointer: *anyopaque) ?u32 {
     //             const self = @ptrCast(ImplPtrType, @alignCast(alignment, pointer));
-    //             return @call(.{ .modifier = .always_inline }, ptr_info.Pointer.child.next, .{self});
+    //             return @call(.{ .modifier = .always_inline }, ptr_info.pointer.child.next, .{self});
     //         }
     //         pub fn updateImpl(pointer: *anyopaque) ?u32 {
     //             const self = @ptrCast(ImplPtrType, @alignCast(alignment, pointer));
-    //             return @call(.{ .modifier = .always_inline }, ptr_info.Pointer.child.next, .{self});
+    //             return @call(.{ .modifier = .always_inline }, ptr_info.pointer.child.next, .{self});
     //         }
     //     };
 

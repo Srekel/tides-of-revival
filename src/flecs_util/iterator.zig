@@ -3,7 +3,7 @@ const ecs = @import("zflecs");
 const ecsu = @import("flecs_util.zig");
 
 pub fn Iterator(comptime Components: type) type {
-    std.debug.assert(@typeInfo(Components) == .Struct);
+    std.debug.assert(@typeInfo(Components) == .@"struct");
 
     // converts the Components struct fields into pointer-to-many arrays
     const Columns = ecsu.meta.TableIteratorData(Components);
@@ -36,8 +36,8 @@ pub fn Iterator(comptime Components: type) type {
             return .{ .world = self.iter.world };
         }
 
-        pub fn tableType(self: *@This()) ecsu.Type {
-            return ecsu.Type.init(self.iter.world.?, self.iter.type);
+        pub fn tableType(self: *@This()) ecsu.type {
+            return ecsu.type.init(self.iter.world.?, self.iter.type);
         }
 
         pub fn skip(self: *@This()) void {
@@ -55,11 +55,11 @@ pub fn Iterator(comptime Components: type) type {
             }
 
             var comps: Components = undefined;
-            inline for (@typeInfo(Components).Struct.fields) |field| {
+            inline for (@typeInfo(Components).@"struct".fields) |field| {
                 var column = @field(self.inner_iter.?.columns, field.name);
 
                 // for optionals, we have to unwrap the column since it is also optional
-                if (@typeInfo(field.type) == .Optional) {
+                if (@typeInfo(field.type) == .optional) {
                     if (column) |col| {
                         @field(comps, field.name) = &col[self.index];
                     } else {
@@ -85,11 +85,11 @@ pub fn Iterator(comptime Components: type) type {
             const terms = self.iter.terms.?;
             var iter: TableColumns = .{ .count = self.iter.count_ };
             var index: usize = 0;
-            inline for (@typeInfo(Components).Struct.fields, 0..) |field, i| {
+            inline for (@typeInfo(Components).@"struct".fields, 0..) |field, i| {
                 // skip filters and EcsNothing masks since they arent returned when we iterate
                 while (terms[index].inout == .InOutNone or terms[index].src.flags == ecs.IsEntity) : (index += 1) {}
 
-                const is_optional = @typeInfo(field.type) == .Optional;
+                const is_optional = @typeInfo(field.type) == .optional;
                 const col_type = ecsu.meta.FinalChild(field.type);
                 if (ecsu.meta.isConst(field.type)) std.debug.assert(ecs.field_is_readonly(self.iter, i + 1));
 

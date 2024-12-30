@@ -38,7 +38,7 @@ pub const Entity = struct {
     /// add an entity to an entity. This operation adds a single entity to the type of an entity. Type roles may be used in
     /// combination with the added entity.
     pub fn add(self: Entity, id_or_type: anytype) void {
-        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .Type);
+        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .type);
         const id = if (@TypeOf(id_or_type) == ecs.entity_t) id_or_type else ecsu.meta.componentId(self.world, id_or_type);
         ecs.add_id(self.world, self.id, id);
     }
@@ -76,19 +76,19 @@ pub const Entity = struct {
 
     /// sets a component on entity. Can be either a pointer to a struct or a struct
     pub fn set(self: Entity, ptr_or_struct: anytype) void {
-        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
+        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .@"struct");
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .pointer) ptr_or_struct else &ptr_or_struct;
         _ = ecs.set_id(self.world, self.id, ecsu.meta.componentId(self.world, T), @sizeOf(T), component);
     }
 
     /// sets a private instance of a component on entity. Useful for inheritance.
     pub fn setOverride(self: Entity, ptr_or_struct: anytype) void {
-        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .Struct);
+        std.debug.assert(@typeInfo(@TypeOf(ptr_or_struct)) == .pointer or @typeInfo(@TypeOf(ptr_or_struct)) == .@"struct");
 
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
-        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .Pointer) ptr_or_struct else &ptr_or_struct;
+        const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .pointer) ptr_or_struct else &ptr_or_struct;
         const id = ecsu.meta.componentId(self.world, T);
         ecs.override_id(self.world, self.id, id);
         _ = ecs.set_id(self.world, self.id, id, @sizeOf(T), component);
@@ -96,7 +96,7 @@ pub const Entity = struct {
 
     /// sets a component as modified, and will trigger observers after being modified from a system
     pub fn setModified(self: Entity, id_or_type: anytype) void {
-        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .Type);
+        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .type);
         const id = if (@TypeOf(id_or_type) == ecs.entity_t) id_or_type else ecsu.meta.componentId(self.world, id_or_type);
         ecs.modified_id(self.world, self.id, id);
     }
@@ -121,14 +121,14 @@ pub const Entity = struct {
     pub fn getComps(self: Entity, comptime T: type) T {
         var result: T = undefined;
         inline for (std.meta.fields(T)) |fld| {
-            @field(result, fld.name) = self.getMut(@typeInfo(fld.type).Pointer.child).?;
+            @field(result, fld.name) = self.getMut(@typeInfo(fld.type).pointer.child).?;
         }
         return result;
     }
 
     /// removes a component from an Entity
     pub fn remove(self: Entity, id_or_type: anytype) void {
-        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .Type);
+        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .type);
         const id = if (@TypeOf(id_or_type) == ecs.entity_t) id_or_type else ecsu.meta.componentId(self.world, id_or_type);
         ecs.remove_id(self.world, self.id, id);
     }
@@ -155,14 +155,14 @@ pub const Entity = struct {
 
     /// returns true if the entity has a matching component type
     pub fn has(self: Entity, id_or_type: anytype) bool {
-        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .Type);
+        std.debug.assert(@TypeOf(id_or_type) == ecs.entity_t or @typeInfo(@TypeOf(id_or_type)) == .type);
         const id = if (@TypeOf(id_or_type) == ecs.entity_t) id_or_type else ecsu.meta.componentId(self.world, id_or_type);
         return ecs.has_id(self.world, self.id, id);
     }
 
     /// returns the type of the component, which contains all components
-    pub fn getType(self: Entity) ecsu.Type {
-        return ecsu.Type.init(self.world, ecs.get_type(self.world, self.id));
+    pub fn getType(self: Entity) ecsu.type {
+        return ecsu.type.init(self.world, ecs.get_type(self.world, self.id));
     }
 
     /// prints a json representation of an Entity. Note that world.enable_type_reflection should be true to

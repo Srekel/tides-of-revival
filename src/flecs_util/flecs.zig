@@ -17,7 +17,7 @@ pub const QueryBuilder = @import("query_builder.zig").QueryBuilder;
 pub const Term = @import("term.zig").Term;
 pub const Filter = @import("filter.zig").Filter;
 pub const Query = @import("query.zig").Query;
-pub const Type = @import("type.zig").Type;
+pub const Type = @import("type.zig").type;
 
 pub const Iterator = @import("iterator.zig").Iterator;
 pub const TableIterator = @import("table_iterator.zig").TableIterator;
@@ -87,16 +87,16 @@ pub fn pairSecond(id: EntityId) u32 {
 /// Returns the base type of the given type, useful for pointers.
 pub fn BaseType(comptime T: type) type {
     switch (@typeInfo(T)) {
-        .Pointer => |info| switch (info.size) {
+        .pointer => |info| switch (info.size) {
             .One => switch (@typeInfo(info.child)) {
-                .Struct => return info.child,
-                .Optional => |opt_info| return opt_info.child,
+                .@"struct" => return info.child,
+                .optional => |opt_info| return opt_info.child,
                 else => {},
             },
             else => {},
         },
-        .Optional => |info| return BaseType(info.child),
-        .Enum, .Struct => return T,
+        .optional => |info| return BaseType(info.child),
+        .Enum, .@"struct" => return T,
         else => {},
     }
     @compileError("Expected pointer or optional pointer, found '" ++ @typeName(T) ++ "'");
@@ -146,8 +146,8 @@ pub fn ecs_pair(first: anytype, second: anytype) c.EcsId {
     const first_type_info = @typeInfo(First);
     const second_type_info = @typeInfo(Second);
 
-    std.debug.assert(First == c.EcsEntity or first_type_info == .Type or first_type_info == .Enum);
-    std.debug.assert(Second == c.EcsEntity or second_type_info == .Type or second_type_info == .Enum);
+    std.debug.assert(First == c.EcsEntity or first_type_info == .type or first_type_info == .Enum);
+    std.debug.assert(Second == c.EcsEntity or second_type_info == .type or second_type_info == .Enum);
 
     const first_id = if (First == c.EcsEntity) first else if (first_type_info == .Enum) ecs_id(First) else ecs_id(first);
     const second_id = if (Second == c.EcsEntity) second else if (second_type_info == .Enum) ecs_id(Second) else ecs_id(second);
@@ -156,7 +156,7 @@ pub fn ecs_pair(first: anytype, second: anytype) c.EcsId {
 
 /// Registers the given type as a new component.
 pub fn ecs_component(world: *c.EcsWorld, comptime T: type) void {
-    std.debug.assert(@typeInfo(T) == .Struct or @typeInfo(T) == .Type or @typeInfo(T) == .Enum);
+    std.debug.assert(@typeInfo(T) == .@"struct" or @typeInfo(T) == .type or @typeInfo(T) == .Enum);
 
     var handle = ecs_id_handle(T);
     if (handle.* < std.math.maxInt(c.EcsId)) return;
@@ -198,7 +198,7 @@ pub fn ecs_observer(world: *c.EcsWorld, name: [*:0]const u8, desc: *c.EcsObserve
 /// Returns a new entity with the given component. Pass null if no component is desired.
 // pub fn ecs_new(world: *c.EcsWorld, comptime T: ?type) c.EcsEntity {
 //     if (T) |Type| {
-//         std.debug.assert(@typeInfo(Type) == .Struct or @typeInfo(Type) == .Type);
+//         std.debug.assert(@typeInfo(Type) == .@"struct" or @typeInfo(Type) == .@"type");
 //         return c.ecs_new_w_id(world, ecs_id(Type));
 //     }
 
@@ -217,7 +217,7 @@ pub fn ecs_new_w_pair(world: *c.EcsWorld, first: anytype, second: anytype) c.Ecs
 /// Pass null for the component if none is desired.
 pub fn ecs_bulk_new(world: *c.EcsWorld, comptime Component: ?type, count: i32) []const c.EcsEntity {
     if (Component) |T| {
-        std.debug.assert(@typeInfo(T) == .Struct or @typeInfo(T) == .Type);
+        std.debug.assert(@typeInfo(T) == .@"struct" or @typeInfo(T) == .type);
         return c.ecs_bulk_new_w_id(world, ecs_id(T), count)[0..@as(usize, count)];
     }
 
@@ -244,7 +244,7 @@ pub fn ecs_add(world: *c.EcsWorld, entity: c.EcsEntity, t: anytype) void {
     const T = @TypeOf(t);
     const typeInfo = @typeInfo(T);
 
-    if (typeInfo == .Type) {
+    if (typeInfo == .type) {
         c.ecs_add_id(world, entity, ecs_id(t));
     } else {
         _ = c.ecs_set_id(world, entity, ecs_id(T), @sizeOf(T), &t);
@@ -273,7 +273,7 @@ pub fn ecs_remove(world: *c.EcsWorld, entity: c.EcsEntity, t: anytype) void {
     const T = @TypeOf(t);
     const type_info = @typeInfo(T);
 
-    std.debug.assert(T == c.EcsEntity or type_info == .Type);
+    std.debug.assert(T == c.EcsEntity or type_info == .type);
 
     const id = if (T == c.EcsEntity) t else ecs_id(T);
     c.ecs_remove_id(world, entity, id);
@@ -291,7 +291,7 @@ pub fn ecs_remove_pair(world: *c.EcsWorld, entity: c.EcsEntity, first: anytype, 
 
 /// Overrides the component on the entity.
 pub fn ecs_override(world: *c.EcsWorld, entity: c.EcsEntity, comptime T: type) void {
-    std.debug.assert(@typeInfo(T) == .Struct or @typeInfo(T) == .Type);
+    std.debug.assert(@typeInfo(T) == .@"struct" or @typeInfo(T) == .type);
     c.ecs_override_id(world, entity, ecs_id(T));
 }
 
@@ -314,9 +314,9 @@ pub fn ecs_delete_children(world: *c.EcsWorld, parent: c.EcsEntity) void {
 
 /// Sets the component on the entity. If the component is not already added, it will automatically be added and set.
 pub fn ecs_set(world: *c.EcsWorld, entity: c.EcsEntity, t: anytype) void {
-    std.debug.assert(@typeInfo(@TypeOf(t)) == .Pointer or @typeInfo(@TypeOf(t)) == .Struct);
+    std.debug.assert(@typeInfo(@TypeOf(t)) == .pointer or @typeInfo(@TypeOf(t)) == .@"struct");
     const T = BaseType(@TypeOf(t));
-    const ptr = if (@typeInfo(@TypeOf(t)) == .Pointer) t else &t;
+    const ptr = if (@typeInfo(@TypeOf(t)) == .pointer) t else &t;
     _ = c.ecs_set_id(world, entity, ecs_id(T), @sizeOf(T), ptr);
 }
 
@@ -329,10 +329,10 @@ pub fn ecs_set_pair(world: *c.EcsWorld, entity: c.EcsEntity, first: anytype, sec
     const first_type_info = @typeInfo(First);
     const FirstT = BaseType(First);
 
-    std.debug.assert(first_type_info == .Pointer or first_type_info == .Struct);
+    std.debug.assert(first_type_info == .pointer or first_type_info == .@"struct");
 
     const pair_id = ecs_pair(FirstT, second);
-    const ptr = if (first_type_info == .Pointer) first else &first;
+    const ptr = if (first_type_info == .pointer) first else &first;
 
     _ = c.ecs_set_id(world, entity, pair_id, @sizeOf(FirstT), ptr);
 }
@@ -346,14 +346,14 @@ pub fn ecs_set_pair_second(world: *c.EcsWorld, entity: c.EcsEntity, first: anyty
     const second_type_info = @typeInfo(Second);
     const SecondT = BaseType(Second);
 
-    std.debug.assert(second_type_info == .Pointer or second_type_info == .Struct);
+    std.debug.assert(second_type_info == .pointer or second_type_info == .@"struct");
 
     const pair_id = ecs_pair(first, SecondT);
-    const ptr = if (second_type_info == .Pointer) second else &second;
+    const ptr = if (second_type_info == .pointer) second else &second;
 
     const First = @TypeOf(first);
     const first_type_info = @typeInfo(First);
-    if (first_type_info == .Type and @sizeOf(First) > 0) {
+    if (first_type_info == .type and @sizeOf(First) > 0) {
         std.log.warn("[{s}] ecs_set_pair_second: Both types are components, attached data will assume the type of {s}.", .{@typeName(First)});
     }
 
@@ -364,7 +364,7 @@ pub fn ecs_set_pair_second(world: *c.EcsWorld, entity: c.EcsEntity, first: anyty
 
 /// Gets an optional const pointer to the given component type on the entity.
 pub fn ecs_get(world: *c.EcsWorld, entity: c.EcsEntity, comptime T: type) ?*const T {
-    std.debug.assert(@typeInfo(T) == .Struct or @typeInfo(T) == .Type or @typeInfo(T) == .Enum);
+    std.debug.assert(@typeInfo(T) == .@"struct" or @typeInfo(T) == .type or @typeInfo(T) == .Enum);
     if (c.ecs_get_id(world, entity, ecs_id(T))) |ptr| {
         return ecs_cast(T, ptr);
     }
@@ -373,7 +373,7 @@ pub fn ecs_get(world: *c.EcsWorld, entity: c.EcsEntity, comptime T: type) ?*cons
 
 /// Gets an optional pointer to the given component type on the entity.
 pub fn ecs_get_mut(world: *c.EcsWorld, entity: c.EcsEntity, comptime T: type) ?*T {
-    std.debug.assert(@typeInfo(T) == .Struct or @typeInfo(T) == .Type);
+    std.debug.assert(@typeInfo(T) == .@"struct" or @typeInfo(T) == .type);
     if (c.ecs_get_mut_id(world, entity, ecs_id(T))) |ptr| {
         return ecs_cast_mut(T, ptr);
     }
@@ -385,12 +385,12 @@ pub fn ecs_get_mut(world: *c.EcsWorld, entity: c.EcsEntity, comptime T: type) ?*
 /// First = type
 /// second = type or entity
 pub fn ecs_get_pair(world: *c.EcsWorld, entity: c.EcsEntity, comptime First: type, second: anytype) ?*const First {
-    std.debug.assert(@typeInfo(First) == .Struct or @typeInfo(First) == .Type or @typeInfo(First) == .Enum);
+    std.debug.assert(@typeInfo(First) == .@"struct" or @typeInfo(First) == .type or @typeInfo(First) == .Enum);
 
     const Second = @TypeOf(second);
     const second_type_info = @typeInfo(Second);
 
-    std.debug.assert(second_type_info == .Type or Second == c.EcsEntity);
+    std.debug.assert(second_type_info == .type or Second == c.EcsEntity);
 
     if (c.ecs_get_id(world, entity, ecs_pair(First, second))) |ptr| {
         return ecs_cast(First, ptr);
@@ -403,12 +403,12 @@ pub fn ecs_get_pair(world: *c.EcsWorld, entity: c.EcsEntity, comptime First: typ
 /// first = type or entity
 /// Second = type
 pub fn ecs_get_pair_second(world: *c.EcsWorld, entity: c.EcsEntity, first: anytype, comptime Second: type) ?*const Second {
-    std.debug.assert(@typeInfo(Second) == .Struct or @typeInfo(Second) == .Type);
+    std.debug.assert(@typeInfo(Second) == .@"struct" or @typeInfo(Second) == .type);
 
     const First = @TypeOf(first);
     const first_type_info = @typeInfo(First);
 
-    std.debug.assert(first_type_info == .Type or First == c.EcsEntity);
+    std.debug.assert(first_type_info == .type or First == c.EcsEntity);
 
     if (c.ecs_get_id(world, entity, ecs_pair(first, Second))) |ptr| {
         return ecs_cast(Second, ptr);

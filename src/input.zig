@@ -383,7 +383,7 @@ pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) vo
 //     // move_backward,
 // };
 
-// const input_map = [@typeInfo(Inputs).Enum.fields.len]zglfw.Key{
+// const input_map = [@typeInfo(Inputs).@"enum".fields.len]zglfw.Key{
 //     .{.id = IdLocal{"move"}, output=vector2, },
 //     .left_shift,
 //     .left_shift,

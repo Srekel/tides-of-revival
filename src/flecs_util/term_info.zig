@@ -97,7 +97,7 @@ pub const TermInfo = struct {
             .ecs_and => "And",
             .ecs_or => "Or",
             .ecs_not => "Not",
-            .Optional => "Optional",
+            .optional => "Optional",
             else => unreachable,
         };
         try std.fmt.format(writer, "TermInfo{{ type = {d}, or_type = {d}, inout: {s}, oper: {s}, mask: {d}, obj_type: {any}, relation_type: {any}, field_name: {s} }}", .{ value.term_type, value.or_term_type, inout, oper, value.mask, value.obj_type, value.relation_type, value.field });

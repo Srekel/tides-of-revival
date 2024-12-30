@@ -55,7 +55,7 @@ pub const QueryBuilder = struct {
     pub fn optional(self: *@This(), comptime T: type) *@This() {
         self.desc.query.filter.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
             .id = self.world.componentId(T),
-            .oper = .Optional,
+            .oper = .optional,
         });
         self.terms_count += 1;
         return self;

@@ -5,7 +5,7 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
     return struct {
         const Self = @This();
         const Bucket = std.ArrayList(QueueElement);
-        const bucket_count: u32 = @typeInfo(BucketEnum).Enum.fields.len;
+        const bucket_count: u32 = @typeInfo(BucketEnum).@"enum".fields.len;
         const lowest_prio: u32 = bucket_count - 1;
 
         allocator: std.mem.Allocator,

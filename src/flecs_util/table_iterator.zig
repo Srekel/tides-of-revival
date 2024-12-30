@@ -3,7 +3,7 @@ const ecs = @import("zflecs");
 const ecsu = @import("flecs_util.zig");
 
 pub fn TableIterator(comptime Components: type) type {
-    std.debug.assert(@typeInfo(Components) == .Struct);
+    std.debug.assert(@typeInfo(Components) == .@"struct");
 
     const Columns = ecsu.meta.TableIteratorData(Components);
 
@@ -24,8 +24,8 @@ pub fn TableIterator(comptime Components: type) type {
             };
         }
 
-        pub fn tableType(self: *@This()) ecsu.Type {
-            return ecsu.Type.init(self.iter.world.?, self.iter.type);
+        pub fn tableType(self: *@This()) ecsu.type {
+            return ecsu.type.init(self.iter.world.?, self.iter.type);
         }
 
         pub fn skip(self: *@This()) void {
@@ -38,11 +38,11 @@ pub fn TableIterator(comptime Components: type) type {
 
             var iter: InnerIterator = .{ .count = self.iter.count };
             var index: usize = 0;
-            inline for (@typeInfo(Components).Struct.fields, 0..) |field, i| {
+            inline for (@typeInfo(Components).@"struct".fields, 0..) |field, i| {
                 // skip filters since they arent returned when we iterate
                 while (self.iter.terms[index].inout == .InOutNone) : (index += 1) {}
 
-                const is_optional = @typeInfo(field.type) == .Optional;
+                const is_optional = @typeInfo(field.type) == .optional;
                 const col_type = ecsu.meta.FinalChild(field.type);
                 if (ecsu.meta.isConst(field.type)) std.debug.assert(ecs.field_is_readonly(self.iter, i + 1));
 

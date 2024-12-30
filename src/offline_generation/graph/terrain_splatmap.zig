@@ -25,7 +25,7 @@ const SplatmapOutputData = graph_util.PatchOutputData(SplatmapMaterial);
 
 fn alignedCast(comptime ptr_type: type, ptr: anytype) ptr_type {
     const ptr_typeinfo = @typeInfo(ptr_type);
-    const obj_type = ptr_typeinfo.Pointer.child;
+    const obj_type = ptr_typeinfo.pointer.child;
     _ = obj_type;
     const ret: ptr_type = @ptrCast(@alignCast(ptr));
     return ret;
