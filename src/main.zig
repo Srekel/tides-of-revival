@@ -1,6 +1,6 @@
 const std = @import("std");
 const args = @import("args");
-const offline = @import("offline_generation/main.zig");
+// const offline = @import("offline_generation/main.zig");
 const game = @import("game.zig");
 
 pub fn main() void {
@@ -27,7 +27,7 @@ pub fn main() void {
     defer options.deinit();
 
     if (options.options.offlinegen) {
-        offline.generate(std.heap.c_allocator);
+        // offline.generate(std.heap.c_allocator);
     } else {
         game.run();
     }
