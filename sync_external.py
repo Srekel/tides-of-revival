@@ -137,6 +137,11 @@ def main():
     ##############
     ## ZIG-GAMEDEV
     sync_lib(
+        "system_sdk",
+        "https://github.com/zig-gamedev/system_sdk",
+        "bf49d627a191e339f70e72668c8333717fb969b0",
+    )
+    sync_lib(
         "zglfw",
         "https://github.com/zig-gamedev/zglfw",
         "da1977c30fa53653d4b3a756e35598458c117059",

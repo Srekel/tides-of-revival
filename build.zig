@@ -40,6 +40,14 @@ pub fn build(b: *std.Build) void {
     // ██║ ╚═╝ ██║╚██████╔╝██████╔╝╚██████╔╝███████╗███████╗███████║
     // ╚═╝     ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚══════╝
 
+    // if (target.cpu.arch.isX86()) {
+    // if (target.abi.isGnu() or target.abi.isMusl()) {
+    if (b.lazyDependency("system_sdk", .{})) |system_sdk| {
+        exe.addLibraryPath(system_sdk.path("windows/lib/x86_64-windows-gnu"));
+    }
+    // }
+    // }
+
     // websocket.zig
     exe.root_module.addImport("websocket", b.createModule(.{
         .root_source_file = b.path("external/websocket.zig/src/websocket.zig"),

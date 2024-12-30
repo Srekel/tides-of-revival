@@ -9,6 +9,7 @@
 
         ///////////////////
         // zig-gamedev libs
+        .system_sdk = .{ .path = "external/system_sdk" },
         .zflecs = .{ .path = "external/zflecs" },
         .zglfw = .{ .path = "external/zglfw" },
         .zgui = .{ .path = "external/zgui" },
@@ -19,7 +20,6 @@
         .zpix = .{ .path = "external/zpix" },
         .zpool = .{ .path = "external/zpool" },
         .zstbi = .{ .path = "external/zstbi" },
-        // .system_sdk = .{ .path = "external/system-sdk" },
         .ztracy = .{ .path = "external/ztracy" },
         // .zwin32 = .{ .path = "external/zwin32" },
         .zwindows = .{ .path = "external/zwindows" },
