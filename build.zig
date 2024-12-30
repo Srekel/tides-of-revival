@@ -118,12 +118,12 @@ pub fn build(b: *std.Build) void {
     // zpix
     const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
     const zpix = b.dependency("zpix", .{
-        .target = target,
-        .optimize = optimize,
+        // .target = target,
+        // .optimize = optimize,
+        .path = @as([]const u8, "C:/Program Files/Microsoft PIX/2409.23/WinPixGpuCapturer.dll"),
         .enable = zpix_enable,
     });
-    _ = zpix; // autofix
-    // exe.root_module.addImport("zpix", zpix.module("root"));
+    exe.root_module.addImport("zpix", zpix.module("root"));
 
     // zphysics
     const zphysics = b.dependency("zphysics", .{
@@ -161,17 +161,10 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("ztracy", ztracy.module("root"));
     exe.linkLibrary(ztracy.artifact("tracy"));
 
-    // zwin32
-    const zwin32 = b.dependency("zwin32", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    _ = zwin32; // autofix
-
     // Recast
-    const zignav = b.dependency("zignav", .{});
-    exe.root_module.addImport("zignav", zignav.module("zignav"));
-    exe.linkLibrary(zignav.artifact("zignav_c_cpp"));
+    // const zignav = b.dependency("zignav", .{});
+    // exe.root_module.addImport("zignav", zignav.module("zignav"));
+    // exe.linkLibrary(zignav.artifact("zignav_c_cpp"));
 
     // Im3d
     const im3d = b.dependency("im3d", .{});
@@ -193,11 +186,6 @@ pub fn build(b: *std.Build) void {
     });
     exe.step.dependOn(&install_systems_step.step);
 
-    @import("zwin32").install_xaudio2(&exe.step, .bin);
-    @import("zwin32").install_d3d12(&exe.step, .bin);
-    @import("zwin32").install_directml(&exe.step, .bin);
-    @import("system_sdk").addLibraryPathsTo(exe);
-
     // zwindows
     const zwindows_dependency = b.dependency("zwindows", .{
         .zxaudio2_debug_layer = (builtin.mode == .Debug),
@@ -216,9 +204,9 @@ pub fn build(b: *std.Build) void {
 
     // Install vendored binaries
     const zwindows = @import("zwindows");
-    try zwindows.install_xaudio2(&exe.step, zwindows_dependency, .bin);
-    try zwindows.install_d3d12(&exe.step, zwindows_dependency, .bin);
-    try zwindows.install_directml(&exe.step, zwindows_dependency, .bin);
+    zwindows.install_xaudio2(&exe.step, zwindows_dependency, .bin);
+    zwindows.install_d3d12(&exe.step, zwindows_dependency, .bin);
+    zwindows.install_directml(&exe.step, zwindows_dependency, .bin);
 
     // WWise
     // const wwise_dependency = b.dependency("wwise-zig", .{

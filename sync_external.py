@@ -134,7 +134,63 @@ def main():
         "e4b62e3a765c1ecf80ca3b759f456bcf0b51dc37",
     )
 
+    ##############
     ## ZIG-GAMEDEV
+    sync_lib(
+        "zglfw",
+        "https://github.com/zig-gamedev/zglfw",
+        "da1977c30fa53653d4b3a756e35598458c117059",
+    )
+    sync_lib(
+        "zflecs",
+        "https://github.com/zig-gamedev/zflecs",
+        "f726506d01e1d89f7563a4e919de9e1f2306c073",
+    )
+    sync_lib(
+        "zgui",
+        "https://github.com/zig-gamedev/zgui",
+        "5e268ec8f19f640a064542429270737d2f19ad31",
+    )
+    sync_lib(
+        "zmath",
+        "https://github.com/zig-gamedev/zmath",
+        "c6aa077003b53aaa3929541201b83bc394ed7ddb",
+    )
+    sync_lib(
+        "zmesh",
+        "https://github.com/zig-gamedev/zmesh",
+        "696f568f16ffd31eef477db4ac755acb31e7de80",
+    )
+    sync_lib(
+        "znoise",
+        "https://github.com/zig-gamedev/znoise",
+        "a52da9babfe6d14a0b3e3bfcaabb2907cc2c4e3b",
+    )
+    sync_lib(
+        "zphysics",
+        "https://github.com/zig-gamedev/zphysics",
+        "194bf4189128e8b90b10fa06be3b78f7b8d9a455",
+    )
+    sync_lib(
+        "zpix",
+        "https://github.com/zig-gamedev/zpix",
+        "9f13130127bed52d532538e6ab45ca6db4f5fb2e",
+    )
+    sync_lib(
+        "zpool",
+        "https://github.com/zig-gamedev/zpool",
+        "163b4ab18936a3d57b5d8375eba1284114402c80",
+    )
+    sync_lib(
+        "zstbi",
+        "https://github.com/zig-gamedev/zstbi",
+        "d1a7f8073decd0251e78cea6163c0eec24e0815e",
+    )
+    sync_lib(
+        "ztracy",
+        "https://github.com/zig-gamedev/ztracy",
+        "9d3f75cb2c2e44f1d99eda0cbd5142205e4c4e1d",
+    )
     sync_lib(
         "zwindows",
         "https://github.com/zig-gamedev/zwindows",
