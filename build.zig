@@ -91,12 +91,12 @@ pub fn build(b: *std.Build) void {
     const zgui = b.dependency("zgui", .{
         .target = target,
         .optimize = optimize,
-        .shared = false,
+        .shared = true,
         .with_implot = false,
         .backend = .glfw_dx12,
     });
     exe.root_module.addImport("zgui", zgui.module("root"));
-    exe.linkLibrary(zgui.artifact("imgui"));
+    // exe.linkLibrary(zgui.artifact("imgui"));
 
     // zmath
     const zmath = b.dependency("zmath", .{

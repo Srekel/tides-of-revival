@@ -132,7 +132,7 @@ pub fn argCount(comptime function: anytype) usize {
 /// constness and optionality are retained.
 pub fn TableIteratorData(comptime Components: type) type {
     const src_fields = std.meta.fields(Components);
-    const StructField = std.builtin.type.StructField;
+    const StructField = std.builtin.Type.StructField;
     var fields: [src_fields.len]StructField = undefined;
 
     for (src_fields, 0..) |field, i| {
@@ -149,7 +149,7 @@ pub fn TableIteratorData(comptime Components: type) type {
     return @Type(.{ .@"struct" = .{
         .layout = .auto,
         .fields = &fields,
-        .decls = &[_]std.builtin.type.Declaration{},
+        .decls = &[_]std.builtin.Type.Declaration{},
         .is_tuple = false,
     } });
 }
@@ -177,7 +177,7 @@ pub fn FieldsTupleType(comptime T: type) type {
         .@"struct" = .{
             .layout = ti.layout,
             .fields = ti.fields,
-            .decls = &[0]std.builtin.type.Declaration{},
+            .decls = &[0]std.builtin.Type.Declaration{},
             .is_tuple = true,
         },
     });
@@ -466,7 +466,7 @@ pub fn generateFilterDesc(world: ecsu.World, comptime Components: type) ecs.filt
 }
 
 /// gets the index into the terms array of this type or null if it isnt found (likely a new filter term)
-pub fn getTermIndex(comptime T: type, field_name: ?[]const u8, filter: *ecs.filter_desc_t, fields: []const std.builtin.type.StructField) ?usize {
+pub fn getTermIndex(comptime T: type, field_name: ?[]const u8, filter: *ecs.filter_desc_t, fields: []const std.builtin.Type.StructField) ?usize {
     if (fields.len == 0) return null;
     const comp_id = ecsu.meta.componentId(T).*;
 

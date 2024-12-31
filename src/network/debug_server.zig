@@ -40,13 +40,14 @@ pub const DebugServer = struct {
     }
 
     pub fn run(self: *DebugServer) void {
-        @atomicStore(bool, &self.active, true, std.builtin.AtomicOrder.seq_cst);
-        const thread_config = .{};
-        const thread_args: ThreadContextDebugServer = .{
-            .debug_server = self,
-        };
-        var thread = std.Thread.spawn(thread_config, threadDebugServerListen, .{thread_args}) catch unreachable;
-        thread.setName("debug_server") catch {};
+        _ = self;
+        // @atomicStore(bool, &self.active, true, std.builtin.AtomicOrder.seq_cst);
+        // const thread_config = .{};
+        // const thread_args: ThreadContextDebugServer = .{
+        //     .debug_server = self,
+        // };
+        // var thread = std.Thread.spawn(thread_config, threadDebugServerListen, .{thread_args}) catch unreachable;
+        // thread.setName("debug_server") catch {};
     }
 
     pub fn stop(self: *DebugServer) void {
@@ -54,27 +55,28 @@ pub const DebugServer = struct {
     }
 
     pub fn listen(self: *DebugServer) !void {
-        const listen_config = websocket.Config.Server{
-            .port = self.port,
-            .address = "127.0.0.1",
-            .buffer_size = 4096,
-            .max_size = 65536,
-            .handshake_max_size = 1024,
-        };
+        _ = self;
+        // const listen_config = websocket.Config.Server{
+        //     .port = self.port,
+        //     .address = "127.0.0.1",
+        //     .buffer_size = 4096,
+        //     .max_size = 65536,
+        //     .handshake_max_size = 1024,
+        // };
 
-        var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-        const allocator = general_purpose_allocator.allocator();
+        // var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+        // const allocator = general_purpose_allocator.allocator();
 
-        var context = Handler.Context{ .debug_server = self };
+        // var context = Handler.Context{ .debug_server = self };
 
-        websocket.listen(
-            Handler,
-            allocator,
-            &context,
-            listen_config,
-        ) catch |err| {
-            std.log.debug("listen error {}", .{err});
-        };
+        // websocket.listen(
+        //     Handler,
+        //     allocator,
+        //     &context,
+        //     listen_config,
+        // ) catch |err| {
+        //     std.log.debug("listen error {}", .{err});
+        // };
     }
 
     pub fn handleMessage(self: *DebugServer, data: []const u8, allocator: std.mem.Allocator) []const u8 {
