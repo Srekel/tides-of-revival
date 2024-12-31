@@ -16,35 +16,35 @@ pub const QueryBuilder = struct {
 
     /// adds an InOut (read/write) component to the query
     pub fn with(self: *@This(), comptime T: type) *@This() {
-        self.desc.query.filter.terms[self.terms_count].id = self.world.componentId(T);
+        self.desc.query.terms[self.terms_count].id = self.world.componentId(T);
         self.terms_count += 1;
         return self;
     }
 
     pub fn withReadonly(self: *@This(), comptime T: type) *@This() {
-        self.desc.query.filter.terms[self.terms_count].id = self.world.componentId(T);
-        self.desc.query.filter.terms[self.terms_count].inout = .In;
+        self.desc.query.terms[self.terms_count].id = self.world.componentId(T);
+        self.desc.query.terms[self.terms_count].inout = .In;
         self.terms_count += 1;
         return self;
     }
 
     pub fn withWriteonly(self: *@This(), comptime T: type) *@This() {
-        self.desc.query.filter.terms[self.terms_count].id = self.world.componentId(T);
-        self.desc.query.filter.terms[self.terms_count].inout = .Out;
+        self.desc.query.terms[self.terms_count].id = self.world.componentId(T);
+        self.desc.query.terms[self.terms_count].inout = .Out;
         self.terms_count += 1;
         return self;
     }
 
     /// the term will be used for the query but it is neither read nor written
     pub fn withFilter(self: *@This(), comptime T: type) *@This() {
-        self.desc.query.filter.terms[self.terms_count].id = self.world.componentId(T);
-        self.desc.query.filter.terms[self.terms_count].inout = .InOutNone;
+        self.desc.query.terms[self.terms_count].id = self.world.componentId(T);
+        self.desc.query.terms[self.terms_count].inout = .InOutNone;
         self.terms_count += 1;
         return self;
     }
 
     pub fn without(self: *@This(), comptime T: type) *@This() {
-        self.desc.query.filter.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
+        self.desc.query.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
             .id = self.world.componentId(T),
             .oper = .Not,
         });
@@ -53,7 +53,7 @@ pub const QueryBuilder = struct {
     }
 
     pub fn optional(self: *@This(), comptime T: type) *@This() {
-        self.desc.query.filter.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
+        self.desc.query.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
             .id = self.world.componentId(T),
             .oper = .optional,
         });
@@ -62,12 +62,12 @@ pub const QueryBuilder = struct {
     }
 
     pub fn either(self: *@This(), comptime T1: type, comptime T2: type) *@This() {
-        self.desc.query.filter.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
+        self.desc.query.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
             .id = self.world.componentId(T1),
             .oper = .Or,
         });
         self.terms_count += 1;
-        self.desc.query.filter.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
+        self.desc.query.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{
             .id = self.world.componentId(T2),
             .oper = .Or,
         });
@@ -78,14 +78,14 @@ pub const QueryBuilder = struct {
     /// the query will need to match `T1 || T2` but it will not return data for either column
     pub fn eitherAsFilter(self: *@This(), comptime T1: type, comptime T2: type) *@This() {
         _ = self.either(T1, T2);
-        self.desc.query.filter.terms[self.terms_count - 1].inout = .InOutNone;
-        self.desc.query.filter.terms[self.terms_count - 2].inout = .InOutNone;
+        self.desc.query.terms[self.terms_count - 1].inout = .InOutNone;
+        self.desc.query.terms[self.terms_count - 2].inout = .InOutNone;
         return self;
     }
 
     pub fn manualTerm(self: *@This()) *ecs.term_t {
         self.terms_count += 1;
-        return &self.desc.query.filter.terms[self.terms_count - 1];
+        return &self.desc.query.terms[self.terms_count - 1];
     }
 
     /// inject a plain old string expression into the builder
@@ -95,8 +95,8 @@ pub const QueryBuilder = struct {
     }
 
     pub fn singleton(self: *@This(), comptime T: type, entity: ecs.entity_t) *@This() {
-        self.desc.filter.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{ .id = self.world.componentId(T) });
-        self.desc.filter.terms[self.terms_count].subj.entity = entity;
+        self.desc.terms[self.terms_count] = std.mem.zeroInit(ecs.term_t, .{ .id = self.world.componentId(T) });
+        self.desc.terms[self.terms_count].subj.entity = entity;
         self.terms_count += 1;
         return self;
     }

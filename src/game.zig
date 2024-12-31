@@ -392,7 +392,7 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
         const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
         const world_time = flecs_stats.*.world_time_total;
         const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
-        environment_info.time_of_day_percent = time_of_day_percent.fpart;
+        environment_info.time_of_day_percent = @floatCast(time_of_day_percent.fpart);
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
         environment_info.world_time = world_time;
     }

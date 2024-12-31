@@ -1,7 +1,7 @@
 pub const ecs = @import("zflecs");
 
 pub const Entity = @import("entity.zig").Entity;
-pub const Filter = @import("filter.zig").Filter;
+// pub const Filter = @import("filter.zig").Filter;
 pub const Iterator = @import("iterator.zig").Iterator;
 pub const Query = @import("query.zig").Query;
 pub const QueryBuilder = @import("query_builder.zig").QueryBuilder;
