@@ -186,33 +186,34 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-    const player_spawn = blk: {
-        var builder = ecsu.QueryBuilder.init(ecsu_world);
-        _ = builder
-            .with(fd.SpawnPoint)
-            .with(fd.Position);
+    const player_spawn = null;
+    // const player_spawn = blk: {
+    //     var builder = ecsu.QueryBuilder.init(ecsu_world);
+    //     _ = builder
+    //         .with(fd.SpawnPoint)
+    //         .with(fd.Position);
 
-        var filter = builder.buildFilter();
-        defer filter.deinit();
+    //     var filter = builder.buildFilter();
+    //     defer filter.deinit();
 
-        var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
-        while (entity_iter.next()) |comps| {
-            const city_ent = ecs.get_target(
-                ecsu_world.world,
-                entity_iter.entity(),
-                fr.Hometown,
-                0,
-            );
-            const spawnpoint_ent = entity_iter.entity();
-            ecs.iter_fini(entity_iter.iter);
-            break :blk .{
-                .pos = comps.pos.*,
-                .spawnpoint_ent = spawnpoint_ent,
-                .city_ent = city_ent,
-            };
-        }
-        break :blk null;
-    };
+    //     var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
+    //     while (entity_iter.next()) |comps| {
+    //         const city_ent = ecs.get_target(
+    //             ecsu_world.world,
+    //             entity_iter.entity(),
+    //             fr.Hometown,
+    //             0,
+    //         );
+    //         const spawnpoint_ent = entity_iter.entity();
+    //         ecs.iter_fini(entity_iter.iter);
+    //         break :blk .{
+    //             .pos = comps.pos.*,
+    //             .spawnpoint_ent = spawnpoint_ent,
+    //             .city_ent = city_ent,
+    //         };
+    //     }
+    //     break :blk null;
+    // };
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     config.entity.init(player_pos, &prefab_mgr, ecsu_world, &renderer_ctx);
@@ -259,7 +260,7 @@ pub fn run() void {
     _ = ecsu_world.pair(ecs.OnDeleteTarget, ecs.OnDelete);
 
     // Enable web explorer
-    _ = ecs.import_c(ecsu_world.world, ecs.FlecsMonitorImport, "FlecsMonitor");
+    _ = ecs.import_c(ecsu_world.world, ecs.FlecsStatsImport, "FlecsStats");
     // _ = ecs.import_c(ecsu_world.world, ecs.FlecsUnitsImport, "FlecsUnits");
     const EcsRest = ecs.lookup_fullpath(ecsu_world.world, "flecs.rest.Rest");
     const EcsRestVal: ecs.EcsRest = .{};
@@ -275,20 +276,20 @@ pub fn run() void {
     while (true) {
         // NOTE: There's no valuable distinction between update_full and update,
         // but probably not worth looking into deeper until we get a job system.
-        const done = update_full(
-            gameloop_context,
-            &(tl_giant_ant_spawn_ctx.?),
-        );
+        // const done = update_full(
+        //     gameloop_context,
+        //     &(tl_giant_ant_spawn_ctx.?),
+        // );
 
-        ztracy.FrameMark();
+        // ztracy.FrameMark();
 
-        if (done) {
-            break;
-        }
+        // if (done) {
+        //     break;
+        // }
     }
 }
 
-var once_per_duration_test: f32 = 0;
+var once_per_duration_test: f64 = 0;
 
 fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timeline.WaveSpawnContext) bool {
     var input_frame_data = gameloop_context.input_frame_data;
@@ -392,7 +393,7 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
         const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
         const world_time = flecs_stats.*.world_time_total;
         const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
-        environment_info.time_of_day_percent = @floatCast(time_of_day_percent.fpart);
+        environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
         environment_info.world_time = world_time;
     }
@@ -405,5 +406,5 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
     }
 
     // AK.SoundEngine.renderAudio(false) catch unreachable;
-    ecsu_world.progress(dt_game);
+    ecsu_world.progress(@floatCast(dt_game));
 }

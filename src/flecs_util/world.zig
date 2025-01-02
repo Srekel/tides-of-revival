@@ -163,22 +163,27 @@ pub const World = struct {
         _ = ecs.system_init(self.world, &desc);
     }
 
-    pub fn newWrappedRunSystem(self: World, name: [:0]const u8, phase: ecs.id_t, comptime Components: type, comptime action: fn (*ecsu.Iterator(Components)) void, params: SystemParameters) ecs.entity_t {
-        var edesc = std.mem.zeroes(ecs.entity_desc_t);
+    // pub fn newWrappedRunSystem(self: World, name: [:0]const u8, phase: ecs.id_t, comptime Components: type, comptime action: fn (*ecsu.Iterator(Components)) void, params: SystemParameters) ecs.entity_t {
+    //     var edesc = std.mem.zeroes(ecs.entity_desc_t);
 
-        edesc.id = 0;
-        edesc.name = name;
-        edesc.add[0] = ecs.make_pair(ecs.DependsOn, phase);
-        edesc.add[1] = phase;
+    //     edesc.id = 0;
+    //     edesc.name = name;
+    //     edesc.add = &.{
+    //         ecs.make_pair(ecs.DependsOn, phase),
+    //         phase,
+    //         0,
+    //     };
+    //     // edesc.add[0] = ecs.make_pair(ecs.DependsOn, phase);
+    //     // edesc.add[1] = phase;
 
-        var desc = std.mem.zeroes(ecs.system_desc_t);
-        desc.entity = ecs.entity_init(self.world, &edesc);
-        desc.query.filter = ecsu.meta.generateFilterDesc(self, Components);
-        desc.callback = dummyFn;
-        desc.run = wrapSystemFn(Components, action);
-        desc.ctx = params.ctx;
-        return ecs.system_init(self.world, &desc);
-    }
+    //     var desc = std.mem.zeroes(ecs.system_desc_t);
+    //     desc.entity = ecs.entity_init(self.world, &edesc);
+    //     desc.query.filter = ecsu.meta.generateFilterDesc(self, Components);
+    //     desc.callback = dummyFn;
+    //     desc.run = wrapSystemFn(Components, action);
+    //     desc.ctx = params.ctx;
+    //     return ecs.system_init(self.world, &desc);
+    // }
 
     /// creates a Filter using the passed in struct
     pub fn filter(self: World, comptime Components: type) ecsu.Filter {

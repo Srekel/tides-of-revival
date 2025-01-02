@@ -1,84 +1,34 @@
 const std = @import("std");
-const math = std.math;
 const ecs = @import("zflecs");
-const zm = @import("zmath");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const input = @import("../input.zig");
 const ztracy = @import("ztracy");
 
-pub const SystemState = struct {
+const Context = struct {
     allocator: std.mem.Allocator,
-    ecsu_world: ecsu.World,
-    flecs_sys: ecs.entity_t,
-    query: ecsu.Query,
     input_frame_data: *input.FrameData,
 };
 
-pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) !*SystemState {
-    var query_builder = ecsu.QueryBuilder.init(ecsu_world);
-    _ = query_builder
-        .with(fd.Input);
-    const query = query_builder.buildQuery();
-
-    const system = allocator.create(SystemState) catch unreachable;
-    const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
-    system.* = .{
+pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.World, input_frame_data: *input.FrameData) ecs.entity_t {
+    const ctx = allocator.create(Context) catch unreachable;
+    ctx.* = .{
         .allocator = allocator,
-        .ecsu_world = ecsu_world,
-        .flecs_sys = flecs_sys,
-        .query = query,
         .input_frame_data = input_frame_data,
     };
 
-    // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
-
-    // initStateData(system);
-    return system;
+    var system_desc = ecs.system_desc_t{};
+    system_desc.callback = inputSystem;
+    system_desc.ctx = ctx;
+    return ecs.SYSTEM(ecsu_world.world, name.toCString(), ecs.OnUpdate, &system_desc);
 }
 
-pub fn destroy(system: *SystemState) void {
-    system.query.deinit();
-    system.allocator.destroy(system);
-}
-
-fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+fn inputSystem(it: *ecs.iter_t) callconv(.C) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Input System: Update", 0x00_ff_00_ff);
     defer trazy_zone.End();
+    // defer ecs.iter_fini(it); // needed?
 
-    defer ecs.iter_fini(iter.iter);
-    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    // const dt4 = zm.f32x4s(iter.iter.delta_time);
-    // _ = system;
-    input.doTheThing(system.allocator, system.input_frame_data);
-
-    // var entity_iter = system.query.iterator(struct {
-    //     fsm: *fd.FSM,
-    // });
-
-    // while (entity_iter.next()) |comps| {
-    //     _ = comps;
-    // }
-
-    // const NextState = struct {
-    //     entity: flecs.Entity,
-    //     next_state: *fsm.State,
-    // };
-
-    // for (system.instances.items) |*instance| {
-    //     for (instance.curr_states.items) |fsm_state| {
-    //         const ctx = fsm.StateFuncContext{
-    //             .state = fsm_state,
-    //             .blob_array = instance.blob_array,
-    //             .allocator = system.allocator,
-    //             // .entity = instance.entities.items[i],
-    //             // .data = instance.blob_array.getBlob(i),
-    //             .transition_events = .{},
-    //             .ecsu_world = system.ecsu_world,
-    //             .dt = dt4,
-    //         };
-    //         fsm_state.update(ctx);
-    //     }
-    // }
+    const ctx: *Context = @alignCast(@ptrCast(it.ctx.?));
+    input.doTheThing(ctx.allocator, ctx.input_frame_data);
 }

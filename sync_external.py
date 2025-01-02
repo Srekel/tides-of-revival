@@ -153,7 +153,7 @@ def main():
     )
     sync_lib(
         "zgui",
-        "https://github.com/zig-gamedev/zgui",
+        "https://github.com/Srekel/zgui.git",
         "5e268ec8f19f640a064542429270737d2f19ad31",
     )
     sync_lib(

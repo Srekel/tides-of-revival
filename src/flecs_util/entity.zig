@@ -90,7 +90,7 @@ pub const Entity = struct {
         const T = ecsu.meta.FinalChild(@TypeOf(ptr_or_struct));
         const component = if (@typeInfo(@TypeOf(ptr_or_struct)) == .pointer) ptr_or_struct else &ptr_or_struct;
         const id = ecsu.meta.componentId(self.world, T);
-        ecs.override_id(self.world, self.id, id);
+        ecs.auto_override_id(self.world, self.id, id);
         _ = ecs.set_id(self.world, self.id, id, @sizeOf(T), component);
     }
 

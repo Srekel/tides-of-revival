@@ -424,9 +424,9 @@ pub const Renderer = struct {
             self.pso_manager.createPipelines();
 
             const rtv_format = self.swap_chain.*.ppRenderTargets[0].*.mFormat;
-            // const pipeline_id = IdLocal.init("imgui");
-            // const pipeline = self.pso_manager.getPipeline(pipeline_id);
-            // const root_signature = self.pso_manager.getRootSignature(pipeline_id);
+            const pipeline_id = IdLocal.init("imgui");
+            const pipeline = self.pso_manager.getPipeline(pipeline_id);
+            const root_signature = self.pso_manager.getRootSignature(pipeline_id);
             const heap = self.renderer.*.mDx.pCbvSrvUavHeaps[0].pHeap;
             const cpu_desc_handle = self.renderer.*.mDx.pCbvSrvUavHeaps[0].mStartCpuHandle;
             const gpu_desc_handle = self.renderer.*.mDx.pCbvSrvUavHeaps[0].mStartGpuHandle;
@@ -437,10 +437,10 @@ pub const Renderer = struct {
                 data_buffer_count,
                 @intFromEnum(rtv_format),
                 heap,
-                // root_signature.*.mDx.pRootSignature,
-                // pipeline.*.mDx.__union_field1.pPipelineState,
-                @as(zgui.backend.backend_dx12.D3D12_CPU_DESCRIPTOR_HANDLE, @bitCast(cpu_desc_handle)),
-                @as(zgui.backend.backend_dx12.D3D12_GPU_DESCRIPTOR_HANDLE, @bitCast(gpu_desc_handle)),
+                root_signature.*.mDx.pRootSignature,
+                pipeline.*.mDx.__union_field1.pPipelineState,
+                @as(zgui.backend.D3D12_CPU_DESCRIPTOR_HANDLE, @bitCast(cpu_desc_handle)),
+                @as(zgui.backend.D3D12_GPU_DESCRIPTOR_HANDLE, @bitCast(gpu_desc_handle)),
             );
 
             for (self.render_passes.items) |render_pass| {
