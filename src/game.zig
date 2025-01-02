@@ -276,22 +276,19 @@ pub fn run() void {
     while (true) {
         // NOTE: There's no valuable distinction between update_full and update,
         // but probably not worth looking into deeper until we get a job system.
-        // const done = update_full(
-        //     gameloop_context,
-        //     &(tl_giant_ant_spawn_ctx.?),
-        // );
+        const done = update_full(gameloop_context);
 
-        // ztracy.FrameMark();
+        ztracy.FrameMark();
 
-        // if (done) {
-        //     break;
-        // }
+        if (done) {
+            break;
+        }
     }
 }
 
 var once_per_duration_test: f64 = 0;
 
-fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timeline.WaveSpawnContext) bool {
+fn update_full(gameloop_context: anytype) bool {
     var input_frame_data = gameloop_context.input_frame_data;
     const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
@@ -358,25 +355,11 @@ fn update_full(gameloop_context: anytype, tl_giant_ant_spawn_ctx: ?*config.timel
     //     gfx_state.setViewMode(.depth);
     // }
 
+    // TODO: Move this to system
     for (0..100) |_| {
         world_patch_mgr.tickOne();
     }
     update(ecsu_world, stats.delta_time);
-
-    if (tl_giant_ant_spawn_ctx) |ctx| {
-        _ = ctx;
-        // TODO(gmodarelli): Add UILabel to tides_renderer
-        // var ui_label = gfx.UILabel{
-        //     .label = undefined,
-        //     .font_size = 24,
-        //     .color = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
-        //     .rect = .{ .left = 20, .top = 400, .bottom = 420, .right = 600 },
-        // };
-
-        // var buffer = [_]u8{0} ** 64;
-        // ui_label.label = std.fmt.bufPrint(buffer[0..], "Stage: {d}", .{ctx.stage}) catch unreachable;
-        // gfx_state.drawUILabel(ui_label) catch unreachable;
-    }
 
     stats.update();
 
