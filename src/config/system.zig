@@ -31,9 +31,7 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     _ = system_context; // autofix
     _ = input_system.create(
         IdLocal.init("input_sys"),
-        std.heap.page_allocator,
-        gameloop_context.ecsu_world,
-        gameloop_context.input_frame_data,
+        input_system.SystemCreateCtx.view(gameloop_context),
     );
 
     // physics_sys = try physics_system.create(

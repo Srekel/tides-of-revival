@@ -135,7 +135,10 @@ pub fn run() void {
     system_context.put(config.prefab_mgr, &prefab_mgr);
     //
     const GameloopContext = struct {
-        allocator: std.mem.Allocator,
+        arena_system_lifetime: std.mem.Allocator,
+        arena_system_update: std.mem.Allocator,
+        arena_frame: std.mem.Allocator,
+        heap_allocator: std.mem.Allocator,
         asset_mgr: *AssetManager,
         audio_mgr: *audio_manager.AudioManager,
         ecsu_world: ecsu.World,
@@ -149,8 +152,23 @@ pub fn run() void {
         main_window: *window.Window,
     };
 
+    var root_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+    var arena_system_lifetime = std.heap.ArenaAllocator.init(root_allocator.allocator());
+    var arena_system_update = std.heap.ArenaAllocator.init(root_allocator.allocator());
+    var arena_frame = std.heap.ArenaAllocator.init(root_allocator.allocator());
+    defer {
+        const check = root_allocator.deinit();
+        std.debug.assert(check == .ok);
+    }
+    defer arena_system_lifetime.deinit();
+    defer arena_system_update.deinit();
+    defer arena_frame.deinit();
+
     var gameloop_context: GameloopContext = .{
-        .allocator = std.heap.page_allocator,
+        .arena_system_lifetime = arena_system_lifetime.allocator(),
+        .arena_system_update = arena_system_update.allocator(),
+        .arena_frame = arena_frame.allocator(),
+        .heap_allocator = root_allocator.allocator(),
         .audio_mgr = &audio_mgr,
         .ecsu_world = ecsu_world,
         .event_mgr = &event_mgr,

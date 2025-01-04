@@ -261,6 +261,8 @@ pub const KeyMap = struct {
 
 pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) void {
     var used_inputs = std.AutoHashMap(BindingSource, bool).init(allocator);
+    defer used_inputs.clearAndFree();
+
     const targets_prev = &input_frame_data.targets_double_buffer[input_frame_data.index_curr];
     input_frame_data.index_curr = 1 - input_frame_data.index_curr;
     var targets = &input_frame_data.targets_double_buffer[input_frame_data.index_curr];
