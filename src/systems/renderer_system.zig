@@ -30,26 +30,10 @@ const font = zforge.font;
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
-pub const SystemState = struct {
-    allocator: std.mem.Allocator,
-    ecsu_world: ecsu.World,
-    input_frame_data: *input.FrameData,
-    renderer: *renderer.Renderer,
-    pre_sys: ecs.entity_t,
-    post_sys: ecs.entity_t,
-    terrain_render_pass: *TerrainRenderPass,
-    geometry_render_pass: *GeometryRenderPass,
-    deferred_shading_render_pass: *DeferredShadingRenderPass,
-    atmosphere_render_pass: *AtmosphereRenderPass,
-    water_render_pass: *WaterRenderPass,
-    ui_render_pass: *UIRenderPass,
-    im3d_render_pass: *Im3dRenderPass,
-    render_imgui: bool,
-};
-
-pub const SystemCtx = struct {
+pub const SystemCreateCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
-    allocator: std.mem.Allocator,
+    arena_system_lifetime: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
@@ -57,41 +41,57 @@ pub const SystemCtx = struct {
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
-pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
+pub const SystemUpdateContext = struct {
+    heap_allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    input_frame_data: *input.FrameData,
+    renderer: *renderer.Renderer,
+    state: struct {
+        terrain_render_pass: *TerrainRenderPass,
+        geometry_render_pass: *GeometryRenderPass,
+        deferred_shading_render_pass: *DeferredShadingRenderPass,
+        atmosphere_render_pass: *AtmosphereRenderPass,
+        water_render_pass: *WaterRenderPass,
+        ui_render_pass: *UIRenderPass,
+        im3d_render_pass: *Im3dRenderPass,
+        render_imgui: bool,
+    },
+};
+
+pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) void {
     _ = name;
-    const system = ctx.allocator.create(SystemState) catch unreachable;
-    const pre_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PreUpdate", ecs.PreUpdate, fd.NOCOMP, preUpdate, .{ .ctx = system });
-    const post_sys = ctx.ecsu_world.newWrappedRunSystem("Render System PostUpdate", ecs.PostUpdate, fd.NOCOMP, postUpdate, .{ .ctx = system });
+    const arena_system_lifetime = create_ctx.arena_system_lifetime;
+    const pass_allocator = create_ctx.heap_allocator;
+    const ctx_renderer = create_ctx.renderer;
+    const ecsu_world = create_ctx.ecsu_world;
 
-    const geometry_pass = ctx.allocator.create(GeometryRenderPass) catch unreachable;
-    geometry_pass.init(ctx.renderer, ctx.ecsu_world, ctx.prefab_mgr, ctx.allocator);
+    const geometry_pass = arena_system_lifetime.create(GeometryRenderPass) catch unreachable;
+    geometry_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
 
-    const terrain_pass = ctx.allocator.create(TerrainRenderPass) catch unreachable;
-    terrain_pass.init(ctx.renderer, ctx.ecsu_world, ctx.world_patch_mgr, ctx.allocator);
+    const terrain_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
+    terrain_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
 
-    const deferred_shading_pass = ctx.allocator.create(DeferredShadingRenderPass) catch unreachable;
-    deferred_shading_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    const deferred_shading_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
+    deferred_shading_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const atmosphere_pass = ctx.allocator.create(AtmosphereRenderPass) catch unreachable;
-    atmosphere_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    const atmosphere_pass = arena_system_lifetime.create(AtmosphereRenderPass) catch unreachable;
+    atmosphere_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const water_pass = ctx.allocator.create(WaterRenderPass) catch unreachable;
-    water_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    const water_pass = arena_system_lifetime.create(WaterRenderPass) catch unreachable;
+    water_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const post_processing_pass = ctx.allocator.create(PostProcessingRenderPass) catch unreachable;
-    post_processing_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    const post_processing_pass = arena_system_lifetime.create(PostProcessingRenderPass) catch unreachable;
+    post_processing_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const ui_pass = ctx.allocator.create(UIRenderPass) catch unreachable;
-    ui_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    const ui_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
+    ui_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const im3d_pass = ctx.allocator.create(Im3dRenderPass) catch unreachable;
-    im3d_pass.init(ctx.renderer, ctx.ecsu_world, ctx.allocator);
+    const im3d_pass = arena_system_lifetime.create(Im3dRenderPass) catch unreachable;
+    im3d_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    system.* = .{
-        .allocator = ctx.allocator,
-        .ecsu_world = ctx.ecsu_world,
-        .input_frame_data = ctx.input_frame_data,
-        .renderer = ctx.renderer,
+    const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
+    update_ctx.* = SystemUpdateContext.view(create_ctx);
+    update_ctx.*.state = .{
         .terrain_render_pass = terrain_pass,
         .geometry_render_pass = geometry_pass,
         .deferred_shading_render_pass = deferred_shading_pass,
@@ -100,14 +100,34 @@ pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
         .ui_render_pass = ui_pass,
         .im3d_render_pass = im3d_pass,
         .render_imgui = false,
-        .pre_sys = pre_sys,
-        .post_sys = post_sys,
     };
 
-    return system;
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = preUpdate;
+        system_desc.ctx = update_ctx;
+        return ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "Render System PreUpdate",
+            ecs.PreUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = postUpdate;
+        system_desc.ctx = update_ctx;
+        return ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "Render System PostUpdate",
+            ecs.PostUpdate,
+            &system_desc,
+        );
+    }
 }
 
-pub fn destroy(system: *SystemState) void {
+pub fn destroy(system: *SystemUpdateContext) void {
     system.terrain_render_pass.destroy();
     system.geometry_render_pass.destroy();
     system.deferred_shading_render_pass.destroy();
@@ -131,7 +151,7 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer trazy_zone.End();
 
     defer ecs.iter_fini(iter.iter);
-    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(iter.iter.ctx));
 
     if (system.input_frame_data.just_pressed(config.input.toggle_imgui)) {
         system.render_imgui = !system.render_imgui;
@@ -180,7 +200,7 @@ fn postUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     defer trazy_zone.End();
 
     defer ecs.iter_fini(iter.iter);
-    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(iter.iter.ctx));
     var rctx = system.renderer;
 
     rctx.draw();

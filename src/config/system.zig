@@ -12,7 +12,7 @@ const input_system = @import("../systems/input_system.zig");
 // const navmesh_system = @import("../systems/ai/navmesh_system.zig");
 // const patch_prop_system = @import("../systems/patch_prop_system.zig");
 // const physics_system = @import("../systems/physics_system.zig");
-// const renderer_system = @import("../systems/renderer_system.zig");
+const renderer_system = @import("../systems/renderer_system.zig");
 // const state_machine_system = @import("../systems/state_machine_system.zig");
 // const timeline_system = @import("../systems/timeline_system.zig");
 
@@ -30,7 +30,7 @@ const input_system = @import("../systems/input_system.zig");
 pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) void {
     _ = system_context; // autofix
     _ = input_system.create(
-        IdLocal.init("input_sys"),
+        ID("input_sys"),
         input_system.SystemCreateCtx.view(gameloop_context),
     );
 
@@ -68,16 +68,8 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     //     gameloop_context.prefab_mgr,
     // );
 
-    // camera_sys = try camera_system.create(
-    //     ID("camera_system"),
-    //     std.heap.page_allocator,
-    //     gameloop_context.ecsu_world,
-    //     gameloop_context.input_frame_data,
-    //     gameloop_context.renderer,
-    // );
-
     // patch_prop_sys = try patch_prop_system.create(
-    //     IdLocal.initFormat("patch_prop_system_{}", .{0}),
+    //     IDFormat("patch_prop_system_{}", .{0}),
     //     std.heap.page_allocator,
     //     gameloop_context.ecsu_world,
     //     gameloop_context.world_patch_mgr,
@@ -89,10 +81,18 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     //     navmesh_system.SystemCtx.view(gameloop_context),
     // );
 
-    // renderer_sys = try renderer_system.create(
-    //     IdLocal.initFormat("renderer_system_{}", .{0}),
-    //     renderer_system.SystemCtx.view(gameloop_context),
+    // camera_sys = try camera_system.create(
+    //     ID("camera_system"),
+    //     std.heap.page_allocator,
+    //     gameloop_context.ecsu_world,
+    //     gameloop_context.input_frame_data,
+    //     gameloop_context.renderer,
     // );
+
+    renderer_system.create(
+        ID("renderer_system"),
+        renderer_system.SystemCreateCtx.view(gameloop_context),
+    );
 }
 
 pub fn setupSystems() void {

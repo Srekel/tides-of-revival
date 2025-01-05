@@ -24,12 +24,12 @@ const SystemUpdateContext = struct {
 };
 
 pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) ecs.entity_t {
-    const ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
-    ctx.* = SystemUpdateContext.view(create_ctx);
+    const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
+    update_ctx.* = SystemUpdateContext.view(create_ctx);
 
     var system_desc = ecs.system_desc_t{};
     system_desc.callback = inputSystem;
-    system_desc.ctx = ctx;
+    system_desc.ctx = update_ctx;
     return ecs.SYSTEM(
         create_ctx.ecsu_world.world,
         name.toCString(),
