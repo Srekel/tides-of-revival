@@ -85,8 +85,8 @@ pub const DeferredShadingRenderPass = struct {
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     deferred_descriptor_sets: [2][*c]graphics.DescriptorSet,
 
-    query_directional_lights: ecsu.Query,
-    query_point_lights: ecsu.Query,
+    query_directional_lights: *ecs.query_t,
+    query_point_lights: *ecs.query_t,
 
     pub fn init(self: *DeferredShadingRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
         const point_lights = std.ArrayList(PointLight).init(allocator);
@@ -127,17 +127,22 @@ pub const DeferredShadingRenderPass = struct {
             break :blk buffers;
         };
 
-        var query_builder_directional_lights = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_directional_lights
-            .withReadonly(fd.Rotation)
-            .withReadonly(fd.DirectionalLight);
-        const query_directional_lights = query_builder_directional_lights.buildQuery();
+        // array init syntax nasty until https://github.com/ziglang/zig/issues/6068
+        const query_directional_lights = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_directional_lights"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.Rotation), .inout = .Out },
+                .{ .id = ecs.id(fd.DirectionalLight), .inout = .Out },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+        }) catch unreachable;
 
-        var query_builder_point_lights = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_point_lights
-            .withReadonly(fd.Transform)
-            .withReadonly(fd.PointLight);
-        const query_point_lights = query_builder_point_lights.buildQuery();
+        const query_point_lights = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_point_lights"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.Transform), .inout = .Out },
+                .{ .id = ecs.id(fd.PointLight), .inout = .Out },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+        }) catch unreachable;
 
         const lighting_settings = LightingSettings{
             .apply_shadows = true,
@@ -186,11 +191,8 @@ pub const DeferredShadingRenderPass = struct {
 
         unloadDescriptorSets(@ptrCast(self));
 
-        self.query_directional_lights.deinit();
-        self.query_point_lights.deinit();
         self.point_lights.deinit();
         self.directional_lights.deinit();
-        self.allocator.destroy(self);
     }
 };
 
@@ -413,45 +415,43 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     };
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
-    var entity_iter_directional_lights = self.query_directional_lights.iterator(struct {
-        rotation: *const fd.Rotation,
-        light: *const fd.DirectionalLight,
-    });
-
     self.directional_lights.clearRetainingCapacity();
-
-    while (entity_iter_directional_lights.next()) |comps| {
-        const z_forward = zm.rotate(comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
-        // TODO(gmodarelli): Specify data for shadow mapping
-        const directional_light = DirectionalLight{
-            .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
-            .shadow_map = 0,
-            .color = [3]f32{ comps.light.color.r, comps.light.color.g, comps.light.color.b },
-            .intensity = comps.light.intensity,
-            .shadow_range = 0.0,
-            ._pad = [2]f32{ 42, 42 },
-            .shadow_map_dimensions = 0,
-            .view_proj = [16]f32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        };
-        self.directional_lights.append(directional_light) catch unreachable;
+    var query_directional_lights_iter = ecs.query_iter(self.ecsu_world.world, self.query_directional_lights);
+    while (ecs.query_next(&query_directional_lights_iter)) {
+        const rotations = ecs.field(&query_directional_lights_iter, fd.Rotation, 0).?;
+        const lights = ecs.field(&query_directional_lights_iter, fd.DirectionalLight, 1).?;
+        for (rotations, lights) |rot, light| {
+            const z_forward = zm.rotate(rot.asZM(), zm.Vec{ 0, 0, 1, 0 });
+            // TODO(gmodarelli): Specify data for shadow mapping
+            const directional_light = DirectionalLight{
+                .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
+                .shadow_map = 0,
+                .color = [3]f32{ light.color.r, light.color.g, light.color.b },
+                .intensity = light.intensity,
+                .shadow_range = 0.0,
+                ._pad = [2]f32{ 42, 42 },
+                .shadow_map_dimensions = 0,
+                .view_proj = [16]f32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+            };
+            self.directional_lights.append(directional_light) catch unreachable;
+        }
     }
 
-    var entity_iter_point_lights = self.query_point_lights.iterator(struct {
-        transform: *const fd.Transform,
-        light: *const fd.PointLight,
-    });
-
     self.point_lights.clearRetainingCapacity();
+    var query_point_lights_iter = ecs.query_iter(self.ecsu_world.world, self.query_point_lights);
+    while (ecs.query_next(&query_point_lights_iter)) {
+        const transforms = ecs.field(&query_point_lights_iter, fd.Transform, 0).?;
+        const lights = ecs.field(&query_point_lights_iter, fd.PointLight, 1).?;
+        for (transforms, lights) |transform, light| {
+            const point_light = PointLight{
+                .position = transform.getPos00(),
+                .radius = light.range,
+                .color = [3]f32{ light.color.r, light.color.g, light.color.b },
+                .intensity = light.intensity,
+            };
 
-    while (entity_iter_point_lights.next()) |comps| {
-        const point_light = PointLight{
-            .position = comps.transform.getPos00(),
-            .radius = comps.light.range,
-            .color = [3]f32{ comps.light.color.r, comps.light.color.g, comps.light.color.b },
-            .intensity = comps.light.intensity,
-        };
-
-        self.point_lights.append(point_light) catch unreachable;
+            self.point_lights.append(point_light) catch unreachable;
+        }
     }
 
     if (self.directional_lights.items.len > 0) {

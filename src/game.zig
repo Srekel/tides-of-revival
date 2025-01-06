@@ -299,6 +299,25 @@ pub fn run() void {
         ztracy.FrameMark();
 
         if (done) {
+            // Clear out systems. Needed to clear up memory.
+            // NOTE: I'm not sure why this need to be done explicitly, I think
+            //       systems should get destroyed when world is deleted.
+            const query_systems = ecs.query_init(ecsu_world.world, &.{
+                .terms = [_]ecs.term_t{
+                    .{ .id = ecs.System },
+                } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+            }) catch unreachable;
+
+            var system_ents = std.ArrayList(ecs.entity_t).initCapacity(arena_system_lifetime.allocator(), 100) catch unreachable;
+            var query_systems_iter = ecs.query_iter(ecsu_world.world, query_systems);
+            while (ecs.query_next(&query_systems_iter)) {
+                system_ents.appendSliceAssumeCapacity(query_systems_iter.entities());
+            }
+
+            for (system_ents.items) |ent| {
+                ecsu_world.delete(ent);
+            }
+
             break;
         }
     }

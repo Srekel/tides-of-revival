@@ -67,7 +67,7 @@ pub const Renderer = struct {
     window: *window.Window = undefined,
     window_width: i32 = 0,
     window_height: i32 = 0,
-    time: f32 = 0.0,
+    time: f64 = 0.0,
     vsync_enabled: bool = false,
     ibl_enabled: bool = true,
 

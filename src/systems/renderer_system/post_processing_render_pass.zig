@@ -184,7 +184,6 @@ pub const PostProcessingRenderPass = struct {
         self.renderer.unregisterRenderPass(&self.render_pass);
 
         unloadDescriptorSets(@ptrCast(self));
-        self.allocator.destroy(self);
     }
 };
 

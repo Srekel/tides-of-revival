@@ -42,6 +42,7 @@ pub const SystemCreateCtx = struct {
 };
 
 pub const SystemUpdateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
     heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
@@ -52,6 +53,7 @@ pub const SystemUpdateContext = struct {
         deferred_shading_render_pass: *DeferredShadingRenderPass,
         atmosphere_render_pass: *AtmosphereRenderPass,
         water_render_pass: *WaterRenderPass,
+        post_processing_pass: *PostProcessingRenderPass,
         ui_render_pass: *UIRenderPass,
         im3d_render_pass: *Im3dRenderPass,
         render_imgui: bool,
@@ -66,28 +68,28 @@ pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) void {
     const ecsu_world = create_ctx.ecsu_world;
 
     const geometry_pass = arena_system_lifetime.create(GeometryRenderPass) catch unreachable;
-    geometry_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
+    // geometry_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
 
     const terrain_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
-    terrain_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
+    // terrain_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
 
     const deferred_shading_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
     deferred_shading_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const atmosphere_pass = arena_system_lifetime.create(AtmosphereRenderPass) catch unreachable;
-    atmosphere_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    // atmosphere_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const water_pass = arena_system_lifetime.create(WaterRenderPass) catch unreachable;
-    water_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    // water_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const post_processing_pass = arena_system_lifetime.create(PostProcessingRenderPass) catch unreachable;
     post_processing_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const ui_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
-    ui_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    // ui_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const im3d_pass = arena_system_lifetime.create(Im3dRenderPass) catch unreachable;
-    im3d_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    // im3d_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
@@ -97,6 +99,7 @@ pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) void {
         .deferred_shading_render_pass = deferred_shading_pass,
         .atmosphere_render_pass = atmosphere_pass,
         .water_render_pass = water_pass,
+        .post_processing_pass = post_processing_pass,
         .ui_render_pass = ui_pass,
         .im3d_render_pass = im3d_pass,
         .render_imgui = false,
@@ -106,7 +109,8 @@ pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) void {
         var system_desc = ecs.system_desc_t{};
         system_desc.callback = preUpdate;
         system_desc.ctx = update_ctx;
-        return ecs.SYSTEM(
+        system_desc.ctx_free = destroy;
+        _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
             "Render System PreUpdate",
             ecs.PreUpdate,
@@ -118,7 +122,7 @@ pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) void {
         var system_desc = ecs.system_desc_t{};
         system_desc.callback = postUpdate;
         system_desc.ctx = update_ctx;
-        return ecs.SYSTEM(
+        _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
             "Render System PostUpdate",
             ecs.PostUpdate,
@@ -127,16 +131,16 @@ pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) void {
     }
 }
 
-pub fn destroy(system: *SystemUpdateContext) void {
-    system.terrain_render_pass.destroy();
-    system.geometry_render_pass.destroy();
-    system.deferred_shading_render_pass.destroy();
-    system.atmosphere_render_pass.destroy();
-    system.water_render_pass.destroy();
-    system.ui_render_pass.destroy();
-    system.im3d_render_pass.destroy();
-
-    system.allocator.destroy(system);
+pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+    // system.state.terrain_render_pass.destroy();
+    // system.state.geometry_render_pass.destroy();
+    system.state.post_processing_pass.destroy();
+    system.state.deferred_shading_render_pass.destroy();
+    // system.state.atmosphere_render_pass.destroy();
+    // system.state.water_render_pass.destroy();
+    // system.state.ui_render_pass.destroy();
+    // system.state.im3d_render_pass.destroy();
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -146,16 +150,16 @@ pub fn destroy(system: *SystemUpdateContext) void {
 // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
-fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+fn preUpdate(it: *ecs.iter_t) callconv(.C) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Renderer System: Pre Update", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
-    defer ecs.iter_fini(iter.iter);
-    const system: *SystemUpdateContext = @ptrCast(@alignCast(iter.iter.ctx));
+    // defer ecs.iter_fini(it);
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(it.ctx));
 
     if (system.input_frame_data.just_pressed(config.input.toggle_imgui)) {
-        system.render_imgui = !system.render_imgui;
-        system.renderer.render_imgui = system.render_imgui;
+        system.state.render_imgui = !system.state.render_imgui;
+        system.renderer.render_imgui = system.state.render_imgui;
     }
 
     var rctx = system.renderer;
@@ -182,7 +186,7 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     const camera_forward = camera_comps.forward;
 
     var im3d_app_data = im3d.Im3d.GetAppData();
-    im3d_app_data.m_deltaTime = iter.iter.delta_time;
+    im3d_app_data.m_deltaTime = it.delta_time;
     im3d_app_data.m_viewportSize = .{ .x = @floatFromInt(rctx.window_width), .y = @floatFromInt(rctx.window_height) };
     im3d_app_data.m_viewOrigin = .{ .x = camera_position[0], .y = camera_position[1], .z = camera_position[2] };
     im3d_app_data.m_viewDirection = .{ .x = camera_forward.x, .y = camera_forward.y, .z = camera_forward.z };
@@ -195,12 +199,12 @@ fn preUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
     im3d.Im3d.NewFrame();
 }
 
-fn postUpdate(iter: *ecsu.Iterator(fd.NOCOMP)) void {
+fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Renderer System: Post Update", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
-    defer ecs.iter_fini(iter.iter);
-    const system: *SystemUpdateContext = @ptrCast(@alignCast(iter.iter.ctx));
+    // defer ecs.iter_fini(it);
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(it.ctx));
     var rctx = system.renderer;
 
     rctx.draw();

@@ -81,8 +81,6 @@ pub fn create(name: IdLocal, allocator: std.mem.Allocator, ecsu_world: ecsu.Worl
         .input_frame_data = input_frame_data,
     };
 
-    ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
-
     return system;
 }
 
@@ -267,31 +265,5 @@ fn updateCameraSwitch(system: *SystemState) void {
                 environment_info.active_camera = .{ .world = system.ecsu_world.world, .id = entity_iter.entity() };
             }
         }
-    }
-}
-
-const ObserverCallback = struct {
-    comp: *const fd.CICamera,
-
-    pub const name = "CICamera";
-    pub const run = onSetCICamera;
-};
-
-fn onSetCICamera(it: *ecsu.Iterator(ObserverCallback)) void {
-    // var observer = @ptrCast(*ecs.observer_t, @alignCast(@alignOf(ecs.observer_t), it.iter.ctx));
-    // var system : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
-    while (it.next()) |_| {
-        const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CICamera), @as(i32, @intCast(it.index))).?;
-        const ci = @as(*fd.CICamera, @ptrCast(@alignCast(ci_ptr)));
-        const ent = ecsu.Entity.init(it.iter.world, it.entity());
-        ent.remove(fd.CICamera);
-        ent.set(fd.Camera{
-            .far = ci.far,
-            .near = ci.near,
-            .fov = 0.25 * std.math.pi,
-            .active = ci.active,
-            .class = ci.class,
-        });
-        ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
     }
 }

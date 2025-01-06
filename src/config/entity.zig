@@ -98,15 +98,12 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.Rotation{});
+    debug_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+    debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
     debug_camera_ent.set(fd.Dynamic{});
-    debug_camera_ent.set(fd.CICamera{
-        .near = 0.1,
-        .far = 25000,
-        .active = DEBUG_CAMERA_ACTIVE,
-        .class = 0,
-    });
+    debug_camera_ent.set(fd.Camera.create(0.1, 25000, 0.25 * std.math.pi, DEBUG_CAMERA_ACTIVE, 0));
     debug_camera_ent.set(fd.WorldLoader{
         .range = 2,
         .props = true,
@@ -123,13 +120,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.set(fd.Scale.createScalar(1));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
-    player_camera_ent.set(fd.Forward{});
-    player_camera_ent.set(fd.CICamera{
-        .near = 0.1,
-        .far = 25000,
-        .active = !DEBUG_CAMERA_ACTIVE,
-        .class = 1,
-    });
+    player_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+    player_camera_ent.set(fd.Camera.create(0.1, 25000, 0.25 * std.math.pi, !DEBUG_CAMERA_ACTIVE, 1));
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
     player_camera_ent.set(fd.PointLight{

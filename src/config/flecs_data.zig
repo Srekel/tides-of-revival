@@ -30,7 +30,6 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Water);
     ecs.COMPONENT(ecs_world, SkyLight);
     ecs.COMPONENT(ecs_world, UIImage);
-    ecs.COMPONENT(ecs_world, CICamera);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
     ecs.COMPONENT(ecs_world, PhysicsBody);
@@ -476,13 +475,6 @@ pub const SkyLight = struct {
 //  ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
 //
 
-pub const CICamera = struct {
-    near: f32,
-    far: f32,
-    active: bool = false,
-    class: u32 = 0,
-};
-
 pub const Camera = struct {
     near: f32,
     far: f32,
@@ -493,6 +485,16 @@ pub const Camera = struct {
     frustum_planes: [4][4]f32 = undefined,
     active: bool = false,
     class: u32 = 0,
+
+    pub fn create(near: f32, far: f32, fov: f32, active: bool, class: u32) Camera {
+        return Camera{
+            .near = near,
+            .far = far,
+            .fov = fov,
+            .active = active,
+            .class = class,
+        };
+    }
 
     pub fn calculateFrustumPlanes(camera: *Camera) void {
         const z_vp = zm.loadMat(camera.view_projection[0..]);

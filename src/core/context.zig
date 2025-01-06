@@ -47,7 +47,7 @@ pub fn CONTEXTIFY(comptime InnerContextT: type) type {
         pub fn view(outerContext: anytype) InnerContextT {
             var innerContext: InnerContextT = undefined;
             inline for (std.meta.fields(InnerContextT)) |fld| {
-                if (!std.mem.eql(u8, fld.name, "state")) {
+                if (comptime !std.mem.startsWith(u8, fld.name, @as([:0]const u8, "state"))) {
                     @field(innerContext, fld.name) = @field(outerContext, fld.name);
                 }
             }
