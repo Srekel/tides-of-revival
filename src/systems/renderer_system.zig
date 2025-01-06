@@ -60,8 +60,7 @@ pub const SystemUpdateContext = struct {
     },
 };
 
-pub fn create(name: IdLocal, create_ctx: SystemCreateCtx) void {
-    _ = name;
+pub fn create(create_ctx: SystemCreateCtx) void {
     const arena_system_lifetime = create_ctx.arena_system_lifetime;
     const pass_allocator = create_ctx.heap_allocator;
     const ctx_renderer = create_ctx.renderer;

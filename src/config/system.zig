@@ -5,7 +5,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const ID = @import("../core/core.zig").ID;
 const util = @import("../util.zig");
 
-// const camera_system = @import("../systems/camera_system.zig");
+const camera_system = @import("../systems/camera_system.zig");
 // const city_system = @import("../systems/procgen/city_system.zig");
 const input_system = @import("../systems/input_system.zig");
 // const interact_system = @import("../systems/interact_system.zig");
@@ -29,10 +29,7 @@ const renderer_system = @import("../systems/renderer_system.zig");
 
 pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) void {
     _ = system_context; // autofix
-    _ = input_system.create(
-        ID("input_sys"),
-        input_system.SystemCreateCtx.view(gameloop_context),
-    );
+    input_system.create(input_system.SystemCreateCtx.view(gameloop_context));
 
     // physics_sys = try physics_system.create(
     //     ID("physics_system"),
@@ -81,18 +78,8 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     //     navmesh_system.SystemCtx.view(gameloop_context),
     // );
 
-    // camera_sys = try camera_system.create(
-    //     ID("camera_system"),
-    //     std.heap.page_allocator,
-    //     gameloop_context.ecsu_world,
-    //     gameloop_context.input_frame_data,
-    //     gameloop_context.renderer,
-    // );
-
-    renderer_system.create(
-        ID("renderer_system"),
-        renderer_system.SystemCreateCtx.view(gameloop_context),
-    );
+    camera_system.create(camera_system.SystemCreateCtx.view(gameloop_context));
+    renderer_system.create(renderer_system.SystemCreateCtx.view(gameloop_context));
 }
 
 pub fn setupSystems() void {
