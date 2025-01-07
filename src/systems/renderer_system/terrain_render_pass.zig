@@ -241,7 +241,6 @@ pub const TerrainRenderPass = struct {
         self.quads_to_load.deinit();
         self.normals_to_generate.deinit();
         self.allocator.destroy(self.instance_data);
-        self.allocator.destroy(self);
     }
 
     fn loadTerrainResources(self: *TerrainRenderPass) !void {

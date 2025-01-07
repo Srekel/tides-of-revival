@@ -70,7 +70,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     geometry_render_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
 
     const terrain_render_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
-    // terrain_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
+    terrain_render_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
 
     const deferred_shading_render_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
     deferred_shading_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
@@ -132,7 +132,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
-    // system.state.terrain_render_pass.destroy();
+    system.state.terrain_render_pass.destroy();
     system.state.geometry_render_pass.destroy();
     system.state.post_processing_pass.destroy();
     system.state.deferred_shading_render_pass.destroy();
