@@ -66,41 +66,41 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const ctx_renderer = create_ctx.renderer;
     const ecsu_world = create_ctx.ecsu_world;
 
-    const geometry_pass = arena_system_lifetime.create(GeometryRenderPass) catch unreachable;
-    // geometry_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
+    const geometry_render_pass = arena_system_lifetime.create(GeometryRenderPass) catch unreachable;
+    geometry_render_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
 
-    const terrain_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
+    const terrain_render_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
     // terrain_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
 
-    const deferred_shading_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
-    deferred_shading_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    const deferred_shading_render_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
+    deferred_shading_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const atmosphere_pass = arena_system_lifetime.create(AtmosphereRenderPass) catch unreachable;
+    const atmosphere_render_pass = arena_system_lifetime.create(AtmosphereRenderPass) catch unreachable;
     // atmosphere_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const water_pass = arena_system_lifetime.create(WaterRenderPass) catch unreachable;
+    const water_render_pass = arena_system_lifetime.create(WaterRenderPass) catch unreachable;
     // water_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const post_processing_pass = arena_system_lifetime.create(PostProcessingRenderPass) catch unreachable;
-    post_processing_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    const post_processing_render_pass = arena_system_lifetime.create(PostProcessingRenderPass) catch unreachable;
+    post_processing_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const ui_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
+    const ui_render_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
     // ui_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
-    const im3d_pass = arena_system_lifetime.create(Im3dRenderPass) catch unreachable;
+    const im3d_render_pass = arena_system_lifetime.create(Im3dRenderPass) catch unreachable;
     // im3d_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
-        .terrain_render_pass = terrain_pass,
-        .geometry_render_pass = geometry_pass,
-        .deferred_shading_render_pass = deferred_shading_pass,
-        .atmosphere_render_pass = atmosphere_pass,
-        .water_render_pass = water_pass,
-        .post_processing_pass = post_processing_pass,
-        .ui_render_pass = ui_pass,
-        .im3d_render_pass = im3d_pass,
+        .terrain_render_pass = terrain_render_pass,
+        .geometry_render_pass = geometry_render_pass,
+        .deferred_shading_render_pass = deferred_shading_render_pass,
+        .atmosphere_render_pass = atmosphere_render_pass,
+        .water_render_pass = water_render_pass,
+        .post_processing_pass = post_processing_render_pass,
+        .ui_render_pass = ui_render_pass,
+        .im3d_render_pass = im3d_render_pass,
         .render_imgui = false,
     };
 
@@ -133,7 +133,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
     // system.state.terrain_render_pass.destroy();
-    // system.state.geometry_render_pass.destroy();
+    system.state.geometry_render_pass.destroy();
     system.state.post_processing_pass.destroy();
     system.state.deferred_shading_render_pass.destroy();
     // system.state.atmosphere_render_pass.destroy();

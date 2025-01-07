@@ -78,7 +78,7 @@ pub const GeometryRenderPass = struct {
     renderer: *renderer.Renderer,
     render_pass: renderer.RenderPass,
     prefab_mgr: *PrefabManager,
-    query_static_mesh: ecsu.Query,
+    query_static_mesh: *ecs.query_t,
 
     uniform_frame_data: UniformFrameData,
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -215,12 +215,14 @@ pub const GeometryRenderPass = struct {
         const shadow_caster_draw_calls_push_constants = [max_entity_types]std.ArrayList(DrawCallPushConstants){ std.ArrayList(DrawCallPushConstants).init(allocator), std.ArrayList(DrawCallPushConstants).init(allocator) };
 
         // Queries
-        var query_builder_mesh = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_mesh
-            .withReadonly(fd.HierarchicalStaticMesh)
-            .withReadonly(fd.Transform)
-            .withReadonly(fd.Scale);
-        const query_static_mesh = query_builder_mesh.buildQuery();
+        const query_static_mesh = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_static_mesh"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.HierarchicalStaticMesh), .inout = .In },
+                .{ .id = ecs.id(fd.Transform), .inout = .In },
+                .{ .id = ecs.id(fd.Scale), .inout = .In },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
+        }) catch unreachable;
 
         self.* = .{
             .allocator = allocator,
@@ -259,7 +261,7 @@ pub const GeometryRenderPass = struct {
             .create_descriptor_sets_fn = createDescriptorSets,
             .prepare_descriptor_sets_fn = prepareDescriptorSets,
             .unload_descriptor_sets_fn = unloadDescriptorSets,
-            .render_gbuffer_pass_fn =  renderGBuffer,
+            .render_gbuffer_pass_fn = renderGBuffer,
             .render_shadow_pass_fn = renderShadowMap,
             .user_data = @ptrCast(self),
         };
@@ -268,7 +270,6 @@ pub const GeometryRenderPass = struct {
 
     pub fn destroy(self: *GeometryRenderPass) void {
         self.renderer.unregisterRenderPass(&self.render_pass);
-        self.query_static_mesh.deinit();
 
         unloadDescriptorSets(@ptrCast(self));
 
@@ -287,8 +288,6 @@ pub const GeometryRenderPass = struct {
         self.shadow_caster_draw_calls[masked_entities_index].deinit();
         self.shadow_caster_draw_calls_push_constants[opaque_entities_index].deinit();
         self.shadow_caster_draw_calls_push_constants[masked_entities_index].deinit();
-
-        self.allocator.destroy(self);
     }
 };
 
@@ -331,7 +330,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
     zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
     self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
-    self.uniform_frame_data.time = self.renderer.time;
+    self.uniform_frame_data.time = @floatCast(self.renderer.time); // keep f64?
 
     // Update Uniform Frame Buffer
     {
@@ -557,7 +556,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const z_proj = zm.orthographicLh(shadow_range, shadow_range, -500.0, 500.0);
     const z_proj_view = zm.mul(z_view, z_proj);
     zm.storeMat(&self.shadows_uniform_frame_data.projection_view, z_proj_view);
-    self.shadows_uniform_frame_data.time = self.renderer.time;
+    self.shadows_uniform_frame_data.time = @floatCast(self.renderer.time);
 
     const data = renderer.Slice{
         .data = @ptrCast(&self.shadows_uniform_frame_data),
@@ -915,12 +914,6 @@ fn cullAndBatchDrawCalls(
         transform: *const fd.Transform,
     });
     const camera_position = camera_comps.transform.getPos00();
-
-    var entity_iterator = self.query_static_mesh.iterator(struct {
-        mesh: *const fd.HierarchicalStaticMesh,
-        transform: *const fd.Transform,
-        scale: *const fd.Scale,
-    });
     trazy_zone1.End();
 
     {
@@ -940,93 +933,98 @@ fn cullAndBatchDrawCalls(
         defer trazy_zone2.End();
 
         const max_draw_distance_squared = max_draw_distance * max_draw_distance;
+        var query_static_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_static_mesh);
+        while (ecs.query_next(&query_static_mesh_iter)) {
+            const static_meshes = ecs.field(&query_static_mesh_iter, fd.HierarchicalStaticMesh, 0).?;
+            const transforms = ecs.field(&query_static_mesh_iter, fd.Transform, 1).?;
+            const scales = ecs.field(&query_static_mesh_iter, fd.Scale, 2).?;
+            for (static_meshes, transforms, scales) |*mesh_comp, transform, scale| {
+                var static_mesh = mesh_comp.static_meshes[0];
+                var sub_mesh_count = static_mesh.material_count;
+                if (sub_mesh_count == 0) continue;
 
-        while (entity_iterator.next()) |comps| {
-            var static_mesh = comps.mesh.static_meshes[0];
-            var sub_mesh_count = static_mesh.material_count;
-            if (sub_mesh_count == 0) continue;
-
-            // Distance culling
-            if (!isWithinCameraDrawDistance(camera_position, comps.transform.getPos00(), max_draw_distance_squared)) {
-                continue;
-            }
-
-            // TODO(gmodarelli): If we're in a shadow-casting pass, we should use the "light's camera frustum"
-            const mesh = self.renderer.getMesh(static_mesh.mesh_handle);
-            var world: [16]f32 = undefined;
-            storeMat44(comps.transform.matrix[0..], &world);
-            const z_world = zm.loadMat(world[0..]);
-            const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
-            var bounding_sphere_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
-            zm.storeArr3(&bounding_sphere_center, zm.mul(z_aabbcenter, z_world));
-            const bounding_sphere_radius = mesh.geometry.*.mRadius * @max(comps.scale.x, @max(comps.scale.y, comps.scale.z));
-            if (!camera_comps.camera.isVisible(bounding_sphere_center, bounding_sphere_radius)) {
-                continue;
-            }
-
-            // LOD Selection
-            static_mesh = selectLOD(comps.mesh, camera_position, comps.transform.getPos00());
-            sub_mesh_count = static_mesh.material_count;
-
-            var draw_call_info = DrawCallInfo{
-                .pipeline_id = undefined,
-                .mesh_handle = static_mesh.mesh_handle,
-                .sub_mesh_index = undefined,
-            };
-
-            for (0..sub_mesh_count) |sub_mesh_index| {
-                draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
-
-                const material_handle = static_mesh.materials[sub_mesh_index];
-                const pipeline_ids = self.renderer.getMaterialPipelineIds(material_handle);
-                const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_handle);
-
-                draw_call_info.pipeline_id = undefined;
-
-                if (technique == .gbuffer) {
-                    if (pipeline_ids.gbuffer_pipeline_id) |p_id| {
-                        draw_call_info.pipeline_id = p_id;
-                    } else {
-                        continue;
-                    }
-                } else if (technique == .shadow_caster) {
-                    if (pipeline_ids.shadow_caster_pipeline_id) |p_id| {
-                        draw_call_info.pipeline_id = p_id;
-                    } else {
-                        continue;
-                    }
-                }
-
-                var should_parse_submesh = false;
-
-                if (surface_type == .@"opaque") {
-                    for (renderer.opaque_pipelines) |pipeline| {
-                        if (draw_call_info.pipeline_id.hash == pipeline.hash) {
-                            should_parse_submesh = true;
-                            break;
-                        }
-                    }
-                } else {
-                    for (renderer.masked_pipelines) |pipeline| {
-                        if (draw_call_info.pipeline_id.hash == pipeline.hash) {
-                            should_parse_submesh = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!should_parse_submesh) {
+                // Distance culling
+                if (!isWithinCameraDrawDistance(camera_position, transform.getPos00(), max_draw_distance_squared)) {
                     continue;
                 }
 
-                self.draw_calls_info.append(draw_call_info) catch unreachable;
+                // TODO(gmodarelli): If we're in a shadow-casting pass, we should use the "light's camera frustum"
+                const mesh = self.renderer.getMesh(static_mesh.mesh_handle);
+                var world: [16]f32 = undefined;
+                storeMat44(transform.matrix[0..], &world);
+                const z_world = zm.loadMat(world[0..]);
+                const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
+                var bounding_sphere_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
+                zm.storeArr3(&bounding_sphere_center, zm.mul(z_aabbcenter, z_world));
+                const bounding_sphere_radius = mesh.geometry.*.mRadius * @max(scale.x, @max(scale.y, scale.z));
+                if (!camera_comps.camera.isVisible(bounding_sphere_center, bounding_sphere_radius)) {
+                    continue;
+                }
 
-                var instance_data: InstanceData = undefined;
-                storeMat44(comps.transform.matrix[0..], &instance_data.object_to_world);
-                storeMat44(comps.transform.inv_matrix[0..], &instance_data.world_to_object);
-                instance_data.materials_buffer_offset = material_buffer_offset;
-                instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
-                instances.append(instance_data) catch unreachable;
+                // LOD Selection
+                static_mesh = selectLOD(mesh_comp, camera_position, transform.getPos00());
+                sub_mesh_count = static_mesh.material_count;
+
+                var draw_call_info = DrawCallInfo{
+                    .pipeline_id = undefined,
+                    .mesh_handle = static_mesh.mesh_handle,
+                    .sub_mesh_index = undefined,
+                };
+
+                for (0..sub_mesh_count) |sub_mesh_index| {
+                    draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
+
+                    const material_handle = static_mesh.materials[sub_mesh_index];
+                    const pipeline_ids = self.renderer.getMaterialPipelineIds(material_handle);
+                    const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_handle);
+
+                    draw_call_info.pipeline_id = undefined;
+
+                    if (technique == .gbuffer) {
+                        if (pipeline_ids.gbuffer_pipeline_id) |p_id| {
+                            draw_call_info.pipeline_id = p_id;
+                        } else {
+                            continue;
+                        }
+                    } else if (technique == .shadow_caster) {
+                        if (pipeline_ids.shadow_caster_pipeline_id) |p_id| {
+                            draw_call_info.pipeline_id = p_id;
+                        } else {
+                            continue;
+                        }
+                    }
+
+                    var should_parse_submesh = false;
+
+                    if (surface_type == .@"opaque") {
+                        for (renderer.opaque_pipelines) |pipeline| {
+                            if (draw_call_info.pipeline_id.hash == pipeline.hash) {
+                                should_parse_submesh = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        for (renderer.masked_pipelines) |pipeline| {
+                            if (draw_call_info.pipeline_id.hash == pipeline.hash) {
+                                should_parse_submesh = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!should_parse_submesh) {
+                        continue;
+                    }
+
+                    self.draw_calls_info.append(draw_call_info) catch unreachable;
+
+                    var instance_data: InstanceData = undefined;
+                    storeMat44(transform.matrix[0..], &instance_data.object_to_world);
+                    storeMat44(transform.inv_matrix[0..], &instance_data.world_to_object);
+                    instance_data.materials_buffer_offset = material_buffer_offset;
+                    instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
+                    instances.append(instance_data) catch unreachable;
+                }
             }
         }
     }
