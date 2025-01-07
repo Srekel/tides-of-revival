@@ -85,7 +85,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     post_processing_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const ui_render_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
-    // ui_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    ui_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const im3d_render_pass = arena_system_lifetime.create(Im3dRenderPass) catch unreachable;
     // im3d_pass.init(ctx_renderer, ecsu_world, pass_allocator);
@@ -138,7 +138,7 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     system.state.deferred_shading_render_pass.destroy();
     system.state.atmosphere_render_pass.destroy();
     system.state.water_render_pass.destroy();
-    // system.state.ui_render_pass.destroy();
+    system.state.ui_render_pass.destroy();
     // system.state.im3d_render_pass.destroy();
 }
 

@@ -38,7 +38,7 @@ pub const UIRenderPass = struct {
     descriptor_set: [*c]graphics.DescriptorSet,
     instance_data: std.ArrayList(UIInstanceData),
     instance_data_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    query_ui_images: ecsu.Query,
+    query_ui_images: *ecs.query_t,
 
     pub fn init(self: *UIRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
         const uniform_frame_buffers = blk: {
@@ -76,9 +76,12 @@ pub const UIRenderPass = struct {
 
         const instance_data = std.ArrayList(UIInstanceData).init(allocator);
 
-        var query_builder_ui = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_ui.withReadonly(fd.UIImage);
-        const query_ui_images = query_builder_ui.buildQuery();
+        const query_ui_images = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_ui_images"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.UIImage), .inout = .In },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+        }) catch unreachable;
 
         self.* = .{
             .allocator = allocator,
@@ -110,11 +113,9 @@ pub const UIRenderPass = struct {
     pub fn destroy(self: *UIRenderPass) void {
         self.renderer.unregisterRenderPass(&self.render_pass);
 
-        self.query_ui_images.deinit();
         self.instance_data.deinit();
 
         unloadDescriptorSets(@ptrCast(self));
-        self.allocator.destroy(self);
     }
 };
 
@@ -148,21 +149,20 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     };
     self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
-    var entity_iter_ui = self.query_ui_images.iterator(struct {
-        ui_image: *const fd.UIImage,
-    });
-
     self.instance_data.clearRetainingCapacity();
 
-    while (entity_iter_ui.next()) |comps| {
-        const ui_image = comps.ui_image;
-        const ui_material = ui_image.material;
-        self.instance_data.append(.{
-            .rect = [4]f32{ ui_image.rect[0], ui_image.rect[1], ui_image.rect[2], ui_image.rect[3] },
-            .color = [4]f32{ ui_material.color[0], ui_material.color[1], ui_material.color[2], ui_material.color[3] },
-            .texture_index = self.renderer.getTextureBindlessIndex(ui_material.texture),
-            ._padding = [3]u32{ 42, 42, 42 },
-        }) catch unreachable;
+    var query_ui_images_iter = ecs.query_iter(self.ecsu_world.world, self.query_ui_images);
+    while (ecs.query_next(&query_ui_images_iter)) {
+        const ui_images = ecs.field(&query_ui_images_iter, fd.UIImage, 0).?;
+        for (ui_images) |ui_image| {
+            const ui_material = ui_image.material;
+            self.instance_data.append(.{
+                .rect = [4]f32{ ui_image.rect[0], ui_image.rect[1], ui_image.rect[2], ui_image.rect[3] },
+                .color = [4]f32{ ui_material.color[0], ui_material.color[1], ui_material.color[2], ui_material.color[3] },
+                .texture_index = self.renderer.getTextureBindlessIndex(ui_material.texture),
+                ._padding = [3]u32{ 42, 42, 42 },
+            }) catch unreachable;
+        }
     }
 
     const instance_data_slice = renderer.Slice{
