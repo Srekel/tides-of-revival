@@ -137,7 +137,7 @@ const DensityProfileLayer = extern struct {
 // extend to the top atmosphere boundary. The profile values vary between 0
 // (null density) to 1 (maximum density).
 const DensityProfile = extern struct {
-   layers: [2]DensityProfileLayer,
+    layers: [2]DensityProfileLayer,
 };
 
 const AtmoshereInfo = extern struct {
@@ -348,7 +348,6 @@ pub const AtmosphereRenderPass = struct {
         self.renderer.unregisterRenderPass(&self.render_pass);
 
         unloadDescriptorSets(@ptrCast(self));
-        self.allocator.destroy(self);
     }
 };
 
@@ -474,7 +473,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             self.atmosphere_info.rayleigh_density.layers[1].exp_scale,
             self.atmosphere_info.rayleigh_density.layers[1].linear_term,
             self.atmosphere_info.rayleigh_density.layers[1].constant_term,
-            42.0, 42.0
+            42.0,
+            42.0,
         };
         // TODO: Find a way to do this in zig
         // @memcpy(&cb.mie_density, &self.atmosphere_info.mie_density);
@@ -489,7 +489,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             self.atmosphere_info.mie_density.layers[1].exp_scale,
             self.atmosphere_info.mie_density.layers[1].linear_term,
             self.atmosphere_info.mie_density.layers[1].constant_term,
-            42.0, 42.0
+            42.0,
+            42.0,
         };
         // TODO: Find a way to do this in zig
         // @memcpy(&cb.absorption_density, &self.atmosphere_info.absorption_density);
@@ -504,7 +505,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             self.atmosphere_info.absorption_density.layers[1].exp_scale,
             self.atmosphere_info.absorption_density.layers[1].linear_term,
             self.atmosphere_info.absorption_density.layers[1].constant_term,
-            42.0, 42.0
+            42.0,
+            42.0,
         };
 
         cb.mie_phase_function_g = self.atmosphere_info.mie_phase_function_g;
