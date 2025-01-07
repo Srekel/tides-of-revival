@@ -81,7 +81,7 @@ pub const WaterRenderPass = struct {
     ecsu_world: ecsu.World,
     renderer: *renderer.Renderer,
     render_pass: renderer.RenderPass,
-    query_water: ecsu.Query,
+    query_water: *ecs.query_t,
 
     uniform_frame_data: UniformFrameData,
     uniform_light_data: UniformLightData,
@@ -143,12 +143,14 @@ pub const WaterRenderPass = struct {
             break :blk buffers;
         };
 
-        var query_builder_water = ecsu.QueryBuilder.init(ecsu_world);
-        _ = query_builder_water
-            .withReadonly(fd.Transform)
-            .withReadonly(fd.Water)
-            .withReadonly(fd.Scale);
-        const query_water = query_builder_water.buildQuery();
+        const query_water = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_water"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.Transform), .inout = .In },
+                .{ .id = ecs.id(fd.Water), .inout = .In },
+                .{ .id = ecs.id(fd.Scale), .inout = .In },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
+        }) catch unreachable;
 
         const water_normal_handle = rctx.loadTexture("prefabs/environment/water/water_normal.dds");
         const water_material_instance = WaterMaterialInstance{
@@ -175,7 +177,7 @@ pub const WaterRenderPass = struct {
             .rt_copy_descriptor_sets = undefined,
             .instance_data = std.ArrayList(InstanceData).init(allocator),
             .instance_data_buffers = instance_data_buffers,
-            .material_data  = std.ArrayList(WaterMaterial).init(allocator),
+            .material_data = std.ArrayList(WaterMaterial).init(allocator),
             .material_data_buffers = material_data_buffers,
             .query_water = query_water,
         };
@@ -196,9 +198,10 @@ pub const WaterRenderPass = struct {
 
     pub fn destroy(self: *WaterRenderPass) void {
         self.renderer.unregisterRenderPass(&self.render_pass);
-        self.query_water.deinit();
 
         unloadDescriptorSets(@ptrCast(self));
+        self.instance_data.deinit();
+        self.material_data.deinit();
     }
 };
 
@@ -222,7 +225,7 @@ fn renderImGui(user_data: *anyopaque) void {
         _ = zgui.dragFloat2("Water 1 Direction", .{ .v = &self.water_material_instance.normal_map_1_direction, .speed = 0.01, .min = -1.0, .max = 1.0 });
         _ = zgui.dragFloat("Water 2 Tiling", .{ .v = &self.water_material_instance.normal_map_2_tiling, .speed = 0.01, .min = 0.0, .max = 10.0 });
         _ = zgui.dragFloat("Water 2 Intensity", .{ .v = &self.water_material_instance.normal_map_2_intensity, .speed = 0.01, .min = 0.0, .max = 1.0 });
-        _ = zgui.dragFloat2("Water 2 Direction", .{ .v = &self.water_material_instance.normal_map_2_direction, .speed = 0.01, .min = -1.0, .max = 1.0});
+        _ = zgui.dragFloat2("Water 2 Direction", .{ .v = &self.water_material_instance.normal_map_2_direction, .speed = 0.01, .min = -1.0, .max = 1.0 });
     }
 }
 
@@ -287,7 +290,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         const near = camera_comps.camera.near;
         const far = camera_comps.camera.far;
         self.uniform_frame_data.depth_buffer_parameters = [4]f32{ far / near - 1.0, 1, (1 / near - 1 / far), 1 / far };
-        self.uniform_frame_data.time = self.renderer.time;
+        self.uniform_frame_data.time = @floatCast(self.renderer.time);
 
         // Update Uniform Frame Buffer
         {
@@ -315,36 +318,38 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         self.instance_data.clearRetainingCapacity();
-        var entity_iterator = self.query_water.iterator(struct {
-            transform: *const fd.Transform,
-            water: *const fd.Water,
-            scale: *const fd.Scale,
-        });
-        var first_iteration = true;
+
         var mesh: renderer.Mesh = undefined;
-        while (entity_iterator.next()) |comps| {
-            if (first_iteration) {
-                first_iteration = false;
+        var first_iteration = true;
+        var query_water_iter = ecs.query_iter(self.ecsu_world.world, self.query_water);
+        while (ecs.query_next(&query_water_iter)) {
+            const transforms = ecs.field(&query_water_iter, fd.Transform, 0).?;
+            const waters = ecs.field(&query_water_iter, fd.Water, 1).?;
+            const scales = ecs.field(&query_water_iter, fd.Scale, 2).?;
+            for (transforms, waters, scales) |transform, water, scale| {
+                if (first_iteration) {
+                    first_iteration = false;
 
-                mesh = self.renderer.getMesh(comps.water.mesh_handle);
+                    mesh = self.renderer.getMesh(water.mesh_handle);
+                }
+
+                var instance_data = std.mem.zeroes(InstanceData);
+                storeMat44(transform.matrix[0..], &instance_data.object_to_world);
+
+                const z_world = zm.loadMat(instance_data.object_to_world[0..]);
+                const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
+                var bounding_sphere_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
+                zm.storeArr3(&bounding_sphere_center, zm.mul(z_aabbcenter, z_world));
+                const bounding_sphere_radius = mesh.geometry.*.mRadius * @max(scale.x, @max(scale.y, scale.z));
+                if (!camera_comps.camera.isVisible(bounding_sphere_center, bounding_sphere_radius)) {
+                    continue;
+                }
+
+                storeMat44(transform.inv_matrix[0..], &instance_data.world_to_object);
+                // NOTE(gmodarelli): We're using a single material for now
+                instance_data.material_buffer_offset = 0;
+                self.instance_data.append(instance_data) catch unreachable;
             }
-
-            var instance_data = std.mem.zeroes(InstanceData);
-            storeMat44(comps.transform.matrix[0..], &instance_data.object_to_world);
-
-            const z_world = zm.loadMat(instance_data.object_to_world[0..]);
-            const z_aabbcenter = zm.loadArr3w(mesh.geometry.*.mAabbCenter, 1.0);
-            var bounding_sphere_center: [3]f32 = .{ 0.0, 0.0, 0.0 };
-            zm.storeArr3(&bounding_sphere_center, zm.mul(z_aabbcenter, z_world));
-            const bounding_sphere_radius = mesh.geometry.*.mRadius * @max(comps.scale.x, @max(comps.scale.y, comps.scale.z));
-            if (!camera_comps.camera.isVisible(bounding_sphere_center, bounding_sphere_radius)) {
-                continue;
-            }
-
-            storeMat44(comps.transform.inv_matrix[0..], &instance_data.world_to_object);
-            // NOTE(gmodarelli): We're using a single material for now
-            instance_data.material_buffer_offset = 0;
-            self.instance_data.append(instance_data) catch unreachable;
         }
 
         if (self.instance_data.items.len > 0) {
@@ -365,8 +370,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .surface_roughness = self.water_material_instance.surface_roughness,
                 .surface_opacity = self.water_material_instance.surface_opacity,
 
-                .normal_map_1_params = [4]f32{ self.water_material_instance.normal_map_1_tiling, self.water_material_instance.normal_map_1_direction[0], self.water_material_instance.normal_map_2_direction[1], self.water_material_instance.normal_map_1_intensity},
-                .normal_map_2_params = [4]f32{ self.water_material_instance.normal_map_2_tiling, self.water_material_instance.normal_map_2_direction[0], self.water_material_instance.normal_map_2_direction[1], self.water_material_instance.normal_map_2_intensity},
+                .normal_map_1_params = [4]f32{ self.water_material_instance.normal_map_1_tiling, self.water_material_instance.normal_map_1_direction[0], self.water_material_instance.normal_map_2_direction[1], self.water_material_instance.normal_map_1_intensity },
+                .normal_map_2_params = [4]f32{ self.water_material_instance.normal_map_2_tiling, self.water_material_instance.normal_map_2_direction[0], self.water_material_instance.normal_map_2_direction[1], self.water_material_instance.normal_map_2_intensity },
             };
             self.material_data.append(water_material) catch unreachable;
 
