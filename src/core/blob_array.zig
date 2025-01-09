@@ -24,6 +24,10 @@ pub fn BlobArray(comptime alignment: u29) type {
             };
         }
 
+        pub fn destroy(self: *Self) void {
+            self.list.deinit();
+        }
+
         pub fn addBlob(self: *Self) u64 {
             self.blob_count += 1;
             const size_curr = self.list.items.len;

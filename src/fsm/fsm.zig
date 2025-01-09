@@ -89,7 +89,7 @@ pub const State = struct {
 
 pub const StateCreateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
-    allocator: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     // prefab_mgr: *PrefabManager,
 };
@@ -97,7 +97,7 @@ pub const StateCreateContext = struct {
 pub const StateFuncContext = struct {
     state: *const State,
     transition_events: std.BoundedArray(Trigger, 32),
-    allocator: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     blob_array: *BlobArray(16),

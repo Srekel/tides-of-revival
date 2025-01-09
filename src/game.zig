@@ -144,12 +144,12 @@ pub fn run() void {
         ecsu_world: ecsu.World,
         event_mgr: *EventManager,
         input_frame_data: *input.FrameData,
+        main_window: *window.Window,
         physics_world: *zphy.PhysicsSystem,
         prefab_mgr: *prefab_manager.PrefabManager,
         renderer: *renderer.Renderer,
-        world_patch_mgr: *world_patch_manager.WorldPatchManager,
         stats: *renderer.FrameStats,
-        main_window: *window.Window,
+        world_patch_mgr: *world_patch_manager.WorldPatchManager,
     };
 
     var root_allocator = std.heap.GeneralPurposeAllocator(.{}){};

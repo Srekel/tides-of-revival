@@ -13,7 +13,7 @@ const input_system = @import("../systems/input_system.zig");
 // const patch_prop_system = @import("../systems/patch_prop_system.zig");
 // const physics_system = @import("../systems/physics_system.zig");
 const renderer_system = @import("../systems/renderer_system.zig");
-// const state_machine_system = @import("../systems/state_machine_system.zig");
+const state_machine_system = @import("../systems/state_machine_system.zig");
 // const timeline_system = @import("../systems/timeline_system.zig");
 
 // pub var timeline_sys: *timeline_system.SystemState = undefined;
@@ -40,11 +40,7 @@ pub fn createSystems(gameloop_context: anytype, system_context: *util.Context) v
     // system_context.put(config.input_frame_data, gameloop_context.input_frame_data);
     // system_context.putOpaque(config.physics_world, physics_sys.physics_world);
 
-    // state_machine_sys = try state_machine_system.create(
-    //     ID("state_machine_sys"),
-    //     std.heap.page_allocator,
-    //     state_machine_system.SystemCtx.view(gameloop_context),
-    // );
+    state_machine_system.create(state_machine_system.SystemCreateCtx.view(gameloop_context));
 
     // interact_sys = try interact_system.create(
     //     ID("interact_sys"),

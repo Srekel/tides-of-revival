@@ -79,7 +79,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_ent.set(fd.Forward{});
     player_ent.set(fd.Velocity{});
     player_ent.set(fd.Dynamic{});
-    player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
+    // player_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("player_controller") });
     player_ent.set(fd.WorldLoader{
         .range = 2,
         .physics = true,
@@ -109,7 +109,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .props = true,
     });
     debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
-    debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
+    // debug_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("debug_camera") });
 
     const sphere_prefab = prefab_mgr.getPrefab(config.prefab.sphere_id).?;
     const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);

@@ -199,14 +199,14 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .without(fd.Input);
 
     const query = query_builder.buildQuery();
-    var self = ctx.allocator.create(StateGiantAnt) catch unreachable;
+    var self = ctx.heap_allocator.create(StateGiantAnt) catch unreachable;
     self.query = query;
 
     return .{
         .name = IdLocal.init("giant_ant"),
         .self = std.mem.asBytes(self),
         .size = @sizeOf(StateData),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.allocator),
+        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
         .enter = enter,
         .exit = exit,
         .update = update,

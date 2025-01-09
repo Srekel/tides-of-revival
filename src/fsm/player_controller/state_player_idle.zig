@@ -117,69 +117,69 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
     }
 }
 
-fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-    const transform = ecs.get(ctx.ecsu_world.world, entity, fd.Transform);
-    const pos = transform.?.getPos00();
+// fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
+//     const transform = ecs.get(ctx.ecsu_world.world, entity, fd.Transform);
+//     const pos = transform.?.getPos00();
 
-    const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
-    if (environment_info.sun_height > -0.5) {
-        return;
-    }
+//     const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
+//     if (environment_info.sun_height > -0.5) {
+//         return;
+//     }
 
-    const FilterCallback = struct {
-        transform: *fd.Transform,
-        light: *const fd.Light,
-    };
+//     const FilterCallback = struct {
+//         transform: *fd.Transform,
+//         light: *const fd.Light,
+//     };
 
-    var safe_from_darkness = false;
-    var filter = ctx.ecsu_world.filter(FilterCallback);
-    defer filter.deinit();
-    var filter_it = filter.iterator(FilterCallback);
-    while (filter_it.next()) |comps| {
-        const filter_ent = ecsu.Entity.init(filter_it.world().world, filter_it.entity());
-        if (filter_ent.hasPair(ecs.ChildOf, entity)) {
-            continue;
-        }
+//     var safe_from_darkness = false;
+//     var filter = ctx.ecsu_world.filter(FilterCallback);
+//     defer filter.deinit();
+//     var filter_it = filter.iterator(FilterCallback);
+//     while (filter_it.next()) |comps| {
+//         const filter_ent = ecsu.Entity.init(filter_it.world().world, filter_it.entity());
+//         if (filter_ent.hasPair(ecs.ChildOf, entity)) {
+//             continue;
+//         }
 
-        const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
-        if (dist < comps.light.range) {
-            safe_from_darkness = true;
-            ecs.iter_fini(filter_it.iter);
-            break;
-        }
-    }
+//         const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
+//         if (dist < comps.light.range) {
+//             safe_from_darkness = true;
+//             ecs.iter_fini(filter_it.iter);
+//             break;
+//         }
+//     }
 
-    if (!safe_from_darkness) {
-        std.debug.panic("dead", .{});
-    }
-}
+//     if (!safe_from_darkness) {
+//         std.debug.panic("dead", .{});
+//     }
+// }
 
-fn updateWinFromArrival(entity_id: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-    const ent = ecsu.Entity.init(ctx.ecsu_world.world, entity_id);
-    const transform = ecs.get(ctx.ecsu_world.world, entity_id, fd.Transform);
-    const pos = transform.?.getPos00();
+// fn updateWinFromArrival(entity_id: ecs.entity_t, ctx: fsm.StateFuncContext) void {
+//     const ent = ecsu.Entity.init(ctx.ecsu_world.world, entity_id);
+//     const transform = ecs.get(ctx.ecsu_world.world, entity_id, fd.Transform);
+//     const pos = transform.?.getPos00();
 
-    const FilterCallback = struct {
-        pos: *fd.Position,
-        city: *const fd.CompCity,
-    };
+//     const FilterCallback = struct {
+//         pos: *fd.Position,
+//         city: *const fd.CompCity,
+//     };
 
-    var filter = ctx.ecsu_world.filter(FilterCallback);
-    defer filter.deinit();
-    var filter_it = filter.iterator(FilterCallback);
-    while (filter_it.next()) |comps| {
-        if (ent.hasPair(fr.Hometown, filter_it.entity())) {
-            continue;
-        }
+//     var filter = ctx.ecsu_world.filter(FilterCallback);
+//     defer filter.deinit();
+//     var filter_it = filter.iterator(FilterCallback);
+//     while (filter_it.next()) |comps| {
+//         if (ent.hasPair(fr.Hometown, filter_it.entity())) {
+//             continue;
+//         }
 
-        const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
-        if (dist < 20) {
-            std.debug.panic("win", .{});
-            ecs.iter_fini(filter_it.iter);
-            break;
-        }
-    }
-}
+//         const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
+//         if (dist < 20) {
+//             std.debug.panic("win", .{});
+//             ecs.iter_fini(filter_it.iter);
+//             break;
+//         }
+//     }
+// }
 
 pub const StateIdle = struct {
     amount_moved: f32,
@@ -277,14 +277,14 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
         .without(fd.Camera);
 
     const query = query_builder.buildQuery();
-    var self = ctx.allocator.create(StatePlayerIdle) catch unreachable;
+    var self = ctx.heap_allocator.create(StatePlayerIdle) catch unreachable;
     self.query = query;
 
     return .{
         .name = IdLocal.init("idle"),
         .self = std.mem.asBytes(self),
         .size = @sizeOf(StateIdle),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.allocator),
+        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
         .enter = enter,
         .exit = exit,
         .update = update,

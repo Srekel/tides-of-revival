@@ -31,49 +31,49 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
     rot.fromZM(constrained_z);
 }
 
-fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_mgr: *PrefabManager) void {
-    // TODO: No, interaction shouldn't be in camera.. :)
-    if (!input_state.just_pressed(config.input.interact)) {
-        return;
-    }
+// fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_mgr: *PrefabManager) void {
+//     // TODO: No, interaction shouldn't be in camera.. :)
+//     if (!input_state.just_pressed(config.input.interact)) {
+//         return;
+//     }
 
-    const z_mat = zm.loadMat43(transform.matrix[0..]);
-    const z_pos = zm.util.getTranslationVec(z_mat);
-    const z_fwd = zm.util.getAxisZ(z_mat);
+//     const z_mat = zm.loadMat43(transform.matrix[0..]);
+//     const z_pos = zm.util.getTranslationVec(z_mat);
+//     const z_fwd = zm.util.getAxisZ(z_mat);
 
-    const query = physics_world.getNarrowPhaseQuery();
-    const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
-    const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
-    const result = query.castRay(.{
-        .origin = ray_origin,
-        .direction = ray_dir,
-    }, .{});
+//     const query = physics_world.getNarrowPhaseQuery();
+//     const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+//     const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
+//     const result = query.castRay(.{
+//         .origin = ray_origin,
+//         .direction = ray_dir,
+//     }, .{});
 
-    if (result.has_hit) {
-        const post_pos = fd.Position.init(
-            ray_origin[0] + ray_dir[0] * result.hit.fraction,
-            ray_origin[1] + ray_dir[1] * result.hit.fraction,
-            ray_origin[2] + ray_dir[2] * result.hit.fraction,
-        );
-        var post_transform = fd.Transform.initFromPosition(post_pos);
-        post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
+//     if (result.has_hit) {
+//         const post_pos = fd.Position.init(
+//             ray_origin[0] + ray_dir[0] * result.hit.fraction,
+//             ray_origin[1] + ray_dir[1] * result.hit.fraction,
+//             ray_origin[2] + ray_dir[2] * result.hit.fraction,
+//         );
+//         var post_transform = fd.Transform.initFromPosition(post_pos);
+//         post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
 
-        const cylinder_prefab = prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
-        const post_ent = prefab_mgr.instantiatePrefab(ecsu_world, cylinder_prefab);
-        post_ent.set(post_pos);
-        post_ent.set(fd.Rotation{});
-        post_ent.set(fd.Scale.create(0.05, 2, 0.05));
-        post_ent.set(post_transform);
+//         const cylinder_prefab = prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
+//         const post_ent = prefab_mgr.instantiatePrefab(ecsu_world, cylinder_prefab);
+//         post_ent.set(post_pos);
+//         post_ent.set(fd.Rotation{});
+//         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
+//         post_ent.set(post_transform);
 
-        // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
-        // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
-        // const light_ent = ecsu_world.newEntity();
-        // light_ent.childOf(post_ent);
-        // light_ent.set(light_pos);
-        // light_ent.set(light_transform);
-        // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
-    }
-}
+//         // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
+//         // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
+//         // const light_ent = ecsu_world.newEntity();
+//         // light_ent.childOf(post_ent);
+//         // light_ent.set(light_pos);
+//         // light_ent.set(light_transform);
+//         // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
+//     }
+// }
 
 pub const StateIdle = struct {
     dummy: u32,
@@ -118,18 +118,20 @@ pub fn create(ctx: fsm.StateCreateContext) fsm.State {
     //     .with(fd.Rotation);
 
     // var query = query_builder.buildQuery();
-    const self = ctx.allocator.create(StateCameraFPS) catch unreachable;
+    const self = ctx.heap_allocator.create(StateCameraFPS) catch unreachable;
     // self.query = query;
 
     return .{
         .name = IdLocal.init("fps_camera"),
         .self = std.mem.asBytes(self),
         .size = @sizeOf(StateIdle),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.allocator),
+        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
         .enter = enter,
         .exit = exit,
         .update = update,
     };
 }
 
-pub fn destroy() void {}
+// pub fn destroy(self:*fsm.State) void {
+//     self.transitions.allocator.free(self.self);
+// }
