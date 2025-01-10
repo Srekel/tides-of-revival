@@ -40,7 +40,7 @@ const SystemUpdateContext = struct {
     },
 };
 
-// const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
+const StateCameraFreefly = @import("../fsm/camera/state_camera_freefly.zig");
 const StateCameraFPS = @import("../fsm/camera/state_camera_fps.zig");
 // const StatePlayerIdle = @import("../fsm/player_controller/state_player_idle.zig");
 // const StateGiantAnt = @import("../fsm/creature/state_giant_ant.zig");
@@ -129,24 +129,24 @@ fn initStateData(system: *SystemUpdateContext) void {
     //     },
     // }) catch unreachable;
 
-    // const debug_camera_sm = blk: {
-    //     const initial_state = StateCameraFreefly.create(sm_ctx);
-    //     var states = std.ArrayList(fsm.State).init(system.heap_allocator);
-    //     states.append(initial_state) catch unreachable;
-    //     const sm = fsm.StateMachine.create("debug_camera", states, "freefly");
-    //     system.state.state_machines.append(sm) catch unreachable;
-    //     break :blk &system.state.state_machines.items[system.state.state_machines.items.len - 1];
-    // };
+    const debug_camera_sm = blk: {
+        const initial_state = StateCameraFreefly.create(sm_ctx);
+        var states = std.ArrayList(fsm.State).init(system.heap_allocator);
+        states.append(initial_state) catch unreachable;
+        const sm = fsm.StateMachine.create("debug_camera", states, "freefly");
+        system.state.state_machines.append(sm) catch unreachable;
+        break :blk &system.state.state_machines.items[system.state.state_machines.items.len - 1];
+    };
 
-    // system.state.instances.append(.{
-    //     .state_machine = debug_camera_sm,
-    //     .curr_states = std.ArrayList(*fsm.State).init(system.heap_allocator),
-    //     .entities = std.ArrayList(ecs.entity_t).init(system.heap_allocator),
-    //     .blob_array = blk: {
-    //         const blob_array = BlobArray(16).create(system.heap_allocator, debug_camera_sm.max_state_size);
-    //         break :blk blob_array;
-    //     },
-    // }) catch unreachable;
+    system.state.instances.append(.{
+        .state_machine = debug_camera_sm,
+        .curr_states = std.ArrayList(*fsm.State).init(system.heap_allocator),
+        .entities = std.ArrayList(ecs.entity_t).init(system.heap_allocator),
+        .blob_array = blk: {
+            const blob_array = BlobArray(16).create(system.heap_allocator, debug_camera_sm.max_state_size);
+            break :blk blob_array;
+        },
+    }) catch unreachable;
 
     const fps_camera_sm = blk: {
         const initial_state = StateCameraFPS.create(sm_ctx);

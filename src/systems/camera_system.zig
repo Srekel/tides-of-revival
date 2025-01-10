@@ -240,7 +240,7 @@ fn updateCameraSwitch(it: *ecs.iter_t) callconv(.C) void {
     var query_iter = ecs.query_iter(ctx.ecsu_world.world, query);
     while (ecs.query_next(&query_iter)) {
         const inputs = ecs.field(&query_iter, fd.Input, 0).?;
-        const cameras_opt = ecs.field(&query_iter, fd.Camera, 0);
+        const cameras_opt = ecs.field(&query_iter, fd.Camera, 1);
         for (inputs, 0..) |*input_comp, i| {
             var active = false;
             if (input_comp.index == ctx.state.active_index) {
@@ -249,7 +249,7 @@ fn updateCameraSwitch(it: *ecs.iter_t) callconv(.C) void {
 
             input_comp.active = active;
             if (cameras_opt) |cameras| {
-                var cam = cameras[i];
+                var cam = &cameras[i];
                 cam.active = active;
                 if (active) {
                     var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;

@@ -104,7 +104,7 @@ pub const StateIdle = struct {
 };
 
 const StateCameraFreefly = struct {
-    query: ecsu.Query,
+    // query: ecsu.Query,
 };
 
 fn enter(ctx: fsm.StateFuncContext) void {
@@ -135,13 +135,13 @@ fn update(ctx: fsm.StateFuncContext) void {
 }
 
 pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    const self = ctx.allocator.create(StateCameraFreefly) catch unreachable;
+    const self = ctx.heap_allocator.create(StateCameraFreefly) catch unreachable;
 
     return .{
         .name = IdLocal.init("freefly"),
         .self = std.mem.asBytes(self),
         .size = @sizeOf(StateIdle),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.allocator),
+        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
         .enter = enter,
         .exit = exit,
         .update = update,
