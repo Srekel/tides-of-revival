@@ -11,6 +11,7 @@ const tides_math = @import("../core/math.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const ztracy = @import("ztracy");
 const config = @import("../config/config.zig");
+const context = @import("../core/context.zig");
 
 const WorldLoaderData = struct {
     ent: ecs.entity_t = 0,
@@ -24,109 +25,119 @@ const Patch = struct {
     lookup: world_patch_manager.PatchLookup,
 };
 
-pub const SystemState = struct {
-    flecs_sys: ecs.entity_t,
-    allocator: std.mem.Allocator,
+pub const SystemCreateCtx = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_lifetime: std.mem.Allocator,
+    arena_system_update: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
-    world_patch_mgr: *world_patch_manager.WorldPatchManager,
     prefab_mgr: *PrefabManager,
-
-    cam_pos_old: ?[3]f32 = null,
-    patches: std.ArrayList(Patch),
-    loaders: [1]WorldLoaderData = .{.{}},
-    requester_id: world_patch_manager.RequesterId,
-    comp_query_loader: ecsu.Query,
-    medium_house_prefab: ecsu.Entity,
-    tree_prefab: ecsu.Entity,
-    cube_prefab: ecsu.Entity,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
-pub fn create(
-    name: IdLocal,
-    allocator: std.mem.Allocator,
+const SystemUpdateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_update: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
-    world_patch_mgr: *world_patch_manager.WorldPatchManager,
     prefab_mgr: *PrefabManager,
-) !*SystemState {
-    var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
-    _ = query_builder_loader.with(fd.WorldLoader)
-        .with(fd.Transform);
-    const comp_query_loader = query_builder_loader.buildQuery();
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    state: struct {
+        cam_pos_old: ?[3]f32 = null,
+        patches: std.ArrayList(Patch),
+        loaders: [1]WorldLoaderData = .{.{}},
+        requester_id: world_patch_manager.RequesterId,
+        // comp_query_loader: ecsu.Query,
+        medium_house_prefab: ecsu.Entity,
+        tree_prefab: ecsu.Entity,
+        cube_prefab: ecsu.Entity,
+    },
+};
 
-    const system = allocator.create(SystemState) catch unreachable;
-    const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
+pub fn create(create_ctx: SystemCreateCtx) void {
+    const medium_house_prefab = create_ctx.prefab_mgr.getPrefab(config.prefab.medium_house_id).?;
+    const tree_prefab = create_ctx.prefab_mgr.getPrefab(config.prefab.beech_tree_04_id).?;
+    const cube_prefab = create_ctx.prefab_mgr.getPrefab(config.prefab.cube_id).?;
 
-    const medium_house_prefab = prefab_mgr.getPrefab(config.prefab.medium_house_id).?;
-    const tree_prefab = prefab_mgr.getPrefab(config.prefab.beech_tree_04_id).?;
-    const cube_prefab = prefab_mgr.getPrefab(config.prefab.cube_id).?;
-
-    system.* = .{
-        .flecs_sys = flecs_sys,
-        .allocator = allocator,
-        .ecsu_world = ecsu_world,
-        .world_patch_mgr = world_patch_mgr,
-        .prefab_mgr = prefab_mgr,
-        .comp_query_loader = comp_query_loader,
-        .requester_id = world_patch_mgr.registerRequester(IdLocal.init("props")),
-        .patches = std.ArrayList(Patch).initCapacity(allocator, 4 * 4 * 32 * 32) catch unreachable,
+    const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
+    update_ctx.* = SystemUpdateContext.view(create_ctx);
+    update_ctx.*.state = .{
+        .requester_id = create_ctx.world_patch_mgr.registerRequester(IdLocal.init("props")),
+        .patches = std.ArrayList(Patch).initCapacity(create_ctx.heap_allocator, 4 * 4 * 32 * 32) catch unreachable,
         .medium_house_prefab = medium_house_prefab,
         .tree_prefab = tree_prefab,
         .cube_prefab = cube_prefab,
     };
 
-    // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = patchPropUpdateLoaders;
+        system_desc.ctx = update_ctx;
+        system_desc.ctx_free = destroy;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.WorldLoader), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "patchPropUpdateLoaders",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 
-    // initStateData(system);
-    return system;
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = patchPropUpdatePatches;
+        system_desc.ctx = update_ctx;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "patchPropUpdatePatches",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 }
 
-pub fn destroy(system: *SystemState) void {
-    system.comp_query_loader.deinit();
-    system.patches.deinit();
-    system.allocator.destroy(system);
+pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+    for (system.state.patches.items) |patch| {
+        patch.entities.deinit();
+    }
+
+    system.state.patches.deinit();
 }
 
-fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Patch Prop System: Update", 0x00_ff_00_ff);
-    defer trazy_zone.End();
+fn patchPropUpdateLoaders(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
-    defer ecs.iter_fini(iter.iter);
-    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    updateLoaders(system);
-    updatePatches(system);
-}
+    const world_loaders = ecs.field(it, fd.WorldLoader, 0).?;
+    const transforms = ecs.field(it, fd.Transform, 1).?;
 
-fn updateLoaders(system: *SystemState) void {
-    var entity_iter = system.comp_query_loader.iterator(struct {
-        WorldLoader: *fd.WorldLoader,
-        transform: *fd.Transform,
-    });
-
-    var arena_state = std.heap.ArenaAllocator.init(system.allocator);
+    var arena_state = std.heap.ArenaAllocator.init(system.arena_system_update);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    while (entity_iter.next()) |comps| {
-        const loader_comp = comps.WorldLoader;
+    for (world_loaders, transforms, it.entities()) |loader_comp, transform, ent| {
         if (!loader_comp.props) {
             continue;
         }
 
         var loader = blk: {
-            for (&system.loaders) |*loader| {
-                if (loader.ent == entity_iter.entity()) {
+            for (&system.state.loaders) |*loader| {
+                if (loader.ent == ent) {
                     break :blk loader;
                 }
             }
 
             // HACK
-            system.loaders[0].ent = entity_iter.entity();
-            break :blk &system.loaders[0];
+            system.state.loaders[0].ent = ent;
+            break :blk &system.state.loaders[0];
 
             // unreachable;
         };
 
-        const pos_new = comps.transform.getPos00();
+        const pos_new = transform.getPos00();
         if (loader.pos_old) |pos_old| {
             if (tides_math.dist3_xz(pos_new, pos_old) < 32) {
                 continue;
@@ -175,18 +186,18 @@ fn updateLoaders(system: *SystemState) void {
 
         // HACK
         if (loader.pos_old != null) {
-            system.world_patch_mgr.removeLoadRequestFromLookups(system.requester_id, lookups_old.items);
+            system.world_patch_mgr.removeLoadRequestFromLookups(system.state.requester_id, lookups_old.items);
 
             for (lookups_old.items) |lookup| {
-                for (system.patches.items, 0..) |*patch, i| {
+                for (system.state.patches.items, 0..) |*patch, i| {
                     if (patch.lookup.eql(lookup)) {
                         // TODO: Batch delete
-                        for (patch.entities.items) |ent| {
-                            system.ecsu_world.delete(ent);
+                        for (patch.entities.items) |patch_ent| {
+                            system.ecsu_world.delete(patch_ent);
                         }
 
                         patch.entities.deinit();
-                        _ = system.patches.swapRemove(i);
+                        _ = system.state.patches.swapRemove(i);
                         break;
                     }
                 }
@@ -194,13 +205,13 @@ fn updateLoaders(system: *SystemState) void {
         }
         loader.pos_old = pos_new;
 
-        system.world_patch_mgr.addLoadRequestFromLookups(system.requester_id, lookups_new.items, .medium);
+        system.world_patch_mgr.addLoadRequestFromLookups(system.state.requester_id, lookups_new.items, .medium);
 
         for (lookups_new.items) |lookup| {
-            system.patches.appendAssumeCapacity(.{
+            system.state.patches.appendAssumeCapacity(.{
                 .lookup = lookup,
                 .lod = 1,
-                .entities = std.ArrayList(ecs.entity_t).init(system.allocator),
+                .entities = std.ArrayList(ecs.entity_t).init(system.heap_allocator),
             });
         }
     }
@@ -209,11 +220,9 @@ fn updateLoaders(system: *SystemState) void {
 // hack
 var added_spawn = false;
 
-fn updatePatches(system: *SystemState) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Updating Patches", 0x00_ff_00_ff);
-    defer trazy_zone.End();
-
-    for (system.patches.items) |*patch| {
+fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    for (system.state.patches.items) |*patch| {
         if (patch.loaded) {
             continue;
         }
@@ -236,7 +245,7 @@ fn updatePatches(system: *SystemState) void {
             const wall_id = IdLocal.init("wall");
             const house_id = IdLocal.init("house");
             const city_id = IdLocal.init("city");
-            var rand1 = std.rand.DefaultPrng.init(data.len);
+            var rand1 = std.Random.DefaultPrng.init(data.len);
             var rand = rand1.random();
             for (data.*) |prop| {
                 const prop_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
@@ -253,21 +262,21 @@ fn updatePatches(system: *SystemState) void {
                 prop_transform.updateInverseMatrix();
 
                 if (prop.id.hash == house_id.hash) {
-                    var house_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.medium_house_prefab);
+                    var house_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.medium_house_prefab);
                     house_ent.set(prop_transform);
                     house_ent.set(prop_pos);
                     house_ent.set(prop_rot);
                     house_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(house_ent.id) catch unreachable;
                 } else if (prop.id.hash == tree_id.hash) {
-                    var fir_tree_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.tree_prefab);
+                    var fir_tree_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.tree_prefab);
                     fir_tree_ent.set(prop_transform);
                     fir_tree_ent.set(prop_pos);
                     fir_tree_ent.set(prop_rot);
                     fir_tree_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(fir_tree_ent.id) catch unreachable;
                 } else if (prop.id.hash == wall_id.hash) {
-                    var wall_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.cube_prefab);
+                    var wall_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.cube_prefab);
                     wall_ent.set(prop_transform);
                     wall_ent.set(prop_pos);
                     wall_ent.set(prop_rot);

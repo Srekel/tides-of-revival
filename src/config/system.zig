@@ -10,7 +10,7 @@ const camera_system = @import("../systems/camera_system.zig");
 const input_system = @import("../systems/input_system.zig");
 // const interact_system = @import("../systems/interact_system.zig");
 // const navmesh_system = @import("../systems/ai/navmesh_system.zig");
-// const patch_prop_system = @import("../systems/patch_prop_system.zig");
+const patch_prop_system = @import("../systems/patch_prop_system.zig");
 const physics_system = @import("../systems/physics_system.zig");
 const renderer_system = @import("../systems/renderer_system.zig");
 const state_machine_system = @import("../systems/state_machine_system.zig");
@@ -54,13 +54,7 @@ pub fn createSystems(gameloop_context: anytype) void {
     //     gameloop_context.prefab_mgr,
     // );
 
-    // patch_prop_sys = try patch_prop_system.create(
-    //     IDFormat("patch_prop_system_{}", .{0}),
-    //     std.heap.page_allocator,
-    //     gameloop_context.ecsu_world,
-    //     gameloop_context.world_patch_mgr,
-    //     gameloop_context.prefab_mgr,
-    // );
+    patch_prop_system.create(patch_prop_system.SystemCreateCtx.view(gameloop_context));
 
     // navmesh_sys = try navmesh_system.create(
     //     ID("navmesh_system"),
