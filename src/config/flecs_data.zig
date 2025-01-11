@@ -2,6 +2,7 @@ const std = @import("std");
 const zphy = @import("zphysics");
 const zm = @import("zmath");
 const ecs = @import("zflecs");
+const config = @import("../config/config.zig");
 const window = @import("../renderer/window.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
@@ -55,8 +56,16 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, EnvironmentInfo);
     ecs.COMPONENT(ecs_world, ProjectileWeapon);
     ecs.COMPONENT(ecs_world, Projectile);
+    FSM_PC = ecs.new_entity(ecs_world, config.FSM_PC.toCString());
+    FSM_PC_Idle = ecs.new_entity(ecs_world, config.FSM_PC_Idle.toCString());
+    FSM_CAM = ecs.new_entity(ecs_world, config.FSM_CAM.toCString());
+    FSM_CAM_Fps = ecs.new_entity(ecs_world, config.FSM_CAM_Fps.toCString());
 }
 
+pub var FSM_PC: ecs.entity_t = undefined;
+pub var FSM_PC_Idle: ecs.entity_t = undefined;
+pub var FSM_CAM: ecs.entity_t = undefined;
+pub var FSM_CAM_Fps: ecs.entity_t = undefined;
 // pub const GameContext = struct {
 //     constvars: std.AutoHashMap(IdLocal, []const u8),
 //     vars: std.AutoHashMap(IdLocal, []u8),

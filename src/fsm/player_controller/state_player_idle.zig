@@ -16,6 +16,7 @@ const egl_math = @import("../../core/math.zig");
 const audio_manager = @import("../../audio/audio_manager_mock.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
+const context = @import("../../core/context.zig");
 
 pub const NonMovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
@@ -33,9 +34,46 @@ pub const NonMovingBroadPhaseLayerFilter = extern struct {
     }
 };
 
-fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, input_state: *const input.FrameData, ctx: fsm.StateFuncContext) void {
+pub const StateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_lifetime: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
+    audio_mgr: *audio_manager.AudioManager,
+    ecsu_world: ecsu.World,
+    input_frame_data: *input.FrameData,
+    physics_world: *zphy.PhysicsSystem,
+};
+
+pub fn create(create_ctx: StateContext) void {
+    const update_ctx = create_ctx.arena_system_lifetime.create(StateContext) catch unreachable;
+    update_ctx.* = StateContext.view(create_ctx);
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = playerStateIdle;
+        system_desc.ctx = update_ctx;
+        // system_desc.ctx_free = destroy;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Input), .inout = .InOut },
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.id(fd.Forward), .inout = .InOut },
+            .{ .id = ecs.pair(fd.FSM_PC, fd.FSM_PC_Idle), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "playerStateIdle",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+}
+
+fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: f32, input_state: *const input.FrameData) void {
     const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
-    const boosting = state.boost_active_time > environment_info.world_time;
+    _ = environment_info; // autofix
+    // const boosting = state.boost_active_time > environment_info.world_time;
+    const boosting = false;
 
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input.move_fast)) {
@@ -56,10 +94,10 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
         const rot_new = zm.qmul(rot_in, rot_yaw);
         rot.fromZM(rot_new);
 
-        if (input_state.just_pressed(config.input.interact) and state.boost_next_cooldown < environment_info.world_time) {
-            state.boost_next_cooldown = environment_info.world_time + 0.2;
-            state.boost_active_time = environment_info.world_time + 1;
-        }
+        // if (input_state.just_pressed(config.input.interact) and state.boost_next_cooldown < environment_info.world_time) {
+        //     state.boost_next_cooldown = environment_info.world_time + 0.2;
+        //     state.boost_active_time = environment_info.world_time + 1;
+        // }
     }
 
     const speed = zm.f32x4s(speed_scalar);
@@ -89,7 +127,7 @@ fn updateMovement(state: *StateIdle, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     if (zm.lengthSq3(move_dir)[0] > 0) {
         move_dir = zm.normalize3(move_dir);
 
-        const movement = move_dir * speed * dt;
+        const movement = move_dir * speed * zm.f32x4s(dt);
         cpos += movement;
         // std.debug.print("yaw{}\n", .{yaw});
 
@@ -117,178 +155,23 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
     }
 }
 
-// fn updateDeathFromDarkness(entity: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-//     const transform = ecs.get(ctx.ecsu_world.world, entity, fd.Transform);
-//     const pos = transform.?.getPos00();
+fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
-//     const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
-//     if (environment_info.sun_height > -0.5) {
-//         return;
-//     }
+    const inputs = ecs.field(it, fd.Input, 0).?;
+    const positions = ecs.field(it, fd.Position, 1).?;
+    const rotations = ecs.field(it, fd.Rotation, 2).?;
+    const forwards = ecs.field(it, fd.Forward, 3).?;
+    // const states = ecs.field(it, fd.CIFSM, 0).?;
+    // const states = ecs.field(it, fd.CIFSM, 0).?;
 
-//     const FilterCallback = struct {
-//         transform: *fd.Transform,
-//         light: *const fd.Light,
-//     };
-
-//     var safe_from_darkness = false;
-//     var filter = ctx.ecsu_world.filter(FilterCallback);
-//     defer filter.deinit();
-//     var filter_it = filter.iterator(FilterCallback);
-//     while (filter_it.next()) |comps| {
-//         const filter_ent = ecsu.Entity.init(filter_it.world().world, filter_it.entity());
-//         if (filter_ent.hasPair(ecs.ChildOf, entity)) {
-//             continue;
-//         }
-
-//         const dist = egl_math.dist3_xz(pos, comps.transform.getPos00());
-//         if (dist < comps.light.range) {
-//             safe_from_darkness = true;
-//             ecs.iter_fini(filter_it.iter);
-//             break;
-//         }
-//     }
-
-//     if (!safe_from_darkness) {
-//         std.debug.panic("dead", .{});
-//     }
-// }
-
-// fn updateWinFromArrival(entity_id: ecs.entity_t, ctx: fsm.StateFuncContext) void {
-//     const ent = ecsu.Entity.init(ctx.ecsu_world.world, entity_id);
-//     const transform = ecs.get(ctx.ecsu_world.world, entity_id, fd.Transform);
-//     const pos = transform.?.getPos00();
-
-//     const FilterCallback = struct {
-//         pos: *fd.Position,
-//         city: *const fd.CompCity,
-//     };
-
-//     var filter = ctx.ecsu_world.filter(FilterCallback);
-//     defer filter.deinit();
-//     var filter_it = filter.iterator(FilterCallback);
-//     while (filter_it.next()) |comps| {
-//         if (ent.hasPair(fr.Hometown, filter_it.entity())) {
-//             continue;
-//         }
-
-//         const dist = egl_math.dist3_xz(pos, comps.pos.elemsConst().*);
-//         if (dist < 20) {
-//             std.debug.panic("win", .{});
-//             ecs.iter_fini(filter_it.iter);
-//             break;
-//         }
-//     }
-// }
-
-pub const StateIdle = struct {
-    amount_moved: f32,
-    boost_next_cooldown: f32,
-    boost_active_time: f32,
-    sfx_footstep_index: u32,
-};
-
-const StatePlayerIdle = struct {
-    query: ecsu.Query,
-};
-
-fn enter(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StatePlayerIdle, ctx.state.self);
-    _ = self;
-    // const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
-    // state.*.amount_moved = 0;
-}
-
-fn exit(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StatePlayerIdle, ctx.state.self);
-    _ = self;
-}
-
-fn update(ctx: fsm.StateFuncContext) void {
-    // const self = Util.cast(StateIdle, ctx.data.ptr);
-    // _ = self;
-    const self = Util.castBytes(StatePlayerIdle, ctx.state.self);
-    var entity_iter = self.query.iterator(struct {
-        input: *fd.Input,
-        pos: *fd.Position,
-        rot: *fd.Rotation,
-        fwd: *fd.Forward,
-        fsm: *fd.FSM,
-        // cam: *fd.Camera,
-    });
-
-    while (entity_iter.next()) |comps| {
-        if (!comps.input.active) {
+    for (inputs, positions, rotations, forwards) |input_comp, *pos, *rot, *fwd| {
+        if (!input_comp.active) {
             continue;
         }
-        const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
 
-        const pos_before = comps.pos.asZM();
-        updateMovement(state, comps.pos, comps.rot, comps.fwd, ctx.dt, ctx.input_frame_data, ctx);
-        updateSnapToTerrain(ctx.physics_world, comps.pos);
-        // updateDeathFromDarkness(entity_iter.entity(), ctx);
-        // updateWinFromArrival(entity_iter.entity(), ctx);
-        const pos_after = comps.pos.asZM();
-        state.*.amount_moved += zm.length3(pos_after - pos_before)[0];
-
-        // HACK!!!
-        if (state.amount_moved < 0) {
-            state.amount_moved = 0;
-        }
-        if (state.sfx_footstep_index > 1) {
-            state.sfx_footstep_index = 0;
-        }
-
-        // if (state.amount_moved > 3) {
-        //     state.amount_moved = 0;
-
-        //     _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.FOOTSTEP, config.audio_player_oid, .{}) catch unreachable;
-        // }
-
-        // var fwd_xz_z = comps.fwd.asZM();
-        // fwd_xz_z[1] = 0;
-        // fwd_xz_z = zm.normalize3(fwd_xz_z);
-        // const ak_pos = AK.AkSoundPosition{
-        //     .position = .{
-        //         .x = comps.pos.x,
-        //         .y = comps.pos.y,
-        //         .z = comps.pos.z,
-        //     },
-        //     .orientation_front = .{
-        //         .x = fwd_xz_z[0],
-        //         .z = fwd_xz_z[2],
-        //     },
-        //     .orientation_top = .{
-        //         .y = 1.0,
-        //     },
-        // };
-        // AK.SoundEngine.setPosition(config.audio_player_oid, ak_pos, .{}) catch unreachable;
+        // const pos_before = pos.asZM();
+        updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
+        updateSnapToTerrain(ctx.physics_world, pos);
     }
 }
-
-pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
-    _ = query_builder
-        .with(fd.Input)
-        .with(fd.Position)
-        .with(fd.Rotation)
-        .with(fd.Forward)
-        .with(fd.FSM)
-        .without(fd.Camera);
-
-    const query = query_builder.buildQuery();
-    var self = ctx.heap_allocator.create(StatePlayerIdle) catch unreachable;
-    self.query = query;
-
-    return .{
-        .name = IdLocal.init("idle"),
-        .self = std.mem.asBytes(self),
-        .size = @sizeOf(StateIdle),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
-        .enter = enter,
-        .exit = exit,
-        .update = update,
-    };
-}
-
-pub fn destroy() void {}

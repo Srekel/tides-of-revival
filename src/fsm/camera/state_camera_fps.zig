@@ -13,22 +13,71 @@ const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const util = @import("../../util.zig");
+const context = @import("../../core/context.zig");
 
-fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
-    const movement_pitch = input_state.get(config.input.look_pitch).number;
-    const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
-    const rot_in = rot.asZM();
-    const rot_new = zm.qmul(rot_in, rot_pitch);
-    rot.fromZM(rot_new);
+pub const StateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_lifetime: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    input_frame_data: *input.FrameData,
+    physics_world: *zphy.PhysicsSystem,
+};
 
-    const rpy = zm.quatToRollPitchYaw(rot_new);
-    const rpy_constrained = .{
-        std.math.clamp(rpy[0], -0.9, 0.9),
-        rpy[1],
-        rpy[2],
-    };
-    const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
-    rot.fromZM(constrained_z);
+pub fn create(create_ctx: StateContext) void {
+    const update_ctx = create_ctx.arena_system_lifetime.create(StateContext) catch unreachable;
+    update_ctx.* = StateContext.view(create_ctx);
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = cameraStateFps;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Input), .inout = .InOut },
+            .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.pair(fd.FSM_CAM, fd.FSM_CAM_Fps), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "cameraStateFps",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+}
+
+fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
+
+    const inputs = ecs.field(it, fd.Input, 0).?;
+    const cameras = ecs.field(it, fd.Camera, 1).?;
+    const transforms = ecs.field(it, fd.Transform, 2).?;
+    const rotations = ecs.field(it, fd.Rotation, 3).?;
+
+    const movement_pitch = ctx.input_frame_data.get(config.input.look_pitch).number;
+    for (inputs, cameras, transforms, rotations) |input_comp, cam, transform, *rot| {
+        _ = transform; // autofix
+        _ = input_comp; // autofix
+        if (cam.class != 1) {
+            continue;
+        }
+
+        const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
+        const rot_in = rot.asZM();
+        const rot_new = zm.qmul(rot_in, rot_pitch);
+        rot.fromZM(rot_new);
+
+        const rpy = zm.quatToRollPitchYaw(rot_new);
+        const rpy_constrained = .{
+            std.math.clamp(rpy[0], -0.9, 0.9),
+            rpy[1],
+            rpy[2],
+        };
+        const constrained_z = zm.quatFromRollPitchYaw(rpy_constrained[0], rpy_constrained[1], rpy_constrained[2]);
+        rot.fromZM(constrained_z);
+    }
 }
 
 // fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_mgr: *PrefabManager) void {
@@ -73,65 +122,4 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
 //         // light_ent.set(light_transform);
 //         // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
 //     }
-// }
-
-pub const StateIdle = struct {
-    dummy: u32,
-};
-
-const StateCameraFPS = struct {
-    query: ecsu.Query,
-};
-
-fn enter(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateCameraFPS, ctx.state.self);
-    _ = self;
-}
-
-fn exit(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateCameraFPS, ctx.state.self);
-    _ = self;
-}
-
-fn update(ctx: fsm.StateFuncContext) void {
-    // const self = Util.castBytes(StateCameraFPS, ctx.state.self);
-    var cam_ent = util.getActiveCameraEnt(ctx.ecsu_world);
-    // if (cam_ent == null) {}
-    const cam_comps = cam_ent.getComps(struct {
-        input: *fd.Input,
-        camera: *fd.Camera,
-        transform: *fd.Transform,
-        rot: *fd.Rotation,
-    });
-    if (cam_comps.camera.class == 1) {
-        // HACK
-        updateLook(cam_comps.rot, ctx.input_frame_data);
-    }
-}
-
-pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    // var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
-    // _ = query_builder
-    //     .with(fd.Input)
-    //     .with(fd.Camera)
-    //     .with(fd.Transform)
-    //     .with(fd.Rotation);
-
-    // var query = query_builder.buildQuery();
-    const self = ctx.heap_allocator.create(StateCameraFPS) catch unreachable;
-    // self.query = query;
-
-    return .{
-        .name = IdLocal.init("fps_camera"),
-        .self = std.mem.asBytes(self),
-        .size = @sizeOf(StateIdle),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
-        .enter = enter,
-        .exit = exit,
-        .update = update,
-    };
-}
-
-// pub fn destroy(self:*fsm.State) void {
-//     self.transitions.allocator.free(self.self);
 // }

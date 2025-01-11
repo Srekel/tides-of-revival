@@ -13,8 +13,10 @@ const input_system = @import("../systems/input_system.zig");
 const patch_prop_system = @import("../systems/patch_prop_system.zig");
 const physics_system = @import("../systems/physics_system.zig");
 const renderer_system = @import("../systems/renderer_system.zig");
-const state_machine_system = @import("../systems/state_machine_system.zig");
 // const timeline_system = @import("../systems/timeline_system.zig");
+
+const fsm_pc_idle = @import("../fsm/player_controller/state_player_idle.zig");
+const fsm_cam_fps = @import("../fsm/camera/state_camera_fps.zig");
 
 // pub var timeline_sys: *timeline_system.SystemState = undefined;
 // var camera_sys: *camera_system.SystemState = undefined;
@@ -25,7 +27,6 @@ const state_machine_system = @import("../systems/state_machine_system.zig");
 // var patch_prop_sys: *patch_prop_system.SystemState = undefined;
 // var physics_sys: *physics_system.SystemState = undefined;
 // var renderer_sys: *renderer_system.SystemState = undefined;
-// var state_machine_sys: *state_machine_system.SystemState = undefined;
 
 pub fn createSystems(gameloop_context: anytype) void {
     input_system.create(input_system.SystemCreateCtx.view(gameloop_context));
@@ -34,7 +35,8 @@ pub fn createSystems(gameloop_context: anytype) void {
 
     // gameloop_context.physics_world = physics_sys.physics_world;
 
-    state_machine_system.create(state_machine_system.SystemCreateCtx.view(gameloop_context));
+    fsm_pc_idle.create(fsm_pc_idle.StateContext.view(gameloop_context));
+    fsm_cam_fps.create(fsm_cam_fps.StateContext.view(gameloop_context));
 
     // interact_sys = try interact_system.create(
     //     ID("interact_sys"),
@@ -67,17 +69,4 @@ pub fn createSystems(gameloop_context: anytype) void {
 
 pub fn setupSystems() void {
     // city_system.createEntities(city_sys);
-}
-
-pub fn destroySystems() void {
-    // defer camera_system.destroy(camera_sys);
-    // defer city_system.destroy(city_sys);
-    // defer input_system.destroy(input_sys);
-    // defer interact_system.destroy(interact_sys);
-    // defer navmesh_system.destroy(navmesh_sys);
-    // defer patch_prop_system.destroy(patch_prop_sys);
-    // defer physics_system.destroy(physics_sys);
-    // defer renderer_system.destroy(renderer_sys);
-    // defer state_machine_system.destroy(state_machine_sys);
-    // defer timeline_system.destroy(timeline_sys);
 }

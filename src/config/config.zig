@@ -142,3 +142,19 @@ pub const specular_texture_path = "content/textures/env/kiara_1_dawn_2k_cube_spe
 // ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝
 
 pub const audio_player_oid: audio_manager.GameObjectID = 10001;
+
+// ███████╗███████╗███╗   ███╗███████╗
+// ██╔════╝██╔════╝████╗ ████║██╔════╝
+// █████╗  ███████╗██╔████╔██║███████╗
+// ██╔══╝  ╚════██║██║╚██╔╝██║╚════██║
+// ██║     ███████║██║ ╚═╝ ██║███████║
+// ╚═╝     ╚══════╝╚═╝     ╚═╝╚══════╝
+
+// Player controller
+pub const FSM_PC = ID("FSM_PC_Idle");
+pub const FSM_PC_Idle = ID("FSM_PC_Idle");
+
+// Camera
+pub const FSM_CAM = ID("FSM_CAM");
+pub const FSM_CAM_Fps = ID("FSM_CAM_Fps");
+pub const FSM_CAM_Freefly = ID("FSM_CAM_Freefly");

@@ -88,6 +88,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     player_ent.set(fd.Input{ .active = !DEBUG_CAMERA_ACTIVE, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
+    player_ent.addPair(fd.FSM_PC, fd.FSM_PC_Idle);
     // if (player_spawn) |ps| {
     //     player_ent.addPair(fr.Hometown, ps.city_ent);
     // }
@@ -121,9 +122,9 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
     player_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+    player_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Fps);
     player_camera_ent.set(fd.Camera.create(0.1, 25000, 0.25 * std.math.pi, !DEBUG_CAMERA_ACTIVE, 1));
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
-    player_camera_ent.set(fd.CIFSM{ .state_machine_hash = IdLocal.id64("fps_camera") });
     player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
         .range = 5.0,
