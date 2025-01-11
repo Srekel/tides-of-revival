@@ -197,7 +197,7 @@ pub fn build(b: *std.Build) void {
     // zwindows
     const zwindows_dependency = b.dependency("zwindows", .{
         .zxaudio2_debug_layer = (builtin.mode == .Debug),
-        .zd3d12_debug_layer = (builtin.mode == .Debug),
+        .zd3d12_debug_layer = false,
         .zd3d12_gbv = b.option(bool, "zd3d12_gbv", "Enable GPU-Based Validation") orelse false,
     });
 

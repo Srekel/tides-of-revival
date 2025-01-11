@@ -15,7 +15,9 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/zig-out/bin",
             "environment": [],
-            "preLaunchTask": "build"
+            "preLaunchTask": "build",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "openOnSessionStart"
         },
         {
             "name": "Simulator",
