@@ -108,7 +108,7 @@ const ObjectLayerPairFilter = extern struct {
 const ContactListener = extern struct {
     usingnamespace zphy.ContactListener.Methods(@This());
     __v: *const zphy.ContactListener.VTable = &vtable,
-    system: *SystemState,
+    system: *SystemUpdateContext,
 
     const vtable = zphy.ContactListener.VTable{
         .onContactValidate = _onContactValidate,
@@ -141,7 +141,7 @@ const ContactListener = extern struct {
         const ent1 = body1.user_data;
         const ent2 = body2.user_data;
 
-        self.system.frame_contacts.append(.{
+        self.system.state.frame_contacts.append(.{
             .body_id1 = body1.id,
             .body_id2 = body2.id,
             .ent1 = ent1,
@@ -165,210 +165,231 @@ const Patch = struct {
 
 const IndexType = u32;
 
-pub const SystemState = struct {
-    allocator: std.mem.Allocator,
-    ecsu_world: ecsu.World,
-    physics_world: *zphy.PhysicsSystem,
-    world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    event_mgr: *EventManager,
-    sys: ecs.entity_t,
-
-    contact_listener: *ContactListener,
-    frame_contacts: std.ArrayList(config.events.CollisionContact),
-    comp_query_body: ecsu.Query,
-    comp_query_loader: ecsu.Query,
-    loaders: [1]WorldLoaderData = .{.{}},
-    requester_id: world_patch_manager.RequesterId,
-    patches: std.ArrayList(Patch),
-    indices: [indices_per_patch]IndexType,
-};
-
-pub const SystemCtx = struct {
+pub const SystemCreateCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
-    allocator: std.mem.Allocator,
+    arena_system_lifetime: std.mem.Allocator,
+    arena_system_update: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     event_mgr: *EventManager,
     physics_world: *zphy.PhysicsSystem,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
-pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
-    const allocator = ctx.allocator;
-    const ecsu_world = ctx.ecsu_world;
-    const event_mgr = ctx.event_mgr;
-    const world_patch_mgr = ctx.world_patch_mgr;
+const SystemUpdateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_update: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    event_mgr: *EventManager,
+    physics_world: *zphy.PhysicsSystem,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    state: struct {
+        contact_listener: *ContactListener = undefined,
+        frame_contacts: std.ArrayList(config.events.CollisionContact) = undefined,
+        loaders: [1]WorldLoaderData = .{.{}},
+        requester_id: world_patch_manager.RequesterId = undefined,
+        patches: std.ArrayList(Patch) = undefined,
+        indices: [indices_per_patch]IndexType = undefined,
+    },
+};
 
-    var query_builder_body = ecsu.QueryBuilder.init(ecsu_world);
-    _ = query_builder_body.with(fd.PhysicsBody)
-        .with(fd.Position)
-        .with(fd.Rotation);
-    // .with(fd.Transform);
-    const comp_query_body = query_builder_body.buildQuery();
+pub fn create(create_ctx: SystemCreateCtx) void {
+    const arena_system_lifetime = create_ctx.arena_system_lifetime;
+    const heap_allocator = create_ctx.heap_allocator;
+    const world_patch_mgr = create_ctx.world_patch_mgr;
 
-    var query_builder_loader = ecsu.QueryBuilder.init(ecsu_world);
-    _ = query_builder_loader.with(fd.WorldLoader)
-        .with(fd.Transform);
-    const comp_query_loader = query_builder_loader.buildQuery();
-
-    const broad_phase_layer_interface = allocator.create(BroadPhaseLayerInterface) catch unreachable;
+    const broad_phase_layer_interface = arena_system_lifetime.create(BroadPhaseLayerInterface) catch unreachable;
     broad_phase_layer_interface.* = BroadPhaseLayerInterface.init();
 
-    const object_vs_broad_phase_layer_filter = allocator.create(ObjectVsBroadPhaseLayerFilter) catch unreachable;
+    const object_vs_broad_phase_layer_filter = arena_system_lifetime.create(ObjectVsBroadPhaseLayerFilter) catch unreachable;
     object_vs_broad_phase_layer_filter.* = .{};
 
-    const object_layer_pair_filter = allocator.create(ObjectLayerPairFilter) catch unreachable;
+    const object_layer_pair_filter = arena_system_lifetime.create(ObjectLayerPairFilter) catch unreachable;
     object_layer_pair_filter.* = .{};
 
-    zphy.init(allocator, .{}) catch unreachable;
-    const physics_world = zphy.PhysicsSystem.create(
-        @as(*const zphy.BroadPhaseLayerInterface, @ptrCast(broad_phase_layer_interface)),
-        @as(*const zphy.ObjectVsBroadPhaseLayerFilter, @ptrCast(object_vs_broad_phase_layer_filter)),
-        @as(*const zphy.ObjectLayerPairFilter, @ptrCast(object_layer_pair_filter)),
-        .{
-            .max_bodies = 16 * 1024,
-            .num_body_mutexes = 0,
-            .max_body_pairs = 16 * 1024,
-            .max_contact_constraints = 16 * 1024,
-        },
-    ) catch unreachable;
+    create_ctx.physics_world.setGravity(.{ 0, -10.0, 0 });
 
-    physics_world.setGravity(.{ 0, -10.0, 0 });
-
-    var system = allocator.create(SystemState) catch unreachable;
-    const sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
-    system.* = .{
-        .allocator = allocator,
-        .ecsu_world = ecsu_world,
-        .physics_world = physics_world,
-        .world_patch_mgr = world_patch_mgr,
-        .sys = sys,
-        .comp_query_body = comp_query_body,
-        .comp_query_loader = comp_query_loader,
+    const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
+    update_ctx.* = SystemUpdateContext.view(create_ctx);
+    update_ctx.*.state = .{
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("physics")),
-        .patches = std.ArrayList(Patch).initCapacity(allocator, 16 * 16) catch unreachable,
+        .patches = std.ArrayList(Patch).initCapacity(heap_allocator, 16 * 16) catch unreachable,
         .indices = undefined,
         .contact_listener = undefined,
-        .frame_contacts = std.ArrayList(config.events.CollisionContact).initCapacity(allocator, 8192) catch unreachable,
-        .event_mgr = event_mgr,
+        .frame_contacts = std.ArrayList(config.events.CollisionContact).initCapacity(heap_allocator, 8192) catch unreachable,
     };
 
-    const contact_listener = allocator.create(ContactListener) catch unreachable;
-    contact_listener.* = .{
-        .system = system,
-    };
-    physics_world.setContactListener(contact_listener);
-    system.contact_listener = contact_listener;
-    // ecsu_world.observer(ObserverCallback, ecs.OnSet, system);
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updatePhysicsWorld;
+        system_desc.ctx = update_ctx;
+        system_desc.ctx_free = destroy;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updatePhysicsWorld",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 
-    return system;
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateCollisions;
+        system_desc.ctx = update_ctx;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateCollisions",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateBodies;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.PhysicsBody), .inout = .In },
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateBodies",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateLoaders;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.WorldLoader), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateLoaders",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updatePatches;
+        system_desc.ctx = update_ctx;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updatePatches",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    const contact_listener = arena_system_lifetime.create(ContactListener) catch unreachable;
+    contact_listener.* = .{ .system = update_ctx };
+    create_ctx.physics_world.setContactListener(contact_listener);
+    update_ctx.state.contact_listener = contact_listener;
 }
 
-pub fn destroy(system: *SystemState) void {
-    system.comp_query_body.deinit();
-    system.comp_query_loader.deinit();
-    system.physics_world.destroy();
-    zphy.deinit();
-    system.patches.deinit();
-    system.frame_contacts.deinit();
-    system.allocator.destroy(system.contact_listener);
-    system.allocator.destroy(system);
+pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+    for (system.state.patches.items) |patch| {
+        if (patch.shape_opt) |shape| {
+            shape.release();
+        }
+    }
+    system.state.patches.deinit();
+    system.state.frame_contacts.deinit();
 }
 
 const physics_skip_frame_rate = 1;
 var physics_skip_frame_counter: u32 = 1;
-fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Physics System: Update", 0x00_ff_00_ff);
-    defer trazy_zone.End();
-
-    defer ecs.iter_fini(iter.iter);
-    var system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    // system.physics_world.optimizeBroadPhase();
+fn updatePhysicsWorld(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     physics_skip_frame_counter += 1;
     if (physics_skip_frame_counter % physics_skip_frame_rate == 0) {
-        _ = system.physics_world.update(iter.iter.delta_time, .{}) catch unreachable;
+        _ = system.physics_world.update(it.delta_time, .{}) catch unreachable;
     }
-    updateCollisions(system);
-    updateBodies(system);
-    updateLoaders(system);
-    updatePatches(system);
 }
 
-fn updateCollisions(system: *SystemState) void {
-    if (system.frame_contacts.items.len == 0) {
+fn updateCollisions(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    if (system.state.frame_contacts.items.len == 0) {
         return;
     }
 
     const frame_collisions_data = config.events.FrameCollisionsData{
-        .contacts = system.frame_contacts.items,
+        .contacts = system.state.frame_contacts.items,
     };
     system.event_mgr.triggerEvent(config.events.frame_collisions_id, &frame_collisions_data);
-    system.frame_contacts.clearRetainingCapacity();
+    system.state.frame_contacts.clearRetainingCapacity();
 }
 
-fn updateBodies(system: *SystemState) void {
-    var entity_iter = system.comp_query_body.iterator(struct {
-        body: *fd.PhysicsBody,
-        pos: *fd.Position,
-        rot: *fd.Rotation,
-        // transform: *fd.Transform,
-    });
+fn updateBodies(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+
+    const bodies = ecs.field(it, fd.PhysicsBody, 0).?;
+    const positions = ecs.field(it, fd.Position, 1).?;
+    const rotations = ecs.field(it, fd.Rotation, 2).?;
 
     const handedness_offset = std.math.pi;
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
     const jolt_rot_z = zm.quatFromAxisAngle(up_world_z, handedness_offset);
     const body_interface = system.physics_world.getBodyInterfaceMut();
-    while (entity_iter.next()) |comps| {
-        const body_comp = comps.body;
-        const body_id = body_comp.body_id;
-
+    for (bodies, positions, rotations) |body, *pos, *rot| {
+        const body_id = body.body_id;
         if (!body_interface.isAdded(body_id)) {
             continue;
         }
 
         // Pos
         const body_pos = body_interface.getPosition(body_id);
-        comps.pos.elems().* = body_pos;
+        pos.elems().* = body_pos;
 
         // Rot
         const body_rot_jolt = body_interface.getRotation(body_id);
         const body_rot_jolt_z = zm.loadArr4(body_rot_jolt);
         const body_rot_z = zm.qmul(jolt_rot_z, body_rot_jolt_z);
-        comps.rot.fromZM(body_rot_z);
+        rot.fromZM(body_rot_z);
     }
 }
 
-fn updateLoaders(system: *SystemState) void {
-    var entity_iter = system.comp_query_loader.iterator(struct {
-        WorldLoader: *fd.WorldLoader,
-        transform: *fd.Transform,
-    });
+fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+
+    const world_loaders = ecs.field(it, fd.WorldLoader, 0).?;
+    const transforms = ecs.field(it, fd.Transform, 1).?;
 
     const body_interface = system.physics_world.getBodyInterfaceMut();
-    var arena_state = std.heap.ArenaAllocator.init(system.allocator);
+    var arena_state = std.heap.ArenaAllocator.init(system.arena_system_update);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    while (entity_iter.next()) |comps| {
-        const loader_comp = comps.WorldLoader;
+    for (world_loaders, transforms, it.entities()) |loader_comp, transform, ent| {
         if (!loader_comp.physics) {
             continue;
         }
 
         var loader = blk: {
-            for (&system.loaders) |*loader| {
-                if (loader.ent == entity_iter.entity()) {
+            for (&system.state.loaders) |*loader| {
+                if (loader.ent == ent) {
                     break :blk loader;
                 }
             }
 
             // HACK
-            system.loaders[0].ent = entity_iter.entity();
-            break :blk &system.loaders[0];
+            system.state.loaders[0].ent = ent;
+            break :blk &system.state.loaders[0];
 
             // unreachable;
         };
 
-        const pos_new = comps.transform.getPos00();
+        const pos_new = transform.getPos00();
         if (tides_math.dist3_xz(pos_new, loader.pos_old) < 32) {
             continue;
         }
@@ -410,27 +431,27 @@ fn updateLoaders(system: *SystemState) void {
 
         // HACK
         if (loader.pos_old[0] != -100000) {
-            system.world_patch_mgr.removeLoadRequestFromLookups(system.requester_id, lookups_old.items);
+            system.world_patch_mgr.removeLoadRequestFromLookups(system.state.requester_id, lookups_old.items);
 
             for (lookups_old.items) |lookup| {
-                for (system.patches.items, 0..) |*patch, i| {
+                for (system.state.patches.items, 0..) |*patch, i| {
                     if (patch.lookup.eql(lookup)) {
                         if (patch.body_opt != null) {
                             body_interface.removeAndDestroyBody(patch.body_opt.?);
                             patch.shape_opt.?.release();
                         }
 
-                        _ = system.patches.swapRemove(i);
+                        _ = system.state.patches.swapRemove(i);
                         break;
                     }
                 }
             }
         }
 
-        system.world_patch_mgr.addLoadRequestFromLookups(system.requester_id, lookups_new.items, .high);
+        system.world_patch_mgr.addLoadRequestFromLookups(system.state.requester_id, lookups_new.items, .high);
 
         for (lookups_new.items) |lookup| {
-            system.patches.appendAssumeCapacity(.{
+            system.state.patches.appendAssumeCapacity(.{
                 .lookup = lookup,
             });
         }
@@ -439,8 +460,9 @@ fn updateLoaders(system: *SystemState) void {
     }
 }
 
-fn updatePatches(system: *SystemState) void {
-    for (system.patches.items) |*patch| {
+fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    for (system.state.patches.items) |*patch| {
         if (patch.body_opt) |body| {
             _ = body;
             continue;
@@ -629,43 +651,3 @@ fn updatePatches(system: *SystemState) void {
 // ██║     ██╔══██║██║     ██║     ██╔══██╗██╔══██║██║     ██╔═██╗ ╚════██║
 // ╚██████╗██║  ██║███████╗███████╗██████╔╝██║  ██║╚██████╗██║  ██╗███████║
 //  ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
-
-// const ObserverCallback = struct {
-//     body: *const fd.CIPhysicsBody,
-
-//     pub const name = "CIPhysicsBody";
-//     pub const run = onSetCIPhysicsBody;
-// };
-
-// fn onSetCIPhysicsBody(it: *ecsu.Iterator(ObserverCallback)) void {
-//     var observer = @ptrCast(*ecs.observer_t, @alignCast(@alignOf(ecs.observer_t), it.iter.ctx));
-//     var system : *SystemState = @ptrCast(@alignCast(observer.*.ctx));
-//     _ = system;
-//     // while (it.next()) |_| {
-//     //     const ci_ptr = ecs.field_w_size(it.iter, @sizeOf(fd.CIPhysicsBody), @intCast(i32, it.index)).?;
-//     //     var ci = @ptrCast(*fd.CIPhysicsBody, @alignCast(@alignOf(fd.CIPhysicsBody), ci_ptr));
-
-//     //     var transform = it.entity().getMut(fd.Transform).?;
-//     //     const shape = switch (ci.shape_type) {
-//     //         .box => zbt.initBoxShape(&.{ ci.box.size, ci.box.size, ci.box.size }).asShape(),
-//     //         .sphere => zbt.initSphereShape(ci.sphere.radius).asShape(),
-//     //     };
-//     //     const body = zbt.initBody(
-//     //         ci.mass,
-//     //         &transform.matrix,
-//     //         shape,
-//     //     );
-
-//     //     body.setDamping(0.1, 0.1);
-//     //     body.setRestitution(0.5);
-//     //     body.setFriction(0.2);
-
-//     //     system.physics_world.addBody(body);
-
-//     //     const ent = it.entity();
-//     //     ent.remove(fd.CIPhysicsBody);
-//     //     ent.set(fd.PhysicsBody{
-//     //         .body = body,
-//     //     });
-//     // }
-// }

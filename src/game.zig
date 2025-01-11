@@ -22,6 +22,7 @@ const fsm = @import("fsm/fsm.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
 const input = @import("input.zig");
 const prefab_manager = @import("prefab_manager.zig");
+const physics_manager = @import("managers/physics_manager.zig");
 
 const renderer = @import("renderer/renderer.zig");
 const util = @import("util.zig");
@@ -126,14 +127,6 @@ pub fn run() void {
     // ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║███████║
     // ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝
 
-    // TODO: Remove system_context
-    var system_context = util.Context.init(std.heap.page_allocator);
-    system_context.putConst(config.allocator, &std.heap.page_allocator);
-    system_context.put(config.ecsu_world, &ecsu_world);
-    system_context.put(config.event_mgr, &event_mgr);
-    system_context.put(config.world_patch_mgr, world_patch_mgr);
-    system_context.put(config.prefab_mgr, &prefab_mgr);
-    //
     const GameloopContext = struct {
         arena_system_lifetime: std.mem.Allocator,
         arena_system_update: std.mem.Allocator,
@@ -164,27 +157,28 @@ pub fn run() void {
     defer arena_system_update.deinit();
     defer arena_frame.deinit();
 
+    var physics_mgr = physics_manager.create(arena_system_lifetime.allocator(), root_allocator.allocator());
+    defer physics_manager.destroy(&physics_mgr);
+
     var gameloop_context: GameloopContext = .{
         .arena_system_lifetime = arena_system_lifetime.allocator(),
         .arena_system_update = arena_system_update.allocator(),
         .arena_frame = arena_frame.allocator(),
         .heap_allocator = root_allocator.allocator(),
+        .asset_mgr = &asset_mgr,
         .audio_mgr = &audio_mgr,
         .ecsu_world = ecsu_world,
         .event_mgr = &event_mgr,
         .input_frame_data = &input_frame_data,
-        .physics_world = undefined,
-        .prefab_mgr = &prefab_mgr,
-        .world_patch_mgr = world_patch_mgr,
-        .asset_mgr = &asset_mgr,
-        .stats = &stats,
-        .renderer = &renderer_ctx,
         .main_window = main_window,
+        .physics_world = physics_mgr.physics_world,
+        .prefab_mgr = &prefab_mgr,
+        .renderer = &renderer_ctx,
+        .stats = &stats,
+        .world_patch_mgr = world_patch_mgr,
     };
 
-    config.system.createSystems(&gameloop_context, &system_context);
-    config.system.setupSystems();
-    defer config.system.destroySystems();
+    config.system.createSystems(&gameloop_context);
 
     ecsu_world.setSingleton(fd.EnvironmentInfo{
         .paused = false,
