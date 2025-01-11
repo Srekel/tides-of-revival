@@ -131,7 +131,7 @@ def main():
     sync_lib(
         "voronoi",
         "https://github.com/Srekel/voronoi",
-        "e4b62e3a765c1ecf80ca3b759f456bcf0b51dc37",
+        "73f609573a6556e6eb2a1a6600d4aa99afdf6113",
     )
 
     ##############
@@ -154,7 +154,7 @@ def main():
     sync_lib(
         "zgui",
         "https://github.com/Srekel/zgui.git",
-        "5e268ec8f19f640a064542429270737d2f19ad31",
+        "b5b29363a1a1db91519f0d94099c597e49eadfe9",
     )
     sync_lib(
         "zmath",
