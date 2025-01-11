@@ -313,9 +313,9 @@ pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) vo
                     .gamepad_axis => |axis| blk: {
                         var joystick_id: u32 = 0;
                         while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
-                            if (zglfw.Joystick.get(@as(zglfw.Joystick.Id, @intCast(joystick_id)))) |joystick| {
-                                if (joystick.asGamepad()) |gamepad| {
-                                    const gamepad_state = gamepad.getState();
+                            if (zglfw.Joystick.isPresent(@enumFromInt(joystick_id))) {
+                                if (zglfw.Joystick.asGamepad(@enumFromInt(joystick_id))) |gamepad| {
+                                    const gamepad_state = gamepad.getState() catch unreachable;
                                     const value = gamepad_state.axes[@intFromEnum(axis)];
                                     break :blk TargetValue{ .number = value };
                                 }
@@ -327,9 +327,9 @@ pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) vo
                     .gamepad_button => |button| blk: {
                         var joystick_id: u32 = 0;
                         while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
-                            if (zglfw.Joystick.get(@as(zglfw.Joystick.Id, @intCast(joystick_id)))) |joystick| {
-                                if (joystick.asGamepad()) |gamepad| {
-                                    const gamepad_state = gamepad.getState();
+                            if (zglfw.Joystick.isPresent(@enumFromInt(joystick_id))) {
+                                if (zglfw.Joystick.asGamepad(@enumFromInt(joystick_id))) |gamepad| {
+                                    const gamepad_state = gamepad.getState() catch unreachable;
                                     const action = gamepad_state.buttons[@intFromEnum(button)];
                                     const value: f32 = if (action == .release) 0 else 1;
                                     break :blk TargetValue{ .number = value };

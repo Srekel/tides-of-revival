@@ -219,7 +219,7 @@ fn updateCameraSwitch(it: *ecs.iter_t) callconv(.C) void {
                 layer.active = !layer.active;
                 var window = ctx.input_frame_data.window;
                 const cursor_mode: zglfw.Cursor.Mode = if (layer.active) .disabled else .normal;
-                window.setInputMode(.cursor, cursor_mode);
+                window.setInputMode(.cursor, cursor_mode) catch unreachable;
             }
         }
     }
