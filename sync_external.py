@@ -48,7 +48,10 @@ def sync_zig_exe(build):
     print("-------------")
     print("---- ZIG ----")
     print("-------------")
-    print("Downloading build", build)
+    print("Current Zig version on PATH:")
+    os.system("zig version")
+    print("Downloading build:\n" + build)
+
     filename = "zig-windows-x86_64-" + build + ".zip"
     if os.path.isfile(filename):
         print("...already found: external/" + filename)
@@ -79,7 +82,7 @@ def main():
     sync_lib(
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "1b27d3392f82c4969b10818dcd2f560cf93d71fd",
+        "75a9986c07f8b465f6eb6653adc62855fcad31b9",
     )
     sync_lib(
         "websocket.zig",
@@ -149,7 +152,7 @@ def main():
     sync_lib(
         "zflecs",
         "https://github.com/zig-gamedev/zflecs",
-        "f726506d01e1d89f7563a4e919de9e1f2306c073",
+        "8f38706713b858af8a2312dadd84b0bb125b33a6",
     )
     sync_lib(
         "zgui",
@@ -174,7 +177,7 @@ def main():
     sync_lib(
         "zphysics",
         "https://github.com/zig-gamedev/zphysics",
-        "194bf4189128e8b90b10fa06be3b78f7b8d9a455",
+        "199654752b2a9db6d1a30d9b8bb86eb346228cd3",
     )
     sync_lib(
         "zpix",
@@ -199,7 +202,7 @@ def main():
     sync_lib(
         "zwindows",
         "https://github.com/zig-gamedev/zwindows",
-        "0817cfbd455b03b4cd09005514d49504265438a9",
+        "64439f9e457ef3249f21870ce33afaa1b4797856",
     )
 
     sync_zig_exe("0.14.0-dev.1911+3bf89f55c")
