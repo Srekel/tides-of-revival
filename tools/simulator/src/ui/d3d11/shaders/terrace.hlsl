@@ -41,9 +41,9 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
     // float total_score = 0;
     // float total_height = 0;
 
-     for (uint y = 0; y < steps; y++)
+    for (uint y = 0; y < steps; y++)
     {
-         for (uint x = 0; x < steps; x++)
+        for (uint x = 0; x < steps; x++)
         {
             if (x == steps_half && y == steps_half)
             {
@@ -75,7 +75,7 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
             // float best_height = g_input_buffer_height[index_sample];
             // float new_height = lerp(curr_height, best_height, best_score_dist);
             // total_height += best_height * score;
--
+ 
             if (score > best_score_dist)
             {
                 best_score_gradient = distance_score;
