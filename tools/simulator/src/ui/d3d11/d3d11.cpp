@@ -50,18 +50,43 @@ bool D3D11::create_device(HWND hwnd)
     sd.Windowed = TRUE;
     sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
+    IDXGIFactory1 *factory = nullptr;
+    CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+
+    IDXGIAdapter1 *adapter = nullptr;
+    uint64_t i = 0;
+    uint64_t best_adapter_index = 0;
+    size_t max_vram_size = 0;
+    while (factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND)
+    {
+        DXGI_ADAPTER_DESC desc{};
+        adapter->GetDesc(&desc);
+        if (desc.DedicatedVideoMemory > max_vram_size)
+        {
+            max_vram_size = desc.DedicatedVideoMemory;
+            best_adapter_index = i;
+        }
+        i++;
+    }
+
+    factory->EnumAdapters1(best_adapter_index, &adapter);
+    DXGI_ADAPTER_DESC desc{};
+    adapter->GetDesc(&desc);
+    OutputDebugStringW(L"Selected GPU: ");
+    OutputDebugStringW(desc.Description);
+    OutputDebugStringW(L"\n");
+
     UINT create_device_flags = 0;
 #if defined(_DEBUG)
     create_device_flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
+
     D3D_FEATURE_LEVEL feature_level;
     const D3D_FEATURE_LEVEL feature_level_array[2] = {
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_0,
     };
-    HRESULT res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &m_swapchain, &m_device, &feature_level, &m_device_context);
-    if (res == DXGI_ERROR_UNSUPPORTED) // Try high-performance WARP software driver if hardware is not available.
-        res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &m_swapchain, &m_device, &feature_level, &m_device_context);
+    HRESULT res = D3D11CreateDeviceAndSwapChain(adapter, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &m_swapchain, &m_device, &feature_level, &m_device_context);
     if (res != S_OK)
         return false;
 
