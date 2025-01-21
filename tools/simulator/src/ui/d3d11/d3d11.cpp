@@ -86,7 +86,7 @@ bool D3D11::create_device(HWND hwnd)
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_0,
     };
-    HRESULT res = D3D11CreateDeviceAndSwapChain(adapter, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &m_swapchain, &m_device, &feature_level, &m_device_context);
+    HRESULT res = D3D11CreateDeviceAndSwapChain(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, create_device_flags, feature_level_array, 2, D3D11_SDK_VERSION, &sd, &m_swapchain, &m_device, &feature_level, &m_device_context);
     if (res != S_OK)
         return false;
 
