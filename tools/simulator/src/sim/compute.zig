@@ -10,12 +10,12 @@ var textbuf: [1024]u8 = .{};
 pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, image_out_1: *types.ImageF32, data: anytype) void {
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
-        .in_buffers = .{.{
+        .in_buffers = .{graph.ComputeBuffer{
             .data = if (image_in_1 != null) image_in_1.?.pixels.ptr else null,
             .width = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.width else 0)),
             .height = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.height else 0)),
         }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
-        .out_buffers = .{.{
+        .out_buffers = .{graph.ComputeBuffer{
             .data = image_out_1.pixels.ptr,
             .width = @as(u32, @intCast(image_out_1.size.width)),
             .height = @as(u32, @intCast(image_out_1.size.height)),
@@ -59,12 +59,12 @@ pub fn compute_reduce_f32_1(compute_id: graph.ComputeId, operator_id: graph.Comp
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
         .compute_operator_id = operator_id,
-        .in_buffers = .{.{
+        .in_buffers = .{graph.ComputeBuffer{
             .data = image_in_1.pixels.ptr,
             .width = @as(u32, @intCast(image_in_1.size.width)),
             .height = @as(u32, @intCast(image_in_1.size.height)),
         }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
-        .out_buffers = .{.{
+        .out_buffers = .{graph.ComputeBuffer{
             .data = image_out_1.pixels.ptr,
             .width = @as(u32, @intCast(image_out_1.size.width)),
             .height = @as(u32, @intCast(image_out_1.size.height)),
