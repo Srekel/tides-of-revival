@@ -146,7 +146,13 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
             "src/ui/main.cpp",
             "src/ui/d3d11/d3d11.cpp",
         },
-        .flags = &.{"-DZIG_BUILD"},
+        .flags = &.{
+            "-DZIG_BUILD",
+
+            // needed for d3d11.cpp
+            // https://github.com/ziglang/zig/issues/5163
+            "-fno-sanitize=undefined",
+        },
     });
 
     dll_ui.addCSourceFiles(.{
@@ -162,6 +168,7 @@ pub fn buildUIDll(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     });
 
     dll_ui.linkSystemLibrary("d3d11");
+    dll_ui.linkSystemLibrary("dxgi");
     dll_ui.linkSystemLibrary("d3dcompiler_47");
     dll_ui.linkSystemLibrary("Gdi32");
     dll_ui.linkSystemLibrary("Dwmapi");
