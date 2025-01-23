@@ -11,25 +11,92 @@ const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const util = @import("../../util.zig");
+const context = @import("../../core/context.zig");
 
-fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
-    const movement_yaw = input_state.get(config.input.look_yaw).number;
-    const movement_pitch = input_state.get(config.input.look_pitch).number;
+pub const StateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_lifetime: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    input_frame_data: *input.FrameData,
+};
 
-    // TODO fix pitch clamp
-    const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
-    const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
-    const rot_in = rot.asZM();
-    const rot_new = zm.qmul(
-        zm.qmul(rot_pitch, rot_in),
-        rot_yaw,
-    );
-    rot.fromZM(rot_new);
+pub fn create(create_ctx: StateContext) void {
+    const update_ctx = create_ctx.arena_system_lifetime.create(StateContext) catch unreachable;
+    update_ctx.* = StateContext.view(create_ctx);
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = fsm_cam_freefly_look;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Input), .inout = .InOut },
+            .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.pair(fd.FSM_CAM, fd.FSM_CAM_Freefly), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "fsm_cam_freefly_look",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = fsm_cam_freefly_move;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Input), .inout = .InOut },
+            .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.pair(fd.FSM_CAM, fd.FSM_CAM_Freefly), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "fsm_cam_freefly_move",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 }
 
-// fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
-//     const movement_yaw = input_state.get(config.input.look_yaw).number;
-//     const movement_pitch = input_state.get(config.input.look_pitch).number;
+fn fsm_cam_freefly_look(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
+
+    const inputs = ecs.field(it, fd.Input, 0).?;
+    const cameras = ecs.field(it, fd.Camera, 1).?;
+    const transforms = ecs.field(it, fd.Transform, 2).?;
+    const rotations = ecs.field(it, fd.Rotation, 3).?;
+
+    const movement_yaw = ctx.input_frame_data.get(config.input.look_yaw).number;
+    const movement_pitch = ctx.input_frame_data.get(config.input.look_pitch).number;
+    for (inputs, cameras, transforms, rotations) |input_comp, cam, transform, *rot| {
+        _ = transform; // autofix
+        _ = input_comp; // autofix
+
+        if (!cam.active) {
+            continue;
+        }
+        // TODO fix pitch clamp
+        const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
+        const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
+        const rot_in = rot.asZM();
+        const rot_new = zm.qmul(
+            zm.qmul(rot_pitch, rot_in),
+            rot_yaw,
+        );
+        rot.fromZM(rot_new);
+    }
+}
+
+// fn updateLook(rot: *fd.Rotation, input_frame_data: *const input.FrameData) void {
+//     const movement_yaw = input_frame_data.get(config.input.look_yaw).number;
+//     const movement_pitch = input_frame_data.get(config.input.look_pitch).number;
 
 //     const rot_pitch = zm.quatFromNormAxisAngle(zm.Vec{ 1, 0, 0, 0 }, movement_pitch * 0.0025);
 //     const rot_yaw = zm.quatFromNormAxisAngle(zm.Vec{ 0, 1, 0, 0 }, movement_yaw * 0.0025);
@@ -59,93 +126,54 @@ fn updateLook(rot: *fd.Rotation, input_state: *const input.FrameData) void {
 //     rot.fromZM(rot_new);
 // }
 
-fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, dt: zm.F32x4, input_state: *const input.FrameData) void {
+fn fsm_cam_freefly_move(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
+
+    const cameras = ecs.field(it, fd.Camera, 1).?;
+    const rotations = ecs.field(it, fd.Rotation, 3).?;
+    const positions = ecs.field(it, fd.Position, 4).?;
+
     var speed_scalar: f32 = 50.0;
-    if (input_state.held(config.input.move_fast)) {
+    if (ctx.input_frame_data.held(config.input.move_fast)) {
         speed_scalar *= 50;
-    } else if (input_state.held(config.input.move_slow)) {
+    } else if (ctx.input_frame_data.held(config.input.move_slow)) {
         speed_scalar *= 0.1;
     }
-    const speed = zm.f32x4s(speed_scalar);
-    const transform = zm.matFromQuat(rot.asZM());
-    var forward = zm.util.getAxisZ(transform);
-    var right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
-    var up = zm.normalize3(zm.cross3(forward, right));
 
-    right = speed * dt * right;
-    forward = speed * dt * forward;
-    up = speed * dt * up;
+    const movement = zm.f32x4s(speed_scalar * it.delta_time);
+    for (cameras, positions, rotations) |cam, *pos, *rot| {
+        const transform = zm.matFromQuat(rot.asZM());
+        var forward = zm.util.getAxisZ(transform);
+        var right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
+        var up = zm.normalize3(zm.cross3(forward, right));
 
-    var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
+        if (!cam.active) {
+            continue;
+        }
+        right = movement * right;
+        forward = movement * forward;
+        up = movement * up;
 
-    if (input_state.held(config.input.move_forward)) {
-        cpos += forward;
-    } else if (input_state.held(config.input.move_backward)) {
-        cpos -= forward;
-    }
+        var cpos = zm.load(pos.elems()[0..], zm.Vec, 3);
 
-    if (input_state.held(config.input.move_right)) {
-        cpos += right;
-    } else if (input_state.held(config.input.move_left)) {
-        cpos -= right;
-    }
+        if (ctx.input_frame_data.held(config.input.move_forward)) {
+            cpos += forward;
+        } else if (ctx.input_frame_data.held(config.input.move_backward)) {
+            cpos -= forward;
+        }
 
-    if (input_state.held(config.input.move_up)) {
-        cpos += up;
-    } else if (input_state.held(config.input.move_down)) {
-        cpos -= up;
-    }
+        if (ctx.input_frame_data.held(config.input.move_right)) {
+            cpos += right;
+        } else if (ctx.input_frame_data.held(config.input.move_left)) {
+            cpos -= right;
+        }
 
-    zm.store(pos.elems()[0..], cpos, 3);
-}
+        if (ctx.input_frame_data.held(config.input.move_up)) {
+            cpos += up;
+        } else if (ctx.input_frame_data.held(config.input.move_down)) {
+            cpos -= up;
+        }
 
-pub const StateIdle = struct {
-    dummy: u32,
-};
-
-const StateCameraFreefly = struct {
-    // query: ecsu.Query,
-};
-
-fn enter(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateCameraFreefly, ctx.state.self);
-    _ = self;
-}
-
-fn exit(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateCameraFreefly, ctx.state.self);
-    _ = self;
-}
-
-fn update(ctx: fsm.StateFuncContext) void {
-    // const self = Util.castBytes(StateCameraFreefly, ctx.state.self);
-    var cam_ent = util.getActiveCameraEnt(ctx.ecsu_world);
-    const cam_comps = cam_ent.getComps(struct {
-        input: *fd.Input,
-        camera: *fd.Camera,
-        transform: *fd.Transform,
-        rot: *fd.Rotation,
-        pos: *fd.Position,
-    });
-    if (cam_comps.camera.class == 0) {
-        // HACK
-        updateLook(cam_comps.rot, ctx.input_frame_data);
-        updateMovement(cam_comps.pos, cam_comps.rot, ctx.dt, ctx.input_frame_data);
+        zm.store(pos.elems()[0..], cpos, 3);
     }
 }
-
-pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    const self = ctx.heap_allocator.create(StateCameraFreefly) catch unreachable;
-
-    return .{
-        .name = IdLocal.init("freefly"),
-        .self = std.mem.asBytes(self),
-        .size = @sizeOf(StateIdle),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
-        .enter = enter,
-        .exit = exit,
-        .update = update,
-    };
-}
-
-pub fn destroy() void {}

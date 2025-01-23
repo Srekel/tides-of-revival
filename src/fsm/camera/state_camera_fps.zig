@@ -60,7 +60,7 @@ fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
     for (inputs, cameras, transforms, rotations) |input_comp, cam, transform, *rot| {
         _ = transform; // autofix
         _ = input_comp; // autofix
-        if (cam.class != 1) {
+        if (!cam.active) {
             continue;
         }
 

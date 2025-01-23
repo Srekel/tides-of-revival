@@ -52,7 +52,6 @@ pub fn create(create_ctx: StateContext) void {
         var system_desc = ecs.system_desc_t{};
         system_desc.callback = playerStateIdle;
         system_desc.ctx = update_ctx;
-        // system_desc.ctx_free = destroy;
         system_desc.query.terms = [_]ecs.term_t{
             .{ .id = ecs.id(fd.Input), .inout = .InOut },
             .{ .id = ecs.id(fd.Position), .inout = .InOut },
@@ -162,8 +161,6 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const positions = ecs.field(it, fd.Position, 1).?;
     const rotations = ecs.field(it, fd.Rotation, 2).?;
     const forwards = ecs.field(it, fd.Forward, 3).?;
-    // const states = ecs.field(it, fd.CIFSM, 0).?;
-    // const states = ecs.field(it, fd.CIFSM, 0).?;
 
     for (inputs, positions, rotations, forwards) |input_comp, *pos, *rot, *fwd| {
         if (!input_comp.active) {

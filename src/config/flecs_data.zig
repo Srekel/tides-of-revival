@@ -40,8 +40,6 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     // ecs.COMPONENT(ecs_world, ComponentData);
     ecs.COMPONENT(ecs_world, DirectionalLight);
     ecs.COMPONENT(ecs_world, PointLight);
-    ecs.COMPONENT(ecs_world, CIFSM);
-    ecs.COMPONENT(ecs_world, FSM);
     ecs.COMPONENT(ecs_world, Input);
     ecs.COMPONENT(ecs_world, Interactor);
     ecs.COMPONENT(ecs_world, SpawnPoint);
@@ -60,19 +58,14 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     FSM_PC_Idle = ecs.new_entity(ecs_world, config.FSM_PC_Idle.toCString());
     FSM_CAM = ecs.new_entity(ecs_world, config.FSM_CAM.toCString());
     FSM_CAM_Fps = ecs.new_entity(ecs_world, config.FSM_CAM_Fps.toCString());
+    FSM_CAM_Freefly = ecs.new_entity(ecs_world, config.FSM_CAM_Freefly.toCString());
 }
 
 pub var FSM_PC: ecs.entity_t = undefined;
 pub var FSM_PC_Idle: ecs.entity_t = undefined;
 pub var FSM_CAM: ecs.entity_t = undefined;
 pub var FSM_CAM_Fps: ecs.entity_t = undefined;
-// pub const GameContext = struct {
-//     constvars: std.AutoHashMap(IdLocal, []const u8),
-//     vars: std.AutoHashMap(IdLocal, []u8),
-//     fn getConst(self: GameContext, comptime T: type, id: IdLocal) *const T {
-
-//     }
-// };
+pub var FSM_CAM_Freefly: ecs.entity_t = undefined;
 
 pub const NOCOMP = struct {
     // dummy: u32 = 0,
@@ -632,22 +625,6 @@ pub const PointLight = struct {
     color: ColorRGB,
     range: f32,
     intensity: f32,
-};
-
-// ███████╗███████╗███╗   ███╗
-// ██╔════╝██╔════╝████╗ ████║
-// █████╗  ███████╗██╔████╔██║
-// ██╔══╝  ╚════██║██║╚██╔╝██║
-// ██║     ███████║██║ ╚═╝ ██║
-// ╚═╝     ╚══════╝╚═╝     ╚═╝
-
-pub const CIFSM = struct {
-    state_machine_hash: u64,
-};
-
-pub const FSM = struct {
-    state_machine_lookup: u16,
-    blob_lookup: u64,
 };
 
 // ██╗███╗   ██╗██████╗ ██╗   ██╗████████╗

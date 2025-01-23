@@ -17,6 +17,7 @@ const renderer_system = @import("../systems/renderer_system.zig");
 
 const fsm_pc_idle = @import("../fsm/player_controller/state_player_idle.zig");
 const fsm_cam_fps = @import("../fsm/camera/state_camera_fps.zig");
+const fsm_cam_freefly = @import("../fsm/camera/state_camera_freefly.zig");
 
 // pub var timeline_sys: *timeline_system.SystemState = undefined;
 // var camera_sys: *camera_system.SystemState = undefined;
@@ -37,6 +38,7 @@ pub fn createSystems(gameloop_context: anytype) void {
 
     fsm_pc_idle.create(fsm_pc_idle.StateContext.view(gameloop_context));
     fsm_cam_fps.create(fsm_cam_fps.StateContext.view(gameloop_context));
+    fsm_cam_freefly.create(fsm_cam_freefly.StateContext.view(gameloop_context));
 
     // interact_sys = try interact_system.create(
     //     ID("interact_sys"),
