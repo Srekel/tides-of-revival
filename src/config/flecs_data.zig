@@ -743,7 +743,7 @@ pub const EnvironmentInfo = struct {
 
 pub const ProjectileWeapon = struct {
     chambered_projectile: ecs.entity_t = 0,
-    cooldown: f32 = 0,
+    cooldown: f64 = 0,
     charge: f32 = 0,
 };
 

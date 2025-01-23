@@ -14,6 +14,7 @@ const tides_math = @import("../core/math.zig");
 const util = @import("../util.zig");
 const config = @import("../config/config.zig");
 const input = @import("../input.zig");
+const context = @import("../core/context.zig");
 const EventManager = @import("../core/event_manager.zig").EventManager;
 
 pub const EventFunc = fn (ent: ecs.entity_t, data: *anyopaque) void;
@@ -54,65 +55,64 @@ pub const Timeline = struct {
 };
 
 pub const Instance = struct {
-    time_start: f32,
+    time_start: f64,
     ent: ecs.entity_t = 0,
     upcoming_event_index: u32 = 0,
     speed: f32 = 1,
 };
 
-pub const SystemState = struct {
-    flecs_sys: ecs.entity_t,
-    allocator: std.mem.Allocator,
-    physics_world: *zphy.PhysicsSystem,
+pub const SystemCreateCtx = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_lifetime: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
-    input_frame_data: *input.FrameData,
-
-    timelines: std.ArrayList(Timeline),
+    event_mgr: *EventManager,
 };
 
-pub fn create(name: IdLocal, ctx: util.Context) !*SystemState {
-    const allocator = ctx.getConst(config.allocator.hash, std.mem.Allocator).*;
-    const ecsu_world = ctx.get(config.ecsu_world.hash, ecsu.World).*;
-    const physics_world = ctx.get(config.physics_world.hash, zphy.PhysicsSystem);
-    const input_frame_data = ctx.get(config.input_frame_data.hash, input.FrameData);
-    const event_mgr = ctx.get(config.event_mgr.hash, EventManager);
+const SystemUpdateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    heap_allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    state: struct {
+        timelines: std.ArrayList(Timeline),
+    },
+};
 
-    const system = allocator.create(SystemState) catch unreachable;
-    const flecs_sys = ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
-    system.* = .{
-        .flecs_sys = flecs_sys,
-        .allocator = allocator,
-        .ecsu_world = ecsu_world,
-        .physics_world = physics_world,
-        .input_frame_data = input_frame_data,
-        .timelines = std.ArrayList(Timeline).initCapacity(allocator, 16) catch unreachable,
+pub fn create(create_ctx: SystemCreateCtx) void {
+    const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
+    update_ctx.* = SystemUpdateContext.view(create_ctx);
+    update_ctx.*.state = .{
+        .timelines = std.ArrayList(Timeline).initCapacity(create_ctx.heap_allocator, 16) catch unreachable,
     };
 
-    event_mgr.registerListener(config.events.onRegisterTimeline_id, onRegisterTimeline, system);
-    event_mgr.registerListener(config.events.onAddTimelineInstance_id, onAddTimelineInstance, system);
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateTimelines;
+        system_desc.ctx = update_ctx;
+        system_desc.ctx_free = destroy;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateTimelines",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 
-    return system;
+    create_ctx.event_mgr.registerListener(config.events.onRegisterTimeline_id, onRegisterTimeline, update_ctx);
+    create_ctx.event_mgr.registerListener(config.events.onAddTimelineInstance_id, onAddTimelineInstance, update_ctx);
 }
 
-pub fn destroy(system: *SystemState) void {
-    system.allocator.destroy(system);
+pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
+    const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+    system.state.timelines.deinit();
 }
 
-fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Timeline System: Update", 0x00_ff_00_ff);
-    defer trazy_zone.End();
-
-    defer ecs.iter_fini(iter.iter);
-    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    updateTimelines(system, iter.iter.delta_time);
-}
-
-fn updateTimelines(system: *SystemState, dt: f32) void {
-    _ = dt;
+fn updateTimelines(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
 
-    for (system.timelines.items) |*timeline| {
+    for (system.state.timelines.items) |*timeline| {
         // const events = timeline.events;
 
         if (timeline.instances.items.len == 0 and timeline.instances_to_add.items.len == 0) {
@@ -123,21 +123,21 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
         timeline.instances_to_add.clearRetainingCapacity();
     }
 
-    for (system.timelines.items) |*timeline| {
+    for (system.state.timelines.items) |*timeline| {
         const events = timeline.events;
 
         if (timeline.instances.items.len == 0 and timeline.instances_to_add.items.len == 0) {
             continue;
         }
 
-        var instances_to_remove = std.ArrayList(usize).init(system.allocator);
+        var instances_to_remove = std.ArrayList(usize).init(system.heap_allocator);
 
         for (timeline.curves.items) |curve| {
             switch (curve.id.hash) {
                 0 => {
                     for (timeline.instances.items) |*instance| {
                         const speed = instance.speed;
-                        const time_into = world_time - instance.time_start;
+                        const time_into: f32 = @floatCast(world_time - instance.time_start);
                         const time_curr = time_into * speed;
                         const ent = instance.ent;
                         for (curve.points[0 .. curve.points.len - 1], 0..) |cp, i| {
@@ -161,7 +161,7 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
                 1 => {
                     for (timeline.instances.items) |*instance| {
                         const speed = instance.speed;
-                        const time_into = world_time - instance.time_start;
+                        const time_into: f32 = @floatCast(world_time - instance.time_start);
                         const time_curr = time_into * speed;
                         const ent = instance.ent;
                         for (curve.points[0 .. curve.points.len - 1], 0..) |cp, i| {
@@ -226,12 +226,13 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
             }
         }
 
-        var it = std.mem.reverseIterator(instances_to_remove.items);
-        while (it.next()) |index| {
+        var remove_it = std.mem.reverseIterator(instances_to_remove.items);
+        while (remove_it.next()) |index| {
             _ = timeline.instances.swapRemove(index);
         }
     }
 }
+
 //  █████╗ ██████╗ ██╗
 // ██╔══██╗██╔══██╗██║
 // ███████║██████╔╝██║
@@ -239,28 +240,28 @@ fn updateTimelines(system: *SystemState, dt: f32) void {
 // ██║  ██║██║     ██║
 // ╚═╝  ╚═╝╚═╝     ╚═╝
 
-pub fn modifyInstanceSpeed(self: *SystemState, timeline_id_hash: u64, ent: ecs.entity_t, speed: f32) void {
-    for (self.timelines.items) |*timeline| {
-        if (timeline.id.hash != timeline_id_hash) {
-            continue;
-        }
+// pub fn modifyInstanceSpeed(self: *SystemState, timeline_id_hash: u64, ent: ecs.entity_t, speed: f32) void {
+//     for (self.timelines.items) |*timeline| {
+//         if (timeline.id.hash != timeline_id_hash) {
+//             continue;
+//         }
 
-        for (timeline.instances.items) |*instance| {
-            if (instance.ent == ent) {
-                instance.speed = speed;
-                return;
-            }
-        }
+//         for (timeline.instances.items) |*instance| {
+//             if (instance.ent == ent) {
+//                 instance.speed = speed;
+//                 return;
+//             }
+//         }
 
-        for (timeline.instances_to_add.items) |*instance| {
-            if (instance.ent == ent) {
-                instance.speed = speed;
-                return;
-            }
-        }
-    }
-    unreachable;
-}
+//         for (timeline.instances_to_add.items) |*instance| {
+//             if (instance.ent == ent) {
+//                 instance.speed = speed;
+//                 return;
+//             }
+//         }
+//     }
+//     unreachable;
+// }
 
 // ███████╗██╗   ██╗███████╗███╗   ██╗████████╗███████╗
 // ██╔════╝██║   ██║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
@@ -271,14 +272,14 @@ pub fn modifyInstanceSpeed(self: *SystemState, timeline_id_hash: u64, ent: ecs.e
 
 fn onRegisterTimeline(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
-    var system: *SystemState = @ptrCast(@alignCast(ctx));
+    var system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
     const timeline_template_data = util.castOpaqueConst(config.events.TimelineTemplateData, event_data);
     var timeline = Timeline{
         .id = timeline_template_data.id,
-        .instances = std.ArrayList(Instance).init(system.allocator),
-        .instances_to_add = std.ArrayList(Instance).init(system.allocator),
-        .events = std.ArrayList(TimelineEvent).init(system.allocator),
-        .curves = std.ArrayList(Curve).init(system.allocator),
+        .instances = std.ArrayList(Instance).init(system.heap_allocator),
+        .instances_to_add = std.ArrayList(Instance).init(system.heap_allocator),
+        .events = std.ArrayList(TimelineEvent).init(system.heap_allocator),
+        .curves = std.ArrayList(Curve).init(system.heap_allocator),
         .loop_behavior = timeline_template_data.loop_behavior,
     };
     timeline.events.appendSlice(timeline_template_data.events) catch unreachable;
@@ -291,14 +292,14 @@ fn onRegisterTimeline(ctx: *anyopaque, event_id: u64, event_data: *const anyopaq
             timeline.duration = @max(timeline.duration, curve.points[curve.points.len - 1].time);
         }
     }
-    system.timelines.append(timeline) catch unreachable;
+    system.state.timelines.append(timeline) catch unreachable;
 }
 
 fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
-    var system: *SystemState = @ptrCast(@alignCast(ctx));
+    var system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
     const timeline_instance_data = util.castOpaqueConst(config.events.TimelineInstanceData, event_data);
-    for (system.timelines.items) |*timeline| {
+    for (system.state.timelines.items) |*timeline| {
         if (timeline.id.eql(timeline_instance_data.timeline)) {
             const environment_info = system.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
             const world_time = environment_info.world_time;
@@ -311,5 +312,5 @@ fn onAddTimelineInstance(ctx: *anyopaque, event_id: u64, event_data: *const anyo
         }
     }
     // const timeline = @ptrCast(*Timeline, @alignCast(@alignOf(Timeline), event_data));
-    // system.timelines.append(timeline.*);
+    // system.state.timelines.append(timeline.*);
 }

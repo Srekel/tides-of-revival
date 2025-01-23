@@ -18,7 +18,7 @@ pub const WaveSpawnContext = struct {
     physics_world: *zphy.PhysicsSystem,
     prefab_mgr: *prefab_manager.PrefabManager,
     event_mgr: *EventManager,
-    timeline_system: *timeline_system.SystemState,
+    // timeline_system: *timeline_system.SystemState,
     root_ent: ?ecs.entity_t,
     speed: f32 = 1,
     stage: f32 = 0,
@@ -34,7 +34,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     // }
 
     ctx.stage += 1;
-    timeline_system.modifyInstanceSpeed(ctx.timeline_system, ID("giantAntSpawn").hash, 0, ctx.speed);
+    // timeline_system.modifyInstanceSpeed(ctx.timeline_system, ID("giantAntSpawn").hash, 0, ctx.speed);
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
     var capsule_rot = [_]f32{ 1, 0, 0, 0 };

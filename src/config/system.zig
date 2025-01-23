@@ -8,12 +8,12 @@ const util = @import("../util.zig");
 const camera_system = @import("../systems/camera_system.zig");
 // const city_system = @import("../systems/procgen/city_system.zig");
 const input_system = @import("../systems/input_system.zig");
-// const interact_system = @import("../systems/interact_system.zig");
+const interact_system = @import("../systems/interact_system.zig");
 // const navmesh_system = @import("../systems/ai/navmesh_system.zig");
 const patch_prop_system = @import("../systems/patch_prop_system.zig");
 const physics_system = @import("../systems/physics_system.zig");
 const renderer_system = @import("../systems/renderer_system.zig");
-// const timeline_system = @import("../systems/timeline_system.zig");
+const timeline_system = @import("../systems/timeline_system.zig");
 
 const fsm_pc_idle = @import("../fsm/player_controller/state_player_idle.zig");
 const fsm_cam_fps = @import("../fsm/camera/state_camera_fps.zig");
@@ -34,20 +34,13 @@ pub fn createSystems(gameloop_context: anytype) void {
 
     physics_system.create(physics_system.SystemCreateCtx.view(gameloop_context));
 
-    // gameloop_context.physics_world = physics_sys.physics_world;
-
     fsm_pc_idle.create(fsm_pc_idle.StateContext.view(gameloop_context));
     fsm_cam_fps.create(fsm_cam_fps.StateContext.view(gameloop_context));
     fsm_cam_freefly.create(fsm_cam_freefly.StateContext.view(gameloop_context));
 
-    // interact_sys = try interact_system.create(
-    //     ID("interact_sys"),
-    //     interact_system.SystemCtx.view(gameloop_context),
-    // );
+    interact_system.create(interact_system.SystemCreateCtx.view(gameloop_context));
 
-    // timeline_sys = try timeline_system.create(
-    //     ID("timeline_sys"),
-    // );
+    timeline_system.create(timeline_system.SystemCreateCtx.view(gameloop_context));
 
     // city_sys = try city_system.create(
     //     ID("city_system"),

@@ -41,102 +41,102 @@ pub const MovingBroadPhaseLayerFilter = extern struct {
     }
 };
 
-pub const SystemState = struct {
-    flecs_sys: ecs.entity_t,
-    allocator: std.mem.Allocator,
-    physics_world: *zphy.PhysicsSystem,
-    ecsu_world: ecsu.World,
-    input_frame_data: *input.FrameData,
-    event_mgr: *EventManager,
-    main_window: *window.Window,
-    renderer: *renderer.Renderer,
-    prefab_mgr: *PrefabManager,
-    comp_query_interactor: ecsu.Query,
-    crosshair_entity: ecsu.Entity,
-};
-
-pub const SystemCtx = struct {
+pub const SystemCreateCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
-    allocator: std.mem.Allocator,
-    audio_mgr: *audio_manager.AudioManager,
+    arena_system_lifetime: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     event_mgr: *EventManager,
-    main_window: *window.Window,
-    renderer: *renderer.Renderer,
     input_frame_data: *input.FrameData,
+    main_window: *window.Window,
     physics_world: *zphy.PhysicsSystem,
     prefab_mgr: *PrefabManager,
+    renderer: *renderer.Renderer,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
-pub fn create(name: IdLocal, ctx: SystemCtx) !*SystemState {
-    const allocator = ctx.allocator;
+const SystemUpdateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    heap_allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    event_mgr: *EventManager,
+    input_frame_data: *input.FrameData,
+    main_window: *window.Window,
+    physics_world: *zphy.PhysicsSystem,
+    prefab_mgr: *PrefabManager,
+    renderer: *renderer.Renderer,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+    state: struct {
+        crosshair_ent: ecsu.Entity,
+    },
+};
 
-    var query_builder_interactor = ecsu.QueryBuilder.init(ctx.ecsu_world);
-    _ = query_builder_interactor
-        .with(fd.Interactor)
-        .with(fd.Transform);
-    const comp_query_interactor = query_builder_interactor.buildQuery();
-
-    query_builder_interactor = ecsu.QueryBuilder.init(ctx.ecsu_world);
-    _ = query_builder_interactor
-        .with(fd.Camera)
-        .with(fd.Forward)
-        .with(fd.Transform);
-
-    const crosshair_texture = ctx.renderer.loadTexture("textures/ui/crosshair085_ui.dds");
-    var crosshair_ent = ctx.ecsu_world.newEntity();
+pub fn create(create_ctx: SystemCreateCtx) void {
+    const crosshair_texture = create_ctx.renderer.loadTexture("textures/ui/crosshair085_ui.dds");
+    var crosshair_ent = create_ctx.ecsu_world.newEntity();
     crosshair_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
         .color = [4]f32{ 1, 1, 1, 1 },
         .texture = crosshair_texture,
     } });
 
-    const system = allocator.create(SystemState) catch unreachable;
-    const flecs_sys = ctx.ecsu_world.newWrappedRunSystem(name.toCString(), ecs.OnUpdate, fd.NOCOMP, update, .{ .ctx = system });
-    system.* = .{
-        .flecs_sys = flecs_sys,
-        .allocator = allocator,
-        .ecsu_world = ctx.ecsu_world,
-        .physics_world = ctx.physics_world,
-        .input_frame_data = ctx.input_frame_data,
-        .event_mgr = ctx.event_mgr,
-        .main_window = ctx.main_window,
-        .renderer = ctx.renderer,
-        .prefab_mgr = ctx.prefab_mgr,
-        .comp_query_interactor = comp_query_interactor,
-        .crosshair_entity = crosshair_ent,
+    const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
+    update_ctx.* = SystemUpdateContext.view(create_ctx);
+    update_ctx.*.state = .{
+        .crosshair_ent = crosshair_ent,
     };
 
-    // ecsu_world.observer(OnCollideObserverCallback, fd.PhysicsBody, system);
-    // ecsu_world.observer(OnCollideObserverCallback, config.events.onCollisionEvent(ecsu_world.world), system);
-    ctx.event_mgr.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, system);
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateCrosshair;
+        system_desc.ctx = update_ctx;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateCrosshair",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 
-    // initStateData(system);
-    return system;
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateInteractors;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Interactor), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateInteractors",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateArrows;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.PhysicsBody), .inout = .InOut },
+            .{ .id = ecs.id(fd.Projectile), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateArrows",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    create_ctx.event_mgr.registerListener(config.events.frame_collisions_id, onEventFrameCollisions, update_ctx);
 }
 
-pub fn destroy(system: *SystemState) void {
-    system.comp_query_interactor.deinit();
-    system.allocator.destroy(system);
-}
+fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
-fn update(iter: *ecsu.Iterator(fd.NOCOMP)) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Interact System: Update", 0x00_ff_00_ff);
-    defer trazy_zone.End();
-
-    defer ecs.iter_fini(iter.iter);
-    const system: *SystemState = @ptrCast(@alignCast(iter.iter.ctx));
-    updateCrosshair(system);
-    updateInteractors(system, iter.iter.delta_time);
-}
-
-// var playingID: AK.AkPlayingID = 0;
-
-fn updateInteractors(system: *SystemState, dt: f32) void {
-    _ = dt;
-    var entity_iter = system.comp_query_interactor.iterator(struct {
-        interactor: *fd.Interactor,
-        transform: *fd.Transform,
-    });
+    const interactors = ecs.field(it, fd.Interactor, 0).?;
+    // const transforms = ecs.field(it, fd.transform, 1).?;
 
     const ecs_world = system.ecsu_world.world;
     var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
@@ -149,9 +149,8 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     const wielded_use_primary_pressed = system.input_frame_data.just_pressed(config.input.wielded_use_primary);
     const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
     const arrow_prefab = system.prefab_mgr.getPrefab(config.prefab.arrow_id).?;
-    while (entity_iter.next()) |comps| {
-        const interactor_comp = comps.interactor;
 
+    for (interactors) |interactor_comp| {
         const item_ent_id = interactor_comp.wielded_item_ent_id;
         var weapon_comp = ecs.get_mut(ecs_world, item_ent_id, fd.ProjectileWeapon).?;
 
@@ -288,26 +287,21 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
     }
+}
 
-    // Arrows
-    var builder_proj = ecsu.QueryBuilder.init(system.ecsu_world);
-    _ = builder_proj
-        .with(fd.PhysicsBody)
-        .with(fd.Projectile);
+fn updateArrows(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
-    var filter = builder_proj.buildFilter();
-    defer filter.deinit();
+    const bodies = ecs.field(it, fd.PhysicsBody, 0).?;
+    const projecties = ecs.field(it, fd.Projectile, 1).?;
 
     const body_interface = system.physics_world.getBodyInterfaceMut();
-    var entity_iter_proj = filter.iterator(struct {
-        body: *fd.PhysicsBody,
-        proj: *fd.Projectile,
-    });
 
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
     const cylinder_prefab = system.prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
-    while (entity_iter_proj.next()) |comps| {
-        const velocity = body_interface.getLinearVelocity(comps.body.body_id);
+    for (bodies, projecties) |body, projectile| {
+        _ = projectile; // autofix
+        const velocity = body_interface.getLinearVelocity(body.body_id);
         const velocity_z = zm.loadArr3(velocity);
         if (zm.length3(velocity_z)[0] < 0.01) {
             continue;
@@ -326,16 +320,16 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
         var rot: [4]f32 = undefined;
         zm.storeArr4(&rot, rot_z);
 
-        body_interface.setRotation(comps.body.body_id, rot, .dont_activate);
+        body_interface.setRotation(body.body_id, rot, .dont_activate);
         if (velocity[1] < 0) {
             const anti_force: [3]f32 = .{
                 0, -1000, 0,
             };
-            body_interface.addForce(comps.body.body_id, anti_force);
+            body_interface.addForce(body.body_id, anti_force);
         }
 
         // trail
-        const world_pos = body_interface.getCenterOfMassPosition(comps.body.body_id);
+        const world_pos = body_interface.getCenterOfMassPosition(body.body_id);
         var fx_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, cylinder_prefab);
         fx_ent.set(fd.Position{ .x = world_pos[0], .y = world_pos[1], .z = world_pos[2] });
         fx_ent.set(fd.Rotation{});
@@ -353,7 +347,8 @@ fn updateInteractors(system: *SystemState, dt: f32) void {
     }
 }
 
-fn updateCrosshair(system: *SystemState) void {
+fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
+    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
 
     var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
@@ -401,7 +396,7 @@ fn updateCrosshair(system: *SystemState) void {
     const left = screen_center_x - crosshair_half_size;
     const right = screen_center_x + crosshair_half_size;
 
-    const ui_image = system.crosshair_entity.getMut(fd.UIImage).?;
+    const ui_image = system.state.crosshair_ent.getMut(fd.UIImage).?;
     ui_image.*.rect = [4]f32{ top, bottom, left, right };
     ui_image.*.material.color = crosshair_color;
 }
@@ -415,13 +410,13 @@ fn updateCrosshair(system: *SystemState) void {
 
 fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const anyopaque) void {
     _ = event_id;
-    var system: *SystemState = @ptrCast(@alignCast(ctx));
+    var system: *SystemUpdateContext = @alignCast(@ptrCast(ctx));
     const body_interface = system.physics_world.getBodyInterfaceMut();
     const frame_collisions_data = util.castOpaqueConst(config.events.FrameCollisionsData, event_data);
     const ecs_world = system.ecsu_world.world;
     const ecs_proj_id = ecs.id(fd.Projectile);
 
-    var arena_state = std.heap.ArenaAllocator.init(system.allocator);
+    var arena_state = std.heap.ArenaAllocator.init(system.heap_allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
     var removed_entities = std.ArrayList(ecs.entity_t).initCapacity(arena, 32) catch unreachable;
@@ -540,7 +535,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                         pos,
                     );
 
-                    ecs.remove(ecs_world, hit_ent, fd.FSM);
+                    // ecs.remove(ecs_world, hit_ent, fd.FSM);
                     ecs.remove(ecs_world, hit_ent, fd.PointLight);
 
                     const tli_despawn = config.events.TimelineInstanceData{
