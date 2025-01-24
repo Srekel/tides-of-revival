@@ -247,18 +247,22 @@ pub fn run() void {
 
     var tl_giant_ant_spawn_ctx: ?config.timeline.WaveSpawnContext = null;
 
-    if (player_spawn != null) {
-        tl_giant_ant_spawn_ctx = config.timeline.WaveSpawnContext{
-            .ecsu_world = ecsu_world,
-            .physics_world = gameloop_context.physics_world,
-            .prefab_mgr = &prefab_mgr,
-            .event_mgr = &event_mgr,
-            .timeline_system = config.system.timeline_sys,
-            .root_ent = player_spawn.?.city_ent,
-        };
+    // if (player_spawn != null) {
+    const timeline_sys_ent = ecs.lookup(ecsu_world.world, "main_player");
+    _ = timeline_sys_ent; // autofix
+    tl_giant_ant_spawn_ctx = undefined;
+    tl_giant_ant_spawn_ctx.?.event_mgr = &event_mgr;
+    // tl_giant_ant_spawn_ctx = config.timeline.WaveSpawnContext{
+    //     .ecsu_world = ecsu_world,
+    //     .physics_world = gameloop_context.physics_world,
+    //     .prefab_mgr = &prefab_mgr,
+    //     .event_mgr = &event_mgr,
+    //     .timeline_system = config.system.timeline_sys,
+    //     .root_ent = player_spawn.?.city_ent,
+    // };
 
-        config.timeline.initTimelines(&tl_giant_ant_spawn_ctx.?);
-    }
+    config.timeline.initTimelines(&tl_giant_ant_spawn_ctx.?);
+    // }
 
     // // ███████╗██╗     ███████╗ ██████╗███████╗
     // // ██╔════╝██║     ██╔════╝██╔════╝██╔════╝

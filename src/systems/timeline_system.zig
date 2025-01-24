@@ -69,7 +69,7 @@ pub const SystemCreateCtx = struct {
     event_mgr: *EventManager,
 };
 
-const SystemUpdateContext = struct {
+pub const SystemUpdateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
@@ -104,6 +104,12 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+    for (system.state.timelines.items) |*timeline| {
+        timeline.curves.deinit();
+        timeline.events.deinit();
+        timeline.instances.deinit();
+        timeline.instances_to_add.deinit();
+    }
     system.state.timelines.deinit();
 }
 
@@ -113,17 +119,6 @@ fn updateTimelines(it: *ecs.iter_t) callconv(.C) void {
     const world_time = environment_info.world_time;
 
     for (system.state.timelines.items) |*timeline| {
-        // const events = timeline.events;
-
-        if (timeline.instances.items.len == 0 and timeline.instances_to_add.items.len == 0) {
-            continue;
-        }
-
-        timeline.instances.appendSlice(timeline.instances_to_add.items) catch unreachable;
-        timeline.instances_to_add.clearRetainingCapacity();
-    }
-
-    for (system.state.timelines.items) |*timeline| {
         const events = timeline.events;
 
         if (timeline.instances.items.len == 0 and timeline.instances_to_add.items.len == 0) {
@@ -131,6 +126,7 @@ fn updateTimelines(it: *ecs.iter_t) callconv(.C) void {
         }
 
         var instances_to_remove = std.ArrayList(usize).init(system.heap_allocator);
+        defer instances_to_remove.deinit();
 
         for (timeline.curves.items) |curve| {
             switch (curve.id.hash) {
@@ -230,6 +226,17 @@ fn updateTimelines(it: *ecs.iter_t) callconv(.C) void {
         while (remove_it.next()) |index| {
             _ = timeline.instances.swapRemove(index);
         }
+    }
+
+    for (system.state.timelines.items) |*timeline| {
+        // const events = timeline.events;
+
+        if (timeline.instances.items.len == 0 and timeline.instances_to_add.items.len == 0) {
+            continue;
+        }
+
+        timeline.instances.appendSlice(timeline.instances_to_add.items) catch unreachable;
+        timeline.instances_to_add.clearRetainingCapacity();
     }
 }
 

@@ -18,7 +18,7 @@ pub const WaveSpawnContext = struct {
     physics_world: *zphy.PhysicsSystem,
     prefab_mgr: *prefab_manager.PrefabManager,
     event_mgr: *EventManager,
-    // timeline_system: *timeline_system.SystemState,
+    timeline_system: *timeline_system.SystemUpdateContext,
     root_ent: ?ecs.entity_t,
     speed: f32 = 1,
     stage: f32 = 0,
@@ -130,28 +130,28 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
 }
 
 pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
-    const tl_giant_ant_spawn = config.events.TimelineTemplateData{
-        .id = ID("giantAntSpawn"),
-        .events = &[_]timeline_system.TimelineEvent{
-            .{
-                .trigger_time = 15,
-                .trigger_id = ID("onSpawnAroundPlayer"),
-                .func = spawnGiantAnt,
-                .data = tl_giant_ant_spawn_ctx,
-            },
-        },
-        .curves = &.{},
-        .loop_behavior = .loop_no_time_loss,
-    };
+    // const tl_giant_ant_spawn = config.events.TimelineTemplateData{
+    //     .id = ID("giantAntSpawn"),
+    //     .events = &[_]timeline_system.TimelineEvent{
+    //         .{
+    //             .trigger_time = 15,
+    //             .trigger_id = ID("onSpawnAroundPlayer"),
+    //             .func = spawnGiantAnt,
+    //             .data = tl_giant_ant_spawn_ctx,
+    //         },
+    //     },
+    //     .curves = &.{},
+    //     .loop_behavior = .loop_no_time_loss,
+    // };
 
-    const tli_giant_ant_spawn = config.events.TimelineInstanceData{
-        .ent = 0,
-        .start_time = 2,
-        .timeline = ID("giantAntSpawn"),
-    };
+    // const tli_giant_ant_spawn = config.events.TimelineInstanceData{
+    //     .ent = 0,
+    //     .start_time = 2,
+    //     .timeline = ID("giantAntSpawn"),
+    // };
 
-    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
-    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
+    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
+    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
 
     const tl_particle_trail = config.events.TimelineTemplateData{
         .id = ID("particle_trail"),
