@@ -13,6 +13,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
+const context = @import("../../core/context.zig");
 
 pub const NonMovingBroadPhaseLayerFilter = extern struct {
     usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
@@ -29,6 +30,39 @@ pub const NonMovingBroadPhaseLayerFilter = extern struct {
         return true;
     }
 };
+
+pub const StateContext = struct {
+    pub usingnamespace context.CONTEXTIFY(@This());
+    arena_system_lifetime: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World,
+    input_frame_data: *input.FrameData,
+    physics_world: *zphy.PhysicsSystem,
+};
+
+pub fn create(create_ctx: StateContext) void {
+    const update_ctx = create_ctx.arena_system_lifetime.create(StateContext) catch unreachable;
+    update_ctx.* = StateContext.view(create_ctx);
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = fsm_enemy_idle;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.id(fd.Forward), .inout = .InOut },
+            .{ .id = ecs.id(fd.PhysicsBody), .inout = .InOut },
+            .{ .id = ecs.pair(fd.FSM_ENEMY, fd.FSM_ENEMY_Idle), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "fsm_enemy_idle",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+}
 
 fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm.F32x4, player_pos: *const fd.Position) void {
     _ = rot;
@@ -128,89 +162,23 @@ fn updateSnapToTerrain(
     }
 }
 
-pub const StateData = struct {
-    amount_moved: f32,
-    sfx_footstep_index: u32,
-};
+fn fsm_enemy_idle(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
-const StateGiantAnt = struct {
-    query: ecsu.Query,
-};
-
-fn enter(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateGiantAnt, ctx.state.self);
-    _ = self;
-    // const state = ctx.blob_array.getBlobAsValue(comps.fsm.blob_lookup, StateIdle);
-    // state.*.amount_moved = 0;
-}
-
-fn exit(ctx: fsm.StateFuncContext) void {
-    const self = Util.castBytes(StateGiantAnt, ctx.state.self);
-    _ = self;
-}
-
-fn update(ctx: fsm.StateFuncContext) void {
-    // const self = Util.cast(StateIdle, ctx.data.ptr);
-    // _ = self;
-
-    // if (ctx.gfx.end_screen_accumulated_time > 0.5) {
-    //     return;
-    // }
-
-    const self = Util.castBytes(StateGiantAnt, ctx.state.self);
-    var entity_iter = self.query.iterator(struct {
-        pos: *fd.Position,
-        rot: *fd.Rotation,
-        fwd: *fd.Forward,
-        health: *fd.Health,
-        body: *fd.PhysicsBody,
-        fsm: *fd.FSM,
-    });
+    const positions = ecs.field(it, fd.Position, 0).?;
+    const rotations = ecs.field(it, fd.Rotation, 1).?;
+    const forwards = ecs.field(it, fd.Forward, 2).?;
+    const bodies = ecs.field(it, fd.PhysicsBody, 3).?;
 
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-    while (entity_iter.next()) |comps| {
-        if (entity_iter.entity() == player_ent) {
-            // HACK
-            continue;
-        }
-        const pos_before = comps.pos.*;
-        _ = pos_before;
-
-        if (body_interface.getMotionType(comps.body.body_id) == .kinematic) {
-            updateMovement(comps.pos, comps.rot, comps.fwd, ctx.dt, player_pos);
-            // updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos, ctx.gfx);
-            updateSnapToTerrain(ctx.physics_world, comps.pos, comps.body, player_pos);
+    for (positions, rotations, forwards, bodies) |*pos, *rot, *fwd, *body| {
+        if (body_interface.getMotionType(body.body_id) == .kinematic) {
+            updateMovement(pos, rot, fwd, zm.f32x4s(it.delta_time), player_pos);
+            // updateSnapToTerrain(ctx.physics_world, pos, body, player_pos, ctx.gfx);
+            updateSnapToTerrain(ctx.physics_world, pos, body, player_pos);
         }
     }
 }
-
-pub fn create(ctx: fsm.StateCreateContext) fsm.State {
-    var query_builder = ecsu.QueryBuilder.init(ctx.ecsu_world);
-    _ = query_builder
-        .with(fd.Position)
-        .with(fd.Rotation)
-        .with(fd.Forward)
-        .with(fd.Health)
-        .with(fd.PhysicsBody)
-        .with(fd.FSM)
-        .without(fd.Input);
-
-    const query = query_builder.buildQuery();
-    var self = ctx.heap_allocator.create(StateGiantAnt) catch unreachable;
-    self.query = query;
-
-    return .{
-        .name = IdLocal.init("giant_ant"),
-        .self = std.mem.asBytes(self),
-        .size = @sizeOf(StateData),
-        .transitions = std.ArrayList(fsm.Transition).init(ctx.heap_allocator),
-        .enter = enter,
-        .exit = exit,
-        .update = update,
-    };
-}
-
-pub fn destroy() void {}

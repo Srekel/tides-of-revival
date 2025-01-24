@@ -158,3 +158,7 @@ pub const FSM_PC_Idle = ID("FSM_PC_Idle");
 pub const FSM_CAM = ID("FSM_CAM");
 pub const FSM_CAM_Fps = ID("FSM_CAM_Fps");
 pub const FSM_CAM_Freefly = ID("FSM_CAM_Freefly");
+
+// Enemy
+pub const FSM_ENEMY = ID("FSM_ENEMY");
+pub const FSM_ENEMY_Idle = ID("FSM_ENEMY_Idle");

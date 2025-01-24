@@ -59,6 +59,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     FSM_CAM = ecs.new_entity(ecs_world, config.FSM_CAM.toCString());
     FSM_CAM_Fps = ecs.new_entity(ecs_world, config.FSM_CAM_Fps.toCString());
     FSM_CAM_Freefly = ecs.new_entity(ecs_world, config.FSM_CAM_Freefly.toCString());
+    FSM_ENEMY = ecs.new_entity(ecs_world, config.FSM_ENEMY.toCString());
+    FSM_ENEMY_Idle = ecs.new_entity(ecs_world, config.FSM_ENEMY_Idle.toCString());
 }
 
 pub var FSM_PC: ecs.entity_t = undefined;
@@ -66,6 +68,8 @@ pub var FSM_PC_Idle: ecs.entity_t = undefined;
 pub var FSM_CAM: ecs.entity_t = undefined;
 pub var FSM_CAM_Fps: ecs.entity_t = undefined;
 pub var FSM_CAM_Freefly: ecs.entity_t = undefined;
+pub var FSM_ENEMY: ecs.entity_t = undefined;
+pub var FSM_ENEMY_Idle: ecs.entity_t = undefined;
 
 pub const NOCOMP = struct {
     // dummy: u32 = 0,
