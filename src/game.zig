@@ -179,6 +179,7 @@ pub fn run() void {
     };
 
     config.system.createSystems(&gameloop_context);
+    config.system.setupSystems(&gameloop_context);
 
     ecsu_world.setSingleton(fd.EnvironmentInfo{
         .paused = false,
@@ -198,34 +199,38 @@ pub fn run() void {
     // ███████╗██║ ╚████║   ██║   ██║   ██║   ██║███████╗███████║
     // ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-    const player_spawn = null;
-    // const player_spawn = blk: {
-    //     var builder = ecsu.QueryBuilder.init(ecsu_world);
-    //     _ = builder
-    //         .with(fd.SpawnPoint)
-    //         .with(fd.Position);
+    // const player_spawn = null;
+    const player_spawn = blk: {
+        const query = ecs.query_init(ecsu_world.world, &.{
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.SpawnPoint), .inout = .InOut },
+                .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+        }) catch unreachable;
 
-    //     var filter = builder.buildFilter();
-    //     defer filter.deinit();
-
-    //     var entity_iter = filter.iterator(struct { spawn_point: *fd.SpawnPoint, pos: *fd.Position });
-    //     while (entity_iter.next()) |comps| {
-    //         const city_ent = ecs.get_target(
-    //             ecsu_world.world,
-    //             entity_iter.entity(),
-    //             fr.Hometown,
-    //             0,
-    //         );
-    //         const spawnpoint_ent = entity_iter.entity();
-    //         ecs.iter_fini(entity_iter.iter);
-    //         break :blk .{
-    //             .pos = comps.pos.*,
-    //             .spawnpoint_ent = spawnpoint_ent,
-    //             .city_ent = city_ent,
-    //         };
-    //     }
-    //     break :blk null;
-    // };
+        var query_iter = ecs.query_iter(ecsu_world.world, query);
+        while (ecs.query_next(&query_iter)) {
+            const spawnpoints = ecs.field(&query_iter, fd.SpawnPoint, 0).?;
+            const positions = ecs.field(&query_iter, fd.Position, 1).?;
+            for (spawnpoints, positions, query_iter.entities()) |sp, pos, ent| {
+                _ = sp; // autofix
+                const city_ent = ecs.get_target(
+                    ecsu_world.world,
+                    ent,
+                    fr.Hometown,
+                    0,
+                );
+                const spawnpoint_ent = ent;
+                ecs.iter_fini(&query_iter);
+                break :blk .{
+                    .pos = pos,
+                    .spawnpoint_ent = spawnpoint_ent,
+                    .city_ent = city_ent,
+                };
+            }
+        }
+        break :blk null;
+    };
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     config.entity.init(player_pos, &prefab_mgr, ecsu_world, &renderer_ctx);

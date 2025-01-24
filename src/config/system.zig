@@ -6,7 +6,7 @@ const ID = @import("../core/core.zig").ID;
 const util = @import("../util.zig");
 
 const camera_system = @import("../systems/camera_system.zig");
-// const city_system = @import("../systems/procgen/city_system.zig");
+const city_system = @import("../systems/procgen/city_system.zig");
 const input_system = @import("../systems/input_system.zig");
 const interact_system = @import("../systems/interact_system.zig");
 // const navmesh_system = @import("../systems/ai/navmesh_system.zig");
@@ -42,14 +42,7 @@ pub fn createSystems(gameloop_context: anytype) void {
 
     timeline_system.create(timeline_system.SystemCreateCtx.view(gameloop_context));
 
-    // city_sys = try city_system.create(
-    //     ID("city_system"),
-    //     std.heap.page_allocator,
-    //     gameloop_context.ecsu_world,
-    //     physics_sys.physics_world,
-    //     gameloop_context.asset_mgr,
-    //     gameloop_context.prefab_mgr,
-    // );
+    // city_system.create(city_system.SystemCreateCtx.view(gameloop_context));
 
     patch_prop_system.create(patch_prop_system.SystemCreateCtx.view(gameloop_context));
 
@@ -62,6 +55,6 @@ pub fn createSystems(gameloop_context: anytype) void {
     renderer_system.create(renderer_system.SystemCreateCtx.view(gameloop_context));
 }
 
-pub fn setupSystems() void {
-    // city_system.createEntities(city_sys);
+pub fn setupSystems(gameloop_context: anytype) void {
+    city_system.createEntities(gameloop_context.heap_allocator, gameloop_context.ecsu_world, gameloop_context.asset_mgr, gameloop_context.prefab_mgr);
 }
