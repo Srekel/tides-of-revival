@@ -148,7 +148,7 @@ def main():
     sync_lib(
         "zflecs",
         "https://github.com/zig-gamedev/zflecs",
-        "f6ab1c9e36be39df7bd16ee24001412e0535b736",
+        "4af2e647041b9dd396693e3a19f6894fac2c5c58",
     )
     sync_lib(
         "zgui",
