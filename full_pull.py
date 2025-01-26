@@ -77,7 +77,7 @@ def task_sync_svn():
 
 
 def task_start_asset_cooker():
-    os.startfile(asset_cooker_path)
+    os.startfile(asset_cooker_path, cwd=os.path.dirname(asset_cooker_path))
 
 
 def task_build_game():
@@ -110,6 +110,7 @@ def task_build_simulator():
             zig_path,
             "build",
             # "-Dtarget=native-native-msvc",
+            "-Doptimize=ReleaseFast",
             "--summary",
             "failures",
         ],
