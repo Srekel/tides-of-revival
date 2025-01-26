@@ -6,7 +6,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "zig build -Dztracy-enable=true -Dtarget=native-native-msvc --summary failures",
+            "command": "${workspaceFolder}/tools/binaries/zigup/zig build -Dztracy-enable=true -Dtarget=native-native-msvc --summary failures",
             // "command": "zig build -Dztracy-enable=false -Dtarget=native-native-msvc --summary failures -freference-trace --verbose",
             "group": "build",
             "problemMatcher": [
@@ -20,7 +20,7 @@
         {
             "label": "build_simulator",
             "type": "shell",
-            "command": "zig build --summary failures -freference-trace",
+            "command": "${workspaceFolder}/tools/binaries/zigup/zig build --summary failures -freference-trace",
             "group": "build",
             "problemMatcher": [
                 "$gcc"
@@ -36,7 +36,7 @@
         {
             "label": "build_simulator_release",
             "type": "shell",
-            "command": "zig build -Doptimize=ReleaseFast --summary failures -freference-trace",
+            "command": "${workspaceFolder}/tools/binaries/zigup/zig build -Doptimize=ReleaseFast --summary failures -freference-trace",
             "group": "build",
             "problemMatcher": [
                 "$gcc"
@@ -47,50 +47,6 @@
             "presentation": {
                 "clear": true,
                 "revealProblems": "onProblem",
-            }
-        },
-        {
-            "label": "zig test",
-            "type": "process",
-            "command": "zig",
-            "args": [
-                "test",
-                "--main-pkg-path",
-                "${workspaceFolder}/src",
-                "${file}"
-            ],
-            "group": {
-                "kind": "test",
-                "isDefault": true
-            },
-            // "problemMatcher": [
-            //     "$gcc"
-            // ],
-            "presentation": {
-                "clear": true,
-                // "showReuseMessage": false,
-                // "revealProblems": "onProblem"
-            }
-        },
-        {
-            "label": "World Gen",
-            "type": "process",
-            "command": "python",
-            "args": [
-                "full_pull.py",
-                "--world-gen"
-            ],
-            "group": {
-                "kind": "none",
-                "isDefault": false
-            },
-            // "problemMatcher": [
-            //     "$gcc"
-            // ],
-            "presentation": {
-                "clear": true,
-                // "showReuseMessage": false,
-                // "revealProblems": "onProblem"
             }
         },
         {

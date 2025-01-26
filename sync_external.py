@@ -3,6 +3,8 @@ import sys
 import subprocess
 import urllib.request
 
+script_path = os.path.dirname(os.path.realpath(__file__))
+
 
 def sync_lib(folder, git_path, commit_sha_or_branch_or_tag):
     print()
@@ -48,23 +50,17 @@ def sync_zig_exe(build):
     print("-------------")
     print("---- ZIG ----")
     print("-------------")
-    print("Current Zig version on PATH:")
-    os.system("zig version")
-    print("Downloading build:\n" + build)
-
-    filename = "zig-windows-x86_64-" + build + ".zip"
-    if os.path.isfile(filename):
-        print("...already found: external/" + filename)
-        return
-    try:
-        url = "https://ziglang.org/builds/" + filename
-        urllib.request.urlretrieve(url, filename)
-    except:
-        print("Didn't find on zig.com, trying machengine.org")
-        url = "https://pkg.machengine.org/zig/" + filename
-        urllib.request.urlretrieve(url, filename)
-    print("...saved at: external/" + filename)
-    print("Important: You need to copy this over your existing zig.exe")
+    zigup_dir = os.path.join(script_path, "tools", "binaries", "zigup")
+    zigup_path = os.path.join(zigup_dir, "zigup")
+    zig_path = os.path.join(zigup_dir, "zig")
+    print("Zigup path:", zigup_path)
+    print("Zig path:", zig_path)
+    print("Current Zig version on in Tides's zigup:")
+    os.system(f"{zig_path} version")
+    print("Wanted version:")
+    print(f"{build}")
+    print("Ensuring correct version...")
+    os.system(f"{zigup_path} {build}")
 
 
 def main():
