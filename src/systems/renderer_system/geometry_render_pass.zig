@@ -382,7 +382,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
+                    if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[cutout_entities_index]);
                     } else {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[cutout_entities_index]);
@@ -396,7 +396,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
+                        if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[cutout_entities_index]);
                         } else {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[cutout_entities_index]);
@@ -469,7 +469,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
+                    if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
                     } else {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
@@ -483,7 +483,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
+                        if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
                         } else {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
@@ -596,7 +596,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
+                    if (pipeline_id.hash == renderer.cutout_pipelines[4].hash) {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[cutout_entities_index]);
                     } else {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[cutout_entities_index]);
@@ -610,7 +610,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
+                        if (pipeline_id.hash == renderer.cutout_pipelines[4].hash) {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[cutout_entities_index]);
                         } else {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[cutout_entities_index]);
@@ -683,7 +683,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
+                    if (pipeline_id.hash == renderer.opaque_pipelines[4].hash) {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
                     } else {
                         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
@@ -697,7 +697,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
+                        if (pipeline_id.hash == renderer.opaque_pipelines[4].hash) {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
                         } else {
                             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
