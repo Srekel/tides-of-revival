@@ -5,6 +5,7 @@ const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
+const renderer_types = @import("../../renderer/types.zig");
 const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
@@ -13,6 +14,8 @@ const zm = @import("zmath");
 
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
+const InstanceData = renderer_types.InstanceData;
+const InstanceRootConstants = renderer_types.InstanceRootConstants;
 
 pub const UniformFrameData = struct {
     projection: [16]f32,
@@ -52,26 +55,13 @@ pub const WaterMaterial = struct {
     absorption_color: [3]f32,
     absorption_coefficient: f32,
 
-    normal_map_1_texture_index: u32 = std.math.maxInt(u32),
-    normal_map_2_texture_index: u32 = std.math.maxInt(u32),
+    normal_map_1_texture_index: u32 = renderer_types.InvalidResourceIndex,
+    normal_map_2_texture_index: u32 = renderer_types.InvalidResourceIndex,
     surface_roughness: f32,
     surface_opacity: f32,
 
     normal_map_1_params: [4]f32,
     normal_map_2_params: [4]f32,
-};
-
-const InstanceData = struct {
-    object_to_world: [16]f32,
-    world_to_object: [16]f32,
-    material_buffer_offset: u32,
-    _padding: [3]f32,
-};
-
-const DrawCallPushConstants = struct {
-    start_instance_location: u32,
-    instance_data_buffer_index: u32,
-    material_buffer_index: u32,
 };
 
 const max_instances = 1024;
@@ -347,7 +337,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                 storeMat44(transform.inv_matrix[0..], &instance_data.world_to_object);
                 // NOTE(gmodarelli): We're using a single material for now
-                instance_data.material_buffer_offset = 0;
+                instance_data.materials_buffer_offset = 0;
                 self.instance_data.append(instance_data) catch unreachable;
             }
         }
@@ -385,7 +375,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const pipeline = self.renderer.getPSO(pipeline_id);
             const root_signature = self.renderer.getRootSignature(pipeline_id);
             const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-            std.debug.assert(root_constant_index != std.math.maxInt(u32));
+            std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
 
             graphics.cmdBindPipeline(cmd_list, pipeline);
             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.water_descriptor_sets);
@@ -421,10 +411,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             graphics.cmdBindVertexBuffer(cmd_list, vertex_layout.mAttribCount, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
             graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
 
-            const push_constants = DrawCallPushConstants{
+            const push_constants = InstanceRootConstants{
                 .start_instance_location = 0,
                 .instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]),
-                .material_buffer_index = self.renderer.getBufferBindlessIndex(self.material_data_buffers[frame_index]),
+                .instance_material_buffer_index = self.renderer.getBufferBindlessIndex(self.material_data_buffers[frame_index]),
             };
 
             graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));

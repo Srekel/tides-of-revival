@@ -7,6 +7,7 @@ const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
+const renderer_types = @import("../../renderer/types.zig");
 const tides_math = @import("../../core/math.zig");
 const zforge = @import("zforge");
 const zgui = @import("zgui");
@@ -18,10 +19,12 @@ const patch_types = @import("../../worldpatch/patch_types.zig");
 
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
+const TerrainInstanceData = renderer_types.TerrainInstanceData;
+const InstanceRootConstants = renderer_types.InstanceRootConstants;
 
 const lod_load_range = 4300;
 const max_instances = 16384;
-const invalid_index = std.math.maxInt(u32);
+const invalid_index = renderer_types.InvalidResourceIndex;
 const lod_3_patches_side = config.world_size_x / config.largest_patch_width;
 const lod_3_patches_total = lod_3_patches_side * lod_3_patches_side;
 
@@ -48,14 +51,6 @@ const TerrainMaterial = struct {
     layers: [4]TerrainLayer,
 };
 
-const InstanceData = struct {
-    object_to_world: [16]f32,
-    heightmap_index: u32,
-    normalmap_index: u32,
-    lod: u32,
-    padding1: u32,
-};
-
 pub const UniformFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
@@ -67,11 +62,6 @@ pub const UniformFrameData = struct {
 
 pub const ShadowsUniformFrameData = struct {
     projection_view: [16]f32,
-};
-
-const PushConstants = struct {
-    start_instance_location: u32,
-    instance_data_buffer_index: u32,
 };
 
 const NormalInfo = struct {
@@ -106,7 +96,7 @@ pub const TerrainRenderPass = struct {
 
     frame_instance_count: u32,
     instance_data_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    instance_data: *[max_instances]InstanceData,
+    instance_data: *[max_instances]TerrainInstanceData,
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(renderer.MeshHandle),
@@ -174,13 +164,13 @@ pub const TerrainRenderPass = struct {
         self.loadTerrainResources() catch unreachable;
 
         // Create instance buffers.
-        self.instance_data = allocator.create([max_instances]InstanceData) catch unreachable;
+        self.instance_data = allocator.create([max_instances]TerrainInstanceData) catch unreachable;
         self.instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 const buffer_data = renderer.Slice{
                     .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
+                    .size = max_instances * @sizeOf(TerrainInstanceData),
                 };
                 buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Terrain Quad Tree Instance Data Buffer");
             }
@@ -513,7 +503,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_set);
 
         const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
 
         const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]);
 
@@ -525,9 +515,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const mesh = self.renderer.getMesh(mesh_handle);
 
             if (mesh.loaded) {
-                const push_constants = PushConstants{
+                const push_constants = InstanceRootConstants{
                     .start_instance_location = start_instance_location,
                     .instance_data_buffer_index = instance_data_buffer_index,
+                    .instance_material_buffer_index = renderer_types.InvalidResourceIndex,
                 };
 
                 const vertex_buffers = [_][*c]graphics.Buffer{
@@ -602,7 +593,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         const pipeline = self.renderer.getPSO(pipeline_id);
         const root_signature = self.renderer.getRootSignature(pipeline_id);
         const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
         graphics.cmdBindPipeline(cmd_list, pipeline);
 
         for (self.normals_to_generate.items) |normals_info| {
@@ -691,9 +682,9 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         std.debug.assert(self.frame_instance_count <= max_instances);
         const data_slice = renderer.Slice{
             .data = @ptrCast(self.instance_data),
-            .size = self.frame_instance_count * @sizeOf(InstanceData),
+            .size = self.frame_instance_count * @sizeOf(TerrainInstanceData),
         };
-        self.renderer.updateBuffer(data_slice, InstanceData, self.instance_data_buffers[frame_index]);
+        self.renderer.updateBuffer(data_slice, TerrainInstanceData, self.instance_data_buffers[frame_index]);
 
         const pipeline_id = IdLocal.init("shadows_terrain");
         const pipeline = self.renderer.getPSO(pipeline_id);
@@ -702,7 +693,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_set);
 
         const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
 
         const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]);
 
@@ -714,9 +705,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const mesh = self.renderer.getMesh(mesh_handle);
 
             if (mesh.loaded) {
-                const push_constants = PushConstants{
+                const push_constants = InstanceRootConstants{
                     .start_instance_location = start_instance_location,
                     .instance_data_buffer_index = instance_data_buffer_index,
+                    .instance_material_buffer_index = renderer_types.InvalidResourceIndex,
                 };
 
                 const vertex_buffers = [_][*c]graphics.Buffer{
@@ -908,7 +900,7 @@ const QuadTreeNode = struct {
         }
 
         for (self.child_indices) |child_index| {
-            if (child_index == std.math.maxInt(u32)) {
+            if (child_index == renderer_types.InvalidResourceIndex) {
                 return false;
             }
 
@@ -927,7 +919,7 @@ const QuadTreeNode = struct {
         }
 
         for (self.child_indices) |child_index| {
-            if (child_index == std.math.maxInt(u32)) {
+            if (child_index == renderer_types.InvalidResourceIndex) {
                 return false;
             }
 

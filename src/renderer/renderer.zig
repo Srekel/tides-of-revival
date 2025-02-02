@@ -2,6 +2,7 @@ const std = @import("std");
 
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
+const renderer_types = @import("types.zig");
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
 const zgui = @import("zgui");
@@ -1038,7 +1039,7 @@ pub const Renderer = struct {
 
     pub fn getTextureBindlessIndex(self: *Renderer, handle: TextureHandle) u32 {
         if (handle.id == TextureHandle.nil.id) {
-            return std.math.maxInt(u32);
+            return renderer_types.InvalidResourceIndex;
         }
 
         const texture = self.texture_pool.getColumn(handle, .texture) catch unreachable;

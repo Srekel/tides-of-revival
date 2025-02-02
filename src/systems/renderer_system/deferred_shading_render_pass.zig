@@ -5,6 +5,7 @@ const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
+const renderer_types = @import("../../renderer/types.zig");
 const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
@@ -333,7 +334,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 graphics.cmdBindDescriptorSet(cmd_list, 0, self.specular_descriptor_sets[0]);
 
                 const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
 
                 for (0..renderer.specular_texture_mips) |i| {
                     const push_constants = PrecomputedSkyData{

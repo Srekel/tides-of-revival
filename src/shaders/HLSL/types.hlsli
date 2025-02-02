@@ -32,6 +32,9 @@ struct GBufferOutput
 	float4 GBuffer2 : SV_TARGET2;
 };
 
+// NOTE: We will get rid of these once we stop using InputLayouts for our PSOs.
+// We currently depend on The-Forge asset pipeline which makes use of InputLayouts
+// when loading a mesh from file.
 
 #if defined(VL_PosNorTanUv0Col)
 

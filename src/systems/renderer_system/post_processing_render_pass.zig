@@ -5,6 +5,7 @@ const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
+const renderer_types = @import("../../renderer/types.zig");
 const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
@@ -64,7 +65,7 @@ const TonemapConstantBuffer = struct {
     contrast: f32,
     hue_shift: f32,
     saturation: f32,
-    tony_mc_mapface_lut_texture_index: u32 = std.math.maxInt(u32),
+    tony_mc_mapface_lut_texture_index: u32 = renderer_types.InvalidResourceIndex,
     color_grading: u32 = 0,
 };
 
@@ -388,7 +389,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         {
             var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
             constant_buffer_data.color_grading = if (self.color_grading_settings.enabled) 1 else 0;
-            constant_buffer_data.tony_mc_mapface_lut_texture_index = if (self.color_grading_settings.enabled) self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut) else std.math.maxInt(u32);
+            constant_buffer_data.tony_mc_mapface_lut_texture_index = if (self.color_grading_settings.enabled) self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut) else renderer_types.InvalidResourceIndex;
             // Exposure is measured in stops, so we need raise 2 to the power of the configured value
             constant_buffer_data.post_exposure = std.math.pow(f32, 2.0, self.color_grading_settings.post_exposure);
             // Contrast and saturation need to be remaped from [-100, 100] to [0, 2]

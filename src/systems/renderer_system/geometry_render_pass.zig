@@ -5,6 +5,7 @@ const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../../renderer/renderer.zig");
+const renderer_types = @import("../../renderer/types.zig");
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
@@ -13,6 +14,8 @@ const zm = @import("zmath");
 
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
+const InstanceData = renderer_types.InstanceData;
+const InstanceRootConstants = renderer_types.InstanceRootConstants;
 
 pub const UniformFrameData = struct {
     projection_view: [16]f32,
@@ -37,13 +40,6 @@ pub const WindFrameData = struct {
     gust_texture_index: u32,
 };
 
-const InstanceData = struct {
-    object_to_world: [16]f32,
-    world_to_object: [16]f32,
-    materials_buffer_offset: u32,
-    _padding: [3]f32,
-};
-
 const DrawCallInfo = struct {
     pipeline_id: IdLocal,
     mesh_handle: renderer.MeshHandle,
@@ -56,12 +52,6 @@ const DrawCallInstanced = struct {
     sub_mesh_index: u32,
     start_instance_location: u32,
     instance_count: u32,
-};
-
-const DrawCallPushConstants = struct {
-    start_instance_location: u32,
-    instance_data_buffer_index: u32,
-    instance_material_buffer_index: u32,
 };
 
 const max_instances = 10000;
@@ -104,11 +94,11 @@ pub const GeometryRenderPass = struct {
 
     gbuffer_instance_data: [max_entity_types]std.ArrayList(InstanceData),
     gbuffer_draw_calls: [max_entity_types]std.ArrayList(DrawCallInstanced),
-    gbuffer_draw_calls_push_constants: [max_entity_types]std.ArrayList(DrawCallPushConstants),
+    gbuffer_draw_calls_push_constants: [max_entity_types]std.ArrayList(InstanceRootConstants),
 
     shadow_caster_instance_data: [max_entity_types]std.ArrayList(InstanceData),
     shadow_caster_draw_calls: [max_entity_types]std.ArrayList(DrawCallInstanced),
-    shadow_caster_draw_calls_push_constants: [max_entity_types]std.ArrayList(DrawCallPushConstants),
+    shadow_caster_draw_calls_push_constants: [max_entity_types]std.ArrayList(InstanceRootConstants),
 
     pub fn init(self: *GeometryRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         const wind_noise_texture = rctx.loadTexture("textures/noise/3d_noise.dds");
@@ -208,11 +198,11 @@ pub const GeometryRenderPass = struct {
 
         const gbuffer_instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
         const gbuffer_draw_calls = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
-        const gbuffer_draw_calls_push_constants = [max_entity_types]std.ArrayList(DrawCallPushConstants){ std.ArrayList(DrawCallPushConstants).init(allocator), std.ArrayList(DrawCallPushConstants).init(allocator) };
+        const gbuffer_draw_calls_push_constants = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
 
         const shadow_caster_instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
         const shadow_caster_draw_calls = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
-        const shadow_caster_draw_calls_push_constants = [max_entity_types]std.ArrayList(DrawCallPushConstants){ std.ArrayList(DrawCallPushConstants).init(allocator), std.ArrayList(DrawCallPushConstants).init(allocator) };
+        const shadow_caster_draw_calls_push_constants = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
 
         // Queries
         const query_static_mesh = ecs.query_init(ecsu_world.world, &.{
@@ -399,7 +389,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
                         pipeline_id = draw_call.pipeline_id;
@@ -413,7 +403,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                     }
                 }
 
@@ -486,7 +476,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
                         pipeline_id = draw_call.pipeline_id;
@@ -500,7 +490,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                     }
                 }
 
@@ -613,7 +603,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
                         pipeline_id = draw_call.pipeline_id;
@@ -627,7 +617,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                     }
                 }
 
@@ -700,7 +690,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                 } else {
                     if (pipeline_id.hash != draw_call.pipeline_id.hash) {
                         pipeline_id = draw_call.pipeline_id;
@@ -714,7 +704,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != std.math.maxInt(u32));
+                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
                     }
                 }
 
@@ -900,7 +890,7 @@ fn cullAndBatchDrawCalls(
     camera_entity: ecsu.Entity,
     instances: *std.ArrayList(InstanceData),
     draw_calls: *std.ArrayList(DrawCallInstanced),
-    draw_calls_push_constants: *std.ArrayList(DrawCallPushConstants),
+    draw_calls_push_constants: *std.ArrayList(InstanceRootConstants),
     instances_buffer: renderer.BufferHandle,
     surface_type: fd.SurfaceType,
     technique: fd.ShadingTechnique,
