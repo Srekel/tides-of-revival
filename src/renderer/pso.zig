@@ -268,11 +268,7 @@ pub const PSOManager = struct {
             // Depth-Only
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-                const render_targets = [_]graphics.TinyImageFormat{
-                    self.renderer.gbuffer_0.*.mFormat,
-                    self.renderer.gbuffer_1.*.mFormat,
-                    self.renderer.gbuffer_2.*.mFormat,
-                };
+                const render_targets = [_]graphics.TinyImageFormat{};
 
                 const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
