@@ -496,7 +496,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 
     if (self.frame_instance_count > 0) {
-        const pipeline_id = IdLocal.init("terrain");
+        const pipeline_id = IdLocal.init("terrain_gbuffer");
         const pipeline = self.renderer.getPSO(pipeline_id);
         const root_signature = self.renderer.getRootSignature(pipeline_id);
         graphics.cmdBindPipeline(cmd_list, pipeline);
@@ -686,7 +686,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         };
         self.renderer.updateBuffer(data_slice, TerrainInstanceData, self.instance_data_buffers[frame_index]);
 
-        const pipeline_id = IdLocal.init("shadows_terrain");
+        const pipeline_id = IdLocal.init("terrain_shadow_caster");
         const pipeline = self.renderer.getPSO(pipeline_id);
         const root_signature = self.renderer.getRootSignature(pipeline_id);
         graphics.cmdBindPipeline(cmd_list, pipeline);
@@ -798,7 +798,7 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
 
     {
-        const root_signature = self.renderer.getRootSignature(IdLocal.init("shadows_terrain"));
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("terrain_shadow_caster"));
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
         desc.mMaxSets = renderer.Renderer.data_buffer_count;
@@ -807,7 +807,7 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     }
 
     {
-        const root_signature = self.renderer.getRootSignature(IdLocal.init("terrain"));
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("terrain_gbuffer"));
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
         desc.mMaxSets = renderer.Renderer.data_buffer_count;

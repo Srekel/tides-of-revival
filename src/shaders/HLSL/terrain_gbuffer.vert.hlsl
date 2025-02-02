@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "terrain_resources.hlsl"
+#include "terrain_gbuffer_resources.hlsli"
 
 float inverse_lerp(float value1, float value2, float pos)
 {

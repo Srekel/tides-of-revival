@@ -58,7 +58,7 @@ const max_instances = 10000;
 const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 4500.0;
 
-const masked_entities_index: u32 = 0;
+const cutout_entities_index: u32 = 0;
 const opaque_entities_index: u32 = 1;
 const max_entity_types: u32 = 2;
 
@@ -162,7 +162,7 @@ pub const GeometryRenderPass = struct {
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instances Masked");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instances Cutout");
             }
 
             break :blk buffers;
@@ -188,7 +188,7 @@ pub const GeometryRenderPass = struct {
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instances Masked");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instances Cutout");
             }
 
             break :blk buffers;
@@ -266,18 +266,18 @@ pub const GeometryRenderPass = struct {
         self.draw_calls_info.deinit();
 
         self.gbuffer_instance_data[opaque_entities_index].deinit();
-        self.gbuffer_instance_data[masked_entities_index].deinit();
+        self.gbuffer_instance_data[cutout_entities_index].deinit();
         self.gbuffer_draw_calls[opaque_entities_index].deinit();
-        self.gbuffer_draw_calls[masked_entities_index].deinit();
+        self.gbuffer_draw_calls[cutout_entities_index].deinit();
         self.gbuffer_draw_calls_push_constants[opaque_entities_index].deinit();
-        self.gbuffer_draw_calls_push_constants[masked_entities_index].deinit();
+        self.gbuffer_draw_calls_push_constants[cutout_entities_index].deinit();
 
         self.shadow_caster_instance_data[opaque_entities_index].deinit();
-        self.shadow_caster_instance_data[masked_entities_index].deinit();
+        self.shadow_caster_instance_data[cutout_entities_index].deinit();
         self.shadow_caster_draw_calls[opaque_entities_index].deinit();
-        self.shadow_caster_draw_calls[masked_entities_index].deinit();
+        self.shadow_caster_draw_calls[cutout_entities_index].deinit();
         self.shadow_caster_draw_calls_push_constants[opaque_entities_index].deinit();
-        self.shadow_caster_draw_calls_push_constants[masked_entities_index].deinit();
+        self.shadow_caster_draw_calls_push_constants[cutout_entities_index].deinit();
     }
 };
 
@@ -340,19 +340,19 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         self.renderer.updateBuffer(data, WindFrameData, self.wind_frame_buffers[frame_index]);
     }
 
-    // Render GBuffer Masked Objects
+    // Render GBuffer Cutout Objects
     {
-        const trazy_zone1 = ztracy.ZoneNC(@src(), "Masked Objects", 0x00_ff_ff_00);
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_ff_00);
         defer trazy_zone1.End();
 
         cullAndBatchDrawCalls(
             self,
             camera_entity,
-            &self.gbuffer_instance_data[masked_entities_index],
-            &self.gbuffer_draw_calls[masked_entities_index],
-            &self.gbuffer_draw_calls_push_constants[masked_entities_index],
-            self.gbuffer_instance_data_buffers[masked_entities_index][frame_index],
-            .masked,
+            &self.gbuffer_instance_data[cutout_entities_index],
+            &self.gbuffer_draw_calls[cutout_entities_index],
+            &self.gbuffer_draw_calls_push_constants[cutout_entities_index],
+            self.gbuffer_instance_data_buffers[cutout_entities_index][frame_index],
+            .cutout,
             .gbuffer,
         );
 
@@ -361,10 +361,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.gbuffer_instance_data[masked_entities_index].items),
-                .size = self.gbuffer_instance_data[masked_entities_index].items.len * @sizeOf(InstanceData),
+                .data = @ptrCast(self.gbuffer_instance_data[cutout_entities_index].items),
+                .size = self.gbuffer_instance_data[cutout_entities_index].items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[masked_entities_index][frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[cutout_entities_index][frame_index]);
         }
 
         {
@@ -376,16 +376,16 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
 
-            for (self.gbuffer_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
+            for (self.gbuffer_draw_calls[cutout_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.masked_pipelines[2].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[masked_entities_index]);
+                    if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[cutout_entities_index]);
                     } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[cutout_entities_index]);
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -396,10 +396,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.masked_pipelines[2].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[masked_entities_index]);
+                        if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[cutout_entities_index]);
                         } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[masked_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[cutout_entities_index]);
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -407,7 +407,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
                 }
 
-                const push_constants = &self.gbuffer_draw_calls_push_constants[masked_entities_index].items[i];
+                const push_constants = &self.gbuffer_draw_calls_push_constants[cutout_entities_index].items[i];
                 const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
                 if (mesh.loaded) {
@@ -554,19 +554,19 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     };
     self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.shadows_uniform_frame_buffers[frame_index]);
 
-    // Render Shadows Masked Objects
+    // Render Shadows Cutout Objects
     {
-        const trazy_zone1 = ztracy.ZoneNC(@src(), "Masked Objects", 0x00_ff_ff_00);
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_ff_00);
         defer trazy_zone1.End();
 
         cullAndBatchDrawCalls(
             self,
             camera_entity,
-            &self.shadow_caster_instance_data[masked_entities_index],
-            &self.shadow_caster_draw_calls[masked_entities_index],
-            &self.shadow_caster_draw_calls_push_constants[masked_entities_index],
-            self.shadow_caster_instance_data_buffers[masked_entities_index][frame_index],
-            .masked,
+            &self.shadow_caster_instance_data[cutout_entities_index],
+            &self.shadow_caster_draw_calls[cutout_entities_index],
+            &self.shadow_caster_draw_calls_push_constants[cutout_entities_index],
+            self.shadow_caster_instance_data_buffers[cutout_entities_index][frame_index],
+            .cutout,
             .shadow_caster,
         );
 
@@ -575,10 +575,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.shadow_caster_instance_data[masked_entities_index].items),
-                .size = self.shadow_caster_instance_data[masked_entities_index].items.len * @sizeOf(InstanceData),
+                .data = @ptrCast(self.shadow_caster_instance_data[cutout_entities_index].items),
+                .size = self.shadow_caster_instance_data[cutout_entities_index].items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[masked_entities_index][frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[cutout_entities_index][frame_index]);
         }
 
         {
@@ -590,16 +590,16 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
 
-            for (self.shadow_caster_draw_calls[masked_entities_index].items, 0..) |draw_call, i| {
+            for (self.shadow_caster_draw_calls[cutout_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.masked_pipelines[3].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[masked_entities_index]);
+                    if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[cutout_entities_index]);
                     } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[masked_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[cutout_entities_index]);
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -610,10 +610,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         pipeline = self.renderer.getPSO(pipeline_id);
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.masked_pipelines[3].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[masked_entities_index]);
+                        if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[cutout_entities_index]);
                         } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[masked_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[cutout_entities_index]);
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -621,7 +621,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
                 }
 
-                const push_constants = &self.shadow_caster_draw_calls_push_constants[masked_entities_index].items[i];
+                const push_constants = &self.shadow_caster_draw_calls_push_constants[cutout_entities_index].items[i];
                 const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
                 if (mesh.loaded) {
@@ -733,8 +733,8 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
 
     const shadows_descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("shadows_lit"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("shadows_lit_masked"));
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit_shadow_caster_opaque"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_shadow_caster_cutout"));
 
         var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
         for (descriptor_sets, 0..) |_, index| {
@@ -754,8 +754,8 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     self.shadows_descriptor_sets = shadows_descriptor_sets;
 
     const shadows_tree_descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("shadows_tree"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("shadows_tree_masked"));
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree_shadow_caster_opaque"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_shadow_caster_cutout"));
 
         var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
         for (descriptor_sets, 0..) |_, index| {
@@ -775,8 +775,8 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     self.shadows_tree_descriptor_sets = shadows_tree_descriptor_sets;
 
     const tree_descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_masked"));
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree_gbuffer_opaque"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_gbuffer_cutout"));
 
         var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
         for (descriptor_sets, 0..) |_, index| {
@@ -796,8 +796,8 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     self.tree_descriptor_sets = tree_descriptor_sets;
 
     const descriptor_sets = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_masked"));
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit_gbuffer_opaque"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_gbuffer_cutout"));
 
         var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
         for (descriptor_sets, 0..) |_, index| {
@@ -829,7 +829,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[cutout_entities_index], 1, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
@@ -839,7 +839,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[0].__union_field3.ppBuffers = @ptrCast(&shadows_uniform_buffer);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[masked_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[cutout_entities_index], 1, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
@@ -853,7 +853,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets[masked_entities_index], 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets[cutout_entities_index], 2, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
@@ -867,7 +867,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_tree_descriptor_sets[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_tree_descriptor_sets[masked_entities_index], 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_tree_descriptor_sets[cutout_entities_index], 2, @ptrCast(&params));
     }
 }
 
@@ -875,14 +875,14 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
 
     graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[masked_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[cutout_entities_index]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[masked_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[cutout_entities_index]);
 
     graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets[masked_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets[cutout_entities_index]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_tree_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_tree_descriptor_sets[masked_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_tree_descriptor_sets[cutout_entities_index]);
 }
 
 fn cullAndBatchDrawCalls(
@@ -994,7 +994,7 @@ fn cullAndBatchDrawCalls(
                             }
                         }
                     } else {
-                        for (renderer.masked_pipelines) |pipeline| {
+                        for (renderer.cutout_pipelines) |pipeline| {
                             if (draw_call_info.pipeline_id.hash == pipeline.hash) {
                                 should_parse_submesh = true;
                                 break;

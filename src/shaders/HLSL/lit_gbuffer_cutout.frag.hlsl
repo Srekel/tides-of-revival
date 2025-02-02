@@ -2,16 +2,16 @@
 #define STAGE_FRAG
 
 #define VL_PosNorTanUv0Col
-#include "lit_resources.hlsl"
+#include "lit_gbuffer_resources.hlsli"
 #include "utils.hlsl"
 
-GBufferOutput PS_MAIN( VSOutput Input) {
+GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     INIT_MAIN;
     GBufferOutput Out;
 
-    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
     uint instanceIndex = Input.InstanceID + g_instanceRootConstants.startInstanceLocation;
-    InstanceData instance = instanceTransformBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
+    InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
@@ -23,6 +23,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(g_linear_repeat_sampler, Input.UV);
+        clip(baseColorSample.a - 0.5);
         baseColor *= baseColorSample.rgb;
     } else {
         baseColor *= sRGBToLinear_Float3(Input.Color.rgb);
@@ -36,6 +37,10 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         N = normalize(mul(tangentNormal, TBN));
     }
 
+    // if (isFrontFace) {
+    //     N *= -1.0;
+    // }
+
     float roughness = material.roughness;
     float metallic = material.metallic;
     float occlusion = 1.0f;
@@ -47,7 +52,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         metallic = armSample.b;
     }
 
-    Out.GBuffer0 = float4(baseColor, 1.0f);
+    Out.GBuffer0 = float4(baseColor.rgb, 1.0f);
     Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
     Out.GBuffer2 = float4(occlusion, roughness, metallic, 1.0f);
 

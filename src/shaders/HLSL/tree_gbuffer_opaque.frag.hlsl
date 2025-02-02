@@ -2,16 +2,16 @@
 #define STAGE_FRAG
 
 #define VL_PosNorTanUv0ColUV1
-#include "tree_resources.hlsl"
+#include "tree_gbuffer_resources.hlsli"
 #include "utils.hlsl"
 
-GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
+GBufferOutput PS_MAIN( VSOutput Input) {
     INIT_MAIN;
     GBufferOutput Out;
 
-    ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
     uint instanceIndex = Input.InstanceID + g_instanceRootConstants.startInstanceLocation;
-    InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
+    InstanceData instance = instanceTransformBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
@@ -23,7 +23,6 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     if (hasValidTexture(material.baseColorTextureIndex)) {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(g_linear_repeat_sampler, Input.UV);
-        clip(baseColorSample.a - 0.5);
         baseColor = baseColorSample.rgb;
     } else {
         baseColor = sRGBToLinear_Float3(Input.Color.rgb);
@@ -36,10 +35,6 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
         float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, g_linear_repeat_sampler, Input.UV), 1.0f);
         N = normalize(mul(tangentNormal, TBN));
     }
-
-    // if (isFrontFace) {
-    //     N *= -1.0;
-    // }
 
     float roughness = material.roughness;
     float metallic = material.metallic;

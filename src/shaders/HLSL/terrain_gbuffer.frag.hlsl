@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#include "terrain_resources.hlsl"
+#include "terrain_gbuffer_resources.hlsli"
 #include "utils.hlsl"
 
 #define HEIGHBLEND_ENABLED 0

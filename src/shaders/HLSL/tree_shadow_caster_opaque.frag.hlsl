@@ -2,7 +2,7 @@
 #define STAGE_FRAG
 
 #define VL_PosNorTanUv0ColUV1
-#include "shadows_tree_resources.hlsl"
+#include "tree_shadow_caster_resources.hlsli"
 #include "utils.hlsl"
 
 void PS_MAIN( VSOutput Input) {

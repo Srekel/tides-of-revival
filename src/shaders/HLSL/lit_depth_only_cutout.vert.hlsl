@@ -2,7 +2,7 @@
 #define STAGE_VERT
 
 #define VL_PosNorTanUv0Col
-#include "depth_resources.hlsli"
+#include "lit_depth_only_resources.hlsli"
 
 VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 {

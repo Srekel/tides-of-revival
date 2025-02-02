@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "shadows_terrain_resources.hlsl"
+#include "terrain_shadow_caster_resources.hlsli"
 
 TerrainShadowVSOutput VS_MAIN(TerrainVSInput Input, uint instance_id : SV_InstanceID)
 {

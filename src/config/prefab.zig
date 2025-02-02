@@ -30,17 +30,17 @@ pub const color_calibrator_id = ID("color_calibrator");
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
-    const pipeline_lit_opaque_id = IdLocal.init("lit");
-    const pipeline_lit_masked_id = IdLocal.init("lit_masked");
+    const pipeline_lit_opaque_id = IdLocal.init("lit_gbuffer_opaque");
+    const pipeline_lit_masked_id = IdLocal.init("lit_gbuffer_cutout");
     _ = pipeline_lit_masked_id;
-    const pipeline_tree_opaque_id = IdLocal.init("tree");
-    const pipeline_tree_masked_id = IdLocal.init("tree_masked");
+    const pipeline_tree_opaque_id = IdLocal.init("tree_gbuffer_opaque");
+    const pipeline_tree_masked_id = IdLocal.init("tree_gbuffer_cutout");
 
-    const pipeline_shadow_caster_opaque_id = IdLocal.init("shadows_lit");
-    const pipeline_shadow_caster_masked_id = IdLocal.init("shadows_lit_masked");
+    const pipeline_shadow_caster_opaque_id = IdLocal.init("lit_shadow_caster_opaque");
+    const pipeline_shadow_caster_masked_id = IdLocal.init("lit_shadow_caster_cutout");
     _ = pipeline_shadow_caster_masked_id;
-    const pipeline_tree_shadow_caster_opaque_id = IdLocal.init("shadows_tree");
-    const pipeline_tree_shadow_caster_masked_id = IdLocal.init("shadows_tree_masked");
+    const pipeline_tree_shadow_caster_opaque_id = IdLocal.init("tree_shadow_caster_opaque");
+    const pipeline_tree_shadow_caster_masked_id = IdLocal.init("tree_shadow_caster_cutout");
 
     var default_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
     default_material.gbuffer_pipeline_id = pipeline_lit_opaque_id;

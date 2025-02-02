@@ -2,7 +2,7 @@
 #define STAGE_FRAG
 
 #define VL_PosNorTanUv0Col
-#include "shadows_lit_resources.hlsl"
+#include "lit_shadow_caster_resources.hlsli"
 #include "utils.hlsl"
 
 void PS_MAIN( ShadowVSOutput Input, bool isFrontFace : SV_IsFrontFace ) {

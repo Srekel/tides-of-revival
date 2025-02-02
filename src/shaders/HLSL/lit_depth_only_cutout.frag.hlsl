@@ -2,7 +2,7 @@
 #define STAGE_FRAG
 
 #define VL_PosNorTanUv0Col
-#include "depth_resources.hlsli"
+#include "lit_depth_only_resources.hlsli"
 #include "utils.hlsl"
 
 void PS_MAIN( VSOutput Input ) {

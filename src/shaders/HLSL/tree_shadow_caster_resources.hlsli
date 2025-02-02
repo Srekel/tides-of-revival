@@ -2,7 +2,7 @@
 #define _SHADOWS_TREE_RESOURCES_H
 
 #define VL_PosNorTanUv0ColUv1
-#include "shadows_lit_resources.hlsl"
+#include "lit_shadow_caster_resources.hlsli"
 
 #define WIND_CBUFFER_REG b2
 #define WIND_CBUFFER_BINDING 3

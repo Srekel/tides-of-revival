@@ -56,7 +56,7 @@ pub const RenderPass = struct {
 };
 
 pub const opaque_pipelines = pso.opaque_pipelines;
-pub const masked_pipelines = pso.masked_pipelines;
+pub const cutout_pipelines = pso.cutout_pipelines;
 
 const VertexLayoutHashMap = std.AutoHashMap(IdLocal, graphics.VertexLayout);
 

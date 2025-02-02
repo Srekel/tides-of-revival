@@ -355,7 +355,7 @@ pub const Velocity = struct {
 
 pub const SurfaceType = enum {
     @"opaque",
-    masked,
+    cutout,
 };
 
 pub const ShadingTechnique = enum {

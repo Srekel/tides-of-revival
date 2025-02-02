@@ -12,19 +12,19 @@ const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_re
 const Pool = @import("zpool").Pool;
 
 pub const opaque_pipelines = [_]IdLocal{
-    IdLocal.init("lit"),
-    IdLocal.init("shadows_lit"),
-    IdLocal.init("tree"),
-    IdLocal.init("shadows_tree"),
-    IdLocal.init("depth"),
+    IdLocal.init("lit_gbuffer_opaque"),
+    IdLocal.init("lit_shadow_caster_opaque"),
+    IdLocal.init("tree_gbuffer_opaque"),
+    IdLocal.init("tree_shadow_caster_opaque"),
+    IdLocal.init("lit_depth_only_opaque"),
 };
 
-pub const masked_pipelines = [_]IdLocal{
-    IdLocal.init("lit_masked"),
-    IdLocal.init("shadows_lit_masked"),
-    IdLocal.init("tree_masked"),
-    IdLocal.init("shadows_tree_masked"),
-    IdLocal.init("depth_masked"),
+pub const cutout_pipelines = [_]IdLocal{
+    IdLocal.init("lit_gbuffer_cutout"),
+    IdLocal.init("lit_shadow_caster_cutout"),
+    IdLocal.init("tree_gbuffer_cutout"),
+    IdLocal.init("tree_shadow_caster_cutout"),
+    IdLocal.init("lit_depth_only_cutout"),
 };
 
 const PSOPool = Pool(16, 16, graphics.Shader, struct { shader: [*c]graphics.Shader, root_signature: [*c]graphics.RootSignature, pipeline: [*c]graphics.Pipeline });
@@ -35,7 +35,7 @@ const BlendStates = std.AutoHashMap(IdLocal, graphics.BlendStateDesc);
 const GraphicsPipelineDesc = struct {
     id: IdLocal = undefined,
     vert_shader_name: []const u8 = undefined,
-    frag_shader_name: ?[]const u8 = undefined,
+    frag_shader_name: ?[]const u8 = null,
     geom_shader_name: ?[]const u8 = null,
     topology: graphics.PrimitiveTopology = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST,
     vertex_layout_id: ?IdLocal = null,
@@ -256,190 +256,202 @@ pub const PSOManager = struct {
             }
         }
 
-        // Shadows Terrain
-        {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{};
-            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-
-            const desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("shadows_terrain"),
-                .vert_shader_name = "shadows_terrain.vert",
-                .frag_shader_name = "shadows_terrain.frag",
-                .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
-                .depth_state = depth_state,
-                .depth_format = self.renderer.depth_buffer.*.mFormat,
-                .vertex_layout_id = IdLocal.init("pos_uv0_col"),
-                .sampler_ids = &sampler_ids,
-            };
-            self.createGraphicsPipeline(desc);
-        }
-
-        // Terrain
-        {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.gbuffer_0.*.mFormat,
-                self.renderer.gbuffer_1.*.mFormat,
-                self.renderer.gbuffer_2.*.mFormat,
-            };
-
-            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-
-            const desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("terrain"),
-                .vert_shader_name = "terrain.vert",
-                .frag_shader_name = "terrain.frag",
-                .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
-                .depth_state = depth_state,
-                .depth_format = self.renderer.depth_buffer.*.mFormat,
-                .vertex_layout_id = IdLocal.init("pos_uv0_col"),
-                .sampler_ids = &sampler_ids,
-            };
-            self.createGraphicsPipeline(desc);
-        }
-
         // Normal map from height map
         {
             var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
             self.createComputePipeline(IdLocal.init("normal_from_height"), "normal_from_height.comp", &sampler_ids);
         }
 
-        // Shadows Lit
+        // Terrain
+        // ======
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{};
-            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            // GBuffer
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{
+                    self.renderer.gbuffer_0.*.mFormat,
+                    self.renderer.gbuffer_1.*.mFormat,
+                    self.renderer.gbuffer_2.*.mFormat,
+                };
 
-            var desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("shadows_lit"),
-                .vert_shader_name = "shadows_lit.vert",
-                .frag_shader_name = "shadows_lit_opaque.frag",
-                .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
-                .depth_state = depth_state,
-                .depth_format = self.renderer.depth_buffer.*.mFormat,
-                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
-                .sampler_ids = &sampler_ids,
-            };
-            self.createGraphicsPipeline(desc);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            desc.id = IdLocal.init("shadows_lit_masked");
-            desc.frag_shader_name = "shadows_lit_masked.frag";
-            desc.rasterizer_state = rasterizer_cull_none;
-            self.createGraphicsPipeline(desc);
+                const desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("terrain_gbuffer"),
+                    .vert_shader_name = "terrain_gbuffer.vert",
+                    .frag_shader_name = "terrain_gbuffer.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_col"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
+            }
+
+            // Shadows Caster
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{};
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+
+                const desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("terrain_shadow_caster"),
+                    .vert_shader_name = "terrain_shadow_caster.vert",
+                    .frag_shader_name = "terrain_shadow_caster.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_col"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
+            }
         }
 
         // Lit
+        // ===
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.gbuffer_0.*.mFormat,
-                self.renderer.gbuffer_1.*.mFormat,
-                self.renderer.gbuffer_2.*.mFormat,
-            };
+            // Depth-Only
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{};
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+                var desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("lit_depth_only_opaque"),
+                    .vert_shader_name = "lit_depth_only_opaque.vert",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
 
-            var desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("lit"),
-                .vert_shader_name = "lit.vert",
-                .frag_shader_name = "lit_opaque.frag",
-                .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
-                .depth_state = depth_state,
-                .depth_format = self.renderer.depth_buffer.*.mFormat,
-                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
-                .sampler_ids = &sampler_ids,
-            };
-            self.createGraphicsPipeline(desc);
+                desc.id = IdLocal.init("lit_depth_only_cutout");
+                desc.vert_shader_name = "lit_depth_only_cutout.vert";
+                desc.frag_shader_name = "lit_depth_only_cutout.frag";
+                desc.rasterizer_state = rasterizer_cull_none;
+                self.createGraphicsPipeline(desc);
+            }
 
-            desc.id = IdLocal.init("lit_masked");
-            desc.frag_shader_name = "lit_masked.frag";
-            desc.rasterizer_state = rasterizer_cull_none;
-            self.createGraphicsPipeline(desc);
+            // GBuffer
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{
+                    self.renderer.gbuffer_0.*.mFormat,
+                    self.renderer.gbuffer_1.*.mFormat,
+                    self.renderer.gbuffer_2.*.mFormat,
+                };
+
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+
+                var desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("lit_gbuffer_opaque"),
+                    .vert_shader_name = "lit_gbuffer.vert",
+                    .frag_shader_name = "lit_gbuffer_opaque.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
+
+                desc.id = IdLocal.init("lit_gbuffer_cutout");
+                desc.frag_shader_name = "lit_gbuffer_cutout.frag";
+                desc.rasterizer_state = rasterizer_cull_none;
+                self.createGraphicsPipeline(desc);
+            }
+
+            // Shadows Caster
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{};
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+
+                var desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("lit_shadow_caster_opaque"),
+                    .vert_shader_name = "lit_shadow_caster.vert",
+                    .frag_shader_name = "lit_shadow_caster_opaque.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
+
+                desc.id = IdLocal.init("lit_shadow_caster_cutout");
+                desc.frag_shader_name = "lit_shadow_caster_cutout.frag";
+                desc.rasterizer_state = rasterizer_cull_none;
+                self.createGraphicsPipeline(desc);
+            }
         }
 
-        // Shadows Tree
+        // Trees
+        // =====
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{};
-            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            // GBuffer
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{
+                    self.renderer.gbuffer_0.*.mFormat,
+                    self.renderer.gbuffer_1.*.mFormat,
+                    self.renderer.gbuffer_2.*.mFormat,
+                };
 
-            var desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("shadows_tree"),
-                .vert_shader_name = "shadows_tree.vert",
-                .frag_shader_name = "shadows_tree_opaque.frag",
-                .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
-                .depth_state = depth_state,
-                .depth_format = self.renderer.depth_buffer.*.mFormat,
-                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
-                .sampler_ids = &sampler_ids,
-            };
-            self.createGraphicsPipeline(desc);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            desc.id = IdLocal.init("shadows_tree_masked");
-            desc.frag_shader_name = "shadows_tree_masked.frag";
-            desc.rasterizer_state = rasterizer_cull_none;
-            self.createGraphicsPipeline(desc);
-        }
+                var desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("tree_gbuffer_opaque"),
+                    .vert_shader_name = "tree_gbuffer.vert",
+                    .frag_shader_name = "tree_gbuffer_opaque.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
 
-        // Tree
-        {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{
-                self.renderer.gbuffer_0.*.mFormat,
-                self.renderer.gbuffer_1.*.mFormat,
-                self.renderer.gbuffer_2.*.mFormat,
-            };
+                desc.id = IdLocal.init("tree_gbuffer_cutout");
+                desc.frag_shader_name = "tree_gbuffer_cutout.frag";
+                desc.rasterizer_state = rasterizer_cull_none;
+                self.createGraphicsPipeline(desc);
+            }
 
-            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+            // Shadows Caster
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{};
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-            var desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("tree"),
-                .vert_shader_name = "tree.vert",
-                .frag_shader_name = "tree_opaque.frag",
-                .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
-                .depth_state = depth_state,
-                .depth_format = self.renderer.depth_buffer.*.mFormat,
-                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
-                .sampler_ids = &sampler_ids,
-            };
-            self.createGraphicsPipeline(desc);
+                var desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("tree_shadow_caster_opaque"),
+                    .vert_shader_name = "tree_shadow_caster.vert",
+                    .frag_shader_name = "tree_shadow_caster_opaque.frag",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
 
-            desc.id = IdLocal.init("tree_masked");
-            desc.frag_shader_name = "tree_masked.frag";
-            desc.rasterizer_state = rasterizer_cull_none;
-            self.createGraphicsPipeline(desc);
-        }
-
-        // Depth only
-        {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-            const render_targets = [_]graphics.TinyImageFormat{};
-            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-
-            var desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("depth"),
-                .vert_shader_name = "depth.vert",
-                .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
-                .depth_state = depth_state,
-                .depth_format = self.renderer.depth_buffer.*.mFormat,
-                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
-                .sampler_ids = &sampler_ids,
-            };
-            self.createGraphicsPipeline(desc);
-
-            desc.id = IdLocal.init("depth_masked");
-            desc.vert_shader_name = "depth_masked.vert";
-            desc.frag_shader_name = "depth_masked.frag";
-            desc.rasterizer_state = rasterizer_cull_none;
-            self.createGraphicsPipeline(desc);
+                desc.id = IdLocal.init("tree_shadow_caster_cutout");
+                desc.frag_shader_name = "tree_shadow_caster_cutout.frag";
+                desc.rasterizer_state = rasterizer_cull_none;
+                self.createGraphicsPipeline(desc);
+            }
         }
 
         // Deferred

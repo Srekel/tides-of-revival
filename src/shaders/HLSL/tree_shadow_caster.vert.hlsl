@@ -2,13 +2,12 @@
 #define STAGE_VERT
 
 #define VL_PosNorTanUv0ColUV1
-#include "tree_resources.hlsl"
+#include "tree_shadow_caster_resources.hlsli"
 
 VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 {
     INIT_MAIN;
     VSOutput Out;
-    Out.Color = Input.Color;
     Out.InstanceID = instance_id;
     Out.UV = unpack2Floats(Input.UV);
     Out.UV1 = Input.UV1;
@@ -35,11 +34,6 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 
     float4x4 mvp = mul(g_proj_view_mat, instance.worldMat);
     Out.Position = mul(mvp, float4(positionOS, 1.0f));
-    Out.PositionWS = positionWS;
-    Out.Normal = normalWS;
-    // Out.Tangent = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Tangent)), 0.0f)).rgb;
-    Out.Tangent.xyz = mul((float3x3)instance.worldMat, Input.Tangent.xyz);
-    Out.Tangent.w = Input.Tangent.w;
 
     RETURN(Out);
 }
