@@ -16,6 +16,7 @@ pub const opaque_pipelines = [_]IdLocal{
     IdLocal.init("shadows_lit"),
     IdLocal.init("tree"),
     IdLocal.init("shadows_tree"),
+    IdLocal.init("depth"),
 };
 
 pub const masked_pipelines = [_]IdLocal{
@@ -23,6 +24,7 @@ pub const masked_pipelines = [_]IdLocal{
     IdLocal.init("shadows_lit_masked"),
     IdLocal.init("tree_masked"),
     IdLocal.init("shadows_tree_masked"),
+    IdLocal.init("depth_masked"),
 };
 
 const PSOPool = Pool(16, 16, graphics.Shader, struct { shader: [*c]graphics.Shader, root_signature: [*c]graphics.RootSignature, pipeline: [*c]graphics.Pipeline });
@@ -33,7 +35,7 @@ const BlendStates = std.AutoHashMap(IdLocal, graphics.BlendStateDesc);
 const GraphicsPipelineDesc = struct {
     id: IdLocal = undefined,
     vert_shader_name: []const u8 = undefined,
-    frag_shader_name: []const u8 = undefined,
+    frag_shader_name: ?[]const u8 = undefined,
     geom_shader_name: ?[]const u8 = null,
     topology: graphics.PrimitiveTopology = graphics.PrimitiveTopology.PRIMITIVE_TOPO_TRI_LIST,
     vertex_layout_id: ?IdLocal = null,
@@ -415,6 +417,31 @@ pub const PSOManager = struct {
             self.createGraphicsPipeline(desc);
         }
 
+        // Depth only
+        {
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{};
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+
+            var desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("depth"),
+                .vert_shader_name = "depth.vert",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
+
+            desc.id = IdLocal.init("depth_masked");
+            desc.vert_shader_name = "depth_masked.vert";
+            desc.frag_shader_name = "depth_masked.frag";
+            desc.rasterizer_state = rasterizer_cull_none;
+            self.createGraphicsPipeline(desc);
+        }
+
         // Deferred
         {
             var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge };
@@ -611,7 +638,9 @@ pub const PSOManager = struct {
 
         var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
         shader_load_desc.mVert.pFileName = @ptrCast(desc.vert_shader_name);
-        shader_load_desc.mFrag.pFileName = @ptrCast(desc.frag_shader_name);
+        if (desc.frag_shader_name) |shader_name| {
+            shader_load_desc.mFrag.pFileName = @ptrCast(shader_name);
+        }
         if (desc.geom_shader_name) |shader_name| {
             shader_load_desc.mGeom.pFileName = @ptrCast(shader_name);
         }

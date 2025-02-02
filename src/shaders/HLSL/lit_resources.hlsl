@@ -14,6 +14,7 @@ cbuffer RootConstant : register(b0)
 	InstanceRootConstants g_instanceRootConstants;
 };
 
+// TODO: Define this in types.hlsli and have the same for all shaders (except special cases?)
 cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 {
 	float4x4 g_proj_view_mat;
