@@ -135,9 +135,9 @@ GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
     INIT_MAIN;
     GBufferOutput Out;
 
-    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
-    uint instanceIndex = Input.InstanceID + g_start_instance_location;
-    InstanceData instance = instanceTransformBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
+    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    uint instanceIndex = Input.InstanceID + g_instanceRootConstants.startInstanceLocation;
+    TerrainInstanceData instance = instanceTransformBuffer.Load<TerrainInstanceData>(instanceIndex * sizeof(TerrainInstanceData));
 
     const float3 P = Input.PositionWS.xyz;
 

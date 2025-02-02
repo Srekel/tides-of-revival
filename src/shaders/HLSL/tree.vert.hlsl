@@ -13,11 +13,11 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     Out.UV = unpack2Floats(Input.UV);
     Out.UV1 = Input.UV1;
 
-    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
-    uint instanceIndex = instance_id + g_start_instance_location;
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    uint instanceIndex = instance_id + g_instanceRootConstants.startInstanceLocation;
     InstanceData instance = instance_transform_buffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
-    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_material_buffer_index];
+    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
 
     float3 positionOS = Input.Position.xyz;

@@ -20,12 +20,12 @@ float LinearEyeDepth(float depth)
 }
 
 float4 PS_MAIN(VSOutput Input) : SV_TARGET0 {
-    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
-    uint instance_index = Input.InstanceID + g_start_instance_location;
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    uint instance_index = Input.InstanceID + g_instanceRootConstants.startInstanceLocation;
     InstanceData instance = instance_transform_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
-    ByteAddressBuffer material_buffer = ResourceDescriptorHeap[g_material_buffer_index];
-    WaterMaterial material = material_buffer.Load<WaterMaterial>(instance.m_material_buffer_offset);
+    ByteAddressBuffer material_buffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
+    WaterMaterial material = material_buffer.Load<WaterMaterial>(instance.materialBufferOffset);
 
     float4 clip_position = mul(g_proj_view_mat, float4(Input.PositionWS, 1.0f));
     float4 screen_position = CalculateScreenPosition(clip_position);

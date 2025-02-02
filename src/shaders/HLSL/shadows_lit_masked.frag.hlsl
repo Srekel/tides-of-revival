@@ -8,11 +8,11 @@
 void PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     INIT_MAIN;
 
-    ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
-    uint instanceIndex = Input.InstanceID + g_start_instance_location;
+    ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    uint instanceIndex = Input.InstanceID + g_instanceRootConstants.startInstanceLocation;
     InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
-    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_material_buffer_index];
+    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
 
     if (hasValidTexture(material.baseColorTextureIndex)) {

@@ -9,11 +9,11 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     INIT_MAIN;
     GBufferOutput Out;
 
-    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
-    uint instanceIndex = Input.InstanceID + g_start_instance_location;
+    ByteAddressBuffer instanceTransformBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    uint instanceIndex = Input.InstanceID + g_instanceRootConstants.startInstanceLocation;
     InstanceData instance = instanceTransformBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
-    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_material_buffer_index];
+    ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
 
     const float3 P = Input.PositionWS.xyz;

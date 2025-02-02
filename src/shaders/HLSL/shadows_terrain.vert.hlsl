@@ -9,9 +9,9 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     VSOutput Out;
     Out.UV = unpack2Floats(Input.UV);
 
-    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
-    uint instanceIndex = instance_id + g_start_instance_location;
-    InstanceData instance = instance_transform_buffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    uint instanceIndex = instance_id + g_instanceRootConstants.startInstanceLocation;
+    TerrainInstanceData instance = instance_transform_buffer.Load<TerrainInstanceData>(instanceIndex * sizeof(TerrainInstanceData));
 
     float3 displaced_position = Input.Position.xyz;
 

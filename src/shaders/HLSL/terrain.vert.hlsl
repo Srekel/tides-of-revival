@@ -15,9 +15,9 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     Out.InstanceID = instance_id;
     Out.UV = unpack2Floats(Input.UV);
 
-    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instance_data_buffer_index];
-    uint instanceIndex = instance_id + g_start_instance_location;
-    InstanceData instance = instance_transform_buffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
+    ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
+    uint instanceIndex = instance_id + g_instanceRootConstants.startInstanceLocation;
+    TerrainInstanceData instance = instance_transform_buffer.Load<TerrainInstanceData>(instanceIndex * sizeof(TerrainInstanceData));
 
     Texture2D heightmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.heightmapTextureIndex)];
     float height = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV, 0).r;

@@ -3,24 +3,15 @@
 
 #include "../FSL/d3d.h"
 #include "../FSL/ShaderUtilities.h.fsl"
+#include "types.hlsli"
 #include "material.hlsl"
 
-struct InstanceData
-{
-	float4x4 worldMat;
-	float4x4 worldMatInverted;
-	uint materialBufferOffset;
-	float3 _padding;
-};
-
-RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
-RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
+SamplerState g_linear_repeat_sampler : register(s0);
+SamplerState g_linear_clamp_edge_sampler : register(s1);
 
 cbuffer RootConstant : register(b0)
 {
-	uint g_start_instance_location;
-	uint g_instance_data_buffer_index;
-	uint g_material_buffer_index;
+	InstanceRootConstants g_instanceRootConstants;
 };
 
 cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)

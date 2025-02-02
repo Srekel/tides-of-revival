@@ -2,6 +2,7 @@
 #define _WATER_RESOURCES_H
 
 #include "../FSL/d3d.h"
+#include "types.hlsli"
 
 SamplerState g_linear_repeat_sampler : register(s0, UPDATE_FREQ_NONE);
 SamplerState g_linear_clamp_edge_sampler : register(s1, UPDATE_FREQ_NONE);
@@ -15,9 +16,7 @@ Texture2D<float> g_depth_buffer : register(t4, UPDATE_FREQ_PER_FRAME);
 
 cbuffer RootConstant : register(b0)
 {
-	uint g_start_instance_location;
-	uint g_instance_data_buffer_index;
-	uint g_material_buffer_index;
+	InstanceRootConstants g_instanceRootConstants;
 };
 
 cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
@@ -56,14 +55,6 @@ struct VSOutput
 	float2 UV : TEXCOORD0;
 	float4 Color : COLOR;
 	uint InstanceID : SV_InstanceID;
-};
-
-struct InstanceData
-{
-	float4x4 m_world_mat;
-	float4x4 m_inv_world_mat;
-	uint m_material_buffer_offset;
-	float3 _padding;
 };
 
 struct WaterMaterial
