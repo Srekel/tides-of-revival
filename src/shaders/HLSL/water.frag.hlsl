@@ -5,13 +5,6 @@
 #include "pbr.hlsl"
 #include "utils.hlsl"
 
-static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
-
-bool hasValidTexture(uint textureIndex)
-{
-	return textureIndex != INVALID_TEXTURE_INDEX;
-}
-
 float4 CalculateScreenPosition(float4 clip_position)
 {
     float4 screen_position = clip_position * 0.5f;

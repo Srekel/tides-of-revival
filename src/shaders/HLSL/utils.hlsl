@@ -171,4 +171,11 @@ float3 LogCToLinear(float3 color)
 	);
 }
 
+static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
+
+bool hasValidTexture(uint textureIndex)
+{
+	return textureIndex != INVALID_TEXTURE_INDEX;
+}
+
 #endif // _UTILS_H

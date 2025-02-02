@@ -32,11 +32,5 @@ struct MaterialData
     float windShiverDirectionality;
 };
 
-static const uint INVALID_TEXTURE_INDEX = 0xFFFFFFFF;
-
-bool hasValidTexture(uint textureIndex)
-{
-	return textureIndex != INVALID_TEXTURE_INDEX;
-}
 
 #endif // _MATERIAL_H

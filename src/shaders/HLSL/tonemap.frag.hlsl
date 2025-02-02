@@ -36,6 +36,7 @@ cbuffer ConstantBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
     float g_saturation;
     // Tonemapper LUT
     uint g_tony_mc_mapface_lut_index;
+    uint g_color_grading;
 };
 
 SamplerState g_linear_clamp_edge_sampler : register(s0, UPDATE_FREQ_NONE);
@@ -84,21 +85,27 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET {
 
     float3 color = SampleLvlTex2D(g_scene_color, g_linear_clamp_edge_sampler, Input.UV, 0).rgb;
 
-    // Color Grading
-    // https://catlikecoding.com/unity/tutorials/custom-srp/color-grading/
-    color = min(color, 60.0);
-    color = ColorGradePostExposure(color);
-    color = ColorGradeContrast(color);
-    color = ColorGradeColorFilter(color);
-    color = max(color, 0.0);
-    color = ColorGradeHueShift(color);
-    color = ColorGradeSaturation(color);
-    color = max(color, 0.0);
+    if (g_color_grading > 0)
+    {
+        // Color Grading
+        // https://catlikecoding.com/unity/tutorials/custom-srp/color-grading/
+        color = min(color, 60.0);
+        color = ColorGradePostExposure(color);
+        color = ColorGradeContrast(color);
+        color = ColorGradeColorFilter(color);
+        color = max(color, 0.0);
+        color = ColorGradeHueShift(color);
+        color = ColorGradeSaturation(color);
+        color = max(color, 0.0);
+    }
 
-    // Tone mapping
-    Texture3D<float3> tony_mc_mapface_lut = ResourceDescriptorHeap[g_tony_mc_mapface_lut_index];
-    color = tony_mc_mapface(color, tony_mc_mapface_lut, g_linear_clamp_edge_sampler);
+    if (hasValidTexture(g_tony_mc_mapface_lut_index))
+    {
+        // Tone mapping
+        Texture3D<float3> tony_mc_mapface_lut = ResourceDescriptorHeap[g_tony_mc_mapface_lut_index];
+        color = tony_mc_mapface(color, tony_mc_mapface_lut, g_linear_clamp_edge_sampler);
+    }
+
     Out.rgb = color;
-
     return Out;
 }

@@ -17,6 +17,7 @@ const resource_loader = zforge.resource_loader;
 // Bloom Settings
 // ==============
 const BloomSettings = struct {
+    enabled: bool = false,
     bloom_threshold: f32 = 0.15,
     bloom_strength: f32 = 1.0,
 };
@@ -43,11 +44,16 @@ const ApplyBloomConstantBuffer = struct {
 };
 
 const ColorGradingSettings = struct {
+    enabled: bool = true,
     post_exposure: f32 = 0.5,
     contrast: f32 = 2.0,
     color_filter: [3]f32 = .{ 1.0, 1.0, 1.0 },
     hue_shift: f32 = 0.0,
     saturation: f32 = 45.0,
+};
+
+const TonemapSettings = struct {
+    enabled: bool = true,
 };
 
 // Tonemap Constant Buffer
@@ -59,6 +65,7 @@ const TonemapConstantBuffer = struct {
     hue_shift: f32,
     saturation: f32,
     tony_mc_mapface_lut_texture_index: u32 = std.math.maxInt(u32),
+    color_grading: u32 = 0,
 };
 
 pub const PostProcessingRenderPass = struct {
@@ -87,6 +94,7 @@ pub const PostProcessingRenderPass = struct {
 
     // Tonemap
     // =======
+    tonemap_settings: TonemapSettings,
     color_grading_settings: ColorGradingSettings,
     tonemap_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     tonemap_descriptor_set: [*c]graphics.DescriptorSet,
@@ -161,6 +169,7 @@ pub const PostProcessingRenderPass = struct {
             .upsample_and_blur_4_descriptor_set = undefined,
             .apply_bloom_descriptor_set = undefined,
             .color_grading_settings = .{},
+            .tonemap_settings = .{},
             .tonemap_constant_buffers = tonemap_constant_buffers,
             .tonemap_descriptor_set = undefined,
             .tony_mc_mapface_lut = tony_mc_mapface_lut,
@@ -202,7 +211,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const frame_index = self.renderer.frame_index;
 
     // Bloom
-    {
+    if (self.bloom_settings.enabled) {
         var rt_barriers = [_]graphics.RenderTargetBarrier{
             graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
         };
@@ -350,52 +359,58 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
         }
+    }
 
-        // Tonemap
-        {
-            var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.renderer.swap_chain.*.ppRenderTargets[self.renderer.swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-            };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
-
-            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
-            bind_render_targets_desc.mRenderTargetCount = 1;
-            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.renderer.swap_chain.*.ppRenderTargets[self.renderer.swap_chain_image_index];
-            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-
-            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
-
-            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.renderer.window.frame_buffer_size[0]), @floatFromInt(self.renderer.window.frame_buffer_size[1]), 0.0, 1.0);
-            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.renderer.window.frame_buffer_size[0]), @intCast(self.renderer.window.frame_buffer_size[1]));
-
-            // Update constant buffer
-            {
-                var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
-                constant_buffer_data.tony_mc_mapface_lut_texture_index = self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut);
-                // Exposure is measured in stops, so we need raise 2 to the power of the configured value
-                constant_buffer_data.post_exposure = std.math.pow(f32, 2.0, self.color_grading_settings.post_exposure);
-                // Contrast and saturation need to be remaped from [-100, 100] to [0, 2]
-                constant_buffer_data.contrast = self.color_grading_settings.contrast * 0.01 + 1.0;
-                constant_buffer_data.saturation = self.color_grading_settings.saturation * 0.01 + 1.0;
-                // HueShift needs to be remapped from [-180, 180] to [-1, 1]
-                constant_buffer_data.hue_shift = self.color_grading_settings.hue_shift / 360.0;
-                @memcpy(&constant_buffer_data.color_filter, &self.color_grading_settings.color_filter);
-
-                const data = renderer.Slice{
-                    .data = @ptrCast(&constant_buffer_data),
-                    .size = @sizeOf(TonemapConstantBuffer),
-                };
-                self.renderer.updateBuffer(data, TonemapConstantBuffer, self.tonemap_constant_buffers[frame_index]);
-            }
-
-            const pipeline_id = IdLocal.init("tonemap");
-            const pipeline = self.renderer.getPSO(pipeline_id);
-
-            graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemap_descriptor_set);
-            graphics.cmdDraw(cmd_list, 3, 0);
+    // Tonemap
+    {
+        var num_input_barriers: u32 = 1;
+        var input_barriers: [2]graphics.RenderTargetBarrier = undefined;
+        input_barriers[0] = graphics.RenderTargetBarrier.init(self.renderer.swap_chain.*.ppRenderTargets[self.renderer.swap_chain_image_index], graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET);
+        if (!self.bloom_settings.enabled) {
+            num_input_barriers = 2;
+            input_barriers[1] = graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE);
         }
+
+        graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, num_input_barriers, @ptrCast(&input_barriers));
+
+        var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+        bind_render_targets_desc.mRenderTargetCount = 1;
+        bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
+        bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.renderer.swap_chain.*.ppRenderTargets[self.renderer.swap_chain_image_index];
+        bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+
+        graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+        graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.renderer.window.frame_buffer_size[0]), @floatFromInt(self.renderer.window.frame_buffer_size[1]), 0.0, 1.0);
+        graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.renderer.window.frame_buffer_size[0]), @intCast(self.renderer.window.frame_buffer_size[1]));
+
+        // Update constant buffer
+        {
+            var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
+            constant_buffer_data.color_grading = if (self.color_grading_settings.enabled) 1 else 0;
+            constant_buffer_data.tony_mc_mapface_lut_texture_index = if (self.color_grading_settings.enabled) self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut) else std.math.maxInt(u32);
+            // Exposure is measured in stops, so we need raise 2 to the power of the configured value
+            constant_buffer_data.post_exposure = std.math.pow(f32, 2.0, self.color_grading_settings.post_exposure);
+            // Contrast and saturation need to be remaped from [-100, 100] to [0, 2]
+            constant_buffer_data.contrast = self.color_grading_settings.contrast * 0.01 + 1.0;
+            constant_buffer_data.saturation = self.color_grading_settings.saturation * 0.01 + 1.0;
+            // HueShift needs to be remapped from [-180, 180] to [-1, 1]
+            constant_buffer_data.hue_shift = self.color_grading_settings.hue_shift / 360.0;
+            @memcpy(&constant_buffer_data.color_filter, &self.color_grading_settings.color_filter);
+
+            const data = renderer.Slice{
+                .data = @ptrCast(&constant_buffer_data),
+                .size = @sizeOf(TonemapConstantBuffer),
+            };
+            self.renderer.updateBuffer(data, TonemapConstantBuffer, self.tonemap_constant_buffers[frame_index]);
+        }
+
+        const pipeline_id = IdLocal.init("tonemap");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+        graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemap_descriptor_set);
+        graphics.cmdDraw(cmd_list, 3, 0);
     }
 }
 
@@ -449,11 +464,17 @@ fn upsampleAndBlur(
 fn renderImGui(user_data: *anyopaque) void {
     const self: *PostProcessingRenderPass = @ptrCast(@alignCast(user_data));
     if (zgui.collapsingHeader("Bloom", .{})) {
+        _ = zgui.checkbox("Bloom Enabled", .{ .v = &self.bloom_settings.enabled });
         _ = zgui.dragFloat("Threshold", .{ .v = &self.bloom_settings.bloom_threshold, .cfmt = "%.2f", .min = 0.05, .max = 1.0, .speed = 0.01 });
         _ = zgui.dragFloat("Strength", .{ .v = &self.bloom_settings.bloom_strength, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
     }
 
+    if (zgui.collapsingHeader("Tone Mapping", .{})) {
+         _ = zgui.checkbox("Tone Mapping Enabled", .{ .v = &self.tonemap_settings.enabled });
+    }
+
     if (zgui.collapsingHeader("Color Grading", .{})) {
+        _ = zgui.checkbox("Color Grading Enabled", .{ .v = &self.color_grading_settings.enabled });
         _ = zgui.inputFloat("Post Exposure", .{ .v = &self.color_grading_settings.post_exposure });
         _ = zgui.dragFloat("Contrast", .{ .v = &self.color_grading_settings.contrast, .cfmt = "%.2f", .min = -100.0, .max = 100.0, .speed = 0.1 });
         _ = zgui.colorEdit3("Color Filter", .{ .col = &self.color_grading_settings.color_filter });
