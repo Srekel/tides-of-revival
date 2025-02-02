@@ -359,12 +359,14 @@ pub const SurfaceType = enum {
 };
 
 pub const ShadingTechnique = enum {
+    depth_only,
     gbuffer,
     shadow_caster,
 };
 
 pub const UberShader = struct {
     // Techniques
+    depth_only_pipeline_id: ?IdLocal,
     gbuffer_pipeline_id: ?IdLocal,
     shadow_caster_pipeline_id: ?IdLocal,
 
@@ -405,6 +407,7 @@ pub const UberShader = struct {
 
     pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {
         return .{
+            .depth_only_pipeline_id = null,
             .gbuffer_pipeline_id = null,
             .shadow_caster_pipeline_id = null,
             .base_color = base_color,

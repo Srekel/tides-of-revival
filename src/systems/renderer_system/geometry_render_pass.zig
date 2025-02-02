@@ -70,35 +70,46 @@ pub const GeometryRenderPass = struct {
     prefab_mgr: *PrefabManager,
     query_static_mesh: *ecs.query_t,
 
-    uniform_frame_data: UniformFrameData,
-    uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    uniform_frame_data_depth_only: UniformFrameData,
+    uniform_frame_buffers_depth_only: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     // TODO(gmodarelli): Descriptor Set should be associated to materials
-    descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
+    descriptor_sets_depth_only: [max_entity_types][*c]graphics.DescriptorSet,
 
-    shadows_uniform_frame_data: ShadowsUniformFrameData,
-    shadows_uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    uniform_frame_data_gbuffer: UniformFrameData,
+    uniform_frame_buffers_gbuffer: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     // TODO(gmodarelli): Descriptor Set should be associated to materials
-    shadows_descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
+    descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet,
+
+    uniform_frame_data_shadow_caster: ShadowsUniformFrameData,
+    uniform_frame_buffers_shadow_caster: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    // TODO(gmodarelli): Descriptor Set should be associated to materials
+    descriptor_sets_shadow_caster: [max_entity_types][*c]graphics.DescriptorSet,
 
     wind_noise_texture: renderer.TextureHandle,
     wind_gust_texture: renderer.TextureHandle,
     wind_frame_data: WindFrameData,
     wind_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     // TODO(gmodarelli): Descriptor Set should be associated to materials
-    tree_descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
-    shadows_tree_descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet,
+    tree_descriptor_sets_depth_only: [max_entity_types][*c]graphics.DescriptorSet,
+    tree_descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet,
+    tree_descriptor_sets_shadow_caster: [max_entity_types][*c]graphics.DescriptorSet,
 
-    gbuffer_instance_data_buffers: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    shadow_caster_instance_data_buffers: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     draw_calls_info: std.ArrayList(DrawCallInfo),
+    instance_buffers_depth_only: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    instance_buffers_gbuffer: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    instance_buffers_shadow_caster: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
-    gbuffer_instance_data: [max_entity_types]std.ArrayList(InstanceData),
-    gbuffer_draw_calls: [max_entity_types]std.ArrayList(DrawCallInstanced),
-    gbuffer_draw_calls_push_constants: [max_entity_types]std.ArrayList(InstanceRootConstants),
+    instances_depth_only: [max_entity_types]std.ArrayList(InstanceData),
+    draw_calls_depth_only: [max_entity_types]std.ArrayList(DrawCallInstanced),
+    draw_calls_root_constants_depth_only: [max_entity_types]std.ArrayList(InstanceRootConstants),
 
-    shadow_caster_instance_data: [max_entity_types]std.ArrayList(InstanceData),
-    shadow_caster_draw_calls: [max_entity_types]std.ArrayList(DrawCallInstanced),
-    shadow_caster_draw_calls_push_constants: [max_entity_types]std.ArrayList(InstanceRootConstants),
+    instances_gbuffer: [max_entity_types]std.ArrayList(InstanceData),
+    draw_calls_gbuffer: [max_entity_types]std.ArrayList(DrawCallInstanced),
+    draw_calls_root_constants_gbuffer: [max_entity_types]std.ArrayList(InstanceRootConstants),
+
+    instances_shadow_caster: [max_entity_types]std.ArrayList(InstanceData),
+    draw_calls_shadow_caster: [max_entity_types]std.ArrayList(DrawCallInstanced),
+    draw_calls_root_constants_shadow_caster: [max_entity_types]std.ArrayList(InstanceRootConstants),
 
     pub fn init(self: *GeometryRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         const wind_noise_texture = rctx.loadTexture("textures/noise/3d_noise.dds");
@@ -124,16 +135,7 @@ pub const GeometryRenderPass = struct {
             break :blk buffers;
         };
 
-        const shadows_uniform_frame_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(ShadowsUniformFrameData);
-            }
-
-            break :blk buffers;
-        };
-
-        const uniform_frame_buffers = blk: {
+        const uniform_frame_buffers_depth_only = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 buffers[buffer_index] = rctx.createUniformBuffer(UniformFrameData);
@@ -142,53 +144,97 @@ pub const GeometryRenderPass = struct {
             break :blk buffers;
         };
 
-        const gbuffer_opaque_instance_data_buffers = blk: {
+        const uniform_frame_buffers_gbuffer = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instances Opaque");
+                buffers[buffer_index] = rctx.createUniformBuffer(UniformFrameData);
             }
 
             break :blk buffers;
         };
 
-        const gbuffer_masked_instance_data_buffers = blk: {
+        const uniform_frame_buffers_shadow_caster = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instances Cutout");
+                buffers[buffer_index] = rctx.createUniformBuffer(ShadowsUniformFrameData);
             }
 
             break :blk buffers;
         };
 
-        const shadow_caster_opaque_instance_data_buffers = blk: {
+        const instance_data_buffers_depth_only_opaque = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 const buffer_data = renderer.Slice{
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instances Opaque");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Depth Only Instance Opaque");
             }
 
             break :blk buffers;
         };
 
-        const shadow_caster_masked_instance_data_buffers = blk: {
+        const instance_data_buffers_depth_only_cutout = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 const buffer_data = renderer.Slice{
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instances Cutout");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Depth Only Instance Cutout");
+            }
+
+            break :blk buffers;
+        };
+
+        const instance_data_buffers_gbuffer_opaque = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = max_instances * @sizeOf(InstanceData),
+                };
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instance Opaque");
+            }
+
+            break :blk buffers;
+        };
+
+        const instance_data_buffers_gbuffer_cutout = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = max_instances * @sizeOf(InstanceData),
+                };
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instance Cutout");
+            }
+
+            break :blk buffers;
+        };
+
+        const instance_data_buffers_shadow_caster_opaque = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = max_instances * @sizeOf(InstanceData),
+                };
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instance Opaque");
+            }
+
+            break :blk buffers;
+        };
+
+        const instance_data_buffers_shadow_caster_cutout = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = max_instances * @sizeOf(InstanceData),
+                };
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instance Cutout");
             }
 
             break :blk buffers;
@@ -196,13 +242,17 @@ pub const GeometryRenderPass = struct {
 
         const draw_calls_info = std.ArrayList(DrawCallInfo).init(allocator);
 
-        const gbuffer_instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
-        const gbuffer_draw_calls = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
-        const gbuffer_draw_calls_push_constants = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
+        const instances_depth_only = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
+        const draw_calls_depth_only = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
+        const draw_calls_root_constants_depth_only = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
 
-        const shadow_caster_instance_data = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
-        const shadow_caster_draw_calls = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
-        const shadow_caster_draw_calls_push_constants = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
+        const instances_gbuffer = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
+        const draw_calls_gbuffer = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
+        const draw_calls_root_constants_gbuffer = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
+
+        const instances_shadow_caster = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
+        const draw_calls_shadow_caster = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
+        const draw_calls_root_constants_shadow_caster = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
 
         // Queries
         const query_static_mesh = ecs.query_init(ecsu_world.world, &.{
@@ -224,23 +274,31 @@ pub const GeometryRenderPass = struct {
             .wind_frame_buffers = wind_frame_buffers,
             .wind_noise_texture = wind_noise_texture,
             .wind_gust_texture = wind_gust_texture,
-            .tree_descriptor_sets = undefined,
-            .shadows_tree_descriptor_sets = undefined,
-            .shadows_uniform_frame_data = std.mem.zeroes(ShadowsUniformFrameData),
-            .shadows_uniform_frame_buffers = shadows_uniform_frame_buffers,
-            .shadows_descriptor_sets = undefined,
-            .uniform_frame_data = std.mem.zeroes(UniformFrameData),
-            .uniform_frame_buffers = uniform_frame_buffers,
-            .descriptor_sets = undefined,
-            .gbuffer_instance_data_buffers = .{ gbuffer_masked_instance_data_buffers, gbuffer_opaque_instance_data_buffers },
-            .shadow_caster_instance_data_buffers = .{ shadow_caster_masked_instance_data_buffers, shadow_caster_opaque_instance_data_buffers },
+            .tree_descriptor_sets_depth_only = undefined,
+            .tree_descriptor_sets_gbuffer = undefined,
+            .tree_descriptor_sets_shadow_caster = undefined,
+            .uniform_frame_data_shadow_caster = std.mem.zeroes(ShadowsUniformFrameData),
+            .uniform_frame_buffers_shadow_caster = uniform_frame_buffers_shadow_caster,
+            .descriptor_sets_depth_only = undefined,
+            .descriptor_sets_gbuffer = undefined,
+            .descriptor_sets_shadow_caster = undefined,
+            .uniform_frame_data_depth_only = std.mem.zeroes(UniformFrameData),
+            .uniform_frame_data_gbuffer = std.mem.zeroes(UniformFrameData),
+            .uniform_frame_buffers_depth_only = uniform_frame_buffers_depth_only,
+            .uniform_frame_buffers_gbuffer = uniform_frame_buffers_gbuffer,
+            .instance_buffers_depth_only = .{ instance_data_buffers_depth_only_cutout, instance_data_buffers_depth_only_opaque },
+            .instance_buffers_gbuffer = .{ instance_data_buffers_gbuffer_cutout, instance_data_buffers_gbuffer_opaque },
+            .instance_buffers_shadow_caster = .{ instance_data_buffers_shadow_caster_cutout, instance_data_buffers_shadow_caster_opaque },
             .draw_calls_info = draw_calls_info,
-            .gbuffer_instance_data = gbuffer_instance_data,
-            .gbuffer_draw_calls = gbuffer_draw_calls,
-            .gbuffer_draw_calls_push_constants = gbuffer_draw_calls_push_constants,
-            .shadow_caster_instance_data = shadow_caster_instance_data,
-            .shadow_caster_draw_calls = shadow_caster_draw_calls,
-            .shadow_caster_draw_calls_push_constants = shadow_caster_draw_calls_push_constants,
+            .instances_depth_only = instances_depth_only,
+            .instances_gbuffer = instances_gbuffer,
+            .draw_calls_depth_only = draw_calls_depth_only,
+            .draw_calls_gbuffer = draw_calls_gbuffer,
+            .draw_calls_root_constants_depth_only = draw_calls_root_constants_depth_only,
+            .draw_calls_root_constants_gbuffer = draw_calls_root_constants_gbuffer,
+            .instances_shadow_caster = instances_shadow_caster,
+            .draw_calls_shadow_caster = draw_calls_shadow_caster,
+            .draw_calls_root_constants_shadow_caster = draw_calls_root_constants_shadow_caster,
             .query_static_mesh = query_static_mesh,
         };
 
@@ -252,6 +310,7 @@ pub const GeometryRenderPass = struct {
             .prepare_descriptor_sets_fn = prepareDescriptorSets,
             .unload_descriptor_sets_fn = unloadDescriptorSets,
             .render_gbuffer_pass_fn = renderGBuffer,
+            .render_zprepass_pass_fn = renderZPrePass,
             .render_shadow_pass_fn = renderShadowMap,
             .user_data = @ptrCast(self),
         };
@@ -265,19 +324,25 @@ pub const GeometryRenderPass = struct {
 
         self.draw_calls_info.deinit();
 
-        self.gbuffer_instance_data[opaque_entities_index].deinit();
-        self.gbuffer_instance_data[cutout_entities_index].deinit();
-        self.gbuffer_draw_calls[opaque_entities_index].deinit();
-        self.gbuffer_draw_calls[cutout_entities_index].deinit();
-        self.gbuffer_draw_calls_push_constants[opaque_entities_index].deinit();
-        self.gbuffer_draw_calls_push_constants[cutout_entities_index].deinit();
+        self.instances_depth_only[opaque_entities_index].deinit();
+        self.instances_depth_only[cutout_entities_index].deinit();
+        self.instances_gbuffer[opaque_entities_index].deinit();
+        self.instances_gbuffer[cutout_entities_index].deinit();
+        self.draw_calls_depth_only[opaque_entities_index].deinit();
+        self.draw_calls_depth_only[cutout_entities_index].deinit();
+        self.draw_calls_gbuffer[opaque_entities_index].deinit();
+        self.draw_calls_gbuffer[cutout_entities_index].deinit();
+        self.draw_calls_root_constants_depth_only[opaque_entities_index].deinit();
+        self.draw_calls_root_constants_depth_only[cutout_entities_index].deinit();
+        self.draw_calls_root_constants_gbuffer[opaque_entities_index].deinit();
+        self.draw_calls_root_constants_gbuffer[cutout_entities_index].deinit();
 
-        self.shadow_caster_instance_data[opaque_entities_index].deinit();
-        self.shadow_caster_instance_data[cutout_entities_index].deinit();
-        self.shadow_caster_draw_calls[opaque_entities_index].deinit();
-        self.shadow_caster_draw_calls[cutout_entities_index].deinit();
-        self.shadow_caster_draw_calls_push_constants[opaque_entities_index].deinit();
-        self.shadow_caster_draw_calls_push_constants[cutout_entities_index].deinit();
+        self.instances_shadow_caster[opaque_entities_index].deinit();
+        self.instances_shadow_caster[cutout_entities_index].deinit();
+        self.draw_calls_shadow_caster[opaque_entities_index].deinit();
+        self.draw_calls_shadow_caster[cutout_entities_index].deinit();
+        self.draw_calls_root_constants_shadow_caster[opaque_entities_index].deinit();
+        self.draw_calls_root_constants_shadow_caster[cutout_entities_index].deinit();
     }
 };
 
@@ -302,6 +367,219 @@ fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c
     graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
 }
 
+fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+    const trazy_zone = ztracy.ZoneNC(@src(), "Z PrePass: Geometry Render Pass", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
+    const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
+    const frame_index = self.renderer.frame_index;
+
+    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct {
+        camera: *const fd.Camera,
+        transform: *const fd.Transform,
+    });
+    const camera_position = camera_comps.transform.getPos00();
+    const z_proj_view = zm.loadMat(camera_comps.camera.view_projection[0..]);
+
+    zm.storeMat(&self.uniform_frame_data_depth_only.projection_view, z_proj_view);
+    zm.storeMat(&self.uniform_frame_data_depth_only.projection_view_inverted, zm.inverse(z_proj_view));
+    self.uniform_frame_data_depth_only.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+    self.uniform_frame_data_depth_only.time = @floatCast(self.renderer.time); // keep f64?
+
+    // Update Uniform Frame Buffer
+    {
+        const data = renderer.Slice{
+            .data = @ptrCast(&self.uniform_frame_data_depth_only),
+            .size = @sizeOf(UniformFrameData),
+        };
+        self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers_depth_only[frame_index]);
+    }
+
+    // Update Wind Frame Buffer
+    {
+        const data = renderer.Slice{
+            .data = @ptrCast(&self.wind_frame_data),
+            .size = @sizeOf(WindFrameData),
+        };
+        self.renderer.updateBuffer(data, WindFrameData, self.wind_frame_buffers[frame_index]);
+    }
+
+    // Render Depth Only Cutout Objects
+    {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
+
+        cullAndBatchDrawCalls(
+            self,
+            camera_entity,
+            &self.instances_depth_only[cutout_entities_index],
+            &self.draw_calls_depth_only[cutout_entities_index],
+            &self.draw_calls_root_constants_depth_only[cutout_entities_index],
+            self.instance_buffers_depth_only[cutout_entities_index][frame_index],
+            .cutout,
+            .depth_only,
+        );
+
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
+
+            const instance_data_slice = renderer.Slice{
+                .data = @ptrCast(self.instances_depth_only[cutout_entities_index].items),
+                .size = self.instances_depth_only[cutout_entities_index].items.len * @sizeOf(InstanceData),
+            };
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_depth_only[cutout_entities_index][frame_index]);
+        }
+
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
+
+            var pipeline_id: IdLocal = undefined;
+            var pipeline: [*c]graphics.Pipeline = undefined;
+            var root_signature: [*c]graphics.RootSignature = undefined;
+            var root_constant_index: u32 = 0;
+
+            for (self.draw_calls_depth_only[cutout_entities_index].items, 0..) |draw_call, i| {
+                if (i == 0) {
+                    pipeline_id = draw_call.pipeline_id;
+                    pipeline = self.renderer.getPSO(pipeline_id);
+                    root_signature = self.renderer.getRootSignature(pipeline_id);
+                    graphics.cmdBindPipeline(cmd_list, pipeline);
+                    if (pipeline_id.hash == renderer.cutout_pipelines[5].hash) {
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_depth_only[cutout_entities_index]);
+                    } else {
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_depth_only[cutout_entities_index]);
+                    }
+
+                    root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+                } else {
+                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        pipeline_id = draw_call.pipeline_id;
+                        pipeline = self.renderer.getPSO(pipeline_id);
+                        root_signature = self.renderer.getRootSignature(pipeline_id);
+                        graphics.cmdBindPipeline(cmd_list, pipeline);
+                        if (pipeline_id.hash == renderer.cutout_pipelines[5].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_depth_only[cutout_entities_index]);
+                        } else {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_depth_only[cutout_entities_index]);
+                        }
+
+                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+                    }
+                }
+
+                const push_constants = &self.draw_calls_root_constants_depth_only[cutout_entities_index].items[i];
+                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+
+                if (mesh.loaded) {
+                    bindMeshBuffers(self, mesh, cmd_list);
+
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                    );
+                }
+            }
+        }
+    }
+
+    // Render Depth Only Opauqe Objects
+    {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Opaque Objects", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
+
+        cullAndBatchDrawCalls(
+            self,
+            camera_entity,
+            &self.instances_depth_only[opaque_entities_index],
+            &self.draw_calls_depth_only[opaque_entities_index],
+            &self.draw_calls_root_constants_depth_only[opaque_entities_index],
+            self.instance_buffers_depth_only[opaque_entities_index][frame_index],
+            .@"opaque",
+            .depth_only,
+        );
+
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
+
+            const instance_data_slice = renderer.Slice{
+                .data = @ptrCast(self.instances_depth_only[opaque_entities_index].items),
+                .size = self.instances_depth_only[opaque_entities_index].items.len * @sizeOf(InstanceData),
+            };
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_depth_only[opaque_entities_index][frame_index]);
+        }
+
+        {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
+
+            var pipeline_id: IdLocal = undefined;
+            var pipeline: [*c]graphics.Pipeline = undefined;
+            var root_signature: [*c]graphics.RootSignature = undefined;
+            var root_constant_index: u32 = 0;
+
+            for (self.draw_calls_depth_only[opaque_entities_index].items, 0..) |draw_call, i| {
+                if (i == 0) {
+                    pipeline_id = draw_call.pipeline_id;
+                    pipeline = self.renderer.getPSO(pipeline_id);
+                    root_signature = self.renderer.getRootSignature(pipeline_id);
+                    graphics.cmdBindPipeline(cmd_list, pipeline);
+                    if (pipeline_id.hash == renderer.opaque_pipelines[5].hash) {
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_depth_only[opaque_entities_index]);
+                    } else {
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_depth_only[opaque_entities_index]);
+                    }
+
+                    root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+                } else {
+                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
+                        pipeline_id = draw_call.pipeline_id;
+                        pipeline = self.renderer.getPSO(pipeline_id);
+                        root_signature = self.renderer.getRootSignature(pipeline_id);
+                        graphics.cmdBindPipeline(cmd_list, pipeline);
+                        if (pipeline_id.hash == renderer.opaque_pipelines[5].hash) {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_depth_only[opaque_entities_index]);
+                        } else {
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_depth_only[opaque_entities_index]);
+                        }
+
+                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+                    }
+                }
+
+                const push_constants = &self.draw_calls_root_constants_depth_only[opaque_entities_index].items[i];
+                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+
+                if (mesh.loaded) {
+                    bindMeshBuffers(self, mesh, cmd_list);
+
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "GBuffer: Geometry Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
@@ -317,18 +595,18 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const camera_position = camera_comps.transform.getPos00();
     const z_proj_view = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
-    zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
-    zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
-    self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
-    self.uniform_frame_data.time = @floatCast(self.renderer.time); // keep f64?
+    zm.storeMat(&self.uniform_frame_data_gbuffer.projection_view, z_proj_view);
+    zm.storeMat(&self.uniform_frame_data_gbuffer.projection_view_inverted, zm.inverse(z_proj_view));
+    self.uniform_frame_data_gbuffer.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+    self.uniform_frame_data_gbuffer.time = @floatCast(self.renderer.time); // keep f64?
 
     // Update Uniform Frame Buffer
     {
         const data = renderer.Slice{
-            .data = @ptrCast(&self.uniform_frame_data),
+            .data = @ptrCast(&self.uniform_frame_data_gbuffer),
             .size = @sizeOf(UniformFrameData),
         };
-        self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+        self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers_gbuffer[frame_index]);
     }
 
     // Update Wind Frame Buffer
@@ -348,10 +626,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         cullAndBatchDrawCalls(
             self,
             camera_entity,
-            &self.gbuffer_instance_data[cutout_entities_index],
-            &self.gbuffer_draw_calls[cutout_entities_index],
-            &self.gbuffer_draw_calls_push_constants[cutout_entities_index],
-            self.gbuffer_instance_data_buffers[cutout_entities_index][frame_index],
+            &self.instances_gbuffer[cutout_entities_index],
+            &self.draw_calls_gbuffer[cutout_entities_index],
+            &self.draw_calls_root_constants_gbuffer[cutout_entities_index],
+            self.instance_buffers_gbuffer[cutout_entities_index][frame_index],
             .cutout,
             .gbuffer,
         );
@@ -361,10 +639,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.gbuffer_instance_data[cutout_entities_index].items),
-                .size = self.gbuffer_instance_data[cutout_entities_index].items.len * @sizeOf(InstanceData),
+                .data = @ptrCast(self.instances_gbuffer[cutout_entities_index].items),
+                .size = self.instances_gbuffer[cutout_entities_index].items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[cutout_entities_index][frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_gbuffer[cutout_entities_index][frame_index]);
         }
 
         {
@@ -376,16 +654,16 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
 
-            for (self.gbuffer_draw_calls[cutout_entities_index].items, 0..) |draw_call, i| {
+            for (self.draw_calls_gbuffer[cutout_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[cutout_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
                     } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[cutout_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[cutout_entities_index]);
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -397,9 +675,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[cutout_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
                         } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[cutout_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[cutout_entities_index]);
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -407,7 +685,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
                 }
 
-                const push_constants = &self.gbuffer_draw_calls_push_constants[cutout_entities_index].items[i];
+                const push_constants = &self.draw_calls_root_constants_gbuffer[cutout_entities_index].items[i];
                 const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
                 if (mesh.loaded) {
@@ -435,10 +713,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         cullAndBatchDrawCalls(
             self,
             camera_entity,
-            &self.gbuffer_instance_data[opaque_entities_index],
-            &self.gbuffer_draw_calls[opaque_entities_index],
-            &self.gbuffer_draw_calls_push_constants[opaque_entities_index],
-            self.gbuffer_instance_data_buffers[opaque_entities_index][frame_index],
+            &self.instances_gbuffer[opaque_entities_index],
+            &self.draw_calls_gbuffer[opaque_entities_index],
+            &self.draw_calls_root_constants_gbuffer[opaque_entities_index],
+            self.instance_buffers_gbuffer[opaque_entities_index][frame_index],
             .@"opaque",
             .gbuffer,
         );
@@ -448,10 +726,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.gbuffer_instance_data[opaque_entities_index].items),
-                .size = self.gbuffer_instance_data[opaque_entities_index].items.len * @sizeOf(InstanceData),
+                .data = @ptrCast(self.instances_gbuffer[opaque_entities_index].items),
+                .size = self.instances_gbuffer[opaque_entities_index].items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.gbuffer_instance_data_buffers[opaque_entities_index][frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_gbuffer[opaque_entities_index][frame_index]);
         }
 
         {
@@ -463,16 +741,16 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
 
-            for (self.gbuffer_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
+            for (self.draw_calls_gbuffer[opaque_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
                     } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[opaque_entities_index]);
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -484,9 +762,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets[opaque_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
                         } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets[opaque_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[opaque_entities_index]);
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -494,7 +772,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
                 }
 
-                const push_constants = &self.gbuffer_draw_calls_push_constants[opaque_entities_index].items[i];
+                const push_constants = &self.draw_calls_root_constants_gbuffer[opaque_entities_index].items[i];
                 const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
                 if (mesh.loaded) {
@@ -545,14 +823,14 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const shadow_range = sun_comps.light.shadow_range;
     const z_proj = zm.orthographicLh(shadow_range, shadow_range, -500.0, 500.0);
     const z_proj_view = zm.mul(z_view, z_proj);
-    zm.storeMat(&self.shadows_uniform_frame_data.projection_view, z_proj_view);
-    self.shadows_uniform_frame_data.time = @floatCast(self.renderer.time);
+    zm.storeMat(&self.uniform_frame_data_shadow_caster.projection_view, z_proj_view);
+    self.uniform_frame_data_shadow_caster.time = @floatCast(self.renderer.time);
 
     const data = renderer.Slice{
-        .data = @ptrCast(&self.shadows_uniform_frame_data),
+        .data = @ptrCast(&self.uniform_frame_data_shadow_caster),
         .size = @sizeOf(ShadowsUniformFrameData),
     };
-    self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.shadows_uniform_frame_buffers[frame_index]);
+    self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.uniform_frame_buffers_shadow_caster[frame_index]);
 
     // Render Shadows Cutout Objects
     {
@@ -562,10 +840,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         cullAndBatchDrawCalls(
             self,
             camera_entity,
-            &self.shadow_caster_instance_data[cutout_entities_index],
-            &self.shadow_caster_draw_calls[cutout_entities_index],
-            &self.shadow_caster_draw_calls_push_constants[cutout_entities_index],
-            self.shadow_caster_instance_data_buffers[cutout_entities_index][frame_index],
+            &self.instances_shadow_caster[cutout_entities_index],
+            &self.draw_calls_shadow_caster[cutout_entities_index],
+            &self.draw_calls_root_constants_shadow_caster[cutout_entities_index],
+            self.instance_buffers_shadow_caster[cutout_entities_index][frame_index],
             .cutout,
             .shadow_caster,
         );
@@ -575,10 +853,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.shadow_caster_instance_data[cutout_entities_index].items),
-                .size = self.shadow_caster_instance_data[cutout_entities_index].items.len * @sizeOf(InstanceData),
+                .data = @ptrCast(self.instances_shadow_caster[cutout_entities_index].items),
+                .size = self.instances_shadow_caster[cutout_entities_index].items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[cutout_entities_index][frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_shadow_caster[cutout_entities_index][frame_index]);
         }
 
         {
@@ -590,16 +868,16 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
 
-            for (self.shadow_caster_draw_calls[cutout_entities_index].items, 0..) |draw_call, i| {
+            for (self.draw_calls_shadow_caster[cutout_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     if (pipeline_id.hash == renderer.cutout_pipelines[4].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[cutout_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
                     } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[cutout_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -611,9 +889,9 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         if (pipeline_id.hash == renderer.cutout_pipelines[4].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[cutout_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
                         } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[cutout_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -621,7 +899,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
                 }
 
-                const push_constants = &self.shadow_caster_draw_calls_push_constants[cutout_entities_index].items[i];
+                const push_constants = &self.draw_calls_root_constants_shadow_caster[cutout_entities_index].items[i];
                 const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
                 if (mesh.loaded) {
@@ -649,10 +927,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         cullAndBatchDrawCalls(
             self,
             camera_entity,
-            &self.shadow_caster_instance_data[opaque_entities_index],
-            &self.shadow_caster_draw_calls[opaque_entities_index],
-            &self.shadow_caster_draw_calls_push_constants[opaque_entities_index],
-            self.shadow_caster_instance_data_buffers[opaque_entities_index][frame_index],
+            &self.instances_shadow_caster[opaque_entities_index],
+            &self.draw_calls_shadow_caster[opaque_entities_index],
+            &self.draw_calls_root_constants_shadow_caster[opaque_entities_index],
+            self.instance_buffers_shadow_caster[opaque_entities_index][frame_index],
             .@"opaque",
             .shadow_caster,
         );
@@ -662,10 +940,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.shadow_caster_instance_data[opaque_entities_index].items),
-                .size = self.shadow_caster_instance_data[opaque_entities_index].items.len * @sizeOf(InstanceData),
+                .data = @ptrCast(self.instances_shadow_caster[opaque_entities_index].items),
+                .size = self.instances_shadow_caster[opaque_entities_index].items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.shadow_caster_instance_data_buffers[opaque_entities_index][frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_shadow_caster[opaque_entities_index][frame_index]);
         }
 
         {
@@ -677,16 +955,16 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var root_signature: [*c]graphics.RootSignature = undefined;
             var root_constant_index: u32 = 0;
 
-            for (self.shadow_caster_draw_calls[opaque_entities_index].items, 0..) |draw_call, i| {
+            for (self.draw_calls_shadow_caster[opaque_entities_index].items, 0..) |draw_call, i| {
                 if (i == 0) {
                     pipeline_id = draw_call.pipeline_id;
                     pipeline = self.renderer.getPSO(pipeline_id);
                     root_signature = self.renderer.getRootSignature(pipeline_id);
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     if (pipeline_id.hash == renderer.opaque_pipelines[4].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
                     } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
+                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
                     }
 
                     root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -698,9 +976,9 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                         root_signature = self.renderer.getRootSignature(pipeline_id);
                         graphics.cmdBindPipeline(cmd_list, pipeline);
                         if (pipeline_id.hash == renderer.opaque_pipelines[4].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_tree_descriptor_sets[opaque_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
                         } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_descriptor_sets[opaque_entities_index]);
+                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
                         }
 
                         root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
@@ -708,7 +986,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     }
                 }
 
-                const push_constants = &self.shadow_caster_draw_calls_push_constants[opaque_entities_index].items[i];
+                const push_constants = &self.draw_calls_root_constants_shadow_caster[opaque_entities_index].items[i];
                 const mesh = self.renderer.getMesh(draw_call.mesh_handle);
 
                 if (mesh.loaded) {
@@ -732,12 +1010,12 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 fn createDescriptorSets(user_data: *anyopaque) void {
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
 
-    const shadows_descriptor_sets = blk: {
+    const descriptor_sets_shadow_caster = blk: {
         const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit_shadow_caster_opaque"));
         const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_shadow_caster_cutout"));
 
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
+        var descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets_gbuffer, 0..) |_, index| {
             var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
             desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
             desc.mMaxSets = renderer.Renderer.data_buffer_count;
@@ -746,19 +1024,19 @@ fn createDescriptorSets(user_data: *anyopaque) void {
             } else {
                 desc.pRootSignature = root_signature_lit_masked;
             }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_gbuffer[index]));
         }
 
-        break :blk descriptor_sets;
+        break :blk descriptor_sets_gbuffer;
     };
-    self.shadows_descriptor_sets = shadows_descriptor_sets;
+    self.descriptor_sets_shadow_caster = descriptor_sets_shadow_caster;
 
-    const shadows_tree_descriptor_sets = blk: {
+    const tree_descriptor_sets_shadow_caster = blk: {
         const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree_shadow_caster_opaque"));
         const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_shadow_caster_cutout"));
 
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
+        var descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets_gbuffer, 0..) |_, index| {
             var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
             desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
             desc.mMaxSets = renderer.Renderer.data_buffer_count;
@@ -767,19 +1045,19 @@ fn createDescriptorSets(user_data: *anyopaque) void {
             } else {
                 desc.pRootSignature = root_signature_lit_masked;
             }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_gbuffer[index]));
         }
 
-        break :blk descriptor_sets;
+        break :blk descriptor_sets_gbuffer;
     };
-    self.shadows_tree_descriptor_sets = shadows_tree_descriptor_sets;
+    self.tree_descriptor_sets_shadow_caster = tree_descriptor_sets_shadow_caster;
 
-    const tree_descriptor_sets = blk: {
+    const tree_descriptor_sets_gbuffer = blk: {
         const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree_gbuffer_opaque"));
         const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_gbuffer_cutout"));
 
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
+        var descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets_gbuffer, 0..) |_, index| {
             var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
             desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
             desc.mMaxSets = renderer.Renderer.data_buffer_count;
@@ -788,19 +1066,19 @@ fn createDescriptorSets(user_data: *anyopaque) void {
             } else {
                 desc.pRootSignature = root_signature_lit_masked;
             }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_gbuffer[index]));
         }
 
-        break :blk descriptor_sets;
+        break :blk descriptor_sets_gbuffer;
     };
-    self.tree_descriptor_sets = tree_descriptor_sets;
+    self.tree_descriptor_sets_gbuffer = tree_descriptor_sets_gbuffer;
 
-    const descriptor_sets = blk: {
+    const descriptor_sets_gbuffer = blk: {
         const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit_gbuffer_opaque"));
         const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_gbuffer_cutout"));
 
-        var descriptor_sets: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets, 0..) |_, index| {
+        var descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets_gbuffer, 0..) |_, index| {
             var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
             desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
             desc.mMaxSets = renderer.Renderer.data_buffer_count;
@@ -809,12 +1087,54 @@ fn createDescriptorSets(user_data: *anyopaque) void {
             } else {
                 desc.pRootSignature = root_signature_lit_masked;
             }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets[index]));
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_gbuffer[index]));
         }
 
-        break :blk descriptor_sets;
+        break :blk descriptor_sets_gbuffer;
     };
-    self.descriptor_sets = descriptor_sets;
+    self.descriptor_sets_gbuffer = descriptor_sets_gbuffer;
+
+    const tree_descriptor_sets_depth_only = blk: {
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree_depth_only_opaque"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_depth_only_cutout"));
+
+        var descriptor_sets_depth_only: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets_depth_only, 0..) |_, index| {
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = renderer.Renderer.data_buffer_count;
+            if (index == opaque_entities_index) {
+                desc.pRootSignature = root_signature_lit;
+            } else {
+                desc.pRootSignature = root_signature_lit_masked;
+            }
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_depth_only[index]));
+        }
+
+        break :blk descriptor_sets_depth_only;
+    };
+    self.tree_descriptor_sets_depth_only = tree_descriptor_sets_depth_only;
+
+    const descriptor_sets_depth_only = blk: {
+        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit_depth_only_opaque"));
+        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_depth_only_cutout"));
+
+        var descriptor_sets_depth_only: [max_entity_types][*c]graphics.DescriptorSet = undefined;
+        for (descriptor_sets_depth_only, 0..) |_, index| {
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = renderer.Renderer.data_buffer_count;
+            if (index == opaque_entities_index) {
+                desc.pRootSignature = root_signature_lit;
+            } else {
+                desc.pRootSignature = root_signature_lit_masked;
+            }
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_depth_only[index]));
+        }
+
+        break :blk descriptor_sets_depth_only;
+    };
+    self.descriptor_sets_depth_only = descriptor_sets_depth_only;
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {
@@ -823,27 +1143,37 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     var params: [2]graphics.DescriptorData = undefined;
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
+        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_depth_only[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cbFrame";
         params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets[cutout_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_depth_only[opaque_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_depth_only[cutout_entities_index], 1, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var shadows_uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
+        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_gbuffer[i]);
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cbFrame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_gbuffer[opaque_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_gbuffer[cutout_entities_index], 1, @ptrCast(&params));
+    }
+
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var shadows_uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_shadow_caster[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cbFrame";
         params[0].__union_field3.ppBuffers = @ptrCast(&shadows_uniform_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[opaque_entities_index], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_sets[cutout_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_shadow_caster[opaque_entities_index], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_shadow_caster[cutout_entities_index], 1, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
+        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_depth_only[i]);
         var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cbFrame";
@@ -852,12 +1182,12 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[1].pName = "cbWind";
         params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets[cutout_entities_index], 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_depth_only[opaque_entities_index], 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_depth_only[cutout_entities_index], 2, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
+        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_gbuffer[i]);
         var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cbFrame";
@@ -866,23 +1196,41 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[1].pName = "cbWind";
         params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_tree_descriptor_sets[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_tree_descriptor_sets[cutout_entities_index], 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_gbuffer[opaque_entities_index], 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_gbuffer[cutout_entities_index], 2, @ptrCast(&params));
+    }
+
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_shadow_caster[i]);
+        var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cbFrame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "cbWind";
+        params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_shadow_caster[opaque_entities_index], 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_shadow_caster[cutout_entities_index], 2, @ptrCast(&params));
     }
 }
 
 fn unloadDescriptorSets(user_data: *anyopaque) void {
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
 
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets[cutout_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_sets[cutout_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_depth_only[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_depth_only[cutout_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_gbuffer[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_gbuffer[cutout_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_shadow_caster[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_shadow_caster[cutout_entities_index]);
 
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets[cutout_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_tree_descriptor_sets[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_tree_descriptor_sets[cutout_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_depth_only[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_depth_only[cutout_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
 }
 
 fn cullAndBatchDrawCalls(
@@ -970,7 +1318,13 @@ fn cullAndBatchDrawCalls(
 
                     draw_call_info.pipeline_id = undefined;
 
-                    if (technique == .gbuffer) {
+                    if (technique == .depth_only) {
+                        if (pipeline_ids.depth_only_pipeline_id) |p_id| {
+                            draw_call_info.pipeline_id = p_id;
+                        } else {
+                            continue;
+                        }
+                    } else if (technique == .gbuffer) {
                         if (pipeline_ids.gbuffer_pipeline_id) |p_id| {
                             draw_call_info.pipeline_id = p_id;
                         } else {

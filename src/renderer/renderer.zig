@@ -38,6 +38,7 @@ pub const specular_texture_size: u32 = 128;
 pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
 
 pub const RenderPass = struct {
+    render_zprepass_pass_fn: renderPassRenderFn = null,
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
     render_deferred_pass_fn: renderPassRenderFn = null,
@@ -80,6 +81,7 @@ pub const Renderer = struct {
     frame_index: u32 = 0,
 
     gpu_profile_token: profiler.ProfileToken = undefined,
+    z_prepass_pass_profile_token: profiler.ProfileToken = undefined,
     shadow_pass_profile_token: profiler.ProfileToken = undefined,
     gbuffer_pass_profile_token: profiler.ProfileToken = undefined,
     deferred_pass_profile_token: profiler.ProfileToken = undefined,
@@ -518,6 +520,7 @@ pub const Renderer = struct {
                     if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
                         zgui.text("GPU Average time: {d}", .{profiler.getGpuProfileAvgTime(self.gpu_profile_token)});
 
+                        zgui.text("\tZ PrePass: {d}", .{profiler.getGpuProfileAvgTime(self.z_prepass_pass_profile_token)});
                         zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
                         zgui.text("\tGBuffer Pass: {d}", .{profiler.getGpuProfileAvgTime(self.gbuffer_pass_profile_token)});
                         zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
@@ -584,9 +587,41 @@ pub const Renderer = struct {
 
         profiler.cmdBeginGpuFrameProfile(cmd_list, self.gpu_profile_token, .{ .bUseMarker = true });
 
+        // Z PrePass
+        {
+            self.z_prepass_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Z PrePass", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.z_prepass_pass_profile_token);
+
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Z PrePass", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            var input_barriers = [_]graphics.RenderTargetBarrier{
+                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
+            };
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
+            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+            bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
+            bind_render_targets_desc.mDepthStencil.pDepthStencil = self.depth_buffer;
+            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
+            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_zprepass_pass_fn) |render_zprepass_pass_fn| {
+                    render_zprepass_pass_fn(cmd_list, render_pass.user_data);
+                }
+            }
+
+            graphics.cmdBindRenderTargets(cmd_list, null);
+        }
+
         // Shadow Map Pass
         {
             self.shadow_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.shadow_pass_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -613,8 +648,6 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
-
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.shadow_pass_profile_token);
         }
 
         // GBuffer Pass
@@ -628,7 +661,7 @@ pub const Renderer = struct {
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_DEPTH_READ),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -645,7 +678,7 @@ pub const Renderer = struct {
             bind_render_targets_desc.mRenderTargets[2].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
             bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
             bind_render_targets_desc.mDepthStencil.pDepthStencil = self.depth_buffer;
-            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_LOAD;
             graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
 
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
@@ -674,7 +707,7 @@ pub const Renderer = struct {
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_READ, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.shadow_depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
@@ -869,6 +902,7 @@ pub const Renderer = struct {
         };
 
         const pipeline_ids = PassPipelineIds{
+            .depth_only_pipeline_id = material_data.depth_only_pipeline_id,
             .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
             .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
         };
@@ -1522,6 +1556,7 @@ pub const Material = struct {
 };
 
 pub const PassPipelineIds = struct {
+    depth_only_pipeline_id: ?IdLocal,
     shadow_caster_pipeline_id: ?IdLocal,
     gbuffer_pipeline_id: ?IdLocal,
 };

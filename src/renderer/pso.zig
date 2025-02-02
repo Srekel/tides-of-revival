@@ -296,7 +296,7 @@ pub const PSOManager = struct {
                     self.renderer.gbuffer_2.*.mFormat,
                 };
 
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_EQUAL);
 
                 const desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("terrain_gbuffer"),
@@ -370,7 +370,7 @@ pub const PSOManager = struct {
                     self.renderer.gbuffer_2.*.mFormat,
                 };
 
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_EQUAL);
 
                 var desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("lit_gbuffer_opaque"),
@@ -455,7 +455,7 @@ pub const PSOManager = struct {
                     self.renderer.gbuffer_2.*.mFormat,
                 };
 
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_EQUAL);
 
                 var desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("tree_gbuffer_opaque"),

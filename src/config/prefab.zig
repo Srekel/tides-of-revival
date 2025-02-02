@@ -30,11 +30,18 @@ pub const color_calibrator_id = ID("color_calibrator");
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
-    const pipeline_lit_opaque_id = IdLocal.init("lit_gbuffer_opaque");
-    const pipeline_lit_masked_id = IdLocal.init("lit_gbuffer_cutout");
-    _ = pipeline_lit_masked_id;
-    const pipeline_tree_opaque_id = IdLocal.init("tree_gbuffer_opaque");
-    const pipeline_tree_masked_id = IdLocal.init("tree_gbuffer_cutout");
+    // TODO: Declare this in pso so we can reuse the IdLocal instead of initializing them here again
+    const pipeline_lit_gbuffer_opaque_id = IdLocal.init("lit_gbuffer_opaque");
+    const pipeline_lit_gbuffer_cutout_id = IdLocal.init("lit_gbuffer_cutout");
+    _ = pipeline_lit_gbuffer_cutout_id;
+    const pipeline_lit_depth_only_opaque_id = IdLocal.init("lit_depth_only_opaque");
+    const pipeline_lit_depth_only_cutout_id = IdLocal.init("lit_depth_only_cutout");
+    _ = pipeline_lit_depth_only_cutout_id;
+
+    const pipeline_tree_gbuffer_opaque_id = IdLocal.init("tree_gbuffer_opaque");
+    const pipeline_tree_gbuffer_cutout_id = IdLocal.init("tree_gbuffer_cutout");
+    const pipeline_tree_depth_only_opaque_id = IdLocal.init("tree_depth_only_opaque");
+    const pipeline_tree_depth_only_cutout_id = IdLocal.init("tree_depth_only_cutout");
 
     const pipeline_shadow_caster_opaque_id = IdLocal.init("lit_shadow_caster_opaque");
     const pipeline_shadow_caster_masked_id = IdLocal.init("lit_shadow_caster_cutout");
@@ -43,7 +50,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     const pipeline_tree_shadow_caster_masked_id = IdLocal.init("tree_shadow_caster_cutout");
 
     var default_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
-    default_material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+    default_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+    default_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
     default_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
     const default_material_handle = prefab_mgr.rctx.uploadMaterial(default_material) catch unreachable;
 
@@ -65,7 +73,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var material = fd.UberShader.init();
-        material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         material.albedo = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
         material.arm = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
@@ -86,7 +95,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var material = fd.UberShader.init();
-        material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/color_calibrator/color_checker_albedo.dds");
         const material_handle = prefab_mgr.rctx.uploadMaterial(material) catch unreachable;
@@ -105,7 +115,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var material = fd.UberShader.init();
-        material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_albedo.dds");
         material.arm = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_arm.dds");
@@ -126,7 +137,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var material = fd.UberShader.init();
-        material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_albedo.dds");
         material.arm = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_arm.dds");
@@ -214,7 +226,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var roof_material = fd.UberShader.init();
-        roof_material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        roof_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        roof_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         roof_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         roof_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_albedo.dds");
         roof_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_arm.dds");
@@ -222,7 +235,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const roof_material_handle = prefab_mgr.rctx.uploadMaterial(roof_material) catch unreachable;
 
         var wood_material = fd.UberShader.init();
-        wood_material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        wood_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        wood_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         wood_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         wood_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_albedo.dds");
         wood_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_arm.dds");
@@ -230,7 +244,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const wood_material_handle = prefab_mgr.rctx.uploadMaterial(wood_material) catch unreachable;
 
         var plaster_material = fd.UberShader.init();
-        plaster_material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        plaster_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         plaster_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_albedo.dds");
         plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_arm.dds");
@@ -238,7 +253,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const plaster_material_handle = prefab_mgr.rctx.uploadMaterial(plaster_material) catch unreachable;
 
         var stone_material = fd.UberShader.init();
-        stone_material.gbuffer_pipeline_id = pipeline_lit_opaque_id;
+        stone_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        stone_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         stone_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         stone_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_albedo.dds");
         stone_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_arm.dds");
@@ -260,7 +276,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         var beech_trunk_04_material = fd.UberShader.init();
-        beech_trunk_04_material.gbuffer_pipeline_id = pipeline_tree_opaque_id;
+        beech_trunk_04_material.depth_only_pipeline_id = pipeline_tree_depth_only_opaque_id;
+        beech_trunk_04_material.gbuffer_pipeline_id = pipeline_tree_gbuffer_opaque_id;
         beech_trunk_04_material.shadow_caster_pipeline_id = pipeline_tree_shadow_caster_opaque_id;
         beech_trunk_04_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_albedo.dds");
         beech_trunk_04_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_arm.dds");
@@ -278,7 +295,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const beech_trunk_04_material_handle = prefab_mgr.rctx.uploadMaterial(beech_trunk_04_material) catch unreachable;
 
         var beech_atlas_v2_material = fd.UberShader.init();
-        beech_atlas_v2_material.gbuffer_pipeline_id = pipeline_tree_masked_id;
+        beech_atlas_v2_material.depth_only_pipeline_id = pipeline_tree_depth_only_cutout_id;
+        beech_atlas_v2_material.gbuffer_pipeline_id = pipeline_tree_gbuffer_cutout_id;
         beech_atlas_v2_material.shadow_caster_pipeline_id = pipeline_tree_shadow_caster_masked_id;
         beech_atlas_v2_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_v2_albedo.dds");
         beech_atlas_v2_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_arm.dds");
