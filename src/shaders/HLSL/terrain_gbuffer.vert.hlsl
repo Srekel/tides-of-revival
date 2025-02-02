@@ -3,11 +3,6 @@
 
 #include "terrain_gbuffer_resources.hlsli"
 
-float inverse_lerp(float value1, float value2, float pos)
-{
-	return all(value2 == value1) ? 0 : ((pos - value1) / (value2 - value1));
-}
-
 TerrainVSOutput VS_MAIN(TerrainVSInput Input, uint instance_id : SV_InstanceID)
 {
     INIT_MAIN;

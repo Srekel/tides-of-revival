@@ -265,6 +265,30 @@ pub const PSOManager = struct {
         // Terrain
         // ======
         {
+            // Depth-Only
+            {
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+                const render_targets = [_]graphics.TinyImageFormat{
+                    self.renderer.gbuffer_0.*.mFormat,
+                    self.renderer.gbuffer_1.*.mFormat,
+                    self.renderer.gbuffer_2.*.mFormat,
+                };
+
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+
+                const desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("terrain_depth_only"),
+                    .vert_shader_name = "terrain_depth_only.vert",
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_back,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_col"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
+            }
+
             // GBuffer
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
