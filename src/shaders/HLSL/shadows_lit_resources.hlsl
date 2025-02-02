@@ -20,44 +20,4 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float g_time;
 };
 
-#if defined(VL_PosNorTanUv0Col)
-
-STRUCT(VSInput)
-{
-	DATA(float4, Position, POSITION);
-	DATA(uint, Normal, NORMAL);
-	DATA(float4, Tangent, TANGENT);
-	DATA(uint, UV, TEXCOORD0);
-	DATA(float4, Color, COLOR);
-};
-
-STRUCT(VSOutput)
-{
-	DATA(float4, Position, SV_Position);
-	DATA(float2, UV, TEXCOORD0);
-	DATA(uint, InstanceID, SV_InstanceID);
-};
-
-#elif defined(VL_PosNorTanUv0ColUv1)
-
-STRUCT(VSInput)
-{
-	DATA(float4, Position, POSITION);
-	DATA(uint, Normal, NORMAL);
-	DATA(float4, Tangent, TANGENT);
-	DATA(uint, UV, TEXCOORD0);
-	DATA(float4, Color, COLOR);
-	DATA(float2, UV1, TEXCOORD1);
-};
-
-STRUCT(VSOutput)
-{
-	DATA(float4, Position, SV_Position);
-	DATA(float2, UV, TEXCOORD0);
-	DATA(float2, UV1, TEXCOORD1);
-	DATA(uint, InstanceID, SV_InstanceID);
-};
-
-#endif
-
 #endif // _SHADOWS_LIT_RESOURCES_H

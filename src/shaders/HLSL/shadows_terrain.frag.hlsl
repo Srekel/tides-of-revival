@@ -4,6 +4,6 @@
 #include "shadows_terrain_resources.hlsl"
 #include "utils.hlsl"
 
-void PS_MAIN( VSOutput Input ) {
+void PS_MAIN( TerrainShadowVSOutput Input ) {
     INIT_MAIN;
 }

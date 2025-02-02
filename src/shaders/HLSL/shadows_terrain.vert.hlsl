@@ -3,10 +3,10 @@
 
 #include "shadows_terrain_resources.hlsl"
 
-VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
+TerrainShadowVSOutput VS_MAIN(TerrainVSInput Input, uint instance_id : SV_InstanceID)
 {
     INIT_MAIN;
-    VSOutput Out;
+    TerrainShadowVSOutput Out;
     Out.UV = unpack2Floats(Input.UV);
 
     ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];

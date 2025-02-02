@@ -36,27 +36,4 @@ cbuffer cbMaterial : register(b2, UPDATE_FREQ_PER_FRAME)
 	TerrainLayerTextureIndices g_layers[4];
 };
 
-STRUCT(VSInput)
-{
-	DATA(float4, Position, POSITION);
-	DATA(uint, UV, TEXCOORD0);
-	DATA(float4, Color, COLOR);
-};
-
-STRUCT(VSOutput)
-{
-	DATA(float4, Position, SV_Position);
-	DATA(float3, PositionWS, POSITION);
-	DATA(float2, UV, TEXCOORD0);
-	DATA(float3, Normal, TEXCOORD1);
-	DATA(uint, InstanceID, SV_InstanceID);
-};
-
-STRUCT(GBufferOutput)
-{
-	DATA(float4, GBuffer0, SV_TARGET0);
-	DATA(float4, GBuffer1, SV_TARGET1);
-	DATA(float4, GBuffer2, SV_TARGET2);
-};
-
 #endif // _TERRAIN_RESOURCES_H

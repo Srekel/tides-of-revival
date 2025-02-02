@@ -18,17 +18,4 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float4x4 g_proj_view_mat;
 };
 
-STRUCT(VSInput)
-{
-	DATA(float4, Position, POSITION);
-	DATA(uint, UV, TEXCOORD0);
-	DATA(float4, Color, COLOR);
-};
-
-STRUCT(VSOutput)
-{
-	DATA(float4, Position, SV_Position);
-	DATA(float2, UV, TEXCOORD0);
-};
-
 #endif // _SHADOWS_TERRAIN_RESOURCES_H

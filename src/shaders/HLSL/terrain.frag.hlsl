@@ -131,7 +131,7 @@ void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, flo
 #endif
 }
 
-GBufferOutput PS_MAIN( VSOutput Input, float3 barycentrics : SV_Barycentrics ) {
+GBufferOutput PS_MAIN( TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics ) {
     INIT_MAIN;
     GBufferOutput Out;
 

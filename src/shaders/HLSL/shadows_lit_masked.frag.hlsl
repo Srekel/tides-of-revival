@@ -5,7 +5,7 @@
 #include "shadows_lit_resources.hlsl"
 #include "utils.hlsl"
 
-void PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
+void PS_MAIN( ShadowVSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     INIT_MAIN;
 
     ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];

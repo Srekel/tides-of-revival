@@ -8,10 +8,10 @@ float inverse_lerp(float value1, float value2, float pos)
 	return all(value2 == value1) ? 0 : ((pos - value1) / (value2 - value1));
 }
 
-VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
+TerrainVSOutput VS_MAIN(TerrainVSInput Input, uint instance_id : SV_InstanceID)
 {
     INIT_MAIN;
-    VSOutput Out;
+    TerrainVSOutput Out;
     Out.InstanceID = instance_id;
     Out.UV = unpack2Floats(Input.UV);
 

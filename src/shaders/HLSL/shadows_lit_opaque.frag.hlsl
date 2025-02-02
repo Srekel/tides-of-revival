@@ -5,6 +5,6 @@
 #include "shadows_lit_resources.hlsl"
 #include "utils.hlsl"
 
-void PS_MAIN( VSOutput Input) {
+void PS_MAIN( ShadowVSOutput Input) {
     INIT_MAIN;
 }
