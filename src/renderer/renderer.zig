@@ -39,6 +39,7 @@ pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
 
 pub const RenderPass = struct {
     render_zprepass_pass_fn: renderPassRenderFn = null,
+    render_ssao_pass_fn: renderPassRenderFn = null,
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
     render_deferred_pass_fn: renderPassRenderFn = null,
@@ -81,6 +82,7 @@ pub const Renderer = struct {
     frame_index: u32 = 0,
 
     gpu_profile_token: profiler.ProfileToken = undefined,
+    ssao_pass_profile_token: profiler.ProfileToken = undefined,
     z_prepass_pass_profile_token: profiler.ProfileToken = undefined,
     shadow_pass_profile_token: profiler.ProfileToken = undefined,
     gbuffer_pass_profile_token: profiler.ProfileToken = undefined,
@@ -92,12 +94,22 @@ pub const Renderer = struct {
     ui_pass_profile_token: profiler.ProfileToken = undefined,
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
 
+    // Render Targets
+    // ==============
+    // Depth
     depth_buffer: [*c]graphics.RenderTarget = null,
     depth_buffer_copy: [*c]graphics.RenderTarget = null,
+    linear_depth_buffers: [2]TextureHandle = .{ undefined, undefined },
+
+    // Shadows
     shadow_depth_buffer: [*c]graphics.RenderTarget = null,
+
+    // GBuffer
     gbuffer_0: [*c]graphics.RenderTarget = null,
     gbuffer_1: [*c]graphics.RenderTarget = null,
     gbuffer_2: [*c]graphics.RenderTarget = null,
+
+    // Lighting
     scene_color: [*c]graphics.RenderTarget = null,
     scene_color_copy: [*c]graphics.RenderTarget = null,
 
@@ -618,6 +630,24 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
+        // SSAO
+        {
+            self.ssao_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "SSAO", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.ssao_pass_profile_token);
+
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "SSAO", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_ssao_pass_fn) |render_ssao_pass_fn| {
+                    render_ssao_pass_fn(cmd_list, render_pass.user_data);
+                    // NOTE: There musto be only one render_pass that renders SSAO. This abstraction
+                    // has already reached its breaking point :D
+                    break;
+                }
+            }
+        }
+
         // Shadow Map Pass
         {
             self.shadow_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
@@ -661,7 +691,7 @@ pub const Renderer = struct {
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_DEPTH_READ),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_READ),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -1237,6 +1267,10 @@ pub const Renderer = struct {
     }
 
     fn createRenderTargets(self: *Renderer) void {
+        const buffer_width: u32 = @intCast(self.window_width);
+        const buffer_height: u32 = @intCast(self.window_height);
+
+        // Depth buffers
         {
             var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
             rt_desc.pName = "Depth Buffer";
@@ -1246,8 +1280,8 @@ pub const Renderer = struct {
             rt_desc.mDepth = 1;
             rt_desc.mFormat = graphics.TinyImageFormat.D32_SFLOAT;
             rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = @intCast(self.window_width);
-            rt_desc.mHeight = @intCast(self.window_height);
+            rt_desc.mWidth = buffer_width;
+            rt_desc.mHeight = buffer_height;
             rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             rt_desc.mSampleQuality = 0;
             rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
@@ -1255,8 +1289,27 @@ pub const Renderer = struct {
             rt_desc.pName = "Depth Buffer Copy";
             rt_desc.mFormat = graphics.TinyImageFormat.R32_SFLOAT;
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.depth_buffer_copy);
+
+            var texture_desc = std.mem.zeroes(graphics.TextureDesc);
+            texture_desc.mWidth = buffer_width;
+            texture_desc.mHeight = buffer_height;
+            texture_desc.mDepth = 1;
+            texture_desc.mArraySize = 1;
+            texture_desc.mMipLevels = 1;
+            texture_desc.mFormat = graphics.TinyImageFormat.R16_UNORM;
+            texture_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
+            texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            texture_desc.bBindless = false;
+
+            texture_desc.pName = "Linear Depth 0";
+            self.linear_depth_buffers[0] = self.createTexture(texture_desc);
+
+            texture_desc.pName = "Linear Depth 1";
+            self.linear_depth_buffers[1] = self.createTexture(texture_desc);
         }
 
+        // Shadow Buffers
         {
             var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
             rt_desc.pName = "Shadow Depth Buffer";
@@ -1274,52 +1327,55 @@ pub const Renderer = struct {
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.shadow_depth_buffer);
         }
 
+        // GBuffer
         {
-            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Base Color Buffer";
-            rt_desc.mArraySize = 1;
-            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
-            rt_desc.mDepth = 1;
-            rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_SRGB;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = @intCast(self.window_width);
-            rt_desc.mHeight = @intCast(self.window_height);
-            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            rt_desc.mSampleQuality = 0;
-            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_0);
-        }
+            {
+                var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+                rt_desc.pName = "Base Color Buffer";
+                rt_desc.mArraySize = 1;
+                rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
+                rt_desc.mDepth = 1;
+                rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_SRGB;
+                rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+                rt_desc.mWidth = buffer_width;
+                rt_desc.mHeight = buffer_height;
+                rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+                rt_desc.mSampleQuality = 0;
+                rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+                graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_0);
+            }
 
-        {
-            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "World Normals Buffer";
-            rt_desc.mArraySize = 1;
-            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
-            rt_desc.mDepth = 1;
-            rt_desc.mFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = @intCast(self.window_width);
-            rt_desc.mHeight = @intCast(self.window_height);
-            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            rt_desc.mSampleQuality = 0;
-            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_1);
-        }
+            {
+                var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+                rt_desc.pName = "World Normals Buffer";
+                rt_desc.mArraySize = 1;
+                rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
+                rt_desc.mDepth = 1;
+                rt_desc.mFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
+                rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+                rt_desc.mWidth = buffer_width;
+                rt_desc.mHeight = buffer_height;
+                rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+                rt_desc.mSampleQuality = 0;
+                rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+                graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_1);
+            }
 
-        {
-            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Material Buffer";
-            rt_desc.mArraySize = 1;
-            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0 };
-            rt_desc.mDepth = 1;
-            rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = @intCast(self.window_width);
-            rt_desc.mHeight = @intCast(self.window_height);
-            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            rt_desc.mSampleQuality = 0;
-            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_2);
+            {
+                var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
+                rt_desc.pName = "Material Buffer";
+                rt_desc.mArraySize = 1;
+                rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0 };
+                rt_desc.mDepth = 1;
+                rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+                rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+                rt_desc.mWidth = buffer_width;
+                rt_desc.mHeight = buffer_height;
+                rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+                rt_desc.mSampleQuality = 0;
+                rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
+                graphics.addRenderTarget(self.renderer, &rt_desc, &self.gbuffer_2);
+            }
         }
 
         {
@@ -1330,8 +1386,8 @@ pub const Renderer = struct {
             rt_desc.mDepth = 1;
             rt_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
             rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = @intCast(self.window_width);
-            rt_desc.mHeight = @intCast(self.window_height);
+            rt_desc.mWidth = buffer_width;
+            rt_desc.mHeight = buffer_height;
             rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             rt_desc.mSampleQuality = 0;
             rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
@@ -1345,12 +1401,21 @@ pub const Renderer = struct {
     }
 
     fn destroyRenderTargets(self: *Renderer) void {
-        graphics.removeRenderTarget(self.renderer, self.shadow_depth_buffer);
         graphics.removeRenderTarget(self.renderer, self.depth_buffer);
         graphics.removeRenderTarget(self.renderer, self.depth_buffer_copy);
+        var texture = self.getTexture(self.linear_depth_buffers[0]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.linear_depth_buffers[0]);
+        texture = self.getTexture(self.linear_depth_buffers[1]);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.linear_depth_buffers[1]);
+
+        graphics.removeRenderTarget(self.renderer, self.shadow_depth_buffer);
+
         graphics.removeRenderTarget(self.renderer, self.gbuffer_0);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_1);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_2);
+
         graphics.removeRenderTarget(self.renderer, self.scene_color);
         graphics.removeRenderTarget(self.renderer, self.scene_color_copy);
 

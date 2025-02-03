@@ -264,6 +264,12 @@ pub const PSOManager = struct {
             self.createComputePipeline(IdLocal.init("normal_from_height"), "normal_from_height.comp", &sampler_ids);
         }
 
+        // SSAO
+        {
+            var sampler_ids = [_]IdLocal{};
+            self.createComputePipeline(IdLocal.init("linearize_depth"), "linearize_depth.comp", &sampler_ids);
+        }
+
         // Terrain
         // ======
         {
