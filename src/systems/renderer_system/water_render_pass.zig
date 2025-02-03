@@ -404,12 +404,12 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var vertex_buffers: [vertex_buffer_count_max][*c]graphics.Buffer = undefined;
 
             for (0..vertex_layout.mAttribCount) |attribute_index| {
-                const buffer = mesh.buffer.*.mVertex[mesh.buffer_layout_desc.mSemanticBindings[@intCast(vertex_layout.mAttribs[attribute_index].mSemantic.bits)]].pBuffer;
+                const buffer = mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(vertex_layout.mAttribs[attribute_index].mSemantic.bits)]];
                 vertex_buffers[attribute_index] = buffer;
             }
 
             graphics.cmdBindVertexBuffer(cmd_list, vertex_layout.mAttribCount, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
-            graphics.cmdBindIndexBuffer(cmd_list, mesh.buffer.*.mIndex.pBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+            graphics.cmdBindIndexBuffer(cmd_list, mesh.geometry.*.__union_field1.__struct_field1.pIndexBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
 
             const push_constants = InstanceRootConstants{
                 .start_instance_location = 0,

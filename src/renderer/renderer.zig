@@ -377,7 +377,6 @@ pub const Renderer = struct {
         while (mesh_handles.next()) |handle| {
             const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
             resource_loader.removeResource__Overload3(mesh.geometry);
-            resource_loader.removeGeometryBuffer(mesh.buffer);
             resource_loader.removeResource__Overload4(mesh.data);
         }
         self.mesh_pool.deinit();
@@ -968,7 +967,6 @@ pub const Renderer = struct {
 
         var mesh: Mesh = undefined;
         mesh.geometry = null;
-        mesh.buffer = null;
         mesh.data = null;
         mesh.vertex_layout_id = vertex_layout_id;
 
@@ -979,33 +977,12 @@ pub const Renderer = struct {
             mesh.buffer_layout_desc.mVerticesStrides[i] = @intCast(graphics.byteSizeOfBlock(vertex_layout.mAttribs[i].mFormat));
         }
 
-        const index_count_max: u32 = 1024 * 1024;
-        const vertex_count_max: u32 = 1024 * 1024;
-        var buffer_load_desc = std.mem.zeroes(resource_loader.GeometryBufferLoadDesc);
-        buffer_load_desc.mStartState = @intCast(graphics.ResourceState.RESOURCE_STATE_COPY_DEST.bits);
-        buffer_load_desc.pOutGeometryBuffer = &mesh.buffer;
-        buffer_load_desc.mIndicesSize = @sizeOf(u32) * index_count_max;
-        buffer_load_desc.pNameIndexBuffer = "Indices";
-
-        for (0..vertex_layout.mAttribCount) |i| {
-            buffer_load_desc.mVerticesSizes[i] = mesh.buffer_layout_desc.mVerticesStrides[i] * vertex_count_max;
-        }
-
-        // TODO(gmodarelli): Figure out how to pass these debug names
-        // buffer_load_desc.pNamesVertexBuffers[0] = "Positions";
-        // buffer_load_desc.pNamesVertexBuffers[1] = "Normals";
-        // buffer_load_desc.pNamesVertexBuffers[2] = "Tangents";
-        // buffer_load_desc.pNamesVertexBuffers[3] = "UVs";
-        // buffer_load_desc.pNamesVertexBuffers[4] = "Colors";
-        resource_loader.addGeometryBuffer(&buffer_load_desc);
-
         var load_desc = std.mem.zeroes(resource_loader.GeometryLoadDesc);
         load_desc.pFileName = path;
         load_desc.pVertexLayout = &vertex_layout;
-        load_desc.pGeometryBuffer = mesh.buffer;
-        load_desc.pGeometryBufferLayoutDesc = &mesh.buffer_layout_desc;
         load_desc.ppGeometry = &mesh.geometry;
         load_desc.ppGeometryData = &mesh.data;
+        load_desc.mFlags = resource_loader.GeometryLoadFlags.GEOMETRY_LOAD_FLAG_SHADOWED;
 
         var token: resource_loader.SyncToken = 0;
         resource_loader.addResource__Overload3(@ptrCast(&load_desc), &token);
@@ -1588,7 +1565,6 @@ pub const Renderer = struct {
 pub const Mesh = struct {
     geometry: [*c]resource_loader.Geometry,
     data: [*c]resource_loader.GeometryData,
-    buffer: [*c]resource_loader.GeometryBuffer,
     buffer_layout_desc: resource_loader.GeometryBufferLayoutDesc,
     vertex_layout_id: IdLocal,
     loaded: bool,
