@@ -140,8 +140,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     //
 
     const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
-    const hierarchical_static_mesh = plane_prefab.get(fd.HierarchicalStaticMesh);
-    const mesh_handle = hierarchical_static_mesh.?.static_meshes[0].mesh_handle;
+    const lod_group = plane_prefab.get(fd.LodGroup);
+    const mesh_handle = lod_group.?.lods[0].mesh_handle;
     const ocean_plane_scale: f32 = @floatFromInt(config.km_size);
     const ocean_tiles_x = config.world_size_x / config.km_size;
     const ocean_tiles_z = config.world_size_z / config.km_size;

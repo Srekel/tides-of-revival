@@ -129,8 +129,8 @@ pub const PrefabManager = struct {
         return null;
     }
 
-    fn loadHierarchicalMesh(self: *@This(), path: [:0]const u8, vertex_layout_id: IdLocal) fd.HierarchicalStaticMesh {
-        var hierarchical_mesh = std.mem.zeroes(fd.HierarchicalStaticMesh);
+    fn loadHierarchicalMesh(self: *@This(), path: [:0]const u8, vertex_layout_id: IdLocal) fd.LodGroup {
+        var lod_group = std.mem.zeroes(fd.LodGroup);
 
         // Try to load LODs
         for (0..renderer.mesh_lod_max_count) |lod| {
@@ -152,12 +152,12 @@ pub const PrefabManager = struct {
                 .{path, lod},
             ) catch unreachable;
 
-            hierarchical_mesh.static_meshes[hierarchical_mesh.static_mesh_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
-            hierarchical_mesh.static_mesh_count += 1;
+            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            lod_group.lod_count += 1;
         }
 
         // Load non-lodded mesh
-        if (hierarchical_mesh.static_mesh_count == 0) {
+        if (lod_group.lod_count == 0) {
             var lod_path_buffer: [256]u8 = undefined;
             const lod_path = std.fmt.bufPrintZ(
                 lod_path_buffer[0..lod_path_buffer.len],
@@ -165,11 +165,11 @@ pub const PrefabManager = struct {
                 .{path},
             ) catch unreachable;
 
-            hierarchical_mesh.static_meshes[hierarchical_mesh.static_mesh_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
-            hierarchical_mesh.static_mesh_count += 1;
+            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            lod_group.lod_count += 1;
         }
 
-        return hierarchical_mesh;
+        return lod_group;
     }
 
 };

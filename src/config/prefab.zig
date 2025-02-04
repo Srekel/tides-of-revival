@@ -62,11 +62,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         player = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/characters/player/player", player_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         player.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = player.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+        const lod_group_component = player.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = default_material_handle;
             }
         }
     }
@@ -84,11 +84,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         matball = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/matball", matball_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         matball.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = matball.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+        const lod_group_component = matball.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = material_handle;
             }
         }
     }
@@ -104,11 +104,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         color_calibrator = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/color_calibrator/color_calibrator", color_calibrator_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         color_calibrator.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = color_calibrator.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+        const lod_group_component = color_calibrator.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = material_handle;
             }
         }
     }
@@ -126,11 +126,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         giant_ant = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/giant_ant/giant_ant", giant_ant_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         giant_ant.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = giant_ant.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+        const lod_group_component = giant_ant.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = material_handle;
             }
         }
     }
@@ -149,11 +149,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             bow = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/bow_arrow/bow", bow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
             bow.setOverride(fd.Dynamic{});
 
-            const hierarchical_static_mesh_component = bow.getMut(fd.HierarchicalStaticMesh);
-            if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-                for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                    hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                    hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+            const lod_group_component = bow.getMut(fd.LodGroup);
+            if (lod_group_component) |lod_group| {
+                for (0..lod_group.lod_count) |i| {
+                    lod_group.lods[i].material_count = 1;
+                    lod_group.lods[i].materials[0] = material_handle;
                 }
             }
         }
@@ -162,11 +162,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             var arrow = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/bow_arrow/arrow", arrow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
             arrow.setOverride(fd.Dynamic{});
 
-            const hierarchical_static_mesh_component = arrow.getMut(fd.HierarchicalStaticMesh);
-            if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-                for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                    hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                    hierarchical_static_mesh.static_meshes[i].materials[0] = material_handle;
+            const lod_group_component = arrow.getMut(fd.LodGroup);
+            if (lod_group_component) |lod_group| {
+                for (0..lod_group.lod_count) |i| {
+                    lod_group.lods[i].material_count = 1;
+                    lod_group.lods[i].materials[0] = material_handle;
                 }
             }
         }
@@ -176,11 +176,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         default_cube = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_cube", cube_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         default_cube.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = default_cube.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+        const lod_group_component = default_cube.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = default_material_handle;
             }
         }
     }
@@ -189,11 +189,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var cylinder = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_cylinder", cylinder_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         cylinder.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = cylinder.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+        const lod_group_component = cylinder.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = default_material_handle;
             }
         }
     }
@@ -202,11 +202,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var plane = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_plane", plane_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         plane.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = plane.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+        const lod_group_component = plane.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = default_material_handle;
             }
         }
     }
@@ -215,11 +215,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var sphere = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_sphere", sphere_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         sphere.setOverride(fd.Dynamic{});
 
-        const hierarchical_static_mesh_component = sphere.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 1;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = default_material_handle;
+        const lod_group_component = sphere.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 1;
+                lod_group.lods[i].materials[0] = default_material_handle;
             }
         }
     }
@@ -262,14 +262,14 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const stone_material_handle = prefab_mgr.rctx.uploadMaterial(stone_material) catch unreachable;
 
         var medium_house = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medium_house/medium_house", medium_house_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        const hierarchical_static_mesh_component = medium_house.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 4;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = roof_material_handle;
-                hierarchical_static_mesh.static_meshes[i].materials[1] = wood_material_handle;
-                hierarchical_static_mesh.static_meshes[i].materials[2] = plaster_material_handle;
-                hierarchical_static_mesh.static_meshes[i].materials[3] = stone_material_handle;
+        const lod_group_component = medium_house.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 4;
+                lod_group.lods[i].materials[0] = roof_material_handle;
+                lod_group.lods[i].materials[1] = wood_material_handle;
+                lod_group.lods[i].materials[2] = plaster_material_handle;
+                lod_group.lods[i].materials[3] = stone_material_handle;
             }
         }
     }
@@ -312,12 +312,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const beech_atlas_v2_material_handle = prefab_mgr.rctx.uploadMaterial(beech_atlas_v2_material) catch unreachable;
 
         var beech_tree_04 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/environment/beech/beech_tree_04", beech_tree_04_id, pos_uv0_nor_tan_col_uv1_vertex_layout, ecsu_world);
-        const hierarchical_static_mesh_component = beech_tree_04.getMut(fd.HierarchicalStaticMesh);
-        if (hierarchical_static_mesh_component) |hierarchical_static_mesh| {
-            for (0..hierarchical_static_mesh.static_mesh_count) |i| {
-                hierarchical_static_mesh.static_meshes[i].material_count = 2;
-                hierarchical_static_mesh.static_meshes[i].materials[0] = beech_trunk_04_material_handle;
-                hierarchical_static_mesh.static_meshes[i].materials[1] = beech_atlas_v2_material_handle;
+        const lod_group_component = beech_tree_04.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                lod_group.lods[i].material_count = 2;
+                lod_group.lods[i].materials[0] = beech_trunk_04_material_handle;
+                lod_group.lods[i].materials[1] = beech_atlas_v2_material_handle;
             }
         }
     }

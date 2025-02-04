@@ -258,7 +258,7 @@ pub const GeometryRenderPass = struct {
         const query_static_mesh = ecs.query_init(ecsu_world.world, &.{
             .entity = ecs.new_entity(ecsu_world.world, "query_static_mesh"),
             .terms = [_]ecs.term_t{
-                .{ .id = ecs.id(fd.HierarchicalStaticMesh), .inout = .In },
+                .{ .id = ecs.id(fd.LodGroup), .inout = .In },
                 .{ .id = ecs.id(fd.Transform), .inout = .In },
                 .{ .id = ecs.id(fd.Scale), .inout = .In },
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
@@ -1273,11 +1273,11 @@ fn cullAndBatchDrawCalls(
         const max_draw_distance_squared = max_draw_distance * max_draw_distance;
         var query_static_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_static_mesh);
         while (ecs.query_next(&query_static_mesh_iter)) {
-            const static_meshes = ecs.field(&query_static_mesh_iter, fd.HierarchicalStaticMesh, 0).?;
+            const static_meshes = ecs.field(&query_static_mesh_iter, fd.LodGroup, 0).?;
             const transforms = ecs.field(&query_static_mesh_iter, fd.Transform, 1).?;
             const scales = ecs.field(&query_static_mesh_iter, fd.Scale, 2).?;
-            for (static_meshes, transforms, scales) |*mesh_comp, transform, scale| {
-                var static_mesh = mesh_comp.static_meshes[0];
+            for (static_meshes, transforms, scales) |*lod_group_component, transform, scale| {
+                var static_mesh = lod_group_component.lods[0];
                 var sub_mesh_count = static_mesh.material_count;
                 if (sub_mesh_count == 0) continue;
 
@@ -1300,7 +1300,7 @@ fn cullAndBatchDrawCalls(
                 }
 
                 // LOD Selection
-                static_mesh = selectLOD(mesh_comp, camera_position, transform.getPos00());
+                static_mesh = selectLOD(lod_group_component, camera_position, transform.getPos00());
                 sub_mesh_count = static_mesh.material_count;
 
                 var draw_call_info = DrawCallInfo{
@@ -1462,9 +1462,9 @@ inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [
     return false;
 }
 
-fn selectLOD(hierarchical_static_mesh: *const fd.HierarchicalStaticMesh, camera_position: [3]f32, entity_position: [3]f32) fd.StaticMesh {
-    if (hierarchical_static_mesh.static_mesh_count == 1) {
-        return hierarchical_static_mesh.static_meshes[0];
+fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_position: [3]f32) fd.StaticMesh {
+    if (lod_group.lod_count == 1) {
+        return lod_group.lods[0];
     }
 
     const dx = camera_position[0] - entity_position[0];
@@ -1478,22 +1478,22 @@ fn selectLOD(hierarchical_static_mesh: *const fd.HierarchicalStaticMesh, camera_
     const lod3_distance_squared = 40.0 * 40.0;
 
     if (distance_squared <= lod0_distance_squared) {
-        return hierarchical_static_mesh.static_meshes[0];
+        return lod_group.lods[0];
     }
 
-    if (distance_squared <= lod1_distance_squared and hierarchical_static_mesh.static_mesh_count >= 2) {
-        return hierarchical_static_mesh.static_meshes[1];
+    if (distance_squared <= lod1_distance_squared and lod_group.lod_count >= 2) {
+        return lod_group.lods[1];
     }
 
-    if (distance_squared <= lod2_distance_squared and hierarchical_static_mesh.static_mesh_count >= 3) {
-        return hierarchical_static_mesh.static_meshes[2];
+    if (distance_squared <= lod2_distance_squared and lod_group.lod_count >= 3) {
+        return lod_group.lods[2];
     }
 
-    if (distance_squared <= lod3_distance_squared and hierarchical_static_mesh.static_mesh_count >= 4) {
-        return hierarchical_static_mesh.static_meshes[3];
+    if (distance_squared <= lod3_distance_squared and lod_group.lod_count >= 4) {
+        return lod_group.lods[3];
     }
 
-    return hierarchical_static_mesh.static_meshes[0];
+    return lod_group.lods[0];
 }
 
 inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
