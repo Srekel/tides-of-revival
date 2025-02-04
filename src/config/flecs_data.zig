@@ -449,9 +449,7 @@ pub const UIMaterial = struct {
 
 pub const StaticMesh = struct {
     mesh_handle: MeshHandle,
-
-    material_count: u32,
-    materials: [renderer.sub_mesh_max_count]MaterialHandle,
+    materials: std.ArrayList(MaterialHandle),
 };
 
 pub const LodGroup = struct {

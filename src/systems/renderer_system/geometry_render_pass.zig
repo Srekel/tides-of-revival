@@ -1278,7 +1278,7 @@ fn cullAndBatchDrawCalls(
             const scales = ecs.field(&query_static_mesh_iter, fd.Scale, 2).?;
             for (static_meshes, transforms, scales) |*lod_group_component, transform, scale| {
                 var static_mesh = lod_group_component.lods[0];
-                var sub_mesh_count = static_mesh.material_count;
+                var sub_mesh_count = static_mesh.materials.items.len;
                 if (sub_mesh_count == 0) continue;
 
                 // Distance culling
@@ -1301,7 +1301,7 @@ fn cullAndBatchDrawCalls(
 
                 // LOD Selection
                 static_mesh = selectLOD(lod_group_component, camera_position, transform.getPos00());
-                sub_mesh_count = static_mesh.material_count;
+                sub_mesh_count = static_mesh.materials.items.len;
 
                 var draw_call_info = DrawCallInfo{
                     .pipeline_id = undefined,
@@ -1312,7 +1312,7 @@ fn cullAndBatchDrawCalls(
                 for (0..sub_mesh_count) |sub_mesh_index| {
                     draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
 
-                    const material_handle = static_mesh.materials[sub_mesh_index];
+                    const material_handle = static_mesh.materials.items[sub_mesh_index];
                     const pipeline_ids = self.renderer.getMaterialPipelineIds(material_handle);
                     const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_handle);
 

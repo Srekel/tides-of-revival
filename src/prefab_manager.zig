@@ -21,9 +21,11 @@ pub const PrefabManager = struct {
     material_hash_map: MaterialHashmap,
     is_a: ecsu.Entity,
     rctx: *renderer.Renderer,
+    allocator: std.mem.Allocator,
 
     pub fn init(rctx: *renderer.Renderer, world: ecsu.World, allocator: std.mem.Allocator) PrefabManager {
         return PrefabManager{
+            .allocator = allocator,
             .prefab_hash_map = PrefabHashMap.init(allocator),
             .material_hash_map = MaterialHashmap.init(allocator),
             .is_a = ecsu.Entity.init(world.world, ecs.IsA),
@@ -130,7 +132,10 @@ pub const PrefabManager = struct {
     }
 
     fn loadHierarchicalMesh(self: *@This(), path: [:0]const u8, vertex_layout_id: IdLocal) fd.LodGroup {
-        var lod_group = std.mem.zeroes(fd.LodGroup);
+        var lod_group = fd.LodGroup{
+            .lod_count = 0,
+            .lods = undefined,
+        };
 
         // Try to load LODs
         for (0..renderer.mesh_lod_max_count) |lod| {
@@ -153,6 +158,14 @@ pub const PrefabManager = struct {
             ) catch unreachable;
 
             lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+
+            const mesh = self.rctx.getMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
+            const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
+            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
+            for (0..num_materials) |_| {
+                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(renderer.MaterialHandle.nil);
+            }
+
             lod_group.lod_count += 1;
         }
 
@@ -166,6 +179,14 @@ pub const PrefabManager = struct {
             ) catch unreachable;
 
             lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+
+            const mesh = self.rctx.getMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
+            const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
+            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
+            for (0..num_materials) |_| {
+                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(renderer.MaterialHandle.nil);
+            }
+
             lod_group.lod_count += 1;
         }
 
