@@ -1,0 +1,7 @@
+version: 1
+source: content/prefabs/environment/beech/beech_atlas_normal.tga
+width: 1024
+height: 1024
+mip_count: 5
+srgb: false
+format: BC5_UNORM

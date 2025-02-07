@@ -65,5 +65,38 @@
                 // "revealProblems": "onProblem"
             }
         },
+        {
+            "label": "build_asset_cooker",
+            "type": "shell",
+            // "command": "${workspaceFolder}/tools/binaries/zigup/zig build --summary failures -freference-trace",
+            "command": "zig build --summary failures -freference-trace",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/tools/asset_cooker/"
+            },
+            "presentation": {
+                "clear": true,
+                "revealProblems": "onProblem",
+            }
+        },
+        {
+            "label": "build_asset_cooker_release",
+            "type": "shell",
+            "command": "${workspaceFolder}/tools/binaries/zigup/zig build -Doptimize=ReleaseFast --summary failures -freference-trace",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/tools/asset_cooker/"
+            },
+            "presentation": {
+                "clear": true,
+                "revealProblems": "onProblem",
+            }
+        },
     ]
 }
