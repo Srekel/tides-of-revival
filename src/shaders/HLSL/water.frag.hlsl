@@ -50,7 +50,7 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0 {
     // Surface lighting
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(material.m_normal_map_1_texture_index) && hasValidTexture(material.m_normal_map_2_texture_index)) {
-        float3x3 TBN = ComputeTBN(Input.Normal, Input.Tangent);
+        float3x3 TBN = ComputeTBN(N, normalize(Input.Tangent));
         Texture2D normal_texture_1 = ResourceDescriptorHeap[NonUniformResourceIndex(material.m_normal_map_1_texture_index)];
         Texture2D normal_texture_2 = ResourceDescriptorHeap[NonUniformResourceIndex(material.m_normal_map_2_texture_index)];
 
