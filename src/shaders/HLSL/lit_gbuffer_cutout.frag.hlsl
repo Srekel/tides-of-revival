@@ -53,7 +53,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     }
 
     Out.GBuffer0 = float4(baseColor.rgb, 1.0f);
-    Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
+    Out.GBuffer1 = float4(N, 1.0f);
     Out.GBuffer2 = float4(occlusion, roughness, metallic, 1.0f);
 
     RETURN(Out);

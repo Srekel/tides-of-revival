@@ -7,7 +7,7 @@ TerrainVSOutput VS_MAIN(TerrainVSInput Input, uint instance_id : SV_InstanceID)
 {
     INIT_MAIN;
     TerrainVSOutput Out = (TerrainVSOutput)0;
-    Out.UV = unpack2Floats(Input.UV);
+    Out.UV = Input.UV;
 
     ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
     uint instanceIndex = instance_id + g_instanceRootConstants.startInstanceLocation;

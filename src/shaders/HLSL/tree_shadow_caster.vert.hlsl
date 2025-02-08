@@ -9,7 +9,7 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     INIT_MAIN;
     VSOutput Out;
     Out.InstanceID = instance_id;
-    Out.UV = unpack2Floats(Input.UV);
+    Out.UV = Input.UV;
     Out.UV1 = Input.UV1;
 
     ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
@@ -21,9 +21,10 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 
     float3 positionOS = Input.Position.xyz;
     float3 positionWS = mul(instance.worldMat, float4(positionOS, 1.0f)).xyz;
-    float3 normalWS = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Normal)), 0.0f)).xyz;
+    float3 normalWS = mul(instance.worldMat, float4(Input.Normal, 0.0f)).xyz;
 
-    if (material.windFeature) {
+    if (material.windFeature)
+    {
         // Wind
         float3 rootWP = mul(instance.worldMat, float4(0, 0, 0, 1)).xyz;
 

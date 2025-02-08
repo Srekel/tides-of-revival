@@ -207,6 +207,7 @@ pub const Transform = struct {
         transform.updateInverseMatrix();
         return transform;
     }
+
     pub fn initFromPosition(pos: Position) Transform {
         var transform: Transform = undefined;
         transform.matrix = [_]f32{
@@ -218,6 +219,7 @@ pub const Transform = struct {
         transform.updateInverseMatrix();
         return transform;
     }
+
     pub fn initWithScale(x: f32, y: f32, z: f32, scale: f32) Transform {
         var transform: Transform = undefined;
         transform.matrix = [_]f32{
@@ -235,6 +237,17 @@ pub const Transform = struct {
         var transform = Transform{};
         zm.storeMat43(&transform.matrix, z_rotation_matrix);
         transform.updateInverseMatrix();
+        return transform;
+    }
+
+    pub fn initTRSDegrees(translation: [3]f32, rotation: [3]f32, scale: [3]f32) Transform {
+        const translation_z = zm.translation(translation[0], translation[1], translation[2]);
+        const rotation_z = zm.matFromQuat(zm.quatFromRollPitchYaw(std.math.degreesToRadians(rotation[0]), std.math.degreesToRadians(rotation[1]), std.math.degreesToRadians(rotation[2])));
+        const scale_z = zm.scaling(scale[0], scale[1], scale[2]);
+
+        const trs_z = zm.mul(scale_z, zm.mul(rotation_z, translation_z));
+        var transform = Transform{};
+        zm.storeMat43(&transform.matrix, trs_z);
         return transform;
     }
 
@@ -402,7 +415,7 @@ pub const UberShader = struct {
     wind_normal_influence: f32,
 
     pub fn init() UberShader {
-        return initNoTexture(ColorRGB.init(1, 1, 1), 0.8, 0.0);
+        return initNoTexture(ColorRGB.init(1, 1, 1), 0.5, 0.0);
     }
 
     pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {

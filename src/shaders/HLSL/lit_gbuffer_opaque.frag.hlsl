@@ -30,9 +30,9 @@ GBufferOutput PS_MAIN( VSOutput Input) {
 
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(material.normalTextureIndex)) {
-        float3x3 TBN = ComputeTBN(Input.Normal, Input.Tangent);
+        float3x3 TBN = ComputeTBN(N, normalize(Input.Tangent));
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
-        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, g_linear_repeat_sampler, Input.UV), 1.0f);
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, g_linear_repeat_sampler, Input.UV), material.normalIntensity);
         N = normalize(mul(tangentNormal, TBN));
     }
 
@@ -48,7 +48,7 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     }
 
     Out.GBuffer0 = float4(baseColor, 1.0f);
-    Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
+    Out.GBuffer1 = float4(N, 1.0f);
     Out.GBuffer2 = float4(occlusion, roughness, metallic, 1.0f);
 
     RETURN(Out);

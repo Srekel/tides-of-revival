@@ -10,7 +10,7 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     VSOutput Out;
     Out.Color = Input.Color;
     Out.InstanceID = instance_id;
-    Out.UV = unpack2Floats(Input.UV);
+    Out.UV = Input.UV;
 
     ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
     uint instanceIndex = instance_id + g_instanceRootConstants.startInstanceLocation;
@@ -19,9 +19,8 @@ VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     float4x4 tempMat = mul(g_proj_view_mat, instance.worldMat);
     Out.Position = mul(tempMat, float4(Input.Position.xyz, 1.0f));
     Out.PositionWS = mul(instance.worldMat, float4(Input.Position.xyz, 1.0f)).xyz;
-    Out.Normal = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Normal)), 0.0f)).rgb;
-    // Out.Tangent = mul(instance.worldMat, float4(decodeDir(unpackUnorm2x16(Input.Tangent)), 0.0f)).rgb;
-    Out.Tangent.xyz = mul((float3x3)instance.worldMat, Input.Tangent.xyz);
+    Out.Normal = normalize(mul((float3x3)instance.worldMat, Input.Normal));
+    Out.Tangent.xyz = normalize(mul((float3x3)instance.worldMat, Input.Tangent.xyz));
     Out.Tangent.w = Input.Tangent.w;
 
     RETURN(Out);

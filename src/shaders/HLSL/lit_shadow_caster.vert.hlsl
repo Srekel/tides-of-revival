@@ -9,7 +9,7 @@ ShadowVSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
     INIT_MAIN;
     ShadowVSOutput Out;
     Out.InstanceID = instance_id;
-    Out.UV = unpack2Floats(Input.UV);
+    Out.UV = Input.UV;
 
     ByteAddressBuffer instance_transform_buffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
     uint instanceIndex = instance_id + g_instanceRootConstants.startInstanceLocation;

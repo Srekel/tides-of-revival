@@ -41,9 +41,9 @@ struct GBufferOutput
 struct VSInput
 {
 	float4 Position : POSITION;
-	uint Normal : NORMAL;
+	float3 Normal : NORMAL;
 	float4 Tangent : TANGENT;
-	uint UV : TEXCOORD0;
+	float2 UV : TEXCOORD0;
 	float4 Color : COLOR;
 };
 
@@ -70,9 +70,9 @@ struct ShadowVSOutput
 struct VSInput
 {
 	float4 Position : POSITION;
-	uint Normal : NORMAL;
+	float3 Normal : NORMAL;
 	float4 Tangent : TANGENT;
-	uint UV : TEXCOORD0;
+	float2 UV : TEXCOORD0;
 	float4 Color : COLOR;
 	float2 UV1 : TEXCOORD1;
 };
@@ -102,7 +102,7 @@ struct ShadowVSOutput
 struct TerrainVSInput
 {
 	float4 Position : POSITION;
-	uint UV : TEXCOORD0;
+	float2 UV : TEXCOORD0;
 	float4 Color : COLOR;
 };
 

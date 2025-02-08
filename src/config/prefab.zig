@@ -32,11 +32,7 @@ pub const color_calibrator_id = ID("color_calibrator");
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
     // TODO: Declare this in pso so we can reuse the IdLocal instead of initializing them here again
     const pipeline_lit_gbuffer_opaque_id = IdLocal.init("lit_gbuffer_opaque");
-    const pipeline_lit_gbuffer_cutout_id = IdLocal.init("lit_gbuffer_cutout");
-    _ = pipeline_lit_gbuffer_cutout_id;
     const pipeline_lit_depth_only_opaque_id = IdLocal.init("lit_depth_only_opaque");
-    const pipeline_lit_depth_only_cutout_id = IdLocal.init("lit_depth_only_cutout");
-    _ = pipeline_lit_depth_only_cutout_id;
 
     const pipeline_tree_gbuffer_opaque_id = IdLocal.init("tree_gbuffer_opaque");
     const pipeline_tree_gbuffer_cutout_id = IdLocal.init("tree_gbuffer_cutout");
@@ -44,8 +40,6 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     const pipeline_tree_depth_only_cutout_id = IdLocal.init("tree_depth_only_cutout");
 
     const pipeline_shadow_caster_opaque_id = IdLocal.init("lit_shadow_caster_opaque");
-    const pipeline_shadow_caster_masked_id = IdLocal.init("lit_shadow_caster_cutout");
-    _ = pipeline_shadow_caster_masked_id;
     const pipeline_tree_shadow_caster_opaque_id = IdLocal.init("tree_shadow_caster_opaque");
     const pipeline_tree_shadow_caster_masked_id = IdLocal.init("tree_shadow_caster_cutout");
 

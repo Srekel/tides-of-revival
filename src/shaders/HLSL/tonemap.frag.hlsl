@@ -28,15 +28,16 @@ float3 tony_mc_mapface(float3 stimulus, Texture3D<float3> lut, SamplerState line
 
 cbuffer ConstantBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
+    float g_gamma_correction;
+    float g_tonemapping;
+    uint g_tony_mc_mapface_lut_index;
+    uint g_color_grading;
     // Color Grading settings
     float3 g_color_filter;
     float g_post_exposure;
     float g_contrast;
     float g_hue_shift;
     float g_saturation;
-    // Tonemapper LUT
-    uint g_tony_mc_mapface_lut_index;
-    uint g_color_grading;
 };
 
 SamplerState g_linear_clamp_edge_sampler : register(s0, UPDATE_FREQ_NONE);
@@ -99,7 +100,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET {
         color = max(color, 0.0);
     }
 
-    if (hasValidTexture(g_tony_mc_mapface_lut_index))
+    if (g_tonemapping > 0 && hasValidTexture(g_tony_mc_mapface_lut_index))
     {
         // Tone mapping
         Texture3D<float3> tony_mc_mapface_lut = ResourceDescriptorHeap[g_tony_mc_mapface_lut_index];

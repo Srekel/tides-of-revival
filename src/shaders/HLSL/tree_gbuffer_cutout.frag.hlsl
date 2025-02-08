@@ -64,18 +64,18 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
 
         // Blend detail normal
         Texture2D detailNormalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailNormalTextureIndex)];
-        float3 tangentNormal = ReconstructNormal(SampleTex2D(detailNormalTexture, g_linear_repeat_sampler, Input.UV), 1.0f);
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(detailNormalTexture, g_linear_repeat_sampler, detailUV), 1.0f);
         float3 detailN = normalize(mul(tangentNormal, TBN));
         N = lerp(N, detailN, detailMask);
 
         // Blend base color
         Texture2D detailBaseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailBaseColorTextureIndex)];
-        float3 detailBaseColor = detailBaseColorTexture.Sample(g_linear_clamp_edge_sampler, Input.UV).rgb;
+        float3 detailBaseColor = detailBaseColorTexture.Sample(g_linear_clamp_edge_sampler, detailUV).rgb;
         baseColor = lerp(baseColor, detailBaseColor, detailMask);
 
         // Blend ARM
         Texture2D detailArmTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.detailArmTextureIndex)];
-        float3 detailArmSample = detailArmTexture.Sample(g_linear_repeat_sampler, Input.UV).rgb;
+        float3 detailArmSample = detailArmTexture.Sample(g_linear_repeat_sampler, detailUV).rgb;
         occlusion = lerp(occlusion, detailArmSample.r, detailMask);
         roughness = lerp(roughness, detailArmSample.g, detailMask);
         metallic = lerp(metallic, detailArmSample.b, detailMask);
@@ -84,7 +84,7 @@ GBufferOutput PS_MAIN( VSOutput Input, bool isFrontFace : SV_IsFrontFace ) {
     baseColor *= sRGBToLinear_Float3(material.baseColor.rgb);
 
     Out.GBuffer0 = float4(baseColor.rgb, 1.0f);
-    Out.GBuffer1 = float4(N * 0.5f + 0.5f, 1.0f);
+    Out.GBuffer1 = float4(N, 1.0f);
     Out.GBuffer2 = float4(occlusion, roughness, metallic, 1.0f);
 
     RETURN(Out);

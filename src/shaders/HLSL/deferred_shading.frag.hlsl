@@ -134,7 +134,7 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
         RETURN(float4(0.0, 0.0, 0.0, 0.0));
     }
 
-    float3 N = normalize(SampleLvlTex2D(Get(gBuffer1), Get(g_linear_clamp_edge_sampler), Input.UV, 0).rgb * 2.0f - 1.0f);
+    float3 N = normalize(SampleLvlTex2D(Get(gBuffer1), Get(g_linear_clamp_edge_sampler), Input.UV, 0).rgb);
     float3 armSample = SampleLvlTex2D(Get(gBuffer2), Get(g_linear_clamp_edge_sampler), Input.UV, 0).rgb;
     float depth  = SampleLvlTex2D(Get(depthBuffer), Get(g_linear_clamp_edge_sampler), Input.UV, 0).r;
 
@@ -152,9 +152,9 @@ float4 PS_MAIN( VsOut Input) : SV_TARGET0 {
     if (roughness < 0.04) roughness = 0.04;
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
+    uint i;
 
     // Point Lights
-    uint i;
     ByteAddressBuffer pointLightsBuffer = ResourceDescriptorHeap[g_point_lights_buffer_index];
     for (i = 0; i < g_point_lights_count; ++i) {
         const PointLight pointLight = pointLightsBuffer.Load<PointLight>(i * sizeof(PointLight));

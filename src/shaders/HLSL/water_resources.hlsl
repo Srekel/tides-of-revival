@@ -40,9 +40,9 @@ cbuffer cbLight : register(b2, UPDATE_FREQ_PER_FRAME)
 struct VSInput
 {
 	float4 Position : POSITION;
-	uint Normal : NORMAL;
+	float3 Normal : NORMAL;
 	float4 Tangent : TANGENT;
-	uint UV : TEXCOORD0;
+	float2 UV : TEXCOORD0;
 	float4 Color : COLOR;
 };
 

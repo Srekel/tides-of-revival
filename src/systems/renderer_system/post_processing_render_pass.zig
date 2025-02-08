@@ -45,7 +45,7 @@ const ApplyBloomConstantBuffer = struct {
 };
 
 const ColorGradingSettings = struct {
-    enabled: bool = true,
+    enabled: bool = false,
     post_exposure: f32 = 0.5,
     contrast: f32 = 2.0,
     color_filter: [3]f32 = .{ 1.0, 1.0, 1.0 },
@@ -54,19 +54,22 @@ const ColorGradingSettings = struct {
 };
 
 const TonemapSettings = struct {
+    gamma_correction: bool = false,
     enabled: bool = true,
 };
 
 // Tonemap Constant Buffer
 // =======================
 const TonemapConstantBuffer = struct {
+    gamma_correction: f32 = 0,
+    tonemapping: f32 = 0,
+    tony_mc_mapface_lut_texture_index: u32 = renderer_types.InvalidResourceIndex,
+    color_grading: f32 = 0,
     color_filter: [3]f32,
     post_exposure: f32,
     contrast: f32,
     hue_shift: f32,
     saturation: f32,
-    tony_mc_mapface_lut_texture_index: u32 = renderer_types.InvalidResourceIndex,
-    color_grading: u32 = 0,
 };
 
 pub const PostProcessingRenderPass = struct {
@@ -388,8 +391,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         // Update constant buffer
         {
             var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
+            constant_buffer_data.gamma_correction = if (self.tonemap_settings.gamma_correction) 1 else 0;
+            constant_buffer_data.tonemapping = if (self.tonemap_settings.enabled) 1 else 0;
             constant_buffer_data.color_grading = if (self.color_grading_settings.enabled) 1 else 0;
-            constant_buffer_data.tony_mc_mapface_lut_texture_index = if (self.color_grading_settings.enabled) self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut) else renderer_types.InvalidResourceIndex;
+            constant_buffer_data.tony_mc_mapface_lut_texture_index = self.renderer.getTextureBindlessIndex(self.tony_mc_mapface_lut);
             // Exposure is measured in stops, so we need raise 2 to the power of the configured value
             constant_buffer_data.post_exposure = std.math.pow(f32, 2.0, self.color_grading_settings.post_exposure);
             // Contrast and saturation need to be remaped from [-100, 100] to [0, 2]
@@ -471,7 +476,8 @@ fn renderImGui(user_data: *anyopaque) void {
     }
 
     if (zgui.collapsingHeader("Tone Mapping", .{})) {
-         _ = zgui.checkbox("Tone Mapping Enabled", .{ .v = &self.tonemap_settings.enabled });
+        _ = zgui.checkbox("Gamma Correction", .{ .v = &self.tonemap_settings.gamma_correction });
+        _ = zgui.checkbox("Tone Mapping Enabled", .{ .v = &self.tonemap_settings.enabled });
     }
 
     if (zgui.collapsingHeader("Color Grading", .{})) {
