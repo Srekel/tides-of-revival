@@ -68,10 +68,10 @@
             "preLaunchTask": "build_c2z"
         },
         {
-            "name": "AssetCoooker",
+            "name": "AssetCompiler",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/tools/asset_cooker/zig-out/bin/AssetCooker.exe",
+            "program": "${workspaceFolder}/tools/asset_cooker/zig-out/bin/AssetCompiler.exe",
             "args": [
                 "--input",
                 "tools/asset_cooker/src/example.texture",
@@ -84,10 +84,10 @@
             "preLaunchTask": "build_asset_cooker"
         },
         {
-            "name": "AssetCoooker_Release",
+            "name": "AssetCompiler_Release",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/tools/asset_cooker/zig-out/bin/AssetCooker.exe",
+            "program": "${workspaceFolder}/tools/asset_cooker/zig-out/bin/AssetCompiler.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
