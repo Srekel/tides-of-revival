@@ -19,7 +19,7 @@ const resource_loader = zforge.resource_loader;
 // ==============
 const BloomSettings = struct {
     enabled: bool = false,
-    bloom_threshold: f32 = 0.15,
+    bloom_threshold: f32 = 2.0,
     bloom_strength: f32 = 1.0,
 };
 
@@ -45,12 +45,12 @@ const ApplyBloomConstantBuffer = struct {
 };
 
 const ColorGradingSettings = struct {
-    enabled: bool = false,
-    post_exposure: f32 = 0.5,
-    contrast: f32 = 2.0,
+    enabled: bool = true,
+    post_exposure: f32 = 1.0,
+    contrast: f32 = 0.0,
     color_filter: [3]f32 = .{ 1.0, 1.0, 1.0 },
     hue_shift: f32 = 0.0,
-    saturation: f32 = 45.0,
+    saturation: f32 = 0.0,
 };
 
 const TonemapSettings = struct {
