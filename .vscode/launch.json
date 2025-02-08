@@ -71,28 +71,33 @@
             "name": "AssetCompiler",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/tools/asset_cooker/zig-out/bin/AssetCompiler.exe",
+            "program": "${workspaceFolder}/tools/asset_compiler/zig-out/bin/AssetCompiler.exe",
             "args": [
                 "--input",
-                "tools/asset_cooker/src/example.texture",
+                "${workspaceFolder}/tools/asset_compiler/src/test.texture",
                 "--output",
-                "tools/asset_cooker/src",
+                "${workspaceFolder}/tools/asset_compiler/src",
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/tools/binaries/asset_compiler/",
             "environment": [],
-            "preLaunchTask": "build_asset_cooker"
+            "preLaunchTask": "build_asset_compiler"
         },
         {
             "name": "AssetCompiler_Release",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/tools/asset_cooker/zig-out/bin/AssetCompiler.exe",
-            "args": [],
+            "program": "${workspaceFolder}/tools/asset_compiler/zig-out/bin/AssetCompiler.exe",
+            "args": [
+                "--input",
+                "${workspaceFolder}/tools/asset_compiler/src/test.texture",
+                "--output",
+                "${workspaceFolder}/tools/asset_compiler/src",
+            ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/tools/binaries/asset_compiler/",
             "environment": [],
-            "preLaunchTask": "build_asset_cooker"
+            "preLaunchTask": "build_asset_compiler"
         },
         // {
         //     "name": "World gen",

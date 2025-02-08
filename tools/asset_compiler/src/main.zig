@@ -9,13 +9,14 @@ const TextureFormat = enum {
 };
 
 const TextureInfoV1 = struct {
-    source_path: []const u8,
     destination_path: []const u8,
+    source_path: []const u8,
+    format: TextureFormat,
     width: ?u32,
     height: ?u32,
-    mip_count: u32,
-    srgb: bool,
-    format: TextureFormat,
+    mip_count: ?u32,
+    srgb: ?bool,
+    invert_y: ?bool,
 };
 
 pub fn main() !void {
@@ -37,8 +38,7 @@ pub fn main() !void {
     std.log.debug("--input {s}", .{parsed_args.options.input});
     std.log.debug("--output {s}", .{parsed_args.options.output});
 
-    // Parse the file, assume texture for now
-    var file = try std.fs.cwd().openFile(parsed_args.options.input, .{});
+    var file = try std.fs.openFileAbsolute(parsed_args.options.input, .{});
     defer file.close();
 
     var buf_reader = std.io.bufferedReader(file.reader());
@@ -66,39 +66,6 @@ pub fn main() !void {
             continue;
         }
 
-        if (std.mem.eql(u8, tag, "width")) {
-            const width = splits.next().?;
-            texture_info.width = try std.fmt.parseInt(u32, width[1..], 10);
-            std.log.debug("Width: '{d}'", .{texture_info.width.?});
-            continue;
-        }
-
-        if (std.mem.eql(u8, tag, "height")) {
-            const height = splits.next().?;
-            texture_info.height = try std.fmt.parseInt(u32, height[1..], 10);
-            std.log.debug("Height: '{d}'", .{texture_info.height.?});
-            continue;
-        }
-
-        if (std.mem.eql(u8, tag, "mip_count")) {
-            const mip_count = splits.next().?;
-            texture_info.mip_count = try std.fmt.parseInt(u32, mip_count[1..], 10);
-            std.log.debug("Mip Count: '{d}'", .{texture_info.mip_count});
-            continue;
-        }
-
-        if (std.mem.eql(u8, tag, "srgb")) {
-            const srgb = splits.next().?;
-            if (std.mem.eql(u8, srgb[1..], "true")) {
-                texture_info.srgb = true;
-            } else {
-                texture_info.srgb = false;
-            }
-
-            std.log.debug("sRGB: '{}'", .{texture_info.srgb});
-            continue;
-        }
-
         if (std.mem.eql(u8, tag, "format")) {
             const format = splits.next().?;
             if (std.mem.eql(u8, format[1..], "BC1_UNORM")) {
@@ -116,20 +83,84 @@ pub fn main() !void {
             std.log.debug("Format: '{}'", .{texture_info.format});
             continue;
         }
+
+        if (std.mem.eql(u8, tag, "width")) {
+            const width = splits.next().?;
+            texture_info.width = try std.fmt.parseInt(u32, width[1..], 10);
+            std.log.debug("Width: '{d}'", .{texture_info.width.?});
+            continue;
+        }
+
+        if (std.mem.eql(u8, tag, "height")) {
+            const height = splits.next().?;
+            texture_info.height = try std.fmt.parseInt(u32, height[1..], 10);
+            std.log.debug("Height: '{d}'", .{texture_info.height.?});
+            continue;
+        }
+
+        if (std.mem.eql(u8, tag, "mip_count")) {
+            const mip_count = splits.next().?;
+            texture_info.mip_count = try std.fmt.parseInt(u32, mip_count[1..], 10);
+            std.log.debug("Mip Count: '{d}'", .{texture_info.mip_count.?});
+            continue;
+        }
+
+        if (std.mem.eql(u8, tag, "srgb")) {
+            const srgb = splits.next().?;
+            if (std.mem.eql(u8, srgb[1..], "true")) {
+                texture_info.srgb = true;
+            } else {
+                texture_info.srgb = false;
+            }
+
+            std.log.debug("sRGB: '{}'", .{texture_info.srgb.?});
+            continue;
+        }
+
+        if (std.mem.eql(u8, tag, "invert_y")) {
+            const invert_y = splits.next().?;
+            if (std.mem.eql(u8, invert_y[1..], "true")) {
+                texture_info.invert_y = true;
+            } else {
+                texture_info.invert_y = false;
+            }
+
+            std.log.debug("Invert Y: '{}'", .{texture_info.invert_y.?});
+            continue;
+        }
     }
 
     try executeTextureConversionV1(&texture_info, arena);
 }
 
 fn executeTextureConversionV1(desc: *TextureInfoV1, arena: std.mem.Allocator) !void {
+    // Build texconv.exe process argument list
+    // =======================================
     var argv = std.ArrayList([]const u8).init(arena);
-    try argv.append("tools/binaries/texconv/texconv.exe");
+
+    // Executable path
+    // NOTE: std.fs.cwd() is tools/binaries/asset_compiler/
+    const cwd_absolute = try std.fs.cwd().realpathAlloc(arena, ".");
+    var texconv_path_buffer: [1024]u8 = undefined;
+    const textcov_absolute_path = try std.fmt.bufPrint(&texconv_path_buffer, "{s}/../texconv/texconv.exe", .{cwd_absolute});
+    try argv.append(textcov_absolute_path);
+
+    // Override existing output file
     try argv.append("-y");
+
+    // Force lowercase out file name
     try argv.append("-l");
+
+    // Do not display texconv.exe logo
     try argv.append("-nologo");
+
+    // Compress alpha separately
     try argv.append("-sepalpha");
+
+    // Generate DX10 headers
     try argv.append("-dx10");
 
+    // Specify the output image format
     try argv.append("-f");
     switch (desc.format) {
         .BC1_UNORM => {
@@ -146,31 +177,51 @@ fn executeTextureConversionV1(desc: *TextureInfoV1, arena: std.mem.Allocator) !v
         },
     }
 
-    if (desc.srgb) {
-        try argv.append("-srgb");
-    }
-
-    if (desc.mip_count > 0) {
-        try argv.append("-m");
-        var buf: [8]u8 = undefined;
-        try argv.append(try std.fmt.bufPrint(&buf, "{d}", .{desc.mip_count}));
-    }
-
+    // Optional: Specify the output image width
     if (desc.width) |width| {
         try argv.append("-w");
         var buf: [8]u8 = undefined;
         try argv.append(try std.fmt.bufPrint(&buf, "{d}", .{width}));
     }
 
+    // Optional: Specify the output image height
     if (desc.height) |height| {
         try argv.append("-h");
         var buf: [8]u8 = undefined;
         try argv.append(try std.fmt.bufPrint(&buf, "{d}", .{height}));
     }
 
+    // Optional: Specify a desired mip map count
+    if (desc.mip_count) |mip_count| {
+        if (mip_count > 0) {
+            try argv.append("-m");
+            var buf: [8]u8 = undefined;
+            try argv.append(try std.fmt.bufPrint(&buf, "{d}", .{mip_count}));
+        }
+    }
+
+    // Optional: Specify the sRGB (input & output) flag
+    if (desc.srgb) |srgb| {
+        if (srgb) {
+            try argv.append("-srgb");
+        }
+    }
+
+    // Optional: Specify the Invert Y flag
+    if (desc.invert_y) |invert_y| {
+        if (invert_y) {
+            try argv.append("-inverty");
+        }
+    }
+
+    // Specify the destination image folder path
     try argv.append("-o");
     try argv.append(desc.destination_path);
-    try argv.append(desc.source_path);
+
+    // Specify the source image file path
+    var source_path_buffer: [1024]u8 = undefined;
+    const source_absolute_path = try std.fmt.bufPrint(&source_path_buffer, "{s}/../../../{s}", .{cwd_absolute, desc.source_path});
+    try argv.append(source_absolute_path);
 
     var cmd = std.process.Child.init(@ptrCast(argv.items), std.heap.page_allocator);
     try cmd.spawn();
