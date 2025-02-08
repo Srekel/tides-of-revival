@@ -5,7 +5,7 @@
 #include "utils.hlsl"
 
 #define HEIGHBLEND_ENABLED 0
-#define TRIPLANAR_ENABLED 1
+#define TRIPLANAR_ENABLED 0
 
 // Height-based blending
 // =====================
@@ -118,7 +118,7 @@ void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, flo
     float2 uv = P.xz;
     albedo = diffuseTexture.Sample(samplerState, uv).rgb;
     arm = armTexture.Sample(samplerState, uv).rgb;
- arm.g = 0.9f;
+    arm.g = 0.9f;
 	normal = ReconstructNormal(normalTexture.Sample(samplerState, uv), 1.0f);
     normal = mul(TBN, normal);
 #endif
@@ -140,18 +140,19 @@ GBufferOutput PS_MAIN( TerrainVSOutput Input, float3 barycentrics : SV_Barycentr
     TerrainInstanceData instance = instanceTransformBuffer.Load<TerrainInstanceData>(instanceIndex * sizeof(TerrainInstanceData));
 
     const float3 P = Input.PositionWS.xyz;
+    const float3 V = normalize(g_cam_pos.xyz - P);
 
+    // Generate TBN for sampling layers' normal maps
+    // =============================================
     Texture2D normalmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.normalmapTextureIndex)];
     float3 normalWS = normalize(normalmap.SampleLevel(g_linear_repeat_sampler, Input.UV, 0).rgb * 2.0 - 1.0);
     normalWS = mul((float3x3)instance.worldMat, normalWS);
     float3 tangentWS = cross(instance.worldMat._13_23_33, normalWS);
     float3 bitangentWS = cross(normalWS, tangentWS);
     float3x3 TBN = float3x3(-tangentWS, bitangentWS, normalWS);
-    normalWS = mul(TBN, float3(0, 0, 1));
 
     float slope = dot(normalWS, float3(0, 1, 0));
     slope = smoothstep(g_black_point, g_white_point, slope);
-    const float3 V = normalize(g_cam_pos.xyz - P);
 
     uint grass_layer_index = 1;
     uint rock_layer_index = 2;
@@ -187,7 +188,7 @@ GBufferOutput PS_MAIN( TerrainVSOutput Input, float3 barycentrics : SV_Barycentr
 #endif
 
     Out.GBuffer0 = float4(albedo, 1.0f);
-    Out.GBuffer1 = float4(normalWS * 0.5f + 0.5f, 1.0f);
+    Out.GBuffer1 = float4(normalWS, 1.0f);
     Out.GBuffer2 = float4(arm, 1.0f);
 
     RETURN(Out);

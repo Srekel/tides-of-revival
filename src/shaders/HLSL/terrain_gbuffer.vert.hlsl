@@ -23,9 +23,5 @@ TerrainVSOutput VS_MAIN(TerrainVSInput Input, uint instance_id : SV_InstanceID)
     Out.Position = mul(tempMat, float4(position, 1.0f));
     Out.PositionWS = mul(instance.worldMat, float4(position, 1.0f)).xyz;
 
-    Texture2D normalmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.normalmapTextureIndex)];
-    float3 normal = normalize(normalmap.SampleLevel(g_linear_repeat_sampler, Input.UV, 0).rgb * 2.0 - 1.0);
-    Out.Normal = mul((float3x3)instance.worldMat, normal);
-
     RETURN(Out);
 }

@@ -111,7 +111,6 @@ struct TerrainVSOutput
 	float4 Position : SV_Position;
 	float3 PositionWS : POSITION;
 	float2 UV : TEXCOORD0;
-	float3 Normal : TEXCOORD1;
 	uint InstanceID : SV_InstanceID;
 };
 
