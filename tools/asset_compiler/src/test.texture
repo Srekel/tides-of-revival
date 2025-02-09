@@ -1,8 +1,8 @@
 version: 1
-source: content/prefabs/environment/beech/beech_atlas_normal.tga
+source: prefabs/environment/beech/beech_atlas_normal.tga
+format: BC5_UNORM
 width: 2048
 height: 2048
 mip_count: 0
 srgb: false
 invert_y: true
-format: BC5_UNORM
