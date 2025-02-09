@@ -75,8 +75,10 @@
             "args": [
                 "--input",
                 "${workspaceFolder}/tools/asset_compiler/src/test.texture",
+                // "${workspaceFolder}/content/prefabs/environment/terrain/rock_ground_02_height.texture",
                 "--output",
                 "${workspaceFolder}/tools/asset_compiler/src",
+                // "${workspaceFolder}/zig-out/bin/content/prefabs/environment/terrain",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/tools/binaries/asset_compiler/",
@@ -97,7 +99,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/tools/binaries/asset_compiler/",
             "environment": [],
-            "preLaunchTask": "build_asset_compiler"
+            "preLaunchTask": "build_asset_compiler_release"
         },
         // {
         //     "name": "World gen",

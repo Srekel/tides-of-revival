@@ -18,3 +18,5 @@ release_build/*
 binaries/
 imgui.ini
 .zig-cache
+Logs/*
+prefs.toml
