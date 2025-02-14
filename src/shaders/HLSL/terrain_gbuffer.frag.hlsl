@@ -6,6 +6,7 @@
 
 #define HEIGHBLEND_ENABLED 0
 #define TRIPLANAR_ENABLED 0
+#define TEXTURE_BOMBING_ENABLED 1
 
 // Height-based blending
 // =====================
@@ -102,6 +103,58 @@ float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, floa
     return normalize(tangentNormalX * weights.x + tangentNormalY * weights.y + tangentNormalY * weights.z);
 }
 
+// Breaking texture repetition
+// https://www.shadertoy.com/view/lt2GDd
+float4 hash4(float2 p) { return frac(sin(float4(1.0 + dot(p, float2(37.0, 17.0)),
+                                                2.0 + dot(p, float2(11.0, 47.0)),
+                                                3.0 + dot(p, float2(41.0, 29.0)),
+                                                4.0 + dot(p, float2(23.0, 31.0)))) *
+                                     103.0); }
+
+float4 SampleNoTiling(Texture2D tex, SamplerState ss, float2 uv)
+{
+    float2 iuv = floor(uv);
+    float2 fuv = frac(uv);
+
+    // generate per-tile transform
+    float4 ofa = hash4(iuv + float2(0.0, 0.0));
+    float4 ofb = hash4(iuv + float2(1.0, 0.0));
+    float4 ofc = hash4(iuv + float2(0.0, 1.0));
+    float4 ofd = hash4(iuv + float2(1.0, 1.0));
+
+    float2 _ddx = ddx(uv);
+    float2 _ddy = ddy(uv);
+
+    // transform per-tile uvs
+    ofa.zw = sign(ofa.zw - 0.5);
+    ofb.zw = sign(ofb.zw - 0.5);
+    ofc.zw = sign(ofc.zw - 0.5);
+    ofd.zw = sign(ofd.zw - 0.5);
+
+    // uv's, and derivarives (for correct mipmapping)
+    float2 uva = uv * ofa.zw + ofa.xy;
+    float2 _ddxa = _ddx * ofa.zw;
+    float2 _ddya = _ddy * ofa.zw;
+    float2 uvb = uv * ofb.zw + ofb.xy;
+    float2 _ddxb = _ddx * ofb.zw;
+    float2 _ddyb = _ddy * ofb.zw;
+    float2 uvc = uv * ofc.zw + ofc.xy;
+    float2 _ddxc = _ddx * ofc.zw;
+    float2 _ddyc = _ddy * ofc.zw;
+    float2 uvd = uv * ofd.zw + ofd.xy;
+    float2 _ddxd = _ddx * ofd.zw;
+    float2 _ddyd = _ddy * ofd.zw;
+
+    // fetch and blend
+    float2 b = smoothstep(0.25, 0.75, fuv);
+
+    return lerp(lerp(tex.SampleGrad(ss, uva, _ddxa, _ddya),
+                     tex.SampleGrad(ss, uvb, _ddxb, _ddyb), b.x),
+                lerp(tex.SampleGrad(ss, uvc, _ddxc, _ddyc),
+                     tex.SampleGrad(ss, uvd, _ddxd, _ddyd), b.x),
+                b.y);
+}
+
 // Terrain Layer sampling
 // ======================
 void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, float3 N, float3x3 TBN, out float3 albedo, out float3 normal, out float3 arm, out float height)
@@ -119,12 +172,23 @@ void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, flo
     arm = TriplanarSample(armTexture, samplerState, uv, triplanarWeights);
     normal = TriplanarSampleNormals(normalTexture, samplerState, N, uv, triplanarWeights, TBN);
 #else
+
+#if TEXTURE_BOMBING_ENABLED
+    float2 uv = P.xz;
+    albedo = SampleNoTiling(diffuseTexture, samplerState, uv).rgb;
+    arm = SampleNoTiling(armTexture, samplerState, uv).rgb;
+    // arm.g = 0.9f;
+    normal = ReconstructNormal(SampleNoTiling(normalTexture, samplerState, uv), 1.0f);
+    normal = mul(TBN, normal);
+#else
     float2 uv = P.xz;
     albedo = diffuseTexture.Sample(samplerState, uv).rgb;
     arm = armTexture.Sample(samplerState, uv).rgb;
-    arm.g = 0.9f;
+    // arm.g = 0.9f;
     normal = ReconstructNormal(normalTexture.Sample(samplerState, uv), 1.0f);
     normal = mul(TBN, normal);
+#endif
+
 #endif
 
 #if HEIGHBLEND_ENABLED
@@ -192,13 +256,13 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float3 grass_normal;
     float3 grass_arm;
     float grass_height;
-    SampleTerrainLayer(grass_layer_index, triplanarWeights, worldSpaceUV * 0.5f, normalWS, TBN, grass_albedo, grass_normal, grass_arm, grass_height);
+    SampleTerrainLayer(grass_layer_index, triplanarWeights, worldSpaceUV, normalWS, TBN, grass_albedo, grass_normal, grass_arm, grass_height);
 
     float3 rock_albedo;
     float3 rock_normal;
     float3 rock_arm;
     float rock_height;
-    SampleTerrainLayer(rock_layer_index, triplanarWeights, worldSpaceUV * 0.5f, normalWS, TBN, rock_albedo, rock_normal, rock_arm, rock_height);
+    SampleTerrainLayer(rock_layer_index, triplanarWeights, worldSpaceUV, normalWS, TBN, rock_albedo, rock_normal, rock_arm, rock_height);
 
 #if HEIGHBLEND_ENABLED
     float b1, b2;
