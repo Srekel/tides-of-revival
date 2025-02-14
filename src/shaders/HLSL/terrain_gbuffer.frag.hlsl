@@ -25,23 +25,27 @@ float3 HeightBlend(float3 sample1, float3 sample2, float b1, float b2)
 
 struct TriplanarUV
 {
-	float2 x;
+    float2 x;
     float2 y;
     float2 z;
 };
 
-TriplanarUV GetTriplanarUV(float3 P, float3 N) {
+TriplanarUV GetTriplanarUV(float3 P, float3 N)
+{
     TriplanarUV triUV;
     triUV.x = P.zy;
     triUV.y = P.xz;
     triUV.z = P.xy;
-    if (N.x < 0) {
+    if (N.x < 0)
+    {
         triUV.x.x = -triUV.x.x;
     }
-    if (N.y < 0) {
+    if (N.y < 0)
+    {
         triUV.y.x = -triUV.y.x;
     }
-    if (N.z >= 0) {
+    if (N.z >= 0)
+    {
         triUV.z.x = -triUV.z.x;
     }
     return triUV;
@@ -64,9 +68,9 @@ float3 TriplanarSample(Texture2D texture, SamplerState samplerState, TriplanarUV
 
 float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, float3 N, TriplanarUV uv, float3 weights, float3x3 TBN)
 {
-	float3 tangentNormalX = ReconstructNormal(SampleTex2D(texture, samplerState, uv.x), 1.0f);
-	float3 tangentNormalY = ReconstructNormal(SampleTex2D(texture, samplerState, uv.y), 1.0f);
-	float3 tangentNormalZ = ReconstructNormal(SampleTex2D(texture, samplerState, uv.z), 1.0f);
+    float3 tangentNormalX = ReconstructNormal(SampleTex2D(texture, samplerState, uv.x), 1.0f);
+    float3 tangentNormalY = ReconstructNormal(SampleTex2D(texture, samplerState, uv.y), 1.0f);
+    float3 tangentNormalZ = ReconstructNormal(SampleTex2D(texture, samplerState, uv.z), 1.0f);
 
     if (N.x < 0)
     {
@@ -119,7 +123,7 @@ void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, flo
     albedo = diffuseTexture.Sample(samplerState, uv).rgb;
     arm = armTexture.Sample(samplerState, uv).rgb;
     arm.g = 0.9f;
-	normal = ReconstructNormal(normalTexture.Sample(samplerState, uv), 1.0f);
+    normal = ReconstructNormal(normalTexture.Sample(samplerState, uv), 1.0f);
     normal = mul(TBN, normal);
 #endif
 
@@ -131,7 +135,29 @@ void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, flo
 #endif
 }
 
-GBufferOutput PS_MAIN( TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics ) {
+// TODO(gmodarelli): These distances and scales could be set per layer
+float GetCoordScaleByDistance(float3 positionWS, float3 cameraPosition)
+{
+    float d = distance(positionWS, cameraPosition);
+
+    if (d < 20.0f)
+    {
+        return 1.0f;
+    }
+    else if (d < 100.0f)
+    {
+        return 0.5f;
+    }
+    else if (d < 200.0f)
+    {
+        return 0.05f;
+    }
+
+    return 0.005f;
+}
+
+GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics)
+{
     INIT_MAIN;
     GBufferOutput Out;
 
@@ -158,9 +184,8 @@ GBufferOutput PS_MAIN( TerrainVSOutput Input, float3 barycentrics : SV_Barycentr
     uint rock_layer_index = 2;
 
     // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
-    // TODO(gmodarelli): Scale UVs based on distance from camera
     // TODO(gmodarelli): Use more UV techniques to break tiling patterns
-    float3 worldSpaceUV = Input.PositionWS.xyz * 1.0f;
+    float3 worldSpaceUV = Input.PositionWS.xyz * GetCoordScaleByDistance(P, g_cam_pos.xyz);
     float3 triplanarWeights = GetTriplanarWeights(normalWS);
 
     float3 grass_albedo;

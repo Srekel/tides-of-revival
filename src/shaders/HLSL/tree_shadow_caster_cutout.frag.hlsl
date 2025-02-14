@@ -5,7 +5,7 @@
 #include "tree_shadow_caster_resources.hlsli"
 #include "utils.hlsl"
 
-void PS_MAIN( VSOutput Input) {
+void PS_MAIN( ShadowVSOutput Input) {
     INIT_MAIN;
 
     ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];

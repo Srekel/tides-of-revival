@@ -5,9 +5,11 @@
 #include "tree_shadow_caster_resources.hlsli"
 
 VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
+ShadowVSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)
 {
     INIT_MAIN;
     VSOutput Out;
+    ShadowVSOutput Out;
     Out.InstanceID = instance_id;
     Out.UV = Input.UV;
     Out.UV1 = Input.UV1;
