@@ -125,7 +125,7 @@ float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, floa
     float3 bitangentY = normalize(cross(tangentY, normalWS)) * axis.y;
     float3x3 tbnY = float3x3(tangentY, bitangentY, normalWS);
 
-    float3 tangentZ = normalize(cross(normalWS, float3(0.0f, -axis.z, 0.0f)));
+    float3 tangentZ = normalize(cross(normalWS, float3(axis.z, 0.0f, 0.0f)));
     float3 bitangentZ = normalize(cross(tangentZ, normalWS)) * axis.z;
     float3x3 tbnZ = float3x3(tangentZ, bitangentZ, normalWS);
 
@@ -197,10 +197,7 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     TerrainInstanceData instance = instanceTransformBuffer.Load<TerrainInstanceData>(instanceIndex * sizeof(TerrainInstanceData));
 
     const float3 P = Input.PositionWS.xyz;
-    const float3 V = normalize(g_cam_pos.xyz - P);
 
-    // Generate TBN for sampling layers' normal maps
-    // =============================================
     Texture2D normalmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.normalmapTextureIndex)];
     float3 normalWS = normalize(normalmap.SampleLevel(g_linear_repeat_sampler, Input.UV, 0).rgb * 2.0 - 1.0);
     normalWS = mul((float3x3)instance.worldMat, normalWS);

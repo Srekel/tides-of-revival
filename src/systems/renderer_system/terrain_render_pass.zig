@@ -948,6 +948,11 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_set_depth_only, 1, @ptrCast(&params));
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_set, params.len, @ptrCast(&params));
+
+        var shadow_uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cbFrame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&shadow_uniform_buffer);
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.shadows_descriptor_set, 1, @ptrCast(&params));
     }
 }

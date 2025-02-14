@@ -322,14 +322,17 @@ pub const PSOManager = struct {
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
                 const render_targets = [_]graphics.TinyImageFormat{};
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GREATER);
+                var rasterizer = rasterizer_cull_none;
+                rasterizer.mDepthBias = -1.0;
+                rasterizer.mSlopeScaledDepthBias = -4.0;
 
                 const desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("terrain_shadow_caster"),
                     .vert_shader_name = "terrain_shadow_caster.vert",
                     .frag_shader_name = "terrain_shadow_caster.frag",
                     .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_back,
+                    .rasterizer_state = rasterizer,
                     .depth_state = depth_state,
                     .depth_format = self.renderer.depth_buffer.*.mFormat,
                     .vertex_layout_id = IdLocal.init("pos_uv0_col"),
@@ -401,14 +404,17 @@ pub const PSOManager = struct {
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
                 const render_targets = [_]graphics.TinyImageFormat{};
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GREATER);
+                var rasterizer = rasterizer_cull_back;
+                rasterizer.mDepthBias = -1.0;
+                rasterizer.mSlopeScaledDepthBias = -4.0;
 
                 var desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("lit_shadow_caster_opaque"),
                     .vert_shader_name = "lit_shadow_caster.vert",
                     .frag_shader_name = "lit_shadow_caster_opaque.frag",
                     .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_back,
+                    .rasterizer_state = rasterizer,
                     .depth_state = depth_state,
                     .depth_format = self.renderer.depth_buffer.*.mFormat,
                     .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
@@ -416,9 +422,12 @@ pub const PSOManager = struct {
                 };
                 self.createGraphicsPipeline(desc);
 
+                rasterizer = rasterizer_cull_none;
+                rasterizer.mDepthBias = -1.0;
+                rasterizer.mSlopeScaledDepthBias = -4.0;
                 desc.id = IdLocal.init("lit_shadow_caster_cutout");
                 desc.frag_shader_name = "lit_shadow_caster_cutout.frag";
-                desc.rasterizer_state = rasterizer_cull_none;
+                desc.rasterizer_state = rasterizer;
                 self.createGraphicsPipeline(desc);
             }
         }
@@ -486,14 +495,17 @@ pub const PSOManager = struct {
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
                 const render_targets = [_]graphics.TinyImageFormat{};
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GREATER);
+                var rasterizer = rasterizer_cull_back;
+                rasterizer.mDepthBias = -1.0;
+                rasterizer.mSlopeScaledDepthBias = -4.0;
 
                 var desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("tree_shadow_caster_opaque"),
                     .vert_shader_name = "tree_shadow_caster.vert",
                     .frag_shader_name = "tree_shadow_caster_opaque.frag",
                     .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_back,
+                    .rasterizer_state = rasterizer,
                     .depth_state = depth_state,
                     .depth_format = self.renderer.depth_buffer.*.mFormat,
                     .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
@@ -501,9 +513,12 @@ pub const PSOManager = struct {
                 };
                 self.createGraphicsPipeline(desc);
 
+                rasterizer = rasterizer_cull_none;
+                rasterizer.mDepthBias = -1.0;
+                rasterizer.mSlopeScaledDepthBias = -4.0;
                 desc.id = IdLocal.init("tree_shadow_caster_cutout");
                 desc.frag_shader_name = "tree_shadow_caster_cutout.frag";
-                desc.rasterizer_state = rasterizer_cull_none;
+                desc.rasterizer_state = rasterizer;
                 self.createGraphicsPipeline(desc);
             }
         }
