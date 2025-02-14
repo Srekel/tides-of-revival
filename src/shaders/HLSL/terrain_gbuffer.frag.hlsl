@@ -5,105 +5,11 @@
 #include "utils.hlsl"
 
 #define HEIGHBLEND_ENABLED 0
-#define TRIPLANAR_ENABLED 0
+#define TRIPLANAR_ENABLED 1
 #define TEXTURE_BOMBING_ENABLED 1
 
-// Height-based blending
-// =====================
-void CalculateBlendingFactors(float height1, float height2, float a1, float a2, out float b1, out float b2)
-{
-    float depth = 0.2f;
-    float ma = max(height1 + a1, height2 + a2) - depth;
-
-    b1 = max(height1 + a1 - ma, 0.0f);
-    b2 = max(height2 + a2 - ma, 0.0f);
-}
-
-float3 HeightBlend(float3 sample1, float3 sample2, float b1, float b2)
-{
-    return (sample1 * b1 + sample2 * b2) / (b1 + b2);
-}
-
-struct TriplanarUV
-{
-    float2 x;
-    float2 y;
-    float2 z;
-};
-
-TriplanarUV GetTriplanarUV(float3 P, float3 N)
-{
-    TriplanarUV triUV;
-    triUV.x = P.zy;
-    triUV.y = P.xz;
-    triUV.z = P.xy;
-    if (N.x < 0)
-    {
-        triUV.x.x = -triUV.x.x;
-    }
-    if (N.y < 0)
-    {
-        triUV.y.x = -triUV.y.x;
-    }
-    if (N.z >= 0)
-    {
-        triUV.z.x = -triUV.z.x;
-    }
-    return triUV;
-}
-
-float3 GetTriplanarWeights(float3 normalWS)
-{
-    float3 triplanar_weights = abs(normalWS);
-    return triplanar_weights / (triplanar_weights.x + triplanar_weights.y + triplanar_weights.z + 0.00001);
-}
-
-float3 TriplanarSample(Texture2D texture, SamplerState samplerState, TriplanarUV uv, float3 weights)
-{
-    float3 xAxis = texture.Sample(samplerState, uv.x).rgb;
-    float3 yAxis = texture.Sample(samplerState, uv.y).rgb;
-    float3 zAxis = texture.Sample(samplerState, uv.z).rgb;
-
-    return xAxis * weights.x + yAxis * weights.y + zAxis * weights.z;
-}
-
-float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, float3 N, TriplanarUV uv, float3 weights, float3x3 TBN)
-{
-    float3 tangentNormalX = ReconstructNormal(SampleTex2D(texture, samplerState, uv.x), 1.0f);
-    float3 tangentNormalY = ReconstructNormal(SampleTex2D(texture, samplerState, uv.y), 1.0f);
-    float3 tangentNormalZ = ReconstructNormal(SampleTex2D(texture, samplerState, uv.z), 1.0f);
-
-    if (N.x < 0)
-    {
-        tangentNormalX.x = -tangentNormalX.x;
-        tangentNormalX.z = -tangentNormalX.z;
-    }
-    if (N.y < 0)
-    {
-        tangentNormalY.x = -tangentNormalY.x;
-        tangentNormalY.z = -tangentNormalY.z;
-    }
-    if (N.z >= 0)
-    {
-        tangentNormalZ.x = -tangentNormalZ.x;
-    }
-    else
-    {
-        tangentNormalZ.z = -tangentNormalZ.z;
-    }
-
-    tangentNormalX = mul(TBN, tangentNormalX);
-    tangentNormalY = mul(TBN, tangentNormalY);
-    tangentNormalZ = mul(TBN, tangentNormalZ);
-
-    // float3 xAxis = UnpackNormals(uv.yz, -V, texture, samplerState, N, 1.0f);
-    // float3 yAxis = UnpackNormals(uv.xz, -V, texture, samplerState, N, 1.0f);
-    // float3 zAxis = UnpackNormals(uv.xy, -V, texture, samplerState, N, 1.0f);
-
-    return normalize(tangentNormalX * weights.x + tangentNormalY * weights.y + tangentNormalY * weights.z);
-}
-
-// Breaking texture repetition
+// Texture bombing
+// ===============
 // https://www.shadertoy.com/view/lt2GDd
 float4 hash4(float2 p) { return frac(sin(float4(1.0 + dot(p, float2(37.0, 17.0)),
                                                 2.0 + dot(p, float2(11.0, 47.0)),
@@ -111,7 +17,7 @@ float4 hash4(float2 p) { return frac(sin(float4(1.0 + dot(p, float2(37.0, 17.0))
                                                 4.0 + dot(p, float2(23.0, 31.0)))) *
                                      103.0); }
 
-float4 SampleNoTiling(Texture2D tex, SamplerState ss, float2 uv)
+float4 SampleTextureBombing(Texture2D tex, SamplerState ss, float2 uv)
 {
     float2 iuv = floor(uv);
     float2 fuv = frac(uv);
@@ -155,9 +61,84 @@ float4 SampleNoTiling(Texture2D tex, SamplerState ss, float2 uv)
                 b.y);
 }
 
+// Height-based blending
+// =====================
+void CalculateBlendingFactors(float height1, float height2, float a1, float a2, out float b1, out float b2)
+{
+    float depth = 0.2f;
+    float ma = max(height1 + a1, height2 + a2) - depth;
+
+    b1 = max(height1 + a1 - ma, 0.0f);
+    b2 = max(height2 + a2 - ma, 0.0f);
+}
+
+float3 HeightBlend(float3 sample1, float3 sample2, float b1, float b2)
+{
+    return (sample1 * b1 + sample2 * b2) / (b1 + b2);
+}
+
+// Triplanar Sampling
+// =================
+float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS)
+{
+#if TEXTURE_BOMBING_ENABLED
+    float3 dx = SampleTextureBombing(texture, samplerState, positionWS.zy).rgb;
+    float3 dy = SampleTextureBombing(texture, samplerState, positionWS.xz).rgb;
+    float3 dz = SampleTextureBombing(texture, samplerState, positionWS.xy).rgb;
+#else
+    float3 dx = texture.Sample(samplerState, positionWS.zy).rgb;
+    float3 dy = texture.Sample(samplerState, positionWS.xz).rgb;
+    float3 dz = texture.Sample(samplerState, positionWS.xy).rgb;
+#endif
+
+    float3 weights = abs(normalWS);
+    weights = weights / (weights.x + weights.y + weights.z);
+
+    return dx * weights.x + dy * weights.y + dz * weights.z;
+}
+
+float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float triplanarScale)
+{
+    float2 uvx = positionWS.zy;
+    float2 uvy = positionWS.xz;
+    float2 uvz = positionWS.xy;
+
+#if TEXTURE_BOMBING_ENABLED
+    float3 tx = ReconstructNormal(SampleTextureBombing(texture, samplerState, uvx * triplanarScale), 1.0f);
+    float3 ty = ReconstructNormal(SampleTextureBombing(texture, samplerState, uvy * triplanarScale), 1.0f);
+    float3 tz = ReconstructNormal(SampleTextureBombing(texture, samplerState, uvz * triplanarScale), 1.0f);
+#else
+    float3 tx = ReconstructNormal(texture.Sample(samplerState, uvx * triplanarScale), 1.0f);
+    float3 ty = ReconstructNormal(texture.Sample(samplerState, uvy * triplanarScale), 1.0f);
+    float3 tz = ReconstructNormal(texture.Sample(samplerState, uvz * triplanarScale), 1.0f);
+#endif
+
+    float3 weights = abs(normalWS);
+    weights = weights / (weights.x + weights.y + weights.z);
+
+    float3 axis = sign(normalWS);
+
+    float3 tangentX = normalize(cross(normalWS, float3(0.0f, -axis.x, 0.0f)));
+    float3 bitangentX = normalize(cross(tangentX, normalWS)) * axis.x;
+    float3x3 tbnX = float3x3(tangentX, bitangentX, normalWS);
+
+    float3 tangentY = normalize(cross(normalWS, float3(0.0f, 0.0f, axis.y)));
+    float3 bitangentY = normalize(cross(tangentY, normalWS)) * axis.y;
+    float3x3 tbnY = float3x3(tangentY, bitangentY, normalWS);
+
+    float3 tangentZ = normalize(cross(normalWS, float3(0.0f, -axis.z, 0.0f)));
+    float3 bitangentZ = normalize(cross(tangentZ, normalWS)) * axis.z;
+    float3x3 tbnZ = float3x3(tangentZ, bitangentZ, normalWS);
+
+    return normalize(
+        clamp(mul(tbnX, tx), -1.0f, 1.0f) * weights.x +
+        clamp(mul(tbnY, ty), -1.0f, 1.0f) * weights.y +
+        clamp(mul(tbnZ, tz), -1.0f, 1.0f) * weights.z);
+}
+
 // Terrain Layer sampling
 // ======================
-void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, float3 N, float3x3 TBN, out float3 albedo, out float3 normal, out float3 arm, out float height)
+void SampleTerrainLayer(uint layer_index, float3 P, float3 N, float triplanarScale, out float3 albedo, out float3 normal, out float3 arm, out float height)
 {
     SamplerState samplerState = g_linear_repeat_sampler;
     TerrainLayerTextureIndices terrain_layer = g_layers[layer_index];
@@ -167,33 +148,24 @@ void SampleTerrainLayer(uint layer_index, float3 triplanarWeights, float3 P, flo
     Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.normalIndex)];
 
 #if TRIPLANAR_ENABLED
-    TriplanarUV uv = GetTriplanarUV(P, N);
-    albedo = TriplanarSample(diffuseTexture, samplerState, uv, triplanarWeights);
-    arm = TriplanarSample(armTexture, samplerState, uv, triplanarWeights);
-    normal = TriplanarSampleNormals(normalTexture, samplerState, N, uv, triplanarWeights, TBN);
+    albedo = TriplanarSample(diffuseTexture, samplerState, P * triplanarScale, N);
+    arm = TriplanarSample(armTexture, samplerState, P * triplanarScale, N);
+    normal = TriplanarSampleNormals(normalTexture, samplerState, P, N, triplanarScale);
 #else
-
-#if TEXTURE_BOMBING_ENABLED
-    float2 uv = P.xz;
-    albedo = SampleNoTiling(diffuseTexture, samplerState, uv).rgb;
-    arm = SampleNoTiling(armTexture, samplerState, uv).rgb;
-    // arm.g = 0.9f;
-    normal = ReconstructNormal(SampleNoTiling(normalTexture, samplerState, uv), 1.0f);
-    normal = mul(TBN, normal);
-#else
-    float2 uv = P.xz;
+    float2 uv = P.xz * triplanarScale;
     albedo = diffuseTexture.Sample(samplerState, uv).rgb;
     arm = armTexture.Sample(samplerState, uv).rgb;
-    // arm.g = 0.9f;
     normal = ReconstructNormal(normalTexture.Sample(samplerState, uv), 1.0f);
-    normal = mul(TBN, normal);
-#endif
-
+    float3 axis = sign(N);
+    float3 tangent = normalize(cross(N, float3(0.0f, 0.0f, axis.y)));
+    float3 bitangent = normalize(cross(tangent, N)) * axis.y;
+    float3x3 TBN = float3x3(tangent, bitangent, N);
+    normal = clamp(mul(TBN, normal), -1.0f, 1.0f);
 #endif
 
 #if HEIGHBLEND_ENABLED
     Texture2D heightTexture = ResourceDescriptorHeap[NonUniformResourceIndex(terrain_layer.heightIndex)];
-    height = TriplanarSample(heightTexture, samplerState, uv, triplanarWeights).r;
+    height = TriplanarSample(heightTexture, samplerState, P * triplanarScale, N).r;
 #else
     height = 0;
 #endif
@@ -247,22 +219,20 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     uint grass_layer_index = 1;
     uint rock_layer_index = 2;
 
-    // NOTE: We're using world space UV's so we don't end up with seams when we tile or between different LOD's
-    // TODO(gmodarelli): Use more UV techniques to break tiling patterns
+    float triplanarScale = GetCoordScaleByDistance(P, g_cam_pos.xyz);
     float3 worldSpaceUV = Input.PositionWS.xyz * GetCoordScaleByDistance(P, g_cam_pos.xyz);
-    float3 triplanarWeights = GetTriplanarWeights(normalWS);
 
     float3 grass_albedo;
     float3 grass_normal;
     float3 grass_arm;
     float grass_height;
-    SampleTerrainLayer(grass_layer_index, triplanarWeights, worldSpaceUV, normalWS, TBN, grass_albedo, grass_normal, grass_arm, grass_height);
+    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, normalWS, triplanarScale, grass_albedo, grass_normal, grass_arm, grass_height);
 
     float3 rock_albedo;
     float3 rock_normal;
     float3 rock_arm;
     float rock_height;
-    SampleTerrainLayer(rock_layer_index, triplanarWeights, worldSpaceUV, normalWS, TBN, rock_albedo, rock_normal, rock_arm, rock_height);
+    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, normalWS, triplanarScale, rock_albedo, rock_normal, rock_arm, rock_height);
 
 #if HEIGHBLEND_ENABLED
     float b1, b2;
