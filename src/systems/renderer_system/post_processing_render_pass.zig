@@ -612,16 +612,16 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[0].pName = "cb0";
         params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "source_tex";
+        params[1].pName = "SourceTex";
         params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
         params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "exposure";
+        params[2].pName = "Exposure";
         params[2].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
         params[3] = std.mem.zeroes(graphics.DescriptorData);
-        params[3].pName = "bloom_result";
+        params[3].pName = "BloomResult";
         params[3].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
         params[4] = std.mem.zeroes(graphics.DescriptorData);
-        params[4].pName = "luma_result";
+        params[4].pName = "LumaResult";
         params[4].__union_field3.ppTextures = @ptrCast(&luma);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.bloom_extract_descriptor_set, params.len, @ptrCast(&params));
@@ -641,19 +641,19 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[0].pName = "cb0";
         params[0].__union_field3.ppBuffers = @ptrCast(&downsample_bloom_constant_buffer);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "bloom_buffer";
+        params[1].pName = "BloomBuf";
         params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
         params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "result_1";
+        params[2].pName = "Result1";
         params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav2a);
         params[3] = std.mem.zeroes(graphics.DescriptorData);
-        params[3].pName = "result_2";
+        params[3].pName = "Result2";
         params[3].__union_field3.ppTextures = @ptrCast(&bloom_uav3a);
         params[4] = std.mem.zeroes(graphics.DescriptorData);
-        params[4].pName = "result_3";
+        params[4].pName = "Result3";
         params[4].__union_field3.ppTextures = @ptrCast(&bloom_uav4a);
         params[5] = std.mem.zeroes(graphics.DescriptorData);
-        params[5].pName = "result_4";
+        params[5].pName = "Result4";
         params[5].__union_field3.ppTextures = @ptrCast(&bloom_uav5a);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.downsample_bloom_descriptor_set, params.len, @ptrCast(&params));
@@ -666,10 +666,10 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         var bloom_uav5b = self.renderer.getTexture(self.renderer.bloom_uav5[1]);
 
         params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "input_buffer";
+        params[0].pName = "InputBuf";
         params[0].__union_field3.ppTextures = @ptrCast(&bloom_uav5a);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "result";
+        params[1].pName = "Result";
         params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav5b);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.bloom_blur_descriptor_set, params.len, @ptrCast(&params));
@@ -711,13 +711,13 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
             params[0].pName = "cb0";
             params[0].__union_field3.ppBuffers = @ptrCast(&upsample_and_blur_constant_buffer);
             params[1] = std.mem.zeroes(graphics.DescriptorData);
-            params[1].pName = "higher_res_buffer";
+            params[1].pName = "HigherResBuf";
             params[1].__union_field3.ppTextures = @ptrCast(&higher_res_buffer);
             params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "lower_res_buffer";
+            params[2].pName = "LowerResBuf";
             params[2].__union_field3.ppTextures = @ptrCast(&lower_res_buffer);
             params[3] = std.mem.zeroes(graphics.DescriptorData);
-            params[3].pName = "result";
+            params[3].pName = "Result";
             params[3].__union_field3.ppTextures = @ptrCast(&result_buffer);
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), descriptor_set, params.len, @ptrCast(&params));
@@ -731,13 +731,13 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         var bloom_uav1b = self.renderer.getTexture(self.renderer.bloom_uav1[1]);
 
         params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cb0";
+        params[0].pName = "CB0";
         params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "bloom_buffer";
+        params[1].pName = "Bloom";
         params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav1b);
         params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "scene_color";
+        params[2].pName = "SrcColor";
         params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.apply_bloom_descriptor_set, params.len, @ptrCast(&params));

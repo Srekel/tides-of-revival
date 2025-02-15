@@ -641,19 +641,19 @@ pub const PSOManager = struct {
             {
                 {
                     var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
-                    self.createComputePipeline(IdLocal.init("bloom_extract"), "bloom_extract_and_downsample.comp", &sampler_ids);
-                    self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "downsample_bloom_all.comp", &sampler_ids);
-                    self.createComputePipeline(IdLocal.init("apply_bloom"), "apply_bloom.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("bloom_extract"), "BloomExtractAndDownsampleHdr.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "DownsampleBloomAll.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("apply_bloom"), "ApplyBloom.comp", &sampler_ids);
                 }
 
                 {
                     var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_border};
-                    self.createComputePipeline(IdLocal.init("upsample_and_blur"), "upsample_and_blur.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("upsample_and_blur"), "UpsampleAndBlur.comp", &sampler_ids);
                 }
 
                 {
                     var sampler_ids = [_]IdLocal{};
-                    self.createComputePipeline(IdLocal.init("blur"), "blur.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("blur"), "Blur.comp", &sampler_ids);
                 }
             }
 

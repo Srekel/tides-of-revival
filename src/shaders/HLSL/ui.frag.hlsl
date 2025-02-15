@@ -2,6 +2,7 @@
 #define STAGE_FRAG
 
 #include "ui_resources.hlsl"
+#include "utils.hlsl"
 
 float4 PS_MAIN(VSOutput input) : SV_Target
 {
@@ -13,6 +14,9 @@ float4 PS_MAIN(VSOutput input) : SV_Target
     Texture2D texture = ResourceDescriptorHeap[NonUniformResourceIndex(instance.textureIndex)];
     float4 color = texture.SampleLevel(g_linear_repeat_sampler, input.UV, 0);
     color.rgb *= color.a;
-    color *= instance.color;
+    color.rgb *= sRGBToLinear_Float3(instance.color.rgb);
+    color.a *= instance.color.a;
+
+    color.rgb = LinearTosRGB_Float3(color.rgb);
     RETURN(color);
 }

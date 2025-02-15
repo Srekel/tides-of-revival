@@ -1,8 +1,8 @@
 ﻿#define DIRECT3D12
 #define STAGE_FRAG
 
-#include "../FSL/d3d.h"
-#include "utils.hlsl"
+#include "../../FSL/d3d.h"
+#include "../utils.hlsl"
 
 // ████████╗ ██████╗ ███╗   ██╗██╗   ██╗    ███╗   ███╗ ██████╗    ███╗   ███╗ █████╗ ██████╗ ███████╗ █████╗  ██████╗███████╗
 // ╚══██╔══╝██╔═══██╗████╗  ██║╚██╗ ██╔╝    ████╗ ████║██╔════╝    ████╗ ████║██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝
@@ -45,8 +45,8 @@ Texture2D<float4> g_scene_color : register(t0, UPDATE_FREQ_PER_FRAME);
 
 struct VsOut
 {
-	float4 Position : SV_Position;
-	float2 UV : TEXCOORD0;
+    float4 Position : SV_Position;
+    float2 UV : TEXCOORD0;
 };
 
 float3 ColorGradePostExposure(float3 color)
@@ -81,7 +81,8 @@ float3 ColorGradeSaturation(float3 color)
     return (color - luminance) * g_saturation + luminance;
 }
 
-float4 PS_MAIN(VsOut Input) : SV_TARGET {
+float4 PS_MAIN(VsOut Input) : SV_TARGET
+{
     float4 Out = float4(0, 0, 0, 1);
 
     float3 color = SampleLvlTex2D(g_scene_color, g_linear_clamp_edge_sampler, Input.UV, 0).rgb;
