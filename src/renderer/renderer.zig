@@ -127,6 +127,7 @@ pub const Renderer = struct {
     bloom_uav4: [2]TextureHandle = .{ undefined, undefined },
     bloom_uav5: [2]TextureHandle = .{ undefined, undefined },
     luma_lr: TextureHandle = undefined,
+    luminance: TextureHandle = undefined,
 
     // Resolution Independent Render Targets
     transmittance_lut: [*c]graphics.RenderTarget = null,
@@ -1432,13 +1433,8 @@ pub const Renderer = struct {
     }
 
     fn createBloomUAVs(self: *Renderer) void {
-        self.bloom_width = if (self.window_width > 2560) 1280 else 640;
-        self.bloom_height = if (self.window_height > 1440) 768 else 384;
-
+        // Common settings
         var texture_desc = std.mem.zeroes(graphics.TextureDesc);
-        texture_desc.mFormat = graphics.TinyImageFormat.R8_UINT;
-        texture_desc.mWidth = self.bloom_width;
-        texture_desc.mHeight = self.bloom_height;
         texture_desc.mDepth = 1;
         texture_desc.mArraySize = 1;
         texture_desc.mMipLevels = 1;
@@ -1446,13 +1442,23 @@ pub const Renderer = struct {
         texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
         texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
         texture_desc.bBindless = false;
+
+        texture_desc.mFormat = graphics.TinyImageFormat.R8_UNORM;
+        texture_desc.mWidth = @intCast(self.window_width);
+        texture_desc.mHeight = @intCast(self.window_height);
+        texture_desc.pName = "Luminance";
+        self.luminance = self.createTexture(texture_desc);
+
+        self.bloom_width = if (self.window_width > 2560) 1280 else 640;
+        self.bloom_height = if (self.window_height > 1440) 768 else 384;
+
+        texture_desc.mFormat = graphics.TinyImageFormat.R8_UINT;
+        texture_desc.mWidth = self.bloom_width;
+        texture_desc.mHeight = self.bloom_height;
         texture_desc.pName = "Luma Buffer";
         self.luma_lr = self.createTexture(texture_desc);
 
         texture_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
-        texture_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-        texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
-        texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
         texture_desc.mWidth = self.bloom_width;
         texture_desc.mHeight = self.bloom_height;
         texture_desc.pName = "Bloom Buffer 1a";
@@ -1493,6 +1499,10 @@ pub const Renderer = struct {
         var texture = self.getTexture(self.luma_lr);
         resource_loader.removeResource__Overload2(texture);
         self.texture_pool.removeAssumeLive(self.luma_lr);
+
+        texture = self.getTexture(self.luminance);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.luminance);
 
         texture = self.getTexture(self.bloom_uav1[0]);
         resource_loader.removeResource__Overload2(texture);

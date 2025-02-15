@@ -15,13 +15,7 @@
 //
 // The CS for extracting bright pixels and downsampling them to an unblurred bloom buffer.
 
-// From: #include "ShaderUtility.hlsli"
-// This assumes the default color gamut found in sRGB and REC709.  The color primaries determine these
-// coefficients.  Note that this operates on linear values, not gamma space.
-float RGBToLuminance(float3 x)
-{
-    return dot(x, float3(0.212671, 0.715160, 0.072169)); // Defined by sRGB/Rec.709 gamut
-}
+#include "ShaderUtility.hlsli"
 
 SamplerState g_linear_clamp_edge_sampler : register(s0);
 Texture2D<float3> source_tex : register(t0, UPDATE_FREQ_PER_FRAME);
