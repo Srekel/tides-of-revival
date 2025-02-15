@@ -13,6 +13,7 @@ const util = @import("../../util.zig");
 const zm = @import("zmath");
 
 const graphics = zforge.graphics;
+const profiler = zforge.profiler;
 const resource_loader = zforge.resource_loader;
 
 const k_initial_min_log: f32 = -12.0;
@@ -21,7 +22,7 @@ const k_initial_max_log: f32 = -4.0;
 // Bloom Settings
 // ==============
 const BloomSettings = struct {
-    enabled: bool = false,
+    enabled: bool = true,
     // range[0.0, 8.0]
     bloom_threshold: f32 = 4.0,
     // range[0.0, 2.0]
@@ -101,10 +102,13 @@ pub const PostProcessingRenderPass = struct {
     renderer: *renderer.Renderer,
     render_pass: renderer.RenderPass,
 
+    hdr_tonemap_profile_token: profiler.ProfileToken = undefined,
+    bloom_profile_token: profiler.ProfileToken = undefined,
+
     // Exposure
     // ========
     exposure_settings: ExposureSettings,
-    exposure_buffer: renderer.BufferHandle,
+    exposure_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
     // Bloom
     // =====
@@ -135,21 +139,30 @@ pub const PostProcessingRenderPass = struct {
     pub fn init(self: *PostProcessingRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
         const exposure_settings = ExposureSettings{};
 
-        const exposure_initial_data = [_]f32 {
-            exposure_settings.exposure,
-            1.0 / exposure_settings.exposure,
-            exposure_settings.exposure,
-            0.0,
-            k_initial_min_log,
-            k_initial_max_log,
-            k_initial_max_log - k_initial_min_log,
-            1.0 / (k_initial_max_log - k_initial_min_log),
+        const exposure_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+
+            const exposure_initial_data = [_]f32 {
+                exposure_settings.exposure,
+                1.0 / exposure_settings.exposure,
+                exposure_settings.exposure,
+                0.0,
+                k_initial_min_log,
+                k_initial_max_log,
+                k_initial_max_log - k_initial_min_log,
+                1.0 / (k_initial_max_log - k_initial_min_log),
+            };
+
+            const exposure_data = renderer.Slice{
+                .data = @ptrCast(&exposure_initial_data),
+                .size = exposure_initial_data.len * @sizeOf(f32),
+            };
+
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createStructuredBuffer(exposure_data, "Exposure");
+            }
+            break :blk buffers;
         };
-        const exposure_data = renderer.Slice{
-            .data = @ptrCast(&exposure_initial_data),
-            .size = exposure_initial_data.len * @sizeOf(f32),
-        };
-        const exposure_buffer = rctx.createStructuredBuffer(exposure_data, "Exposure");
 
         const bloom_extract_constant_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
@@ -207,7 +220,7 @@ pub const PostProcessingRenderPass = struct {
             .render_pass = undefined,
             .bloom_settings = .{},
             .exposure_settings = exposure_settings,
-            .exposure_buffer = exposure_buffer,
+            .exposure_buffers = exposure_buffers,
             .bloom_extract_constant_buffers = bloom_extract_constant_buffers,
             .downsample_bloom_constant_buffers = downsample_bloom_constant_buffers,
             .upsample_and_blur_constant_buffers = upsample_and_blur_constant_buffers,
@@ -262,8 +275,14 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const self: *PostProcessingRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
 
+    self.hdr_tonemap_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "HDR Tone Mapping", .{ .bUseMarker = true});
+    defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.hdr_tonemap_profile_token);
+
     // Bloom
     if (self.bloom_settings.enabled) {
+        self.bloom_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "Generate Bloom", .{ .bUseMarker = true});
+        defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.bloom_profile_token);
+
         var rt_barriers = [_]graphics.RenderTargetBarrier{
             graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
         };
@@ -586,18 +605,18 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
         var luma = self.renderer.getTexture(self.renderer.luma_lr);
         var params: [5]graphics.DescriptorData = undefined;
-        var exposure_buffer = self.renderer.getBuffer(self.exposure_buffer);
+        var exposure_buffer = self.renderer.getBuffer(self.exposure_buffers[i]);
         var bloom_extract_constant_buffer = self.renderer.getBuffer(self.bloom_extract_constant_buffers[i]);
 
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cb0";
         params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "exposure";
-        params[1].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
+        params[1].pName = "source_tex";
+        params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
         params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "source_tex";
-        params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
+        params[2].pName = "exposure";
+        params[2].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
         params[3] = std.mem.zeroes(graphics.DescriptorData);
         params[3].pName = "bloom_result";
         params[3].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
