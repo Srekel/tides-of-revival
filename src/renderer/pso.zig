@@ -542,7 +542,7 @@ pub const PSOManager = struct {
         // ImGUI Pipeline
         {
             var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
-            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
             const depth_state = getDepthStateDesc(true, false, graphics.CompareMode.CMP_ALWAYS);
 
             const desc = GraphicsPipelineDesc{
@@ -562,7 +562,7 @@ pub const PSOManager = struct {
         // Im3d Pipelines
         {
             var sampler_ids = [_]IdLocal{};
-            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
 
             // Points
             var desc = GraphicsPipelineDesc{
@@ -643,7 +643,7 @@ pub const PSOManager = struct {
                     var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
                     self.createComputePipeline(IdLocal.init("bloom_extract"), "BloomExtractAndDownsampleHdr.comp", &sampler_ids);
                     self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "DownsampleBloomAll.comp", &sampler_ids);
-                    self.createComputePipeline(IdLocal.init("apply_bloom"), "ApplyBloom.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("tonemap"), "Tonemap.comp", &sampler_ids);
                 }
 
                 {
@@ -656,27 +656,12 @@ pub const PSOManager = struct {
                     self.createComputePipeline(IdLocal.init("blur"), "Blur.comp", &sampler_ids);
                 }
             }
-
-            // Tonemap
-            {
-                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
-                var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
-                const desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("tonemap"),
-                    .vert_shader_name = "fullscreen.vert",
-                    .frag_shader_name = "tonemap.frag",
-                    .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_none,
-                    .sampler_ids = &sampler_ids,
-                };
-                self.createGraphicsPipeline(desc);
-            }
         }
 
         // UI
         {
             var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
-            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
             const desc = GraphicsPipelineDesc{
                 .id = IdLocal.init("ui"),
                 .vert_shader_name = "ui.vert",
@@ -695,6 +680,22 @@ pub const PSOManager = struct {
             self.createComputePipeline(IdLocal.init("brdf_integration"), "brdf_integration.comp", &sampler_ids);
             self.createComputePipeline(IdLocal.init("compute_irradiance_map"), "compute_irradiance_map.comp", &sampler_ids);
             self.createComputePipeline(IdLocal.init("compute_specular_map"), "compute_specular_map.comp", &sampler_ids);
+        }
+
+        // Composite SDR
+        {
+            var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("composite_sdr"),
+                .vert_shader_name = "fullscreen.vert",
+                .frag_shader_name = "CompositeSDR.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_none,
+                .sampler_ids = &sampler_ids,
+                .blend_state = self.blend_states.get(IdLocal.init("bs_premultiplied")).?,
+            };
+            self.createGraphicsPipeline(desc);
         }
     }
 
