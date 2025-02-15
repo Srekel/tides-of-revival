@@ -126,6 +126,7 @@ pub const Renderer = struct {
     bloom_uav3: [2]TextureHandle = .{ undefined, undefined },
     bloom_uav4: [2]TextureHandle = .{ undefined, undefined },
     bloom_uav5: [2]TextureHandle = .{ undefined, undefined },
+    luma_lr: TextureHandle = undefined,
 
     // Resolution Independent Render Targets
     transmittance_lut: [*c]graphics.RenderTarget = null,
@@ -1187,6 +1188,32 @@ pub const Renderer = struct {
         return handle;
     }
 
+    pub fn createStructuredBuffer(self: *Renderer, initial_data: Slice, debug_name: [:0]const u8) BufferHandle {
+        var buffer: [*c]graphics.Buffer = null;
+
+        var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
+        load_desc.mDesc.pName = debug_name;
+        load_desc.mDesc.bBindless = false;
+        load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW;
+        load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_SHADER_DEVICE_ADDRESS;
+        load_desc.mDesc.mMemoryUsage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
+        // NOTE(gmodarelli): The persistent SRV uses a R32_TYPELESS representation, so we need to provide an element count in terms of 32bit data
+        load_desc.mDesc.mElementCount = @intCast(initial_data.size / @sizeOf(u32));
+        load_desc.mDesc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+        load_desc.mDesc.mSize = initial_data.size;
+        if (initial_data.data) |data| {
+            load_desc.pData = data;
+        }
+        load_desc.ppBuffer = &buffer;
+
+        var token: resource_loader.SyncToken = 0;
+        resource_loader.addResource(@ptrCast(&load_desc), &token);
+        resource_loader.waitForToken(&token);
+
+        const handle: BufferHandle = self.buffer_pool.add(.{ .buffer = buffer }) catch unreachable;
+        return handle;
+    }
+
     pub fn updateBuffer(self: *Renderer, data: Slice, comptime T: type, handle: BufferHandle) void {
         const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
         _ = T;
@@ -1409,15 +1436,23 @@ pub const Renderer = struct {
         self.bloom_height = if (self.window_height > 1440) 768 else 384;
 
         var texture_desc = std.mem.zeroes(graphics.TextureDesc);
+        texture_desc.mFormat = graphics.TinyImageFormat.R8_UINT;
+        texture_desc.mWidth = self.bloom_width;
+        texture_desc.mHeight = self.bloom_height;
         texture_desc.mDepth = 1;
         texture_desc.mArraySize = 1;
         texture_desc.mMipLevels = 1;
-        texture_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
         texture_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
         texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
         texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
         texture_desc.bBindless = false;
+        texture_desc.pName = "Luma Buffer";
+        self.luma_lr = self.createTexture(texture_desc);
 
+        texture_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
+        texture_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+        texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
+        texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
         texture_desc.mWidth = self.bloom_width;
         texture_desc.mHeight = self.bloom_height;
         texture_desc.pName = "Bloom Buffer 1a";
@@ -1455,7 +1490,11 @@ pub const Renderer = struct {
     }
 
     fn destroyBloomUAVs(self: *Renderer) void {
-        var texture = self.getTexture(self.bloom_uav1[0]);
+        var texture = self.getTexture(self.luma_lr);
+        resource_loader.removeResource__Overload2(texture);
+        self.texture_pool.removeAssumeLive(self.luma_lr);
+
+        texture = self.getTexture(self.bloom_uav1[0]);
         resource_loader.removeResource__Overload2(texture);
         self.texture_pool.removeAssumeLive(self.bloom_uav1[0]);
         texture = self.getTexture(self.bloom_uav1[1]);

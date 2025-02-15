@@ -15,12 +15,35 @@ const zm = @import("zmath");
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
+const k_initial_min_log: f32 = -12.0;
+const k_initial_max_log: f32 = -4.0;
+
 // Bloom Settings
 // ==============
 const BloomSettings = struct {
     enabled: bool = false,
-    bloom_threshold: f32 = 2.0,
-    bloom_strength: f32 = 1.0,
+    // range[0.0, 8.0]
+    bloom_threshold: f32 = 4.0,
+    // range[0.0, 2.0]
+    bloom_strength: f32 = 0.1,
+    // range[0.0, 1.0]
+    bloom_scatter: f32 = 0.65,
+};
+
+// Exposure Settings
+// =================
+const ExposureSettings = struct {
+    enable_adaptation: bool = true,
+    // range[-8.0, 0.0]
+    min_exposure: f32 = 1.0 / 64.0,
+    // range[-8.0, 0.0]
+    max_exposure: f32 = 64.0,
+    // range[0.01, 0.99]
+    target_luminance: f32 = 0.08,
+    // range[0.01, 1.0]
+    adapation_rate: f32 = 0.05,
+    // range[-8.0, 8.0]
+    exposure: f32 = 2.0,
 };
 
 // Bloom Constant Buffers
@@ -78,6 +101,11 @@ pub const PostProcessingRenderPass = struct {
     renderer: *renderer.Renderer,
     render_pass: renderer.RenderPass,
 
+    // Exposure
+    // ========
+    exposure_settings: ExposureSettings,
+    exposure_buffer: renderer.BufferHandle,
+
     // Bloom
     // =====
     bloom_settings: BloomSettings,
@@ -105,6 +133,24 @@ pub const PostProcessingRenderPass = struct {
     tony_mc_mapface_lut: renderer.TextureHandle,
 
     pub fn init(self: *PostProcessingRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, allocator: std.mem.Allocator) void {
+        const exposure_settings = ExposureSettings{};
+
+        const exposure_initial_data = [_]f32 {
+            exposure_settings.exposure,
+            1.0 / exposure_settings.exposure,
+            exposure_settings.exposure,
+            0.0,
+            k_initial_min_log,
+            k_initial_max_log,
+            k_initial_max_log - k_initial_min_log,
+            1.0 / (k_initial_max_log - k_initial_min_log),
+        };
+        const exposure_data = renderer.Slice{
+            .data = @ptrCast(&exposure_initial_data),
+            .size = exposure_initial_data.len * @sizeOf(f32),
+        };
+        const exposure_buffer = rctx.createStructuredBuffer(exposure_data, "Exposure");
+
         const bloom_extract_constant_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -160,6 +206,8 @@ pub const PostProcessingRenderPass = struct {
             .renderer = rctx,
             .render_pass = undefined,
             .bloom_settings = .{},
+            .exposure_settings = exposure_settings,
+            .exposure_buffer = exposure_buffer,
             .bloom_extract_constant_buffers = bloom_extract_constant_buffers,
             .downsample_bloom_constant_buffers = downsample_bloom_constant_buffers,
             .upsample_and_blur_constant_buffers = upsample_and_blur_constant_buffers,
@@ -224,8 +272,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         // Bloom Extract
         {
             const bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
+            const luma = self.renderer.getTexture(self.renderer.luma_lr);
             var t_barriers = [_]graphics.TextureBarrier{
                 graphics.TextureBarrier.init(bloom_uav1a, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                graphics.TextureBarrier.init(luma, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), 0, null);
 
@@ -251,6 +301,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
             var output_barriers = [_]graphics.TextureBarrier{
                 graphics.TextureBarrier.init(bloom_uav1a, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.TextureBarrier.init(luma, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, output_barriers.len, @constCast(&output_barriers), 0, null);
         }
@@ -533,18 +584,26 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     // Bloom Extract
     for (0..renderer.Renderer.data_buffer_count) |i| {
         var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
-        var params: [3]graphics.DescriptorData = undefined;
+        var luma = self.renderer.getTexture(self.renderer.luma_lr);
+        var params: [5]graphics.DescriptorData = undefined;
+        var exposure_buffer = self.renderer.getBuffer(self.exposure_buffer);
         var bloom_extract_constant_buffer = self.renderer.getBuffer(self.bloom_extract_constant_buffers[i]);
 
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cb0";
         params[0].__union_field3.ppBuffers = @ptrCast(&bloom_extract_constant_buffer);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "source_tex";
-        params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
+        params[1].pName = "exposure";
+        params[1].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
         params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "bloom_result";
-        params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
+        params[2].pName = "source_tex";
+        params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
+        params[3] = std.mem.zeroes(graphics.DescriptorData);
+        params[3].pName = "bloom_result";
+        params[3].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
+        params[4] = std.mem.zeroes(graphics.DescriptorData);
+        params[4].pName = "luma_result";
+        params[4].__union_field3.ppTextures = @ptrCast(&luma);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.bloom_extract_descriptor_set, params.len, @ptrCast(&params));
     }
