@@ -225,7 +225,6 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
             defer proj_shape_settings.release();
 
             const proj_shape = proj_shape_settings.createShape() catch unreachable;
-            defer proj_shape.release();
 
             const proj_body_id = body_interface.createAndAddBody(.{
                 .position = .{ proj_pos_world[0], proj_pos_world[1], proj_pos_world[2], 0 },
@@ -238,7 +237,10 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
             }, .activate) catch unreachable;
 
             //  Assign to flecs component
-            proj_ent.set(fd.PhysicsBody{ .body_id = proj_body_id });
+            proj_ent.set(fd.PhysicsBody{
+                .body_id = proj_body_id,
+                .shape_opt = proj_shape,
+            });
 
             // Light
             proj_ent.set(fd.PointLight{

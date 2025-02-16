@@ -599,6 +599,7 @@ pub const Camera = struct {
 // };
 pub const PhysicsBody = struct {
     body_id: zphy.BodyId,
+    shape_opt: ?*zphy.Shape,
 };
 
 // ████████╗███████╗██████╗ ██████╗  █████╗ ██╗███╗   ██╗

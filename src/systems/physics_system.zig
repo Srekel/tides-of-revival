@@ -298,6 +298,23 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+
+    const query = ecs.query_init(system.ecsu_world.world, &.{
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.PhysicsBody), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+    }) catch unreachable;
+
+    var query_iter = ecs.query_iter(system.ecsu_world.world, query);
+    while (ecs.query_next(&query_iter)) {
+        const bodies = ecs.field(&query_iter, fd.PhysicsBody, 0).?;
+        for (bodies) |body_comp| {
+            if (body_comp.shape_opt) |shape| {
+                shape.release();
+            }
+        }
+    }
+
     for (system.state.patches.items) |patch| {
         if (patch.shape_opt) |shape| {
             shape.release();

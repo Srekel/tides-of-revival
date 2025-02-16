@@ -88,8 +88,8 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             capsule_rot,
             .{ 0, 1.7 * scale, 0 },
         ) catch unreachable;
+        defer root_shape_settings.release();
         const root_shape = root_shape_settings.createShape() catch unreachable;
-        defer root_shape.release();
 
         const body_id = body_interface.createAndAddBody(.{
             .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
@@ -126,7 +126,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             });
         }
         // Assign to flecs component
-        ent.set(fd.PhysicsBody{ .body_id = body_id });
+        ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
     }
 }
 
