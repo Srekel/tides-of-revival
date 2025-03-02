@@ -187,6 +187,11 @@ float GetCoordScaleByDistance(float3 positionWS, float3 cameraPosition)
     return 0.005f;
 }
 
+float pow5(float value)
+{
+    return (value * value) * (value * value) * value;
+}
+
 GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics)
 {
     INIT_MAIN;
@@ -197,12 +202,17 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     TerrainInstanceData instance = instanceTransformBuffer.Load<TerrainInstanceData>(instanceIndex * sizeof(TerrainInstanceData));
 
     const float3 P = Input.PositionWS.xyz;
+    const float3 V = normalize(g_cam_pos.xyz - P);
 
     Texture2D normalmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.normalmapTextureIndex)];
-    float3 normalWS = normalize(normalmap.SampleLevel(g_linear_repeat_sampler, Input.UV, 0).rgb * 2.0 - 1.0);
-    normalWS = mul((float3x3)instance.worldMat, normalWS);
+    float3 N = normalize(normalmap.SampleLevel(g_linear_repeat_sampler, Input.UV, 0).rgb * 2.0 - 1.0);
+    N = mul((float3x3)instance.worldMat, N);
 
-    float slope = dot(normalWS, float3(0, 1, 0));
+    // Reduce reflection at grazing angles
+    float fresnel = pow5(saturate(1.0f - dot(N, V)));
+    fresnel *= fresnel;
+
+    float slope = dot(N, float3(0, 1, 0));
     slope = smoothstep(g_black_point, g_white_point, slope);
 
     uint grass_layer_index = 1;
@@ -215,26 +225,26 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float3 grass_normal;
     float3 grass_arm;
     float grass_height;
-    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, normalWS, triplanarScale, grass_albedo, grass_normal, grass_arm, grass_height);
+    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, N, triplanarScale, grass_albedo, grass_normal, grass_arm, grass_height);
 
     float3 rock_albedo;
     float3 rock_normal;
     float3 rock_arm;
     float rock_height;
-    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, normalWS, triplanarScale, rock_albedo, rock_normal, rock_arm, rock_height);
+    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, N, triplanarScale, rock_albedo, rock_normal, rock_arm, rock_height);
 
     // TODO(gmodarelli): Blend more than 2 layers?
     float b1, b2;
     CalculateBlendingFactors(grass_height, rock_height, slope, 1.0f - slope, b1, b2);
     float3 albedo = HeightBlend(grass_albedo.rgb, rock_albedo.rgb, b1, b2);
-    normalWS = normalize(HeightBlend(grass_normal, rock_normal, b1, b2));
+    N = normalize(HeightBlend(grass_normal, rock_normal, b1, b2));
     float3 arm = HeightBlend(grass_arm, rock_arm, b1, b2);
 
-    // arm.g = 0.9f;
-    float reflectance = 0.0f;
+    arm.g = lerp(1.0f, arm.g, fresnel);
+    float reflectance = lerp(0.0f, 0.5f, fresnel);
 
     Out.GBuffer0 = float4(albedo, 1.0f);
-    Out.GBuffer1 = float4(normalWS, 1.0f);
+    Out.GBuffer1 = float4(N, 1.0f);
     Out.GBuffer2 = float4(arm, reflectance);
 
     RETURN(Out);
