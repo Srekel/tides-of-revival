@@ -656,6 +656,20 @@ pub const PSOManager = struct {
                     self.createComputePipeline(IdLocal.init("blur"), "Blur.comp", &sampler_ids);
                 }
             }
+
+            // Adapt exposure
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("generate_histogram"), "GenerateHistogram.comp", &sampler_ids);
+                self.createComputePipeline(IdLocal.init("adapt_exposure"), "AdaptExposure.comp", &sampler_ids);
+                self.createComputePipeline(IdLocal.init("debug_draw_histogram"), "DebugDrawHistogram.comp", &sampler_ids);
+            }
+        }
+
+        // Compute utilities
+        {
+            var sampler_ids = [_]IdLocal{};
+            self.createComputePipeline(IdLocal.init("clear_uav"), "clear_uav.comp", &sampler_ids);
         }
 
         // UI

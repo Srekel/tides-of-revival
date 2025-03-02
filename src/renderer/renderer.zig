@@ -59,6 +59,7 @@ pub const RenderPass = struct {
 
 pub const opaque_pipelines = pso.opaque_pipelines;
 pub const cutout_pipelines = pso.cutout_pipelines;
+const hdr_format = graphics.TinyImageFormat.R16G16B16A16_SFLOAT; // B10G11R11_UFLOAT
 
 const VertexLayoutHashMap = std.AutoHashMap(IdLocal, graphics.VertexLayout);
 
@@ -1468,8 +1469,7 @@ pub const Renderer = struct {
             rt_desc.mArraySize = 1;
             rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
             rt_desc.mDepth = 1;
-            // rt_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
-            rt_desc.mFormat = graphics.TinyImageFormat.B10G11R11_UFLOAT;
+            rt_desc.mFormat = hdr_format;
             rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
             rt_desc.mWidth = buffer_width;
             rt_desc.mHeight = buffer_height;
@@ -1553,7 +1553,7 @@ pub const Renderer = struct {
         texture_desc.pName = "Luma Buffer";
         self.luma_lr = self.createTexture(texture_desc);
 
-        texture_desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
+        texture_desc.mFormat = hdr_format;
         texture_desc.mWidth = self.bloom_width;
         texture_desc.mHeight = self.bloom_height;
         texture_desc.pName = "Bloom Buffer 1a";
