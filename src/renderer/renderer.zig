@@ -63,6 +63,19 @@ const hdr_format = graphics.TinyImageFormat.R16G16B16A16_SFLOAT; // B10G11R11_UF
 
 const VertexLayoutHashMap = std.AutoHashMap(IdLocal, graphics.VertexLayout);
 
+const BuffersVisualizationPushConstants = struct {
+    buffer_visualization_mode: u32,
+};
+
+const visualization_modes = [_][:0]const u8{
+    "Albedo",
+    "World Normal",
+    "Occlusion",
+    "Roughness",
+    "Metalness",
+    "Reflectance",
+};
+
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
 
@@ -151,6 +164,11 @@ pub const Renderer = struct {
 
     render_passes: std.ArrayList(*RenderPass) = undefined,
     render_imgui: bool = false,
+
+    // Buffers Visualization
+    // =====================
+    selected_visualization_mode: i32 = -1,
+    buffers_visualization_descriptor_set: [*c]graphics.DescriptorSet = undefined,
 
     // Composite SDR Pass
     // ==================
@@ -375,6 +393,7 @@ pub const Renderer = struct {
         self.pso_manager.exit();
 
         graphics.removeDescriptorSet(self.renderer, self.composite_sdr_pass_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer, self.buffers_visualization_descriptor_set);
 
         var buffer_handles = self.buffer_pool.liveHandles();
         while (buffer_handles.next()) |handle| {
@@ -475,6 +494,7 @@ pub const Renderer = struct {
             );
 
             self.createCompositeSDRDescriptorSet();
+            self.createBuffersVisualizationDescriptorSet();
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.create_descriptor_sets_fn) |create_descriptor_sets_fn| {
@@ -484,6 +504,7 @@ pub const Renderer = struct {
         }
 
         self.prepareCompositeSDRDescriptorSet();
+        self.prepareBuffersVisualizationDescriptorSet();
 
         for (self.render_passes.items) |render_pass| {
             if (render_pass.prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -570,6 +591,23 @@ pub const Renderer = struct {
                     if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
                         _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
                         _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
+
+                        if (zgui.button("Visualization Mode", .{})) {
+                            zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
+                        }
+                        zgui.sameLine(.{});
+                        zgui.textUnformatted(if (self.selected_visualization_mode == - 1) "<None>" else visualization_modes[@intCast(self.selected_visualization_mode)]);
+                        if (zgui.beginPopup("viz_mode_popup", .{})) {
+                            if (zgui.selectable("None", .{})) {
+                                self.selected_visualization_mode = -1;
+                            }
+                            for (visualization_modes, 0..) |mode, index| {
+                                if (zgui.selectable(mode, .{})) {
+                                    self.selected_visualization_mode = @intCast(index);
+                                }
+                            }
+                            zgui.endPopup();
+                        }
                         // _ = zgui.checkbox("Post Processing", .{ .v = &self.pp_enabled });
                     }
                 }
@@ -925,6 +963,37 @@ pub const Renderer = struct {
             graphics.cmdDraw(cmd_list, 3, 0);
         }
 
+        // Debug Viz
+        if (self.selected_visualization_mode >= 0)
+        {
+            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+            bind_render_targets_desc.mRenderTargetCount = 1;
+            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
+            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
+            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+
+            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
+            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+            const pipeline_id = IdLocal.init("buffer_visualizer");
+            const root_signature = self.getRootSignature(pipeline_id);
+            const pipeline = self.getPSO(pipeline_id);
+
+            const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+            std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+
+            const push_constants = BuffersVisualizationPushConstants{
+                .buffer_visualization_mode = @intCast(self.selected_visualization_mode),
+            };
+
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, 0, self.buffers_visualization_descriptor_set);
+            graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
+            graphics.cmdDraw(cmd_list, 3, 0);
+        }
+
         // Present
         {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "End GPU Frame", 0x00_ff_00_00);
@@ -986,6 +1055,7 @@ pub const Renderer = struct {
 
         const material = Material{
             .albedo_color = [4]f32{ material_data.base_color.r, material_data.base_color.g, material_data.base_color.b, 1.0 },
+            .uv_tiling_offset = [4]f32 { material_data.uv_tiling_offset[0], material_data.uv_tiling_offset[1], material_data.uv_tiling_offset[2], material_data.uv_tiling_offset[3] },
             .roughness = material_data.roughness,
             .metallic = material_data.metallic,
             .normal_intensity = material_data.normal_intensity,
@@ -994,6 +1064,7 @@ pub const Renderer = struct {
             .emissive_texture_index = self.getTextureBindlessIndex(material_data.emissive),
             .normal_texture_index = self.getTextureBindlessIndex(material_data.normal),
             .arm_texture_index = self.getTextureBindlessIndex(material_data.arm),
+            .triplanar_feature = if (material_data.triplanar_feature) 1 else 0,
             .detail_feature = if (material_data.detail_feature) 1 else 0,
             .detail_mask_texture_index = self.getTextureBindlessIndex(material_data.detail_mask),
             .detail_baseColor_texture_index = self.getTextureBindlessIndex(material_data.detail_base_color),
@@ -1733,6 +1804,41 @@ pub const Renderer = struct {
             graphics.updateDescriptorSet(self.renderer, @intCast(frame_index), self.composite_sdr_pass_descriptor_set, params.len, @ptrCast(&params));
         }
     }
+
+    fn createBuffersVisualizationDescriptorSet(self: *Renderer) void {
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.pRootSignature = self.getRootSignature(IdLocal.init("buffer_visualizer"));
+        desc.mMaxSets = data_buffer_count;
+
+        graphics.addDescriptorSet(self.renderer, &desc, @ptrCast(&self.buffers_visualization_descriptor_set));
+    }
+
+    fn prepareBuffersVisualizationDescriptorSet(self: *Renderer) void {
+        for (0..data_buffer_count) |frame_index| {
+            var params: [4]graphics.DescriptorData = undefined;
+
+            // var uniform_buffer = self.renderer.getBuffer(self.buffers_vizualization_uniform_buffers[frame_index]);
+            // params[0] = std.mem.zeroes(graphics.DescriptorData);
+            // params[0].pName = "cbFrame";
+            // params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+            params[0] = std.mem.zeroes(graphics.DescriptorData);
+            params[0].pName = "GBuffer0";
+            params[0].__union_field3.ppTextures = @ptrCast(&self.gbuffer_0.*.pTexture);
+            params[1] = std.mem.zeroes(graphics.DescriptorData);
+            params[1].pName = "GBuffer1";
+            params[1].__union_field3.ppTextures = @ptrCast(&self.gbuffer_1.*.pTexture);
+            params[2] = std.mem.zeroes(graphics.DescriptorData);
+            params[2].pName = "GBuffer2";
+            params[2].__union_field3.ppTextures = @ptrCast(&self.gbuffer_2.*.pTexture);
+            params[3] = std.mem.zeroes(graphics.DescriptorData);
+            params[3].pName = "OverlayBuffer";
+            params[3].__union_field3.ppTextures = @ptrCast(&self.ui_overlay.*.pTexture);
+
+            graphics.updateDescriptorSet(self.renderer, @intCast(frame_index), self.buffers_visualization_descriptor_set, params.len, @ptrCast(&params));
+        }
+    }
 };
 
 pub const Mesh = struct {
@@ -1745,6 +1851,7 @@ pub const Mesh = struct {
 
 pub const Material = struct {
     albedo_color: [4]f32,
+    uv_tiling_offset: [4]f32,
     roughness: f32,
     metallic: f32,
     normal_intensity: f32,
@@ -1753,6 +1860,7 @@ pub const Material = struct {
     emissive_texture_index: u32,
     normal_texture_index: u32,
     arm_texture_index: u32,
+    triplanar_feature: u32,
     detail_feature: u32,
     detail_mask_texture_index: u32,
     detail_baseColor_texture_index: u32,

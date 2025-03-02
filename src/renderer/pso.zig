@@ -711,6 +711,22 @@ pub const PSOManager = struct {
             };
             self.createGraphicsPipeline(desc);
         }
+
+        // Buffer Visualizer
+        {
+            var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
+            const desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("buffer_visualizer"),
+                .vert_shader_name = "fullscreen.vert",
+                .frag_shader_name = "buffer_visualizer.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_none,
+                .sampler_ids = &sampler_ids,
+                .blend_state = self.blend_states.get(IdLocal.init("bs_premultiplied")).?,
+            };
+            self.createGraphicsPipeline(desc);
+        }
     }
 
     pub fn destroyPipelines(self: *PSOManager) void {
