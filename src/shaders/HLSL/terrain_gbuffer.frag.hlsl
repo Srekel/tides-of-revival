@@ -230,9 +230,12 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     normalWS = normalize(HeightBlend(grass_normal, rock_normal, b1, b2));
     float3 arm = HeightBlend(grass_arm, rock_arm, b1, b2);
 
+    // arm.g = 0.9f;
+    float reflectance = 0.0f;
+
     Out.GBuffer0 = float4(albedo, 1.0f);
     Out.GBuffer1 = float4(normalWS, 1.0f);
-    Out.GBuffer2 = float4(arm, 1.0f);
+    Out.GBuffer2 = float4(arm, reflectance);
 
     RETURN(Out);
 }

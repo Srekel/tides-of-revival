@@ -5,7 +5,8 @@
 #include "lit_gbuffer_resources.hlsli"
 #include "utils.hlsl"
 
-GBufferOutput PS_MAIN( VSOutput Input) {
+GBufferOutput PS_MAIN(VSOutput Input)
+{
     INIT_MAIN;
     GBufferOutput Out;
 
@@ -20,16 +21,20 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     const float3 V = normalize(g_cam_pos.xyz - P);
 
     float3 baseColor = sRGBToLinear_Float3(material.baseColor.rgb);
-    if (hasValidTexture(material.baseColorTextureIndex)) {
+    if (hasValidTexture(material.baseColorTextureIndex))
+    {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(g_linear_repeat_sampler, Input.UV);
         baseColor *= baseColorSample.rgb;
-    } else {
+    }
+    else
+    {
         baseColor *= sRGBToLinear_Float3(Input.Color.rgb);
     }
 
     float3 N = normalize(Input.Normal);
-    if (hasValidTexture(material.normalTextureIndex)) {
+    if (hasValidTexture(material.normalTextureIndex))
+    {
         float3x3 TBN = ComputeTBN(N, normalize(Input.Tangent));
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
         float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, g_linear_repeat_sampler, Input.UV), material.normalIntensity);
@@ -39,7 +44,8 @@ GBufferOutput PS_MAIN( VSOutput Input) {
     float roughness = material.roughness;
     float metallic = material.metallic;
     float occlusion = 1.0f;
-    if (hasValidTexture(material.armTextureIndex)) {
+    if (hasValidTexture(material.armTextureIndex))
+    {
         Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.armTextureIndex)];
         float3 armSample = armTexture.Sample(g_linear_repeat_sampler, Input.UV).rgb;
         occlusion = armSample.r;
@@ -47,9 +53,12 @@ GBufferOutput PS_MAIN( VSOutput Input) {
         metallic = armSample.b;
     }
 
+    // TODO: Provide this value from the material
+    float reflectance = 0.5f;
+
     Out.GBuffer0 = float4(baseColor, 1.0f);
     Out.GBuffer1 = float4(N, 1.0f);
-    Out.GBuffer2 = float4(occlusion, roughness, metallic, 1.0f);
+    Out.GBuffer2 = float4(occlusion, roughness, metallic, reflectance);
 
     RETURN(Out);
 }
