@@ -385,6 +385,7 @@ pub const UberShader = struct {
 
     // Basic PBR Surface Data
     base_color: ColorRGB,
+    uv_tiling_offset: [4]f32,
     metallic: f32,
     roughness: f32,
     normal_intensity: f32,
@@ -424,6 +425,7 @@ pub const UberShader = struct {
             .gbuffer_pipeline_id = null,
             .shadow_caster_pipeline_id = null,
             .base_color = base_color,
+            .uv_tiling_offset = .{ 1.0, 1.0, 0.0, 0.0 },
             .roughness = roughness,
             .metallic = metallic,
             .normal_intensity = 1.0,

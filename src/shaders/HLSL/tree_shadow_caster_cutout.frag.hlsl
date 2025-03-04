@@ -5,7 +5,8 @@
 #include "tree_shadow_caster_resources.hlsli"
 #include "utils.hlsl"
 
-void PS_MAIN( ShadowVSOutput Input) {
+void PS_MAIN(ShadowVSOutput Input)
+{
     INIT_MAIN;
 
     ByteAddressBuffer instanceTransformsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.instanceDataBufferIndex];
@@ -15,9 +16,12 @@ void PS_MAIN( ShadowVSOutput Input) {
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
     MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
 
-    if (hasValidTexture(material.baseColorTextureIndex)) {
+    float2 UV = Input.UV * material.uvTilingOffset.xy;
+
+    if (hasValidTexture(material.baseColorTextureIndex))
+    {
         Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
-        float4 baseColorSample = baseColorTexture.Sample(g_linear_repeat_sampler, Input.UV);
+        float4 baseColorSample = baseColorTexture.Sample(g_linear_repeat_sampler, UV);
         clip(baseColorSample.a - 0.5);
     }
 }
