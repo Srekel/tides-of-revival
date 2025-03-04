@@ -101,7 +101,6 @@ pub const Renderer = struct {
     shadow_pass_profile_token: profiler.ProfileToken = undefined,
     gbuffer_pass_profile_token: profiler.ProfileToken = undefined,
     deferred_pass_profile_token: profiler.ProfileToken = undefined,
-    skybox_pass_profile_token: profiler.ProfileToken = undefined,
     atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
     water_pass_profile_token: profiler.ProfileToken = undefined,
     post_processing_pass_profile_token: profiler.ProfileToken = undefined,
@@ -577,12 +576,12 @@ pub const Renderer = struct {
                         zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
                         zgui.text("\tGBuffer Pass: {d}", .{profiler.getGpuProfileAvgTime(self.gbuffer_pass_profile_token)});
                         zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
-                        zgui.text("\tSkybox Pass: {d}", .{profiler.getGpuProfileAvgTime(self.skybox_pass_profile_token)});
                         zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
                         zgui.text("\tWater Pass: {d}", .{profiler.getGpuProfileAvgTime(self.water_pass_profile_token)});
                         zgui.text("\tPost Processing Pass: {d}", .{profiler.getGpuProfileAvgTime(self.post_processing_pass_profile_token)});
                         zgui.text("\tUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.ui_pass_profile_token)});
                         zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
+                        zgui.text("\tComposite SDR Pass: {d}", .{profiler.getGpuProfileAvgTime(self.composite_sdr_profile_token)});
                     }
                 }
 
@@ -660,7 +659,7 @@ pub const Renderer = struct {
         // Z PrePass
         {
             self.z_prepass_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Z PrePass", .{ .bUseMarker = true });
-            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.z_prepass_pass_profile_token);
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Z PrePass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -691,7 +690,7 @@ pub const Renderer = struct {
         // SSAO
         {
             self.ssao_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "SSAO", .{ .bUseMarker = true });
-            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.ssao_pass_profile_token);
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "SSAO", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -709,7 +708,7 @@ pub const Renderer = struct {
         // Shadow Map Pass
         {
             self.shadow_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
-            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.shadow_pass_profile_token);
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -741,6 +740,7 @@ pub const Renderer = struct {
         // GBuffer Pass
         {
             self.gbuffer_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "GBuffer Pass", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "GBuffer Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -779,13 +779,12 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
-
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.gbuffer_pass_profile_token);
         }
 
         // Deferred Shading
         {
             self.deferred_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -818,13 +817,12 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
-
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.deferred_pass_profile_token);
         }
 
         // Atmospheric Scattering Pass
         {
             self.atmosphere_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Atmosphere", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -836,13 +834,12 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
-
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.atmosphere_pass_profile_token);
         }
 
         // Water Pass
         {
             self.water_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Water", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Water", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -854,13 +851,12 @@ pub const Renderer = struct {
             }
 
             graphics.cmdBindRenderTargets(cmd_list, null);
-
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.water_pass_profile_token);
         }
 
         // Post Processing
         {
             self.post_processing_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Post Processing", .{ .bUseMarker = true });
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -870,8 +866,6 @@ pub const Renderer = struct {
                     render_post_processing_pass_fn(cmd_list, render_pass.user_data);
                 }
             }
-
-            profiler.cmdEndGpuTimestampQuery(cmd_list, self.post_processing_pass_profile_token);
         }
 
         // UI Overlay
@@ -894,7 +888,7 @@ pub const Renderer = struct {
             // UI Pass
             {
                 self.ui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "UI Pass", .{ .bUseMarker = true });
-                defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.ui_pass_profile_token);
+                defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
                 const trazy_zone1 = ztracy.ZoneNC(@src(), "UI Pass", 0x00_ff_00_00);
                 defer trazy_zone1.End();
@@ -909,7 +903,7 @@ pub const Renderer = struct {
             // ImGUI Pass
             if (self.render_imgui) {
                 self.imgui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "ImGUI Pass", .{ .bUseMarker = true });
-                defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.imgui_pass_profile_token);
+                defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
                 const trazy_zone1 = ztracy.ZoneNC(@src(), "ImGUI Pass", 0x00_ff_00_00);
                 defer trazy_zone1.End();
@@ -934,7 +928,7 @@ pub const Renderer = struct {
             defer trazy_zone1.End();
 
             self.composite_sdr_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Composite SDR", .{ .bUseMarker = true });
-            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.composite_sdr_profile_token);
+            defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
             const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
 
