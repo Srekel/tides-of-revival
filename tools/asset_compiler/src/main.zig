@@ -12,6 +12,7 @@ const TextureFormat = enum {
 const TextureInfoV1 = struct {
     destination_path: []const u8,
     source_path: []const u8,
+    dep_path: []const u8,
     format: TextureFormat,
     width: ?u32,
     height: ?u32,
@@ -24,11 +25,13 @@ pub fn main() !void {
     const parsed_args = args.parseForCurrentProcess(struct {
         input: []const u8 = "",
         output: []const u8 = "",
+        dep: []const u8 = "",
         @"generate-metadata": bool = false,
 
         pub const shorthands = .{
             .i = "input",
             .o = "output",
+            .d = "dep",
         };
     }, std.heap.page_allocator, .print) catch unreachable;
     defer parsed_args.deinit();
@@ -51,6 +54,7 @@ pub fn main() !void {
 
     var texture_info = std.mem.zeroes(TextureInfoV1);
     texture_info.destination_path = try arena.dupe(u8, parsed_args.options.output);
+    texture_info.dep_path = try arena.dupe(u8, parsed_args.options.dep);
 
     var buffer: [1024]u8 = undefined;
     while (try in_stream.readUntilDelimiterOrEof(&buffer, '\n')) |line| {
@@ -227,6 +231,16 @@ fn executeTextureConversionV1(desc: *TextureInfoV1, arena: std.mem.Allocator) !v
 
     var cmd = std.process.Child.init(@ptrCast(argv.items), std.heap.page_allocator);
     try cmd.spawn();
+
+    // Write the .dep file
+    {
+        var file = try std.fs.cwd().createFile(desc.dep_path, .{});
+        defer file.close();
+
+        // Add the source image as input
+        try file.writeAll("INPUT: ");
+        try file.writeAll(source_absolute_path);
+    }
 
     const term = try cmd.wait();
     std.debug.assert(term == .Exited);
