@@ -79,6 +79,8 @@
                 "--output",
                 "${workspaceFolder}/tools/asset_compiler/src",
                 // "${workspaceFolder}/zig-out/bin/content/prefabs/environment/terrain",
+                "--dep",
+                "${workspaceFolder}/tools/asset_compiler/src/test.dep",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/tools/binaries/asset_compiler/",
