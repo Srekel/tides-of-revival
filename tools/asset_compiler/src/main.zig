@@ -157,6 +157,10 @@ fn executeTextureConversionV1(desc: *TextureInfoV1, arena: std.mem.Allocator) !v
     // Do not display texconv.exe logo
     try argv.append("-nologo");
 
+    // Use a single processor
+    // AssetCooker is running one command per processor, if they all try to use all the processors, it ends up a lot slower!
+    try argv.append("-singleproc");
+
     // Compress alpha separately
     try argv.append("-sepalpha");
 
