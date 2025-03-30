@@ -61,6 +61,9 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     FSM_CAM_Freefly = ecs.new_entity(ecs_world, config.FSM_CAM_Freefly.toCString());
     FSM_ENEMY = ecs.new_entity(ecs_world, config.FSM_ENEMY.toCString());
     FSM_ENEMY_Idle = ecs.new_entity(ecs_world, config.FSM_ENEMY_Idle.toCString());
+    ecs.add_id(ecs_world, FSM_PC, ecs.Union);
+    ecs.add_id(ecs_world, FSM_CAM, ecs.Union);
+    ecs.add_id(ecs_world, FSM_ENEMY, ecs.Union);
 }
 
 pub var FSM_PC: ecs.entity_t = undefined;
