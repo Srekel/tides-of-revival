@@ -485,7 +485,6 @@ pub const Water = struct {
 
 pub const SkyLight = struct {
     hdri: TextureHandle,
-    mesh: MeshHandle,
     intensity: f32,
 };
 

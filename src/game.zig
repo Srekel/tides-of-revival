@@ -366,36 +366,6 @@ fn update_full(gameloop_context: anytype) bool {
         renderer_ctx.requestReload(reload_desc);
     }
 
-    // TODO(gmodarelli): Add these view modes to tides_renderer
-    // // TODO: Move to The Debuginator
-    // if (input_frame_data.just_pressed(config.input.view_mode_lit)) {
-    //     gfx_state.setViewMode(.lit);
-    // }
-
-    // if (input_frame_data.just_pressed(config.input.view_mode_albedo)) {
-    //     gfx_state.setViewMode(.albedo);
-    // }
-
-    // if (input_frame_data.just_pressed(config.input.view_mode_world_normal)) {
-    //     gfx_state.setViewMode(.world_normal);
-    // }
-
-    // if (input_frame_data.just_pressed(config.input.view_mode_metallic)) {
-    //     gfx_state.setViewMode(.metallic);
-    // }
-
-    // if (input_frame_data.just_pressed(config.input.view_mode_roughness)) {
-    //     gfx_state.setViewMode(.roughness);
-    // }
-
-    // if (input_frame_data.just_pressed(config.input.view_mode_ao)) {
-    //     gfx_state.setViewMode(.ao);
-    // }
-
-    // if (input_frame_data.just_pressed(config.input.view_mode_depth)) {
-    //     gfx_state.setViewMode(.depth);
-    // }
-
     // TODO: Move this to system
     for (0..100) |_| {
         world_patch_mgr.tickOne();

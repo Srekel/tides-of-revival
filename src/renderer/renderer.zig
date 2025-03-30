@@ -595,7 +595,7 @@ pub const Renderer = struct {
                             zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
                         }
                         zgui.sameLine(.{});
-                        zgui.textUnformatted(if (self.selected_visualization_mode == - 1) "<None>" else visualization_modes[@intCast(self.selected_visualization_mode)]);
+                        zgui.textUnformatted(if (self.selected_visualization_mode == -1) "<None>" else visualization_modes[@intCast(self.selected_visualization_mode)]);
                         if (zgui.beginPopup("viz_mode_popup", .{})) {
                             if (zgui.selectable("None", .{})) {
                                 self.selected_visualization_mode = -1;
@@ -909,7 +909,6 @@ pub const Renderer = struct {
                 defer trazy_zone1.End();
 
                 zgui.backend.draw(cmd_list.*.mDx.pCmdList);
-
             } else {
                 zgui.endFrame();
             }
@@ -958,8 +957,7 @@ pub const Renderer = struct {
         }
 
         // Debug Viz
-        if (self.selected_visualization_mode >= 0)
-        {
+        if (self.selected_visualization_mode >= 0) {
             var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
             bind_render_targets_desc.mRenderTargetCount = 1;
             bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
@@ -1049,7 +1047,7 @@ pub const Renderer = struct {
 
         const material = Material{
             .albedo_color = [4]f32{ material_data.base_color.r, material_data.base_color.g, material_data.base_color.b, 1.0 },
-            .uv_tiling_offset = [4]f32 { material_data.uv_tiling_offset[0], material_data.uv_tiling_offset[1], material_data.uv_tiling_offset[2], material_data.uv_tiling_offset[3] },
+            .uv_tiling_offset = [4]f32{ material_data.uv_tiling_offset[0], material_data.uv_tiling_offset[1], material_data.uv_tiling_offset[2], material_data.uv_tiling_offset[3] },
             .roughness = material_data.roughness,
             .metallic = material_data.metallic,
             .normal_intensity = material_data.normal_intensity,
@@ -1810,11 +1808,6 @@ pub const Renderer = struct {
     fn prepareBuffersVisualizationDescriptorSet(self: *Renderer) void {
         for (0..data_buffer_count) |frame_index| {
             var params: [4]graphics.DescriptorData = undefined;
-
-            // var uniform_buffer = self.renderer.getBuffer(self.buffers_vizualization_uniform_buffers[frame_index]);
-            // params[0] = std.mem.zeroes(graphics.DescriptorData);
-            // params[0].pName = "cbFrame";
-            // params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
 
             params[0] = std.mem.zeroes(graphics.DescriptorData);
             params[0].pName = "GBuffer0";

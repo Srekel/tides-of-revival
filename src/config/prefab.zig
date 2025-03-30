@@ -28,6 +28,16 @@ pub const player_id = ID("prefab_player");
 pub const sphere_id = ID("prefab_sphere");
 pub const color_calibrator_id = ID("color_calibrator");
 
+pub const prefabs = [_]IdLocal{
+    arrow_id,
+    bow_id,
+    giant_ant_id,
+    matball_id,
+    color_calibrator_id,
+    beech_tree_04_id,
+    medium_house_id,
+};
+
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
     // TODO: Declare this in pso so we can reuse the IdLocal instead of initializing them here again
@@ -43,7 +53,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     const pipeline_tree_shadow_caster_opaque_id = IdLocal.init("tree_shadow_caster_opaque");
     const pipeline_tree_shadow_caster_masked_id = IdLocal.init("tree_shadow_caster_cutout");
 
-    var default_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.8, 0.0);
+    var default_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(0.5, 0.5, 0.5), 0.8, 0.0);
     default_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
     default_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
     default_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;

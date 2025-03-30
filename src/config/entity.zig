@@ -35,18 +35,11 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         var sky_light_component = fd.SkyLight{
             .hdri = renderer.TextureHandle.nil,
             .intensity = 0.3,
-            .mesh = renderer.MeshHandle.nil,
         };
 
         var desc = std.mem.zeroes(graphics.TextureDesc);
         desc.bBindless = false;
         sky_light_component.hdri = rctx.loadTextureWithDesc(desc, "textures/env/kloofendal_43d_clear_puresky_2k_cube_radiance.dds");
-
-        const cube_prefab = prefab_mgr.getPrefab(prefab.cube_id).?;
-        const static_mesh_component = cube_prefab.getMut(fd.StaticMesh);
-        if (static_mesh_component) |static_mesh| {
-            sky_light_component.mesh = static_mesh.mesh_handle;
-        }
 
         sky_light_ent.set(sky_light_component);
     }
@@ -139,32 +132,75 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     //  ╚═════╝  ╚═════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝
     //
 
-    const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
-    const lod_group = plane_prefab.get(fd.LodGroup);
-    const mesh_handle = lod_group.?.lods[0].mesh_handle;
-    const ocean_plane_scale: f32 = @floatFromInt(config.km_size);
-    const ocean_tiles_x = config.world_size_x / config.km_size;
-    const ocean_tiles_z = config.world_size_z / config.km_size;
+    {
+        const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
+        const lod_group = plane_prefab.get(fd.LodGroup);
+        const mesh_handle = lod_group.?.lods[0].mesh_handle;
+        const ocean_plane_scale: f32 = @floatFromInt(config.km_size);
+        const ocean_tiles_x = config.world_size_x / config.km_size;
+        const ocean_tiles_z = config.world_size_z / config.km_size;
 
-    for (0..ocean_tiles_z) |z| {
-        for (0..ocean_tiles_x) |x| {
-            const ocean_plane_position = fd.Position.init(
-                @as(f32, @floatFromInt(x)) * ocean_plane_scale + ocean_plane_scale * 0.5,
-                config.sea_level,
-                @as(f32, @floatFromInt(z)) * ocean_plane_scale + ocean_plane_scale * 0.5,
-            );
-            var ocean_plane_ent = ecsu_world.newEntity();
-            ocean_plane_ent.set(ocean_plane_position);
-            ocean_plane_ent.set(fd.Rotation{});
-            ocean_plane_ent.set(fd.Scale.createScalar(ocean_plane_scale));
-            ocean_plane_ent.set(fd.Transform.initWithScale(
-                ocean_plane_position.x,
-                ocean_plane_position.y,
-                ocean_plane_position.z,
-                ocean_plane_scale,
-            ));
-            ocean_plane_ent.set(fd.Water{ .mesh_handle = mesh_handle });
+        for (0..ocean_tiles_z) |z| {
+            for (0..ocean_tiles_x) |x| {
+                const ocean_plane_position = fd.Position.init(
+                    @as(f32, @floatFromInt(x)) * ocean_plane_scale + ocean_plane_scale * 0.5,
+                    config.sea_level,
+                    @as(f32, @floatFromInt(z)) * ocean_plane_scale + ocean_plane_scale * 0.5,
+                );
+                var ocean_plane_ent = ecsu_world.newEntity();
+                ocean_plane_ent.set(ocean_plane_position);
+                ocean_plane_ent.set(fd.Rotation{});
+                ocean_plane_ent.set(fd.Scale.createScalar(ocean_plane_scale));
+                ocean_plane_ent.set(fd.Transform.initWithScale(
+                    ocean_plane_position.x,
+                    ocean_plane_position.y,
+                    ocean_plane_position.z,
+                    ocean_plane_scale,
+                ));
+                ocean_plane_ent.set(fd.Water{ .mesh_handle = mesh_handle });
+            }
         }
+    }
+
+    // ██╗     ███████╗██╗   ██╗███████╗██╗         ██████╗  █████╗ ██╗     ███████╗████████╗████████╗███████╗
+    // ██║     ██╔════╝██║   ██║██╔════╝██║         ██╔══██╗██╔══██╗██║     ██╔════╝╚══██╔══╝╚══██╔══╝██╔════╝
+    // ██║     █████╗  ██║   ██║█████╗  ██║         ██████╔╝███████║██║     █████╗     ██║      ██║   █████╗
+    // ██║     ██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║         ██╔═══╝ ██╔══██║██║     ██╔══╝     ██║      ██║   ██╔══╝
+    // ███████╗███████╗ ╚████╔╝ ███████╗███████╗    ██║     ██║  ██║███████╗███████╗   ██║      ██║   ███████╗
+    // ╚══════╝╚══════╝  ╚═══╝  ╚══════╝╚══════╝    ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝      ╚═╝   ╚══════╝
+
+    {
+        const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
+        const position = fd.Position.init(50.0, 10.0, -50.0);
+        var ent = prefab_mgr.instantiatePrefab(ecsu_world, plane_prefab);
+        ent.set(position);
+        ent.set(fd.Rotation{});
+        ent.set(fd.Scale.createScalar(100.0));
+        ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 100.0));
+    }
+
+    var position_x: f32 = 10.0;
+    for (prefab.prefabs) |prefab_id| {
+        const prefab_ent = prefab_mgr.getPrefab(prefab_id).?;
+        const lod_group = prefab_ent.get(fd.LodGroup);
+        const mesh_handle = lod_group.?.lods[0].mesh_handle;
+        const mesh = rctx.getMesh(mesh_handle);
+        const aabbMin = mesh.geometry.*.mAabbMin;
+        const aabbMax = mesh.geometry.*.mAabbMax;
+        _ = aabbMax;
+        const radius = mesh.geometry.*.mRadius;
+        // const extent = (aabbMax[0] - aabbMin[0]);
+
+        position_x += radius + 1.0;
+
+        const position = fd.Position.init(position_x, 10.0 - aabbMin[1], -20.0);
+        var ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab_ent);
+        ent.set(position);
+        ent.set(fd.Rotation{});
+        ent.set(fd.Scale.createScalar(1.0));
+        ent.set(fd.Transform.initFromPosition(position));
+
+        position_x += radius + 1.0;
     }
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
