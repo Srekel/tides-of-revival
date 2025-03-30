@@ -328,6 +328,7 @@ pub fn run() void {
 }
 
 var once_per_duration_test: f64 = 0;
+var debug_time_multiplier: f64 = 1;
 
 fn update_full(gameloop_context: anytype) bool {
     var input_frame_data = gameloop_context.input_frame_data;
@@ -356,6 +357,16 @@ fn update_full(gameloop_context: anytype) bool {
         renderer_ctx.toggleVSync();
     }
 
+    if (input_frame_data.just_pressed(config.input.time_speed_up)) {
+        debug_time_multiplier *= 2;
+    }
+    if (input_frame_data.just_pressed(config.input.time_speed_down)) {
+        debug_time_multiplier *= 0.5;
+    }
+    if (input_frame_data.just_pressed(config.input.time_speed_normal)) {
+        debug_time_multiplier = 1;
+    }
+
     if (main_window.frame_buffer_size[0] != renderer_ctx.window_width or main_window.frame_buffer_size[1] != renderer_ctx.window_height) {
         renderer_ctx.window_width = main_window.frame_buffer_size[0];
         renderer_ctx.window_height = main_window.frame_buffer_size[1];
@@ -379,14 +390,13 @@ fn update_full(gameloop_context: anytype) bool {
 
 fn update(ecsu_world: ecsu.World, dt: f32) void {
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-    const dt_game = dt * environment_info.time_multiplier;
+    const dt_game = dt * environment_info.time_multiplier * debug_time_multiplier;
     environment_info.time_multiplier = 1;
 
     const flecs_stats = ecs.get_world_info(ecsu_world.world);
     {
-        const time_multiplier = 24 * 4.0; // day takes quarter of an hour of realtime.. uuh this isn't a great method
         const world_time = flecs_stats.*.world_time_total;
-        const time_of_day_percent = std.math.modf(time_multiplier * world_time / (60 * 60 * 24));
+        const time_of_day_percent = std.math.modf(world_time / (60 * 60 * 24));
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
         environment_info.world_time = world_time;

@@ -48,6 +48,10 @@ pub const view_mode_depth = ID("view_mode_depth");
 pub const reload_shaders = ID("reload_shaders");
 pub const toggle_vsync = ID("toggle_vsync");
 
+pub const time_speed_up = ID("time_speed_up");
+pub const time_speed_down = ID("time_speed_down");
+pub const time_speed_normal = ID("time_speed_normal");
+
 pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap {
     const input_target_defaults = blk: {
         var itm = input.TargetMap.init(allocator);
@@ -88,6 +92,9 @@ pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap
         itm.putAssumeCapacity(view_mode_depth, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(reload_shaders, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(toggle_vsync, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(time_speed_up, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(time_speed_down, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(time_speed_normal, input.TargetValue{ .number = 0 });
         break :blk itm;
     };
 
@@ -142,6 +149,9 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_depth, .source = input.BindingSource{ .keyboard_key = .six } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = reload_shaders, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_vsync, .source = input.BindingSource{ .keyboard_key = .v } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_up, .source = input.BindingSource{ .keyboard_key = .page_up } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_down, .source = input.BindingSource{ .keyboard_key = .page_down } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_normal, .source = input.BindingSource{ .keyboard_key = .home } });
 
         //
         // MOUSE
