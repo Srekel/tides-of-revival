@@ -2,16 +2,17 @@ const std = @import("std");
 const args = @import("args");
 const ecs = @import("zflecs");
 const ecsu = @import("flecs_util/flecs_util.zig");
+const graphics = @import("zforge").graphics;
+const zglfw = @import("zglfw");
+const zgui = @import("zgui");
+const zm = @import("zmath");
 const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
-const zglfw = @import("zglfw");
-const graphics = @import("zforge").graphics;
 const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
 // const AK = @import("wwise-zig");
 // const AK_ID = @import("wwise-ids");
 const audio_manager = @import("audio/audio_manager_mock.zig");
-const zm = @import("zmath");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
 const config = @import("config/config.zig");
@@ -288,6 +289,18 @@ pub fn run() void {
     const EcsRestVal: ecs.EcsRest = .{};
     _ = ecs.set_id(ecsu_world.world, EcsRest, EcsRest, @sizeOf(ecs.EcsRest), &EcsRestVal);
 
+    // ██████╗ ███████╗██████╗ ██╗   ██╗ ██████╗
+    // ██╔══██╗██╔════╝██╔══██╗██║   ██║██╔════╝
+    // ██║  ██║█████╗  ██████╔╝██║   ██║██║  ███╗
+    // ██║  ██║██╔══╝  ██╔══██╗██║   ██║██║   ██║
+    // ██████╔╝███████╗██████╔╝╚██████╔╝╚██████╔╝
+    // ╚═════╝ ╚══════╝╚═════╝  ╚═════╝  ╚═════╝
+
+    {
+        var system_desc = ecs.system_desc_t{ .callback = updateDebugUI };
+        _ = ecs.SYSTEM(ecsu_world.world, "updateDebugUI", ecs.OnUpdate, &system_desc);
+    }
+
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
     // ██║   ██║██████╔╝██║  ██║███████║   ██║   █████╗
@@ -328,7 +341,22 @@ pub fn run() void {
 }
 
 var once_per_duration_test: f64 = 0;
-var debug_time_multiplier: f64 = 1;
+const debug_times = [_]struct { mult: f64, str: [:0]const u8 }{
+    .{ .mult = @as(f64, 0.001), .str = "0.001" },
+    .{ .mult = @as(f64, 0.01), .str = "0.01" },
+    .{ .mult = @as(f64, 0.1), .str = "0.1" },
+    .{ .mult = @as(f64, 0.5), .str = "half" },
+    .{ .mult = @as(f64, 1), .str = "normal" }, // 1 second per realtime second
+    .{ .mult = @as(f64, 2), .str = "2x" },
+    .{ .mult = @as(f64, 5), .str = "5x" },
+    .{ .mult = @as(f64, 60), .str = "minute" },
+    .{ .mult = @as(f64, 200), .str = "200x" },
+    // .{ .mult = @as(f64, 60 * 60), .str = "hour" },
+    // .{ .mult = @as(f64, 60 * 60 * 24), .str = "day" }, // 1 day per realtime second
+    // .{ .mult = @as(f64, 30 * 60 * 60 * 24), .str = "month" }, // 1 month per realtime second
+};
+
+var debug_time_index: usize = 4;
 
 fn update_full(gameloop_context: anytype) bool {
     var input_frame_data = gameloop_context.input_frame_data;
@@ -358,13 +386,13 @@ fn update_full(gameloop_context: anytype) bool {
     }
 
     if (input_frame_data.just_pressed(config.input.time_speed_up)) {
-        debug_time_multiplier *= 2;
+        debug_time_index = if (debug_time_index < debug_times.len - 1) debug_time_index + 1 else debug_times.len - 1;
     }
     if (input_frame_data.just_pressed(config.input.time_speed_down)) {
-        debug_time_multiplier *= 0.5;
+        debug_time_index = if (debug_time_index > 0) debug_time_index - 1 else 0;
     }
     if (input_frame_data.just_pressed(config.input.time_speed_normal)) {
-        debug_time_multiplier = 1;
+        debug_time_index = 4;
     }
 
     if (main_window.frame_buffer_size[0] != renderer_ctx.window_width or main_window.frame_buffer_size[1] != renderer_ctx.window_height) {
@@ -390,7 +418,7 @@ fn update_full(gameloop_context: anytype) bool {
 
 fn update(ecsu_world: ecsu.World, dt: f32) void {
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-    const dt_game = dt * environment_info.time_multiplier * debug_time_multiplier;
+    const dt_game = dt * environment_info.time_multiplier * debug_times[debug_time_index].mult;
     environment_info.time_multiplier = 1;
 
     const flecs_stats = ecs.get_world_info(ecsu_world.world);
@@ -411,4 +439,13 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
 
     // AK.SoundEngine.renderAudio(false) catch unreachable;
     ecsu_world.progress(@floatCast(dt_game));
+}
+
+fn updateDebugUI(it: *ecs.iter_t) callconv(.C) void {
+    _ = it; // autofix
+
+    if (zgui.begin("Time", .{})) {
+        zgui.text("Time: {str}", .{debug_times[debug_time_index].str});
+    }
+    zgui.end();
 }
