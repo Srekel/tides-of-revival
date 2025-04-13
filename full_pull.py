@@ -44,14 +44,19 @@ asset_cooker_path = os.path.join(tools_binaries_path, "AssetCooker", "AssetCooke
 def task_sync_build_tools():
     build_tools_path = os.path.join(os.path.abspath(os.curdir), "tools", "external", "msvc_BuildTools")
     if not os.path.isdir(build_tools_path):
-        component_ids = "Microsoft.VisualStudio.Component.VC.CoreBuildTools;Microsoft.VisualStudio.Component.VC.CoreIde;Microsoft.VisualStudio.Component.VC.Redist.14.Latest;Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
         subprocess.run(
             [
                 "tools/binaries/vs_BuildTools.exe",
                 "--installPath",
                 build_tools_path,
                 "--add",
-                component_ids,
+                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64;includeOptional",
+                "--add",
+                "Microsoft.VisualStudio.Component.VC.CoreBuildTools",
+                "--add",
+                "Microsoft.VisualStudio.Component.VC.CoreIde",
+                "--add",
+                "Microsoft.VisualStudio.Component.VC.Redist.14.Latest",
                 "--nickname",
                 "TidesRPG"
             ],
