@@ -57,6 +57,8 @@ def task_sync_build_tools():
                 "Microsoft.VisualStudio.Component.VC.CoreIde",
                 "--add",
                 "Microsoft.VisualStudio.Component.VC.Redist.14.Latest",
+                "--add",
+                "Microsoft.VisualStudio.Component.Windows11SDK.26100;includeOptional",
                 "--nickname",
                 "TidesRPG"
             ],
