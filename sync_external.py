@@ -13,7 +13,7 @@ def sync_lib(folder, git_path, commit_sha_or_branch_or_tag):
     print("-" * (2 * 4 + len(folder) + 2))
     print("Origin:", git_path)
     if not os.path.isdir(folder):
-        os.system("git clone " + git_path)
+        os.system("git clone " + git_path + " " + folder)
     os.chdir(folder)
     os.system("git fetch")
 
@@ -79,6 +79,11 @@ def main():
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
         "c57ad024b62977991b1f1c2731cda8ddefd12a2c",
+    )
+    sync_lib(
+        "ze-forge",
+        "https://github.com/gmodarelli/The-Forge.git",
+        "6b91440b3cd0977404f5b1fc508aafc80d77698f",
     )
     sync_lib(
         "websocket.zig",
