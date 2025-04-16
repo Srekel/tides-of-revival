@@ -1,0 +1,17 @@
+nodes:
+    start:
+        next: generateVoronoiMap
+    exit:
+    generate_poisson_for_voronoi:
+        next: generate_voronoi_map
+        type: poisson
+        output: voronoi_points
+    generate_voronoi_map:
+        next: generate_landscape_from_image
+        type: voronoi
+        input: voronoi_points
+        output: voronoi_map
+    generateVoronoiMap:
+        next: generate_beaches
+    // generate_beaches:
+
