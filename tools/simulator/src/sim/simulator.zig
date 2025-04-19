@@ -5,7 +5,9 @@ const Jobs = zjobs.JobQueue(.{});
 
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
 const graph = @import("graph.zig");
-const loaded_graph = @import("testgraph.zig");
+const loaded_graph = @import("hill3.simgraph.zig");
+// const loaded_graph = @import("testgraph.zig");
+const graph_format = @import("graph_format.zig");
 
 const SimulatorJob = struct {
     simulator: Simulator,
@@ -25,7 +27,8 @@ fn runSimulation(args: RunSimulationArgs) void {
     self.progress.percent = 0;
     self.mutex.unlock();
 
-    const node_count = loaded_graph.getGraph().nodes.len;
+    const node_count = loaded_graph.node_count;
+    // const node_count = loaded_graph.getGraph().nodes.len;
     var ctx = &self.ctx;
 
     loaded_graph.start(ctx);
@@ -67,6 +70,10 @@ pub const Simulator = struct {
         self.ctx.resources.ensureTotalCapacity(1024) catch unreachable;
         self.ctx.previews = std.StringHashMap(graph.Preview).init(std.heap.c_allocator); // TODO fix
         self.ctx.previews.ensureTotalCapacity(1024) catch unreachable;
+
+        graph_format.generateFile("../../../../content/world/hill3/hill3.simgraph.json5", "../../src/sim/hill3.simgraph");
+        // graph_format.generateFile("../../../../content/world/hill3/hill3.simgraph.json5", "../../../../content/world/hill3/hill3.simgraph");
+        // std.process.exit(0);
     }
 
     pub fn deinit(self: *Simulator) void {

@@ -101,6 +101,11 @@ def main():
         "8cb0eeec8336039d5be2df4b0ecd80f35fe57332",
     )
     sync_lib(
+        "zig-json5",
+        "https://github.com/Himujjal/zig-json5.git",
+        "2a7f83dca0d7cd52089605cf592ddb7ff3567a9f",
+    )
+    sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
         "1496bdd39bc35a795e8514c493114e2ab82f8cf3",

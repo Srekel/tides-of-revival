@@ -1,6 +1,64 @@
 const std = @import("std");
-const tides_format = @import("tides_format.zig");
+// const tides_format = @import("tides_format.zig");
+const json5 = @import("json5.zig");
 
+const kind_start = hash("start");
+const kind_voronoi = hash("voronoi");
+const kind_poisson = hash("poisson");
+
+const kind_FbmSettings = hash("FbmSettings");
+const kind_ImageF32 = hash("ImageF32");
+const kind_PointList2D = hash("PointList2D");
+const kind_Size2D = hash("Size2D");
+const kind_Voronoi = hash("Voronoi");
+const kind_VoronoiSettings = hash("VoronoiSettings");
+const kind_WorldSettings = hash("WorldSettings");
+
+// UTIL
+fn loadFile(path: []const u8, buf: []u8) []const u8 {
+    var buf2: [256]u8 = undefined;
+    const path2 = std.fs.cwd().realpath(".", &buf2) catch unreachable;
+    std.log.info("LOL {s}", .{path2});
+    std.log.info("LOL {s}", .{path});
+    const data = std.fs.cwd().readFile(path, buf) catch unreachable;
+    return data;
+}
+
+fn writeFile(data: anytype, name: []const u8) void {
+    var buf: [256]u8 = undefined;
+    const filepath = std.fmt.bufPrintZ(&buf, "{s}.zig", .{name}) catch unreachable;
+    const file = std.fs.cwd().createFile(
+        filepath,
+        .{ .read = true },
+    ) catch unreachable;
+    defer file.close();
+
+    const bytes_written = file.writeAll(data) catch unreachable;
+    _ = bytes_written; // autofix
+}
+
+fn hash(str: []const u8) u64 {
+    return std.hash.Wyhash.hash(0, str);
+}
+
+fn print(buf: []u8, comptime fmt: []const u8, args: anytype) []u8 {
+    return std.fmt.bufPrint(buf, fmt, args) catch unreachable;
+}
+
+fn write(writer: anytype, comptime fmt: []const u8, args: anytype) void {
+    var buf: [1024 * 4]u8 = undefined;
+    const str = print(&buf, fmt, args);
+    writer.writeAll(str) catch unreachable;
+}
+
+fn writeLine(writer: anytype, comptime fmt: []const u8, args: anytype) void {
+    var buf: [1024 * 4]u8 = undefined;
+    const str = print(&buf, fmt, args);
+    writer.writeAll(str) catch unreachable;
+    writer.writeAll("\n") catch unreachable;
+}
+
+// GEN
 pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa_state.deinit();
@@ -8,17 +66,229 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
 
     var out = std.ArrayList(u8).init(gpa);
     defer out.deinit();
-    var writer = out.writer();
+    const writer = out.writer();
+    // var buf: [1024 * 4]u8 = undefined;
+    // _ = buf; // autofix
 
-    var file: tides_format.TidesFile = undefined;
-    tides_format.openFile(simgraph_path, &file);
-    defer tides_format.closeFile(&file);
+    var json_string = std.ArrayList(u8).init(gpa);
+    defer json_string.deinit();
 
-    _ = tides_format.getKey("nodes", 0);
-    tides_format.skipUntil(file, "nodes");
-    while (tides_format.getKey(file, 1)) |key| {
-        writeNode(key, file, writer);
+    var parser = json5.Parser.init(gpa, false);
+    defer parser.deinit();
+
+    var json_buf: [1024 * 4]u8 = undefined;
+    const graph_json = loadFile(simgraph_path, &json_buf);
+
+    var tree = parser.parse(graph_json) catch unreachable;
+    defer tree.deinit();
+
+    const j_root = tree.root;
+    const j_nodes = j_root.Object.get("nodes").?;
+    const j_vars = j_root.Object.get("variables").?;
+
+    // imports
+    writeLine(writer, "const  std = @import(\"std\");", .{});
+    writeLine(writer, "const graph = @import(\"graph.zig\");", .{});
+    writeLine(writer, "const Context = graph.Context;", .{});
+    writeLine(writer, "const cpp_nodes = @import(\"../sim_cpp/cpp_nodes.zig\");", .{});
+    writeLine(writer, "const nodes = @import(\"nodes/nodes.zig\");", .{});
+    writeLine(writer, "const types = @import(\"types.zig\");", .{});
+    writeLine(writer, "const compute = @import(\"compute.zig\");", .{});
+    writeLine(writer, "", .{});
+    writeLine(writer, "const c_cpp_nodes = @cImport({{", .{});
+    writeLine(writer, "    @cInclude(\"world_generator.h\");", .{});
+    writeLine(writer, "}});", .{});
+
+    // constants
+    writeLine(writer, "", .{});
+    writeLine(writer, "// ============ CONSTANTS ============", .{});
+    writeLine(writer, "const DRY_RUN = false;", .{});
+    writeLine(writer, "const kilometers = if (DRY_RUN) 2 else 16;", .{});
+    writeLine(writer, "const preview_size = 512;", .{});
+    writeLine(writer, "const preview_size_big = preview_size * 2;", .{});
+    writeLine(writer, "pub const node_count = {any};", .{j_nodes.Array.items.len});
+
+    // vars
+    writeLine(writer, "", .{});
+    writeLine(writer, "// ============ VARS ============", .{});
+    for (j_vars.Array.items) |j_var| {
+        const name = j_var.Object.get("name").?.String;
+        const kind = j_var.Object.get("kind").?.String;
+        const is_const = blk: {
+            if (j_var.Object.get("is_const")) |is_const| {
+                break :blk is_const.Bool;
+            }
+            break :blk false;
+        };
+
+        const kind_type: []const u8 = switch (hash(kind)) {
+            kind_FbmSettings => "nodes.fbm.FbmSettings",
+            kind_ImageF32 => "types.ImageF32",
+            kind_PointList2D => "std.ArrayList(types.Vec2)",
+            kind_Size2D => "types.Size2D",
+            kind_Voronoi => "*nodes.voronoi.Voronoi",
+            kind_VoronoiSettings => "nodes.voronoi.VoronoiSettings",
+            kind_WorldSettings => "types.WorldSettings",
+            // kind_WorldSettings => "types.WorldSettings",
+            // kind_WorldSettings => "types.WorldSettings",
+            // kind_WorldSettings => "types.WorldSettings",
+            // kind_WorldSettings => "types.WorldSettings",
+            // kind_WorldSettings => "types.WorldSettings",
+            else => unreachable,
+        };
+
+        write(writer, "{s} {s} : {s} = ", .{ if (is_const) "const" else "var", name, kind_type });
+
+        switch (hash(kind)) {
+            kind_FbmSettings => {
+                const seed = j_var.Object.get("seed").?.Integer;
+                const frequency = j_var.Object.get("frequency").?.Float;
+                const octaves = j_var.Object.get("octaves").?.Integer;
+                const rect = j_var.Object.get("rect").?.String;
+                const scale = j_var.Object.get("scale").?.Float;
+                writeLine(writer,
+                    \\ nodes.fbm.FbmSettings{{
+                    \\    .seed = {any},
+                    \\    .frequency = {d},
+                    \\    .octaves = {any},
+                    \\    .rect = types.Rect.createOriginSquare({s}.width),
+                    \\    .scale = {d},
+                    \\}};
+                , .{ seed, frequency, octaves, rect, scale });
+            },
+            kind_ImageF32 => {
+                const size = j_var.Object.get("size").?.String;
+                writeLine(writer, "types.ImageF32.square({s}.width);", .{size});
+            },
+            kind_Size2D => {
+                const width = j_var.Object.get("width").?.Integer;
+                const height = j_var.Object.get("height").?.Integer;
+                writeLine(writer, ".{{ .width = {any} * 1024, .height = {any} * 1024 }};", .{ width, height });
+            },
+            kind_VoronoiSettings => {
+                const seed = j_var.Object.get("seed").?.Integer;
+                const size = j_var.Object.get("size").?.String;
+                const radius = j_var.Object.get("radius").?.Integer;
+                const num_relaxations = j_var.Object.get("num_relaxations").?.Integer;
+                writeLine(writer,
+                    \\ {s}{{
+                    \\    .seed = {any},
+                    \\    .size = {s}.width,
+                    \\    .radius = {any},
+                    \\    .num_relaxations = {any},
+                    \\}};
+                , .{ kind_type, seed, size, radius, num_relaxations });
+            },
+            kind_WorldSettings => {
+                const size = j_var.Object.get("size").?.String;
+                writeLine(writer, ".{{ .size = {str} }};", .{size});
+            },
+            else => {
+                writeLine(writer, "undefined;", .{});
+            },
+        }
     }
-}
 
-// pub fn
+    // nodes
+
+    // nodes: preview images
+    writeLine(writer, "", .{});
+    writeLine(writer, "// ============ PREVIEW IMAGES ============", .{});
+    for (j_nodes.Array.items) |j_node| {
+        const name = j_node.Object.get("name").?.String;
+        writeLine(writer, "var preview_image_{s} = types.ImageRGBA.square(preview_size);", .{name});
+    }
+
+    // nodes: functions
+    writeLine(writer, "", .{});
+    writeLine(writer, "// ============ NODES ============", .{});
+    for (j_nodes.Array.items) |j_node| {
+        const name = j_node.Object.get("name").?.String;
+        const kind = j_node.Object.get("kind").?.String;
+
+        writeLine(writer, "// node kind: {s}", .{kind});
+        writeLine(writer, "pub fn {s}(ctx: *Context) void {{", .{name});
+        const node_start_index = out.items.len;
+        // var needs_ctx = true;
+
+        switch (hash(kind)) {
+            kind_start => {
+                writeLine(writer, "    // Initialize vars", .{});
+
+                for (j_vars.Array.items) |j_var| {
+                    const var_name = j_var.Object.get("name").?.String;
+                    const var_kind = j_var.Object.get("kind").?.String;
+
+                    switch (hash(var_kind)) {
+                        kind_ImageF32 => {
+                            const size = j_var.Object.get("size").?.String;
+                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alloc(f32, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
+                        },
+                        kind_PointList2D => {
+                            writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });
+                        },
+                        kind_Voronoi => {
+                            writeLine(writer, "    {s} = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;", .{var_name});
+                        },
+                        else => {},
+                    }
+                }
+            },
+            kind_poisson => {
+                const points = j_node.Object.get("points").?.String;
+                writeLine(writer, "    nodes.poisson.generate_points(world_size, 50, 1, &{s});", .{points});
+            },
+            kind_voronoi => {
+                const settings = j_node.Object.get("settings").?.String;
+                const points = j_node.Object.get("points").?.String;
+                const voronoi = j_node.Object.get("voronoi").?.String;
+                // needs_ctx = true;
+
+                writeLine(writer, "    {s}.* = .{{", .{voronoi});
+                writeLine(writer, "        .diagram = .{{}},", .{});
+                writeLine(writer, "        .cells = std.ArrayList(nodes.voronoi.VoronoiCell).init(std.heap.c_allocator),", .{});
+                writeLine(writer, "    }};", .{});
+                writeLine(writer, "", .{});
+                writeLine(writer, "    nodes.voronoi.generate_voronoi_map({s}, {s}.items, {s});", .{ settings, points, voronoi });
+                // preview
+                writeLine(writer, "", .{});
+                writeLine(writer, "    var c_voronoi = c_cpp_nodes.Voronoi{{", .{});
+                writeLine(writer, "        .voronoi_grid = voronoi.diagram,", .{});
+                writeLine(writer, "        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),", .{});
+                writeLine(writer, "    }};", .{});
+                writeLine(writer, "    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);", .{});
+                writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
+            },
+            else => {},
+        }
+
+        // next
+        const next_opt = j_node.Object.get("next");
+        if (next_opt) |next| {
+            writeLine(writer, "", .{});
+            writeLine(writer, "    ctx.next_nodes.insert(0, {s}) catch unreachable;", .{next.String});
+        } else {
+            // needs_ctx = false;
+            writeLine(writer, "", .{});
+            writeLine(writer, "    // Leaf node", .{});
+        }
+
+        if (!std.mem.containsAtLeast(u8, out.items[node_start_index..], 1, "ctx")) {
+            writeLine(writer, "    _ = ctx; // autofix", .{});
+        }
+        writeLine(writer, "}}", .{});
+        writeLine(writer, "", .{});
+    }
+
+    // writer.writeByte(0) catch unreachable;
+
+    // std.zig.render.
+
+    // const src = out.items[0 .. out.items.len - 1 :0];
+    // const zig_tree = std.zig.Ast.parse(gpa, src, .zig) catch unreachable;
+    // const zig_formatted = zig_tree.render(gpa) catch unreachable;
+
+    // writeFile(zig_formatted, zig_path);
+    writeFile(out.items, zig_path);
+}

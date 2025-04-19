@@ -17,6 +17,7 @@ const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 
+pub const node_count = 5;
 pub const self: graph.Graph = .{
     .nodes = &.{
         .{

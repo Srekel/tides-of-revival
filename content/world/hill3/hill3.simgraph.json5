@@ -1,0 +1,108 @@
+{
+  variables: [
+    {
+      name: "world_size",
+      kind: "Size2D",
+      width: 2,
+      height: 2,
+      is_const: true,
+    },
+    {
+      name: "world_settings",
+      kind: "WorldSettings",
+      size: "world_size",
+      is_const: true,
+    },
+    {
+      name: "voronoi",
+      kind: "Voronoi",
+    },
+    {
+      name: "voronoi_points",
+      kind: "PointList2D",
+    },
+    {
+      name: "voronoi_settings",
+      kind: "VoronoiSettings",
+      seed: 0,
+      size: "world_size",
+      radius: 1,
+      num_relaxations:5,
+    },
+    {
+      name: "fbm_settings",
+      kind: "FbmSettings",
+      seed: 1,
+      frequency: 0.00025,
+      octaves: 8,
+      rect: "world_settings.size",
+      scale: 0.5,
+    },
+    {
+      name: "heightmap",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "heightmap2",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "fbm_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "gradient_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "scratch_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "scratch_image2",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "water_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+  ],
+  //////////////////////////////////////
+  //////////////////////////////////////
+  //////////////////////////////////////
+  //////////////////////////////////////
+  nodes: [
+    {
+      name: "start",
+      kind: "start",
+      next: "generate_poisson_for_voronoi",
+    },
+    {
+      name: "exit",
+      kind: "exit",
+    },
+    {
+      name: "generate_poisson_for_voronoi",
+      kind: "poisson",
+      next: "generate_voronoi_map",
+      // vars
+      points: "voronoi_points",
+    },
+    {
+      name: "generate_voronoi_map",
+      kind: "voronoi",
+    //   next: "generate_landscape_from_image",
+      // vars
+      points: "voronoi_points",
+      settings: "voronoi_settings",
+      voronoi: "voronoi",
+    },
+  ],
+}
