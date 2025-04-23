@@ -5,6 +5,7 @@ const json5 = @import("json5.zig");
 const kind_start = hash("start");
 const kind_voronoi = hash("voronoi");
 const kind_poisson = hash("poisson");
+const kind_landscape_from_image = hash("landscape_from_image");
 
 const kind_FbmSettings = hash("FbmSettings");
 const kind_ImageF32 = hash("ImageF32");
@@ -206,7 +207,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
         const name = j_node.Object.get("name").?.String;
         const kind = j_node.Object.get("kind").?.String;
 
-        writeLine(writer, "// node kind: {s}", .{kind});
+        // writeLine(writer, "// node kind: {s}", .{kind});
         writeLine(writer, "pub fn {s}(ctx: *Context) void {{", .{name});
         const node_start_index = out.items.len;
         // var needs_ctx = true;
@@ -214,7 +215,6 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
         switch (hash(kind)) {
             kind_start => {
                 writeLine(writer, "    // Initialize vars", .{});
-
                 for (j_vars.Array.items) |j_var| {
                     const var_name = j_var.Object.get("name").?.String;
                     const var_kind = j_var.Object.get("kind").?.String;
@@ -233,6 +233,27 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                         else => {},
                     }
                 }
+
+                writeLine(writer, "", .{});
+                writeLine(writer, "    // Initialize preview images", .{});
+                for (j_nodes.Array.items) |j_node2| {
+                    const name2 = j_node2.Object.get("name").?.String;
+                    writeLine(writer, "    preview_image_{s}.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;", .{name2});
+                }
+            },
+            kind_landscape_from_image => {
+                const voronoi = j_node.Object.get("voronoi").?.String;
+                const image = j_node.Object.get("image").?.String;
+                writeLine(writer, "    var c_voronoi = c_cpp_nodes.Voronoi{{", .{});
+                writeLine(writer, "        .voronoi_grid = {s}.diagram,", .{voronoi});
+                writeLine(writer, "        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),", .{});
+                writeLine(writer, "    }};", .{});
+                writeLine(writer, "    cpp_nodes.generate_landscape_from_image(&c_voronoi, \"{s}\");", .{image});
+                // preview
+                writeLine(writer, "", .{});
+                writeLine(writer, "    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);", .{});
+                writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
             },
             kind_poisson => {
                 const points = j_node.Object.get("points").?.String;

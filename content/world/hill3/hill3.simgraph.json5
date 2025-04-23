@@ -98,10 +98,24 @@
     {
       name: "generate_voronoi_map",
       kind: "voronoi",
-    //   next: "generate_landscape_from_image",
+      next: "generate_landscape_from_image",
       // vars
       points: "voronoi_points",
       settings: "voronoi_settings",
+      voronoi: "voronoi",
+    },
+    {
+      name: "generate_landscape_from_image",
+      kind: "landscape_from_image",
+      // vars
+      image: "content/tides_2.0.png",
+      voronoi: "voronoi",
+    },
+    {
+      name: "generate_landscape_from_image",
+      kind: "landscape_from_image",
+      // vars
+      image: "content/tides_2.0.png",
       voronoi: "voronoi",
     },
   ],

@@ -13,7 +13,7 @@ const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
 });
 
-const DRY_RUN = false;
+const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 
