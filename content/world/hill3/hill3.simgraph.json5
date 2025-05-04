@@ -139,9 +139,17 @@
     {
       name: "fbm_to_heightmap",
       kind: "remap",
+      next: "generate_heightmap_gradient",
       // vars
       input: "fbm_image",
       output: "heightmap",
+    },
+    {
+      name: "generate_heightmap_gradient",
+      kind: "gradient",
+      // vars
+      input: "heightmap",
+      output: "gradient_image",
     }
   ],
 }

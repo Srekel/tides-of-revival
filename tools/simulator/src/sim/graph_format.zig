@@ -6,6 +6,7 @@ const kind_start = hash("start");
 const kind_beaches = hash("beaches");
 const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
+const kind_gradient = hash("gradient");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_poisson = hash("poisson");
 const kind_remap = hash("remap");
@@ -313,6 +314,15 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    nodes.math.rerangify(&{s});", .{output});
                 writeLine(writer, "    ", .{});
                 writeLine(writer, "    compute.remap(&{s}, &scratch_image, 0, 1);", .{output});
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+            },
+            kind_gradient => {
+                const input = j_node.Object.get("input").?.String;
+                const output = j_node.Object.get("output").?.String;
+                writeLine(writer, "    nodes.gradient.gradient({s}, 1 / world_settings.terrain_height_max, &{s});", .{ input, output });
                 writeLine(writer, "    ", .{});
                 writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
                 writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});

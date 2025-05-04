@@ -15,7 +15,7 @@ const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 9;
+pub const node_count = 10;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
@@ -53,6 +53,7 @@ var preview_image_generate_contours = types.ImageRGBA.square(preview_size);
 var preview_image_generate_beaches = types.ImageRGBA.square(preview_size);
 var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
+var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
 pub fn start(ctx: *Context) void {
@@ -77,6 +78,7 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_beaches.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_fbm_to_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
 }
@@ -206,6 +208,16 @@ pub fn fbm_to_heightmap(ctx: *Context) void {
     types.image_preview_f32(heightmap, &preview_image_fbm_to_heightmap);
     const preview_key = "fbm_to_heightmap.image";
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_fbm_to_heightmap.asBytes() });
+
+    ctx.next_nodes.insert(0, generate_heightmap_gradient) catch unreachable;
+}
+
+pub fn generate_heightmap_gradient(ctx: *Context) void {
+    nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+    
+    types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient);
+    const preview_grid_key = "generate_heightmap_gradient.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_image_generate_heightmap_gradient.asBytes() });
 
     // Leaf node
 }
