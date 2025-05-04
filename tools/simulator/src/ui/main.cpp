@@ -49,6 +49,8 @@ const unsigned preview_size = 512;
 Preview gPreviews[] = {
 	{.name = "GenerateVoronoiMap1.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_landscape_from_image.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_beaches.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_voronoi_map.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "beaches.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "beaches2.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},
 	{.name = "fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},

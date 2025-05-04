@@ -3,9 +3,11 @@ const std = @import("std");
 const json5 = @import("json5.zig");
 
 const kind_start = hash("start");
-const kind_voronoi = hash("voronoi");
-const kind_poisson = hash("poisson");
+const kind_beaches = hash("beaches");
+const kind_contours = hash("contours");
 const kind_landscape_from_image = hash("landscape_from_image");
+const kind_poisson = hash("poisson");
+const kind_voronoi = hash("voronoi");
 
 const kind_FbmSettings = hash("FbmSettings");
 const kind_ImageF32 = hash("ImageF32");
@@ -238,8 +240,57 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    // Initialize preview images", .{});
                 for (j_nodes.Array.items) |j_node2| {
                     const name2 = j_node2.Object.get("name").?.String;
-                    writeLine(writer, "    preview_image_{s}.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;", .{name2});
+                    writeLine(writer, "    preview_image_{s}.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;", .{name2});
                 }
+            },
+            kind_beaches => {
+                const voronoi = j_node.Object.get("voronoi").?.String;
+                const downsamples = j_node.Object.get("downsamples").?.Integer;
+
+                writeLine(writer, "    var c_voronoi = c_cpp_nodes.Voronoi{{", .{});
+                writeLine(writer, "        .voronoi_grid = {s}.diagram,", .{voronoi});
+                writeLine(writer, "        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),", .{});
+                writeLine(writer, "    }};", .{});
+                writeLine(writer, "", .{});
+                writeLine(writer, "    const downsamples = {any};", .{downsamples});
+                writeLine(writer, "    const downsample_divistor = std.math.pow(u32, 2, downsamples);", .{});
+                writeLine(writer, "    const preview_grid = cpp_nodes.generate_landscape_preview(", .{});
+                writeLine(writer, "        &c_voronoi,", .{});
+                writeLine(writer, "        preview_size / downsample_divistor,", .{});
+                writeLine(writer, "        preview_size / downsample_divistor,", .{});
+                writeLine(writer, "", .{});
+                writeLine(writer, "    );", .{});
+                writeLine(writer, "    scratch_image.size.width = preview_size / downsample_divistor;", .{});
+                writeLine(writer, "    scratch_image.size.height = preview_size / downsample_divistor;", .{});
+                writeLine(writer, "", .{});
+                writeLine(writer, "    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size], &scratch_image);", .{});
+                writeLine(writer, "", .{});
+                writeLine(writer, "", .{});
+
+                writeLine(writer, "    types.saveImageF32(scratch_image, \"water\", false);", .{});
+                writeLine(writer, "    const upsamples = std.math.log2(world_size.width / scratch_image.size.width);", .{});
+                writeLine(writer, "    for (0..upsamples) |i| {{", .{});
+                writeLine(writer, "        _ = i; // autofix", .{});
+                writeLine(writer, "        scratch_image2.size.width = scratch_image.size.width * 2;", .{});
+                writeLine(writer, "        scratch_image2.size.height = scratch_image.size.height * 2;", .{});
+                writeLine(writer, "        scratch_image2.zeroClear();", .{});
+                writeLine(writer, "        compute.upsample_blur(&scratch_image, &scratch_image2);", .{});
+                writeLine(writer, "        scratch_image.size.width = scratch_image2.size.width;", .{});
+                writeLine(writer, "        scratch_image.size.height = scratch_image2.size.height;", .{});
+                writeLine(writer, "        scratch_image.swap(&scratch_image2);", .{});
+                writeLine(writer, "        types.saveImageF32(scratch_image, \"upblur\", false);", .{});
+                writeLine(writer, "    }}", .{});
+
+                writeLine(writer, "    water_image.copy(scratch_image);", .{});
+                writeLine(writer, "    types.saveImageF32(scratch_image, \"water\", false);", .{});
+
+                writeLine(writer, "    types.image_preview_f32(scratch_image, &preview_image_{s});", .{name});
+                writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+            },
+            kind_contours => {
+                const voronoi = j_node.Object.get("voronoi").?.String;
+                writeLine(writer, "    nodes.voronoi.contours({s});", .{voronoi});
             },
             kind_landscape_from_image => {
                 const voronoi = j_node.Object.get("voronoi").?.String;
@@ -274,7 +325,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 // preview
                 writeLine(writer, "", .{});
                 writeLine(writer, "    var c_voronoi = c_cpp_nodes.Voronoi{{", .{});
-                writeLine(writer, "        .voronoi_grid = voronoi.diagram,", .{});
+                writeLine(writer, "        .voronoi_grid = {s}.diagram,", .{voronoi});
                 writeLine(writer, "        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),", .{});
                 writeLine(writer, "    }};", .{});
                 writeLine(writer, "    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);", .{});

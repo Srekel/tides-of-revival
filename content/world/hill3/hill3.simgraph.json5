@@ -107,16 +107,25 @@
     {
       name: "generate_landscape_from_image",
       kind: "landscape_from_image",
+      next: "generate_contours",
       // vars
       image: "content/tides_2.0.png",
       voronoi: "voronoi",
     },
     {
-      name: "generate_landscape_from_image",
-      kind: "landscape_from_image",
+      name: "generate_contours",
+      kind: "contours",
+      next: "generate_beaches",
       // vars
-      image: "content/tides_2.0.png",
       voronoi: "voronoi",
+    },
+    {
+      name: "generate_beaches",
+      kind: "beaches",
+      // next: "generate_beaches",
+      // vars
+      voronoi: "voronoi",
+      downsamples: 3,
     },
   ],
 }

@@ -15,7 +15,7 @@ const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 6;
+pub const node_count = 7;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
@@ -49,7 +49,8 @@ var preview_image_exit = types.ImageRGBA.square(preview_size);
 var preview_image_generate_poisson_for_voronoi = types.ImageRGBA.square(preview_size);
 var preview_image_generate_voronoi_map = types.ImageRGBA.square(preview_size);
 var preview_image_generate_landscape_from_image = types.ImageRGBA.square(preview_size);
-var preview_image_generate_landscape_from_image = types.ImageRGBA.square(preview_size);
+var preview_image_generate_contours = types.ImageRGBA.square(preview_size);
+var preview_image_generate_beaches = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
 pub fn start(ctx: *Context) void {
@@ -65,12 +66,13 @@ pub fn start(ctx: *Context) void {
     water_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
 
     // Initialize preview images
-    preview_image_start.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_exit.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_generate_poisson_for_voronoi.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_generate_voronoi_map.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_generate_landscape_from_image.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_generate_landscape_from_image.pixels = std.heap.c_allocator.alloc(ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_start.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_exit.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_poisson_for_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_voronoi_map.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_landscape_from_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_contours.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_beaches.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
 }
@@ -117,19 +119,53 @@ pub fn generate_landscape_from_image(ctx: *Context) void {
     const preview_grid_key = "generate_landscape_from_image.voronoi";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size] });
 
-    // Leaf node
+    ctx.next_nodes.insert(0, generate_contours) catch unreachable;
 }
 
-pub fn generate_landscape_from_image(ctx: *Context) void {
+pub fn generate_contours(ctx: *Context) void {
+    nodes.voronoi.contours(voronoi);
+
+    ctx.next_nodes.insert(0, generate_beaches) catch unreachable;
+}
+
+pub fn generate_beaches(ctx: *Context) void {
     var c_voronoi = c_cpp_nodes.Voronoi{
         .voronoi_grid = voronoi.diagram,
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
-    cpp_nodes.generate_landscape_from_image(&c_voronoi, "content/tides_2.0.png");
 
-    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
-    const preview_grid_key = "generate_landscape_from_image.voronoi";
-    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size] });
+    const downsamples = 3;
+    const downsample_divistor = std.math.pow(u32, 2, downsamples);
+    const preview_grid = cpp_nodes.generate_landscape_preview(
+        &c_voronoi,
+        preview_size / downsample_divistor,
+        preview_size / downsample_divistor,
+
+    );
+    scratch_image.size.width = preview_size / downsample_divistor;
+    scratch_image.size.height = preview_size / downsample_divistor;
+
+    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size], &scratch_image);
+
+
+    types.saveImageF32(scratch_image, "water", false);
+    const upsamples = std.math.log2(world_size.width / scratch_image.size.width);
+    for (0..upsamples) |i| {
+        _ = i; // autofix
+        scratch_image2.size.width = scratch_image.size.width * 2;
+        scratch_image2.size.height = scratch_image.size.height * 2;
+        scratch_image2.zeroClear();
+        compute.upsample_blur(&scratch_image, &scratch_image2);
+        scratch_image.size.width = scratch_image2.size.width;
+        scratch_image.size.height = scratch_image2.size.height;
+        scratch_image.swap(&scratch_image2);
+        types.saveImageF32(scratch_image, "upblur", false);
+    }
+    water_image.copy(scratch_image);
+    types.saveImageF32(scratch_image, "water", false);
+    types.image_preview_f32(scratch_image, &preview_image_generate_beaches);
+    const preview_grid_key = "generate_beaches.voronoi";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_image_generate_beaches.asBytes() });
 
     // Leaf node
 }
