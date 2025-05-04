@@ -337,7 +337,7 @@ fn doNode_fbm_trees(ctx: *Context) void {
 
     // GPU FBM
     {
-        const generate_fbm_settings = GenerateFBMSettings{
+        const generate_fbm_settings = compute.GenerateFBMSettings{
             .width = @intCast(fbm_trees_image.size.width),
             .height = @intCast(fbm_trees_image.size.height),
             .seed = fbm_settings.seed,

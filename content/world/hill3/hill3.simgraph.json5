@@ -147,8 +147,17 @@
     {
       name: "generate_heightmap_gradient",
       kind: "gradient",
+      next: "generate_terrace",
       // vars
       input: "heightmap",
+      output: "gradient_image",
+    },
+    {
+      name: "generate_terrace",
+      kind: "terrace",
+      // vars
+      gradient: "gradient_image",
+      heightmap: "heightmap",
       output: "gradient_image",
     }
   ],

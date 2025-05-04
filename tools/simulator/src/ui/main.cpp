@@ -54,6 +54,7 @@ Preview gPreviews[] = {
 	{.name = "generate_fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "fbm_to_heightmap.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_heightmap_gradient.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_terrace.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "beaches.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "beaches2.voronoi", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},
 	{.name = "fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size * 2, .height = preview_size * 2, .channel_count = 4}},

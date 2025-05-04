@@ -10,6 +10,7 @@ const kind_gradient = hash("gradient");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_poisson = hash("poisson");
 const kind_remap = hash("remap");
+const kind_terrace = hash("terrace");
 const kind_voronoi = hash("voronoi");
 
 const kind_FbmSettings = hash("FbmSettings");
@@ -354,6 +355,25 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    {s}.remap(0, world_settings.terrain_height_max);", .{output});
                 writeLine(writer, "    ", .{});
                 writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+            },
+            kind_terrace => {
+                const heightmap = j_node.Object.get("heightmap").?.String;
+                const gradient = j_node.Object.get("gradient").?.String;
+
+                writeLine(writer, "    heightmap2.copy({s});", .{heightmap});
+                writeLine(writer, "    types.saveImageF32({s}, \"{s}_b4terrace\", false);", .{ gradient, gradient });
+                writeLine(writer, "    types.saveImageF32(heightmap, \"{s}_b4terrace\", false);", .{heightmap});
+                writeLine(writer, "    for (0..1) |_| {{", .{});
+                writeLine(writer, "        for (0..1) |_| {{", .{});
+                writeLine(writer, "            compute.terrace(&{s}, &{s}, &scratch_image);", .{ gradient, heightmap });
+                writeLine(writer, "            nodes.math.rerangify(&{s});", .{heightmap});
+                writeLine(writer, "            types.saveImageF32({s}, \"{s}\", false);", .{ heightmap, heightmap });
+                writeLine(writer, "        }}", .{});
+                writeLine(writer, "    }}", .{});
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
                 writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
             },
