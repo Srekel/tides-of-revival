@@ -15,7 +15,7 @@ const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 7;
+pub const node_count = 9;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
@@ -51,6 +51,8 @@ var preview_image_generate_voronoi_map = types.ImageRGBA.square(preview_size);
 var preview_image_generate_landscape_from_image = types.ImageRGBA.square(preview_size);
 var preview_image_generate_contours = types.ImageRGBA.square(preview_size);
 var preview_image_generate_beaches = types.ImageRGBA.square(preview_size);
+var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
+var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
 pub fn start(ctx: *Context) void {
@@ -73,6 +75,8 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_landscape_from_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_contours.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_beaches.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_fbm_to_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
 }
@@ -166,6 +170,42 @@ pub fn generate_beaches(ctx: *Context) void {
     types.image_preview_f32(scratch_image, &preview_image_generate_beaches);
     const preview_grid_key = "generate_beaches.voronoi";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_image_generate_beaches.asBytes() });
+
+    ctx.next_nodes.insert(0, generate_fbm) catch unreachable;
+}
+
+pub fn generate_fbm(ctx: *Context) void {
+    const generate_fbm_settings = compute.GenerateFBMSettings{
+        .width = @intCast(fbm_image.size.width),
+        .height = @intCast(fbm_image.size.height),
+        .seed = fbm_settings.seed,
+        .frequency = fbm_settings.frequency,
+        .octaves = fbm_settings.octaves,
+        .scale = fbm_settings.scale,
+        ._padding = .{ 0, 0 },
+    };
+    
+    compute.fbm(&fbm_image, generate_fbm_settings);
+    compute.min(&fbm_image, &scratch_image);
+    compute.max(&fbm_image, &scratch_image);
+    nodes.math.rerangify(&fbm_image);
+    
+    compute.remap(&fbm_image, &scratch_image, 0, 1);
+    
+    types.image_preview_f32(fbm_image, &preview_image_generate_fbm);
+    const preview_grid_key = "generate_fbm.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_image_generate_fbm.asBytes() });
+
+    ctx.next_nodes.insert(0, fbm_to_heightmap) catch unreachable;
+}
+
+pub fn fbm_to_heightmap(ctx: *Context) void {
+    heightmap.copy(fbm_image);
+    heightmap.remap(0, world_settings.terrain_height_max);
+    
+    types.image_preview_f32(heightmap, &preview_image_fbm_to_heightmap);
+    const preview_key = "fbm_to_heightmap.image";
+    ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_fbm_to_heightmap.asBytes() });
 
     // Leaf node
 }

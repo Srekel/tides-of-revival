@@ -122,10 +122,26 @@
     {
       name: "generate_beaches",
       kind: "beaches",
-      // next: "generate_beaches",
+      next: "generate_fbm",
       // vars
       voronoi: "voronoi",
       downsamples: 3,
     },
+    {
+      name: "generate_fbm",
+      kind: "fbm",
+      next: "fbm_to_heightmap",
+      // vars
+      output: "fbm_image",
+      // voronoi: "voronoi",
+      // downsamples: 3,
+    },
+    {
+      name: "fbm_to_heightmap",
+      kind: "remap",
+      // vars
+      input: "fbm_image",
+      output: "heightmap",
+    }
   ],
 }

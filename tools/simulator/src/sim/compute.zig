@@ -105,7 +105,17 @@ pub fn max(image_in: *types.ImageF32, scratch: *types.ImageF32) void {
     image_in.height_max = scratch.pixels[0];
 }
 
-pub fn fbm(image_out: *types.ImageF32, settings: anytype) void {
+pub const GenerateFBMSettings = extern struct {
+    width: u32,
+    height: u32,
+    seed: i32,
+    frequency: f32,
+    octaves: u32,
+    scale: f32,
+    _padding: [2]f32,
+};
+
+pub fn fbm(image_out: *types.ImageF32, settings: GenerateFBMSettings) void {
     compute_f32_1(.fbm, null, image_out, settings);
 }
 

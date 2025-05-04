@@ -5,8 +5,10 @@ const json5 = @import("json5.zig");
 const kind_start = hash("start");
 const kind_beaches = hash("beaches");
 const kind_contours = hash("contours");
+const kind_fbm = hash("fbm");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_poisson = hash("poisson");
+const kind_remap = hash("remap");
 const kind_voronoi = hash("voronoi");
 
 const kind_FbmSettings = hash("FbmSettings");
@@ -292,6 +294,30 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const voronoi = j_node.Object.get("voronoi").?.String;
                 writeLine(writer, "    nodes.voronoi.contours({s});", .{voronoi});
             },
+            kind_fbm => {
+                const output = j_node.Object.get("output").?.String;
+
+                writeLine(writer, "    const generate_fbm_settings = compute.GenerateFBMSettings{{", .{});
+                writeLine(writer, "        .width = @intCast({s}.size.width),", .{output});
+                writeLine(writer, "        .height = @intCast({s}.size.height),", .{output});
+                writeLine(writer, "        .seed = fbm_settings.seed,", .{});
+                writeLine(writer, "        .frequency = fbm_settings.frequency,", .{});
+                writeLine(writer, "        .octaves = fbm_settings.octaves,", .{});
+                writeLine(writer, "        .scale = fbm_settings.scale,", .{});
+                writeLine(writer, "        ._padding = .{{ 0, 0 }},", .{});
+                writeLine(writer, "    }};", .{});
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    compute.fbm(&{s}, generate_fbm_settings);", .{output});
+                writeLine(writer, "    compute.min(&{s}, &scratch_image);", .{output});
+                writeLine(writer, "    compute.max(&{s}, &scratch_image);", .{output});
+                writeLine(writer, "    nodes.math.rerangify(&{s});", .{output});
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    compute.remap(&{s}, &scratch_image, 0, 1);", .{output});
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+            },
             kind_landscape_from_image => {
                 const voronoi = j_node.Object.get("voronoi").?.String;
                 const image = j_node.Object.get("image").?.String;
@@ -309,6 +335,17 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
             kind_poisson => {
                 const points = j_node.Object.get("points").?.String;
                 writeLine(writer, "    nodes.poisson.generate_points(world_size, 50, 1, &{s});", .{points});
+            },
+            kind_remap => {
+                const input = j_node.Object.get("input").?.String;
+                const output = j_node.Object.get("output").?.String;
+
+                writeLine(writer, "    {s}.copy({s});", .{ output, input });
+                writeLine(writer, "    {s}.remap(0, world_settings.terrain_height_max);", .{output});
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
             },
             kind_voronoi => {
                 const settings = j_node.Object.get("settings").?.String;
