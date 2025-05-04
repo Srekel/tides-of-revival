@@ -406,7 +406,17 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
         const next_opt = j_node.Object.get("next");
         if (next_opt) |next| {
             writeLine(writer, "", .{});
-            writeLine(writer, "    ctx.next_nodes.insert(0, {s}) catch unreachable;", .{next.String});
+            switch (next) {
+                .String => {
+                    writeLine(writer, "    ctx.next_nodes.insert(0, {s}) catch unreachable;", .{next.String});
+                },
+                .Array => {
+                    for (next.Array.items, 0..) |item, item_i| {
+                        writeLine(writer, "    ctx.next_nodes.insert({any}, {s}) catch unreachable;", .{ item_i, item.String });
+                    }
+                },
+                else => {},
+            }
         } else {
             // needs_ctx = false;
             writeLine(writer, "", .{});

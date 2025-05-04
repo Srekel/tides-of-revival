@@ -212,6 +212,7 @@ pub fn fbm_to_heightmap(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_fbm_to_heightmap.asBytes() });
 
     ctx.next_nodes.insert(0, generate_heightmap_gradient) catch unreachable;
+    ctx.next_nodes.insert(1, generate_heightmap_gradient) catch unreachable;
 }
 
 pub fn generate_heightmap_gradient(ctx: *Context) void {
