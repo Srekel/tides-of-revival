@@ -73,6 +73,10 @@
       kind: "ImageF32",
       size: "world_settings.size",
     },
+    {
+      name: "cities",
+      kind: "PointList3D",
+    },
   ],
   //////////////////////////////////////
   //////////////////////////////////////
@@ -139,7 +143,11 @@
     {
       name: "fbm_to_heightmap",
       kind: "remap",
-      next: ["generate_heightmap_gradient","generate_heightmap_gradient"],
+      next: [
+        // "generate_water",
+        "generate_heightmap_gradient",
+        "output_heightmap_to_file"
+      ],
       // vars
       input: "fbm_image",
       output: "heightmap",
@@ -155,10 +163,27 @@
     {
       name: "generate_terrace",
       kind: "terrace",
+      next: [
+        "generate_cities",
+        // "generate_trees",
+      ],
       // vars
       gradient: "gradient_image",
       heightmap: "heightmap",
       output: "gradient_image",
+    },
+    {
+      name: "generate_cities",
+      kind: "cities",
+      // vars
+      gradient: "gradient_image",
+      heightmap: "heightmap",
+    },
+    {
+      name: "output_heightmap_to_file",
+      kind: "heightmap_output",
+      // vars
+      heightmap: "heightmap",
     }
   ],
 }

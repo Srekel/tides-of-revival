@@ -4,8 +4,10 @@ const json5 = @import("json5.zig");
 
 const kind_start = hash("start");
 const kind_beaches = hash("beaches");
+const kind_cities = hash("cities");
 const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
+const kind_heightmap_output = hash("heightmap_output");
 const kind_gradient = hash("gradient");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_poisson = hash("poisson");
@@ -16,6 +18,7 @@ const kind_voronoi = hash("voronoi");
 const kind_FbmSettings = hash("FbmSettings");
 const kind_ImageF32 = hash("ImageF32");
 const kind_PointList2D = hash("PointList2D");
+const kind_PointList3D = hash("PointList3D");
 const kind_Size2D = hash("Size2D");
 const kind_Voronoi = hash("Voronoi");
 const kind_VoronoiSettings = hash("VoronoiSettings");
@@ -109,7 +112,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     // constants
     writeLine(writer, "", .{});
     writeLine(writer, "// ============ CONSTANTS ============", .{});
-    writeLine(writer, "const DRY_RUN = false;", .{});
+    writeLine(writer, "const DRY_RUN = true;", .{});
     writeLine(writer, "const kilometers = if (DRY_RUN) 2 else 16;", .{});
     writeLine(writer, "const preview_size = 512;", .{});
     writeLine(writer, "const preview_size_big = preview_size * 2;", .{});
@@ -132,6 +135,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
             kind_FbmSettings => "nodes.fbm.FbmSettings",
             kind_ImageF32 => "types.ImageF32",
             kind_PointList2D => "std.ArrayList(types.Vec2)",
+            kind_PointList3D => "std.ArrayList(types.Vec3)",
             kind_Size2D => "types.Size2D",
             kind_Voronoi => "*nodes.voronoi.Voronoi",
             kind_VoronoiSettings => "nodes.voronoi.VoronoiSettings",
@@ -233,6 +237,9 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                         kind_PointList2D => {
                             writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });
                         },
+                        kind_PointList3D => {
+                            writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });
+                        },
                         kind_Voronoi => {
                             writeLine(writer, "    {s} = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;", .{var_name});
                         },
@@ -292,6 +299,13 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
             },
+            kind_cities => {
+                const gradient = j_node.Object.get("gradient").?.String;
+                const heightmap = j_node.Object.get("heightmap").?.String;
+                writeLine(writer, "    if (!DRY_RUN) {{", .{});
+                writeLine(writer, "        nodes.experiments.cities(world_settings, {s}, {s}, &cities);", .{ heightmap, gradient });
+                writeLine(writer, "    }}", .{});
+            },
             kind_contours => {
                 const voronoi = j_node.Object.get("voronoi").?.String;
                 writeLine(writer, "    nodes.voronoi.contours({s});", .{voronoi});
@@ -328,6 +342,12 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
                 writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+            },
+            kind_heightmap_output => {
+                const heightmap = j_node.Object.get("heightmap").?.String;
+                writeLine(writer, "    if (!DRY_RUN) {{", .{});
+                writeLine(writer, "        nodes.heightmap_format.heightmap_format(world_settings, {s});", .{heightmap});
+                writeLine(writer, "    }}", .{});
             },
             kind_landscape_from_image => {
                 const voronoi = j_node.Object.get("voronoi").?.String;

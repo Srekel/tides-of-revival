@@ -11,11 +11,11 @@ const c_cpp_nodes = @cImport({
 });
 
 // ============ CONSTANTS ============
-const DRY_RUN = false;
+const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 11;
+pub const node_count = 13;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
@@ -42,6 +42,7 @@ var gradient_image : types.ImageF32 = types.ImageF32.square(world_settings.size.
 var scratch_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var scratch_image2 : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var water_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var cities : std.ArrayList(types.Vec3) = undefined;
 
 // ============ PREVIEW IMAGES ============
 var preview_image_start = types.ImageRGBA.square(preview_size);
@@ -55,6 +56,8 @@ var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_generate_terrace = types.ImageRGBA.square(preview_size);
+var preview_image_generate_cities = types.ImageRGBA.square(preview_size);
+var preview_image_output_heightmap_to_file = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
 pub fn start(ctx: *Context) void {
@@ -68,6 +71,7 @@ pub fn start(ctx: *Context) void {
     scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     water_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    cities = @TypeOf(cities).init(std.heap.c_allocator);
 
     // Initialize preview images
     preview_image_start.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -81,6 +85,8 @@ pub fn start(ctx: *Context) void {
     preview_image_fbm_to_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_terrace.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_output_heightmap_to_file.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
 }
@@ -212,7 +218,7 @@ pub fn fbm_to_heightmap(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_fbm_to_heightmap.asBytes() });
 
     ctx.next_nodes.insert(0, generate_heightmap_gradient) catch unreachable;
-    ctx.next_nodes.insert(1, generate_heightmap_gradient) catch unreachable;
+    ctx.next_nodes.insert(1, output_heightmap_to_file) catch unreachable;
 }
 
 pub fn generate_heightmap_gradient(ctx: *Context) void {
@@ -241,6 +247,24 @@ pub fn generate_terrace(ctx: *Context) void {
     const preview_key = "generate_terrace.image";
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_generate_terrace.asBytes() });
 
+    ctx.next_nodes.insert(0, generate_cities) catch unreachable;
+}
+
+pub fn generate_cities(ctx: *Context) void {
+    if (!DRY_RUN) {
+        nodes.experiments.cities(world_settings, heightmap, gradient_image, &cities);
+    }
+
     // Leaf node
+    _ = ctx; // autofix
+}
+
+pub fn output_heightmap_to_file(ctx: *Context) void {
+    if (!DRY_RUN) {
+        nodes.heightmap_format.heightmap_format(world_settings, heightmap);
+    }
+
+    // Leaf node
+    _ = ctx; // autofix
 }
 

@@ -10,6 +10,13 @@ pub const Vec2 = struct {
     }
 };
 
+pub const Vec3 = [3]f32;
+// pub const Vec3 = struct {
+//     x: f32,
+//     y: f32,
+//     z: f32,
+// };
+
 pub const Size2D = struct {
     width: u64,
     height: u64,
