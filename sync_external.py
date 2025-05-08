@@ -156,6 +156,11 @@ def main():
         "4af2e647041b9dd396693e3a19f6894fac2c5c58",
     )
     sync_lib(
+        "zgltf",
+        "https://github.com/kooparse/zgltf.git",
+        "b6579c3887c7ab0eef5f1eda09abbbc1f04d76ce",
+    )
+    sync_lib(
         "zgui",
         "https://github.com/Srekel/zgui.git",
         "b5b29363a1a1db91519f0d94099c597e49eadfe9",
@@ -204,6 +209,11 @@ def main():
         "zwindows",
         "https://github.com/zig-gamedev/zwindows",
         "3bafa10a3271b6b4d1e9a3550f4f165285479d6e",
+    )
+    sync_lib(
+        "zigwin32",
+        "https://github.com/marlersoft/zigwin32",
+        "d21b419d808215e1f82605fdaddc49750bfa3bca",
     )
 
     sync_zig_exe("0.14.0-dev.2577+271452d22")
