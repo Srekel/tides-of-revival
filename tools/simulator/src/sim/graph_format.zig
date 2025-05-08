@@ -10,8 +10,10 @@ const kind_fbm = hash("fbm");
 const kind_heightmap_output = hash("heightmap_output");
 const kind_gradient = hash("gradient");
 const kind_landscape_from_image = hash("landscape_from_image");
+const kind_points_grid = hash("points_grid");
 const kind_poisson = hash("poisson");
 const kind_remap = hash("remap");
+const kind_square = hash("square");
 const kind_terrace = hash("terrace");
 const kind_voronoi = hash("voronoi");
 
@@ -86,8 +88,9 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     var parser = json5.Parser.init(gpa, false);
     defer parser.deinit();
 
-    var json_buf: [1024 * 4]u8 = undefined;
+    var json_buf: [1024 * 32]u8 = undefined;
     const graph_json = loadFile(simgraph_path, &json_buf);
+    std.debug.assert(json_buf.len > graph_json.len);
 
     var tree = parser.parse(graph_json) catch unreachable;
     defer tree.deinit();
@@ -375,6 +378,16 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    {s}.remap(0, world_settings.terrain_height_max);", .{output});
                 writeLine(writer, "    ", .{});
                 writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+            },
+            kind_square => {
+                const input = j_node.Object.get("input").?.String;
+                const scratch = j_node.Object.get("scratch").?.String;
+
+                writeLine(writer, "    compute.square(&{s}, &{s});", .{ input, scratch });
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ input, name });
                 writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
             },

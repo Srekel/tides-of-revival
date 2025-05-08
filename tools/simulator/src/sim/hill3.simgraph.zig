@@ -15,7 +15,7 @@ const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 13;
+pub const node_count = 15;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
@@ -38,6 +38,7 @@ var fbm_settings : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
 var heightmap : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap2 : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var fbm_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var fbm_trees_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var gradient_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var scratch_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var scratch_image2 : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
@@ -57,6 +58,8 @@ var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_generate_terrace = types.ImageRGBA.square(preview_size);
 var preview_image_generate_cities = types.ImageRGBA.square(preview_size);
+var preview_image_generate_trees_fbm = types.ImageRGBA.square(preview_size);
+var preview_image_trees_square = types.ImageRGBA.square(preview_size);
 var preview_image_output_heightmap_to_file = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
@@ -67,6 +70,7 @@ pub fn start(ctx: *Context) void {
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     fbm_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    fbm_trees_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     gradient_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
@@ -86,6 +90,8 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_terrace.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_trees_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_trees_square.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_output_heightmap_to_file.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
@@ -248,6 +254,7 @@ pub fn generate_terrace(ctx: *Context) void {
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_generate_terrace.asBytes() });
 
     ctx.next_nodes.insert(0, generate_cities) catch unreachable;
+    ctx.next_nodes.insert(1, generate_trees_fbm) catch unreachable;
 }
 
 pub fn generate_cities(ctx: *Context) void {
@@ -257,6 +264,41 @@ pub fn generate_cities(ctx: *Context) void {
 
     // Leaf node
     _ = ctx; // autofix
+}
+
+pub fn generate_trees_fbm(ctx: *Context) void {
+    const generate_fbm_settings = compute.GenerateFBMSettings{
+        .width = @intCast(fbm_trees_image.size.width),
+        .height = @intCast(fbm_trees_image.size.height),
+        .seed = fbm_settings.seed,
+        .frequency = fbm_settings.frequency,
+        .octaves = fbm_settings.octaves,
+        .scale = fbm_settings.scale,
+        ._padding = .{ 0, 0 },
+    };
+    
+    compute.fbm(&fbm_trees_image, generate_fbm_settings);
+    compute.min(&fbm_trees_image, &scratch_image);
+    compute.max(&fbm_trees_image, &scratch_image);
+    nodes.math.rerangify(&fbm_trees_image);
+    
+    compute.remap(&fbm_trees_image, &scratch_image, 0, 1);
+    
+    types.image_preview_f32(fbm_trees_image, &preview_image_generate_trees_fbm);
+    const preview_grid_key = "generate_trees_fbm.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_image_generate_trees_fbm.asBytes() });
+
+    ctx.next_nodes.insert(0, trees_square) catch unreachable;
+}
+
+pub fn trees_square(ctx: *Context) void {
+    compute.square(&fbm_trees_image, &scratch_image);
+    
+    types.image_preview_f32(fbm_trees_image, &preview_image_trees_square);
+    const preview_key = "trees_square.image";
+    ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_trees_square.asBytes() });
+
+    // Leaf node
 }
 
 pub fn output_heightmap_to_file(ctx: *Context) void {

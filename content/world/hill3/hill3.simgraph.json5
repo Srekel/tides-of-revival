@@ -54,6 +54,11 @@
       size: "world_settings.size",
     },
     {
+      name: "fbm_trees_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
       name: "gradient_image",
       kind: "ImageF32",
       size: "world_settings.size",
@@ -165,7 +170,7 @@
       kind: "terrace",
       next: [
         "generate_cities",
-        // "generate_trees",
+        "generate_trees_fbm",
       ],
       // vars
       gradient: "gradient_image",
@@ -179,6 +184,29 @@
       gradient: "gradient_image",
       heightmap: "heightmap",
     },
+    {
+      name: "generate_trees_fbm",
+      kind: "fbm",
+      next: "trees_square",
+      // vars
+      output: "fbm_trees_image",
+    },
+    {
+      name: "trees_square",
+      kind: "square",
+      // next: "trees_points",
+      // vars
+      input: "fbm_trees_image",
+      scratch: "scratch_image",
+    },
+    // {
+    //   name: "trees_points",
+    //   kind: "points_grid",
+    //   next: "trees_output",
+    //   // vars
+    //   input: "fbm_trees_image",
+    //   scratch: "scratch_image",
+    // },
     {
       name: "output_heightmap_to_file",
       kind: "heightmap_output",
