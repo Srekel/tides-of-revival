@@ -15,7 +15,7 @@ const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 15;
+pub const node_count = 16;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
@@ -44,6 +44,7 @@ var scratch_image : types.ImageF32 = types.ImageF32.square(world_settings.size.w
 var scratch_image2 : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var water_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var cities : std.ArrayList(types.Vec3) = undefined;
+var trees_points : types.PatchDataPts2d = undefined;
 
 // ============ PREVIEW IMAGES ============
 var preview_image_start = types.ImageRGBA.square(preview_size);
@@ -60,6 +61,7 @@ var preview_image_generate_terrace = types.ImageRGBA.square(preview_size);
 var preview_image_generate_cities = types.ImageRGBA.square(preview_size);
 var preview_image_generate_trees_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_trees_square = types.ImageRGBA.square(preview_size);
+var preview_image_generate_trees_points = types.ImageRGBA.square(preview_size);
 var preview_image_output_heightmap_to_file = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
@@ -92,6 +94,7 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_trees_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_trees_square.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_trees_points.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_output_heightmap_to_file.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
@@ -298,7 +301,15 @@ pub fn trees_square(ctx: *Context) void {
     const preview_key = "trees_square.image";
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_trees_square.asBytes() });
 
+    ctx.next_nodes.insert(0, generate_trees_points) catch unreachable;
+}
+
+pub fn generate_trees_points(ctx: *Context) void {
+   trees_points = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
+   nodes.experiments.points_distribution_grid(fbm_trees_image, 0.6, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees_points);
+
     // Leaf node
+    _ = ctx; // autofix
 }
 
 pub fn output_heightmap_to_file(ctx: *Context) void {

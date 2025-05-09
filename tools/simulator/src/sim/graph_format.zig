@@ -7,8 +7,8 @@ const kind_beaches = hash("beaches");
 const kind_cities = hash("cities");
 const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
-const kind_heightmap_output = hash("heightmap_output");
 const kind_gradient = hash("gradient");
+const kind_heightmap_output = hash("heightmap_output");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_points_grid = hash("points_grid");
 const kind_poisson = hash("poisson");
@@ -19,6 +19,7 @@ const kind_voronoi = hash("voronoi");
 
 const kind_FbmSettings = hash("FbmSettings");
 const kind_ImageF32 = hash("ImageF32");
+const kind_PatchDataPts2d = hash("PatchDataPts2d");
 const kind_PointList2D = hash("PointList2D");
 const kind_PointList3D = hash("PointList3D");
 const kind_Size2D = hash("Size2D");
@@ -137,6 +138,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
         const kind_type: []const u8 = switch (hash(kind)) {
             kind_FbmSettings => "nodes.fbm.FbmSettings",
             kind_ImageF32 => "types.ImageF32",
+            kind_PatchDataPts2d => "types.PatchDataPts2d",
             kind_PointList2D => "std.ArrayList(types.Vec2)",
             kind_PointList3D => "std.ArrayList(types.Vec3)",
             kind_Size2D => "types.Size2D",
@@ -365,6 +367,14 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);", .{});
                 writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
+            },
+            kind_points_grid => {
+                const points = j_node.Object.get("points").?.String;
+                const cell_size = j_node.Object.get("cell_size").?.Integer;
+                const score_min = j_node.Object.get("score_min").?.Float;
+                const image = j_node.Object.get("image").?.String;
+                writeLine(writer, "   {s} = types.PatchDataPts2d.create(1, {s}.size.width / 128, 100, std.heap.c_allocator);", .{ points, image });
+                writeLine(writer, "   nodes.experiments.points_distribution_grid({s}, {d}, .{{ .cell_size = {d}, .size = {s}.size }}, &{s});", .{ image, score_min, cell_size, image, points });
             },
             kind_poisson => {
                 const points = j_node.Object.get("points").?.String;

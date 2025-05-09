@@ -82,6 +82,10 @@
       name: "cities",
       kind: "PointList3D",
     },
+    {
+      name: "trees_points",
+      kind: "PatchDataPts2d",
+    },
   ],
   //////////////////////////////////////
   //////////////////////////////////////
@@ -194,19 +198,21 @@
     {
       name: "trees_square",
       kind: "square",
-      // next: "trees_points",
+      next: "generate_trees_points",
       // vars
       input: "fbm_trees_image",
       scratch: "scratch_image",
     },
-    // {
-    //   name: "trees_points",
-    //   kind: "points_grid",
-    //   next: "trees_output",
-    //   // vars
-    //   input: "fbm_trees_image",
-    //   scratch: "scratch_image",
-    // },
+    {
+      name: "generate_trees_points",
+      kind: "points_grid",
+      // next: "output_trees_to_file",
+      // vars
+      points: "trees_points",
+      image: "fbm_trees_image",
+      cell_size: 16,
+      score_min: 0.6,
+    },
     {
       name: "output_heightmap_to_file",
       kind: "heightmap_output",
