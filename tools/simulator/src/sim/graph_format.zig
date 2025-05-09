@@ -8,7 +8,6 @@ const kind_cities = hash("cities");
 const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
 const kind_gradient = hash("gradient");
-const kind_heightmap_output = hash("heightmap_output");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_points_grid = hash("points_grid");
 const kind_poisson = hash("poisson");
@@ -16,6 +15,8 @@ const kind_remap = hash("remap");
 const kind_square = hash("square");
 const kind_terrace = hash("terrace");
 const kind_voronoi = hash("voronoi");
+const kind_write_heightmap = hash("write_heightmap");
+const kind_write_trees = hash("write_trees");
 
 const kind_FbmSettings = hash("FbmSettings");
 const kind_ImageF32 = hash("ImageF32");
@@ -348,12 +349,6 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
             },
-            kind_heightmap_output => {
-                const heightmap = j_node.Object.get("heightmap").?.String;
-                writeLine(writer, "    if (!DRY_RUN) {{", .{});
-                writeLine(writer, "        nodes.heightmap_format.heightmap_format(world_settings, {s});", .{heightmap});
-                writeLine(writer, "    }}", .{});
-            },
             kind_landscape_from_image => {
                 const voronoi = j_node.Object.get("voronoi").?.String;
                 const image = j_node.Object.get("image").?.String;
@@ -442,7 +437,22 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
             },
-            else => {},
+            kind_write_heightmap => {
+                const heightmap = j_node.Object.get("heightmap").?.String;
+                writeLine(writer, "    if (!DRY_RUN) {{", .{});
+                writeLine(writer, "        nodes.heightmap_format.heightmap_format(world_settings, {s});", .{heightmap});
+                writeLine(writer, "    }}", .{});
+            },
+            kind_write_trees => {
+                const heightmap = j_node.Object.get("heightmap").?.String;
+                const trees = j_node.Object.get("heightmap").?.String;
+                writeLine(writer, "    if (!DRY_RUN) {{", .{});
+                writeLine(writer, "        nodes.experiments.write_trees({s}, {s});", .{ heightmap, trees });
+                writeLine(writer, "    }}", .{});
+            },
+            else => {
+                writeLine(writer, "    // Unhandled node type: {s}", .{kind});
+            },
         }
 
         // next

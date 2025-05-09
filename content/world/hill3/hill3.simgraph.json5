@@ -206,7 +206,7 @@
     {
       name: "generate_trees_points",
       kind: "points_grid",
-      // next: "output_trees_to_file",
+      next: "output_trees_to_file",
       // vars
       points: "trees_points",
       image: "fbm_trees_image",
@@ -214,8 +214,14 @@
       score_min: 0.6,
     },
     {
+      name: "output_trees_to_file",
+      kind: "write_trees",
+      // vars
+      heightmap: "heightmap",
+    },
+    {
       name: "output_heightmap_to_file",
-      kind: "heightmap_output",
+      kind: "write_heightmap",
       // vars
       heightmap: "heightmap",
     }
