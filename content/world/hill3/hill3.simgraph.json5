@@ -1,4 +1,7 @@
 {
+  settings: {
+    dry_run: true,
+  },
   variables: [
     {
       name: "world_size",
@@ -81,6 +84,7 @@
     {
       name: "cities",
       kind: "PointList3D",
+      capacity: 100,
     },
     {
       name: "trees_points",
@@ -153,7 +157,7 @@
       name: "fbm_to_heightmap",
       kind: "remap",
       next: [
-        // "generate_water",
+        "generate_water",
         "generate_heightmap_gradient",
         "output_heightmap_to_file"
       ],
@@ -180,6 +184,13 @@
       gradient: "gradient_image",
       heightmap: "heightmap",
       output: "gradient_image",
+    },
+    {
+      name: "generate_water",
+      kind: "water",
+      // vars
+      water: "water_image",
+      heightmap: "heightmap",
     },
     {
       name: "generate_cities",
@@ -218,6 +229,7 @@
       kind: "write_trees",
       // vars
       heightmap: "heightmap",
+      points: "trees_points",
     },
     {
       name: "output_heightmap_to_file",

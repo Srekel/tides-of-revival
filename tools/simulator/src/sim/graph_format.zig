@@ -15,6 +15,7 @@ const kind_remap = hash("remap");
 const kind_square = hash("square");
 const kind_terrace = hash("terrace");
 const kind_voronoi = hash("voronoi");
+const kind_water = hash("water");
 const kind_write_heightmap = hash("write_heightmap");
 const kind_write_trees = hash("write_trees");
 
@@ -100,6 +101,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     const j_root = tree.root;
     const j_nodes = j_root.Object.get("nodes").?;
     const j_vars = j_root.Object.get("variables").?;
+    const j_settings = j_root.Object.get("settings").?;
 
     // imports
     writeLine(writer, "const  std = @import(\"std\");", .{});
@@ -117,7 +119,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     // constants
     writeLine(writer, "", .{});
     writeLine(writer, "// ============ CONSTANTS ============", .{});
-    writeLine(writer, "const DRY_RUN = true;", .{});
+    writeLine(writer, "const DRY_RUN = {};", .{j_settings.Object.get("dry_run").?.Bool});
     writeLine(writer, "const kilometers = if (DRY_RUN) 2 else 16;", .{});
     writeLine(writer, "const preview_size = 512;", .{});
     writeLine(writer, "const preview_size_big = preview_size * 2;", .{});
@@ -244,7 +246,8 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                             writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });
                         },
                         kind_PointList3D => {
-                            writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });
+                            const capacity = j_var.Object.get("capacity").?.Integer;
+                            writeLine(writer, "    {s} = @TypeOf({s}).initCapacity(std.heap.c_allocator, {d}) catch unreachable;", .{ var_name, var_name, capacity });
                         },
                         kind_Voronoi => {
                             writeLine(writer, "    {s} = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;", .{var_name});
@@ -437,6 +440,15 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
             },
+            kind_water => {
+                const water = j_node.Object.get("water").?.String;
+                const heightmap = j_node.Object.get("heightmap").?.String;
+                writeLine(writer, "    nodes.experiments.water({s}, &{s});", .{ water, heightmap });
+                writeLine(writer, "    ", .{});
+                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
+                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
+                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+            },
             kind_write_heightmap => {
                 const heightmap = j_node.Object.get("heightmap").?.String;
                 writeLine(writer, "    if (!DRY_RUN) {{", .{});
@@ -445,9 +457,9 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
             },
             kind_write_trees => {
                 const heightmap = j_node.Object.get("heightmap").?.String;
-                const trees = j_node.Object.get("heightmap").?.String;
+                const points = j_node.Object.get("points").?.String;
                 writeLine(writer, "    if (!DRY_RUN) {{", .{});
-                writeLine(writer, "        nodes.experiments.write_trees({s}, {s});", .{ heightmap, trees });
+                writeLine(writer, "        nodes.experiments.write_trees({s}, {s});", .{ heightmap, points });
                 writeLine(writer, "    }}", .{});
             },
             else => {

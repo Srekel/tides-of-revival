@@ -15,7 +15,7 @@ const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 17;
+pub const node_count = 18;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
@@ -58,6 +58,7 @@ var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_generate_terrace = types.ImageRGBA.square(preview_size);
+var preview_image_generate_water = types.ImageRGBA.square(preview_size);
 var preview_image_generate_cities = types.ImageRGBA.square(preview_size);
 var preview_image_generate_trees_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_trees_square = types.ImageRGBA.square(preview_size);
@@ -78,7 +79,7 @@ pub fn start(ctx: *Context) void {
     scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     water_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
-    cities = @TypeOf(cities).init(std.heap.c_allocator);
+    cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
 
     // Initialize preview images
     preview_image_start.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -92,6 +93,7 @@ pub fn start(ctx: *Context) void {
     preview_image_fbm_to_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_terrace.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_trees_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_trees_square.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -229,8 +231,9 @@ pub fn fbm_to_heightmap(ctx: *Context) void {
     const preview_key = "fbm_to_heightmap.image";
     ctx.previews.putAssumeCapacity(preview_key, .{ .data = preview_image_fbm_to_heightmap.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_heightmap_gradient) catch unreachable;
-    ctx.next_nodes.insert(1, output_heightmap_to_file) catch unreachable;
+    ctx.next_nodes.insert(0, generate_water) catch unreachable;
+    ctx.next_nodes.insert(1, generate_heightmap_gradient) catch unreachable;
+    ctx.next_nodes.insert(2, output_heightmap_to_file) catch unreachable;
 }
 
 pub fn generate_heightmap_gradient(ctx: *Context) void {
@@ -261,6 +264,16 @@ pub fn generate_terrace(ctx: *Context) void {
 
     ctx.next_nodes.insert(0, generate_cities) catch unreachable;
     ctx.next_nodes.insert(1, generate_trees_fbm) catch unreachable;
+}
+
+pub fn generate_water(ctx: *Context) void {
+    nodes.experiments.water(water_image, &heightmap);
+    
+    types.image_preview_f32(heightmap, &preview_image_generate_water);
+    const preview_grid_key = "generate_water.image";
+    ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_image_generate_water.asBytes() });
+
+    // Leaf node
 }
 
 pub fn generate_cities(ctx: *Context) void {
@@ -316,7 +329,7 @@ pub fn generate_trees_points(ctx: *Context) void {
 
 pub fn output_trees_to_file(ctx: *Context) void {
     if (!DRY_RUN) {
-        nodes.experiments.write_trees(heightmap, heightmap);
+        nodes.experiments.write_trees(heightmap, trees_points);
     }
 
     // Leaf node
