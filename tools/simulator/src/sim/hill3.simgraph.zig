@@ -11,14 +11,14 @@ const c_cpp_nodes = @cImport({
 });
 
 // ============ CONSTANTS ============
-const DRY_RUN = true;
+const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
 pub const node_count = 18;
 
 // ============ VARS ============
-const world_size : types.Size2D = .{ .width = 2 * 1024, .height = 2 * 1024 };
+const world_size : types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
 const world_settings : types.WorldSettings = .{ .size = world_size };
 var voronoi : *nodes.voronoi.Voronoi = undefined;
 var voronoi_points : std.ArrayList(types.Vec2) = undefined;

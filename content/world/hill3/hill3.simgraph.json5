@@ -1,13 +1,15 @@
 {
   settings: {
-    dry_run: true,
+    dry_run: false,
   },
   variables: [
     {
       name: "world_size",
       kind: "Size2D",
-      width: 2,
-      height: 2,
+      // width: 2,
+      // height: 2,
+      width: "kilometers",
+      height: "kilometers",
       is_const: true,
     },
     {

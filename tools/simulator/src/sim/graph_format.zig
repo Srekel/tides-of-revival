@@ -180,9 +180,17 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "types.ImageF32.square({s}.width);", .{size});
             },
             kind_Size2D => {
-                const width = j_var.Object.get("width").?.Integer;
-                const height = j_var.Object.get("height").?.Integer;
-                writeLine(writer, ".{{ .width = {any} * 1024, .height = {any} * 1024 }};", .{ width, height });
+                const j_width = j_var.Object.get("width").?;
+                const j_height = j_var.Object.get("height").?;
+                switch (j_width) {
+                    .Integer => {
+                        writeLine(writer, ".{{ .width = {any} * 1024, .height = {any} * 1024 }};", .{ j_width.Integer, j_height.Integer });
+                    },
+                    .String => {
+                        writeLine(writer, ".{{ .width = {str} * 1024, .height = {str} * 1024 }};", .{ j_width.String, j_height.String });
+                    },
+                    else => unreachable,
+                }
             },
             kind_VoronoiSettings => {
                 const seed = j_var.Object.get("seed").?.Integer;
