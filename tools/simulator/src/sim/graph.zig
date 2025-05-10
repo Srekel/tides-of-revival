@@ -3,6 +3,7 @@ const std = @import("std");
 pub const ComputeId = enum(u32) {
     remap,
     square,
+    multiply,
     gradient,
     fbm,
     upsample_blur,

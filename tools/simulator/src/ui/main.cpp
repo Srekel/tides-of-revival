@@ -163,11 +163,11 @@ void runUI(const SimulatorAPI *api)
 		{
 			EnterCriticalSection(&CriticalSectionDequeue);
 			compute_do_it_now = false;
-			if (compute_job.compute_id == 3) // ComputeId.fbm
+			if (compute_job.compute_id == 4) // ComputeId.fbm
 			{
 				g_d3d11.dispatch_float_generate(compute_job);
 			}
-			else if (compute_job.compute_id == 8) // ComputeId.reduce
+			else if (compute_job.compute_id == 9) // ComputeId.reduce
 			{
 				g_d3d11.dispatch_float_reduce(compute_job);
 			}

@@ -1,6 +1,6 @@
 {
   settings: {
-    dry_run: false,
+    dry_run: true,
   },
   variables: [
     {
