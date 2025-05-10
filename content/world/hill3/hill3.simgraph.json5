@@ -1,0 +1,243 @@
+{
+  settings: {
+    dry_run: false,
+  },
+  variables: [
+    {
+      name: "world_size",
+      kind: "Size2D",
+      // width: 2,
+      // height: 2,
+      width: "kilometers",
+      height: "kilometers",
+      is_const: true,
+    },
+    {
+      name: "world_settings",
+      kind: "WorldSettings",
+      size: "world_size",
+      is_const: true,
+    },
+    {
+      name: "voronoi",
+      kind: "Voronoi",
+    },
+    {
+      name: "voronoi_points",
+      kind: "PointList2D",
+    },
+    {
+      name: "voronoi_settings",
+      kind: "VoronoiSettings",
+      seed: 0,
+      size: "world_size",
+      radius: 1,
+      num_relaxations:5,
+    },
+    {
+      name: "fbm_settings",
+      kind: "FbmSettings",
+      seed: 1,
+      frequency: 0.00025,
+      octaves: 8,
+      rect: "world_settings.size",
+      scale: 0.5,
+    },
+    {
+      name: "heightmap",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "heightmap2",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "fbm_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "fbm_trees_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "gradient_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "scratch_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "scratch_image2",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "water_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "cities",
+      kind: "PointList3D",
+      capacity: 100,
+    },
+    {
+      name: "trees_points",
+      kind: "PatchDataPts2d",
+    },
+  ],
+  //////////////////////////////////////
+  //////////////////////////////////////
+  //////////////////////////////////////
+  //////////////////////////////////////
+  nodes: [
+    {
+      name: "start",
+      kind: "start",
+      next: "generate_poisson_for_voronoi",
+    },
+    {
+      name: "exit",
+      kind: "exit",
+    },
+    {
+      name: "generate_poisson_for_voronoi",
+      kind: "poisson",
+      next: "generate_voronoi_map",
+      // vars
+      points: "voronoi_points",
+    },
+    {
+      name: "generate_voronoi_map",
+      kind: "voronoi",
+      next: "generate_landscape_from_image",
+      // vars
+      points: "voronoi_points",
+      settings: "voronoi_settings",
+      voronoi: "voronoi",
+    },
+    {
+      name: "generate_landscape_from_image",
+      kind: "landscape_from_image",
+      next: "generate_contours",
+      // vars
+      image: "content/tides_2.0.png",
+      voronoi: "voronoi",
+    },
+    {
+      name: "generate_contours",
+      kind: "contours",
+      next: "generate_beaches",
+      // vars
+      voronoi: "voronoi",
+    },
+    {
+      name: "generate_beaches",
+      kind: "beaches",
+      next: "generate_fbm",
+      // vars
+      voronoi: "voronoi",
+      downsamples: 3,
+    },
+    {
+      name: "generate_fbm",
+      kind: "fbm",
+      next: "fbm_to_heightmap",
+      // vars
+      output: "fbm_image",
+      // voronoi: "voronoi",
+      // downsamples: 3,
+    },
+    {
+      name: "fbm_to_heightmap",
+      kind: "remap",
+      next: [
+        "generate_water",
+        "generate_heightmap_gradient",
+        "output_heightmap_to_file"
+      ],
+      // vars
+      input: "fbm_image",
+      output: "heightmap",
+    },
+    {
+      name: "generate_heightmap_gradient",
+      kind: "gradient",
+      next: "generate_terrace",
+      // vars
+      input: "heightmap",
+      output: "gradient_image",
+    },
+    {
+      name: "generate_terrace",
+      kind: "terrace",
+      next: [
+        "generate_cities",
+        "generate_trees_fbm",
+      ],
+      // vars
+      gradient: "gradient_image",
+      heightmap: "heightmap",
+      output: "gradient_image",
+    },
+    {
+      name: "generate_water",
+      kind: "water",
+      // vars
+      water: "water_image",
+      heightmap: "heightmap",
+    },
+    {
+      name: "generate_cities",
+      kind: "cities",
+      // vars
+      gradient: "gradient_image",
+      heightmap: "heightmap",
+    },
+    {
+      name: "generate_trees_fbm",
+      kind: "fbm",
+      next: "trees_square",
+      // vars
+      output: "fbm_trees_image",
+    },
+    {
+      name: "trees_square",
+      kind: "square",
+      next: "generate_trees_points",
+      // vars
+      input: "fbm_trees_image",
+      scratch: "scratch_image",
+    },
+    {
+      name: "generate_trees_points",
+      kind: "points_grid",
+      next: "output_trees_to_file",
+      // vars
+      points: "trees_points",
+      image: "fbm_trees_image",
+      cell_size: 16,
+      score_min: 0.6,
+    },
+    {
+      name: "output_trees_to_file",
+      kind: "write_trees",
+      // vars
+      heightmap: "heightmap",
+      points: "trees_points",
+    },
+    {
+      name: "output_heightmap_to_file",
+      kind: "write_heightmap",
+      // vars
+      heightmap: "heightmap",
+    }
+  ],
+}

@@ -13,10 +13,11 @@ const c_cpp_nodes = @cImport({
     @cInclude("world_generator.h");
 });
 
-const DRY_RUN = false;
+const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 
+pub const node_count = 5;
 pub const self: graph.Graph = .{
     .nodes = &.{
         .{
@@ -225,19 +226,9 @@ fn doNode_beaches(ctx: *Context) void {
     ctx.next_nodes.insert(0, doNode_fbm) catch unreachable;
 }
 
-const GenerateFBMSettings = extern struct {
-    width: u32,
-    height: u32,
-    seed: i32,
-    frequency: f32,
-    octaves: u32,
-    scale: f32,
-    _padding: [2]f32,
-};
-
 var preview_fbm_image = types.ImageRGBA.square(preview_size * 2);
 fn doNode_fbm(ctx: *Context) void {
-    const generate_fbm_settings = GenerateFBMSettings{
+    const generate_fbm_settings = compute.GenerateFBMSettings{
         .width = @intCast(fbm_image.size.width),
         .height = @intCast(fbm_image.size.height),
         .seed = fbm_settings.seed,
@@ -346,7 +337,7 @@ fn doNode_fbm_trees(ctx: *Context) void {
 
     // GPU FBM
     {
-        const generate_fbm_settings = GenerateFBMSettings{
+        const generate_fbm_settings = compute.GenerateFBMSettings{
             .width = @intCast(fbm_trees_image.size.width),
             .height = @intCast(fbm_trees_image.size.height),
             .seed = fbm_settings.seed,
