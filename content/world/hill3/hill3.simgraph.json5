@@ -38,7 +38,7 @@
       name: "fbm_settings",
       kind: "FbmSettings",
       seed: 1,
-      frequency: 0.00025,
+      frequency: 0.0005,
       octaves: 8,
       rect: "world_settings.size",
       scale: 0.5,

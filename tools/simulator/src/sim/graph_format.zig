@@ -73,6 +73,15 @@ fn writeLine(writer: anytype, comptime fmt: []const u8, args: anytype) void {
     writer.writeAll("\n") catch unreachable;
 }
 
+fn writePreview(writer: anytype, image_name: []const u8, node_name: []const u8) void {
+    writeLine(writer, "    ", .{});
+    writeLine(writer, "    types.saveImageF32({s}, \"{s}\", false);", .{ image_name, node_name });
+
+    writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ image_name, node_name });
+    writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{node_name});
+    writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{node_name});
+}
+
 // GEN
 pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
@@ -312,9 +321,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    water_image.copy(scratch_image);", .{});
                 writeLine(writer, "    types.saveImageF32(scratch_image, \"water\", false);", .{});
 
-                writeLine(writer, "    types.image_preview_f32(scratch_image, &preview_image_{s});", .{name});
-                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
-                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                writePreview(writer, "scratch_image", name);
             },
             kind_cities => {
                 const gradient = j_node.Object.get("gradient").?.String;
@@ -347,18 +354,20 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    ", .{});
                 writeLine(writer, "    compute.remap(&{s}, &scratch_image, 0, 1);", .{output});
                 writeLine(writer, "    ", .{});
-                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
-                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
-                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                // writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
+                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                writePreview(writer, output, name);
             },
             kind_gradient => {
                 const input = j_node.Object.get("input").?.String;
                 const output = j_node.Object.get("output").?.String;
                 writeLine(writer, "    nodes.gradient.gradient({s}, 1 / world_settings.terrain_height_max, &{s});", .{ input, output });
-                writeLine(writer, "    ", .{});
-                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
-                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
-                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                // writeLine(writer, "    ", .{});
+                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                // writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
+                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                writePreview(writer, output, name);
             },
             kind_landscape_from_image => {
                 const voronoi = j_node.Object.get("voronoi").?.String;
@@ -392,20 +401,22 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
 
                 writeLine(writer, "    {s}.copy({s});", .{ output, input });
                 writeLine(writer, "    {s}.remap(0, world_settings.terrain_height_max);", .{output});
-                writeLine(writer, "    ", .{});
-                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
-                writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
-                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                // writeLine(writer, "    ", .{});
+                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
+                // writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
+                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                writePreview(writer, output, name);
             },
             kind_square => {
                 const input = j_node.Object.get("input").?.String;
                 const scratch = j_node.Object.get("scratch").?.String;
 
                 writeLine(writer, "    compute.square(&{s}, &{s});", .{ input, scratch });
-                writeLine(writer, "    ", .{});
-                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ input, name });
-                writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
-                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                // writeLine(writer, "    ", .{});
+                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ input, name });
+                // writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
+                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                writePreview(writer, input, name);
             },
             kind_terrace => {
                 const heightmap = j_node.Object.get("heightmap").?.String;
@@ -421,10 +432,11 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "            types.saveImageF32({s}, \"{s}\", false);", .{ heightmap, heightmap });
                 writeLine(writer, "        }}", .{});
                 writeLine(writer, "    }}", .{});
-                writeLine(writer, "    ", .{});
-                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
-                writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
-                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                // writeLine(writer, "    ", .{});
+                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
+                // writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
+                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                writePreview(writer, heightmap, name);
             },
             kind_voronoi => {
                 const settings = j_node.Object.get("settings").?.String;
@@ -452,10 +464,11 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const water = j_node.Object.get("water").?.String;
                 const heightmap = j_node.Object.get("heightmap").?.String;
                 writeLine(writer, "    nodes.experiments.water({s}, &{s});", .{ water, heightmap });
-                writeLine(writer, "    ", .{});
-                writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
-                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
-                writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                // writeLine(writer, "    ", .{});
+                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
+                // writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
+                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
+                writePreview(writer, heightmap, name);
             },
             kind_write_heightmap => {
                 const heightmap = j_node.Object.get("heightmap").?.String;

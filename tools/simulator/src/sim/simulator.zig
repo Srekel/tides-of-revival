@@ -39,7 +39,7 @@ fn runSimulation(args: RunSimulationArgs) void {
         _ = ctx.next_nodes.orderedRemove(0);
 
         self.mutex.lock();
-        self.progress.percent += 0.1 * @as(f32, 1.0) / @as(f32, @floatFromInt(node_count));
+        self.progress.percent += @as(f32, 1.0) / @as(f32, @floatFromInt(node_count));
         self.mutex.unlock();
 
         node_function(ctx);

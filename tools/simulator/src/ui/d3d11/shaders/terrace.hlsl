@@ -91,10 +91,10 @@ RWStructuredBuffer<float> g_output_buffer_gradient : register(u1);
 
 
     float varying_score = saturate(
-        1 + 
-        0.5 * sin(DTid.x * 0.0057+DTid.y * 0.005) + 
+        0.025 + 
+        0.5 * sin(DTid.x * 0.00057 + DTid.y * 0.0005) + 
         // sin(DTid.y * 0.005) + 
-        0.5 * cos(DTid.x * 0.0011 + DTid.y * 0.0131)
+        0.5 * cos(DTid.x * 0.00011 + DTid.y * 0.00131)
         // cos(DTid.y * 0.031)
     );
     // varying_score = 1 - (varying_score * varying_score);
