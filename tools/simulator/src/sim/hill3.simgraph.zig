@@ -130,7 +130,7 @@ pub fn generate_voronoi_map(ctx: *Context) void {
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
     const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
-    const preview_grid_key = "generate_voronoi_map.voronoi";
+    const preview_grid_key = "generate_voronoi_map.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size] });
 
     ctx.next_nodes.insert(0, generate_landscape_from_image) catch unreachable;
@@ -144,7 +144,7 @@ pub fn generate_landscape_from_image(ctx: *Context) void {
     cpp_nodes.generate_landscape_from_image(&c_voronoi, "content/tides_2.0.png");
 
     const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
-    const preview_grid_key = "generate_landscape_from_image.voronoi";
+    const preview_grid_key = "generate_landscape_from_image.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size] });
 
     ctx.next_nodes.insert(0, generate_contours) catch unreachable;
@@ -192,7 +192,7 @@ pub fn generate_beaches(ctx: *Context) void {
     water_image.copy(scratch_image);
     types.saveImageF32(scratch_image, "water", false);
     types.image_preview_f32(scratch_image, &preview_image_generate_beaches);
-    const preview_grid_key = "generate_beaches.voronoi";
+    const preview_grid_key = "generate_beaches.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_image_generate_beaches.asBytes() });
 
     ctx.next_nodes.insert(0, generate_fbm) catch unreachable;

@@ -313,7 +313,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    types.saveImageF32(scratch_image, \"water\", false);", .{});
 
                 writeLine(writer, "    types.image_preview_f32(scratch_image, &preview_image_{s});", .{name});
-                writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
+                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
             },
             kind_cities => {
@@ -371,7 +371,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 // preview
                 writeLine(writer, "", .{});
                 writeLine(writer, "    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);", .{});
-                writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
+                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
             },
             kind_points_grid => {
@@ -445,7 +445,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),", .{});
                 writeLine(writer, "    }};", .{});
                 writeLine(writer, "    const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);", .{});
-                writeLine(writer, "    const preview_grid_key = \"{s}.voronoi\";", .{name});
+                writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
             },
             kind_water => {
