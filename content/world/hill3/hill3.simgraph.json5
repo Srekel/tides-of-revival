@@ -44,7 +44,45 @@
       scale: 0.5,
     },
     {
+      name: "fbm_settings_plains",
+      kind: "FbmSettings",
+      seed: 1,
+      frequency: 0.000005,
+      octaves: 5,
+      rect: "world_settings.size",
+      scale: 1.0,
+    },
+    {
+      name: "fbm_settings_mountains",
+      kind: "FbmSettings",
+      seed: 1,
+      frequency: 0.0005,
+      octaves: 8,
+      rect: "world_settings.size",
+      scale: 1.0,
+    },
+    {
       name: "heightmap",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "heightmap_plains",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "heightmap_mountains",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "weight_plains",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "weight_mountains",
       kind: "ImageF32",
       size: "world_settings.size",
     },
@@ -141,10 +179,76 @@
     {
       name: "generate_beaches",
       kind: "beaches",
-      next: "generate_fbm",
+      next: [
+        "generate_heightmap_from_voronoi_cells",
+        "generate_fbm",
+      ],
       // vars
       voronoi: "voronoi",
       downsamples: 3,
+    },
+    {
+      name: "generate_heightmap_from_voronoi_cells",
+      kind: "empty",
+      next: [
+        "generate_heightmap_mountains"
+        "generate_heightmap_plains",
+        "merge_heightmaps",
+      ],
+    },
+    // PLAINS
+    {
+      name: "generate_heightmap_plains",
+      kind: "fbm",
+      next: "generate_voronoi_weight_plains",
+      // vars
+      output: "heightmap_plains",
+    },
+    {
+      name: "generate_voronoi_weight_plains",
+      kind: "voronoi_weight",
+      next: "blur_weight_plains",
+      // vars
+      voronoi: "voronoi",
+      cell_value: "LAND",
+      output: "weight_plains",
+    },
+    {
+      name: "blur_weight_plains",
+      kind: "blur",
+      next: "multiply_heightmap_weight_plains",
+      // vars
+      image: "weight_plains",
+    },
+    {
+      name: "multiply_heightmap_weight_plains",
+      kind: "multiply",
+      next: "remap_heightmap_plains",
+      // vars
+      input0: "heightmap_plains",
+      input1: "weight_plains",
+      output: "heightmap_plains",
+    },
+    {
+      name: "remap_heightmap_plains",
+      kind: "remap",
+      // next: "",
+      // vars
+      image: "heightmap_plains",
+      min_new: 0,
+      max_new: 50,
+    },
+    // END PLAINS
+    {
+      name: "merge_heightmaps",
+      kind: "add",
+      next: "",
+      // vars
+      output: "fbm_image",
+      images: [
+        "heightmap_plains",
+        "heightmap_mountains"
+      ],
     },
     {
       name: "generate_fbm",
