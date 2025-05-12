@@ -5,14 +5,14 @@
 
 cbuffer constant_buffer_0 : register(b0)
 {
+    uint g_in_buffer_width;
+    uint g_in_buffer_height;
     float g_sigma;
     float g_support;
-    float g_sRGB;
-    float _padding;
 };
 
-Texture2D<float4> g_input : register(t0);
-RWTexture2D<float4> g_output : register(u0);
+StructuredBuffer<float> g_input : register(t0);
+RWStructuredBuffer<float> g_output : register(u0);
 
 // #define c_sigma /*$(Variable:Sigma)*/
 // #define c_support /*$(Variable:Support)*/
@@ -44,22 +44,10 @@ float IntegrateGaussian(float x, float sigma)
     return (p2 - p1) / 2.0;
 }
 
-float3 LinearToSRGB(float3 linearCol)
-{
-    float3 sRGBLo = linearCol * 12.92;
-    float3 sRGBHi = (pow(abs(linearCol), float3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) * 1.055) - 0.055;
-    float3 sRGB;
-    sRGB.r = linearCol.r <= 0.0031308 ? sRGBLo.r : sRGBHi.r;
-    sRGB.g = linearCol.g <= 0.0031308 ? sRGBLo.g : sRGBHi.g;
-    sRGB.b = linearCol.b <= 0.0031308 ? sRGBLo.b : sRGBHi.b;
-    return sRGB;
-}
-
 [numthreads(32, 32, 1)] void CSGaussianBlur(uint3 DTid : SV_DispatchThreadID)
 {
     int2 px = DTid.xy;
-    int2 maxPx;
-    g_input.GetDimensions(maxPx.x, maxPx.y);
+    int2 maxPx = int2(g_in_buffer_width, g_in_buffer_height);
     maxPx -= int2(1, 1);
 
     // calculate radius of our blur based on sigma and support percentage
@@ -67,7 +55,7 @@ float3 LinearToSRGB(float3 linearCol)
 
     // initialize values
     float weight = 0.0f;
-    float3 color = float3(0.0f, 0.0f, 0.0f);
+    float output = 0.0f;
 
     // loop horizontally or vertically, as appropriate
     for (int index = -radius; index <= radius; ++index)
@@ -82,17 +70,14 @@ float3 LinearToSRGB(float3 linearCol)
 
         int2 readPx = clamp(px + offset, int2(0, 0), maxPx);
 
-        color += g_input[readPx].rgb * kernel;
+        output += g_input[readPx.x + readPx.y * g_in_buffer_width] * kernel;
         weight += kernel;
     }
 
     // normalize blur
-    color /= weight;
+    output /= weight;
 
-    if (g_sRGB > 0.0f)
-        color = LinearToSRGB(color);
-
-    g_output[px] = float4(color, 1.0f);
+    g_output[px.x + px.y * g_in_buffer_width] = output;
 }
 
 /*
