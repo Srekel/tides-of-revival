@@ -111,6 +111,21 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/terrace.hlsl", "CSTerrace", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    {
+
+        D3D_SHADER_MACRO macros[] = {"BLUR_HORIZONTAL", "", nullptr, nullptr};
+        compile_compute_shader(L"shaders/gaussian_blur.hlsl", "CSGaussianBlur", macros, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+    }
+    {
+
+        D3D_SHADER_MACRO macros[] = {"BLUR_VERTICAL", "", nullptr, nullptr};
+        compile_compute_shader(L"shaders/gaussian_blur.hlsl", "CSGaussianBlur", macros, &m_compute_shaders[m_compute_shader_count]);
+        m_compute_shader_count++;
+    }
+
+    compile_compute_shader(L"shaders/terrace.hlsl", "CSTerrace", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     assert(m_compute_shader_count + 10 < 32);
 
