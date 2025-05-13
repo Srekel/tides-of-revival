@@ -229,7 +229,7 @@ pub fn generate_fbm(ctx: *Context) void {
 
 pub fn fbm_to_heightmap(ctx: *Context) void {
     heightmap.copy(fbm_image);
-    heightmap.remap(0, world_settings.terrain_height_max);
+    compute.remap(heightmap, &scratch_image, 0, world_settings.terrain_height_max);
     
     types.saveImageF32(heightmap, "fbm_to_heightmap", false);
     types.image_preview_f32(heightmap, &preview_image_fbm_to_heightmap);

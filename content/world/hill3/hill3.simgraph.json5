@@ -270,6 +270,8 @@
       // vars
       input: "fbm_image",
       output: "heightmap",
+      new_min: "0",
+      new_max: "world_settings.terrain_height_max",
     },
     {
       name: "generate_heightmap_gradient",

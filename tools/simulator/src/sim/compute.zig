@@ -183,13 +183,31 @@ pub fn square(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
     image_in.swap(image_out);
 }
 
-const MultiplySettings = extern struct {
+const MathSettings = extern struct {
     width: u32,
     height: u32,
     _padding: [2]f32 = undefined,
 };
 
-pub fn multiply(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32) void {
+pub fn math_add(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32) void {
+    std.debug.assert(image_in0.byteCount() == image_in0.byteCount() and image_in0.byteCount() == image_out.byteCount());
+    var in_buffers = [_]*types.ImageF32{ image_in0, image_in1 };
+    var out_buffers = [_]*types.ImageF32{image_out};
+
+    compute_f32_n(
+        .add,
+        in_buffers[0..],
+        out_buffers[0..],
+        MathSettings{
+            .width = @intCast(image_in0.size.width),
+            .height = @intCast(image_in0.size.height),
+        },
+    );
+
+    nodes.math.rerangify(image_out);
+}
+
+pub fn math_multiply(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32) void {
     std.debug.assert(image_in0.byteCount() == image_in0.byteCount() and image_in0.byteCount() == image_out.byteCount());
     var in_buffers = [_]*types.ImageF32{ image_in0, image_in1 };
     var out_buffers = [_]*types.ImageF32{image_out};
@@ -198,7 +216,7 @@ pub fn multiply(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_ou
         .multiply,
         in_buffers[0..],
         out_buffers[0..],
-        MultiplySettings{
+        MathSettings{
             .width = @intCast(image_in0.size.width),
             .height = @intCast(image_in0.size.height),
         },

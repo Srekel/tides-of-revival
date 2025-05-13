@@ -9,6 +9,7 @@ const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
 const kind_gradient = hash("gradient");
 const kind_landscape_from_image = hash("landscape_from_image");
+const kind_math = hash("math");
 const kind_points_grid = hash("points_grid");
 const kind_poisson = hash("poisson");
 const kind_remap = hash("remap");
@@ -383,6 +384,21 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
                 writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_grid[0 .. preview_size * preview_size] }});", .{});
             },
+            kind_math => {
+                const op = j_node.Object.get("op").?.String;
+                const inputs = j_node.Object.get("inputs").?.Array;
+                const output = j_node.Object.get("output").?.String;
+
+                for (0..inputs.items.len - 1) |i| {
+                    writeLine(writer, "   compute.math_{s}( {s}, {s}, &{s});", .{
+                        op,
+                        inputs.items[i].String,
+                        inputs.items[i + 1].String,
+                        output,
+                    });
+                    writePreview(writer, output, name);
+                }
+            },
             kind_points_grid => {
                 const points = j_node.Object.get("points").?.String;
                 const cell_size = j_node.Object.get("cell_size").?.Integer;
@@ -398,9 +414,17 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
             kind_remap => {
                 const input = j_node.Object.get("input").?.String;
                 const output = j_node.Object.get("output").?.String;
+                const new_min = j_node.Object.get("new_min").?.String;
+                const new_max = j_node.Object.get("new_max").?.String;
 
-                writeLine(writer, "    {s}.copy({s});", .{ output, input });
-                writeLine(writer, "    {s}.remap(0, world_settings.terrain_height_max);", .{output});
+                if (std.mem.eql(u8, input, output)) {
+                    writeLine(writer, "    compute.remap(&{s}, &scratch_image, {s}, {s});", .{ input, new_min, new_max });
+                } else {
+                    writeLine(writer, "    {s}.copy({s});", .{ output, input });
+
+                    writeLine(writer, "    compute.remap({s}, &scratch_image, {s}, {s});", .{ output, new_min, new_max });
+                }
+
                 // writeLine(writer, "    ", .{});
                 // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
                 // writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});

@@ -97,8 +97,6 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/square.hlsl", "CSSquare", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/multiply.hlsl", "CSMultiply", nullptr, &m_compute_shaders[m_compute_shader_count]);
-    m_compute_shader_count++;
     compile_compute_shader(L"shaders/gradient.hlsl", "CSGradient", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/fbm.hlsl", "CSGenerateFBM", nullptr, &m_compute_shaders[m_compute_shader_count]);
@@ -110,6 +108,10 @@ bool D3D11::create_device(HWND hwnd)
     compile_compute_shader(L"shaders/downsample.hlsl", "CSDownsample", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/terrace.hlsl", "CSTerrace", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+    compile_compute_shader(L"shaders/multiply.hlsl", "CSMultiply", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+    compile_compute_shader(L"shaders/add.hlsl", "CSAdd", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
     {
 
@@ -123,9 +125,6 @@ bool D3D11::create_device(HWND hwnd)
         compile_compute_shader(L"shaders/gaussian_blur.hlsl", "CSGaussianBlur", macros, &m_compute_shaders[m_compute_shader_count]);
         m_compute_shader_count++;
     }
-
-    compile_compute_shader(L"shaders/terrace.hlsl", "CSTerrace", nullptr, &m_compute_shaders[m_compute_shader_count]);
-    m_compute_shader_count++;
 
     assert(m_compute_shader_count + 10 < 32);
 
