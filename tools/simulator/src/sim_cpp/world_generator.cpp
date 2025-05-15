@@ -174,6 +174,14 @@ static void plot(int x, int y, unsigned char *image, int width, int height, int 
 	}
 }
 
+static void plot_f32(int x, int y, float *image, int width, int height, float color)
+{
+	if (x < 0 || y < 0 || x > (width - 1) || y > (height - 1))
+		return;
+	int index = y * width + x;
+	image[index] = color;
+}
+
 static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_point *v2, unsigned char *image,
 						  int width, int height, int nchannels, unsigned char *color)
 {
@@ -213,15 +221,50 @@ static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_po
 	}
 }
 
+static void draw_triangle_f32(const jcv_point *v0, const jcv_point *v1, const jcv_point *v2, float *image,
+							  int width, int height, float color)
+{
+	int area = orient2d(v0, v1, v2);
+	if (area == 0)
+		return;
+
+	// Compute triangle bounding box
+	int minX = min3((int)v0->x, (int)v1->x, (int)v2->x);
+	int minY = min3((int)v0->y, (int)v1->y, (int)v2->y);
+	int maxX = max3((int)v0->x, (int)v1->x, (int)v2->x);
+	int maxY = max3((int)v0->y, (int)v1->y, (int)v2->y);
+
+	// Clip against screen bounds
+	minX = max2(minX, 0);
+	minY = max2(minY, 0);
+	maxX = min2(maxX, width - 1);
+	maxY = min2(maxY, height - 1);
+
+	// Rasterize
+	jcv_point p;
+	for (p.y = (jcv_real)minY; p.y <= (jcv_real)maxY; p.y++)
+	{
+		for (p.x = (jcv_real)minX; p.x <= (jcv_real)maxX; p.x++)
+		{
+			// Determine barycentric coordinates
+			int w0 = orient2d(v1, v2, &p);
+			int w1 = orient2d(v2, v0, &p);
+			int w2 = orient2d(v0, v1, &p);
+
+			// If p is on or inside all edges, render pixel.
+			if (w0 >= 0 && w1 >= 0 && w2 >= 0)
+			{
+				plot_f32((int)p.x, (int)p.y, image, width, height, color);
+			}
+		}
+	}
+}
+
 unsigned char *generate_landscape_preview(Voronoi *grid, uint32_t image_width, uint32_t image_height)
 {
 	size_t imagesize = (size_t)(image_width * image_height * 4);
 	unsigned char *image = (unsigned char *)malloc(imagesize);
 	memset(image, 0, imagesize);
-
-	unsigned char color_pt[] = {255, 255, 255};
-	unsigned char color_line[] = {220, 220, 220};
-	unsigned char color_delauney[] = {64, 64, 255};
 
 	jcv_point dimensions;
 	dimensions.x = (jcv_real)image_width;
@@ -286,6 +329,55 @@ unsigned char *generate_landscape_preview(Voronoi *grid, uint32_t image_width, u
 		memcpy(&image[y * stride], &image[(image_height - 1 - y) * stride], (size_t)stride);
 		memcpy(&image[(image_height - 1 - y) * stride], row, (size_t)stride);
 	}
+	free(row);
+
+	return image;
+}
+
+float *voronoi_to_imagef32(Voronoi *grid, uint32_t image_width, uint32_t image_height)
+{
+	size_t imagesize = (size_t)(image_width * image_height * sizeof(float));
+	float *image = (float *)malloc(imagesize);
+	memset(image, 0, imagesize);
+
+	jcv_point dimensions;
+	dimensions.x = (jcv_real)image_width;
+	dimensions.y = (jcv_real)image_height;
+
+	{
+		const jcv_site *sites = jcv_diagram_get_sites(&grid->voronoi_grid);
+		for (int i = 0; i < grid->voronoi_grid.numsites; ++i)
+		{
+			const jcv_site *site = &sites[i];
+			srand((unsigned int)site->index);
+
+			const VoronoiCell &cell = grid->voronoi_cells[site->index];
+			const float color = (float)cell.cell_type;
+
+			jcv_point s = remap(&site->p, &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);
+
+			const jcv_graphedge *e = site->edges;
+			while (e)
+			{
+				jcv_point p0 = remap(&e->pos[0], &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);
+				jcv_point p1 = remap(&e->pos[1], &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);
+
+				draw_triangle_f32(&s, &p0, &p1, image, image_width, image_width, color);
+				e = e->next;
+			}
+		}
+	}
+
+	// flip image
+	int stride = image_width * sizeof(float);
+	float *row = (float *)malloc((size_t)stride * sizeof(float));
+	for (int y = 0; y < (int32_t)image_height / 2; ++y)
+	{
+		memcpy(row, &image[y * image_width], (size_t)stride);
+		memcpy(&image[y * image_width], &image[(image_height - 1 - y) * image_width], (size_t)stride);
+		memcpy(&image[(image_height - 1 - y) * image_width], row, (size_t)stride);
+	}
+	free(row);
 
 	return image;
 }

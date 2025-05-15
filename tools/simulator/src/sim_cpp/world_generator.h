@@ -41,3 +41,4 @@ struct VoronoiSettings
 
 typedef void(CPP_NODES_API *PFN_generate_landscape_from_image)(struct Voronoi *grid, const char *image_path);
 typedef unsigned char *(CPP_NODES_API *PFN_generate_landscape_preview)(struct Voronoi *grid, unsigned int image_width, unsigned int image_height);
+typedef float *(CPP_NODES_API *PFN_voronoi_to_imagef32)(struct Voronoi *grid, unsigned int image_width, unsigned int image_height);

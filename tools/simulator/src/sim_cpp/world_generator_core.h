@@ -9,6 +9,7 @@ extern "C"
 
     // NOTE: Utility function, not a mutator
     __declspec(dllexport) unsigned char *generate_landscape_preview(struct Voronoi *grid, unsigned int image_width, unsigned int image_height);
+    __declspec(dllexport) float *voronoi_to_imagef32(struct Voronoi *grid, unsigned int image_width, unsigned int image_height);
 
 #ifdef __cplusplus
 }

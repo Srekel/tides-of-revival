@@ -92,6 +92,10 @@ pub fn Image(ElemType: type) type {
             self.height_max = other.height_max;
         }
 
+        pub fn copyPixels(self: *Self, pixels: [*]ElemType) void {
+            @memcpy(self.pixels, pixels);
+        }
+
         pub fn swap(self: *Self, other: *Self) void {
             std.debug.assert(self.size.eql(other.size));
             const self_copy = self.*;
