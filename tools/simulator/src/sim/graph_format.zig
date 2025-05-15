@@ -74,13 +74,15 @@ fn writeLine(writer: anytype, comptime fmt: []const u8, args: anytype) void {
     writer.writeAll("\n") catch unreachable;
 }
 
+var key: u32 = 0;
 fn writePreview(writer: anytype, image_name: []const u8, node_name: []const u8) void {
     writeLine(writer, "    ", .{});
     writeLine(writer, "    types.saveImageF32({s}, \"{s}\", false);", .{ image_name, node_name });
 
     writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ image_name, node_name });
-    writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{node_name});
-    writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{node_name});
+    writeLine(writer, "    const preview_key_{d} = \"{s}.image\";", .{ key, node_name });
+    writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key_{d}, .{{ .data = preview_image_{s}.asBytes() }});", .{ key, node_name });
+    key += 1;
 }
 
 // GEN
