@@ -424,7 +424,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 } else {
                     writeLine(writer, "    {s}.copy({s});", .{ output, input });
 
-                    writeLine(writer, "    compute.remap({s}, &scratch_image, {s}, {s});", .{ output, new_min, new_max });
+                    writeLine(writer, "    compute.remap(&{s}, &scratch_image, {s}, {s});", .{ output, new_min, new_max });
                 }
 
                 // writeLine(writer, "    ", .{});
