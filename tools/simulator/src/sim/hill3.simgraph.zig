@@ -35,7 +35,25 @@ var fbm_settings : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 0.5,
 };
+var fbm_settings_plains : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
+    .seed = 1,
+    .frequency = 0.000005,
+    .octaves = 5,
+    .rect = types.Rect.createOriginSquare(world_settings.size.width),
+    .scale = 1,
+};
+var fbm_settings_mountains : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
+    .seed = 1,
+    .frequency = 0.0005,
+    .octaves = 8,
+    .rect = types.Rect.createOriginSquare(world_settings.size.width),
+    .scale = 1,
+};
 var heightmap : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap_plains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap_mountains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var weight_plains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var weight_mountains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap2 : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var fbm_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var fbm_trees_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
@@ -72,6 +90,10 @@ pub fn start(ctx: *Context) void {
     voronoi = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;
     voronoi_points = @TypeOf(voronoi_points).init(std.heap.c_allocator);
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    heightmap_plains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    heightmap_mountains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    weight_plains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    weight_mountains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     fbm_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     fbm_trees_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;

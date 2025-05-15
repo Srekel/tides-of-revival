@@ -180,76 +180,78 @@
       name: "generate_beaches",
       kind: "beaches",
       next: [
-        "generate_heightmap_from_voronoi_cells",
+        // "generate_heightmap_from_voronoi_cells",
         "generate_fbm",
       ],
       // vars
       voronoi: "voronoi",
       downsamples: 3,
     },
-    {
-      name: "generate_heightmap_from_voronoi_cells",
-      kind: "empty",
-      next: [
-        "generate_heightmap_mountains"
-        "generate_heightmap_plains",
-        "merge_heightmaps",
-      ],
-    },
-    // PLAINS
-    {
-      name: "generate_heightmap_plains",
-      kind: "fbm",
-      next: "generate_voronoi_weight_plains",
-      // vars
-      output: "heightmap_plains",
-    },
-    {
-      name: "generate_voronoi_weight_plains",
-      kind: "voronoi_weight",
-      next: "blur_weight_plains",
-      // vars
-      voronoi: "voronoi",
-      cell_value: "LAND",
-      output: "weight_plains",
-    },
-    {
-      name: "blur_weight_plains",
-      kind: "blur",
-      next: "multiply_heightmap_weight_plains",
-      // vars
-      image: "weight_plains",
-    },
-    {
-      name: "multiply_heightmap_weight_plains",
-      kind: "multiply",
-      next: "remap_heightmap_plains",
-      // vars
-      input0: "heightmap_plains",
-      input1: "weight_plains",
-      output: "heightmap_plains",
-    },
-    {
-      name: "remap_heightmap_plains",
-      kind: "remap",
-      // next: "",
-      // vars
-      image: "heightmap_plains",
-      min_new: 0,
-      max_new: 50,
-    },
-    // END PLAINS
-    {
-      name: "merge_heightmaps",
-      kind: "add",
-      next: "",
-      // vars
-      output: "fbm_image",
-      images: [
-        "heightmap_plains",
-        "heightmap_mountains"
-      ],
-    },
+    // {
+    //   name: "generate_heightmap_from_voronoi_cells",
+    //   kind: "empty",
+    //   next: [
+    //     "generate_heightmap_mountains",
+    //     "generate_heightmap_plains",
+    //     "merge_heightmaps",
+    //   ],
+    // },
+    // // PLAINS
+    // {
+    //   name: "generate_heightmap_plains",
+    //   kind: "fbm",
+    //   next: "generate_voronoi_weight_plains",
+    //   // vars
+    //   output: "heightmap_plains",
+    // },
+    // {
+    //   name: "generate_voronoi_weight_plains",
+    //   kind: "voronoi_weight",
+    //   next: "blur_weight_plains",
+    //   // vars
+    //   voronoi: "voronoi",
+    //   cell_value: "LAND",
+    //   output: "weight_plains",
+    // },
+    // {
+    //   name: "blur_weight_plains",
+    //   kind: "blur",
+    //   next: "multiply_heightmap_weight_plains",
+    //   // vars
+    //   image: "weight_plains",
+    // },
+    // {
+    //   name: "multiply_heightmap_weight_plains",
+    //   kind: "math",
+    //   next: "remap_heightmap_plains",
+    //   // vars
+    //   op: "multiply",
+    //   inputs: ["heightmap_plains", "weight_plains"],
+    //   output: "heightmap_plains",
+    // },
+    // {
+    //   name: "remap_heightmap_plains",
+    //   kind: "remap",
+    //   // next: "",
+    //   // vars
+    //   input: "heightmap_plains",
+    //   output: "heightmap_plains",
+    //   new_min: "0",
+    //   new_max: "50",
+    // },
+    // // END PLAINS
+    // {
+    //   name: "merge_heightmaps",
+    //   kind: "math",
+    //   // next: "",
+    //   // vars
+    //   op: "add",
+    //   inputs: [
+    //     "heightmap_plains",
+    //     "heightmap_mountains"
+    //   ],
+    //   output: "heightmap",
+    // },
     {
       name: "generate_fbm",
       kind: "fbm",

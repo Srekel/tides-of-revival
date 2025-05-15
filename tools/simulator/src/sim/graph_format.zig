@@ -4,6 +4,7 @@ const json5 = @import("json5.zig");
 
 const kind_start = hash("start");
 const kind_beaches = hash("beaches");
+const kind_blur = hash("blur");
 const kind_cities = hash("cities");
 const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
@@ -325,6 +326,13 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    types.saveImageF32(scratch_image, \"water\", false);", .{});
 
                 writePreview(writer, "scratch_image", name);
+            },
+            kind_blur => {
+                // const gradient = j_node.Object.get("gradient").?.String;
+                // const heightmap = j_node.Object.get("heightmap").?.String;
+                // writeLine(writer, "    if (!DRY_RUN) {{", .{});
+                // writeLine(writer, "        nodes.experiments.cities(world_settings, {s}, {s}, &cities);", .{ heightmap, gradient });
+                // writeLine(writer, "    }}", .{});
             },
             kind_cities => {
                 const gradient = j_node.Object.get("gradient").?.String;
