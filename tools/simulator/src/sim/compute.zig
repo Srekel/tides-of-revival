@@ -259,3 +259,33 @@ pub fn terrace(gradient_in: *types.ImageF32, height_in: *types.ImageF32, height_
     nodes.math.rerangify(&gradient_out_img);
     types.saveImageF32(gradient_out_img, "terrace_score", false);
 }
+
+const RemapData = struct {
+    width: u32,
+    height: u32,
+    curve_keys_count: u32,
+    _padding: u32,
+};
+
+pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_out: *types.ImageF32) void {
+    var curve_image: types.ImageF32 = .{ .size = .{
+        .height = 1,
+        .width = curve.len,
+    } };
+    curve_image.pixels = std.heap.c_allocator.alloc(f32, curve_image.size.width * curve_image.size.height) catch unreachable;
+    defer std.heap.c_allocator.free(curve_image.pixels);
+    curve_image.copyPixels((&curve[0].x)[0 .. curve.len * 2]);
+
+    var in_buffers = [_]*types.ImageF32{ image_in, curve_image };
+    var out_buffers = [_]*types.ImageF32{image_out};
+    compute_f32_n(
+        .terrace,
+        in_buffers[0..],
+        out_buffers[0..],
+        RemapData{
+            .width = @intCast(image_in.size.width),
+            .height = @intCast(image_in.size.height),
+            .curve_keys_count = curve.len,
+        },
+    );
+}

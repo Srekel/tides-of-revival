@@ -169,24 +169,31 @@
     {
       name: "generate_landscape_from_image",
       kind: "landscape_from_image",
-      next: "generate_image_from_voronoi",
+      next: "generate_contours",
       // vars
       image: "content/tides_2.0.png",
       voronoi: "voronoi",
     },
     {
-      name: "generate_image_from_voronoi",
-      kind: "image_from_voronoi",
-      next: "generate_contours",
+      name: "generate_contours",
+      kind: "contours",
+      next: [
+        "generate_beaches", // TODO: Remove
+        "generate_image_from_voronoi",
+      ],
       // vars
-      image: "voronoi_image",
       voronoi: "voronoi",
     },
     {
-      name: "generate_contours",
-      kind: "contours",
-      next: "generate_beaches",
+      name: "generate_image_from_voronoi",
+      kind: "image_from_voronoi",
+      next: [
+        // "generate_heightmap_mountains",
+        "generate_heightmap_plains",
+        // "merge_heightmaps",
+      ],
       // vars
+      image: "voronoi_image",
       voronoi: "voronoi",
     },
     {
@@ -200,31 +207,22 @@
       voronoi: "voronoi",
       downsamples: 3,
     },
-    // {
-    //   name: "generate_heightmap_from_voronoi_cells",
-    //   kind: "empty",
-    //   next: [
-    //     "generate_heightmap_mountains",
-    //     "generate_heightmap_plains",
-    //     "merge_heightmaps",
-    //   ],
-    // },
-    // // PLAINS
-    // {
-    //   name: "generate_heightmap_plains",
-    //   kind: "fbm",
-    //   next: "generate_voronoi_weight_plains",
-    //   // vars
-    //   output: "heightmap_plains",
-    // },
+    // PLAINS
+    {
+      name: "generate_heightmap_plains",
+      kind: "fbm",
+      // next: "generate_voronoi_weight_plains",
+      // vars
+      output: "heightmap_plains",
+    },
     // {
     //   name: "generate_voronoi_weight_plains",
-    //   kind: "voronoi_weight",
-    //   next: "blur_weight_plains",
+    //   kind: "remap_curve",
+    //   // next: "blur_weight_plains",
     //   // vars
-    //   voronoi: "voronoi",
-    //   cell_value: "LAND",
-    //   output: "weight_plains",
+    //   image_in: "voronoi_image",
+    //   curve:[0,0,  1,0,  2,1,  3,0],
+    //   image_out: "weight_plains",
     // },
     // {
     //   name: "blur_weight_plains",

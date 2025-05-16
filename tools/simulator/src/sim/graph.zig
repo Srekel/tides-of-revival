@@ -11,8 +11,9 @@ pub const ComputeId = enum(u32) {
     terrace,
     multiply,
     add,
-    gaussian_blur_horizontal,
+    gaussian_blur_horizontal, // 10
     gaussian_blur_vertical,
+    remap_curve_linear,
     reduce,
 };
 
