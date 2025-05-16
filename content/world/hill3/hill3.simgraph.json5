@@ -62,6 +62,11 @@
       scale: 1.0,
     },
     {
+      name: "voronoi_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
       name: "heightmap",
       kind: "ImageF32",
       size: "world_settings.size",
@@ -164,9 +169,17 @@
     {
       name: "generate_landscape_from_image",
       kind: "landscape_from_image",
-      next: "generate_contours",
+      next: "generate_image_from_voronoi",
       // vars
       image: "content/tides_2.0.png",
+      voronoi: "voronoi",
+    },
+    {
+      name: "generate_image_from_voronoi",
+      kind: "image_from_voronoi",
+      next: "generate_contours",
+      // vars
+      image: "voronoi_image",
       voronoi: "voronoi",
     },
     {

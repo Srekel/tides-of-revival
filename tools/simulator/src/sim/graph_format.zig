@@ -9,6 +9,7 @@ const kind_cities = hash("cities");
 const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
 const kind_gradient = hash("gradient");
+const kind_image_from_voronoi = hash("image_from_voronoi");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_math = hash("math");
 const kind_points_grid = hash("points_grid");
@@ -379,6 +380,19 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 // writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
                 // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
                 writePreview(writer, output, name);
+            },
+            kind_image_from_voronoi => {
+                const voronoi = j_node.Object.get("voronoi").?.String;
+                const image = j_node.Object.get("image").?.String;
+                writeLine(writer, "    var c_voronoi = c_cpp_nodes.Voronoi{{", .{});
+                writeLine(writer, "        .voronoi_grid = {s}.diagram,", .{voronoi});
+                writeLine(writer, "        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),", .{});
+                writeLine(writer, "    }};", .{});
+                writeLine(writer, "", .{});
+                writeLine(writer, "    const imagef32_data = cpp_nodes.voronoi_to_imagef32(&c_voronoi, world_settings.size.width, world_settings.size.height);", .{});
+                writeLine(writer, "    {s}.copyPixels(imagef32_data);", .{image});
+                writeLine(writer, "    nodes.math.rerangify(&{s});", .{image});
+                writePreview(writer, image, name);
             },
             kind_landscape_from_image => {
                 const voronoi = j_node.Object.get("voronoi").?.String;

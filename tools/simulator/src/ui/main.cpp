@@ -49,6 +49,7 @@ const unsigned preview_size = 512;
 Preview gPreviews[] = {
 	{.name = "GenerateVoronoiMap1.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_landscape_from_image.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_image_from_voronoi.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_beaches.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_voronoi_map.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_fbm.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
@@ -167,7 +168,7 @@ void runUI(const SimulatorAPI *api)
 			{
 				g_d3d11.dispatch_float_generate(compute_job);
 			}
-			else if (compute_job.compute_id == 8) // ComputeId.reduce
+			else if (compute_job.compute_id == 12) // ComputeId.reduce
 			{
 				g_d3d11.dispatch_float_reduce(compute_job);
 			}

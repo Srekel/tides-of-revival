@@ -15,7 +15,7 @@ const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 18;
+pub const node_count = 19;
 
 // ============ VARS ============
 const world_size : types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -49,6 +49,7 @@ var fbm_settings_mountains : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
 };
+var voronoi_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap_plains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap_mountains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
@@ -70,6 +71,7 @@ var preview_image_exit = types.ImageRGBA.square(preview_size);
 var preview_image_generate_poisson_for_voronoi = types.ImageRGBA.square(preview_size);
 var preview_image_generate_voronoi_map = types.ImageRGBA.square(preview_size);
 var preview_image_generate_landscape_from_image = types.ImageRGBA.square(preview_size);
+var preview_image_generate_image_from_voronoi = types.ImageRGBA.square(preview_size);
 var preview_image_generate_contours = types.ImageRGBA.square(preview_size);
 var preview_image_generate_beaches = types.ImageRGBA.square(preview_size);
 var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
@@ -89,6 +91,7 @@ pub fn start(ctx: *Context) void {
     // Initialize vars
     voronoi = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;
     voronoi_points = @TypeOf(voronoi_points).init(std.heap.c_allocator);
+    voronoi_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap_plains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap_mountains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
@@ -109,6 +112,7 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_poisson_for_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_voronoi_map.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_landscape_from_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_image_from_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_contours.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_beaches.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -168,6 +172,24 @@ pub fn generate_landscape_from_image(ctx: *Context) void {
     const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
     const preview_grid_key = "generate_landscape_from_image.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size] });
+
+    ctx.next_nodes.insert(0, generate_image_from_voronoi) catch unreachable;
+}
+
+pub fn generate_image_from_voronoi(ctx: *Context) void {
+    var c_voronoi = c_cpp_nodes.Voronoi{
+        .voronoi_grid = voronoi.diagram,
+        .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
+    };
+
+    const imagef32_data = cpp_nodes.voronoi_to_imagef32(&c_voronoi, world_settings.size.width, world_settings.size.height);
+    voronoi_image.copyPixels(imagef32_data);
+    nodes.math.rerangify(&voronoi_image);
+    
+    types.saveImageF32(voronoi_image, "generate_image_from_voronoi", false);
+    types.image_preview_f32(voronoi_image, &preview_image_generate_image_from_voronoi);
+    const preview_key_0 = "generate_image_from_voronoi.image";
+    ctx.previews.putAssumeCapacity(preview_key_0, .{ .data = preview_image_generate_image_from_voronoi.asBytes() });
 
     ctx.next_nodes.insert(0, generate_contours) catch unreachable;
 }
