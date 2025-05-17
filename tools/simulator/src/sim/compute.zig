@@ -143,6 +143,21 @@ pub fn downsample(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
     compute_f32_1(.downsample, image_in, image_out, settings);
 }
 
+const BlurSettings = struct {
+    buffer_width: u32,
+    buffer_height: u32,
+    sigma: f32 = 8.0,
+    support: f32 = 0.995,
+};
+pub fn blur(image_in: *types.ImageF32, scratch: *types.ImageF32, image_out: *types.ImageF32) void {
+    const settings: BlurSettings = .{
+        .buffer_width = @intCast(image_in.size.width),
+        .buffer_height = @intCast(image_in.size.height),
+    };
+    compute_f32_1(.gaussian_blur_horizontal, image_in, scratch, settings);
+    compute_f32_1(.gaussian_blur_vertical, scratch, image_out, settings);
+}
+
 const RemapSettings = extern struct {
     from_min: f32,
     from_max: f32,

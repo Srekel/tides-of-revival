@@ -327,11 +327,16 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writePreview(writer, "scratch_image", name);
             },
             kind_blur => {
-                // const gradient = j_node.Object.get("gradient").?.String;
-                // const heightmap = j_node.Object.get("heightmap").?.String;
-                // writeLine(writer, "    if (!DRY_RUN) {{", .{});
-                // writeLine(writer, "        nodes.experiments.cities(world_settings, {s}, {s}, &cities);", .{ heightmap, gradient });
-                // writeLine(writer, "    }}", .{});
+                const input = j_node.Object.get("input").?.String;
+                const output = j_node.Object.get("output").?.String;
+
+                if (std.mem.eql(u8, input, output)) {
+                    writeLine(writer, "    compute.blur(&{s}, &scratch_image, &{s});", .{ input, output });
+                } else {
+                    writeLine(writer, "    compute.blur(&{s}, &scratch_image, &{s});", .{ input, output });
+                }
+
+                writePreview(writer, output, name);
             },
             kind_cities => {
                 const gradient = j_node.Object.get("gradient").?.String;

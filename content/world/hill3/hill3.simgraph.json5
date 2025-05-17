@@ -218,7 +218,7 @@
     {
       name: "generate_voronoi_weight_plains",
       kind: "remap_curve",
-      // next: "blur_weight_plains",
+      next: "blur_weight_plains",
       // vars
       image_in: "voronoi_image",
       curve:[
@@ -228,13 +228,14 @@
         3.0,0.0],
       image_out: "weight_plains",
     },
-    // {
-    //   name: "blur_weight_plains",
-    //   kind: "blur",
-    //   next: "multiply_heightmap_weight_plains",
-    //   // vars
-    //   image: "weight_plains",
-    // },
+    {
+      name: "blur_weight_plains",
+      kind: "blur",
+      // next: "multiply_heightmap_weight_plains",
+      // vars
+      input: "weight_plains",
+      output: "weight_plains",
+    },
     // {
     //   name: "multiply_heightmap_weight_plains",
     //   kind: "math",
