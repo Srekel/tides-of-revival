@@ -329,14 +329,18 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
             kind_blur => {
                 const input = j_node.Object.get("input").?.String;
                 const output = j_node.Object.get("output").?.String;
+                const j_iterations = j_node.Object.get("itetarations");
+                const iterations: usize = @intCast(if (j_iterations) |j| j.Integer else 1);
 
-                if (std.mem.eql(u8, input, output)) {
-                    writeLine(writer, "    compute.blur(&{s}, &scratch_image, &{s});", .{ input, output });
-                } else {
-                    writeLine(writer, "    compute.blur(&{s}, &scratch_image, &{s});", .{ input, output });
+                // TODO: Fix, this doesn't work
+                for (0..iterations) |_| {
+                    if (std.mem.eql(u8, input, output)) {
+                        writeLine(writer, "    compute.blur(&{s}, &scratch_image, &{s});", .{ input, output });
+                    } else {
+                        writeLine(writer, "    compute.blur(&{s}, &scratch_image, &{s});", .{ input, output });
+                    }
+                    writePreview(writer, output, name);
                 }
-
-                writePreview(writer, output, name);
             },
             kind_cities => {
                 const gradient = j_node.Object.get("gradient").?.String;

@@ -235,6 +235,7 @@
       // vars
       input: "weight_plains",
       output: "weight_plains",
+      iterations: 1,
     },
     // {
     //   name: "multiply_heightmap_weight_plains",
