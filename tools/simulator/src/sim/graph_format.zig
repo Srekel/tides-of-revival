@@ -15,6 +15,7 @@ const kind_math = hash("math");
 const kind_points_grid = hash("points_grid");
 const kind_poisson = hash("poisson");
 const kind_remap = hash("remap");
+const kind_remap_curve = hash("remap_curve");
 const kind_square = hash("square");
 const kind_terrace = hash("terrace");
 const kind_voronoi = hash("voronoi");
@@ -439,6 +440,24 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 }
 
                 writePreview(writer, output, name);
+            },
+            kind_remap_curve => {
+                const image_in = j_node.Object.get("image_in").?.String;
+                const image_out = j_node.Object.get("image_out").?.String;
+                const curve = j_node.Object.get("curve").?.Array;
+
+                writeLine(writer, "    const curve = [_]types.Vec2{{", .{});
+                for (0..curve.items.len / 2) |i_elem| {
+                    const i_elem1 = i_elem * 2;
+                    const i_elem2 = i_elem * 2 + 1;
+                    const v1 = curve.items[i_elem1].Float;
+                    const v2 = curve.items[i_elem2].Float;
+                    writeLine(writer, "        .{{ .x = {d}, .y = {d}}},", .{ v1, v2 });
+                }
+                writeLine(writer, "    }};", .{});
+                writeLine(writer, "    compute.remapCurve(&{s}, &curve, &{s});", .{ image_in, image_out });
+
+                writePreview(writer, image_out, name);
             },
             kind_square => {
                 const input = j_node.Object.get("input").?.String;

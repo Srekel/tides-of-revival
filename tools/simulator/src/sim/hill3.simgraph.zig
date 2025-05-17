@@ -15,7 +15,7 @@ const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 20;
+pub const node_count = 21;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -75,6 +75,7 @@ var preview_image_generate_contours = types.ImageRGBA.square(preview_size);
 var preview_image_generate_image_from_voronoi = types.ImageRGBA.square(preview_size);
 var preview_image_generate_beaches = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_plains = types.ImageRGBA.square(preview_size);
+var preview_image_generate_voronoi_weight_plains = types.ImageRGBA.square(preview_size);
 var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
@@ -117,6 +118,7 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_image_from_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_beaches.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_voronoi_weight_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_fbm_to_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -181,8 +183,8 @@ pub fn generate_landscape_from_image(ctx: *Context) void {
 pub fn generate_contours(ctx: *Context) void {
     nodes.voronoi.contours(voronoi);
 
-    ctx.next_nodes.insert(0, generate_beaches) catch unreachable;
-    ctx.next_nodes.insert(1, generate_image_from_voronoi) catch unreachable;
+    ctx.next_nodes.insert(0, generate_image_from_voronoi) catch unreachable;
+    ctx.next_nodes.insert(1, generate_beaches) catch unreachable;
 }
 
 pub fn generate_image_from_voronoi(ctx: *Context) void {
@@ -268,6 +270,23 @@ pub fn generate_heightmap_plains(ctx: *Context) void {
     types.image_preview_f32(heightmap_plains, &preview_image_generate_heightmap_plains);
     const preview_key_generate_heightmap_plains = "generate_heightmap_plains.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_plains, .{ .data = preview_image_generate_heightmap_plains.asBytes() });
+
+    ctx.next_nodes.insert(0, generate_voronoi_weight_plains) catch unreachable;
+}
+
+pub fn generate_voronoi_weight_plains(ctx: *Context) void {
+    const curve = [_]types.Vec2{
+        .{ .x = 0, .y = 0},
+        .{ .x = 1, .y = 0},
+        .{ .x = 2, .y = 1},
+        .{ .x = 3, .y = 0},
+    };
+    compute.remapCurve(&voronoi_image, &curve, &weight_plains);
+
+    types.saveImageF32(weight_plains, "generate_voronoi_weight_plains", false);
+    types.image_preview_f32(weight_plains, &preview_image_generate_voronoi_weight_plains);
+    const preview_key_generate_voronoi_weight_plains = "generate_voronoi_weight_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_plains, .{ .data = preview_image_generate_voronoi_weight_plains.asBytes() });
 
     // Leaf node
 }

@@ -264,28 +264,31 @@ const RemapData = struct {
     width: u32,
     height: u32,
     curve_keys_count: u32,
-    _padding: u32,
+    _padding: u32 = undefined,
 };
 
 pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_out: *types.ImageF32) void {
     var curve_image: types.ImageF32 = .{ .size = .{
         .height = 1,
-        .width = curve.len,
+        .width = curve.len * 2,
     } };
     curve_image.pixels = std.heap.c_allocator.alloc(f32, curve_image.size.width * curve_image.size.height) catch unreachable;
     defer std.heap.c_allocator.free(curve_image.pixels);
-    curve_image.copyPixels((&curve[0].x)[0 .. curve.len * 2]);
+    const floats = @as([*]const f32, @ptrCast(&curve[0].x));
+    curve_image.copyPixels(floats);
+    // nodes.math.rerangify(&curve_image);
+    // types.saveImageF32(curve_image, "curve_image", false);
 
-    var in_buffers = [_]*types.ImageF32{ image_in, curve_image };
+    var in_buffers = [_]*types.ImageF32{ image_in, &curve_image };
     var out_buffers = [_]*types.ImageF32{image_out};
     compute_f32_n(
-        .terrace,
+        .remap_curve_linear,
         in_buffers[0..],
         out_buffers[0..],
         RemapData{
             .width = @intCast(image_in.size.width),
             .height = @intCast(image_in.size.height),
-            .curve_keys_count = curve.len,
+            .curve_keys_count = @intCast(curve.len),
         },
     );
 }
