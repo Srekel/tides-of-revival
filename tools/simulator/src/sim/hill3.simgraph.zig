@@ -197,8 +197,8 @@ pub fn generate_image_from_voronoi(ctx: *Context) void {
 
     types.saveImageF32(voronoi_image, "generate_image_from_voronoi", false);
     types.image_preview_f32(voronoi_image, &preview_image_generate_image_from_voronoi);
-    const preview_key_0 = "generate_image_from_voronoi.image";
-    ctx.previews.putAssumeCapacity(preview_key_0, .{ .data = preview_image_generate_image_from_voronoi.asBytes() });
+    const preview_key_generate_image_from_voronoi = "generate_image_from_voronoi.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_image_from_voronoi, .{ .data = preview_image_generate_image_from_voronoi.asBytes() });
 
     ctx.next_nodes.insert(0, generate_heightmap_plains) catch unreachable;
 }
@@ -240,8 +240,8 @@ pub fn generate_beaches(ctx: *Context) void {
 
     types.saveImageF32(scratch_image, "generate_beaches", false);
     types.image_preview_f32(scratch_image, &preview_image_generate_beaches);
-    const preview_key_1 = "generate_beaches.image";
-    ctx.previews.putAssumeCapacity(preview_key_1, .{ .data = preview_image_generate_beaches.asBytes() });
+    const preview_key_generate_beaches = "generate_beaches.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_beaches, .{ .data = preview_image_generate_beaches.asBytes() });
 
     ctx.next_nodes.insert(0, generate_fbm) catch unreachable;
 }
@@ -266,8 +266,8 @@ pub fn generate_heightmap_plains(ctx: *Context) void {
 
     types.saveImageF32(heightmap_plains, "generate_heightmap_plains", false);
     types.image_preview_f32(heightmap_plains, &preview_image_generate_heightmap_plains);
-    const preview_key_2 = "generate_heightmap_plains.image";
-    ctx.previews.putAssumeCapacity(preview_key_2, .{ .data = preview_image_generate_heightmap_plains.asBytes() });
+    const preview_key_generate_heightmap_plains = "generate_heightmap_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_plains, .{ .data = preview_image_generate_heightmap_plains.asBytes() });
 
     // Leaf node
 }
@@ -292,8 +292,8 @@ pub fn generate_fbm(ctx: *Context) void {
 
     types.saveImageF32(fbm_image, "generate_fbm", false);
     types.image_preview_f32(fbm_image, &preview_image_generate_fbm);
-    const preview_key_3 = "generate_fbm.image";
-    ctx.previews.putAssumeCapacity(preview_key_3, .{ .data = preview_image_generate_fbm.asBytes() });
+    const preview_key_generate_fbm = "generate_fbm.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_fbm, .{ .data = preview_image_generate_fbm.asBytes() });
 
     ctx.next_nodes.insert(0, fbm_to_heightmap) catch unreachable;
 }
@@ -304,8 +304,8 @@ pub fn fbm_to_heightmap(ctx: *Context) void {
 
     types.saveImageF32(heightmap, "fbm_to_heightmap", false);
     types.image_preview_f32(heightmap, &preview_image_fbm_to_heightmap);
-    const preview_key_4 = "fbm_to_heightmap.image";
-    ctx.previews.putAssumeCapacity(preview_key_4, .{ .data = preview_image_fbm_to_heightmap.asBytes() });
+    const preview_key_fbm_to_heightmap = "fbm_to_heightmap.image";
+    ctx.previews.putAssumeCapacity(preview_key_fbm_to_heightmap, .{ .data = preview_image_fbm_to_heightmap.asBytes() });
 
     ctx.next_nodes.insert(0, generate_water) catch unreachable;
     ctx.next_nodes.insert(1, generate_heightmap_gradient) catch unreachable;
@@ -317,8 +317,8 @@ pub fn generate_heightmap_gradient(ctx: *Context) void {
 
     types.saveImageF32(gradient_image, "generate_heightmap_gradient", false);
     types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient);
-    const preview_key_5 = "generate_heightmap_gradient.image";
-    ctx.previews.putAssumeCapacity(preview_key_5, .{ .data = preview_image_generate_heightmap_gradient.asBytes() });
+    const preview_key_generate_heightmap_gradient = "generate_heightmap_gradient.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_gradient, .{ .data = preview_image_generate_heightmap_gradient.asBytes() });
 
     ctx.next_nodes.insert(0, generate_terrace) catch unreachable;
 }
@@ -337,8 +337,8 @@ pub fn generate_terrace(ctx: *Context) void {
 
     types.saveImageF32(heightmap, "generate_terrace", false);
     types.image_preview_f32(heightmap, &preview_image_generate_terrace);
-    const preview_key_6 = "generate_terrace.image";
-    ctx.previews.putAssumeCapacity(preview_key_6, .{ .data = preview_image_generate_terrace.asBytes() });
+    const preview_key_generate_terrace = "generate_terrace.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_terrace, .{ .data = preview_image_generate_terrace.asBytes() });
 
     ctx.next_nodes.insert(0, generate_cities) catch unreachable;
     ctx.next_nodes.insert(1, generate_trees_fbm) catch unreachable;
@@ -349,8 +349,8 @@ pub fn generate_water(ctx: *Context) void {
 
     types.saveImageF32(heightmap, "generate_water", false);
     types.image_preview_f32(heightmap, &preview_image_generate_water);
-    const preview_key_7 = "generate_water.image";
-    ctx.previews.putAssumeCapacity(preview_key_7, .{ .data = preview_image_generate_water.asBytes() });
+    const preview_key_generate_water = "generate_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_water, .{ .data = preview_image_generate_water.asBytes() });
 
     // Leaf node
 }
@@ -384,8 +384,8 @@ pub fn generate_trees_fbm(ctx: *Context) void {
 
     types.saveImageF32(fbm_trees_image, "generate_trees_fbm", false);
     types.image_preview_f32(fbm_trees_image, &preview_image_generate_trees_fbm);
-    const preview_key_8 = "generate_trees_fbm.image";
-    ctx.previews.putAssumeCapacity(preview_key_8, .{ .data = preview_image_generate_trees_fbm.asBytes() });
+    const preview_key_generate_trees_fbm = "generate_trees_fbm.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_trees_fbm, .{ .data = preview_image_generate_trees_fbm.asBytes() });
 
     ctx.next_nodes.insert(0, trees_square) catch unreachable;
 }
@@ -395,8 +395,8 @@ pub fn trees_square(ctx: *Context) void {
 
     types.saveImageF32(fbm_trees_image, "trees_square", false);
     types.image_preview_f32(fbm_trees_image, &preview_image_trees_square);
-    const preview_key_9 = "trees_square.image";
-    ctx.previews.putAssumeCapacity(preview_key_9, .{ .data = preview_image_trees_square.asBytes() });
+    const preview_key_trees_square = "trees_square.image";
+    ctx.previews.putAssumeCapacity(preview_key_trees_square, .{ .data = preview_image_trees_square.asBytes() });
 
     ctx.next_nodes.insert(0, generate_trees_points) catch unreachable;
 }
