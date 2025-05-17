@@ -220,6 +220,7 @@ pub fn generate_beaches(ctx: *Context) void {
     scratch_image.size.height = preview_size / downsample_divistor;
 
     nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size], &scratch_image);
+    nodes.math.rerangify(&scratch_image);
 
     types.saveImageF32(scratch_image, "water", false);
     const upsamples = std.math.log2(world_size.width / scratch_image.size.width);

@@ -305,6 +305,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    scratch_image.size.height = preview_size / downsample_divistor;", .{});
                 writeLine(writer, "", .{});
                 writeLine(writer, "    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size], &scratch_image);", .{});
+                writeLine(writer, "    nodes.math.rerangify(&scratch_image);", .{});
                 writeLine(writer, "", .{});
 
                 writeLine(writer, "    types.saveImageF32(scratch_image, \"water\", false);", .{});

@@ -92,7 +92,7 @@ pub fn Image(ElemType: type) type {
             self.height_max = other.height_max;
         }
 
-        pub fn copyPixels(self: *Self, pixels: [*]ElemType) void {
+        pub fn copyPixels(self: *Self, pixels: [*]const ElemType) void {
             @memcpy(self.pixels, pixels);
         }
 
