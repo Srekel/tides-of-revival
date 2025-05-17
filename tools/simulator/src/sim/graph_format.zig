@@ -78,7 +78,7 @@ fn writeLine(writer: anytype, comptime fmt: []const u8, args: anytype) void {
 
 var key: u32 = 0;
 fn writePreview(writer: anytype, image_name: []const u8, node_name: []const u8) void {
-    writeLine(writer, "    ", .{});
+    writeLine(writer, "", .{});
     writeLine(writer, "    types.saveImageF32({s}, \"{s}\", false);", .{ image_name, node_name });
 
     writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ image_name, node_name });
@@ -118,7 +118,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     const j_settings = j_root.Object.get("settings").?;
 
     // imports
-    writeLine(writer, "const  std = @import(\"std\");", .{});
+    writeLine(writer, "const std = @import(\"std\");", .{});
     writeLine(writer, "const graph = @import(\"graph.zig\");", .{});
     writeLine(writer, "const Context = graph.Context;", .{});
     writeLine(writer, "const cpp_nodes = @import(\"../sim_cpp/cpp_nodes.zig\");", .{});
@@ -170,7 +170,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
             else => unreachable,
         };
 
-        write(writer, "{s} {s} : {s} = ", .{ if (is_const) "const" else "var", name, kind_type });
+        write(writer, "{s} {s}: {s} = ", .{ if (is_const) "const" else "var", name, kind_type });
 
         switch (hash(kind)) {
             kind_FbmSettings => {
@@ -180,7 +180,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const rect = j_var.Object.get("rect").?.String;
                 const scale = j_var.Object.get("scale").?.Float;
                 writeLine(writer,
-                    \\ nodes.fbm.FbmSettings{{
+                    \\nodes.fbm.FbmSettings{{
                     \\    .seed = {any},
                     \\    .frequency = {d},
                     \\    .octaves = {any},
@@ -212,7 +212,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const radius = j_var.Object.get("radius").?.Integer;
                 const num_relaxations = j_var.Object.get("num_relaxations").?.Integer;
                 writeLine(writer,
-                    \\ {s}{{
+                    \\{s}{{
                     \\    .seed = {any},
                     \\    .size = {s}.width,
                     \\    .radius = {any},
@@ -300,13 +300,11 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "        &c_voronoi,", .{});
                 writeLine(writer, "        preview_size / downsample_divistor,", .{});
                 writeLine(writer, "        preview_size / downsample_divistor,", .{});
-                writeLine(writer, "", .{});
                 writeLine(writer, "    );", .{});
                 writeLine(writer, "    scratch_image.size.width = preview_size / downsample_divistor;", .{});
                 writeLine(writer, "    scratch_image.size.height = preview_size / downsample_divistor;", .{});
                 writeLine(writer, "", .{});
                 writeLine(writer, "    nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size], &scratch_image);", .{});
-                writeLine(writer, "", .{});
                 writeLine(writer, "", .{});
 
                 writeLine(writer, "    types.saveImageF32(scratch_image, \"water\", false);", .{});
@@ -358,27 +356,19 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "        .scale = fbm_settings.scale,", .{});
                 writeLine(writer, "        ._padding = .{{ 0, 0 }},", .{});
                 writeLine(writer, "    }};", .{});
-                writeLine(writer, "    ", .{});
+                writeLine(writer, "", .{});
                 writeLine(writer, "    compute.fbm(&{s}, generate_fbm_settings);", .{output});
                 writeLine(writer, "    compute.min(&{s}, &scratch_image);", .{output});
                 writeLine(writer, "    compute.max(&{s}, &scratch_image);", .{output});
                 writeLine(writer, "    nodes.math.rerangify(&{s});", .{output});
-                writeLine(writer, "    ", .{});
+                writeLine(writer, "", .{});
                 writeLine(writer, "    compute.remap(&{s}, &scratch_image, 0, 1);", .{output});
-                writeLine(writer, "    ", .{});
-                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
-                // writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
-                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
                 writePreview(writer, output, name);
             },
             kind_gradient => {
                 const input = j_node.Object.get("input").?.String;
                 const output = j_node.Object.get("output").?.String;
                 writeLine(writer, "    nodes.gradient.gradient({s}, 1 / world_settings.terrain_height_max, &{s});", .{ input, output });
-                // writeLine(writer, "    ", .{});
-                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
-                // writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
-                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
                 writePreview(writer, output, name);
             },
             kind_image_from_voronoi => {
@@ -428,8 +418,8 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const cell_size = j_node.Object.get("cell_size").?.Integer;
                 const score_min = j_node.Object.get("score_min").?.Float;
                 const image = j_node.Object.get("image").?.String;
-                writeLine(writer, "   {s} = types.PatchDataPts2d.create(1, {s}.size.width / 128, 100, std.heap.c_allocator);", .{ points, image });
-                writeLine(writer, "   nodes.experiments.points_distribution_grid({s}, {d}, .{{ .cell_size = {d}, .size = {s}.size }}, &{s});", .{ image, score_min, cell_size, image, points });
+                writeLine(writer, "    {s} = types.PatchDataPts2d.create(1, {s}.size.width / 128, 100, std.heap.c_allocator);", .{ points, image });
+                writeLine(writer, "    nodes.experiments.points_distribution_grid({s}, {d}, .{{ .cell_size = {d}, .size = {s}.size }}, &{s});", .{ image, score_min, cell_size, image, points });
             },
             kind_poisson => {
                 const points = j_node.Object.get("points").?.String;
@@ -449,10 +439,6 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                     writeLine(writer, "    compute.remap(&{s}, &scratch_image, {s}, {s});", .{ output, new_min, new_max });
                 }
 
-                // writeLine(writer, "    ", .{});
-                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ output, name });
-                // writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
-                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
                 writePreview(writer, output, name);
             },
             kind_square => {
@@ -460,10 +446,6 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const scratch = j_node.Object.get("scratch").?.String;
 
                 writeLine(writer, "    compute.square(&{s}, &{s});", .{ input, scratch });
-                // writeLine(writer, "    ", .{});
-                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ input, name });
-                // writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
-                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
                 writePreview(writer, input, name);
             },
             kind_terrace => {
@@ -480,10 +462,6 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "            types.saveImageF32({s}, \"{s}\", false);", .{ heightmap, heightmap });
                 writeLine(writer, "        }}", .{});
                 writeLine(writer, "    }}", .{});
-                // writeLine(writer, "    ", .{});
-                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
-                // writeLine(writer, "    const preview_key = \"{s}.image\";", .{name});
-                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
                 writePreview(writer, heightmap, name);
             },
             kind_voronoi => {
@@ -512,10 +490,6 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const water = j_node.Object.get("water").?.String;
                 const heightmap = j_node.Object.get("heightmap").?.String;
                 writeLine(writer, "    nodes.experiments.water({s}, &{s});", .{ water, heightmap });
-                // writeLine(writer, "    ", .{});
-                // writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ heightmap, name });
-                // writeLine(writer, "    const preview_grid_key = \"{s}.image\";", .{name});
-                // writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_grid_key, .{{ .data = preview_image_{s}.asBytes() }});", .{name});
                 writePreview(writer, heightmap, name);
             },
             kind_write_heightmap => {

@@ -1,4 +1,4 @@
-const  std = @import("std");
+const std = @import("std");
 const graph = @import("graph.zig");
 const Context = graph.Context;
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
@@ -18,52 +18,52 @@ const preview_size_big = preview_size * 2;
 pub const node_count = 20;
 
 // ============ VARS ============
-const world_size : types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
-const world_settings : types.WorldSettings = .{ .size = world_size };
-var voronoi : *nodes.voronoi.Voronoi = undefined;
-var voronoi_points : std.ArrayList(types.Vec2) = undefined;
-var voronoi_settings : nodes.voronoi.VoronoiSettings =  nodes.voronoi.VoronoiSettings{
+const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
+const world_settings: types.WorldSettings = .{ .size = world_size };
+var voronoi: *nodes.voronoi.Voronoi = undefined;
+var voronoi_points: std.ArrayList(types.Vec2) = undefined;
+var voronoi_settings: nodes.voronoi.VoronoiSettings = nodes.voronoi.VoronoiSettings{
     .seed = 0,
     .size = world_size.width,
     .radius = 1,
     .num_relaxations = 5,
 };
-var fbm_settings : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
+var fbm_settings: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .seed = 1,
     .frequency = 0.0005,
     .octaves = 8,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 0.5,
 };
-var fbm_settings_plains : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
+var fbm_settings_plains: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .seed = 1,
     .frequency = 0.000005,
     .octaves = 5,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
 };
-var fbm_settings_mountains : nodes.fbm.FbmSettings =  nodes.fbm.FbmSettings{
+var fbm_settings_mountains: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .seed = 1,
     .frequency = 0.0005,
     .octaves = 8,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
 };
-var voronoi_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var heightmap : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var heightmap_plains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var heightmap_mountains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var weight_plains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var weight_mountains : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var heightmap2 : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var fbm_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var fbm_trees_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var gradient_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var scratch_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var scratch_image2 : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var water_image : types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var cities : std.ArrayList(types.Vec3) = undefined;
-var trees_points : types.PatchDataPts2d = undefined;
+var voronoi_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap_plains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap_mountains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var weight_plains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var weight_mountains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap2: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var fbm_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var fbm_trees_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var gradient_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var scratch_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var scratch_image2: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var water_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var cities: std.ArrayList(types.Vec3) = undefined;
+var trees_points: types.PatchDataPts2d = undefined;
 
 // ============ PREVIEW IMAGES ============
 var preview_image_start = types.ImageRGBA.square(preview_size);
@@ -194,7 +194,7 @@ pub fn generate_image_from_voronoi(ctx: *Context) void {
     const imagef32_data = cpp_nodes.voronoi_to_imagef32(&c_voronoi, world_settings.size.width, world_settings.size.height);
     voronoi_image.copyPixels(imagef32_data);
     nodes.math.rerangify(&voronoi_image);
-    
+
     types.saveImageF32(voronoi_image, "generate_image_from_voronoi", false);
     types.image_preview_f32(voronoi_image, &preview_image_generate_image_from_voronoi);
     const preview_key_0 = "generate_image_from_voronoi.image";
@@ -215,13 +215,11 @@ pub fn generate_beaches(ctx: *Context) void {
         &c_voronoi,
         preview_size / downsample_divistor,
         preview_size / downsample_divistor,
-
     );
     scratch_image.size.width = preview_size / downsample_divistor;
     scratch_image.size.height = preview_size / downsample_divistor;
 
     nodes.experiments.voronoi_to_water(preview_grid[0 .. preview_size * preview_size], &scratch_image);
-
 
     types.saveImageF32(scratch_image, "water", false);
     const upsamples = std.math.log2(world_size.width / scratch_image.size.width);
@@ -238,7 +236,7 @@ pub fn generate_beaches(ctx: *Context) void {
     }
     water_image.copy(scratch_image);
     types.saveImageF32(scratch_image, "water", false);
-    
+
     types.saveImageF32(scratch_image, "generate_beaches", false);
     types.image_preview_f32(scratch_image, &preview_image_generate_beaches);
     const preview_key_1 = "generate_beaches.image";
@@ -257,15 +255,14 @@ pub fn generate_heightmap_plains(ctx: *Context) void {
         .scale = fbm_settings.scale,
         ._padding = .{ 0, 0 },
     };
-    
+
     compute.fbm(&heightmap_plains, generate_fbm_settings);
     compute.min(&heightmap_plains, &scratch_image);
     compute.max(&heightmap_plains, &scratch_image);
     nodes.math.rerangify(&heightmap_plains);
-    
+
     compute.remap(&heightmap_plains, &scratch_image, 0, 1);
-    
-    
+
     types.saveImageF32(heightmap_plains, "generate_heightmap_plains", false);
     types.image_preview_f32(heightmap_plains, &preview_image_generate_heightmap_plains);
     const preview_key_2 = "generate_heightmap_plains.image";
@@ -284,15 +281,14 @@ pub fn generate_fbm(ctx: *Context) void {
         .scale = fbm_settings.scale,
         ._padding = .{ 0, 0 },
     };
-    
+
     compute.fbm(&fbm_image, generate_fbm_settings);
     compute.min(&fbm_image, &scratch_image);
     compute.max(&fbm_image, &scratch_image);
     nodes.math.rerangify(&fbm_image);
-    
+
     compute.remap(&fbm_image, &scratch_image, 0, 1);
-    
-    
+
     types.saveImageF32(fbm_image, "generate_fbm", false);
     types.image_preview_f32(fbm_image, &preview_image_generate_fbm);
     const preview_key_3 = "generate_fbm.image";
@@ -304,7 +300,7 @@ pub fn generate_fbm(ctx: *Context) void {
 pub fn fbm_to_heightmap(ctx: *Context) void {
     heightmap.copy(fbm_image);
     compute.remap(&heightmap, &scratch_image, 0, world_settings.terrain_height_max);
-    
+
     types.saveImageF32(heightmap, "fbm_to_heightmap", false);
     types.image_preview_f32(heightmap, &preview_image_fbm_to_heightmap);
     const preview_key_4 = "fbm_to_heightmap.image";
@@ -317,7 +313,7 @@ pub fn fbm_to_heightmap(ctx: *Context) void {
 
 pub fn generate_heightmap_gradient(ctx: *Context) void {
     nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
-    
+
     types.saveImageF32(gradient_image, "generate_heightmap_gradient", false);
     types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient);
     const preview_key_5 = "generate_heightmap_gradient.image";
@@ -337,7 +333,7 @@ pub fn generate_terrace(ctx: *Context) void {
             types.saveImageF32(heightmap, "heightmap", false);
         }
     }
-    
+
     types.saveImageF32(heightmap, "generate_terrace", false);
     types.image_preview_f32(heightmap, &preview_image_generate_terrace);
     const preview_key_6 = "generate_terrace.image";
@@ -349,7 +345,7 @@ pub fn generate_terrace(ctx: *Context) void {
 
 pub fn generate_water(ctx: *Context) void {
     nodes.experiments.water(water_image, &heightmap);
-    
+
     types.saveImageF32(heightmap, "generate_water", false);
     types.image_preview_f32(heightmap, &preview_image_generate_water);
     const preview_key_7 = "generate_water.image";
@@ -377,15 +373,14 @@ pub fn generate_trees_fbm(ctx: *Context) void {
         .scale = fbm_settings.scale,
         ._padding = .{ 0, 0 },
     };
-    
+
     compute.fbm(&fbm_trees_image, generate_fbm_settings);
     compute.min(&fbm_trees_image, &scratch_image);
     compute.max(&fbm_trees_image, &scratch_image);
     nodes.math.rerangify(&fbm_trees_image);
-    
+
     compute.remap(&fbm_trees_image, &scratch_image, 0, 1);
-    
-    
+
     types.saveImageF32(fbm_trees_image, "generate_trees_fbm", false);
     types.image_preview_f32(fbm_trees_image, &preview_image_generate_trees_fbm);
     const preview_key_8 = "generate_trees_fbm.image";
@@ -396,7 +391,7 @@ pub fn generate_trees_fbm(ctx: *Context) void {
 
 pub fn trees_square(ctx: *Context) void {
     compute.square(&fbm_trees_image, &scratch_image);
-    
+
     types.saveImageF32(fbm_trees_image, "trees_square", false);
     types.image_preview_f32(fbm_trees_image, &preview_image_trees_square);
     const preview_key_9 = "trees_square.image";
@@ -406,8 +401,8 @@ pub fn trees_square(ctx: *Context) void {
 }
 
 pub fn generate_trees_points(ctx: *Context) void {
-   trees_points = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
-   nodes.experiments.points_distribution_grid(fbm_trees_image, 0.6, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees_points);
+    trees_points = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
+    nodes.experiments.points_distribution_grid(fbm_trees_image, 0.6, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees_points);
 
     ctx.next_nodes.insert(0, output_trees_to_file) catch unreachable;
 }
