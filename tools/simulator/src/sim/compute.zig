@@ -146,7 +146,7 @@ pub fn downsample(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
 const BlurSettings = struct {
     buffer_width: u32,
     buffer_height: u32,
-    sigma: f32 = 8.0,
+    sigma: f32 = 512.0,
     support: f32 = 0.995,
 };
 pub fn blur(image_in: *types.ImageF32, scratch: *types.ImageF32, image_out: *types.ImageF32) void {
@@ -205,7 +205,8 @@ const MathSettings = extern struct {
 };
 
 pub fn math_add(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32) void {
-    std.debug.assert(image_in0.byteCount() == image_in0.byteCount() and image_in0.byteCount() == image_out.byteCount());
+    std.debug.assert(image_in0.byteCount() == image_in1.byteCount() and image_in0.byteCount() == image_out.byteCount());
+    std.debug.assert(image_in0 != image_out and image_in1 != image_out);
     var in_buffers = [_]*types.ImageF32{ image_in0, image_in1 };
     var out_buffers = [_]*types.ImageF32{image_out};
 

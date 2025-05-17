@@ -66,8 +66,8 @@
       name: "fbm_settings_plains",
       kind: "FbmSettings",
       seed: 1,
-      frequency: 0.00005,
-      octaves: 5,
+      frequency: 0.0005,
+      octaves: 6,
       rect: "world_settings.size",
       scale: 1.0,
     },
@@ -256,7 +256,7 @@
     {
       name: "blur_weight_water",
       kind: "blur",
-      next: "multiply_heightmap_weight_water",
+      next: "remap_heightmap_water",
       // vars
       input: "weight_water",
       output: "weight_water",
@@ -265,7 +265,7 @@
     {
       name: "multiply_heightmap_weight_water",
       kind: "math",
-      next: "remap_heightmap_water",
+      // next: "remap_heightmap_water",
       // vars
       op: "multiply",
       inputs: ["heightmap_water", "weight_water"],
@@ -274,7 +274,7 @@
     {
       name: "remap_heightmap_water",
       kind: "remap",
-      // next: "",
+      next: "multiply_heightmap_weight_water",
       // vars
       input: "heightmap_water",
       output: "heightmap_water",
@@ -310,7 +310,7 @@
     {
       name: "blur_weight_plains",
       kind: "blur",
-      next: "multiply_heightmap_weight_plains",
+      next: "remap_heightmap_plains",
       // vars
       input: "weight_plains",
       output: "weight_plains",
@@ -319,7 +319,7 @@
     {
       name: "multiply_heightmap_weight_plains",
       kind: "math",
-      next: "remap_heightmap_plains",
+      // next: "remap_heightmap_plains",
       // vars
       op: "multiply",
       inputs: ["heightmap_plains", "weight_plains"],
@@ -328,11 +328,11 @@
     {
       name: "remap_heightmap_plains",
       kind: "remap",
-      // next: "",
+      next: "multiply_heightmap_weight_plains",
       // vars
       input: "heightmap_plains",
       output: "heightmap_plains",
-      new_min: "50",
+      new_min: "0",
       new_max: "100",
     },
     // END PLAINS
@@ -366,7 +366,7 @@
     {
       name: "blur_weight_mountains",
       kind: "blur",
-      next: "multiply_heightmap_weight_mountains",
+      next: "remap_heightmap_mountains",
       // vars
       input: "weight_mountains",
       output: "weight_mountains",
@@ -375,7 +375,7 @@
     {
       name: "multiply_heightmap_weight_mountains",
       kind: "math",
-      next: "remap_heightmap_mountains",
+      // next: "remap_heightmap_mountains",
       // vars
       op: "multiply",
       inputs: ["heightmap_mountains", "weight_mountains"],
@@ -384,7 +384,7 @@
     {
       name: "remap_heightmap_mountains",
       kind: "remap",
-      // next: "",
+      next: "multiply_heightmap_weight_mountains",
       // vars
       input: "heightmap_mountains",
       output: "heightmap_mountains",

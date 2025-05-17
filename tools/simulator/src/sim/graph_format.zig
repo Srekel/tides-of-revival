@@ -1,6 +1,9 @@
 const std = @import("std");
+const builtin = @import("builtin");
 // const tides_format = @import("tides_format.zig");
 const json5 = @import("json5.zig");
+
+const is_debug = builtin.mode == .Debug;
 
 const kind_start = hash("start");
 const kind_beaches = hash("beaches");
@@ -124,6 +127,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     const j_nodes = j_root.Object.get("nodes").?;
     const j_vars = j_root.Object.get("variables").?;
     const j_settings = j_root.Object.get("settings").?;
+    _ = j_settings; // autofix
 
     // imports
     writeLine(writer, "const std = @import(\"std\");", .{});
@@ -141,7 +145,8 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     // constants
     writeLine(writer, "", .{});
     writeLine(writer, "// ============ CONSTANTS ============", .{});
-    writeLine(writer, "const DRY_RUN = {};", .{j_settings.Object.get("dry_run").?.Bool});
+    // writeLine(writer, "const DRY_RUN = {};", .{j_settings.Object.get("dry_run").?.Bool});
+    writeLine(writer, "const DRY_RUN = {};", .{is_debug});
     writeLine(writer, "const kilometers = if (DRY_RUN) 2 else 16;", .{});
     writeLine(writer, "const preview_size = 512;", .{});
     writeLine(writer, "const preview_size_big = preview_size * 2;", .{});
@@ -422,13 +427,16 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const inputs = j_node.Object.get("inputs").?.Array;
                 const output = j_node.Object.get("output").?.String;
 
-                for (0..inputs.items.len - 1) |i| {
+                writeLine(writer, "    scratch_image.copy({s});", .{inputs.items[0].String});
+
+                for (1..inputs.items.len) |i| {
                     writeLine(writer, "    compute.math_{s}( &{s}, &{s}, &{s});", .{
                         op,
+                        "scratch_image",
                         inputs.items[i].String,
-                        inputs.items[i + 1].String,
                         output,
                     });
+                    writeLine(writer, "    scratch_image.copy({s});", .{output});
                     writePreviewIndexed(writer, output, name, i);
                 }
             },

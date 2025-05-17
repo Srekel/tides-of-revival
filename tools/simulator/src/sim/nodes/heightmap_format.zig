@@ -80,7 +80,19 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
                 };
                 writer.writeStruct(header) catch unreachable;
 
+                const namebufslice = std.fmt.bufPrintZ(
+                    namebuf[0..namebuf.len],
+                    "{s}/{s}_x{}_z{}.heightmap",
+                    .{
+                        folderbufslice,
+                        folder,
+                        lod_patch_x,
+                        lod_patch_z,
+                    },
+                ) catch unreachable;
+
                 if (range_diff == 0) {
+                    std.fs.cwd().deleteFile(namebufslice) catch {};
                     continue; // TODO handle
                 }
 
@@ -150,16 +162,6 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
 
                 std.debug.assert(output_blob.capacity == output_blob.items.len);
 
-                const namebufslice = std.fmt.bufPrintZ(
-                    namebuf[0..namebuf.len],
-                    "{s}/{s}_x{}_z{}.heightmap",
-                    .{
-                        folderbufslice,
-                        folder,
-                        lod_patch_x,
-                        lod_patch_z,
-                    },
-                ) catch unreachable;
                 const file = std.fs.cwd().createFile(namebufslice, .{ .read = true }) catch unreachable;
                 defer file.close();
                 _ = file.writeAll(output_blob.items) catch unreachable;

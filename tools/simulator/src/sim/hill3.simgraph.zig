@@ -11,7 +11,7 @@ const c_cpp_nodes = @cImport({
 });
 
 // ============ CONSTANTS ============
-const DRY_RUN = true;
+const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
@@ -46,8 +46,8 @@ var fbm_settings_water: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
 };
 var fbm_settings_plains: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .seed = 1,
-    .frequency = 0.00005,
-    .octaves = 5,
+    .frequency = 0.0005,
+    .octaves = 6,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
 };
@@ -342,18 +342,20 @@ pub fn blur_weight_water(ctx: *Context) void {
     const preview_key_blur_weight_water = "blur_weight_water.image";
     ctx.previews.putAssumeCapacity(preview_key_blur_weight_water, .{ .data = preview_image_blur_weight_water.asBytes() });
 
-    ctx.next_nodes.insert(0, multiply_heightmap_weight_water) catch unreachable;
+    ctx.next_nodes.insert(0, remap_heightmap_water) catch unreachable;
 }
 
 pub fn multiply_heightmap_weight_water(ctx: *Context) void {
-    compute.math_multiply( &heightmap_water, &weight_water, &heightmap_water);
+    scratch_image.copy(heightmap_water);
+    compute.math_multiply( &scratch_image, &weight_water, &heightmap_water);
+    scratch_image.copy(heightmap_water);
 
     types.saveImageF32(heightmap_water, "multiply_heightmap_weight_water", false);
     types.image_preview_f32(heightmap_water, &preview_image_multiply_heightmap_weight_water);
-    const preview_key_multiply_heightmap_weight_water_0 = "multiply_heightmap_weight_water.image";
-    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_water_0, .{ .data = preview_image_multiply_heightmap_weight_water.asBytes() });
+    const preview_key_multiply_heightmap_weight_water_1 = "multiply_heightmap_weight_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_water_1, .{ .data = preview_image_multiply_heightmap_weight_water.asBytes() });
 
-    ctx.next_nodes.insert(0, remap_heightmap_water) catch unreachable;
+    // Leaf node
 }
 
 pub fn remap_heightmap_water(ctx: *Context) void {
@@ -364,7 +366,7 @@ pub fn remap_heightmap_water(ctx: *Context) void {
     const preview_key_remap_heightmap_water = "remap_heightmap_water.image";
     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_water, .{ .data = preview_image_remap_heightmap_water.asBytes() });
 
-    // Leaf node
+    ctx.next_nodes.insert(0, multiply_heightmap_weight_water) catch unreachable;
 }
 
 pub fn generate_heightmap_plains(ctx: *Context) void {
@@ -419,29 +421,31 @@ pub fn blur_weight_plains(ctx: *Context) void {
     const preview_key_blur_weight_plains = "blur_weight_plains.image";
     ctx.previews.putAssumeCapacity(preview_key_blur_weight_plains, .{ .data = preview_image_blur_weight_plains.asBytes() });
 
-    ctx.next_nodes.insert(0, multiply_heightmap_weight_plains) catch unreachable;
-}
-
-pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
-    compute.math_multiply( &heightmap_plains, &weight_plains, &heightmap_plains);
-
-    types.saveImageF32(heightmap_plains, "multiply_heightmap_weight_plains", false);
-    types.image_preview_f32(heightmap_plains, &preview_image_multiply_heightmap_weight_plains);
-    const preview_key_multiply_heightmap_weight_plains_0 = "multiply_heightmap_weight_plains.image";
-    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains_0, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
-
     ctx.next_nodes.insert(0, remap_heightmap_plains) catch unreachable;
 }
 
+pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
+    scratch_image.copy(heightmap_plains);
+    compute.math_multiply( &scratch_image, &weight_plains, &heightmap_plains);
+    scratch_image.copy(heightmap_plains);
+
+    types.saveImageF32(heightmap_plains, "multiply_heightmap_weight_plains", false);
+    types.image_preview_f32(heightmap_plains, &preview_image_multiply_heightmap_weight_plains);
+    const preview_key_multiply_heightmap_weight_plains_1 = "multiply_heightmap_weight_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains_1, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
+
+    // Leaf node
+}
+
 pub fn remap_heightmap_plains(ctx: *Context) void {
-    compute.remap(&heightmap_plains, &scratch_image, 50, 100);
+    compute.remap(&heightmap_plains, &scratch_image, 0, 100);
 
     types.saveImageF32(heightmap_plains, "remap_heightmap_plains", false);
     types.image_preview_f32(heightmap_plains, &preview_image_remap_heightmap_plains);
     const preview_key_remap_heightmap_plains = "remap_heightmap_plains.image";
     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_plains, .{ .data = preview_image_remap_heightmap_plains.asBytes() });
 
-    // Leaf node
+    ctx.next_nodes.insert(0, multiply_heightmap_weight_plains) catch unreachable;
 }
 
 pub fn generate_heightmap_mountains(ctx: *Context) void {
@@ -496,18 +500,20 @@ pub fn blur_weight_mountains(ctx: *Context) void {
     const preview_key_blur_weight_mountains = "blur_weight_mountains.image";
     ctx.previews.putAssumeCapacity(preview_key_blur_weight_mountains, .{ .data = preview_image_blur_weight_mountains.asBytes() });
 
-    ctx.next_nodes.insert(0, multiply_heightmap_weight_mountains) catch unreachable;
+    ctx.next_nodes.insert(0, remap_heightmap_mountains) catch unreachable;
 }
 
 pub fn multiply_heightmap_weight_mountains(ctx: *Context) void {
-    compute.math_multiply( &heightmap_mountains, &weight_mountains, &heightmap_mountains);
+    scratch_image.copy(heightmap_mountains);
+    compute.math_multiply( &scratch_image, &weight_mountains, &heightmap_mountains);
+    scratch_image.copy(heightmap_mountains);
 
     types.saveImageF32(heightmap_mountains, "multiply_heightmap_weight_mountains", false);
     types.image_preview_f32(heightmap_mountains, &preview_image_multiply_heightmap_weight_mountains);
-    const preview_key_multiply_heightmap_weight_mountains_0 = "multiply_heightmap_weight_mountains.image";
-    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_mountains_0, .{ .data = preview_image_multiply_heightmap_weight_mountains.asBytes() });
+    const preview_key_multiply_heightmap_weight_mountains_1 = "multiply_heightmap_weight_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_mountains_1, .{ .data = preview_image_multiply_heightmap_weight_mountains.asBytes() });
 
-    ctx.next_nodes.insert(0, remap_heightmap_mountains) catch unreachable;
+    // Leaf node
 }
 
 pub fn remap_heightmap_mountains(ctx: *Context) void {
@@ -518,22 +524,25 @@ pub fn remap_heightmap_mountains(ctx: *Context) void {
     const preview_key_remap_heightmap_mountains = "remap_heightmap_mountains.image";
     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_mountains, .{ .data = preview_image_remap_heightmap_mountains.asBytes() });
 
-    // Leaf node
+    ctx.next_nodes.insert(0, multiply_heightmap_weight_mountains) catch unreachable;
 }
 
 pub fn merge_heightmaps(ctx: *Context) void {
-    compute.math_add( &heightmap_water, &heightmap_plains, &heightmap);
-
-    types.saveImageF32(heightmap, "merge_heightmaps", false);
-    types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
-    const preview_key_merge_heightmaps_0 = "merge_heightmaps.image";
-    ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps_0, .{ .data = preview_image_merge_heightmaps.asBytes() });
-    compute.math_add( &heightmap_plains, &heightmap_mountains, &heightmap);
+    scratch_image.copy(heightmap_water);
+    compute.math_add( &scratch_image, &heightmap_plains, &heightmap);
+    scratch_image.copy(heightmap);
 
     types.saveImageF32(heightmap, "merge_heightmaps", false);
     types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
     const preview_key_merge_heightmaps_1 = "merge_heightmaps.image";
     ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps_1, .{ .data = preview_image_merge_heightmaps.asBytes() });
+    compute.math_add( &scratch_image, &heightmap_mountains, &heightmap);
+    scratch_image.copy(heightmap);
+
+    types.saveImageF32(heightmap, "merge_heightmaps", false);
+    types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
+    const preview_key_merge_heightmaps_2 = "merge_heightmaps.image";
+    ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps_2, .{ .data = preview_image_merge_heightmaps.asBytes() });
 
     // Leaf node
 }
