@@ -15,7 +15,7 @@ const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 22;
+pub const node_count = 24;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -77,6 +77,8 @@ var preview_image_generate_beaches = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_plains = types.ImageRGBA.square(preview_size);
 var preview_image_generate_voronoi_weight_plains = types.ImageRGBA.square(preview_size);
 var preview_image_blur_weight_plains = types.ImageRGBA.square(preview_size);
+var preview_image_multiply_heightmap_weight_plains = types.ImageRGBA.square(preview_size);
+var preview_image_remap_heightmap_plains = types.ImageRGBA.square(preview_size);
 var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
@@ -121,6 +123,8 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_heightmap_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_voronoi_weight_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_blur_weight_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_multiply_heightmap_weight_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_remap_heightmap_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_fbm_to_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -300,6 +304,28 @@ pub fn blur_weight_plains(ctx: *Context) void {
     types.image_preview_f32(weight_plains, &preview_image_blur_weight_plains);
     const preview_key_blur_weight_plains = "blur_weight_plains.image";
     ctx.previews.putAssumeCapacity(preview_key_blur_weight_plains, .{ .data = preview_image_blur_weight_plains.asBytes() });
+
+    ctx.next_nodes.insert(0, multiply_heightmap_weight_plains) catch unreachable;
+}
+
+pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
+    compute.math_multiply( &heightmap_plains, &weight_plains, &heightmap_plains);
+
+    types.saveImageF32(heightmap_plains, "multiply_heightmap_weight_plains", false);
+    types.image_preview_f32(heightmap_plains, &preview_image_multiply_heightmap_weight_plains);
+    const preview_key_multiply_heightmap_weight_plains = "multiply_heightmap_weight_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
+
+    ctx.next_nodes.insert(0, remap_heightmap_plains) catch unreachable;
+}
+
+pub fn remap_heightmap_plains(ctx: *Context) void {
+    compute.remap(&heightmap_plains, &scratch_image, 0, 50);
+
+    types.saveImageF32(heightmap_plains, "remap_heightmap_plains", false);
+    types.image_preview_f32(heightmap_plains, &preview_image_remap_heightmap_plains);
+    const preview_key_remap_heightmap_plains = "remap_heightmap_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_plains, .{ .data = preview_image_remap_heightmap_plains.asBytes() });
 
     // Leaf node
 }

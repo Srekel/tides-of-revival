@@ -413,7 +413,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const output = j_node.Object.get("output").?.String;
 
                 for (0..inputs.items.len - 1) |i| {
-                    writeLine(writer, "   compute.math_{s}( {s}, {s}, &{s});", .{
+                    writeLine(writer, "    compute.math_{s}( &{s}, &{s}, &{s});", .{
                         op,
                         inputs.items[i].String,
                         inputs.items[i + 1].String,

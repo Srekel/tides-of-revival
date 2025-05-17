@@ -231,31 +231,31 @@
     {
       name: "blur_weight_plains",
       kind: "blur",
-      // next: "multiply_heightmap_weight_plains",
+      next: "multiply_heightmap_weight_plains",
       // vars
       input: "weight_plains",
       output: "weight_plains",
       iterations: 1,
     },
-    // {
-    //   name: "multiply_heightmap_weight_plains",
-    //   kind: "math",
-    //   next: "remap_heightmap_plains",
-    //   // vars
-    //   op: "multiply",
-    //   inputs: ["heightmap_plains", "weight_plains"],
-    //   output: "heightmap_plains",
-    // },
-    // {
-    //   name: "remap_heightmap_plains",
-    //   kind: "remap",
-    //   // next: "",
-    //   // vars
-    //   input: "heightmap_plains",
-    //   output: "heightmap_plains",
-    //   new_min: "0",
-    //   new_max: "50",
-    // },
+    {
+      name: "multiply_heightmap_weight_plains",
+      kind: "math",
+      next: "remap_heightmap_plains",
+      // vars
+      op: "multiply",
+      inputs: ["heightmap_plains", "weight_plains"],
+      output: "heightmap_plains",
+    },
+    {
+      name: "remap_heightmap_plains",
+      kind: "remap",
+      // next: "",
+      // vars
+      input: "heightmap_plains",
+      output: "heightmap_plains",
+      new_min: "0",
+      new_max: "50",
+    },
     // // END PLAINS
     // {
     //   name: "merge_heightmaps",
