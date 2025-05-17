@@ -67,11 +67,22 @@ Preview gPreviews[] = {
 	{.name = "heightmap_terraced.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "gradient.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "fbm_trees.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_heightmap_water.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_voronoi_weight_water.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "blur_weight_water.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "multiply_heightmap_weight_water.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "remap_heightmap_water.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_heightmap_plains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "generate_voronoi_weight_plains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "blur_weight_plains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "multiply_heightmap_weight_plains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 	{.name = "remap_heightmap_plains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_heightmap_mountains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "generate_voronoi_weight_mountains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "blur_weight_mountains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "multiply_heightmap_weight_mountains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "remap_heightmap_mountains.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
+	{.name = "merge_heightmaps.image", .visible = false, .texture = {.texture = nullptr, .srv = nullptr, .width = preview_size, .height = preview_size, .channel_count = 4}},
 };
 constexpr unsigned PREVIEW_COUNT = sizeof(gPreviews) / sizeof(gPreviews[0]);
 

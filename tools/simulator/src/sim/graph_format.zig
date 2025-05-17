@@ -86,6 +86,15 @@ fn writePreview(writer: anytype, image_name: []const u8, node_name: []const u8) 
     writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key_{s}, .{{ .data = preview_image_{s}.asBytes() }});", .{ node_name, node_name });
 }
 
+fn writePreviewIndexed(writer: anytype, image_name: []const u8, node_name: []const u8, index: usize) void {
+    writeLine(writer, "", .{});
+    writeLine(writer, "    types.saveImageF32({s}, \"{s}\", false);", .{ image_name, node_name });
+
+    writeLine(writer, "    types.image_preview_f32({s}, &preview_image_{s});", .{ image_name, node_name });
+    writeLine(writer, "    const preview_key_{s}_{d} = \"{s}.image\";", .{ node_name, index, node_name });
+    writeLine(writer, "    ctx.previews.putAssumeCapacity(preview_key_{s}_{d}, .{{ .data = preview_image_{s}.asBytes() }});", .{ node_name, index, node_name });
+}
+
 // GEN
 pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
@@ -354,15 +363,16 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    nodes.voronoi.contours({s});", .{voronoi});
             },
             kind_fbm => {
+                const settings = j_node.Object.get("settings").?.String;
                 const output = j_node.Object.get("output").?.String;
 
                 writeLine(writer, "    const generate_fbm_settings = compute.GenerateFBMSettings{{", .{});
                 writeLine(writer, "        .width = @intCast({s}.size.width),", .{output});
                 writeLine(writer, "        .height = @intCast({s}.size.height),", .{output});
-                writeLine(writer, "        .seed = fbm_settings.seed,", .{});
-                writeLine(writer, "        .frequency = fbm_settings.frequency,", .{});
-                writeLine(writer, "        .octaves = fbm_settings.octaves,", .{});
-                writeLine(writer, "        .scale = fbm_settings.scale,", .{});
+                writeLine(writer, "        .seed = {s}.seed,", .{settings});
+                writeLine(writer, "        .frequency = {s}.frequency,", .{settings});
+                writeLine(writer, "        .octaves = {s}.octaves,", .{settings});
+                writeLine(writer, "        .scale = {s}.scale,", .{settings});
                 writeLine(writer, "        ._padding = .{{ 0, 0 }},", .{});
                 writeLine(writer, "    }};", .{});
                 writeLine(writer, "", .{});
@@ -419,7 +429,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                         inputs.items[i + 1].String,
                         output,
                     });
-                    writePreview(writer, output, name);
+                    writePreviewIndexed(writer, output, name, i);
                 }
             },
             kind_points_grid => {

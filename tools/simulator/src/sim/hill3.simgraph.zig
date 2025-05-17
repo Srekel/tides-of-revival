@@ -15,7 +15,7 @@ const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 24;
+pub const node_count = 35;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -35,9 +35,18 @@ var fbm_settings: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 0.5,
 };
+var voronoi_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var fbm_settings_water: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
+    .seed = 1,
+    .frequency = 0.00005,
+    .octaves = 4,
+    .rect = types.Rect.createOriginSquare(world_settings.size.width),
+    .scale = 1,
+};
 var fbm_settings_plains: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .seed = 1,
-    .frequency = 0.000005,
+    .frequency = 0.00005,
     .octaves = 5,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
@@ -49,10 +58,10 @@ var fbm_settings_mountains: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
 };
-var voronoi_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
-var heightmap: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var heightmap_water: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap_plains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap_mountains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
+var weight_water: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var weight_plains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var weight_mountains: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var heightmap2: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
@@ -74,11 +83,22 @@ var preview_image_generate_landscape_from_image = types.ImageRGBA.square(preview
 var preview_image_generate_contours = types.ImageRGBA.square(preview_size);
 var preview_image_generate_image_from_voronoi = types.ImageRGBA.square(preview_size);
 var preview_image_generate_beaches = types.ImageRGBA.square(preview_size);
+var preview_image_generate_heightmap_water = types.ImageRGBA.square(preview_size);
+var preview_image_generate_voronoi_weight_water = types.ImageRGBA.square(preview_size);
+var preview_image_blur_weight_water = types.ImageRGBA.square(preview_size);
+var preview_image_multiply_heightmap_weight_water = types.ImageRGBA.square(preview_size);
+var preview_image_remap_heightmap_water = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_plains = types.ImageRGBA.square(preview_size);
 var preview_image_generate_voronoi_weight_plains = types.ImageRGBA.square(preview_size);
 var preview_image_blur_weight_plains = types.ImageRGBA.square(preview_size);
 var preview_image_multiply_heightmap_weight_plains = types.ImageRGBA.square(preview_size);
 var preview_image_remap_heightmap_plains = types.ImageRGBA.square(preview_size);
+var preview_image_generate_heightmap_mountains = types.ImageRGBA.square(preview_size);
+var preview_image_generate_voronoi_weight_mountains = types.ImageRGBA.square(preview_size);
+var preview_image_blur_weight_mountains = types.ImageRGBA.square(preview_size);
+var preview_image_multiply_heightmap_weight_mountains = types.ImageRGBA.square(preview_size);
+var preview_image_remap_heightmap_mountains = types.ImageRGBA.square(preview_size);
+var preview_image_merge_heightmaps = types.ImageRGBA.square(preview_size);
 var preview_image_generate_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_fbm_to_heightmap = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
@@ -98,8 +118,10 @@ pub fn start(ctx: *Context) void {
     voronoi_points = @TypeOf(voronoi_points).init(std.heap.c_allocator);
     voronoi_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    heightmap_water.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap_plains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap_mountains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    weight_water.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     weight_plains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     weight_mountains.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     heightmap2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
@@ -120,11 +142,22 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_contours.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_image_from_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_beaches.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_heightmap_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_voronoi_weight_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_blur_weight_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_multiply_heightmap_weight_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_remap_heightmap_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_voronoi_weight_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_blur_weight_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_multiply_heightmap_weight_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_remap_heightmap_plains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_heightmap_mountains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_voronoi_weight_mountains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_blur_weight_mountains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_multiply_heightmap_weight_mountains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_remap_heightmap_mountains.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_merge_heightmaps.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_fbm_to_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -190,7 +223,8 @@ pub fn generate_contours(ctx: *Context) void {
     nodes.voronoi.contours(voronoi);
 
     ctx.next_nodes.insert(0, generate_image_from_voronoi) catch unreachable;
-    ctx.next_nodes.insert(1, generate_beaches) catch unreachable;
+    ctx.next_nodes.insert(1, generate_heightmap_gradient) catch unreachable;
+    ctx.next_nodes.insert(2, output_heightmap_to_file) catch unreachable;
 }
 
 pub fn generate_image_from_voronoi(ctx: *Context) void {
@@ -208,7 +242,10 @@ pub fn generate_image_from_voronoi(ctx: *Context) void {
     const preview_key_generate_image_from_voronoi = "generate_image_from_voronoi.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_image_from_voronoi, .{ .data = preview_image_generate_image_from_voronoi.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_heightmap_plains) catch unreachable;
+    ctx.next_nodes.insert(0, generate_heightmap_water) catch unreachable;
+    ctx.next_nodes.insert(1, generate_heightmap_plains) catch unreachable;
+    ctx.next_nodes.insert(2, generate_heightmap_mountains) catch unreachable;
+    ctx.next_nodes.insert(3, merge_heightmaps) catch unreachable;
 }
 
 pub fn generate_beaches(ctx: *Context) void {
@@ -254,14 +291,90 @@ pub fn generate_beaches(ctx: *Context) void {
     ctx.next_nodes.insert(0, generate_fbm) catch unreachable;
 }
 
+pub fn generate_heightmap_water(ctx: *Context) void {
+    const generate_fbm_settings = compute.GenerateFBMSettings{
+        .width = @intCast(heightmap_water.size.width),
+        .height = @intCast(heightmap_water.size.height),
+        .seed = fbm_settings_water.seed,
+        .frequency = fbm_settings_water.frequency,
+        .octaves = fbm_settings_water.octaves,
+        .scale = fbm_settings_water.scale,
+        ._padding = .{ 0, 0 },
+    };
+
+    compute.fbm(&heightmap_water, generate_fbm_settings);
+    compute.min(&heightmap_water, &scratch_image);
+    compute.max(&heightmap_water, &scratch_image);
+    nodes.math.rerangify(&heightmap_water);
+
+    compute.remap(&heightmap_water, &scratch_image, 0, 1);
+
+    types.saveImageF32(heightmap_water, "generate_heightmap_water", false);
+    types.image_preview_f32(heightmap_water, &preview_image_generate_heightmap_water);
+    const preview_key_generate_heightmap_water = "generate_heightmap_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_water, .{ .data = preview_image_generate_heightmap_water.asBytes() });
+
+    ctx.next_nodes.insert(0, generate_voronoi_weight_water) catch unreachable;
+}
+
+pub fn generate_voronoi_weight_water(ctx: *Context) void {
+    const curve = [_]types.Vec2{
+        .{ .x = 0, .y = 0},
+        .{ .x = 1, .y = 1},
+        .{ .x = 2, .y = 0},
+        .{ .x = 3, .y = 0},
+    };
+    compute.remapCurve(&voronoi_image, &curve, &weight_water);
+
+    types.saveImageF32(weight_water, "generate_voronoi_weight_water", false);
+    types.image_preview_f32(weight_water, &preview_image_generate_voronoi_weight_water);
+    const preview_key_generate_voronoi_weight_water = "generate_voronoi_weight_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_water, .{ .data = preview_image_generate_voronoi_weight_water.asBytes() });
+
+    ctx.next_nodes.insert(0, blur_weight_water) catch unreachable;
+}
+
+pub fn blur_weight_water(ctx: *Context) void {
+    compute.blur(&weight_water, &scratch_image, &weight_water);
+
+    types.saveImageF32(weight_water, "blur_weight_water", false);
+    types.image_preview_f32(weight_water, &preview_image_blur_weight_water);
+    const preview_key_blur_weight_water = "blur_weight_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_blur_weight_water, .{ .data = preview_image_blur_weight_water.asBytes() });
+
+    ctx.next_nodes.insert(0, multiply_heightmap_weight_water) catch unreachable;
+}
+
+pub fn multiply_heightmap_weight_water(ctx: *Context) void {
+    compute.math_multiply( &heightmap_water, &weight_water, &heightmap_water);
+
+    types.saveImageF32(heightmap_water, "multiply_heightmap_weight_water", false);
+    types.image_preview_f32(heightmap_water, &preview_image_multiply_heightmap_weight_water);
+    const preview_key_multiply_heightmap_weight_water_0 = "multiply_heightmap_weight_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_water_0, .{ .data = preview_image_multiply_heightmap_weight_water.asBytes() });
+
+    ctx.next_nodes.insert(0, remap_heightmap_water) catch unreachable;
+}
+
+pub fn remap_heightmap_water(ctx: *Context) void {
+    compute.remap(&heightmap_water, &scratch_image, 0, 50);
+
+    types.saveImageF32(heightmap_water, "remap_heightmap_water", false);
+    types.image_preview_f32(heightmap_water, &preview_image_remap_heightmap_water);
+    const preview_key_remap_heightmap_water = "remap_heightmap_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_water, .{ .data = preview_image_remap_heightmap_water.asBytes() });
+
+    // Leaf node
+}
+
 pub fn generate_heightmap_plains(ctx: *Context) void {
     const generate_fbm_settings = compute.GenerateFBMSettings{
         .width = @intCast(heightmap_plains.size.width),
         .height = @intCast(heightmap_plains.size.height),
-        .seed = fbm_settings.seed,
-        .frequency = fbm_settings.frequency,
-        .octaves = fbm_settings.octaves,
-        .scale = fbm_settings.scale,
+        .seed = fbm_settings_plains.seed,
+        .frequency = fbm_settings_plains.frequency,
+        .octaves = fbm_settings_plains.octaves,
+        .scale = fbm_settings_plains.scale,
         ._padding = .{ 0, 0 },
     };
 
@@ -285,7 +398,8 @@ pub fn generate_voronoi_weight_plains(ctx: *Context) void {
         .{ .x = 0, .y = 0},
         .{ .x = 1, .y = 0},
         .{ .x = 2, .y = 1},
-        .{ .x = 3, .y = 0},
+        .{ .x = 3, .y = 1},
+        .{ .x = 4, .y = 0},
     };
     compute.remapCurve(&voronoi_image, &curve, &weight_plains);
 
@@ -313,19 +427,113 @@ pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
 
     types.saveImageF32(heightmap_plains, "multiply_heightmap_weight_plains", false);
     types.image_preview_f32(heightmap_plains, &preview_image_multiply_heightmap_weight_plains);
-    const preview_key_multiply_heightmap_weight_plains = "multiply_heightmap_weight_plains.image";
-    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
+    const preview_key_multiply_heightmap_weight_plains_0 = "multiply_heightmap_weight_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains_0, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_plains) catch unreachable;
 }
 
 pub fn remap_heightmap_plains(ctx: *Context) void {
-    compute.remap(&heightmap_plains, &scratch_image, 0, 50);
+    compute.remap(&heightmap_plains, &scratch_image, 50, 100);
 
     types.saveImageF32(heightmap_plains, "remap_heightmap_plains", false);
     types.image_preview_f32(heightmap_plains, &preview_image_remap_heightmap_plains);
     const preview_key_remap_heightmap_plains = "remap_heightmap_plains.image";
     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_plains, .{ .data = preview_image_remap_heightmap_plains.asBytes() });
+
+    // Leaf node
+}
+
+pub fn generate_heightmap_mountains(ctx: *Context) void {
+    const generate_fbm_settings = compute.GenerateFBMSettings{
+        .width = @intCast(heightmap_mountains.size.width),
+        .height = @intCast(heightmap_mountains.size.height),
+        .seed = fbm_settings_mountains.seed,
+        .frequency = fbm_settings_mountains.frequency,
+        .octaves = fbm_settings_mountains.octaves,
+        .scale = fbm_settings_mountains.scale,
+        ._padding = .{ 0, 0 },
+    };
+
+    compute.fbm(&heightmap_mountains, generate_fbm_settings);
+    compute.min(&heightmap_mountains, &scratch_image);
+    compute.max(&heightmap_mountains, &scratch_image);
+    nodes.math.rerangify(&heightmap_mountains);
+
+    compute.remap(&heightmap_mountains, &scratch_image, 0, 1);
+
+    types.saveImageF32(heightmap_mountains, "generate_heightmap_mountains", false);
+    types.image_preview_f32(heightmap_mountains, &preview_image_generate_heightmap_mountains);
+    const preview_key_generate_heightmap_mountains = "generate_heightmap_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_mountains, .{ .data = preview_image_generate_heightmap_mountains.asBytes() });
+
+    ctx.next_nodes.insert(0, generate_voronoi_weight_mountains) catch unreachable;
+}
+
+pub fn generate_voronoi_weight_mountains(ctx: *Context) void {
+    const curve = [_]types.Vec2{
+        .{ .x = 0, .y = 0},
+        .{ .x = 1, .y = 0},
+        .{ .x = 2, .y = 0},
+        .{ .x = 3, .y = 0},
+        .{ .x = 4, .y = 1},
+    };
+    compute.remapCurve(&voronoi_image, &curve, &weight_mountains);
+
+    types.saveImageF32(weight_mountains, "generate_voronoi_weight_mountains", false);
+    types.image_preview_f32(weight_mountains, &preview_image_generate_voronoi_weight_mountains);
+    const preview_key_generate_voronoi_weight_mountains = "generate_voronoi_weight_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_mountains, .{ .data = preview_image_generate_voronoi_weight_mountains.asBytes() });
+
+    ctx.next_nodes.insert(0, blur_weight_mountains) catch unreachable;
+}
+
+pub fn blur_weight_mountains(ctx: *Context) void {
+    compute.blur(&weight_mountains, &scratch_image, &weight_mountains);
+
+    types.saveImageF32(weight_mountains, "blur_weight_mountains", false);
+    types.image_preview_f32(weight_mountains, &preview_image_blur_weight_mountains);
+    const preview_key_blur_weight_mountains = "blur_weight_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_blur_weight_mountains, .{ .data = preview_image_blur_weight_mountains.asBytes() });
+
+    ctx.next_nodes.insert(0, multiply_heightmap_weight_mountains) catch unreachable;
+}
+
+pub fn multiply_heightmap_weight_mountains(ctx: *Context) void {
+    compute.math_multiply( &heightmap_mountains, &weight_mountains, &heightmap_mountains);
+
+    types.saveImageF32(heightmap_mountains, "multiply_heightmap_weight_mountains", false);
+    types.image_preview_f32(heightmap_mountains, &preview_image_multiply_heightmap_weight_mountains);
+    const preview_key_multiply_heightmap_weight_mountains_0 = "multiply_heightmap_weight_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_mountains_0, .{ .data = preview_image_multiply_heightmap_weight_mountains.asBytes() });
+
+    ctx.next_nodes.insert(0, remap_heightmap_mountains) catch unreachable;
+}
+
+pub fn remap_heightmap_mountains(ctx: *Context) void {
+    compute.remap(&heightmap_mountains, &scratch_image, 20, 1000);
+
+    types.saveImageF32(heightmap_mountains, "remap_heightmap_mountains", false);
+    types.image_preview_f32(heightmap_mountains, &preview_image_remap_heightmap_mountains);
+    const preview_key_remap_heightmap_mountains = "remap_heightmap_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_mountains, .{ .data = preview_image_remap_heightmap_mountains.asBytes() });
+
+    // Leaf node
+}
+
+pub fn merge_heightmaps(ctx: *Context) void {
+    compute.math_add( &heightmap_water, &heightmap_plains, &heightmap);
+
+    types.saveImageF32(heightmap, "merge_heightmaps", false);
+    types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
+    const preview_key_merge_heightmaps_0 = "merge_heightmaps.image";
+    ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps_0, .{ .data = preview_image_merge_heightmaps.asBytes() });
+    compute.math_add( &heightmap_plains, &heightmap_mountains, &heightmap);
+
+    types.saveImageF32(heightmap, "merge_heightmaps", false);
+    types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
+    const preview_key_merge_heightmaps_1 = "merge_heightmaps.image";
+    ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps_1, .{ .data = preview_image_merge_heightmaps.asBytes() });
 
     // Leaf node
 }

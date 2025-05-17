@@ -1,6 +1,6 @@
 {
   settings: {
-    dry_run: true,
+    dry_run: false,
   },
   variables: [
     {
@@ -44,10 +44,29 @@
       scale: 0.5,
     },
     {
+      name: "voronoi_image",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "heightmap",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "fbm_settings_water",
+      kind: "FbmSettings",
+      seed: 1,
+      frequency: 0.00005,
+      octaves: 4,
+      rect: "world_settings.size",
+      scale: 1.0,
+    },
+    {
       name: "fbm_settings_plains",
       kind: "FbmSettings",
       seed: 1,
-      frequency: 0.000005,
+      frequency: 0.00005,
       octaves: 5,
       rect: "world_settings.size",
       scale: 1.0,
@@ -62,12 +81,7 @@
       scale: 1.0,
     },
     {
-      name: "voronoi_image",
-      kind: "ImageF32",
-      size: "world_settings.size",
-    },
-    {
-      name: "heightmap",
+      name: "heightmap_water",
       kind: "ImageF32",
       size: "world_settings.size",
     },
@@ -78,6 +92,11 @@
     },
     {
       name: "heightmap_mountains",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "weight_water",
       kind: "ImageF32",
       size: "world_settings.size",
     },
@@ -179,7 +198,9 @@
       kind: "contours",
       next: [
         "generate_image_from_voronoi",
-        "generate_beaches", // TODO: Remove
+        "generate_heightmap_gradient",
+        "output_heightmap_to_file"
+        // "generate_beaches", // TODO: Remove
       ],
       // vars
       voronoi: "voronoi",
@@ -188,9 +209,10 @@
       name: "generate_image_from_voronoi",
       kind: "image_from_voronoi",
       next: [
-        // "generate_heightmap_mountains",
+        "generate_heightmap_water",
         "generate_heightmap_plains",
-        // "merge_heightmaps",
+        "generate_heightmap_mountains",
+        "merge_heightmaps",
       ],
       // vars
       image: "voronoi_image",
@@ -207,12 +229,67 @@
       voronoi: "voronoi",
       downsamples: 3,
     },
+
+    // WATER
+    {
+      name: "generate_heightmap_water",
+      kind: "fbm",
+      next: "generate_voronoi_weight_water",
+      // vars
+      settings: "fbm_settings_water",
+      output: "heightmap_water",
+    },
+    {
+      name: "generate_voronoi_weight_water",
+      kind: "remap_curve",
+      next: "blur_weight_water",
+      // vars
+      image_in: "voronoi_image",
+      curve:[
+        0.0, 0.0,
+        1.0, 1.0,
+        2.0, 0.0,
+        3.0, 0.0,
+      ],
+      image_out: "weight_water",
+    },
+    {
+      name: "blur_weight_water",
+      kind: "blur",
+      next: "multiply_heightmap_weight_water",
+      // vars
+      input: "weight_water",
+      output: "weight_water",
+      iterations: 1,
+    },
+    {
+      name: "multiply_heightmap_weight_water",
+      kind: "math",
+      next: "remap_heightmap_water",
+      // vars
+      op: "multiply",
+      inputs: ["heightmap_water", "weight_water"],
+      output: "heightmap_water",
+    },
+    {
+      name: "remap_heightmap_water",
+      kind: "remap",
+      // next: "",
+      // vars
+      input: "heightmap_water",
+      output: "heightmap_water",
+      new_min: "0",
+      new_max: "50",
+    },
+    // END WATER
+
     // PLAINS
     {
       name: "generate_heightmap_plains",
       kind: "fbm",
       next: "generate_voronoi_weight_plains",
       // vars
+      settings: "fbm_settings_plains",
       output: "heightmap_plains",
     },
     {
@@ -222,10 +299,12 @@
       // vars
       image_in: "voronoi_image",
       curve:[
-        0.0,0.0,
-        1.0,0.0,
-        2.0,1.0,
-        3.0,0.0],
+        0.0, 0.0,
+        1.0, 0.0,
+        2.0, 1.0,
+        3.0, 1.0,
+        4.0, 0.0,
+      ],
       image_out: "weight_plains",
     },
     {
@@ -253,27 +332,86 @@
       // vars
       input: "heightmap_plains",
       output: "heightmap_plains",
-      new_min: "0",
-      new_max: "50",
+      new_min: "50",
+      new_max: "100",
     },
-    // // END PLAINS
-    // {
-    //   name: "merge_heightmaps",
-    //   kind: "math",
-    //   // next: "",
-    //   // vars
-    //   op: "add",
-    //   inputs: [
-    //     "heightmap_plains",
-    //     "heightmap_mountains"
-    //   ],
-    //   output: "heightmap",
-    // },
+    // END PLAINS
+
+
+
+    // MOUNTAINS
+    {
+      name: "generate_heightmap_mountains",
+      kind: "fbm",
+      next: "generate_voronoi_weight_mountains",
+      // vars
+      settings: "fbm_settings_mountains",
+      output: "heightmap_mountains",
+    },
+    {
+      name: "generate_voronoi_weight_mountains",
+      kind: "remap_curve",
+      next: "blur_weight_mountains",
+      // vars
+      image_in: "voronoi_image",
+      curve:[
+        0.0, 0.0,
+        1.0, 0.0,
+        2.0, 0.0,
+        3.0, 0.0,
+        4.0, 1.0,
+      ],
+      image_out: "weight_mountains",
+    },
+    {
+      name: "blur_weight_mountains",
+      kind: "blur",
+      next: "multiply_heightmap_weight_mountains",
+      // vars
+      input: "weight_mountains",
+      output: "weight_mountains",
+      iterations: 1,
+    },
+    {
+      name: "multiply_heightmap_weight_mountains",
+      kind: "math",
+      next: "remap_heightmap_mountains",
+      // vars
+      op: "multiply",
+      inputs: ["heightmap_mountains", "weight_mountains"],
+      output: "heightmap_mountains",
+    },
+    {
+      name: "remap_heightmap_mountains",
+      kind: "remap",
+      // next: "",
+      // vars
+      input: "heightmap_mountains",
+      output: "heightmap_mountains",
+      new_min: "20",
+      new_max: "1000",
+    },
+    // END MOUNTAINS
+
+    {
+      name: "merge_heightmaps",
+      kind: "math",
+      // next: "",
+      // vars
+      op: "add",
+      inputs: [
+        "heightmap_water",
+        "heightmap_plains",
+        "heightmap_mountains"
+      ],
+      output: "heightmap",
+    },
     {
       name: "generate_fbm",
       kind: "fbm",
       next: "fbm_to_heightmap",
       // vars
+      settings: "fbm_settings",
       output: "fbm_image",
       // voronoi: "voronoi",
       // downsamples: 3,
@@ -331,6 +469,7 @@
       kind: "fbm",
       next: "trees_square",
       // vars
+      settings: "fbm_settings",
       output: "fbm_trees_image",
     },
     {
