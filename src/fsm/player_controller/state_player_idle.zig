@@ -68,11 +68,11 @@ pub fn create(create_ctx: StateContext) void {
     }
 }
 
+var boost_active_time: f64 = 0;
+var boost_next_cooldown: f64 = 0;
 fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: f32, input_state: *const input.FrameData) void {
     const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
-    _ = environment_info; // autofix
-    // const boosting = state.boost_active_time > environment_info.world_time;
-    const boosting = false;
+    const boosting = boost_active_time > environment_info.world_time;
 
     var speed_scalar: f32 = 1.7;
     if (input_state.held(config.input.move_fast)) {
@@ -83,7 +83,7 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
 
     speed_scalar *= 2.0;
     if (boosting) {
-        speed_scalar = 250;
+        speed_scalar = 500;
     }
 
     if (!boosting) {
@@ -93,10 +93,10 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         const rot_new = zm.qmul(rot_in, rot_yaw);
         rot.fromZM(rot_new);
 
-        // if (input_state.just_pressed(config.input.interact) and state.boost_next_cooldown < environment_info.world_time) {
-        //     state.boost_next_cooldown = environment_info.world_time + 0.2;
-        //     state.boost_active_time = environment_info.world_time + 1;
-        // }
+        if (input_state.just_pressed(config.input.interact) and boost_next_cooldown < environment_info.world_time) {
+            boost_next_cooldown = environment_info.world_time + 0.2;
+            boost_active_time = environment_info.world_time + 1;
+        }
     }
 
     const speed = zm.f32x4s(speed_scalar);
