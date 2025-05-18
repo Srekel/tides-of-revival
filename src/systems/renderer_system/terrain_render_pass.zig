@@ -146,8 +146,8 @@ pub const TerrainRenderPass = struct {
                         .patch_index = [2]u32{ patch_x, patch_y },
                         .bounding_sphere_center = undefined,
                         .bounding_sphere_radius = 0.0,
-                        .heightmap_handle = null,
-                        .normalmap_handle = null,
+                        .heightmap_handle = renderer.TextureHandle.nil,
+                        .normalmap_handle = renderer.TextureHandle.nil,
                     });
                 }
             }
@@ -349,7 +349,7 @@ pub const TerrainRenderPass = struct {
     }
 
     fn loadNodeHeightmap(self: *TerrainRenderPass, node: *QuadTreeNode) !void {
-        if (node.heightmap_handle != null) {
+        if (node.heightmap_handle.id != renderer.TextureHandle.nil.id) {
             return;
         }
 
@@ -387,7 +387,7 @@ pub const TerrainRenderPass = struct {
 
             node.heightmap_handle = self.renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
 
-            if (node.normalmap_handle != null) {
+            if (node.normalmap_handle.id != renderer.TextureHandle.nil.id) {
                 return;
             }
 
@@ -417,8 +417,8 @@ pub const TerrainRenderPass = struct {
             }
 
             const normal_info = NormalInfo{
-                .heightmap_handle = node.heightmap_handle.?,
-                .normalmap_handle = node.normalmap_handle.?,
+                .heightmap_handle = node.heightmap_handle,
+                .normalmap_handle = node.normalmap_handle,
                 .texture_resolution = 65,
                 .lod = node.mesh_lod,
             };
@@ -548,7 +548,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 }
 
 fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Shadow Map: Terrain Render Pass", 0x00_ff_ff_00);
+    const trazy_zone = ztracy.ZoneNC(@src(), "Z PrePass: Terrain Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
@@ -567,6 +567,9 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Update frame buffer
     {
+        const trazy_zone_2 = ztracy.ZoneNC(@src(), "frame buffer", 0x00_ff_ff_00);
+        defer trazy_zone_2.End();
+
         var uniform_frame_data = std.mem.zeroes(UniformFrameData);
         zm.storeMat(&uniform_frame_data.projection_view, z_proj_view);
         zm.storeMat(&uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
@@ -583,6 +586,8 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Update material buffer
     {
+        const trazy_zone_2 = ztracy.ZoneNC(@src(), "material buffer", 0x00_ff_ff_00);
+        defer trazy_zone_2.End();
         var terrain_material_data: [4]TerrainLayerMaterial = undefined;
         for (self.terrain_material.layers, 0..) |layer, i| {
             terrain_material_data[i] = .{
@@ -605,6 +610,8 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const arena = arena_state.allocator();
 
     if (self.normals_to_generate.items.len > 0) {
+        const trazy_zone_2 = ztracy.ZoneNC(@src(), "generate normals", 0x00_ff_ff_00);
+        defer trazy_zone_2.End();
         const pipeline_id = IdLocal.init("normal_from_height");
         const pipeline = self.renderer.getPSO(pipeline_id);
         const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -640,6 +647,8 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.normals_to_generate.clearRetainingCapacity();
 
     {
+        const trazy_zone_2 = ztracy.ZoneNC(@src(), "collectQuadsToRenderForSector", 0x00_ff_ff_00);
+        defer trazy_zone_2.End();
         const camera_point = [2]f32{ camera_position[0], camera_position[2] };
 
         var sector_index: u32 = 0;
@@ -659,6 +668,8 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     self.frame_instance_count = 0;
     {
+        const trazy_zone_2 = ztracy.ZoneNC(@src(), "Culling", 0x00_ff_ff_00);
+        defer trazy_zone_2.End();
         const nodes_count: i32 = @intCast(self.quads_to_render.items.len);
         var node_index: i32 = nodes_count - 1;
 
@@ -683,8 +694,8 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 zm.storeMat(&self.instance_data[instance_index].object_to_world, z_world);
 
                 // TODO: Generate from quad.patch_index
-                self.instance_data[instance_index].heightmap_index = self.renderer.getTextureBindlessIndex(quad.heightmap_handle.?);
-                self.instance_data[instance_index].normalmap_index = self.renderer.getTextureBindlessIndex(quad.normalmap_handle.?);
+                self.instance_data[instance_index].heightmap_index = self.renderer.getTextureBindlessIndex(quad.heightmap_handle);
+                self.instance_data[instance_index].normalmap_index = self.renderer.getTextureBindlessIndex(quad.normalmap_handle);
 
                 self.instance_data[instance_index].lod = quad.mesh_lod;
                 self.instance_data[instance_index].padding1 = 42;
@@ -695,6 +706,9 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 
     if (self.frame_instance_count > 0) {
+        const trazy_zone_2 = ztracy.ZoneNC(@src(), "Drawing", 0x00_ff_ff_00);
+        defer trazy_zone_2.End();
+
         std.debug.assert(self.frame_instance_count <= max_instances);
         const data_slice = renderer.Slice{
             .data = @ptrCast(self.instance_data),
@@ -750,13 +764,17 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
     }
 
+    const trazy_zone_loadNodeHeightmap = ztracy.ZoneNC(@src(), "loadNodeHeightmap", 0x00_ff_ff_00);
     for (self.quads_to_load.items) |quad_index| {
         const node = &self.terrain_quad_tree_nodes.items[quad_index];
         self.loadNodeHeightmap(node) catch unreachable;
     }
+    trazy_zone_loadNodeHeightmap.End();
 
     // Load high-lod patches near camera
     if (tides_math.dist3_xz(self.cam_pos_old, camera_position) > 32) {
+        const trazy_zone_2 = ztracy.ZoneNC(@src(), "refresh patches", 0x00_ff_ff_00);
+        defer trazy_zone_2.End();
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         for (0..3) |lod| {
@@ -975,8 +993,8 @@ const QuadTreeNode = struct {
     bounding_sphere_center: [3]f32,
     bounding_sphere_radius: f32,
     // TODO(gmodarelli): Do not store these here when we implement streaming
-    heightmap_handle: ?renderer.TextureHandle,
-    normalmap_handle: ?renderer.TextureHandle,
+    heightmap_handle: renderer.TextureHandle,
+    normalmap_handle: renderer.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
         return (point[0] > (self.center[0] - self.size[0]) and
@@ -1011,7 +1029,7 @@ const QuadTreeNode = struct {
     }
 
     pub inline fn isLoaded(self: *QuadTreeNode) bool {
-        return self.heightmap_handle != null;
+        return self.heightmap_handle.id != renderer.TextureHandle.nil.id;
     }
 
     pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, range: f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
@@ -1076,8 +1094,8 @@ fn divideQuadTreeNode(
             .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
             .bounding_sphere_center = undefined,
             .bounding_sphere_radius = 0.0,
-            .heightmap_handle = null,
-            .normalmap_handle = null,
+            .heightmap_handle = renderer.TextureHandle.nil,
+            .normalmap_handle = renderer.TextureHandle.nil,
         };
 
         node.child_indices[child_index] = @as(u32, @intCast(nodes.items.len));
