@@ -146,7 +146,7 @@ pub fn downsample(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
 const BlurSettings = struct {
     buffer_width: u32,
     buffer_height: u32,
-    sigma: f32 = 512.0,
+    sigma: f32 = 256.0,
     support: f32 = 0.995,
 };
 pub fn blur(image_in: *types.ImageF32, scratch: *types.ImageF32, image_out: *types.ImageF32) void {

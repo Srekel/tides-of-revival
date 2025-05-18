@@ -65,16 +65,25 @@
     {
       name: "fbm_settings_plains",
       kind: "FbmSettings",
-      seed: 1,
+      seed: 2,
       frequency: 0.0005,
-      octaves: 6,
+      octaves: 4,
+      rect: "world_settings.size",
+      scale: 1.0,
+    },
+    {
+      name: "fbm_settings_hills",
+      kind: "FbmSettings",
+      seed: 3,
+      frequency: 0.001,
+      octaves: 4,
       rect: "world_settings.size",
       scale: 1.0,
     },
     {
       name: "fbm_settings_mountains",
       kind: "FbmSettings",
-      seed: 1,
+      seed: 4,
       frequency: 0.0005,
       octaves: 8,
       rect: "world_settings.size",
@@ -91,6 +100,11 @@
       size: "world_settings.size",
     },
     {
+      name: "heightmap_hills",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
       name: "heightmap_mountains",
       kind: "ImageF32",
       size: "world_settings.size",
@@ -102,6 +116,11 @@
     },
     {
       name: "weight_plains",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
+      name: "weight_hills",
       kind: "ImageF32",
       size: "world_settings.size",
     },
@@ -211,6 +230,7 @@
       next: [
         "generate_heightmap_water",
         "generate_heightmap_plains",
+        "generate_heightmap_hills",
         "generate_heightmap_mountains",
         "merge_heightmaps",
       ],
@@ -332,11 +352,66 @@
       // vars
       input: "heightmap_plains",
       output: "heightmap_plains",
-      new_min: "0",
-      new_max: "100",
+      new_min: "50",
+      new_max: "75",
     },
     // END PLAINS
 
+
+    // HILLS
+    {
+      name: "generate_heightmap_hills",
+      kind: "fbm",
+      next: "generate_voronoi_weight_hills",
+      // vars
+      settings: "fbm_settings_hills",
+      output: "heightmap_hills",
+    },
+    {
+      name: "generate_voronoi_weight_hills",
+      kind: "remap_curve",
+      next: "blur_weight_hills",
+      // vars
+      image_in: "voronoi_image",
+      curve:[
+        0.0, 0.0,
+        1.0, 0.0,
+        2.0, 0.0,
+        3.0, 0.0,
+        4.0, 1.0,
+        5.0, 0.0,
+      ],
+      image_out: "weight_hills",
+    },
+    {
+      name: "blur_weight_hills",
+      kind: "blur",
+      next: "remap_heightmap_hills",
+      // vars
+      input: "weight_hills",
+      output: "weight_hills",
+      iterations: 1,
+    },
+    {
+      name: "multiply_heightmap_weight_hills",
+      kind: "math",
+      // next: "remap_heightmap_hills",
+      // vars
+      op: "multiply",
+      inputs: ["heightmap_hills", "weight_hills"],
+      output: "heightmap_hills",
+    },
+    {
+      name: "remap_heightmap_hills",
+      kind: "remap",
+      next: "multiply_heightmap_weight_hills",
+      // vars
+      input: "heightmap_hills",
+      output: "heightmap_hills",
+      new_min: "100",
+      new_max: "250",
+    },
+    // END HILLS
 
 
     // MOUNTAINS
@@ -359,7 +434,8 @@
         1.0, 0.0,
         2.0, 0.0,
         3.0, 0.0,
-        4.0, 1.0,
+        4.0, 0.0,
+        5.0, 1.0,
       ],
       image_out: "weight_mountains",
     },
@@ -402,6 +478,7 @@
       inputs: [
         "heightmap_water",
         "heightmap_plains",
+        "heightmap_hills",
         "heightmap_mountains"
       ],
       output: "heightmap",

@@ -13,11 +13,11 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-float g_landscapeWaterColor[3] = {0.0f, 0.0f, 1.0f};
-float g_landscapeHillColor[3] = {0.0f, 0.5f, 0.0f};
-float g_landscapePlainsColor[3] = {0.0f, 1.0f, 0.0f};
-float g_landscapeShoreColor[3] = {1.0f, 1.0f, 0.0f};
-float g_landscapeMountainColor[3] = {0.5f, 0.5f, 0.5f};
+unsigned char g_landscapeWaterColor[3] = {0, 0, 255};
+unsigned char g_landscapeShoreColor[3] = {255, 255, 0};
+unsigned char g_landscapePlainsColor[3] = {0, 255, 0};
+unsigned char g_landscapeHillColor[3] = {0, 128, 0};
+unsigned char g_landscapeMountainColor[3] = {128, 128, 128};
 
 static inline jcv_point remap(const jcv_point *pt, const jcv_point *min, const jcv_point *max, const jcv_point *scale);
 static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_point *v2, unsigned char *image, int width, int height, int nchannels, unsigned char *color);
@@ -45,22 +45,26 @@ void generate_landscape_from_image(Voronoi *grid, const char *image_path)
 		assert(image_y >= 0 && image_y < image_height);
 
 		unsigned char *sample = &image_data[(image_x + image_y * image_width) * image_channels];
-		if (sample[0] == 0 && sample[1] == 255 && sample[2] == 0)
-		{
-			cell.cell_type = PLAINS;
-		}
-		else if (sample[0] == 0 && sample[1] == 0 && sample[2] == 255)
+		if (sample[0] == g_landscapeWaterColor[0] && sample[1] == g_landscapeWaterColor[1] && sample[2] == g_landscapeWaterColor[2])
 		{
 			cell.cell_type = WATER;
 		}
-		else if (sample[0] == 0 && sample[1] == 127 && sample[2] == 0)
+		else if (sample[0] == g_landscapeShoreColor[0] && sample[1] == g_landscapeShoreColor[1] && sample[2] == g_landscapeShoreColor[2])
+		{
+			cell.cell_type = SHORE;
+		}
+		else if (sample[0] == g_landscapePlainsColor[0] && sample[1] == g_landscapePlainsColor[1] && sample[2] == g_landscapePlainsColor[2])
+		{
+			cell.cell_type = PLAINS;
+		}
+		else if (sample[0] == g_landscapeHillColor[0] && sample[1] == g_landscapeHillColor[1] && sample[2] == g_landscapeHillColor[2])
 		{
 			cell.cell_type = HILLS;
 		}
-		// else if (sample[0] == 0 && sample[1] == 128 && sample[2] == 128)
-		// {
-		// 	cell.cell_type = SHORE;
-		// }
+		else if (sample[0] == g_landscapeMountainColor[0] && sample[1] == g_landscapeMountainColor[1] && sample[2] == g_landscapeMountainColor[2])
+		{
+			cell.cell_type = MOUNTAINS;
+		}
 		else
 		{
 			cell.cell_type = PLAINS;
@@ -283,27 +287,27 @@ unsigned char *generate_landscape_preview(Voronoi *grid, uint32_t image_width, u
 			color_tri[3] = 255;
 			if (cell.cell_type == PLAINS)
 			{
-				color_tri[0] = (unsigned char)(g_landscapePlainsColor[0] * 255.0f);
-				color_tri[1] = (unsigned char)(g_landscapePlainsColor[1] * 255.0f);
-				color_tri[2] = (unsigned char)(g_landscapePlainsColor[2] * 255.0f);
+				color_tri[0] = g_landscapePlainsColor[0];
+				color_tri[1] = g_landscapePlainsColor[1];
+				color_tri[2] = g_landscapePlainsColor[2];
 			}
 			else if (cell.cell_type == HILLS)
 			{
-				color_tri[0] = (unsigned char)(g_landscapeHillColor[0] * 255.0f);
-				color_tri[1] = (unsigned char)(g_landscapeHillColor[1] * 255.0f);
-				color_tri[2] = (unsigned char)(g_landscapeHillColor[2] * 255.0f);
+				color_tri[0] = g_landscapeHillColor[0];
+				color_tri[1] = g_landscapeHillColor[1];
+				color_tri[2] = g_landscapeHillColor[2];
 			}
 			else if (cell.cell_type == WATER)
 			{
-				color_tri[0] = (unsigned char)(g_landscapeWaterColor[0] * 255.0f);
-				color_tri[1] = (unsigned char)(g_landscapeWaterColor[1] * 255.0f);
-				color_tri[2] = (unsigned char)(g_landscapeWaterColor[2] * 255.0f);
+				color_tri[0] = g_landscapeWaterColor[0];
+				color_tri[1] = g_landscapeWaterColor[1];
+				color_tri[2] = g_landscapeWaterColor[2];
 			}
 			else if (cell.cell_type == SHORE)
 			{
-				color_tri[0] = (unsigned char)(g_landscapeShoreColor[0] * 255.0f);
-				color_tri[1] = (unsigned char)(g_landscapeShoreColor[1] * 255.0f);
-				color_tri[2] = (unsigned char)(g_landscapeShoreColor[2] * 255.0f);
+				color_tri[0] = g_landscapeShoreColor[0];
+				color_tri[1] = g_landscapeShoreColor[1];
+				color_tri[2] = g_landscapeShoreColor[2];
 			}
 
 			jcv_point s = remap(&site->p, &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);

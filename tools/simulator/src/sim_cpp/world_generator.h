@@ -10,9 +10,10 @@ enum VoronoiCellType
 {
 	NONE = 0,
 	WATER = 1,
-	PLAINS = 2,
-	SHORE = 3,
+	SHORE = 2,
+	PLAINS = 3,
 	HILLS = 4,
+	MOUNTAINS = 5,
 };
 
 #include "jc_voronoi.h"
