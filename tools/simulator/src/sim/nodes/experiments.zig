@@ -53,8 +53,13 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
 pub fn points_distribution_grid(filter: types.ImageF32, score_min: f32, grid_settings: grid.Grid, pts_out: *types.PatchDataPts2d) void {
     const cells_x = grid_settings.size.width / grid_settings.cell_size;
     const cells_y = grid_settings.size.height / grid_settings.cell_size;
-    // const cells_x = pts_out.size.width;
-    // const cells_y = pts_out.size.height;
+    var seed: u64 = 123;
+    std.posix.getrandom(std.mem.asBytes(&seed)) catch unreachable;
+
+    const cell_size_f: f32 = @as(f32, @floatFromInt(grid_settings.cell_size));
+    var prng = std.Random.DefaultPrng.init(seed);
+    const rand = prng.random();
+
     for (0..cells_y) |y| {
         const filter_y = filter.size.height * y / cells_y;
         const patch_y = pts_out.size.height * y / cells_y;
@@ -65,8 +70,8 @@ pub fn points_distribution_grid(filter: types.ImageF32, score_min: f32, grid_set
                 continue;
             }
 
-            const pt_x: f32 = @floatFromInt(filter_x);
-            const pt_y: f32 = @floatFromInt(filter_y);
+            const pt_x: f32 = @as(f32, @floatFromInt(filter_x)) + rand.float(f32) * cell_size_f * 0.95;
+            const pt_y: f32 = @as(f32, @floatFromInt(filter_y)) + rand.float(f32) * cell_size_f * 0.95;
             const patch_x = pts_out.size.width * x / cells_x;
             pts_out.addToPatch(patch_x, patch_y, .{ pt_x, pt_y });
         }
