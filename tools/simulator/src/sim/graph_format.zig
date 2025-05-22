@@ -11,6 +11,7 @@ const kind_blur = hash("blur");
 const kind_cities = hash("cities");
 const kind_contours = hash("contours");
 const kind_fbm = hash("fbm");
+const kind_gather_points = hash("gather_points");
 const kind_gradient = hash("gradient");
 const kind_image_from_voronoi = hash("image_from_voronoi");
 const kind_landscape_from_image = hash("landscape_from_image");
@@ -28,9 +29,12 @@ const kind_write_trees = hash("write_trees");
 
 const kind_FbmSettings = hash("FbmSettings");
 const kind_ImageF32 = hash("ImageF32");
+const kind_ImageU32 = hash("ImageU32");
+const kind_ImageVec2 = hash("ImageVec2");
 const kind_PatchDataPts2d = hash("PatchDataPts2d");
 const kind_PointList2D = hash("PointList2D");
 const kind_PointList3D = hash("PointList3D");
+const kind_PointListU32 = hash("PointListU32");
 const kind_Size2D = hash("Size2D");
 const kind_Voronoi = hash("Voronoi");
 const kind_VoronoiSettings = hash("VoronoiSettings");
@@ -168,9 +172,12 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
         const kind_type: []const u8 = switch (hash(kind)) {
             kind_FbmSettings => "nodes.fbm.FbmSettings",
             kind_ImageF32 => "types.ImageF32",
+            kind_ImageU32 => "types.ImageU32",
+            kind_ImageVec2 => "types.ImageVec2",
             kind_PatchDataPts2d => "types.PatchDataPts2d",
             kind_PointList2D => "std.ArrayList(types.Vec2)",
             kind_PointList3D => "std.ArrayList(types.Vec3)",
+            kind_PointListU32 => "std.ArrayList(u32)",
             kind_Size2D => "types.Size2D",
             kind_Voronoi => "*nodes.voronoi.Voronoi",
             kind_VoronoiSettings => "nodes.voronoi.VoronoiSettings",
@@ -205,6 +212,14 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
             kind_ImageF32 => {
                 const size = j_var.Object.get("size").?.String;
                 writeLine(writer, "types.ImageF32.square({s}.width);", .{size});
+            },
+            kind_ImageU32 => {
+                const size = j_var.Object.get("size").?.String;
+                writeLine(writer, "types.ImageU32.square({s}.width);", .{size});
+            },
+            kind_ImageVec2 => {
+                const size = j_var.Object.get("size").?.String;
+                writeLine(writer, "types.ImageVec2.square({s}.width);", .{size});
             },
             kind_Size2D => {
                 const j_width = j_var.Object.get("width").?;
@@ -277,12 +292,23 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                             const size = j_var.Object.get("size").?.String;
                             writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alloc(f32, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
                         },
+                        kind_ImageU32 => {
+                            const size = j_var.Object.get("size").?.String;
+                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alloc(u32, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
+                        },
+                        kind_ImageVec2 => {
+                            const size = j_var.Object.get("size").?.String;
+                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alloc([2]f32, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
+                        },
                         kind_PointList2D => {
                             writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });
                         },
                         kind_PointList3D => {
                             const capacity = j_var.Object.get("capacity").?.Integer;
                             writeLine(writer, "    {s} = @TypeOf({s}).initCapacity(std.heap.c_allocator, {d}) catch unreachable;", .{ var_name, var_name, capacity });
+                        },
+                        kind_PointListU32 => {
+                            writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });
                         },
                         kind_Voronoi => {
                             writeLine(writer, "    {s} = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;", .{var_name});
@@ -388,6 +414,22 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "", .{});
                 writeLine(writer, "    compute.remap(&{s}, &scratch_image, 0, 1);", .{output});
                 writePreview(writer, output, name);
+            },
+            kind_gather_points => {
+                const image = j_node.Object.get("image").?.String;
+                const point_list = j_node.Object.get("point_list").?.String;
+                const counter_list = j_node.Object.get("counter_list").?.String;
+                const world_size = j_node.Object.get("world_size").?.String;
+                const threshold = j_node.Object.get("threshold").?.Float;
+                writeLine(writer, "    compute.gatherPoints(&{s}, {s}.width, {s}.height, {d}, &{s}, &{s});", .{ image, world_size, world_size, threshold, point_list, counter_list });
+                writeLine(writer, "    std.log.info(\"LOL count:{{d}}\", .{{{s}.pixels[0]}});", .{counter_list});
+                writeLine(writer, "    std.log.info(\"LOL pt:{{d}},{{d}}\", .{{ {s}.pixels[0][0], {s}.pixels[0][1] }} );", .{ point_list, point_list });
+                writeLine(writer, "    std.log.info(\"LOL pt:{{d:.3}},{{d:.3}}\", .{{ {s}.pixels[0][0], {s}.pixels[0][1] }} );", .{ point_list, point_list });
+
+                // std.log.info("LOL count:{d}", .{counter_list.items[0]});
+
+                // for (0..)
+                // writePreview(writer, output, name);
             },
             kind_gradient => {
                 const input = j_node.Object.get("input").?.String;

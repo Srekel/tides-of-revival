@@ -11,11 +11,11 @@ const c_cpp_nodes = @cImport({
 });
 
 // ============ CONSTANTS ============
-const DRY_RUN = false;
+const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 36;
+pub const node_count = 37;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -82,6 +82,8 @@ var scratch_image2: types.ImageF32 = types.ImageF32.square(world_settings.size.w
 var water_image: types.ImageF32 = types.ImageF32.square(world_settings.size.width);
 var cities: std.ArrayList(types.Vec3) = undefined;
 var trees_points: types.PatchDataPts2d = undefined;
+var test_points: types.ImageVec2 = types.ImageVec2.square(world_settings.size.width);
+var test_points_counter: types.ImageU32 = types.ImageU32.square(world_settings.size.width);
 
 // ============ PREVIEW IMAGES ============
 var preview_image_start = types.ImageRGBA.square(preview_size);
@@ -92,6 +94,7 @@ var preview_image_generate_landscape_from_image = types.ImageRGBA.square(preview
 var preview_image_generate_contours = types.ImageRGBA.square(preview_size);
 var preview_image_generate_image_from_voronoi = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_water = types.ImageRGBA.square(preview_size);
+var preview_image_test_output_points = types.ImageRGBA.square(preview_size);
 var preview_image_generate_voronoi_weight_water = types.ImageRGBA.square(preview_size);
 var preview_image_blur_weight_water = types.ImageRGBA.square(preview_size);
 var preview_image_multiply_heightmap_weight_water = types.ImageRGBA.square(preview_size);
@@ -144,6 +147,8 @@ pub fn start(ctx: *Context) void {
     scratch_image2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     water_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
+    test_points.pixels = std.heap.c_allocator.alloc([2]f32, world_settings.size.width * world_settings.size.height) catch unreachable;
+    test_points_counter.pixels = std.heap.c_allocator.alloc(u32, world_settings.size.width * world_settings.size.height) catch unreachable;
 
     // Initialize preview images
     preview_image_start.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -154,6 +159,7 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_contours.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_image_from_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_test_output_points.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_voronoi_weight_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_blur_weight_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_multiply_heightmap_weight_water.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -285,7 +291,18 @@ pub fn generate_heightmap_water(ctx: *Context) void {
     const preview_key_generate_heightmap_water = "generate_heightmap_water.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_water, .{ .data = preview_image_generate_heightmap_water.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_voronoi_weight_water) catch unreachable;
+    ctx.next_nodes.insert(0, test_output_points) catch unreachable;
+    ctx.next_nodes.insert(1, generate_voronoi_weight_water) catch unreachable;
+}
+
+pub fn test_output_points(ctx: *Context) void {
+    compute.gatherPoints(&voronoi_image, world_settings.size.width, world_settings.size.height, 1.95, &test_points, &test_points_counter);
+    std.log.info("LOL count:{d}", .{test_points_counter.pixels[0]});
+    std.log.info("LOL pt:{d},{d}", .{ test_points.pixels[0][0], test_points.pixels[0][1] } );
+    std.log.info("LOL pt:{d:.3},{d:.3}", .{ test_points.pixels[0][0], test_points.pixels[0][1] } );
+
+    // Leaf node
+    _ = ctx; // autofix
 }
 
 pub fn generate_voronoi_weight_water(ctx: *Context) void {

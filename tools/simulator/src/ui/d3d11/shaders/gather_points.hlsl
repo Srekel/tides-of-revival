@@ -16,11 +16,14 @@ RWStructuredBuffer<uint> g_counter : register(u1);
     if (DTid.x < g_buffer_width && DTid.y < g_buffer_height)
     {
         uint index = DTid.x + DTid.y * g_buffer_width;
-        float2 worldPosition = float2(DTid.x / float(g_buffer_width) * g_world_width, DTid.y / float(g_buffer_height) * g_world_height);
-
         float value = g_input[index];
         if (value >= g_threshold)
         {
+            float2 worldPosition = float2(
+                g_world_width * DTid.x / float(g_buffer_width), 
+                g_world_height * DTid.y / float(g_buffer_height)
+            );
+
             uint pointIndex;
             InterlockedAdd(g_counter[0], 1, pointIndex);
 

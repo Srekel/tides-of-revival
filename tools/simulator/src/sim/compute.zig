@@ -309,13 +309,13 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
     );
 }
 
-const GatherPointsSettings = struct {
+const GatherPointsSettings = extern struct {
     width: u32,
     height: u32,
     world_width: f32,
     world_height: f32,
     threshold: f32,
-    _padding: [3]f32,
+    _padding: [3]f32 = undefined,
 };
 
 pub fn gatherPoints(image_in: *types.ImageF32, world_width: f32, world_height: f32, threshold: f32, points_out: *types.ImageVec2, counter_out: *types.ImageU32) void {
@@ -326,6 +326,8 @@ pub fn gatherPoints(image_in: *types.ImageF32, world_width: f32, world_height: f
         .world_height = world_height,
         .threshold = threshold,
     };
+
+    counter_out.pixels[0] = 0;
 
     var compute_info = graph.ComputeInfo{
         .compute_id = .gather_points,
@@ -340,8 +342,7 @@ pub fn gatherPoints(image_in: *types.ImageF32, world_width: f32, world_height: f
             .data = points_out.pixels.ptr,
             .width = @as(u32, @intCast(points_out.size.width)),
             .height = @as(u32, @intCast(points_out.size.height)),
-        }}
-        ++ .{graph.ComputeBuffer{
+        }} ++ .{graph.ComputeBuffer{
             .buffer_type = .uint,
             .data = counter_out.pixels.ptr,
             .width = @as(u32, @intCast(counter_out.size.width)),

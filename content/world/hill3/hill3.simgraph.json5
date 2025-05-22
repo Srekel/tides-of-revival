@@ -173,6 +173,16 @@
       name: "trees_points",
       kind: "PatchDataPts2d",
     },
+    {
+      name: "test_points",
+      kind: "ImageVec2",
+      size: "world_settings.size",
+    },
+    {
+      name: "test_points_counter",
+      kind: "ImageU32",
+      size: "world_settings.size",
+    },
   ],
   //////////////////////////////////////
   //////////////////////////////////////
@@ -241,10 +251,20 @@
     {
       name: "generate_heightmap_water",
       kind: "fbm",
-      next: "generate_voronoi_weight_water",
+      next: ["test_output_points", "generate_voronoi_weight_water"],
       // vars
       settings: "fbm_settings_water",
       output: "heightmap_water",
+    },
+    {
+      name: "test_output_points",
+      kind: "gather_points",
+      // vars
+      image: "voronoi_image",
+      point_list: "test_points",
+      counter_list: "test_points_counter",
+      world_size: "world_settings.size",
+      threshold: 1.95,
     },
     {
       name: "generate_voronoi_weight_water",
