@@ -219,7 +219,6 @@
         "generate_image_from_voronoi",
         "generate_heightmap_gradient",
         "output_heightmap_to_file"
-        // "generate_beaches", // TODO: Remove
       ],
       // vars
       voronoi: "voronoi",
@@ -238,18 +237,6 @@
       image: "voronoi_image",
       voronoi: "voronoi",
     },
-    {
-      name: "generate_beaches",
-      kind: "beaches",
-      next: [
-        // "generate_heightmap_from_voronoi_cells",
-        "generate_fbm",
-      ],
-      // vars
-      voronoi: "voronoi",
-      downsamples: 3,
-    },
-
     // WATER
     {
       name: "generate_heightmap_water",
@@ -472,7 +459,7 @@
     {
       name: "merge_heightmaps",
       kind: "math",
-      // next: "",
+      next: "generate_heightmap_gradient",
       // vars
       op: "add",
       inputs: [
@@ -482,30 +469,6 @@
         "heightmap_mountains"
       ],
       output: "heightmap",
-    },
-    {
-      name: "generate_fbm",
-      kind: "fbm",
-      next: "fbm_to_heightmap",
-      // vars
-      settings: "fbm_settings",
-      output: "fbm_image",
-      // voronoi: "voronoi",
-      // downsamples: 3,
-    },
-    {
-      name: "fbm_to_heightmap",
-      kind: "remap",
-      next: [
-        "generate_water",
-        "generate_heightmap_gradient",
-        "output_heightmap_to_file"
-      ],
-      // vars
-      input: "fbm_image",
-      output: "heightmap",
-      new_min: "0",
-      new_max: "world_settings.terrain_height_max",
     },
     {
       name: "generate_heightmap_gradient",
@@ -521,18 +484,12 @@
       next: [
         "generate_cities",
         "generate_trees_fbm",
+        "output_heightmap_to_file",
       ],
       // vars
       gradient: "gradient_image",
       heightmap: "heightmap",
       output: "gradient_image",
-    },
-    {
-      name: "generate_water",
-      kind: "water",
-      // vars
-      water: "water_image",
-      heightmap: "heightmap",
     },
     {
       name: "generate_cities",
