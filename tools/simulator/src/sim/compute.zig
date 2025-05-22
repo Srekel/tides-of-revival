@@ -11,7 +11,7 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
         .in_buffers = .{graph.ComputeBuffer{
-            .data = if (image_in_1 != null) image_in_1.?.pixels.ptr else null,
+            .data = if (image_in_1 != null) image_in_1.?.pixels.ptr else undefined,
             .width = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.width else 0)),
             .height = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.height else 0)),
         }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
@@ -307,4 +307,51 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
             .curve_keys_count = @intCast(curve.len),
         },
     );
+}
+
+const GatherPointsSettings = struct {
+    width: u32,
+    height: u32,
+    world_width: f32,
+    world_height: f32,
+    threshold: f32,
+    _padding: [3]f32,
+};
+
+pub fn gatherPoints(image_in: *types.ImageF32, world_width: f32, world_height: f32, threshold: f32, points_out: *types.ImageVec2, counter_out: *types.ImageU32) void {
+    const gather_points_data = GatherPointsSettings{
+        .width = @as(u32, @intCast(image_in.size.width)),
+        .height = @as(u32, @intCast(image_in.size.height)),
+        .world_width = world_width,
+        .world_height = world_height,
+        .threshold = threshold,
+    };
+
+    var compute_info = graph.ComputeInfo{
+        .compute_id = .gather_points,
+        .in_buffers = .{graph.ComputeBuffer{
+            .buffer_type = .float,
+            .data = image_in.pixels.ptr,
+            .width = @as(u32, @intCast(image_in.size.width)),
+            .height = @as(u32, @intCast(image_in.size.height)),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        .out_buffers = .{graph.ComputeBuffer{
+            .buffer_type = .float2,
+            .data = points_out.pixels.ptr,
+            .width = @as(u32, @intCast(points_out.size.width)),
+            .height = @as(u32, @intCast(points_out.size.height)),
+        }}
+        ++ .{graph.ComputeBuffer{
+            .buffer_type = .uint,
+            .data = counter_out.pixels.ptr,
+            .width = @as(u32, @intCast(counter_out.size.width)),
+            .height = @as(u32, @intCast(counter_out.size.height)),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 6),
+        .in_count = 1,
+        .out_count = 2,
+        .data_size = @sizeOf(GatherPointsSettings),
+        .data = std.mem.asBytes(&gather_points_data),
+    };
+
+    compute_fn(&compute_info);
 }

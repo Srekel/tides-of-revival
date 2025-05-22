@@ -31,6 +31,30 @@ void Texture2D::update_content(ID3D11DeviceContext *device_context, unsigned cha
     device_context->UpdateSubresource((ID3D11Resource *)texture, 0, &box, data, width * channel_count, 0);
 }
 
+uint32_t compute_buffer_element_size(ComputeBufferType compute_buffer_type)
+{
+    switch (compute_buffer_type)
+    {
+    case COMPUTE_BUFFER_TYPE_FLOAT:
+        return (uint32_t)sizeof(float);
+
+    case COMPUTE_BUFFER_TYPE_FLOAT2:
+        return (uint32_t)sizeof(float) * 2;
+
+    case COMPUTE_BUFFER_TYPE_FLOAT3:
+        return (uint32_t)sizeof(float) * 3;
+
+    case COMPUTE_BUFFER_TYPE_FLOAT4:
+        return (uint32_t)sizeof(float) * 4;
+
+    case COMPUTE_BUFFER_TYPE_UINT:
+        return (uint32_t)sizeof(uint32_t);
+
+    default:
+        return 4;
+    }
+}
+
 bool D3D11::create_device(HWND hwnd)
 {
     // Setup swap chain
@@ -126,6 +150,8 @@ bool D3D11::create_device(HWND hwnd)
         m_compute_shader_count++;
     }
     compile_compute_shader(L"shaders/remap_curve.hlsl", "CSRemapCurve", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+    compile_compute_shader(L"shaders/gather_points.hlsl", "CSGatherPoints", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
 
     assert(m_compute_shader_count + 10 < 32);
@@ -486,14 +512,16 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
     {
         ComputeBuffer &buffer = job.in_buffers[i_buf];
-        create_structured_buffer(sizeof(float), buffer.width * buffer.height, (void *)buffer.data, "Input Buffer", &input_buffers[i_buf]);
+        uint32_t buffer_element_size = compute_buffer_element_size(buffer.buffer_type);
+        create_structured_buffer(buffer_element_size, buffer.width * buffer.height, (void *)buffer.data, "Input Buffer", &input_buffers[i_buf]);
         assert(input_buffers[i_buf]);
     }
     for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
     {
         ComputeBuffer &buffer = job.out_buffers[i_buf];
-        create_structured_buffer(sizeof(float), buffer.width * buffer.height, nullptr, "Output Buffer", &output_buffers[i_buf]);
-        create_readback_buffer(sizeof(float), buffer.width * buffer.height, "Readback Buffer", &readback_buffers[i_buf]);
+        uint32_t buffer_element_size = compute_buffer_element_size(buffer.buffer_type);
+        create_structured_buffer(buffer_element_size, buffer.width * buffer.height, nullptr, "Output Buffer", &output_buffers[i_buf]);
+        create_readback_buffer(buffer_element_size, buffer.width * buffer.height, "Readback Buffer", &readback_buffers[i_buf]);
         assert(output_buffers[i_buf]);
         assert(readback_buffers[i_buf]);
     }
@@ -546,15 +574,16 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
         {
             ComputeBuffer &buffer = job.out_buffers[i_buf];
             m_device_context->CopyResource(readback_buffers[i_buf], output_buffers[i_buf]);
+            uint32_t buffer_element_size = compute_buffer_element_size(buffer.buffer_type);
 
             D3D11_MAPPED_SUBRESOURCE subresource = {};
-            subresource.RowPitch = buffer.width * sizeof(float);
-            subresource.DepthPitch = buffer.height * sizeof(float);
+            subresource.RowPitch = buffer.width * buffer_element_size;
+            subresource.DepthPitch = buffer.height * buffer_element_size;
             m_device_context->Map(readback_buffers[i_buf], 0, D3D11_MAP_READ, 0, &subresource);
 
             if (subresource.pData)
             {
-                memcpy((void *)buffer.data, subresource.pData, buffer.width * buffer.height * sizeof(float));
+                memcpy((void *)buffer.data, subresource.pData, buffer.width * buffer.height * buffer_element_size);
             }
 
             m_device_context->Unmap(readback_buffers[i_buf], 0);
@@ -606,8 +635,8 @@ void D3D11::dispatch_float_reduce(ComputeInfo job)
 
     for (uint32_t reduction_index = 0; reduction_index < reduction_iterations; reduction_index++)
     {
-        const float *input_data = job.in_buffers[0].data + (reduction_index * buffer_adjusted_size * buffer_adjusted_size);
-        float *output_data = job.out_buffers[0].data + (reduction_index * buffer_adjusted_size * buffer_adjusted_size);
+        const float *input_data = (float *)job.in_buffers[0].data + (reduction_index * buffer_adjusted_size * buffer_adjusted_size);
+        float *output_data = (float *)job.out_buffers[0].data + (reduction_index * buffer_adjusted_size * buffer_adjusted_size);
         assert(input_data);
         assert(output_data);
 
@@ -714,7 +743,8 @@ void D3D11::dispatch_float_reduce(ComputeInfo job)
         }
     }
 
-    job.out_buffers[0].data[0] = final_reduction;
+    float *out_buffer = (float *)job.out_buffers[0].data;
+    out_buffer[0] = final_reduction;
 
     OutputDebugStringA("dispatch_float_reduce DONE\n");
 }
@@ -726,7 +756,7 @@ void D3D11::dispatch_float_generate(ComputeInfo job)
     size_t shader_settings_size = job.shader_settings_size;
     int32_t buffer_width = job.out_buffers[0].width;
     int32_t buffer_height = job.out_buffers[0].height;
-    float *output_data = job.out_buffers[0].data;
+    float *output_data = (float *)job.out_buffers[0].data;
 
     ComputeShader &shader = m_compute_shaders[job.compute_id];
     assert(m_device);

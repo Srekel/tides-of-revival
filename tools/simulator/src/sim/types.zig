@@ -115,7 +115,9 @@ pub fn Image(ElemType: type) type {
     };
 }
 
+pub const ImageU32 = Image(u32);
 pub const ImageF32 = Image(f32);
+pub const ImageVec2 = Image([2]f32);
 pub const ImageVec3 = Image([3]f32);
 pub const ImageRGBA = Image(ColorRGBA);
 pub const ImageGreyscale = Image(u8);

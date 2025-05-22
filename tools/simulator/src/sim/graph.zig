@@ -14,6 +14,7 @@ pub const ComputeId = enum(u32) {
     gaussian_blur_horizontal, // 10
     gaussian_blur_vertical,
     remap_curve_linear,
+    gather_points,
     reduce,
 };
 
@@ -23,8 +24,17 @@ pub const ComputeOperatorId = enum(u32) {
     max = 2,
 };
 
+pub const ComputeBufferType = enum(u32) {
+    float = 0,
+    float2 = 1,
+    float3 = 2,
+    float4 = 3,
+    uint = 4,
+};
+
 pub const ComputeBuffer = extern struct {
-    data: [*c]f32 = null,
+    buffer_type: ComputeBufferType = .float,
+    data: *anyopaque = undefined,
     width: u32 = 0,
     height: u32 = 0,
 };

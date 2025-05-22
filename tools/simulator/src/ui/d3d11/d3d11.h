@@ -47,9 +47,19 @@ struct ComputeShader : NoCopy
     const char *name;
 };
 
+enum ComputeBufferType
+{
+    COMPUTE_BUFFER_TYPE_FLOAT = 0,
+    COMPUTE_BUFFER_TYPE_FLOAT2 = 1,
+    COMPUTE_BUFFER_TYPE_FLOAT3 = 2,
+    COMPUTE_BUFFER_TYPE_FLOAT4 = 3,
+    COMPUTE_BUFFER_TYPE_UINT = 4,
+};
+
 struct ComputeBuffer
 {
-    float *data;
+    ComputeBufferType buffer_type;
+    void *data;
     uint32_t width;
     uint32_t height;
 };
