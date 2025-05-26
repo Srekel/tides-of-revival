@@ -555,14 +555,9 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
             m_device_context->CSSetUnorderedAccessViews(i_buf, 1, &output_buffers_uav[i_buf], nullptr);
         }
 
-        // unsigned width = shader.use_input ? job.in_buffers[shader.buffer_width_index] : job.out_buffers[shader.buffer_width_index];
-
-        // What should be passed in here? 👇👇
         m_device_context->Dispatch(
-            job.in_buffers[0].width / shader.thread_group_size[0],
-            job.in_buffers[0].height / shader.thread_group_size[1],
-            // width / shader.thread_group_size[0] + 1,
-            // job.out_buffers[0].height / shader.thread_group_size[1] + 1,
+            job.dispatch_size[0] / shader.thread_group_size[0],
+            job.dispatch_size[1] / shader.thread_group_size[1],
             shader.thread_group_size[2]);
 
         cleanup_compute_shader_context(m_device_context);

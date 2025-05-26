@@ -74,6 +74,7 @@ struct ComputeInfo
     uint32_t out_count;
     void *shader_settings;
     unsigned shader_settings_size;
+    unsigned dispatch_size[2];
 };
 
 struct D3D11 : NoCopy

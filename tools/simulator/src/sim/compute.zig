@@ -24,6 +24,10 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
         .out_count = 1,
         .data_size = @sizeOf(@TypeOf(data)),
         .data = std.mem.asBytes(&data),
+        .dispatch_size = .{
+            @intCast(if (image_in_1 != null) image_in_1.?.size.width else image_out_1.size.width),
+            @intCast(if (image_in_1 != null) image_in_1.?.size.height else image_out_1.size.height),
+        },
     };
 
     compute_fn(&compute_info);
@@ -38,6 +42,10 @@ pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, 
         .out_count = @intCast(images_out.len),
         .data_size = @sizeOf(@TypeOf(data)),
         .data = std.mem.asBytes(&data),
+        .dispatch_size = .{
+            @intCast(images_in[0].size.width),
+            @intCast(images_in[0].size.height),
+        },
     };
 
     for (images_in, compute_info.in_buffers[0..images_in.len]) |image_in, *in_buffer| {
@@ -73,6 +81,10 @@ pub fn compute_reduce_f32_1(compute_id: graph.ComputeId, operator_id: graph.Comp
         .out_count = 1,
         .data_size = 0,
         .data = null,
+        .dispatch_size = .{
+            @intCast(image_in_1.size.width),
+            @intCast(image_in_1.size.height),
+        },
     };
 
     compute_fn(&compute_info);

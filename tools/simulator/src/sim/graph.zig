@@ -48,6 +48,7 @@ pub const ComputeInfo = extern struct {
     out_count: u32,
     data: [*c]const u8,
     data_size: u32,
+    dispatch_size: [2]u32,
 };
 
 pub const fn_node = *const fn (context: *Context) void;
