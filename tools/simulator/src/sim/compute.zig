@@ -8,6 +8,11 @@ var id: i32 = 0;
 var textbuf: [1024]u8 = .{};
 
 pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, image_out_1: *types.ImageF32, data: anytype) void {
+    const dispatch_image = switch (compute_id) {
+        .downsample => image_out_1,
+        .fbm => image_out_1,
+        else => image_in_1.?,
+    };
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
         .in_buffers = .{graph.ComputeBuffer{
@@ -24,10 +29,7 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
         .out_count = 1,
         .data_size = @sizeOf(@TypeOf(data)),
         .data = std.mem.asBytes(&data),
-        .dispatch_size = .{
-            @intCast(if (image_in_1 != null) image_in_1.?.size.width else image_out_1.size.width),
-            @intCast(if (image_in_1 != null) image_in_1.?.size.height else image_out_1.size.height),
-        },
+        .dispatch_size = .{ @intCast(dispatch_image.size.width), @intCast(dispatch_image.size.height) },
     };
 
     compute_fn(&compute_info);
@@ -143,16 +145,49 @@ pub fn upsample_blur(image_in: *types.ImageF32, image_out: *types.ImageF32) void
     compute_f32_1(.upsample_bilinear, image_in, image_out, settings);
 }
 
-pub fn downsample(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
+pub fn downsample(image_in: *types.ImageF32, scratch_image: *types.ImageF32, image_out: *types.ImageF32, op: graph.ComputeOperatorId) void {
     const settings: extern struct {
         buffer_width: u32,
         buffer_height: u32,
-        padding: [2]f32 = undefined,
+        op: graph.ComputeOperatorId,
+        padding: f32 = undefined,
+    } = .{
+        .buffer_width = @intCast(image_in.size.width / 2),
+        .buffer_height = @intCast(image_in.size.height / 2),
+        .op = op,
+    };
+
+    // TODO: Clear image_out depending on op?
+    scratch_image.size.width = image_in.size.width / 2;
+    scratch_image.size.height = image_in.size.height / 2;
+    compute_f32_1(.downsample, image_in, scratch_image, settings);
+    image_out.size.width = image_in.size.width / 2;
+    image_out.size.height = image_in.size.height / 2;
+    image_out.swap(scratch_image);
+
+    min(image_out, scratch_image);
+    max(image_out, scratch_image);
+    nodes.math.rerangify(image_out);
+}
+
+pub fn upsample(image_in: *types.ImageF32, scratch_image: *types.ImageF32, image_out: *types.ImageF32, op: graph.ComputeOperatorId) void {
+    const settings: extern struct {
+        buffer_width: u32,
+        buffer_height: u32,
+        op: graph.ComputeOperatorId,
+        padding: f32 = undefined,
     } = .{
         .buffer_width = @intCast(image_in.size.width),
         .buffer_height = @intCast(image_in.size.height),
+        .op = op,
     };
-    compute_f32_1(.downsample, image_in, image_out, settings);
+
+    // TODO: Clear image_out depending on op?
+    scratch_image.size.width = image_in.size.width * 2;
+    scratch_image.size.height = image_in.size.height * 2;
+    compute_f32_1(.upsample, image_in, scratch_image, settings);
+    image_out.size = scratch_image.size;
+    image_out.swap(scratch_image);
 }
 
 const BlurSettings = struct {

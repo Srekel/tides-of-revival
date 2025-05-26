@@ -10,6 +10,7 @@ const kind_beaches = hash("beaches");
 const kind_blur = hash("blur");
 const kind_cities = hash("cities");
 const kind_contours = hash("contours");
+const kind_downsample = hash("downsample");
 const kind_fbm = hash("fbm");
 const kind_gather_points = hash("gather_points");
 const kind_gradient = hash("gradient");
@@ -22,6 +23,7 @@ const kind_remap = hash("remap");
 const kind_remap_curve = hash("remap_curve");
 const kind_square = hash("square");
 const kind_terrace = hash("terrace");
+const kind_upsample = hash("upsample");
 const kind_voronoi = hash("voronoi");
 const kind_water = hash("water");
 const kind_write_heightmap = hash("write_heightmap");
@@ -395,6 +397,20 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const voronoi = j_node.Object.get("voronoi").?.String;
                 writeLine(writer, "    nodes.voronoi.contours({s});", .{voronoi});
             },
+            kind_downsample => {
+                const image_in = j_node.Object.get("image_in").?.String;
+                const image_out = j_node.Object.get("image_out").?.String;
+                const op = j_node.Object.get("op").?.String;
+                const count: u32 = @intCast(j_node.Object.get("count").?.Integer);
+
+                writeLine(writer, "    const orig_scratch_image_size = scratch_image.size;", .{});
+                for (0..count) |_| {
+                    // TODO: Support *different* ins and outs.
+                    writeLine(writer, "    compute.downsample(&{s}, &scratch_image, &{s}, .{s});", .{ image_in, image_out, op });
+                }
+                writeLine(writer, "    scratch_image.size = orig_scratch_image_size;", .{});
+                writePreview(writer, image_out, name);
+            },
             kind_fbm => {
                 const settings = j_node.Object.get("settings").?.String;
                 const output = j_node.Object.get("output").?.String;
@@ -552,6 +568,20 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "        }}", .{});
                 writeLine(writer, "    }}", .{});
                 writePreview(writer, heightmap, name);
+            },
+            kind_upsample => {
+                const image_in = j_node.Object.get("image_in").?.String;
+                const image_out = j_node.Object.get("image_out").?.String;
+                const op = j_node.Object.get("op").?.String;
+                const count: u32 = @intCast(j_node.Object.get("count").?.Integer);
+
+                writeLine(writer, "    const orig_scratch_image_size = scratch_image.size;", .{});
+                for (0..count) |_| {
+                    // TODO: Support *different* ins and outs.
+                    writeLine(writer, "    compute.upsample(&{s}, &scratch_image, &{s}, .{s});", .{ image_in, image_out, op });
+                }
+                writeLine(writer, "    scratch_image.size = orig_scratch_image_size;", .{});
+                writePreview(writer, image_out, name);
             },
             kind_voronoi => {
                 const settings = j_node.Object.get("settings").?.String;

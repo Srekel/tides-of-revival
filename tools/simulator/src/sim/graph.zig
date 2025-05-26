@@ -7,11 +7,12 @@ pub const ComputeId = enum(u32) {
     fbm,
     upsample_blur,
     upsample_bilinear,
+    upsample,
     downsample,
     terrace,
     multiply,
-    add,
-    gaussian_blur_horizontal, // 10
+    add, // 10
+    gaussian_blur_horizontal,
     gaussian_blur_vertical,
     remap_curve_linear,
     gather_points,
@@ -22,6 +23,10 @@ pub const ComputeOperatorId = enum(u32) {
     none = 0,
     min = 1,
     max = 2,
+    average = 3,
+    nearest = 4,
+    first = 5,
+    sum = 6,
 };
 
 pub const ComputeBufferType = enum(u32) {

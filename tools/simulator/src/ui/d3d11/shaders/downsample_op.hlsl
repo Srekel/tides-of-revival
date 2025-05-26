@@ -1,3 +1,4 @@
+#include "FastNoiseLite.hlsl"
 
 #define COMPUTE_OPERATOR_MIN 1
 #define COMPUTE_OPERATOR_MAX 2
@@ -15,12 +16,13 @@ cbuffer constant_buffer_0 : register(b0)
 StructuredBuffer<float> g_input_buffer : register(t0); // Input buffer is 2x output buffer
 RWStructuredBuffer<float> g_output_buffer : register(u0);
 
-[numthreads(32, 32, 1)] void CSDownsampleOp(uint3 DTid : SV_DispatchThreadID)
+[numthreads(32, 32, 1)] void CSDownsampleOp(uint3 DTid : SV_DispatchThreadID, uint threadIndex : SV_GroupIndex)
 {
-    const float TL = g_input_buffer[(DTid.x * 2 + 0) + (DTid.y * 2 + 0) * g_out_buffer_width];
-    const float TR = g_input_buffer[(DTid.x * 2 + 1) + (DTid.y * 2 + 0) * g_out_buffer_width];
-    const float BL = g_input_buffer[(DTid.x * 2 + 0) + (DTid.y * 2 + 1) * g_out_buffer_width];
-    const float BR = g_input_buffer[(DTid.x * 2 + 1) + (DTid.y * 2 + 1) * g_out_buffer_width];
+    const uint in_buffer_width = g_out_buffer_width * 2;
+    const float TL = g_input_buffer[(DTid.x * 2 + 0) + (DTid.y * 2 + 0) * in_buffer_width];
+    const float TR = g_input_buffer[(DTid.x * 2 + 1) + (DTid.y * 2 + 0) * in_buffer_width];
+    const float BL = g_input_buffer[(DTid.x * 2 + 0) + (DTid.y * 2 + 1) * in_buffer_width];
+    const float BR = g_input_buffer[(DTid.x * 2 + 1) + (DTid.y * 2 + 1) * in_buffer_width];
 
     float output_value = 0.0;
 
@@ -44,6 +46,12 @@ RWStructuredBuffer<float> g_output_buffer : register(u0);
         output_value = DTid.x % 2;
     }
 
+    // output_value = 0;
+    // if (threadIndex == 0) {
+    //     const float TL = g_input_buffer[(DTid.x * 2 + 16) + (DTid.y * 2 + 16) * g_out_buffer_width];
+    //     output_value = TL;
+    // }
+
     uint output_index = DTid.x + DTid.y * g_out_buffer_width;
-    g_output_buffer[DTid.x] = output_value;
+    g_output_buffer[output_index] = output_value;
 }

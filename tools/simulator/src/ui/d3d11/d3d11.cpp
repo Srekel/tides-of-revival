@@ -129,7 +129,9 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/upsample_bilinear.hlsl", "CSUpsampleBilinear", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/downsample.hlsl", "CSDownsample", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/upsample.hlsl", "CSUpsample", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+    compile_compute_shader(L"shaders/downsample_op.hlsl", "CSDownsampleOp", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/terrace.hlsl", "CSTerrace", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
