@@ -33,16 +33,25 @@ fn runSimulation(args: RunSimulationArgs) void {
 
     loaded_graph.start(ctx);
 
+    const time_start = std.time.milliTimestamp();
     while (ctx.next_nodes.len > 0) {
         const node_function = ctx.next_nodes.buffer[0];
-        std.log.debug("simulate \n{any}\n\n", .{node_function});
+        // std.log.debug("simulate: {any}\n\n", .{node_function});
         _ = ctx.next_nodes.orderedRemove(0);
 
         self.mutex.lock();
-        self.progress.percent += @as(f32, 1.0) / @as(f32, @floatFromInt(node_count));
+        self.progress.percent += 1.0 / @as(f32, @floatFromInt(node_count));
         self.mutex.unlock();
 
+        const time_before = std.time.milliTimestamp();
         node_function(ctx);
+        const time_after = std.time.milliTimestamp();
+        const node_duration = time_after - time_before;
+        const total_duration = time_after - time_start;
+        std.log.debug("Node: {d:>5} ms, Total: {d:>6.1} s", .{
+            @as(f32, @floatFromInt(node_duration)) / 1,
+            @as(f32, @floatFromInt(total_duration)) / std.time.ms_per_s,
+        });
     }
 
     loaded_graph.exit(ctx);

@@ -277,6 +277,8 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
 
         // writeLine(writer, "// node kind: {s}", .{kind});
         writeLine(writer, "pub fn {s}(ctx: *Context) void {{", .{name});
+        writeLine(writer, "    std.log.debug(\"Node: {s} [{s}]\", .{{}});\n", .{ name, kind });
+
         const node_start_index = out.items.len;
         // var needs_ctx = true;
 
