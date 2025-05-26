@@ -8,27 +8,31 @@ cbuffer RemapData : register(b0)
 
 StructuredBuffer<float> g_input_buffer : register(t0);
 RWStructuredBuffer<float> g_output_buffer : register(u0);
-StructuredBuffer<float2> g_curve : register(t1);
+StructuredBuffer<float> g_curve : register(t1);
 
 // NOTE: This only supports linear curves and assumes g_curve_keys_count >= 2
 float EvaluateCurve(float input)
 {
     // Out of range
-    if (input < g_curve[0].x)
+    if (input < g_curve[0])
     {
-        return g_curve[0].y;
+        return g_curve[1];
     }
 
     for (uint i = 0; i < g_curve_keys_count - 1; i++)
     {
-        if (input >= g_curve[i].x && input < g_curve[i + 1].x)
+        float curve_x0 = g_curve[(i+0) * 2];
+        float curve_x1 = g_curve[(i+1) * 2];
+        if (input >= curve_x0 && input < curve_x1)
         {
-            return lerp(g_curve[i].y, g_curve[i + 1].y, (input - g_curve[i].x) / (g_curve[i + 1].x - g_curve[i].x));
+            float curve_y0 = g_curve[(i+0) * 2 + 1];
+            float curve_y1 = g_curve[(i+1) * 2 + 1];
+            return lerp(curve_y0, curve_y1, (input - curve_x0) / (curve_x1 - curve_x0));
         }
     }
 
     // Out of range
-    return g_curve[g_curve_keys_count - 1].y;
+    return g_curve[(g_curve_keys_count-1) * 2 + 1];
 }
 
 [numthreads(8, 8, 1)] void CSRemapCurve(uint3 dispatch_thread_id : SV_DispatchThreadID)

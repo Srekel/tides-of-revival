@@ -458,8 +458,6 @@ void gGeneratePreview(const SimulatorAPI *api, Preview &preview)
 
 void compute(const struct ComputeInfo *info)
 {
-	OutputDebugStringA("LOLOLOOL\n");
-
 	EnterCriticalSection(&CriticalSectionEnqueue);
 	compute_do_it_now = true;
 	compute_job = *info;
@@ -474,7 +472,6 @@ void compute(const struct ComputeInfo *info)
 			continue;
 		}
 
-		OutputDebugStringA("LOLOLOOL 2222\n");
 		LeaveCriticalSection(&CriticalSectionDequeue);
 		break;
 	}

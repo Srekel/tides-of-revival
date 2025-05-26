@@ -20,8 +20,8 @@ RWStructuredBuffer<uint> g_counter : register(u1);
         if (value >= g_threshold)
         {
             float2 worldPosition = float2(
-                g_world_width * DTid.x / float(g_buffer_width), 
-                g_world_height * DTid.y / float(g_buffer_height)
+                (DTid.x / float(g_buffer_width)) * g_world_width, 
+                (DTid.y / float(g_buffer_height)) * g_world_height
             );
 
             uint pointIndex;

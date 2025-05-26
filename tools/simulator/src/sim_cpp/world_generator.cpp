@@ -17,7 +17,7 @@ unsigned char g_landscapeWaterColor[3] = {0, 0, 255};
 unsigned char g_landscapeShoreColor[3] = {255, 255, 0};
 unsigned char g_landscapePlainsColor[3] = {0, 255, 0};
 unsigned char g_landscapeHillColor[3] = {0, 128, 0};
-unsigned char g_landscapeMountainColor[3] = {128, 128, 128};
+unsigned char g_landscapeMountainsColor[3] = {128, 128, 128};
 
 static inline jcv_point remap(const jcv_point *pt, const jcv_point *min, const jcv_point *max, const jcv_point *scale);
 static void draw_triangle(const jcv_point *v0, const jcv_point *v1, const jcv_point *v2, unsigned char *image, int width, int height, int nchannels, unsigned char *color);
@@ -61,7 +61,7 @@ void generate_landscape_from_image(Voronoi *grid, const char *image_path)
 		{
 			cell.cell_type = HILLS;
 		}
-		else if (sample[0] == g_landscapeMountainColor[0] && sample[1] == g_landscapeMountainColor[1] && sample[2] == g_landscapeMountainColor[2])
+		else if (sample[0] == g_landscapeMountainsColor[0] && sample[1] == g_landscapeMountainsColor[1] && sample[2] == g_landscapeMountainsColor[2])
 		{
 			cell.cell_type = MOUNTAINS;
 		}
@@ -308,6 +308,12 @@ unsigned char *generate_landscape_preview(Voronoi *grid, uint32_t image_width, u
 				color_tri[0] = g_landscapeShoreColor[0];
 				color_tri[1] = g_landscapeShoreColor[1];
 				color_tri[2] = g_landscapeShoreColor[2];
+			}
+			else if (cell.cell_type == MOUNTAINS)
+			{
+				color_tri[0] = g_landscapeMountainsColor[0];
+				color_tri[1] = g_landscapeMountainsColor[1];
+				color_tri[2] = g_landscapeMountainsColor[2];
 			}
 
 			jcv_point s = remap(&site->p, &grid->voronoi_grid.min, &grid->voronoi_grid.max, &dimensions);
