@@ -42,7 +42,7 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     // zigimg
     const zigimg = b.dependency("zigimg", .{
         .target = target,
-        .optimize = optimize,
+        .optimize = .ReleaseSafe,
     });
     exe.root_module.addImport("zigimg", zigimg.module("zigimg"));
 

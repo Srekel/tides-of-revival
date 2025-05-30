@@ -11,11 +11,11 @@ const c_cpp_nodes = @cImport({
 });
 
 // ============ CONSTANTS ============
-const DRY_RUN = true;
+const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 41;
+pub const node_count = 43;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -118,17 +118,18 @@ var preview_image_remap_heightmap_mountains = types.ImageRGBA.square(preview_siz
 var preview_image_merge_heightmaps = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_generate_terrace = types.ImageRGBA.square(preview_size);
+var preview_image_generate_heightmap_gradient2 = types.ImageRGBA.square(preview_size);
 var preview_image_generate_cities = types.ImageRGBA.square(preview_size);
 var preview_image_generate_trees_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_trees_square = types.ImageRGBA.square(preview_size);
 var preview_image_generate_trees_points = types.ImageRGBA.square(preview_size);
 var preview_image_output_trees_to_file = types.ImageRGBA.square(preview_size);
 var preview_image_output_heightmap_to_file = types.ImageRGBA.square(preview_size);
-var preview_image_generate_village_hill_map = types.ImageRGBA.square(preview_size);
-var preview_image_generate_village_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_remap_village_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_downsample_village_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_upsample_village_gradient = types.ImageRGBA.square(preview_size);
+var preview_image_multiply_village_gradient_hills = types.ImageRGBA.square(preview_size);
+var preview_image_village_output_points = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
 pub fn start(ctx: *Context) void {
@@ -191,17 +192,18 @@ pub fn start(ctx: *Context) void {
     preview_image_merge_heightmaps.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_terrace.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_heightmap_gradient2.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_trees_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_trees_square.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_trees_points.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_output_trees_to_file.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_output_heightmap_to_file.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_generate_village_hill_map.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_generate_village_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_remap_village_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_downsample_village_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_upsample_village_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_multiply_village_gradient_hills.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_village_output_points.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
 }
@@ -359,8 +361,12 @@ pub fn multiply_heightmap_weight_water(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_water, &weight_water, &heightmap_water, &scratch_image);
 
+    types.saveImageF32(heightmap_water, "multiply_heightmap_weight_water", false);
+    types.image_preview_f32(heightmap_water, &preview_image_multiply_heightmap_weight_water);
+    const preview_key_multiply_heightmap_weight_water = "multiply_heightmap_weight_water.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_water, .{ .data = preview_image_multiply_heightmap_weight_water.asBytes() });
+
     // Leaf node
-    _ = ctx; // autofix
 }
 
 pub fn remap_heightmap_water(ctx: *Context) void {
@@ -429,6 +435,11 @@ pub fn blur_weight_plains(ctx: *Context) void {
 
     compute.blur(&weight_plains, &scratch_image, &weight_plains);
 
+    types.saveImageF32(weight_plains, "blur_weight_plains", false);
+    types.image_preview_f32(weight_plains, &preview_image_blur_weight_plains);
+    const preview_key_blur_weight_plains = "blur_weight_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_blur_weight_plains, .{ .data = preview_image_blur_weight_plains.asBytes() });
+
     ctx.next_nodes.insert(0, remap_heightmap_plains) catch unreachable;
 }
 
@@ -437,8 +448,12 @@ pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_plains, &weight_plains, &heightmap_plains, &scratch_image);
 
+    types.saveImageF32(heightmap_plains, "multiply_heightmap_weight_plains", false);
+    types.image_preview_f32(heightmap_plains, &preview_image_multiply_heightmap_weight_plains);
+    const preview_key_multiply_heightmap_weight_plains = "multiply_heightmap_weight_plains.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
+
     // Leaf node
-    _ = ctx; // autofix
 }
 
 pub fn remap_heightmap_plains(ctx: *Context) void {
@@ -508,6 +523,11 @@ pub fn blur_weight_hills(ctx: *Context) void {
 
     compute.blur(&weight_hills, &scratch_image, &weight_hills);
 
+    types.saveImageF32(weight_hills, "blur_weight_hills", false);
+    types.image_preview_f32(weight_hills, &preview_image_blur_weight_hills);
+    const preview_key_blur_weight_hills = "blur_weight_hills.image";
+    ctx.previews.putAssumeCapacity(preview_key_blur_weight_hills, .{ .data = preview_image_blur_weight_hills.asBytes() });
+
     ctx.next_nodes.insert(0, remap_heightmap_hills) catch unreachable;
 }
 
@@ -516,8 +536,12 @@ pub fn multiply_heightmap_weight_hills(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_hills, &weight_hills, &heightmap_hills, &scratch_image);
 
+    types.saveImageF32(heightmap_hills, "multiply_heightmap_weight_hills", false);
+    types.image_preview_f32(heightmap_hills, &preview_image_multiply_heightmap_weight_hills);
+    const preview_key_multiply_heightmap_weight_hills = "multiply_heightmap_weight_hills.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_hills, .{ .data = preview_image_multiply_heightmap_weight_hills.asBytes() });
+
     // Leaf node
-    _ = ctx; // autofix
 }
 
 pub fn remap_heightmap_hills(ctx: *Context) void {
@@ -587,6 +611,11 @@ pub fn blur_weight_mountains(ctx: *Context) void {
 
     compute.blur(&weight_mountains, &scratch_image, &weight_mountains);
 
+    types.saveImageF32(weight_mountains, "blur_weight_mountains", false);
+    types.image_preview_f32(weight_mountains, &preview_image_blur_weight_mountains);
+    const preview_key_blur_weight_mountains = "blur_weight_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_blur_weight_mountains, .{ .data = preview_image_blur_weight_mountains.asBytes() });
+
     ctx.next_nodes.insert(0, remap_heightmap_mountains) catch unreachable;
 }
 
@@ -595,8 +624,12 @@ pub fn multiply_heightmap_weight_mountains(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_mountains, &weight_mountains, &heightmap_mountains, &scratch_image);
 
+    types.saveImageF32(heightmap_mountains, "multiply_heightmap_weight_mountains", false);
+    types.image_preview_f32(heightmap_mountains, &preview_image_multiply_heightmap_weight_mountains);
+    const preview_key_multiply_heightmap_weight_mountains = "multiply_heightmap_weight_mountains.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_mountains, .{ .data = preview_image_multiply_heightmap_weight_mountains.asBytes() });
+
     // Leaf node
-    _ = ctx; // autofix
 }
 
 pub fn remap_heightmap_mountains(ctx: *Context) void {
@@ -618,6 +651,11 @@ pub fn merge_heightmaps(ctx: *Context) void {
     compute.math_add( &heightmap_water, &heightmap_plains, &heightmap, &scratch_image);
     compute.math_add( &heightmap_hills, &heightmap, &heightmap, &scratch_image);
     compute.math_add( &heightmap_mountains, &heightmap, &heightmap, &scratch_image);
+
+    types.saveImageF32(heightmap, "merge_heightmaps", false);
+    types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
+    const preview_key_merge_heightmaps = "merge_heightmaps.image";
+    ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps, .{ .data = preview_image_merge_heightmaps.asBytes() });
 
     ctx.next_nodes.insert(0, generate_heightmap_gradient) catch unreachable;
 }
@@ -654,10 +692,23 @@ pub fn generate_terrace(ctx: *Context) void {
     const preview_key_generate_terrace = "generate_terrace.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_terrace, .{ .data = preview_image_generate_terrace.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_cities) catch unreachable;
-    ctx.next_nodes.insert(1, generate_village_hill_map) catch unreachable;
+    ctx.next_nodes.insert(0, generate_heightmap_gradient2) catch unreachable;
+    ctx.next_nodes.insert(1, generate_cities) catch unreachable;
     ctx.next_nodes.insert(2, generate_trees_fbm) catch unreachable;
     ctx.next_nodes.insert(3, output_heightmap_to_file) catch unreachable;
+}
+
+pub fn generate_heightmap_gradient2(ctx: *Context) void {
+    std.log.info("Node: generate_heightmap_gradient2 [gradient]", .{});
+
+    nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
+
+    types.saveImageF32(gradient_image, "generate_heightmap_gradient2", false);
+    types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient2);
+    const preview_key_generate_heightmap_gradient2 = "generate_heightmap_gradient2.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_gradient2, .{ .data = preview_image_generate_heightmap_gradient2.asBytes() });
+
+    // Leaf node
 }
 
 pub fn generate_cities(ctx: *Context) void {
@@ -743,47 +794,14 @@ pub fn output_heightmap_to_file(ctx: *Context) void {
     _ = ctx; // autofix
 }
 
-pub fn generate_village_hill_map(ctx: *Context) void {
-    std.log.debug("Node: generate_village_hill_map [remap_curve]", .{});
-
-    const curve = [_]types.Vec2{
-        .{ .x = 0, .y = 0},
-        .{ .x = 140, .y = 0},
-        .{ .x = 150, .y = 1},
-        .{ .x = 250, .y = 1},
-        .{ .x = 260, .y = 0},
-    };
-    compute.remapCurve(&heightmap, &curve, &village_hills);
-
-    types.saveImageF32(village_hills, "generate_village_hill_map", false);
-    types.image_preview_f32(village_hills, &preview_image_generate_village_hill_map);
-    const preview_key_generate_village_hill_map = "generate_village_hill_map.image";
-    ctx.previews.putAssumeCapacity(preview_key_generate_village_hill_map, .{ .data = preview_image_generate_village_hill_map.asBytes() });
-
-    ctx.next_nodes.insert(0, generate_village_gradient) catch unreachable;
-}
-
-pub fn generate_village_gradient(ctx: *Context) void {
-    std.log.debug("Node: generate_village_gradient [gradient]", .{});
-
-    nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &village_gradient);
-
-    types.saveImageF32(village_gradient, "generate_village_gradient", false);
-    types.image_preview_f32(village_gradient, &preview_image_generate_village_gradient);
-    const preview_key_generate_village_gradient = "generate_village_gradient.image";
-    ctx.previews.putAssumeCapacity(preview_key_generate_village_gradient, .{ .data = preview_image_generate_village_gradient.asBytes() });
-
-    ctx.next_nodes.insert(0, remap_village_gradient) catch unreachable;
-}
-
 pub fn remap_village_gradient(ctx: *Context) void {
     std.log.info("Node: remap_village_gradient [remap_curve]", .{});
 
     const curve = [_]types.Vec2{
         .{ .x = 0, .y = 1},
-        .{ .x = 0.001, .y = 0},
+        .{ .x = 0.0001, .y = 0},
     };
-    compute.remapCurve(&village_gradient, &curve, &village_gradient);
+    compute.remapCurve(&gradient_image, &curve, &village_gradient);
 
     types.saveImageF32(village_gradient, "remap_village_gradient", false);
     types.image_preview_f32(village_gradient, &preview_image_remap_village_gradient);
@@ -799,6 +817,8 @@ pub fn downsample_village_gradient(ctx: *Context) void {
     const orig_scratch_image_size = scratch_image.size;
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
+    compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
+    compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     scratch_image.size = orig_scratch_image_size;
 
     types.saveImageF32(village_gradient, "downsample_village_gradient", false);
@@ -810,9 +830,11 @@ pub fn downsample_village_gradient(ctx: *Context) void {
 }
 
 pub fn upsample_village_gradient(ctx: *Context) void {
-    std.log.debug("Node: upsample_village_gradient [upsample]", .{});
+    std.log.info("Node: upsample_village_gradient [upsample]", .{});
 
     const orig_scratch_image_size = scratch_image.size;
+    compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
+    compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     scratch_image.size = orig_scratch_image_size;
@@ -822,6 +844,31 @@ pub fn upsample_village_gradient(ctx: *Context) void {
     const preview_key_upsample_village_gradient = "upsample_village_gradient.image";
     ctx.previews.putAssumeCapacity(preview_key_upsample_village_gradient, .{ .data = preview_image_upsample_village_gradient.asBytes() });
 
+    ctx.next_nodes.insert(0, multiply_village_gradient_hills) catch unreachable;
+}
+
+pub fn multiply_village_gradient_hills(ctx: *Context) void {
+    std.log.info("Node: multiply_village_gradient_hills [math]", .{});
+
+    compute.math_multiply( &village_gradient, &weight_hills, &village_gradient, &scratch_image);
+
+    types.saveImageF32(village_gradient, "multiply_village_gradient_hills", false);
+    types.image_preview_f32(village_gradient, &preview_image_multiply_village_gradient_hills);
+    const preview_key_multiply_village_gradient_hills = "multiply_village_gradient_hills.image";
+    ctx.previews.putAssumeCapacity(preview_key_multiply_village_gradient_hills, .{ .data = preview_image_multiply_village_gradient_hills.asBytes() });
+
+    ctx.next_nodes.insert(0, village_output_points) catch unreachable;
+}
+
+pub fn village_output_points(ctx: *Context) void {
+    std.log.info("Node: village_output_points [gather_points]", .{});
+
+    compute.gatherPoints(&village_gradient, world_settings.size.width, world_settings.size.height, 0.01, &village_points, &village_points_counter);
+    std.log.info("LOL count:{d}", .{village_points_counter.pixels[0]});
+    std.log.info("LOL pt:{d},{d}", .{ village_points.pixels[0][0], village_points.pixels[0][1] } );
+    std.log.info("LOL pt:{d:.3},{d:.3}", .{ village_points.pixels[0][0], village_points.pixels[0][1] } );
+
     // Leaf node
+    _ = ctx; // autofix
 }
 

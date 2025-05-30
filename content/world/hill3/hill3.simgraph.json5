@@ -267,16 +267,6 @@
       settings: "fbm_settings_water",
       output: "heightmap_water",
     },
-    // {
-    //   name: "test_output_points",
-    //   kind: "gather_points",
-    //   // vars
-    //   image: "voronoi_image",
-    //   point_list: "test_points",
-    //   counter_list: "test_points_counter",
-    //   world_size: "world_settings.size",
-    //   threshold: 1.95,
-    // },
     {
       name: "generate_voronoi_weight_water",
       kind: "remap_curve",
@@ -513,14 +503,23 @@
       name: "generate_terrace",
       kind: "terrace",
       next: [
+        "generate_heightmap_gradient2",
         "generate_cities",
-        "generate_village_hill_map",
+        // "remap_village_gradient",
         "generate_trees_fbm",
         "output_heightmap_to_file",
       ],
       // vars
       gradient: "gradient_image",
       heightmap: "heightmap",
+      output: "gradient_image",
+    },
+    {
+      name: "generate_heightmap_gradient2",
+      kind: "gradient",
+      // next: "generate_terrace",
+      // vars
+      input: "heightmap",
       output: "gradient_image",
     },
     {
@@ -571,44 +570,45 @@
     },
 
     // VILLAGES
-    {
-      name: "generate_village_hill_map",
-      kind: "remap_curve",
-      next: "generate_village_gradient",
-      // vars
-      image_in: "heightmap",
-      curve:[
-        0.0, 0.0,
-        140.0, 0.0,
-        150.0, 1.0,
-        250.0, 1.0,
-        260.0, 0.0,
-      ],
-      image_out: "village_hills",
-    },
-    {
-      name: "generate_village_gradient",
-      kind: "gradient",
-      next: "remap_village_gradient",
-      // vars
-      input: "heightmap",
-      curve:[
-        0.0, 0.0,
-        150.0, 1.0,
-        250.0, 1.0,
-        300.0, 0.0,
-      ],
-      output: "village_gradient",
-    },
+    // {
+    //   name: "generate_village_hill_map",
+    //   kind: "remap_curve",
+    //   next: "generate_village_gradient",
+    //   // vars
+    //   image_in: "heightmap",
+    //   curve:[
+    //     0.0, 0.0,
+    //     140.0, 0.0,
+    //     150.0, 1.0,
+    //     250.0, 1.0,
+    //     260.0, 0.0,
+    //   ],
+    //   image_out: "village_hills",
+    // },
+    // {
+    //   name: "generate_village_gradient",
+    //   kind: "gradient",
+    //   next: "remap_village_gradient",
+    //   // vars
+    //   input: "heightmap",
+    //   curve:[
+    //     0.0, 0.0,
+    //     150.0, 0.5,
+    //     250.0, 1.0,
+    //     300.0, 1.0,
+    //     400.0, 1.0,
+    //   ],
+    //   output: "village_gradient",
+    // },
     {
       name: "remap_village_gradient",
       kind: "remap_curve",
       next: "downsample_village_gradient",
       // vars
-      image_in: "village_gradient",
+      image_in: "gradient_image",
       curve:[
         0.0, 1.0,
-        0.001, 0.0,
+        0.0001, 0.0,
       ],
       image_out: "village_gradient",
     },
@@ -620,17 +620,36 @@
       image_in: "village_gradient",
       image_out: "village_gradient",
       op: "min",
-      count: 2,
+      count: 4,
     },
     {
       name: "upsample_village_gradient",
       kind: "upsample",
-      // next: "generate_village_gradient",
+      next: "multiply_village_gradient_hills",
       // vars
       image_in: "village_gradient",
       image_out: "village_gradient",
       op: "first",
-      count: 2,
+      count: 4,
+    },
+    {
+      name: "multiply_village_gradient_hills",
+      kind: "math",
+      next: "village_output_points",
+      // vars
+      op: "multiply",
+      inputs: ["village_gradient", "weight_hills"],
+      output: "village_gradient",
+    },
+    {
+      name: "village_output_points",
+      kind: "gather_points",
+      // vars
+      image: "village_gradient",
+      point_list: "village_points",
+      counter_list: "village_points_counter",
+      world_size: "world_settings.size",
+      threshold: 0.01,
     },
   ],
 }
