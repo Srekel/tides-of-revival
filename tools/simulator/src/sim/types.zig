@@ -176,6 +176,15 @@ pub fn castSliceToSlice(comptime T: type, slice: anytype) []T {
 
 var image_index: i32 = 0;
 pub fn saveImageF32(image_in: ImageF32, name: []const u8, heatmap: bool) void {
+    if (image_in.height_min > image_in.height_max - 0.00001) {
+        std.log.warn("zero span {d}->{d} image {s}", .{ image_in.height_min, image_in.height_max, name });
+        return;
+    }
+    if (image_in.height_max < 0.00001) {
+        std.log.warn("zero height_max {d}->{d} image {s}", .{ image_in.height_min, image_in.height_max, name });
+        return;
+    }
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
