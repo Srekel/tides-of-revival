@@ -156,7 +156,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     writeLine(writer, "const kilometers = if (DRY_RUN) 2 else 16;", .{});
     writeLine(writer, "const preview_size = 512;", .{});
     writeLine(writer, "const preview_size_big = preview_size * 2;", .{});
-    writeLine(writer, "pub const node_count = {any};", .{j_nodes.Array.items.len});
+    writeLine(writer, "pub const node_count = {any};", .{j_nodes.Array.items.len + 1});
 
     // vars
     writeLine(writer, "", .{});
@@ -279,7 +279,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
 
         // writeLine(writer, "// node kind: {s}", .{kind});
         writeLine(writer, "pub fn {s}(ctx: *Context) void {{", .{name});
-        writeLine(writer, "    std.log.debug(\"Node: {s} [{s}]\", .{{}});\n", .{ name, kind });
+        writeLine(writer, "    std.log.info(\"Node: {s} [{s}]\", .{{}});\n", .{ name, kind });
 
         const node_start_index = out.items.len;
         // var needs_ctx = true;

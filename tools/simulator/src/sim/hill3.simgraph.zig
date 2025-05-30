@@ -132,7 +132,7 @@ var preview_image_upsample_village_gradient = types.ImageRGBA.square(preview_siz
 
 // ============ NODES ============
 pub fn start(ctx: *Context) void {
-    std.log.debug("Node: start [start]", .{});
+    std.log.info("Node: start [start]", .{});
 
     // Initialize vars
     voronoi = std.heap.c_allocator.create(nodes.voronoi.Voronoi) catch unreachable;
@@ -207,7 +207,7 @@ pub fn start(ctx: *Context) void {
 }
 
 pub fn exit(ctx: *Context) void {
-    std.log.debug("Node: exit [exit]", .{});
+    std.log.info("Node: exit [exit]", .{});
 
     // Unhandled node type: exit
 
@@ -216,7 +216,7 @@ pub fn exit(ctx: *Context) void {
 }
 
 pub fn generate_poisson_for_voronoi(ctx: *Context) void {
-    std.log.debug("Node: generate_poisson_for_voronoi [poisson]", .{});
+    std.log.info("Node: generate_poisson_for_voronoi [poisson]", .{});
 
     nodes.poisson.generate_points(world_size, 50, 1, &voronoi_points);
 
@@ -224,7 +224,7 @@ pub fn generate_poisson_for_voronoi(ctx: *Context) void {
 }
 
 pub fn generate_voronoi_map(ctx: *Context) void {
-    std.log.debug("Node: generate_voronoi_map [voronoi]", .{});
+    std.log.info("Node: generate_voronoi_map [voronoi]", .{});
 
     voronoi.* = .{
         .diagram = .{},
@@ -245,7 +245,7 @@ pub fn generate_voronoi_map(ctx: *Context) void {
 }
 
 pub fn generate_landscape_from_image(ctx: *Context) void {
-    std.log.debug("Node: generate_landscape_from_image [landscape_from_image]", .{});
+    std.log.info("Node: generate_landscape_from_image [landscape_from_image]", .{});
 
     var c_voronoi = c_cpp_nodes.Voronoi{
         .voronoi_grid = voronoi.diagram,
@@ -261,7 +261,7 @@ pub fn generate_landscape_from_image(ctx: *Context) void {
 }
 
 pub fn generate_contours(ctx: *Context) void {
-    std.log.debug("Node: generate_contours [contours]", .{});
+    std.log.info("Node: generate_contours [contours]", .{});
 
     nodes.voronoi.contours(voronoi);
 
@@ -271,7 +271,7 @@ pub fn generate_contours(ctx: *Context) void {
 }
 
 pub fn generate_image_from_voronoi(ctx: *Context) void {
-    std.log.debug("Node: generate_image_from_voronoi [image_from_voronoi]", .{});
+    std.log.info("Node: generate_image_from_voronoi [image_from_voronoi]", .{});
 
     var c_voronoi = c_cpp_nodes.Voronoi{
         .voronoi_grid = voronoi.diagram,
@@ -295,7 +295,7 @@ pub fn generate_image_from_voronoi(ctx: *Context) void {
 }
 
 pub fn generate_heightmap_water(ctx: *Context) void {
-    std.log.debug("Node: generate_heightmap_water [fbm]", .{});
+    std.log.info("Node: generate_heightmap_water [fbm]", .{});
 
     const generate_fbm_settings = compute.GenerateFBMSettings{
         .width = @intCast(heightmap_water.size.width),
@@ -323,7 +323,7 @@ pub fn generate_heightmap_water(ctx: *Context) void {
 }
 
 pub fn generate_voronoi_weight_water(ctx: *Context) void {
-    std.log.debug("Node: generate_voronoi_weight_water [remap_curve]", .{});
+    std.log.info("Node: generate_voronoi_weight_water [remap_curve]", .{});
 
     const curve = [_]types.Vec2{
         .{ .x = 0, .y = 0},
@@ -342,7 +342,7 @@ pub fn generate_voronoi_weight_water(ctx: *Context) void {
 }
 
 pub fn blur_weight_water(ctx: *Context) void {
-    std.log.debug("Node: blur_weight_water [blur]", .{});
+    std.log.info("Node: blur_weight_water [blur]", .{});
 
     compute.blur(&weight_water, &scratch_image, &weight_water);
 
@@ -355,7 +355,7 @@ pub fn blur_weight_water(ctx: *Context) void {
 }
 
 pub fn multiply_heightmap_weight_water(ctx: *Context) void {
-    std.log.debug("Node: multiply_heightmap_weight_water [math]", .{});
+    std.log.info("Node: multiply_heightmap_weight_water [math]", .{});
 
     scratch_image.copy(heightmap_water);
     compute.math_multiply( &scratch_image, &weight_water, &heightmap_water);
@@ -370,7 +370,7 @@ pub fn multiply_heightmap_weight_water(ctx: *Context) void {
 }
 
 pub fn remap_heightmap_water(ctx: *Context) void {
-    std.log.debug("Node: remap_heightmap_water [remap]", .{});
+    std.log.info("Node: remap_heightmap_water [remap]", .{});
 
     compute.remap(&heightmap_water, &scratch_image, 0, 50);
 
@@ -383,7 +383,7 @@ pub fn remap_heightmap_water(ctx: *Context) void {
 }
 
 pub fn generate_heightmap_plains(ctx: *Context) void {
-    std.log.debug("Node: generate_heightmap_plains [fbm]", .{});
+    std.log.info("Node: generate_heightmap_plains [fbm]", .{});
 
     const generate_fbm_settings = compute.GenerateFBMSettings{
         .width = @intCast(heightmap_plains.size.width),
@@ -411,7 +411,7 @@ pub fn generate_heightmap_plains(ctx: *Context) void {
 }
 
 pub fn generate_voronoi_weight_plains(ctx: *Context) void {
-    std.log.debug("Node: generate_voronoi_weight_plains [remap_curve]", .{});
+    std.log.info("Node: generate_voronoi_weight_plains [remap_curve]", .{});
 
     const curve = [_]types.Vec2{
         .{ .x = 0, .y = 0},
@@ -431,14 +431,9 @@ pub fn generate_voronoi_weight_plains(ctx: *Context) void {
 }
 
 pub fn blur_weight_plains(ctx: *Context) void {
-    std.log.debug("Node: blur_weight_plains [blur]", .{});
+    std.log.info("Node: blur_weight_plains [blur]", .{});
 
     compute.blur(&weight_plains, &scratch_image, &weight_plains);
-
-    types.saveImageF32(weight_plains, "blur_weight_plains", false);
-    types.image_preview_f32(weight_plains, &preview_image_blur_weight_plains);
-    const preview_key_blur_weight_plains = "blur_weight_plains.image";
-    ctx.previews.putAssumeCapacity(preview_key_blur_weight_plains, .{ .data = preview_image_blur_weight_plains.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_plains) catch unreachable;
 }
@@ -459,7 +454,7 @@ pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
 }
 
 pub fn remap_heightmap_plains(ctx: *Context) void {
-    std.log.debug("Node: remap_heightmap_plains [remap]", .{});
+    std.log.info("Node: remap_heightmap_plains [remap]", .{});
 
     compute.remap(&heightmap_plains, &scratch_image, 50, 75);
 
@@ -472,7 +467,7 @@ pub fn remap_heightmap_plains(ctx: *Context) void {
 }
 
 pub fn generate_heightmap_hills(ctx: *Context) void {
-    std.log.debug("Node: generate_heightmap_hills [fbm]", .{});
+    std.log.info("Node: generate_heightmap_hills [fbm]", .{});
 
     const generate_fbm_settings = compute.GenerateFBMSettings{
         .width = @intCast(heightmap_hills.size.width),
@@ -500,7 +495,7 @@ pub fn generate_heightmap_hills(ctx: *Context) void {
 }
 
 pub fn generate_voronoi_weight_hills(ctx: *Context) void {
-    std.log.debug("Node: generate_voronoi_weight_hills [remap_curve]", .{});
+    std.log.info("Node: generate_voronoi_weight_hills [remap_curve]", .{});
 
     const curve = [_]types.Vec2{
         .{ .x = 0, .y = 0},
@@ -521,20 +516,15 @@ pub fn generate_voronoi_weight_hills(ctx: *Context) void {
 }
 
 pub fn blur_weight_hills(ctx: *Context) void {
-    std.log.debug("Node: blur_weight_hills [blur]", .{});
+    std.log.info("Node: blur_weight_hills [blur]", .{});
 
     compute.blur(&weight_hills, &scratch_image, &weight_hills);
-
-    types.saveImageF32(weight_hills, "blur_weight_hills", false);
-    types.image_preview_f32(weight_hills, &preview_image_blur_weight_hills);
-    const preview_key_blur_weight_hills = "blur_weight_hills.image";
-    ctx.previews.putAssumeCapacity(preview_key_blur_weight_hills, .{ .data = preview_image_blur_weight_hills.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_hills) catch unreachable;
 }
 
 pub fn multiply_heightmap_weight_hills(ctx: *Context) void {
-    std.log.debug("Node: multiply_heightmap_weight_hills [math]", .{});
+    std.log.info("Node: multiply_heightmap_weight_hills [math]", .{});
 
     scratch_image.copy(heightmap_hills);
     compute.math_multiply( &scratch_image, &weight_hills, &heightmap_hills);
@@ -549,7 +539,7 @@ pub fn multiply_heightmap_weight_hills(ctx: *Context) void {
 }
 
 pub fn remap_heightmap_hills(ctx: *Context) void {
-    std.log.debug("Node: remap_heightmap_hills [remap]", .{});
+    std.log.info("Node: remap_heightmap_hills [remap]", .{});
 
     compute.remap(&heightmap_hills, &scratch_image, 100, 250);
 
@@ -562,7 +552,7 @@ pub fn remap_heightmap_hills(ctx: *Context) void {
 }
 
 pub fn generate_heightmap_mountains(ctx: *Context) void {
-    std.log.debug("Node: generate_heightmap_mountains [fbm]", .{});
+    std.log.info("Node: generate_heightmap_mountains [fbm]", .{});
 
     const generate_fbm_settings = compute.GenerateFBMSettings{
         .width = @intCast(heightmap_mountains.size.width),
@@ -590,7 +580,7 @@ pub fn generate_heightmap_mountains(ctx: *Context) void {
 }
 
 pub fn generate_voronoi_weight_mountains(ctx: *Context) void {
-    std.log.debug("Node: generate_voronoi_weight_mountains [remap_curve]", .{});
+    std.log.info("Node: generate_voronoi_weight_mountains [remap_curve]", .{});
 
     const curve = [_]types.Vec2{
         .{ .x = 0, .y = 0},
@@ -611,14 +601,9 @@ pub fn generate_voronoi_weight_mountains(ctx: *Context) void {
 }
 
 pub fn blur_weight_mountains(ctx: *Context) void {
-    std.log.debug("Node: blur_weight_mountains [blur]", .{});
+    std.log.info("Node: blur_weight_mountains [blur]", .{});
 
     compute.blur(&weight_mountains, &scratch_image, &weight_mountains);
-
-    types.saveImageF32(weight_mountains, "blur_weight_mountains", false);
-    types.image_preview_f32(weight_mountains, &preview_image_blur_weight_mountains);
-    const preview_key_blur_weight_mountains = "blur_weight_mountains.image";
-    ctx.previews.putAssumeCapacity(preview_key_blur_weight_mountains, .{ .data = preview_image_blur_weight_mountains.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_mountains) catch unreachable;
 }
@@ -639,7 +624,7 @@ pub fn multiply_heightmap_weight_mountains(ctx: *Context) void {
 }
 
 pub fn remap_heightmap_mountains(ctx: *Context) void {
-    std.log.debug("Node: remap_heightmap_mountains [remap]", .{});
+    std.log.info("Node: remap_heightmap_mountains [remap]", .{});
 
     compute.remap(&heightmap_mountains, &scratch_image, 20, 1000);
 
@@ -681,7 +666,7 @@ pub fn merge_heightmaps(ctx: *Context) void {
 }
 
 pub fn generate_heightmap_gradient(ctx: *Context) void {
-    std.log.debug("Node: generate_heightmap_gradient [gradient]", .{});
+    std.log.info("Node: generate_heightmap_gradient [gradient]", .{});
 
     nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
 
@@ -694,7 +679,7 @@ pub fn generate_heightmap_gradient(ctx: *Context) void {
 }
 
 pub fn generate_terrace(ctx: *Context) void {
-    std.log.debug("Node: generate_terrace [terrace]", .{});
+    std.log.info("Node: generate_terrace [terrace]", .{});
 
     heightmap2.copy(heightmap);
     types.saveImageF32(gradient_image, "gradient_image_b4terrace", false);
@@ -719,7 +704,7 @@ pub fn generate_terrace(ctx: *Context) void {
 }
 
 pub fn generate_cities(ctx: *Context) void {
-    std.log.debug("Node: generate_cities [cities]", .{});
+    std.log.info("Node: generate_cities [cities]", .{});
 
     if (!DRY_RUN) {
         nodes.experiments.cities(world_settings, heightmap, gradient_image, &cities);
@@ -730,7 +715,7 @@ pub fn generate_cities(ctx: *Context) void {
 }
 
 pub fn generate_trees_fbm(ctx: *Context) void {
-    std.log.debug("Node: generate_trees_fbm [fbm]", .{});
+    std.log.info("Node: generate_trees_fbm [fbm]", .{});
 
     const generate_fbm_settings = compute.GenerateFBMSettings{
         .width = @intCast(fbm_trees_image.size.width),
@@ -758,7 +743,7 @@ pub fn generate_trees_fbm(ctx: *Context) void {
 }
 
 pub fn trees_square(ctx: *Context) void {
-    std.log.debug("Node: trees_square [square]", .{});
+    std.log.info("Node: trees_square [square]", .{});
 
     compute.square(&fbm_trees_image, &scratch_image);
 
@@ -771,7 +756,7 @@ pub fn trees_square(ctx: *Context) void {
 }
 
 pub fn generate_trees_points(ctx: *Context) void {
-    std.log.debug("Node: generate_trees_points [points_grid]", .{});
+    std.log.info("Node: generate_trees_points [points_grid]", .{});
 
     trees_points = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
     nodes.experiments.points_distribution_grid(fbm_trees_image, 0.6, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees_points);
@@ -780,7 +765,7 @@ pub fn generate_trees_points(ctx: *Context) void {
 }
 
 pub fn output_trees_to_file(ctx: *Context) void {
-    std.log.debug("Node: output_trees_to_file [write_trees]", .{});
+    std.log.info("Node: output_trees_to_file [write_trees]", .{});
 
     if (!DRY_RUN) {
         nodes.experiments.write_trees(heightmap, trees_points);
@@ -791,7 +776,7 @@ pub fn output_trees_to_file(ctx: *Context) void {
 }
 
 pub fn output_heightmap_to_file(ctx: *Context) void {
-    std.log.debug("Node: output_heightmap_to_file [write_heightmap]", .{});
+    std.log.info("Node: output_heightmap_to_file [write_heightmap]", .{});
 
     if (!DRY_RUN) {
         nodes.heightmap_format.heightmap_format(world_settings, heightmap);
@@ -835,7 +820,7 @@ pub fn generate_village_gradient(ctx: *Context) void {
 }
 
 pub fn remap_village_gradient(ctx: *Context) void {
-    std.log.debug("Node: remap_village_gradient [remap_curve]", .{});
+    std.log.info("Node: remap_village_gradient [remap_curve]", .{});
 
     const curve = [_]types.Vec2{
         .{ .x = 0, .y = 1},
@@ -852,7 +837,7 @@ pub fn remap_village_gradient(ctx: *Context) void {
 }
 
 pub fn downsample_village_gradient(ctx: *Context) void {
-    std.log.debug("Node: downsample_village_gradient [downsample]", .{});
+    std.log.info("Node: downsample_village_gradient [downsample]", .{});
 
     const orig_scratch_image_size = scratch_image.size;
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);

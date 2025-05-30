@@ -39,3 +39,11 @@ pub fn main() void {
         std.log.debug("{any}", .{dll_ui_runUI});
     }
 }
+
+// pub const std_options = .{
+//     // Set the log level to info
+//     .log_level = .info,
+// };
+pub const std_options: std.Options = .{
+    .log_level = .info,
+};
