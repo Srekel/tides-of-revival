@@ -487,18 +487,27 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const inputs = j_node.Object.get("inputs").?.Array;
                 const output = j_node.Object.get("output").?.String;
 
-                writeLine(writer, "    scratch_image.copy({s});", .{inputs.items[0].String});
+                // writeLine(writer, "    scratch_image.copy({s});", .{inputs.items[0].String});
 
-                for (1..inputs.items.len) |i| {
-                    writeLine(writer, "    compute.math_{s}( &{s}, &{s}, &{s});", .{
+                writeLine(writer, "    compute.math_{s}( &{s}, &{s}, &{s}, &{s});", .{
+                    op,
+                    inputs.items[0].String,
+                    inputs.items[1].String,
+                    output,
+                    "scratch_image",
+                });
+
+                for (2..inputs.items.len) |i| {
+                    writeLine(writer, "    compute.math_{s}( &{s}, &{s}, &{s}, &{s});", .{
                         op,
-                        "scratch_image",
                         inputs.items[i].String,
                         output,
+                        output,
+                        "scratch_image",
                     });
-                    writeLine(writer, "    scratch_image.copy({s});", .{output});
-                    writePreviewIndexed(writer, output, name, i);
                 }
+
+                writePreview(writer, output, name);
             },
             kind_points_grid => {
                 const points = j_node.Object.get("points").?.String;

@@ -235,14 +235,14 @@ const SquareSettings = extern struct {
     _padding: [2]f32 = undefined,
 };
 
-pub fn square(image_in: *types.ImageF32, image_out: *types.ImageF32) void {
-    compute_f32_1(.square, image_in, image_out, SquareSettings{
+pub fn square(image_in: *types.ImageF32, scratch: *types.ImageF32) void {
+    compute_f32_1(.square, image_in, scratch, SquareSettings{
         .width = @intCast(image_in.size.width),
         .height = @intCast(image_in.size.height),
     });
-    image_out.height_min = image_in.height_min * image_in.height_min;
-    image_out.height_max = image_in.height_max * image_in.height_max;
-    image_in.swap(image_out);
+    scratch.height_min = image_in.height_min * image_in.height_min;
+    scratch.height_max = image_in.height_max * image_in.height_max;
+    image_in.swap(scratch);
 }
 
 const MathSettings = extern struct {
@@ -251,11 +251,10 @@ const MathSettings = extern struct {
     _padding: [2]f32 = undefined,
 };
 
-pub fn math_add(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32) void {
+pub fn math_add(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32, scratch: *types.ImageF32) void {
     std.debug.assert(image_in0.byteCount() == image_in1.byteCount() and image_in0.byteCount() == image_out.byteCount());
-    std.debug.assert(image_in0 != image_out and image_in1 != image_out);
     var in_buffers = [_]*types.ImageF32{ image_in0, image_in1 };
-    var out_buffers = [_]*types.ImageF32{image_out};
+    var out_buffers = [_]*types.ImageF32{scratch};
 
     compute_f32_n(
         .add,
@@ -267,13 +266,14 @@ pub fn math_add(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_ou
         },
     );
 
+    scratch.swap(image_out);
     nodes.math.rerangify(image_out);
 }
 
-pub fn math_multiply(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32) void {
+pub fn math_multiply(image_in0: *types.ImageF32, image_in1: *types.ImageF32, image_out: *types.ImageF32, scratch: *types.ImageF32) void {
     std.debug.assert(image_in0.byteCount() == image_in0.byteCount() and image_in0.byteCount() == image_out.byteCount());
     var in_buffers = [_]*types.ImageF32{ image_in0, image_in1 };
-    var out_buffers = [_]*types.ImageF32{image_out};
+    var out_buffers = [_]*types.ImageF32{scratch};
 
     compute_f32_n(
         .multiply,
@@ -285,6 +285,7 @@ pub fn math_multiply(image_in0: *types.ImageF32, image_in1: *types.ImageF32, ima
         },
     );
 
+    scratch.swap(image_out);
     nodes.math.rerangify(image_out);
 }
 
@@ -399,6 +400,7 @@ pub fn gatherPoints(image_in: *types.ImageF32, world_width: f32, world_height: f
         .out_count = 2,
         .data_size = @sizeOf(GatherPointsSettings),
         .data = std.mem.asBytes(&gather_points_data),
+        .dispatch_size = .{ @intCast(image_in.size.width), @intCast(image_in.size.height) },
     };
 
     compute_fn(&compute_info);
