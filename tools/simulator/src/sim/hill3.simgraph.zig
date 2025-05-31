@@ -15,7 +15,7 @@ const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 43;
+pub const node_count = 46;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -90,6 +90,9 @@ var village_points_counter: types.ImageU32 = types.ImageU32.square(world_setting
 // ============ PREVIEW IMAGES ============
 var preview_image_start = types.ImageRGBA.square(preview_size);
 var preview_image_exit = types.ImageRGBA.square(preview_size);
+var preview_image_main = types.ImageRGBA.square(preview_size);
+var preview_image_main_generate_voronoi = types.ImageRGBA.square(preview_size);
+var preview_image_main_generate_heightmap = types.ImageRGBA.square(preview_size);
 var preview_image_generate_poisson_for_voronoi = types.ImageRGBA.square(preview_size);
 var preview_image_generate_voronoi_map = types.ImageRGBA.square(preview_size);
 var preview_image_generate_landscape_from_image = types.ImageRGBA.square(preview_size);
@@ -119,7 +122,7 @@ var preview_image_merge_heightmaps = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_generate_terrace = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient2 = types.ImageRGBA.square(preview_size);
-var preview_image_generate_cities = types.ImageRGBA.square(preview_size);
+var preview_image_output_cities = types.ImageRGBA.square(preview_size);
 var preview_image_generate_trees_fbm = types.ImageRGBA.square(preview_size);
 var preview_image_trees_square = types.ImageRGBA.square(preview_size);
 var preview_image_generate_trees_points = types.ImageRGBA.square(preview_size);
@@ -164,6 +167,9 @@ pub fn start(ctx: *Context) void {
     // Initialize preview images
     preview_image_start.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_exit.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_main.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_main_generate_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_main_generate_heightmap.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_poisson_for_voronoi.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_voronoi_map.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_landscape_from_image.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -193,7 +199,7 @@ pub fn start(ctx: *Context) void {
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_terrace.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient2.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
-    preview_image_generate_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_output_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_trees_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_trees_square.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_trees_points.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -205,7 +211,7 @@ pub fn start(ctx: *Context) void {
     preview_image_multiply_village_gradient_hills.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_village_output_points.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
-    ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
+    ctx.next_nodes.insert(0, main) catch unreachable;
 }
 
 pub fn exit(ctx: *Context) void {
@@ -217,12 +223,52 @@ pub fn exit(ctx: *Context) void {
     _ = ctx; // autofix
 }
 
+pub fn main(ctx: *Context) void {
+    std.log.info("Node: main [sequence]", .{});
+
+    // Sequence:
+
+    ctx.next_nodes.insert(0, main_generate_voronoi) catch unreachable;
+    ctx.next_nodes.insert(1, main_generate_heightmap) catch unreachable;
+    ctx.next_nodes.insert(2, generate_trees_fbm) catch unreachable;
+    ctx.next_nodes.insert(3, output_heightmap_to_file) catch unreachable;
+    ctx.next_nodes.insert(4, output_cities) catch unreachable;
+}
+
+pub fn main_generate_voronoi(ctx: *Context) void {
+    std.log.info("Node: main_generate_voronoi [sequence]", .{});
+
+    // Sequence:
+
+    ctx.next_nodes.insert(0, generate_poisson_for_voronoi) catch unreachable;
+    ctx.next_nodes.insert(1, generate_voronoi_map) catch unreachable;
+    ctx.next_nodes.insert(2, generate_landscape_from_image) catch unreachable;
+    ctx.next_nodes.insert(3, generate_contours) catch unreachable;
+    ctx.next_nodes.insert(4, generate_image_from_voronoi) catch unreachable;
+}
+
+pub fn main_generate_heightmap(ctx: *Context) void {
+    std.log.info("Node: main_generate_heightmap [sequence]", .{});
+
+    // Sequence:
+
+    ctx.next_nodes.insert(0, generate_heightmap_water) catch unreachable;
+    ctx.next_nodes.insert(1, generate_heightmap_plains) catch unreachable;
+    ctx.next_nodes.insert(2, generate_heightmap_hills) catch unreachable;
+    ctx.next_nodes.insert(3, generate_heightmap_mountains) catch unreachable;
+    ctx.next_nodes.insert(4, merge_heightmaps) catch unreachable;
+    ctx.next_nodes.insert(5, generate_heightmap_gradient) catch unreachable;
+    ctx.next_nodes.insert(6, generate_terrace) catch unreachable;
+    ctx.next_nodes.insert(7, generate_heightmap_gradient2) catch unreachable;
+}
+
 pub fn generate_poisson_for_voronoi(ctx: *Context) void {
     std.log.info("Node: generate_poisson_for_voronoi [poisson]", .{});
 
     nodes.poisson.generate_points(world_size, 50, 1, &voronoi_points);
 
-    ctx.next_nodes.insert(0, generate_voronoi_map) catch unreachable;
+    // Leaf node
+    _ = ctx; // autofix
 }
 
 pub fn generate_voronoi_map(ctx: *Context) void {
@@ -243,7 +289,7 @@ pub fn generate_voronoi_map(ctx: *Context) void {
     const preview_grid_key = "generate_voronoi_map.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size] });
 
-    ctx.next_nodes.insert(0, generate_landscape_from_image) catch unreachable;
+    // Leaf node
 }
 
 pub fn generate_landscape_from_image(ctx: *Context) void {
@@ -259,7 +305,7 @@ pub fn generate_landscape_from_image(ctx: *Context) void {
     const preview_grid_key = "generate_landscape_from_image.image";
     ctx.previews.putAssumeCapacity(preview_grid_key, .{ .data = preview_grid[0 .. preview_size * preview_size] });
 
-    ctx.next_nodes.insert(0, generate_contours) catch unreachable;
+    // Leaf node
 }
 
 pub fn generate_contours(ctx: *Context) void {
@@ -267,9 +313,8 @@ pub fn generate_contours(ctx: *Context) void {
 
     nodes.voronoi.contours(voronoi);
 
-    ctx.next_nodes.insert(0, generate_image_from_voronoi) catch unreachable;
-    ctx.next_nodes.insert(1, generate_heightmap_gradient) catch unreachable;
-    ctx.next_nodes.insert(2, output_heightmap_to_file) catch unreachable;
+    // Leaf node
+    _ = ctx; // autofix
 }
 
 pub fn generate_image_from_voronoi(ctx: *Context) void {
@@ -289,11 +334,7 @@ pub fn generate_image_from_voronoi(ctx: *Context) void {
     const preview_key_generate_image_from_voronoi = "generate_image_from_voronoi.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_image_from_voronoi, .{ .data = preview_image_generate_image_from_voronoi.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_heightmap_water) catch unreachable;
-    ctx.next_nodes.insert(1, generate_heightmap_plains) catch unreachable;
-    ctx.next_nodes.insert(2, generate_heightmap_hills) catch unreachable;
-    ctx.next_nodes.insert(3, generate_heightmap_mountains) catch unreachable;
-    ctx.next_nodes.insert(4, merge_heightmaps) catch unreachable;
+    // Leaf node
 }
 
 pub fn generate_heightmap_water(ctx: *Context) void {
@@ -321,7 +362,7 @@ pub fn generate_heightmap_water(ctx: *Context) void {
     const preview_key_generate_heightmap_water = "generate_heightmap_water.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_water, .{ .data = preview_image_generate_heightmap_water.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_voronoi_weight_water) catch unreachable;
+    // Leaf node
 }
 
 pub fn generate_voronoi_weight_water(ctx: *Context) void {
@@ -657,7 +698,7 @@ pub fn merge_heightmaps(ctx: *Context) void {
     const preview_key_merge_heightmaps = "merge_heightmaps.image";
     ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps, .{ .data = preview_image_merge_heightmaps.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_heightmap_gradient) catch unreachable;
+    // Leaf node
 }
 
 pub fn generate_heightmap_gradient(ctx: *Context) void {
@@ -670,7 +711,7 @@ pub fn generate_heightmap_gradient(ctx: *Context) void {
     const preview_key_generate_heightmap_gradient = "generate_heightmap_gradient.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_gradient, .{ .data = preview_image_generate_heightmap_gradient.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_terrace) catch unreachable;
+    // Leaf node
 }
 
 pub fn generate_terrace(ctx: *Context) void {
@@ -692,10 +733,6 @@ pub fn generate_terrace(ctx: *Context) void {
     const preview_key_generate_terrace = "generate_terrace.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_terrace, .{ .data = preview_image_generate_terrace.asBytes() });
 
-    ctx.next_nodes.insert(0, generate_heightmap_gradient2) catch unreachable;
-    ctx.next_nodes.insert(1, generate_cities) catch unreachable;
-    ctx.next_nodes.insert(2, generate_trees_fbm) catch unreachable;
-    ctx.next_nodes.insert(3, output_heightmap_to_file) catch unreachable;
 }
 
 pub fn generate_heightmap_gradient2(ctx: *Context) void {
@@ -711,8 +748,8 @@ pub fn generate_heightmap_gradient2(ctx: *Context) void {
     // Leaf node
 }
 
-pub fn generate_cities(ctx: *Context) void {
-    std.log.info("Node: generate_cities [cities]", .{});
+pub fn output_cities(ctx: *Context) void {
+    std.log.info("Node: output_cities [cities]", .{});
 
     if (!DRY_RUN) {
         nodes.experiments.cities(world_settings, heightmap, gradient_image, &cities);

@@ -21,6 +21,7 @@ const kind_points_grid = hash("points_grid");
 const kind_poisson = hash("poisson");
 const kind_remap = hash("remap");
 const kind_remap_curve = hash("remap_curve");
+const kind_sequence = hash("sequence");
 const kind_square = hash("square");
 const kind_terrace = hash("terrace");
 const kind_upsample = hash("upsample");
@@ -554,6 +555,9 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 writeLine(writer, "    compute.remapCurve(&{s}, &curve, &{s});", .{ image_in, image_out });
 
                 writePreview(writer, image_out, name);
+            },
+            kind_sequence => {
+                writeLine(writer, "    // Sequence:", .{});
             },
             kind_square => {
                 const input = j_node.Object.get("input").?.String;

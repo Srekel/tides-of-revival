@@ -203,23 +203,72 @@
     {
       name: "start",
       kind: "start",
-      next: "generate_poisson_for_voronoi",
+      next: "main",
     },
     {
       name: "exit",
       kind: "exit",
     },
+    // ███╗   ███╗ █████╗ ██╗███╗   ██╗
+    // ████╗ ████║██╔══██╗██║████╗  ██║
+    // ██╔████╔██║███████║██║██╔██╗ ██║
+    // ██║╚██╔╝██║██╔══██║██║██║╚██╗██║
+    // ██║ ╚═╝ ██║██║  ██║██║██║ ╚████║
+    // ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
+    {
+      name: "main",
+      kind: "sequence",
+      next: [
+        "main_generate_voronoi",
+        "main_generate_heightmap",
+        "generate_trees_fbm",
+        "output_heightmap_to_file",
+        "output_cities",
+      ],
+    },
+    {
+      name: "main_generate_voronoi",
+      kind: "sequence",
+      next: [
+        "generate_poisson_for_voronoi",
+        "generate_voronoi_map",
+        "generate_landscape_from_image",
+        "generate_contours",
+        "generate_image_from_voronoi",
+      ],
+    },
+    {
+      name: "main_generate_heightmap",
+      kind: "sequence",
+      next: [
+        "generate_heightmap_water",
+        "generate_heightmap_plains",
+        "generate_heightmap_hills",
+        "generate_heightmap_mountains",
+        "merge_heightmaps",
+        "generate_heightmap_gradient",
+        "generate_terrace",
+        "generate_heightmap_gradient2",
+        // "generate_heightmap_gradient",
+      ],
+    },
+    // ██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗
+    // ██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝
+    // ██║ █╗ ██║██║   ██║██████╔╝█████╔╝ 
+    // ██║███╗██║██║   ██║██╔══██╗██╔═██╗ 
+    // ╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
+    //  ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
     {
       name: "generate_poisson_for_voronoi",
       kind: "poisson",
-      next: "generate_voronoi_map",
+      // next: "generate_voronoi_map",
       // vars
       points: "voronoi_points",
     },
     {
       name: "generate_voronoi_map",
       kind: "voronoi",
-      next: "generate_landscape_from_image",
+      // next: "generate_landscape_from_image",
       // vars
       points: "voronoi_points",
       settings: "voronoi_settings",
@@ -228,7 +277,7 @@
     {
       name: "generate_landscape_from_image",
       kind: "landscape_from_image",
-      next: "generate_contours",
+      // next: "generate_contours",
       // vars
       image: "content/tides_2.0.png",
       voronoi: "voronoi",
@@ -236,24 +285,24 @@
     {
       name: "generate_contours",
       kind: "contours",
-      next: [
-        "generate_image_from_voronoi",
-        "generate_heightmap_gradient",
-        "output_heightmap_to_file"
-      ],
+      // next: [
+      //   "generate_image_from_voronoi",
+      //   "generate_heightmap_gradient",
+      //   "output_heightmap_to_file"
+      // ],
       // vars
       voronoi: "voronoi",
     },
     {
       name: "generate_image_from_voronoi",
       kind: "image_from_voronoi",
-      next: [
-        "generate_heightmap_water",
-        "generate_heightmap_plains",
-        "generate_heightmap_hills",
-        "generate_heightmap_mountains",
-        "merge_heightmaps",
-      ],
+      // next: [
+      //   "generate_heightmap_water",
+      //   "generate_heightmap_plains",
+      //   "generate_heightmap_hills",
+      //   "generate_heightmap_mountains",
+      //   "merge_heightmaps",
+      // ],
       // vars
       image: "voronoi_image",
       voronoi: "voronoi",
@@ -262,7 +311,7 @@
     {
       name: "generate_heightmap_water",
       kind: "fbm",
-      next: "generate_voronoi_weight_water",
+      // next: "generate_voronoi_weight_water",
       // vars
       settings: "fbm_settings_water",
       output: "heightmap_water",
@@ -480,7 +529,7 @@
     {
       name: "merge_heightmaps",
       kind: "math",
-      next: "generate_heightmap_gradient",
+      // next: "generate_heightmap_gradient",
       // vars
       op: "add",
       inputs: [
@@ -494,7 +543,7 @@
     {
       name: "generate_heightmap_gradient",
       kind: "gradient",
-      next: "generate_terrace",
+      // next: "generate_terrace",
       // vars
       input: "heightmap",
       output: "gradient_image",
@@ -503,11 +552,11 @@
       name: "generate_terrace",
       kind: "terrace",
       next: [
-        "generate_heightmap_gradient2",
-        "generate_cities",
+        // "generate_heightmap_gradient2",
+        // "output_cities",
         // "remap_village_gradient",
-        "generate_trees_fbm",
-        "output_heightmap_to_file",
+        // "generate_trees_fbm",
+        // "output_heightmap_to_file",
       ],
       // vars
       gradient: "gradient_image",
@@ -523,7 +572,7 @@
       output: "gradient_image",
     },
     {
-      name: "generate_cities",
+      name: "output_cities",
       kind: "cities",
       // vars
       gradient: "gradient_image",
