@@ -15,7 +15,7 @@ const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 46;
+pub const node_count = 47;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -133,6 +133,7 @@ var preview_image_downsample_village_gradient = types.ImageRGBA.square(preview_s
 var preview_image_upsample_village_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_multiply_village_gradient_hills = types.ImageRGBA.square(preview_size);
 var preview_image_village_output_points = types.ImageRGBA.square(preview_size);
+var preview_image_village_points_filter_proximity = types.ImageRGBA.square(preview_size);
 
 // ============ NODES ============
 pub fn start(ctx: *Context) void {
@@ -210,6 +211,7 @@ pub fn start(ctx: *Context) void {
     preview_image_upsample_village_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_multiply_village_gradient_hills.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_village_output_points.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_village_points_filter_proximity.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
 
     ctx.next_nodes.insert(0, main) catch unreachable;
 }
@@ -230,9 +232,7 @@ pub fn main(ctx: *Context) void {
 
     ctx.next_nodes.insert(0, main_generate_voronoi) catch unreachable;
     ctx.next_nodes.insert(1, main_generate_heightmap) catch unreachable;
-    ctx.next_nodes.insert(2, generate_trees_fbm) catch unreachable;
-    ctx.next_nodes.insert(3, output_heightmap_to_file) catch unreachable;
-    ctx.next_nodes.insert(4, output_cities) catch unreachable;
+    ctx.next_nodes.insert(2, remap_village_gradient) catch unreachable;
 }
 
 pub fn main_generate_voronoi(ctx: *Context) void {
@@ -733,6 +733,7 @@ pub fn generate_terrace(ctx: *Context) void {
     const preview_key_generate_terrace = "generate_terrace.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_terrace, .{ .data = preview_image_generate_terrace.asBytes() });
 
+    // Leaf node
 }
 
 pub fn generate_heightmap_gradient2(ctx: *Context) void {
@@ -855,7 +856,6 @@ pub fn downsample_village_gradient(ctx: *Context) void {
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
-    compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     scratch_image.size = orig_scratch_image_size;
 
     types.saveImageF32(village_gradient, "downsample_village_gradient", false);
@@ -870,7 +870,6 @@ pub fn upsample_village_gradient(ctx: *Context) void {
     std.log.info("Node: upsample_village_gradient [upsample]", .{});
 
     const orig_scratch_image_size = scratch_image.size;
-    compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
@@ -904,6 +903,17 @@ pub fn village_output_points(ctx: *Context) void {
     std.log.info("LOL count:{d}", .{village_points_counter.pixels[0]});
     std.log.info("LOL pt:{d},{d}", .{ village_points.pixels[0][0], village_points.pixels[0][1] } );
     std.log.info("LOL pt:{d:.3},{d:.3}", .{ village_points.pixels[0][0], village_points.pixels[0][1] } );
+
+    ctx.next_nodes.insert(0, village_points_filter_proximity) catch unreachable;
+}
+
+pub fn village_points_filter_proximity(ctx: *Context) void {
+    std.log.info("Node: village_points_filter_proximity [points_filter_proximity]", .{});
+
+    var x = types.BackedListVec2.createFromImageVec2(&village_points, village_points_counter.pixels[0]);
+    std.log.info("points_filter_proximity count:{d}", .{x.count} );
+    nodes.points.points_filter_proximity_vec2(&x, &x, 1000);
+    std.log.info("points_filter_proximity count:{d}", .{x.count} );
 
     // Leaf node
     _ = ctx; // autofix

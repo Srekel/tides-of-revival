@@ -267,3 +267,28 @@ pub fn PatchData(ElemType: type) type {
 }
 
 pub const PatchDataPts2d = PatchData([2]f32);
+
+pub fn BackedList(ElemType: type) type {
+    return struct {
+        const Self = @This();
+
+        pub fn createFromImageF32(image: *const ImageF32, count: u32) Self {
+            return .{
+                .backed_slice = image.pixels,
+                .count = count,
+            };
+        }
+        pub fn createFromImageVec2(image: *const ImageVec2, count: u32) Self {
+            return .{
+                .backed_slice = image.pixels,
+                .count = count,
+            };
+        }
+
+        backed_slice: []ElemType,
+        count: u32,
+    };
+}
+
+pub const BackedListF32 = BackedList(f32);
+pub const BackedListVec2 = BackedList([2]f32);

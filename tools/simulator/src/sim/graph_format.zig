@@ -17,6 +17,7 @@ const kind_gradient = hash("gradient");
 const kind_image_from_voronoi = hash("image_from_voronoi");
 const kind_landscape_from_image = hash("landscape_from_image");
 const kind_math = hash("math");
+const kind_points_filter_proximity = hash("points_filter_proximity");
 const kind_points_grid = hash("points_grid");
 const kind_poisson = hash("poisson");
 const kind_remap = hash("remap");
@@ -509,6 +510,17 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 }
 
                 writePreview(writer, output, name);
+            },
+            kind_points_filter_proximity => {
+                const in_points = j_node.Object.get("in_points").?.String;
+                const in_points_counter = j_node.Object.get("in_points_counter").?.String;
+                const out_points = j_node.Object.get("out_points").?.String;
+                _ = out_points; // autofix
+                const min_distance = j_node.Object.get("min_distance").?.Float;
+                writeLine(writer, "    var x = types.BackedListVec2.createFromImageVec2(&{s}, {s}.pixels[0]);", .{ in_points, in_points_counter });
+                writeLine(writer, "    std.log.info(\"points_filter_proximity count:{{d}}\", .{{{s}.count}} );", .{"x"});
+                writeLine(writer, "    nodes.points.points_filter_proximity_vec2(&{s}, &{s}, {d});", .{ "x", "x", min_distance });
+                writeLine(writer, "    std.log.info(\"points_filter_proximity count:{{d}}\", .{{{s}.count}} );", .{"x"});
             },
             kind_points_grid => {
                 const points = j_node.Object.get("points").?.String;
