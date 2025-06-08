@@ -30,18 +30,20 @@ pub const color_calibrator_id = ID("color_calibrator");
 
 pub const palisade_400x200_a_id = ID("palisade_400x200_a");
 pub const palisade_400x200_b_id = ID("palisade_400x200_b");
+pub const palisade_sloped_400x300_a_id = ID("palisade_sloped_400x300_a");
+pub const palisade_sloped_400x300_b_id = ID("palisade_sloped_400x300_b");
 pub const house_400x900x400_id = ID("house_400x900x400_id");
 
 pub const prefabs = [_]IdLocal{
     arrow_id,
     bow_id,
     giant_ant_id,
-    matball_id,
-    color_calibrator_id,
     beech_tree_04_id,
+    house_400x900x400_id,
     palisade_400x200_a_id,
     palisade_400x200_b_id,
-    house_400x900x400_id,
+    palisade_sloped_400x300_a_id,
+    palisade_sloped_400x300_b_id,
 };
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
@@ -356,6 +358,32 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var palisade_400x200_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x200_b", palisade_400x200_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
         const lod_group_component = palisade_400x200_b.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var palisade_sloped_400x300_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_sloped_400x300_a", palisade_sloped_400x300_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_sloped_400x300_a.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var palisade_sloped_400x300_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_sloped_400x300_b", palisade_sloped_400x300_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_sloped_400x300_b.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
