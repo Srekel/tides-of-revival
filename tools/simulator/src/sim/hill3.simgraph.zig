@@ -232,8 +232,10 @@ pub fn main(ctx: *Context) void {
 
     ctx.next_nodes.insert(0, main_generate_voronoi) catch unreachable;
     ctx.next_nodes.insert(1, main_generate_heightmap) catch unreachable;
-    ctx.next_nodes.insert(2, remap_village_gradient) catch unreachable;
-    ctx.next_nodes.insert(3, output_cities) catch unreachable;
+    ctx.next_nodes.insert(2, generate_trees_fbm) catch unreachable;
+    ctx.next_nodes.insert(3, output_heightmap_to_file) catch unreachable;
+    ctx.next_nodes.insert(4, remap_village_gradient) catch unreachable;
+    ctx.next_nodes.insert(5, output_cities) catch unreachable;
 }
 
 pub fn main_generate_voronoi(ctx: *Context) void {
@@ -858,6 +860,7 @@ pub fn downsample_village_gradient(ctx: *Context) void {
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
+    compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     scratch_image.size = orig_scratch_image_size;
 
     types.saveImageF32(village_gradient, "downsample_village_gradient", false);
@@ -872,6 +875,7 @@ pub fn upsample_village_gradient(ctx: *Context) void {
     std.log.info("Node: upsample_village_gradient [upsample]", .{});
 
     const orig_scratch_image_size = scratch_image.size;
+    compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);

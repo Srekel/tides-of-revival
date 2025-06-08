@@ -221,8 +221,8 @@
       next: [
         "main_generate_voronoi",
         "main_generate_heightmap",
-        // "generate_trees_fbm",
-        // "output_heightmap_to_file",
+        "generate_trees_fbm",
+        "output_heightmap_to_file",
         "remap_village_gradient",
         "output_cities",
       ],
@@ -632,7 +632,7 @@
       image_in: "village_gradient",
       image_out: "village_gradient",
       op: "min",
-      count: 3,
+      count: 4,
     },
     {
       name: "upsample_village_gradient",
@@ -642,7 +642,7 @@
       image_in: "village_gradient",
       image_out: "village_gradient",
       op: "first",
-      count: 3,
+      count: 4,
     },
     {
       name: "multiply_village_gradient_hills",
