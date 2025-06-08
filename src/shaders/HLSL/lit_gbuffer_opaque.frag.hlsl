@@ -37,8 +37,9 @@ GBufferOutput PS_MAIN(VSOutput Input)
 
     if (hasValidTexture(material.normalTextureIndex))
     {
-        float3x3 TBN = ComputeTBN(N, normalize(Input.Tangent));
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
+
+        float3x3 TBN = ComputeTBN(N, normalize(Input.Tangent));
         float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, g_linear_repeat_sampler, Input.UV), material.normalIntensity);
         N = normalize(mul(tangentNormal, TBN));
     }
