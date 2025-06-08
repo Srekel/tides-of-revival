@@ -5,18 +5,17 @@ const zm = @import("zmath");
 const znoise = @import("znoise");
 const nodes = @import("nodes.zig");
 
-pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gradient: types.ImageF32, cities_out: *std.ArrayList([3]f32)) void {
+pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, city_points: *const types.BackedListVec2, cities_out: *std.ArrayList([3]f32)) void {
     _ = world_settings; // autofix
-    _ = gradient; // autofix
 
-    // TODO gradient stuff
-    for (2..4) |z_div| {
-        for (2..4) |x_div| {
-            const x = heightmap.size.width / x_div;
-            const z = heightmap.size.height / z_div;
-            const height = heightmap.get(x, z);
-            cities_out.appendAssumeCapacity(.{ @floatFromInt(x), height, @floatFromInt(z) });
+    for (city_points.backed_slice[0..city_points.count]) |pt| {
+        const x = pt[0];
+        const z = pt[1];
+        const height = heightmap.get(@as(u32, @intFromFloat(x)), @as(u32, @intFromFloat(z)));
+        if (height < 60) {
+            continue; // hack for sea level
         }
+        cities_out.appendAssumeCapacity(.{ x, height, z });
     }
 
     var folderbuf: [256]u8 = undefined;

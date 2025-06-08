@@ -389,10 +389,12 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 }
             },
             kind_cities => {
-                const gradient = j_node.Object.get("gradient").?.String;
+                const in_points = j_node.Object.get("in_points").?.String;
+                const in_points_counter = j_node.Object.get("in_points_counter").?.String;
                 const heightmap = j_node.Object.get("heightmap").?.String;
                 writeLine(writer, "    if (!DRY_RUN) {{", .{});
-                writeLine(writer, "        nodes.experiments.cities(world_settings, {s}, {s}, &cities);", .{ heightmap, gradient });
+                writeLine(writer, "        const x = types.BackedListVec2.createFromImageVec2(&{s}, {s}.pixels[0]);", .{ in_points, in_points_counter });
+                writeLine(writer, "        nodes.experiments.cities(world_settings, {s}, &{s}, &cities);", .{ heightmap, "x" });
                 writeLine(writer, "    }}", .{});
             },
             kind_contours => {
@@ -515,11 +517,13 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const in_points = j_node.Object.get("in_points").?.String;
                 const in_points_counter = j_node.Object.get("in_points_counter").?.String;
                 const out_points = j_node.Object.get("out_points").?.String;
+                const out_points_counter = j_node.Object.get("out_points_counter").?.String;
                 _ = out_points; // autofix
                 const min_distance = j_node.Object.get("min_distance").?.Float;
                 writeLine(writer, "    var x = types.BackedListVec2.createFromImageVec2(&{s}, {s}.pixels[0]);", .{ in_points, in_points_counter });
                 writeLine(writer, "    std.log.info(\"points_filter_proximity count:{{d}}\", .{{{s}.count}} );", .{"x"});
                 writeLine(writer, "    nodes.points.points_filter_proximity_vec2(&{s}, &{s}, {d});", .{ "x", "x", min_distance });
+                writeLine(writer, "    {s}.pixels[0] = {s}.count;", .{ out_points_counter, "x" });
                 writeLine(writer, "    std.log.info(\"points_filter_proximity count:{{d}}\", .{{{s}.count}} );", .{"x"});
             },
             kind_points_grid => {

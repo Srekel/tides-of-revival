@@ -159,7 +159,7 @@ pub fn start(ctx: *Context) void {
     scratch_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     scratch_image2.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     water_image.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
-    cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 100) catch unreachable;
+    cities = @TypeOf(cities).initCapacity(std.heap.c_allocator, 1000) catch unreachable;
     village_hills.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     village_gradient.pixels = std.heap.c_allocator.alloc(f32, world_settings.size.width * world_settings.size.height) catch unreachable;
     village_points.pixels = std.heap.c_allocator.alloc([2]f32, world_settings.size.width * world_settings.size.height) catch unreachable;
@@ -233,6 +233,7 @@ pub fn main(ctx: *Context) void {
     ctx.next_nodes.insert(0, main_generate_voronoi) catch unreachable;
     ctx.next_nodes.insert(1, main_generate_heightmap) catch unreachable;
     ctx.next_nodes.insert(2, remap_village_gradient) catch unreachable;
+    ctx.next_nodes.insert(3, output_cities) catch unreachable;
 }
 
 pub fn main_generate_voronoi(ctx: *Context) void {
@@ -753,7 +754,8 @@ pub fn output_cities(ctx: *Context) void {
     std.log.info("Node: output_cities [cities]", .{});
 
     if (!DRY_RUN) {
-        nodes.experiments.cities(world_settings, heightmap, gradient_image, &cities);
+        const x = types.BackedListVec2.createFromImageVec2(&village_points, village_points_counter.pixels[0]);
+        nodes.experiments.cities(world_settings, heightmap, &x, &cities);
     }
 
     // Leaf node
@@ -912,7 +914,8 @@ pub fn village_points_filter_proximity(ctx: *Context) void {
 
     var x = types.BackedListVec2.createFromImageVec2(&village_points, village_points_counter.pixels[0]);
     std.log.info("points_filter_proximity count:{d}", .{x.count} );
-    nodes.points.points_filter_proximity_vec2(&x, &x, 1000);
+    nodes.points.points_filter_proximity_vec2(&x, &x, 4000);
+    village_points_counter.pixels[0] = x.count;
     std.log.info("points_filter_proximity count:{d}", .{x.count} );
 
     // Leaf node

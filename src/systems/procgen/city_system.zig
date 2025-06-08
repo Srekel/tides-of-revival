@@ -109,6 +109,8 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
     var in_stream = buf_reader.reader();
     var buf: [1024]u8 = undefined;
     const sphere_prefab = prefab_mgr.getPrefab(config.prefab.sphere_id);
+    _ = sphere_prefab; // autofix
+    const cylinder_prefab = prefab_mgr.getPrefab(config.prefab.cylinder_id);
     while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
         var comma_curr: usize = 0;
         var comma_next: usize = std.mem.indexOfScalar(u8, line, ","[0]).?;
@@ -131,11 +133,16 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
         const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
         _ = rot_y;
 
-        if (sphere_prefab) |sphere| {
-            var city_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere);
+        if (cylinder_prefab) |prefab| {
+            var city_ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab);
             city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
-            // city_ent.set(fd.Scale.createScalar(10));
-            city_ents.append(.{ .ent = city_ent, .class = 0, .x = pos_x, .z = pos_z }) catch unreachable;
+            city_ent.set(fd.Scale.createScalar(100));
+            city_ents.append(.{
+                .ent = city_ent,
+                .class = 0,
+                .x = pos_x,
+                .z = pos_z,
+            }) catch unreachable;
 
             if (!added_spawn) {
                 added_spawn = true;

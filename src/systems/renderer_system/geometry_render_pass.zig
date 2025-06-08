@@ -56,7 +56,7 @@ const DrawCallInstanced = struct {
 
 const max_instances = 10000;
 const max_instances_per_draw_call = 4096;
-const max_draw_distance: f32 = 10000.0;
+const max_draw_distance: f32 = 20000.0;
 
 const cutout_entities_index: u32 = 0;
 const opaque_entities_index: u32 = 1;

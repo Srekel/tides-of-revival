@@ -34,7 +34,7 @@ pub fn points_distribution_grid(filter: types.ImageF32, score_min: f32, grid_set
 }
 
 pub fn distance_squared_2d(pt1: [2]f32, pt2: [2]f32) f32 {
-    return pt1[0] * pt2[0] + pt1[1] * pt2[1];
+    return (pt1[0] - pt2[0]) * (pt1[0] - pt2[0]) + (pt1[1] - pt2[1]) * (pt1[1] - pt2[1]);
 }
 
 pub fn points_filter_proximity_vec2(pts_in: *types.BackedList([2]f32), pts_out: *types.BackedList([2]f32), min_distance: f32) void {
@@ -58,29 +58,30 @@ pub fn points_filter_proximity_vec2(pts_in: *types.BackedList([2]f32), pts_out: 
     }
 }
 
-pub fn points_filter_proximity_f32(pts_in: *types.BackedList(f32), pts_out: *types.BackedList(f32), min_distance: f32) void {
+pub fn points_filter_proximity_f32(pts_in: *const types.BackedList(f32), pts_out: *types.BackedList(f32), min_distance: f32) void {
     std.debug.assert(pts_in == pts_out); // TODO: Support
 
     const min_dist_sq = min_distance * min_distance;
     if (pts_in == pts_out) {
         var it1: usize = 0;
-        while (it1 < pts_in.count) {
+        while (it1 < pts_out.count) {
             const pt1 = [_]f32{
-                pts_in.backed_slice[it1],
-                pts_in.backed_slice[it1 + 1],
+                pts_out.backed_slice[it1],
+                pts_out.backed_slice[it1 + 1],
             };
             it1 += 2;
 
-            var it2: usize = it1;
-            while (it2 < pts_in.count) {
+            var it2: usize = it1 + 2;
+            while (it2 < pts_out.count) {
                 const pt2 = [_]f32{
-                    pts_in.backed_slice[it2],
-                    pts_in.backed_slice[it2 + 1],
+                    pts_out.backed_slice[it2],
+                    pts_out.backed_slice[it2 + 1],
                 };
                 const dist_sq = distance_squared_2d(pt1, pt2);
                 if (dist_sq < min_dist_sq) {
-                    pts_in.count -= 1;
-                    pts_in.backed_slice[it2] = pts_in.backed_slice[pts_in.count];
+                    pts_out.count -= 2;
+                    pts_out.backed_slice[it2] = pts_out.backed_slice[pts_out.count];
+                    pts_out.backed_slice[it2 + 1] = pts_out.backed_slice[pts_out.count + 1];
                 } else {
                     it2 += 2;
                 }

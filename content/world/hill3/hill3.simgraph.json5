@@ -167,7 +167,7 @@
     {
       name: "cities",
       kind: "PointList3D",
-      capacity: 100,
+      capacity: 1000,
     },
     {
       name: "trees_points",
@@ -223,8 +223,8 @@
         "main_generate_heightmap",
         // "generate_trees_fbm",
         // "output_heightmap_to_file",
-        // "output_cities",
         "remap_village_gradient",
+        "output_cities",
       ],
     },
     {
@@ -567,8 +567,9 @@
       name: "output_cities",
       kind: "cities",
       // vars
-      gradient: "gradient_image",
       heightmap: "heightmap",
+      in_points: "village_points",
+      in_points_counter: "village_points_counter",
     },
     {
       name: "generate_trees_fbm",
@@ -671,7 +672,7 @@
       in_points_counter: "village_points_counter",
       out_points: "village_points",
       out_points_counter: "village_points_counter",
-      min_distance: 1000.0,
+      min_distance: 4000.0,
     },
   ],
 }
