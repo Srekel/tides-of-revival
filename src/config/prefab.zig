@@ -28,6 +28,9 @@ pub const player_id = ID("prefab_player");
 pub const sphere_id = ID("prefab_sphere");
 pub const color_calibrator_id = ID("color_calibrator");
 
+pub const palisade_400x200_a_id = ID("palisade_400x200_a");
+pub const palisade_400x200_b_id = ID("palisade_400x200_b");
+
 pub const prefabs = [_]IdLocal{
     arrow_id,
     bow_id,
@@ -36,6 +39,8 @@ pub const prefabs = [_]IdLocal{
     color_calibrator_id,
     beech_tree_04_id,
     medium_house_id,
+    palisade_400x200_a_id,
+    palisade_400x200_b_id,
 };
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
@@ -326,6 +331,32 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
                 lod_group.lods[i].materials.items[0] = beech_trunk_04_material_handle;
                 lod_group.lods[i].materials.items[1] = beech_atlas_v2_material_handle;
+            }
+        }
+    }
+
+    {
+        var palisade_400x200_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x200_a", palisade_400x200_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_400x200_a.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var palisade_400x200_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x200_b", palisade_400x200_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_400x200_b.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
             }
         }
     }
