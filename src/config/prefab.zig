@@ -34,6 +34,9 @@ pub const palisade_sloped_400x300_a_id = ID("palisade_sloped_400x300_a");
 pub const palisade_sloped_400x300_b_id = ID("palisade_sloped_400x300_b");
 pub const house_3x5_id = ID("house_3x5_id");
 
+pub const brazier_1_id = ID("brazier_1_id");
+pub const brazier_2_id = ID("brazier_2_id");
+
 pub const prefabs = [_]IdLocal{
     arrow_id,
     bow_id,
@@ -44,6 +47,8 @@ pub const prefabs = [_]IdLocal{
     palisade_400x300_b_id,
     palisade_sloped_400x300_a_id,
     palisade_sloped_400x300_b_id,
+    brazier_1_id,
+    brazier_2_id,
 };
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
@@ -387,6 +392,32 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var palisade_sloped_400x300_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_sloped_400x300_b", palisade_sloped_400x300_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
         const lod_group_component = palisade_sloped_400x300_b.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var brazier_1 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_1", brazier_1_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = brazier_1.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var brazier_2 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_2", brazier_2_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = brazier_2.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
