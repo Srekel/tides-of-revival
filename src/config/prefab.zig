@@ -28,20 +28,20 @@ pub const player_id = ID("prefab_player");
 pub const sphere_id = ID("prefab_sphere");
 pub const color_calibrator_id = ID("color_calibrator");
 
-pub const palisade_400x200_a_id = ID("palisade_400x200_a");
-pub const palisade_400x200_b_id = ID("palisade_400x200_b");
+pub const palisade_400x300_a_id = ID("palisade_400x300_a");
+pub const palisade_400x300_b_id = ID("palisade_400x300_b");
 pub const palisade_sloped_400x300_a_id = ID("palisade_sloped_400x300_a");
 pub const palisade_sloped_400x300_b_id = ID("palisade_sloped_400x300_b");
-pub const house_400x900x400_id = ID("house_400x900x400_id");
+pub const house_3x5_id = ID("house_3x5_id");
 
 pub const prefabs = [_]IdLocal{
     arrow_id,
     bow_id,
     giant_ant_id,
     beech_tree_04_id,
-    house_400x900x400_id,
-    palisade_400x200_a_id,
-    palisade_400x200_b_id,
+    house_3x5_id,
+    palisade_400x300_a_id,
+    palisade_400x300_b_id,
     palisade_sloped_400x300_a_id,
     palisade_sloped_400x300_b_id,
 };
@@ -52,7 +52,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     const pipeline_lit_gbuffer_opaque_id = IdLocal.init("lit_gbuffer_opaque");
     const pipeline_lit_depth_only_opaque_id = IdLocal.init("lit_depth_only_opaque");
     const pipeline_lit_gbuffer_cutout_id = IdLocal.init("lit_gbuffer_cutout");
+    _ = pipeline_lit_gbuffer_cutout_id;
     const pipeline_lit_depth_only_cutout_id = IdLocal.init("lit_depth_only_cutout");
+    _ = pipeline_lit_depth_only_cutout_id;
 
     const pipeline_tree_gbuffer_opaque_id = IdLocal.init("tree_gbuffer_opaque");
     const pipeline_tree_gbuffer_cutout_id = IdLocal.init("tree_gbuffer_cutout");
@@ -61,6 +63,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     const pipeline_shadow_caster_opaque_id = IdLocal.init("lit_shadow_caster_opaque");
     const pipeline_shadow_caster_cutout_id = IdLocal.init("lit_shadow_caster_cutout");
+    _ = pipeline_shadow_caster_cutout_id;
     const pipeline_tree_shadow_caster_opaque_id = IdLocal.init("tree_shadow_caster_opaque");
     const pipeline_tree_shadow_caster_masked_id = IdLocal.init("tree_shadow_caster_cutout");
 
@@ -342,9 +345,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var palisade_400x200_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x200_a", palisade_400x200_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        var palisade_400x300_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x300_a", palisade_400x300_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
-        const lod_group_component = palisade_400x200_a.getMut(fd.LodGroup);
+        const lod_group_component = palisade_400x300_a.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
@@ -355,9 +358,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var palisade_400x200_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x200_b", palisade_400x200_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        var palisade_400x300_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x300_b", palisade_400x300_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
-        const lod_group_component = palisade_400x200_b.getMut(fd.LodGroup);
+        const lod_group_component = palisade_400x300_b.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
@@ -394,13 +397,13 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var vine_material = fd.UberShader.init();
-        vine_material.depth_only_pipeline_id = pipeline_lit_depth_only_cutout_id;
-        vine_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_cutout_id;
-        vine_material.shadow_caster_pipeline_id = pipeline_shadow_caster_cutout_id;
-        vine_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_VineLeaf_BaseColor.dds");
-        vine_material.base_color = fd.ColorRGB.init(0.1, 0.34, 0);
-        const vine_material_handle = prefab_mgr.rctx.uploadMaterial(vine_material) catch unreachable;
+        // var vine_material = fd.UberShader.init();
+        // vine_material.depth_only_pipeline_id = pipeline_lit_depth_only_cutout_id;
+        // vine_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_cutout_id;
+        // vine_material.shadow_caster_pipeline_id = pipeline_shadow_caster_cutout_id;
+        // vine_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_VineLeaf_BaseColor.dds");
+        // vine_material.base_color = fd.ColorRGB.init(0.1, 0.34, 0);
+        // const vine_material_handle = prefab_mgr.rctx.uploadMaterial(vine_material) catch unreachable;
 
         var wood_trim_material = fd.UberShader.init();
         wood_trim_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
@@ -419,6 +422,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_ORM.dds");
         plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_Normal.dds");
         const plaster_material_handle = prefab_mgr.rctx.uploadMaterial(plaster_material) catch unreachable;
+
+        var brick_material = fd.UberShader.init();
+        brick_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        brick_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+        brick_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+        brick_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Brick_BaseColor.dds");
+        brick_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Brick_Roughness.dds");
+        brick_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Brick_Normal.dds");
+        const brick_material_handle = prefab_mgr.rctx.uploadMaterial(brick_material) catch unreachable;
 
         var uneven_brick_material = fd.UberShader.init();
         uneven_brick_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
@@ -448,11 +460,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         round_tiles_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_RoundTiles_Normal.dds");
         const round_tiles_material_handle = prefab_mgr.rctx.uploadMaterial(round_tiles_material) catch unreachable;
 
-        var window_glass_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(0.8, 0.8, 0.8), 0.5, 0.0);
-        window_glass_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
-        window_glass_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        window_glass_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        const window_glass_material_handle = prefab_mgr.rctx.uploadMaterial(window_glass_material) catch unreachable;
+        // var window_glass_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(0.8, 0.8, 0.8), 0.5, 0.0);
+        // window_glass_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
+        // window_glass_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+        // window_glass_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+        // const window_glass_material_handle = prefab_mgr.rctx.uploadMaterial(window_glass_material) catch unreachable;
 
         var rock_trim_material = fd.UberShader.init();
         rock_trim_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
@@ -471,22 +483,22 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         metal_ornaments_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_MetalOrnaments_Roughness.dds");
         const metal_ornaments_material_handle = prefab_mgr.rctx.uploadMaterial(metal_ornaments_material) catch unreachable;
 
-        var house_400x900x400 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medieval_village/houses/house_400x900x400", house_400x900x400_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        var house_3x5 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medieval_village/houses/house_3x5", house_3x5_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
-        const lod_group_component = house_400x900x400.getMut(fd.LodGroup);
+        const lod_group_component = house_3x5.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 9);
 
-                lod_group.lods[i].materials.items[0] = vine_material_handle;
-                lod_group.lods[i].materials.items[1] = wood_trim_material_handle;
-                lod_group.lods[i].materials.items[2] = plaster_material_handle;
-                lod_group.lods[i].materials.items[3] = uneven_brick_material_handle;
-                lod_group.lods[i].materials.items[4] = flat_tiles_material_handle;
-                lod_group.lods[i].materials.items[5] = round_tiles_material_handle;
-                lod_group.lods[i].materials.items[6] = window_glass_material_handle;
-                lod_group.lods[i].materials.items[7] = rock_trim_material_handle;
-                lod_group.lods[i].materials.items[8] = metal_ornaments_material_handle;
+                lod_group.lods[i].materials.items[0] = wood_trim_material_handle;
+                lod_group.lods[i].materials.items[1] = plaster_material_handle;
+                lod_group.lods[i].materials.items[2] = brick_material_handle;
+                lod_group.lods[i].materials.items[3] = flat_tiles_material_handle;
+                lod_group.lods[i].materials.items[4] = round_tiles_material_handle;
+                lod_group.lods[i].materials.items[5] = rock_trim_material_handle;
+                lod_group.lods[i].materials.items[6] = wood_trim_material_handle;
+                lod_group.lods[i].materials.items[7] = metal_ornaments_material_handle;
+                lod_group.lods[i].materials.items[8] = uneven_brick_material_handle;
             }
         }
     }
