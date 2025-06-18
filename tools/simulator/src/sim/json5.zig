@@ -468,7 +468,7 @@ pub const StreamingParser = struct {
                         return error.UnexpectedClosingBrace;
                     }
 
-                    _ = p.stack.pop();
+                    _ = p.stack.pop().?;
                     p.state = .ValueBegin;
                     p.after_string_state = State.fromAggregateContainerType(last_type);
 
@@ -491,7 +491,7 @@ pub const StreamingParser = struct {
                         return error.UnexpectedClosingBracket;
                     }
 
-                    _ = p.stack.pop();
+                    _ = p.stack.pop().?;
                     p.state = .ValueBegin;
                     p.after_string_state = State.fromAggregateContainerType(last_type);
 
@@ -678,7 +678,7 @@ pub const StreamingParser = struct {
                         return error.UnexpectedClosingBracket;
                     }
 
-                    _ = p.stack.pop();
+                    _ = p.stack.pop().?;
                     p.state = .ValueEnd;
                     p.after_string_state = State.fromAggregateContainerType(last_type);
 
@@ -696,7 +696,7 @@ pub const StreamingParser = struct {
                         return error.UnexpectedClosingBrace;
                     }
 
-                    _ = p.stack.pop();
+                    _ = p.stack.pop().?;
                     p.state = .ValueEnd;
                     p.after_string_state = State.fromAggregateContainerType(last_type);
 
@@ -1978,7 +1978,7 @@ pub const Parser = struct {
                         return;
                     }
 
-                    var value = p.stack.pop();
+                    var value = p.stack.pop().?;
                     try p.pushToParent(&value);
                 },
                 .String => |s| {
@@ -2007,27 +2007,27 @@ pub const Parser = struct {
                     },
                     .String => |s| {
                         try object.put(key, try p.parseString(allocator, s, input, i));
-                        _ = p.stack.pop();
+                        _ = p.stack.pop().?;
                         p.state = .ObjectKey;
                     },
                     .Number => |n| {
                         try object.put(key, try p.parseNumber(n, input, i));
-                        _ = p.stack.pop();
+                        _ = p.stack.pop().?;
                         p.state = .ObjectKey;
                     },
                     .True => {
                         try object.put(key, Value{ .Bool = true });
-                        _ = p.stack.pop();
+                        _ = p.stack.pop().?;
                         p.state = .ObjectKey;
                     },
                     .False => {
                         try object.put(key, Value{ .Bool = false });
-                        _ = p.stack.pop();
+                        _ = p.stack.pop().?;
                         p.state = .ObjectKey;
                     },
                     .Null => {
                         try object.put(key, Value.Null);
-                        _ = p.stack.pop();
+                        _ = p.stack.pop().?;
                         p.state = .ObjectKey;
                     },
                     .ObjectEnd, .ArrayEnd => {
@@ -2044,7 +2044,7 @@ pub const Parser = struct {
                             return;
                         }
 
-                        var value = p.stack.pop();
+                        var value = p.stack.pop().?;
                         try p.pushToParent(&value);
                     },
                     .ObjectBegin => {
@@ -2110,7 +2110,7 @@ pub const Parser = struct {
         switch (p.stack.items[p.stack.items.len - 1]) {
             // Object Parent -> [ ..., object, <key>, value ]
             Value.String => |key| {
-                _ = p.stack.pop();
+                _ = p.stack.pop().?;
 
                 var object = &p.stack.items[p.stack.items.len - 1].Object;
                 try object.put(key, value.*);

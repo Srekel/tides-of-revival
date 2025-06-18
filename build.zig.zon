@@ -1,5 +1,6 @@
 .{
-    .name = "Tides of Revival",
+    .name = .tides_of_revival,
+    .fingerprint = 0x15e0221d576e8d9c,
     .version = "0.3.0-alpha",
     .paths = .{""},
     .dependencies = .{

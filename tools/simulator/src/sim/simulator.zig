@@ -1,7 +1,7 @@
 const std = @import("std");
-const zjobs = @import("zjobs");
+// const zjobs = @import("zjobs");
 
-const Jobs = zjobs.JobQueue(.{});
+// // const Jobs = zjobs.JobQueue(.{});
 
 const cpp_nodes = @import("../sim_cpp/cpp_nodes.zig");
 const graph = @import("graph.zig");
@@ -65,14 +65,14 @@ fn runSimulation(args: RunSimulationArgs) void {
 pub const Simulator = struct {
     mutex: std.Thread.Mutex = .{},
     progress: SimulatorProgress = .{},
-    jobs: Jobs = .{},
+    // // jobs: Jobs = .{},
     thread: ?std.Thread = null,
     ctx: graph.Context = undefined,
 
     pub fn init(self: *Simulator) void {
         cpp_nodes.init();
         self.progress.percent = 0;
-        self.jobs = Jobs.init();
+        // // self.jobs = Jobs.init();
 
         self.ctx = .{};
         self.ctx.resources = std.StringHashMap(*anyopaque).init(std.heap.c_allocator); // TODO fix
@@ -86,8 +86,9 @@ pub const Simulator = struct {
     }
 
     pub fn deinit(self: *Simulator) void {
+        _ = self; // autofix
         cpp_nodes.deinit();
-        self.jobs.deinit();
+        // self.jobs.deinit();
     }
 
     pub fn simulate(self: *Simulator) void {

@@ -62,7 +62,7 @@ pub fn BucketQueue(comptime QueueElement: type, comptime BucketEnum: type) type 
             var bucket_index = self.current_highest_prio;
             for (elems_out) |*elem| {
                 var bucket = &self.buckets[bucket_index];
-                elem.* = bucket.pop();
+                elem.* = bucket.pop().?;
                 count += 1;
                 while (bucket.items.len == 0) {
                     if (bucket_index == lowest_prio) {

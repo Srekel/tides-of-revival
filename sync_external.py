@@ -61,6 +61,7 @@ def sync_zig_exe(build):
     print(f"{build}")
     print("Ensuring correct version...")
     os.system(f"{zigup_path} {build}")
+    os.system(f"{zigup_path} keep {build}")
 
 
 def main():
@@ -78,22 +79,22 @@ def main():
     sync_lib(
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "c57ad024b62977991b1f1c2731cda8ddefd12a2c",
+        "8ec1b9cc705e07fd471a9bd266295e67880789e9",
     )
     sync_lib(
         "ze-forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "6b91440b3cd0977404f5b1fc508aafc80d77698f",
+        "ba8b526bc72045c25a001ba5f5a0865df3ebc737",
     )
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
-        "ba14f387b22210667a2941c1e5e4170eb1854957",
+        "10b0e7be2158ff22733f1e59c1ae0bace5bf3a0c",
     )
     sync_lib(
         "zig-args",
         "https://github.com/MasterQ32/zig-args.git",
-        "236bccf4cc7871aef5c48fc102218ecf8baa48dd",
+        "9425b94c103a031777fdd272c555ce93a7dea581",
     )
     sync_lib(
         "zig-im3d",
@@ -108,7 +109,7 @@ def main():
     sync_lib(
         "zigimg",
         "https://github.com/zigimg/zigimg.git",
-        "1496bdd39bc35a795e8514c493114e2ab82f8cf3",
+        "74caab5edd7c5f1d2f7d87e5717435ce0f0affa1",
     )
     sync_lib(
         "zig-recastnavigation",
@@ -120,7 +121,7 @@ def main():
     sync_lib(
         "FastNoiseLite",
         "https://github.com/Auburn/FastNoiseLite",
-        "5944f97c2681c6f63ead24bfe6501f33c5cc72a3",
+        "582f7cf21065a48ee1c3cf62048831bbaa4581c5",
     )
     sync_lib(
         "imgui",
@@ -142,23 +143,28 @@ def main():
         "https://github.com/Srekel/voronoi",
         "73f609573a6556e6eb2a1a6600d4aa99afdf6113",
     )
+    sync_lib(
+        "zigwin32",
+        "https://github.com/marlersoft/zigwin32",
+        "d21b419d808215e1f82605fdaddc49750bfa3bca",
+    )
 
     ##############
     ## ZIG-GAMEDEV
     sync_lib(
         "system_sdk",
         "https://github.com/zig-gamedev/system_sdk",
-        "bf49d627a191e339f70e72668c8333717fb969b0",
+        "c0dbf11cdc17da5904ea8a17eadc54dee26567ec",
     )
     sync_lib(
         "zglfw",
         "https://github.com/zig-gamedev/zglfw",
-        "f3f35b36e3ae9cb6b85f39e15ab0336c1ee65b4b",
+        "c337cb3d3f984468ea7a386335937a5d555fc024",
     )
     sync_lib(
         "zflecs",
         "https://github.com/zig-gamedev/zflecs",
-        "4af2e647041b9dd396693e3a19f6894fac2c5c58",
+        "34f6cc3f6d11fa13a44ae759e9ed6bec3a455fa4",
     )
     sync_lib(
         "zgltf",
@@ -168,60 +174,55 @@ def main():
     sync_lib(
         "zgui",
         "https://github.com/Srekel/zgui.git",
-        "b5b29363a1a1db91519f0d94099c597e49eadfe9",
+        "3cdbe1f449cb3581be75929362363bf59ecea669",
     )
     sync_lib(
         "zmath",
         "https://github.com/zig-gamedev/zmath",
-        "24cdd20f9da09bd1ce7b552907eeaba9bafea59d",
+        "6a0747fe6834e58793500e05953c4c6ca045d3e1",
     )
     sync_lib(
         "zmesh",
         "https://github.com/zig-gamedev/zmesh",
-        "1fc267af7c8bd00cb2d79de12b3e0512a3b787cf",
+        "f8f528128704ae879a16ddb0a3470c5e0a144a20",
     )
     sync_lib(
         "znoise",
         "https://github.com/zig-gamedev/znoise",
-        "b6e7a24c9bfa4bae63521664e191a728b5b18805",
+        "96f9458c2da975a8bf1cdf95e819c7b070965198",
     )
     sync_lib(
         "zphysics",
         "https://github.com/zig-gamedev/zphysics",
-        "d4fbf9bf0775c55272f94b4e6a50bb5666b59606",
+        "0c60c1a0f2a2393c3c226dabd0bd7315f155f3ef",
     )
     sync_lib(
         "zpix",
         "https://github.com/zig-gamedev/zpix",
-        "9f13130127bed52d532538e6ab45ca6db4f5fb2e",
+        "e1f5f72d2a64ac1c459a14be40df63bef07bb97e",
     )
     sync_lib(
         "zpool",
         "https://github.com/zig-gamedev/zpool",
-        "163b4ab18936a3d57b5d8375eba1284114402c80",
+        "4c850e222e1ba507b45d7bab8cac83bdd74cacd6",
     )
     sync_lib(
         "zstbi",
         "https://github.com/zig-gamedev/zstbi",
-        "bcbd249f3f57fb84d6d76f1bc621c7bd3bfaa4a2",
+        "094c4bba5cdbec167d3f6aaa98cccccd5c99145f",
     )
     sync_lib(
         "ztracy",
         "https://github.com/zig-gamedev/ztracy",
-        "5af60074f355ecda6114d08dcc8c931c3d163c94",
+        "be3d003f29d59d72e68e493ab531374ab474a795",
     )
     sync_lib(
         "zwindows",
         "https://github.com/zig-gamedev/zwindows",
-        "3bafa10a3271b6b4d1e9a3550f4f165285479d6e",
-    )
-    sync_lib(
-        "zigwin32",
-        "https://github.com/marlersoft/zigwin32",
-        "d21b419d808215e1f82605fdaddc49750bfa3bca",
+        "c29e0fec072c282a8c6234c5837db071af42a11f",
     )
 
-    sync_zig_exe("0.14.0-dev.2577+271452d22")
+    sync_zig_exe("0.14.1")
 
     os.chdir("..")
     print("Done syncing external!")

@@ -296,13 +296,13 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const self: *PostProcessingRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
 
-    self.hdr_tonemap_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "HDR Tone Mapping", .{ .bUseMarker = true});
-    defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.hdr_tonemap_profile_token);
+    // self.hdr_tonemap_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "HDR Tone Mapping", .{ .bUseMarker = true});
+    // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.hdr_tonemap_profile_token);
 
     // Bloom
     if (self.bloom_settings.enabled) {
-        self.bloom_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "Generate Bloom", .{ .bUseMarker = true});
-        defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.bloom_profile_token);
+        // self.bloom_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "Generate Bloom", .{ .bUseMarker = true});
+        // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.bloom_profile_token);
 
         var rt_barriers = [_]graphics.RenderTargetBarrier{
             graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
@@ -475,8 +475,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Adapt exposure
     {
-        self.update_exposure_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "Update Exposure", .{ .bUseMarker = true});
-        defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.update_exposure_profile_token);
+        // self.update_exposure_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "Update Exposure", .{ .bUseMarker = true});
+        // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.update_exposure_profile_token);
 
         const luma = self.renderer.getTexture(self.renderer.luma_lr);
         const luma_width: u32 = @intCast(luma[0].bitfield_1.mWidth);

@@ -48,13 +48,13 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     // ZIG GAMEDEV
     // zjobs
-    const zjobs = b.dependency("zjobs", .{});
-    exe.root_module.addImport("zjobs", zjobs.module("root"));
+    // const zjobs = b.dependency("zjobs", .{});
+    // exe.root_module.addImport("zjobs", zjobs.module("root"));
 
     // // zmath
     const zmath = b.dependency("zmath", .{
         .target = target,
-        .optimize = optimize,
+        // .optimize = optimize,
         .enable_cross_platform_determinism = false,
     });
     exe.root_module.addImport("zmath", zmath.module("root"));
@@ -73,12 +73,11 @@ pub fn buildExe(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
     });
     exe.root_module.addImport("zstbi", zstbi.module("root"));
-    exe.linkLibrary(zstbi.artifact("zstbi"));
 
     // END MODULES
     //////////////
 
-    b.installArtifact(exe);
+    b.installArtifact(exe); 
 
     const run_cmd = b.addRunArtifact(exe);
     if (b.args) |args| {
