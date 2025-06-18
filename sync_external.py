@@ -179,7 +179,7 @@ def main():
     sync_lib(
         "zmath",
         "https://github.com/zig-gamedev/zmath",
-        "6a0747fe6834e58793500e05953c4c6ca045d3e1",
+        "58930cfe153d07f9fb2430241b5e6d4d641111b8",
     )
     sync_lib(
         "zmesh",
