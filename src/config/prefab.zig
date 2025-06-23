@@ -521,12 +521,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 9);
 
-                lod_group.lods[i].materials.items[0] = wood_trim_material_handle;
-                lod_group.lods[i].materials.items[1] = plaster_material_handle;
-                lod_group.lods[i].materials.items[2] = brick_material_handle;
-                lod_group.lods[i].materials.items[3] = flat_tiles_material_handle;
-                lod_group.lods[i].materials.items[4] = round_tiles_material_handle;
-                lod_group.lods[i].materials.items[5] = rock_trim_material_handle;
+                lod_group.lods[i].materials.items[0] = rock_trim_material_handle;
+                lod_group.lods[i].materials.items[1] = brick_material_handle;
+                lod_group.lods[i].materials.items[2] = plaster_material_handle;
+                lod_group.lods[i].materials.items[3] = wood_trim_material_handle;
+                lod_group.lods[i].materials.items[4] = flat_tiles_material_handle;
+                lod_group.lods[i].materials.items[5] = round_tiles_material_handle;
                 lod_group.lods[i].materials.items[6] = wood_trim_material_handle;
                 lod_group.lods[i].materials.items[7] = metal_ornaments_material_handle;
                 lod_group.lods[i].materials.items[8] = uneven_brick_material_handle;
