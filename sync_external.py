@@ -164,7 +164,7 @@ def main():
     sync_lib(
         "zflecs",
         "https://github.com/zig-gamedev/zflecs",
-        "34f6cc3f6d11fa13a44ae759e9ed6bec3a455fa4",
+        "13d66e8c5f74bbe574afe1bb37c26f799971ca4a",
     )
     sync_lib(
         "zgltf",
