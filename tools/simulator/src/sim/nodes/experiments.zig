@@ -5,17 +5,124 @@ const zm = @import("zmath");
 const znoise = @import("znoise");
 const nodes = @import("nodes.zig");
 
-pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, city_points: *const types.BackedListVec2, cities_out: *std.ArrayList([3]f32)) void {
+const io = @import("../io.zig");
+const loadFile = io.loadFile;
+const writeFile = io.writeFile;
+const hash = io.hash;
+const print = io.print;
+const write = io.write;
+const writeLine = io.writeLine;
+const writeEmptyLine = io.writeEmptyLine;
+
+pub fn writeVillageScript(house_points: *std.ArrayList([3]f32), name: []const u8, rand: *const std.Random) void {
+    var folderbuf: [256]u8 = undefined;
+    var namebuf: [256]u8 = undefined;
+
+    const folderbufslice = std.fmt.bufPrintZ(
+        folderbuf[0..folderbuf.len],
+        "../../../../content/settlements",
+        .{},
+    ) catch unreachable;
+
+    std.fs.cwd().makeDir(folderbufslice) catch {};
+
+    var output_file_data = std.ArrayList(u8).initCapacity(std.heap.c_allocator, 50 * 1024) catch unreachable;
+    defer output_file_data.deinit();
+    const writer = output_file_data.writer();
+
+    writeLine(writer, "using flecs.meta", .{});
+    writeEmptyLine(writer);
+    for (house_points.items, 0..) |pos, house_i| {
+        const rot_y = rand.float(f32) * std.math.tau;
+        const rot = zm.quatFromRollPitchYaw(0, rot_y, 0);
+        writeLine(writer, "{s}_h{d} : house_3x5_id {{", .{ name, house_i });
+        writeLine(writer, "   config.flecs_data.Position: {{{d}, {d}, {d}}};", .{ pos[0], pos[1], pos[2] });
+        writeLine(writer, "   config.flecs_data.Rotation: {{{d}, {d}, {d}, {d}}};", .{ rot[0], rot[1], rot[2], rot[3] });
+        writeLine(writer, "   config.flecs_data.Dynamic: {{}};", .{}); // temp
+        writeLine(writer, "}};", .{});
+        writeEmptyLine(writer);
+    }
+
+    const namebufslice = std.fmt.bufPrintZ(
+        namebuf[0..namebuf.len],
+        "{s}/{s}.flecs",
+        .{ folderbufslice, name },
+    ) catch unreachable;
+    const file = std.fs.cwd().createFile(namebufslice, .{ .read = true }) catch unreachable;
+    defer file.close();
+    _ = file.writeAll(output_file_data.items) catch unreachable;
+}
+
+pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gradient: types.ImageF32, city_points: *const types.BackedListVec2, cities_out: *std.ArrayList([3]f32)) void {
+    _ = gradient; // autofix
     _ = world_settings; // autofix
 
+    // var buf: [512 * 1024]u8 = undefined;
+    // const template = loadTemplate("../../../content/flecs_script/templates/village_small_poor.template.flecs", buf);
+
+    // temp via https://www.fantasynamegenerators.com/fantasy-town-names.php
+    const names = [_][]const u8{
+        "Rockpond",
+        "Losttide",
+        "Autumnfront",
+        "Wolfvale",
+        "Eagleglen",
+        "Mudsummit",
+        "Glimmerside",
+        "Thornward",
+        "Quickbreak",
+        "Dryvein",
+        "Ravenfrost",
+        "Smallmoor",
+        "Dimbreach",
+        "Arrowland",
+        "Chillacre",
+        "Silvercoast",
+        "Rockburn",
+        "Crystalfair",
+        "Basinwell",
+        "Duskborough",
+    };
+
+    const seed: u64 = 123;
+    const cell_size_f: f32 = 25;
+    var prng = std.Random.DefaultPrng.init(seed);
+    const rand = prng.random();
+    var houses = std.ArrayList([3]f32).initCapacity(std.heap.c_allocator, 128) catch unreachable;
+    var valid_settlement_i: u32 = 0;
     for (city_points.backed_slice[0..city_points.count]) |pt| {
+        houses.clearRetainingCapacity();
+
         const x = pt[0];
         const z = pt[1];
-        const height = heightmap.get(@as(u32, @intFromFloat(x)), @as(u32, @intFromFloat(z)));
-        if (height < 60) {
+
+        const settlement_height = heightmap.get(@as(u32, @intFromFloat(x)), @as(u32, @intFromFloat(z)));
+        if (settlement_height < 60) {
             continue; // hack for sea level
         }
-        cities_out.appendAssumeCapacity(.{ x, height, z });
+
+        for (0..5) |offset_z| {
+            const cutoff_z: f32 = if (offset_z == 0 or offset_z == 4) 0.7 else 1;
+            for (0..5) |offset_x| {
+                const cutoff_x: f32 = if (offset_x == 0 or offset_x == 4) 0.7 else 1;
+                if (rand.float(f32) * cutoff_x * cutoff_z < 0.3) {
+                    continue;
+                }
+                const final_x = x + @as(f32, @floatFromInt(offset_x)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4;
+                const final_z = z + @as(f32, @floatFromInt(offset_z)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4;
+                const house_height = heightmap.get(@as(u32, @intFromFloat(final_x)), @as(u32, @intFromFloat(final_z)));
+                if (house_height < 40) {
+                    continue; // hack for sea level
+                }
+
+                houses.appendAssumeCapacity(.{ final_x, house_height, final_z });
+            }
+        }
+
+        cities_out.appendAssumeCapacity(.{ x, settlement_height, z });
+
+        writeVillageScript(&houses, names[valid_settlement_i], &rand);
+        valid_settlement_i += 1;
     }
 
     var folderbuf: [256]u8 = undefined;
@@ -30,11 +137,11 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, ci
     std.fs.cwd().makeDir(folderbufslice) catch {};
 
     var output_file_data = std.ArrayList(u8).initCapacity(std.heap.c_allocator, cities_out.items.len * 50) catch unreachable;
+    defer output_file_data.deinit();
     var writer = output_file_data.writer();
 
-    for (cities_out.items) |city| {
-        // city,1072.000,145.403,1152.000,43
-        writer.print("city,{d:.3},{d:.3},{d:.3},{}\n", .{ city[0], city[1], city[2], 0 }) catch unreachable;
+    for (cities_out.items, 0..) |city, settlement_i| {
+        writer.print("city,{d:.3},{d:.3},{d:.3},{s}\n", .{ city[0], city[1], city[2], names[settlement_i] }) catch unreachable;
     }
 
     const namebufslice = std.fmt.bufPrintZ(
@@ -52,8 +159,8 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, ci
 pub fn points_distribution_grid(filter: types.ImageF32, score_min: f32, grid_settings: grid.Grid, pts_out: *types.PatchDataPts2d) void {
     const cells_x = grid_settings.size.width / grid_settings.cell_size;
     const cells_y = grid_settings.size.height / grid_settings.cell_size;
-    var seed: u64 = 123;
-    std.posix.getrandom(std.mem.asBytes(&seed)) catch unreachable;
+    const seed: u64 = 123;
+    // std.posix.getrandom(std.mem.asBytes(&seed)) catch unreachable;
 
     const cell_size_f: f32 = @as(f32, @floatFromInt(grid_settings.cell_size));
     var prng = std.Random.DefaultPrng.init(seed);

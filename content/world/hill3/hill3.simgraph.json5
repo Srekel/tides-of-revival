@@ -568,6 +568,7 @@
       kind: "cities",
       // vars
       heightmap: "heightmap",
+      gradient: "gradient_image",
       in_points: "village_points",
       in_points_counter: "village_points_counter",
     },

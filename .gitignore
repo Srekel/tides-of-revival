@@ -20,3 +20,4 @@ imgui.ini
 .zig-cache
 Logs/*
 prefs.toml
+*.flecs

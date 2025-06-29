@@ -44,7 +44,7 @@ pub const PrefabManager = struct {
             return prefab;
         }
 
-        var entity = world.newPrefab(path);
+        var entity = world.newPrefab(id.toCString());
         entity.setOverride(fd.Forward{});
 
         // Set position, rotation and scale
@@ -75,7 +75,7 @@ pub const PrefabManager = struct {
         }
 
         const mesh_handle = self.rctx.loadMesh(path, vertex_layout_id) catch unreachable;
-        var entity = world.newPrefab(path);
+        var entity = world.newPrefab(id.toCString());
         entity.setOverride(fd.Forward{});
 
         // Set position, rotation and scale
@@ -143,18 +143,18 @@ pub const PrefabManager = struct {
             const content_lod_path = std.fmt.bufPrintZ(
                 content_lod_path_buffer[0..content_lod_path_buffer.len],
                 "content/{s}_LOD{d}.bin",
-                .{path, lod},
+                .{ path, lod },
             ) catch unreachable;
 
             _ = std.fs.cwd().statFile(content_lod_path) catch |err| switch (err) {
-                else => continue
+                else => continue,
             };
 
             var lod_path_buffer: [256]u8 = undefined;
             const lod_path = std.fmt.bufPrintZ(
                 lod_path_buffer[0..lod_path_buffer.len],
                 "{s}_LOD{d}.bin",
-                .{path, lod},
+                .{ path, lod },
             ) catch unreachable;
 
             lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
@@ -192,5 +192,4 @@ pub const PrefabManager = struct {
 
         return lod_group;
     }
-
 };

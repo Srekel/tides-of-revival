@@ -162,6 +162,32 @@ pub fn run() void {
     var physics_mgr = physics_manager.create(arena_system_lifetime.allocator(), root_allocator.allocator());
     defer physics_manager.destroy(&physics_mgr);
 
+    _ = ecs.struct_init(ecsu_world.world, .{
+        .entity = ecs.id(fd.Position), // Make sure to use existing id
+        .members = ([_]ecs.member_t{
+            .{ .name = "x", .type = ecs.FLECS_IDecs_f32_tID_ },
+            .{ .name = "y", .type = ecs.FLECS_IDecs_f32_tID_ },
+            .{ .name = "z", .type = ecs.FLECS_IDecs_f32_tID_ },
+        } ++ ecs.array(ecs.member_t, 32 - 3)),
+    });
+    _ = ecs.struct_init(ecsu_world.world, .{
+        .entity = ecs.id(fd.Scale), // Make sure to use existing id
+        .members = ([_]ecs.member_t{
+            .{ .name = "x", .type = ecs.FLECS_IDecs_f32_tID_ },
+            .{ .name = "y", .type = ecs.FLECS_IDecs_f32_tID_ },
+            .{ .name = "z", .type = ecs.FLECS_IDecs_f32_tID_ },
+        } ++ ecs.array(ecs.member_t, 32 - 3)),
+    });
+    _ = ecs.struct_init(ecsu_world.world, .{
+        .entity = ecs.id(fd.Rotation), // Make sure to use existing id
+        .members = ([_]ecs.member_t{
+            .{ .name = "x", .type = ecs.FLECS_IDecs_f32_tID_ },
+            .{ .name = "y", .type = ecs.FLECS_IDecs_f32_tID_ },
+            .{ .name = "z", .type = ecs.FLECS_IDecs_f32_tID_ },
+            .{ .name = "w", .type = ecs.FLECS_IDecs_f32_tID_ },
+        } ++ ecs.array(ecs.member_t, 32 - 4)),
+    });
+
     var gameloop_context: GameloopContext = .{
         .arena_system_lifetime = arena_system_lifetime.allocator(),
         .arena_system_update = arena_system_update.allocator(),
@@ -300,6 +326,28 @@ pub fn run() void {
         var system_desc = ecs.system_desc_t{ .callback = updateDebugUI };
         _ = ecs.SYSTEM(ecsu_world.world, "updateDebugUI", ecs.OnUpdate, &system_desc);
     }
+
+    // const vars = ecs.script_vars_init(ecsu_world.world);
+    // defer ecs.script_vars_fini(vars);
+    // const x = ecs.script_vars_define_id(vars, "x", ecs.FLECS_IDecs_f32_tID_).?;
+    // // const y = ecs.script_vars_define(vars, "y", ecs.FLECS_IDecs_f32_tID_);
+
+    // @as(*f32, @alignCast(@ptrCast(x.value.ptr.?))).* = 8100;
+    // // // y.value.ptr = 1;
+
+    // const desc: ecs.script_eval_desc_t = .{ .vars = vars };
+    // _ = update_full(gameloop_context);
+
+    // const lol_script_code = gameloop_context.asset_mgr.loadAssetBlocking(IdLocal.init("content/flecs_scripts/tests/variables.flecs"), .instant_blocking);
+    // const lol_script = ecs.script_parse(ecsu_world.world, "minimal", @ptrCast(lol_script_code), null);
+    // // const res = ecs.script_eval(lol_script.?, null);
+    // const res = ecs.script_eval(lol_script.?, &desc);
+    // _ = res; // autofix
+    // const varent = ecs.lookup(ecsu_world.world, "variable_entity");
+    // _ = varent; // autofix
+    // // _ = ecs.set(ecsu_world.world, varent, fd.Position, .{ .x = 8190, .y = 200, .z = 8190 });
+    // // _ = ecs.set(ecsu_world.world, varent, fd.Scale, .{ .x = 150, .y = 150, .z = 150 });
+    // // _ = ecs.set(ecsu_world.world, varent, fd.Dynamic, .{});
 
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝

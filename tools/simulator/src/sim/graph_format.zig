@@ -3,6 +3,14 @@ const builtin = @import("builtin");
 // const tides_format = @import("tides_format.zig");
 const json5 = @import("json5.zig");
 
+const io = @import("io.zig");
+const loadFile = io.loadFile;
+const writeFile = io.writeFile;
+const hash = io.hash;
+const print = io.print;
+const write = io.write;
+const writeLine = io.writeLine;
+
 const is_debug = builtin.mode == .Debug;
 
 const kind_start = hash("start");
@@ -43,50 +51,6 @@ const kind_Size2D = hash("Size2D");
 const kind_Voronoi = hash("Voronoi");
 const kind_VoronoiSettings = hash("VoronoiSettings");
 const kind_WorldSettings = hash("WorldSettings");
-
-// UTIL
-fn loadFile(path: []const u8, buf: []u8) []const u8 {
-    var buf2: [256]u8 = undefined;
-    const path2 = std.fs.cwd().realpath(".", &buf2) catch unreachable;
-    std.log.info("LOL {s}", .{path2});
-    std.log.info("LOL {s}", .{path});
-    const data = std.fs.cwd().readFile(path, buf) catch unreachable;
-    return data;
-}
-
-fn writeFile(data: anytype, name: []const u8) void {
-    var buf: [256]u8 = undefined;
-    const filepath = std.fmt.bufPrintZ(&buf, "{s}.zig", .{name}) catch unreachable;
-    const file = std.fs.cwd().createFile(
-        filepath,
-        .{ .read = true },
-    ) catch unreachable;
-    defer file.close();
-
-    const bytes_written = file.writeAll(data) catch unreachable;
-    _ = bytes_written; // autofix
-}
-
-fn hash(str: []const u8) u64 {
-    return std.hash.Wyhash.hash(0, str);
-}
-
-fn print(buf: []u8, comptime fmt: []const u8, args: anytype) []u8 {
-    return std.fmt.bufPrint(buf, fmt, args) catch unreachable;
-}
-
-fn write(writer: anytype, comptime fmt: []const u8, args: anytype) void {
-    var buf: [1024 * 4]u8 = undefined;
-    const str = print(&buf, fmt, args);
-    writer.writeAll(str) catch unreachable;
-}
-
-fn writeLine(writer: anytype, comptime fmt: []const u8, args: anytype) void {
-    var buf: [1024 * 4]u8 = undefined;
-    const str = print(&buf, fmt, args);
-    writer.writeAll(str) catch unreachable;
-    writer.writeAll("\n") catch unreachable;
-}
 
 fn writePreview(writer: anytype, image_name: []const u8, node_name: []const u8) void {
     writeLine(writer, "", .{});
@@ -392,9 +356,10 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 const in_points = j_node.Object.get("in_points").?.String;
                 const in_points_counter = j_node.Object.get("in_points_counter").?.String;
                 const heightmap = j_node.Object.get("heightmap").?.String;
+                const gradient = j_node.Object.get("gradient").?.String;
                 writeLine(writer, "    if (!DRY_RUN) {{", .{});
                 writeLine(writer, "        const x = types.BackedListVec2.createFromImageVec2(&{s}, {s}.pixels[0]);", .{ in_points, in_points_counter });
-                writeLine(writer, "        nodes.experiments.cities(world_settings, {s}, &{s}, &cities);", .{ heightmap, "x" });
+                writeLine(writer, "        nodes.experiments.cities(world_settings, {s},{s}, &{s}, &cities);", .{ heightmap, gradient, "x" });
                 writeLine(writer, "    }}", .{});
             },
             kind_contours => {

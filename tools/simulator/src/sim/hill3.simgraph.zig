@@ -757,7 +757,7 @@ pub fn output_cities(ctx: *Context) void {
 
     if (!DRY_RUN) {
         const x = types.BackedListVec2.createFromImageVec2(&village_points, village_points_counter.pixels[0]);
-        nodes.experiments.cities(world_settings, heightmap, &x, &cities);
+        nodes.experiments.cities(world_settings, heightmap,gradient_image, &x, &cities);
     }
 
     // Leaf node

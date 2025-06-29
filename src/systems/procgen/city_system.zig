@@ -129,14 +129,26 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
         comma_next = comma_curr + std.mem.indexOfScalar(u8, line[comma_curr..], ","[0]).?;
         const pos_z = std.fmt.parseFloat(f32, line[comma_curr..comma_next]) catch unreachable;
 
+        // comma_curr = comma_next + 1;
+        // comma_next = comma_curr + std.mem.indexOfScalar(u8, line[comma_curr..], ","[0]).?;
+        // const rot_y = std.fmt.parseFloat(f32, line[comma_curr..comma_next]) catch unreachable;
+        // _ = rot_y;
+
         comma_curr = comma_next + 1;
-        const rot_y = std.fmt.parseFloat(f32, line[comma_curr..]) catch unreachable;
-        _ = rot_y;
+        const settlement_name = line[comma_curr..];
 
         if (cylinder_prefab) |prefab| {
+            var buf2: [256]u8 = undefined;
+            const filepath = std.fmt.bufPrintZ(&buf2, "content/settlements/{s}.flecs", .{settlement_name}) catch unreachable;
+
+            const script_code = asset_mgr.loadAssetBlocking(IdLocal.init(filepath), .instant_blocking);
+            const script = ecs.script_parse(ecsu_world.world, "settlement", @ptrCast(script_code), null);
+            const res = ecs.script_eval(script.?, null);
+            std.debug.assert(res == 0);
+
             var city_ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab);
             city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
-            city_ent.set(fd.Scale.createScalar(100));
+            city_ent.set(fd.Scale.createScalar(10));
             city_ents.append(.{
                 .ent = city_ent,
                 .class = 0,
@@ -170,48 +182,48 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
     }
 
     // Cities
-    for (city_ents.items) |*city_ent1| {
-        if (city_ent1.class != 0) {
-            continue;
-        }
-        var best_dist1: f32 = 1000000; // nearest
-        var best_dist2: f32 = 1000000; // second nearest
-        var best_ent1: ?CityEnt = null;
-        var best_ent2: ?CityEnt = null;
-        for (city_ents.items) |city_ent2| {
-            if (city_ent1.ent.id == city_ent2.ent.id) {
-                continue;
-            }
+    // for (city_ents.items) |*city_ent1| {
+    //     if (city_ent1.class != 0) {
+    //         continue;
+    //     }
+    //     var best_dist1: f32 = 1000000; // nearest
+    //     var best_dist2: f32 = 1000000; // second nearest
+    //     var best_ent1: ?CityEnt = null;
+    //     var best_ent2: ?CityEnt = null;
+    //     for (city_ents.items) |city_ent2| {
+    //         if (city_ent1.ent.id == city_ent2.ent.id) {
+    //             continue;
+    //         }
 
-            if (city_ent2.class == 1) {
-                continue;
-            }
+    //         if (city_ent2.class == 1) {
+    //             continue;
+    //         }
 
-            const dist = city_ent1.dist(city_ent2);
-            if (dist < best_dist2) {
-                best_dist2 = dist;
-                best_ent2 = city_ent2;
-            }
-            if (dist < best_dist1) {
-                best_dist2 = best_dist1;
-                best_ent2 = best_ent1;
-                best_dist1 = dist;
-                best_ent1 = city_ent2;
-            }
-        }
+    //         const dist = city_ent1.dist(city_ent2);
+    //         if (dist < best_dist2) {
+    //             best_dist2 = dist;
+    //             best_ent2 = city_ent2;
+    //         }
+    //         if (dist < best_dist1) {
+    //             best_dist2 = best_dist1;
+    //             best_ent2 = best_ent1;
+    //             best_dist1 = dist;
+    //             best_ent1 = city_ent2;
+    //         }
+    //     }
 
-        city_ent1.nearest[0] = best_ent1.?.ent.id;
-        city_ent1.nearest[1] = best_ent2.?.ent.id;
-        city_ent1.ent.set(fd.CompCity{
-            .spawn_cooldown = 80,
-            .next_spawn_time = 5,
-            .closest_cities = [_]ecs.entity_t{
-                best_ent1.?.ent.id,
-                best_ent2.?.ent.id,
-            },
-            .curr_target_city = 0,
-        });
-    }
+    //     city_ent1.nearest[0] = best_ent1.?.ent.id;
+    //     city_ent1.nearest[1] = best_ent2.?.ent.id;
+    //     city_ent1.ent.set(fd.CompCity{
+    //         .spawn_cooldown = 80,
+    //         .next_spawn_time = 5,
+    //         .closest_cities = [_]ecs.entity_t{
+    //             best_ent1.?.ent.id,
+    //             best_ent2.?.ent.id,
+    //         },
+    //         .curr_target_city = 0,
+    //     });
+    // }
 
     // Bandits
     // for (city_ents.items) |city_ent1| {
