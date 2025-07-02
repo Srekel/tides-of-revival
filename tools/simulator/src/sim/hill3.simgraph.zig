@@ -54,7 +54,7 @@ var fbm_settings_plains: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
 var fbm_settings_hills: nodes.fbm.FbmSettings = nodes.fbm.FbmSettings{
     .seed = 3,
     .frequency = 0.001,
-    .octaves = 4,
+    .octaves = 3,
     .rect = types.Rect.createOriginSquare(world_settings.size.width),
     .scale = 1,
 };
@@ -503,7 +503,7 @@ pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
 pub fn remap_heightmap_plains(ctx: *Context) void {
     std.log.info("Node: remap_heightmap_plains [remap]", .{});
 
-    compute.remap(&heightmap_plains, &scratch_image, 50, 75);
+    compute.remap(&heightmap_plains, &scratch_image, 50, 125);
 
     types.saveImageF32(heightmap_plains, "remap_heightmap_plains", false);
     types.image_preview_f32(heightmap_plains, &preview_image_remap_heightmap_plains);
@@ -591,7 +591,7 @@ pub fn multiply_heightmap_weight_hills(ctx: *Context) void {
 pub fn remap_heightmap_hills(ctx: *Context) void {
     std.log.info("Node: remap_heightmap_hills [remap]", .{});
 
-    compute.remap(&heightmap_hills, &scratch_image, 100, 250);
+    compute.remap(&heightmap_hills, &scratch_image, 150, 350);
 
     types.saveImageF32(heightmap_hills, "remap_heightmap_hills", false);
     types.image_preview_f32(heightmap_hills, &preview_image_remap_heightmap_hills);
@@ -679,7 +679,7 @@ pub fn multiply_heightmap_weight_mountains(ctx: *Context) void {
 pub fn remap_heightmap_mountains(ctx: *Context) void {
     std.log.info("Node: remap_heightmap_mountains [remap]", .{});
 
-    compute.remap(&heightmap_mountains, &scratch_image, 20, 1000);
+    compute.remap(&heightmap_mountains, &scratch_image, 20, 1500);
 
     types.saveImageF32(heightmap_mountains, "remap_heightmap_mountains", false);
     types.image_preview_f32(heightmap_mountains, &preview_image_remap_heightmap_mountains);

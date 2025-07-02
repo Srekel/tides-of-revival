@@ -76,7 +76,7 @@
       kind: "FbmSettings",
       seed: 3,
       frequency: 0.001,
-      octaves: 4,
+      octaves: 3,
       rect: "world_settings.size",
       scale: 1.0,
     },
@@ -411,7 +411,7 @@
       input: "heightmap_plains",
       output: "heightmap_plains",
       new_min: "50",
-      new_max: "75",
+      new_max: "125",
     },
     // END PLAINS
 
@@ -466,8 +466,8 @@
       // vars
       input: "heightmap_hills",
       output: "heightmap_hills",
-      new_min: "100",
-      new_max: "250",
+      new_min: "150",
+      new_max: "350",
     },
     // END HILLS
 
@@ -523,7 +523,7 @@
       input: "heightmap_mountains",
       output: "heightmap_mountains",
       new_min: "20",
-      new_max: "1000",
+      new_max: "1500",
     },
     // END MOUNTAINS
 

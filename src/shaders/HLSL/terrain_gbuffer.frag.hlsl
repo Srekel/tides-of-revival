@@ -183,8 +183,7 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     uint grass_layer_index = 1;
     uint rock_layer_index = 2;
 
-    float triplanarScale = GetCoordScaleByDistance(P, g_cam_pos.xyz);
-    float3 worldSpaceUV = Input.PositionWS.xyz * GetCoordScaleByDistance(P, g_cam_pos.xyz);
+    float triplanarScale = 1;
 
     float3 grass_albedo;
     float3 grass_normal;
@@ -196,7 +195,7 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float3 rock_normal;
     float3 rock_arm;
     float rock_height;
-    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, N, triplanarScale, rock_albedo, rock_normal, rock_arm, rock_height);
+    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, N, triplanarScale / 32, rock_albedo, rock_normal, rock_arm, rock_height);
 
     // TODO(gmodarelli): Blend more than 2 layers
     float b1, b2;
