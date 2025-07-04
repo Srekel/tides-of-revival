@@ -1,4 +1,5 @@
 const std = @import("std");
+const math = std.math;
 const types = @import("../types.zig");
 const grid = @import("../grid.zig");
 const zm = @import("zmath");
@@ -14,7 +15,14 @@ const write = io.write;
 const writeLine = io.writeLine;
 const writeEmptyLine = io.writeEmptyLine;
 
-pub fn writeVillageScript(house_points: *std.ArrayList([3]f32), name: []const u8, rand: *const std.Random) void {
+const Prop = struct {
+    name: []const u8,
+    pos: [3]f32,
+    rot: f32,
+};
+
+pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *const std.Random) void {
+    _ = rand; // autofix
     var folderbuf: [256]u8 = undefined;
     var namebuf: [256]u8 = undefined;
 
@@ -26,16 +34,17 @@ pub fn writeVillageScript(house_points: *std.ArrayList([3]f32), name: []const u8
 
     std.fs.cwd().makeDir(folderbufslice) catch {};
 
-    var output_file_data = std.ArrayList(u8).initCapacity(std.heap.c_allocator, 50 * 1024) catch unreachable;
+    var output_file_data = std.ArrayList(u8).initCapacity(std.heap.c_allocator, @sizeOf(Prop) * 1024) catch unreachable;
     defer output_file_data.deinit();
     const writer = output_file_data.writer();
 
     writeLine(writer, "using flecs.meta", .{});
     writeEmptyLine(writer);
-    for (house_points.items, 0..) |pos, house_i| {
-        const rot_y = rand.float(f32) * std.math.tau;
+    for (props.items, 0..) |prop, prop_i| {
+        const pos = prop.pos;
+        const rot_y = prop.rot;
         const rot = zm.quatFromRollPitchYaw(0, rot_y, 0);
-        writeLine(writer, "{s}_h{d} : house_3x5_id {{", .{ name, house_i });
+        writeLine(writer, "{s}_prop{d} : {s} {{", .{ name, prop_i, prop.name });
         writeLine(writer, "   config.flecs_data.Position: {{{d}, {d}, {d}}};", .{ pos[0], pos[1], pos[2] });
         writeLine(writer, "   config.flecs_data.Rotation: {{{d}, {d}, {d}, {d}}};", .{ rot[0], rot[1], rot[2], rot[3] });
         writeLine(writer, "   config.flecs_data.Dynamic: {{}};", .{}); // temp
@@ -86,12 +95,17 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
 
     const seed: u64 = 123;
     const cell_size_f: f32 = 25;
+    const radius = 2.5 * cell_size_f;
+    const radius_palisades = 3.2 * cell_size_f;
+    const perimeter = radius_palisades * math.pi * 2;
+
     var prng = std.Random.DefaultPrng.init(seed);
     const rand = prng.random();
-    var houses = std.ArrayList([3]f32).initCapacity(std.heap.c_allocator, 128) catch unreachable;
+    var props = std.ArrayList(Prop).initCapacity(std.heap.c_allocator, 512) catch unreachable;
+
     var valid_settlement_i: u32 = 0;
     for (city_points.backed_slice[0..city_points.count]) |pt| {
-        houses.clearRetainingCapacity();
+        props.clearRetainingCapacity();
 
         const x = pt[0];
         const z = pt[1];
@@ -105,23 +119,64 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
             const cutoff_z: f32 = if (offset_z == 0 or offset_z == 4) 0.7 else 1;
             for (0..5) |offset_x| {
                 const cutoff_x: f32 = if (offset_x == 0 or offset_x == 4) 0.7 else 1;
-                if (rand.float(f32) * cutoff_x * cutoff_z < 0.3) {
+                if ((offset_x == 0 or offset_x == 4) and (offset_z == 0 or offset_z == 4)) {
+                    continue; // roundify village
+                }
+                if (offset_x == 2 and offset_z == 2) {
+                    // Hack for "well"
                     continue;
                 }
-                const final_x = x + @as(f32, @floatFromInt(offset_x)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4;
-                const final_z = z + @as(f32, @floatFromInt(offset_z)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4;
+                const final_x = x + @as(f32, @floatFromInt(offset_x)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4 - radius;
+                const final_z = z + @as(f32, @floatFromInt(offset_z)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4 - radius;
                 const house_height = heightmap.get(@as(u32, @intFromFloat(final_x)), @as(u32, @intFromFloat(final_z)));
                 if (house_height < 40) {
                     continue; // hack for sea level
                 }
 
-                houses.appendAssumeCapacity(.{ final_x, house_height, final_z });
+                const name = if (rand.float(f32) * cutoff_x * cutoff_z > 0.3)
+                    "house_3x5_id"
+                else
+                    "brazier_2_id";
+
+                props.appendAssumeCapacity(.{
+                    .name = name,
+                    .pos = .{ final_x, house_height - 0.5, final_z }, // temp height hack
+                    .rot = rand.float(f32) * std.math.tau,
+                });
             }
+        }
+
+        const palisade_length = 4;
+        const palisade_count = math.ceil(perimeter / palisade_length);
+        for (0..palisade_count) |i_palisade| {
+            const percent = @as(f32, @floatFromInt(i_palisade)) / palisade_count;
+            const angle_rad = percent * math.tau;
+            var pos = [3]f32{
+                x + math.cos(angle_rad) * radius_palisades,
+                0,
+                z + math.sin(angle_rad) * radius_palisades,
+            };
+
+            pos[1] = heightmap.get(@as(u32, @intFromFloat(pos[0])), @as(u32, @intFromFloat(pos[2])));
+            if (pos[1] < 30) {
+                continue; // hack for sea level
+            }
+
+            const name = switch (i_palisade) {
+                0...palisade_count - 3 => if (rand.boolean()) "palisade_400x300_a_id" else "palisade_400x300_b_id",
+                else => "brazier_1_id",
+            };
+
+            props.appendAssumeCapacity(.{
+                .name = name,
+                .pos = pos,
+                .rot = -angle_rad - math.pi * 0.5,
+            });
         }
 
         cities_out.appendAssumeCapacity(.{ x, settlement_height, z });
 
-        writeVillageScript(&houses, names[valid_settlement_i], &rand);
+        writeVillageScript(&props, names[valid_settlement_i], &rand);
         valid_settlement_i += 1;
     }
 

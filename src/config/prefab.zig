@@ -28,8 +28,8 @@ pub const player_id = ID("prefab_player");
 pub const sphere_id = ID("prefab_sphere");
 pub const color_calibrator_id = ID("color_calibrator");
 
-pub const palisade_400x300_a_id = ID("palisade_400x300_a");
-pub const palisade_400x300_b_id = ID("palisade_400x300_b");
+pub const palisade_400x300_a_id = ID("palisade_400x300_a_id");
+pub const palisade_400x300_b_id = ID("palisade_400x300_b_id");
 pub const palisade_sloped_400x300_a_id = ID("palisade_sloped_400x300_a");
 pub const palisade_sloped_400x300_b_id = ID("palisade_sloped_400x300_b");
 pub const house_3x5_id = ID("house_3x5_id");
