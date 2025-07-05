@@ -19,6 +19,7 @@ const Prop = struct {
     name: []const u8,
     pos: [3]f32,
     rot: f32,
+    level: i32,
 };
 
 pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *const std.Random) void {
@@ -39,17 +40,25 @@ pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *
     const writer = output_file_data.writer();
 
     writeLine(writer, "using flecs.meta", .{});
-    writeEmptyLine(writer);
-    for (props.items, 0..) |prop, prop_i| {
-        const pos = prop.pos;
-        const rot_y = prop.rot;
-        const rot = zm.quatFromRollPitchYaw(0, rot_y, 0);
-        writeLine(writer, "{s}_prop{d} : {s} {{", .{ name, prop_i, prop.name });
-        writeLine(writer, "   config.flecs_data.Position: {{{d}, {d}, {d}}};", .{ pos[0], pos[1], pos[2] });
-        writeLine(writer, "   config.flecs_data.Rotation: {{{d}, {d}, {d}, {d}}};", .{ rot[0], rot[1], rot[2], rot[3] });
-        writeLine(writer, "   config.flecs_data.Dynamic: {{}};", .{}); // temp
-        writeLine(writer, "}};", .{});
+
+    for (0..3) |settlement_level| {
         writeEmptyLine(writer);
+        writeLine(writer, "if $settlement_level == {d} {{    ", .{settlement_level});
+        for (props.items, 0..) |prop, prop_i| {
+            if (prop.level != settlement_level) {
+                continue;
+            }
+            const pos = prop.pos;
+            const rot_y = prop.rot;
+            const rot = zm.quatFromRollPitchYaw(0, rot_y, 0);
+            writeLine(writer, "    {s}_prop{d} : {s} {{", .{ name, prop_i, prop.name });
+            writeLine(writer, "        config.flecs_data.Position: {{{d}, {d}, {d}}};", .{ pos[0], pos[1], pos[2] });
+            writeLine(writer, "        config.flecs_data.Rotation: {{{d}, {d}, {d}, {d}}};", .{ rot[0], rot[1], rot[2], rot[3] });
+            writeLine(writer, "        config.flecs_data.Dynamic: {{}};", .{}); // temp
+            writeLine(writer, "     }};", .{});
+            writeEmptyLine(writer);
+        }
+        writeLine(writer, "}} // end settlement_level {d}", .{settlement_level});
     }
 
     const namebufslice = std.fmt.bufPrintZ(
@@ -126,8 +135,8 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                     // Hack for "well"
                     continue;
                 }
-                const final_x = x + @as(f32, @floatFromInt(offset_x)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4 - radius;
-                const final_z = z + @as(f32, @floatFromInt(offset_z)) * cell_size_f + rand.float(f32) * cell_size_f * 0.4 - radius;
+                const final_x = x + @as(f32, @floatFromInt(offset_x)) * cell_size_f + rand.float(f32) * cell_size_f * 0.3 - radius;
+                const final_z = z + @as(f32, @floatFromInt(offset_z)) * cell_size_f + rand.float(f32) * cell_size_f * 0.3 - radius;
                 const house_height = heightmap.get(@as(u32, @intFromFloat(final_x)), @as(u32, @intFromFloat(final_z)));
                 if (house_height < 40) {
                     continue; // hack for sea level
@@ -142,6 +151,7 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                     .name = name,
                     .pos = .{ final_x, house_height - 0.5, final_z }, // temp height hack
                     .rot = rand.float(f32) * std.math.tau,
+                    .level = 1,
                 });
             }
         }
@@ -151,6 +161,7 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
         for (0..palisade_count) |i_palisade| {
             const percent = @as(f32, @floatFromInt(i_palisade)) / palisade_count;
             const angle_rad = percent * math.tau;
+            const is_palisade = i_palisade < palisade_count - 3;
             var pos = [3]f32{
                 x + math.cos(angle_rad) * radius_palisades,
                 0,
@@ -162,8 +173,12 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                 continue; // hack for sea level
             }
 
-            const name = switch (i_palisade) {
-                0...palisade_count - 3 => if (rand.boolean()) "palisade_400x300_a_id" else "palisade_400x300_b_id",
+            if (is_palisade) {
+                pos[1] -= 0.5; // hack for anchor
+            }
+
+            const name = switch (is_palisade) {
+                true => if (rand.boolean()) "palisade_400x300_a_id" else "palisade_400x300_b_id",
                 else => "brazier_1_id",
             };
 
@@ -171,6 +186,7 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                 .name = name,
                 .pos = pos,
                 .rot = -angle_rad - math.pi * 0.5,
+                .level = 1,
             });
         }
 

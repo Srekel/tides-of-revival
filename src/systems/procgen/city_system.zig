@@ -101,15 +101,18 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
 
     var added_spawn = false;
 
+    const vars = ecs.script_vars_init(ecsu_world.world);
+    defer ecs.script_vars_fini(vars);
+    const var_settlement_level = ecs.script_vars_define_id(vars, "settlement_level", ecs.FLECS_IDecs_i32_tID_).?;
+    @as(*i32, @alignCast(@ptrCast(var_settlement_level.value.ptr.?))).* = 1;
+    const desc: ecs.script_eval_desc_t = .{ .vars = vars };
+
     // Cities from cities.txt
     const cities_data = asset_mgr.loadAssetBlocking(IdLocal.init("content/systems/cities.txt"), .instant_blocking);
 
-    // var props = std.ArrayList(Prop).initCapacity(ctx.allocator, props_data.len / 30) catch unreachable;
     var buf_reader = std.io.fixedBufferStream(cities_data);
     var in_stream = buf_reader.reader();
     var buf: [1024]u8 = undefined;
-    const sphere_prefab = prefab_mgr.getPrefab(config.prefab.sphere_id);
-    _ = sphere_prefab; // autofix
     const cylinder_prefab = prefab_mgr.getPrefab(config.prefab.cylinder_id);
     while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch unreachable) |line| {
         var comma_curr: usize = 0;
@@ -143,12 +146,12 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
 
             const script_code = asset_mgr.loadAssetBlocking(IdLocal.init(filepath), .instant_blocking);
             const script = ecs.script_parse(ecsu_world.world, "settlement", @ptrCast(script_code), null);
-            const res = ecs.script_eval(script.?, null);
+            const res = ecs.script_eval(script.?, &desc);
             std.debug.assert(res == 0);
 
             var city_ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab);
             city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
-            city_ent.set(fd.Scale.createScalar(2));
+            city_ent.set(fd.Scale.create(20, 2200, 20));
             city_ents.append(.{
                 .ent = city_ent,
                 .class = 0,
