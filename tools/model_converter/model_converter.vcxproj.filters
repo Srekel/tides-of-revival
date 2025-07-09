@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="extern">
+      <UniqueIdentifier>{94c9884f-4883-49ad-8f20-577b67454ec0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="extern\meshoptimizer">
+      <UniqueIdentifier>{2f11c6c6-b471-4e33-b35f-7e2c6514e7ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="extern\cgltf">
+      <UniqueIdentifier>{5ae7a8ef-8a70-4d49-bf89-dcc4151cbb14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{02d7d200-ee55-43c9-9fb4-a149179f5dae}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="external\meshoptimizer-0.24\src\allocator.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\clusterizer.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\indexanalyzer.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\indexcodec.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\indexgenerator.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\overdrawoptimizer.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\partition.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\quantization.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\rasterizer.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\simplifier.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\spatialorder.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\stripifier.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\vcacheoptimizer.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\vertexcodec.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\vertexfilter.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="external\meshoptimizer-0.24\src\vfetchoptimizer.cpp">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="external\meshoptimizer-0.24\src\meshoptimizer.h">
+      <Filter>extern\meshoptimizer</Filter>
+    </ClInclude>
+    <ClInclude Include="external\meshoptimizer-0.24\extern\cgltf.h">
+      <Filter>extern\cgltf</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

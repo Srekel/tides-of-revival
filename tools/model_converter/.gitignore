@@ -1,0 +1,4 @@
+*.vs
+!external
+data
+build
