@@ -14,19 +14,15 @@ const Pool = @import("zpool").Pool;
 pub const opaque_pipelines = [_]IdLocal{
     IdLocal.init("lit_gbuffer_opaque"),
     IdLocal.init("lit_shadow_caster_opaque"),
-    IdLocal.init("lit_depth_only_opaque"),
     IdLocal.init("tree_gbuffer_opaque"),
     IdLocal.init("tree_shadow_caster_opaque"),
-    IdLocal.init("tree_depth_only_opaque"),
 };
 
 pub const cutout_pipelines = [_]IdLocal{
     IdLocal.init("lit_gbuffer_cutout"),
     IdLocal.init("lit_shadow_caster_cutout"),
-    IdLocal.init("lit_depth_only_cutout"),
     IdLocal.init("tree_gbuffer_cutout"),
     IdLocal.init("tree_shadow_caster_cutout"),
-    IdLocal.init("tree_depth_only_cutout"),
 };
 
 const PSOPool = Pool(16, 16, graphics.Shader, struct { shader: [*c]graphics.Shader, root_signature: [*c]graphics.RootSignature, pipeline: [*c]graphics.Pipeline });
@@ -273,26 +269,6 @@ pub const PSOManager = struct {
         // Terrain
         // ======
         {
-            // Depth-Only
-            {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-                const render_targets = [_]graphics.TinyImageFormat{};
-
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-
-                const desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("terrain_depth_only"),
-                    .vert_shader_name = "terrain_depth_only.vert",
-                    .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_back,
-                    .depth_state = depth_state,
-                    .depth_format = self.renderer.depth_buffer.*.mFormat,
-                    .vertex_layout_id = IdLocal.init("pos_uv0_col"),
-                    .sampler_ids = &sampler_ids,
-                };
-                self.createGraphicsPipeline(desc);
-            }
-
             // GBuffer
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
@@ -302,7 +278,7 @@ pub const PSOManager = struct {
                     self.renderer.gbuffer_2.*.mFormat,
                 };
 
-                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_EQUAL);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
                 const desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("terrain_gbuffer"),
@@ -345,31 +321,6 @@ pub const PSOManager = struct {
         // Lit
         // ===
         {
-            // Depth-Only
-            {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-                const render_targets = [_]graphics.TinyImageFormat{};
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-
-                var desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("lit_depth_only_opaque"),
-                    .vert_shader_name = "lit_depth_only_opaque.vert",
-                    .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_back,
-                    .depth_state = depth_state,
-                    .depth_format = self.renderer.depth_buffer.*.mFormat,
-                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
-                    .sampler_ids = &sampler_ids,
-                };
-                self.createGraphicsPipeline(desc);
-
-                desc.id = IdLocal.init("lit_depth_only_cutout");
-                desc.vert_shader_name = "lit_depth_only_cutout.vert";
-                desc.frag_shader_name = "lit_depth_only_cutout.frag";
-                desc.rasterizer_state = rasterizer_cull_none;
-                self.createGraphicsPipeline(desc);
-            }
-
             // GBuffer
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
@@ -379,7 +330,7 @@ pub const PSOManager = struct {
                     self.renderer.gbuffer_2.*.mFormat,
                 };
 
-                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_EQUAL);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
                 var desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("lit_gbuffer_opaque"),
@@ -435,32 +386,6 @@ pub const PSOManager = struct {
         // Trees
         // =====
         {
-            // Depth Only
-            {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-                const render_targets = [_]graphics.TinyImageFormat{};
-
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
-
-                var desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("tree_depth_only_opaque"),
-                    .vert_shader_name = "tree_depth_only_opaque.vert",
-                    .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_back,
-                    .depth_state = depth_state,
-                    .depth_format = self.renderer.depth_buffer.*.mFormat,
-                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
-                    .sampler_ids = &sampler_ids,
-                };
-                self.createGraphicsPipeline(desc);
-
-                desc.id = IdLocal.init("tree_depth_only_cutout");
-                desc.vert_shader_name = "tree_depth_only_cutout.vert";
-                desc.frag_shader_name = "tree_depth_only_cutout.frag";
-                desc.rasterizer_state = rasterizer_cull_none;
-                self.createGraphicsPipeline(desc);
-            }
-
             // GBuffer
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
@@ -470,7 +395,7 @@ pub const PSOManager = struct {
                     self.renderer.gbuffer_2.*.mFormat,
                 };
 
-                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_EQUAL);
+                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
                 var desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("tree_gbuffer_opaque"),

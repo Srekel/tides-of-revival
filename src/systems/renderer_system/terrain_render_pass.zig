@@ -93,7 +93,6 @@ pub const TerrainRenderPass = struct {
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     terrain_material_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     descriptor_set: [*c]graphics.DescriptorSet,
-    descriptor_set_depth_only: [*c]graphics.DescriptorSet,
 
     frame_instance_count: u32,
     instance_data_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
@@ -213,9 +212,9 @@ pub const TerrainRenderPass = struct {
             .create_descriptor_sets_fn = createDescriptorSets,
             .prepare_descriptor_sets_fn = prepareDescriptorSets,
             .unload_descriptor_sets_fn = unloadDescriptorSets,
-            .render_zprepass_pass_fn = renderZPrePass,
             .render_gbuffer_pass_fn = renderGBuffer,
-            .render_shadow_pass_fn = renderShadowMap,
+            // TODO: Shadows for the terrain currently flicker
+            // .render_shadow_pass_fn = renderShadowMap,
             .render_imgui_fn = renderImGui,
             .user_data = @ptrCast(self),
         };
@@ -445,110 +444,7 @@ fn renderImGui(user_data: *anyopaque) void {
 }
 
 fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "GBuffer: Terrain Render Pass", 0x00_ff_ff_00);
-    defer trazy_zone.End();
-
-    const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
-
-    const frame_index = self.renderer.frame_index;
-
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-    const camera_position = camera_comps.transform.getPos00();
-    const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-    const z_proj_view = zm.mul(z_view, z_proj);
-
-    // Update frame buffer
-    {
-        var uniform_frame_data = std.mem.zeroes(UniformFrameData);
-        zm.storeMat(&uniform_frame_data.projection_view, z_proj_view);
-        zm.storeMat(&uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
-        uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
-        uniform_frame_data.black_point = self.terrain_render_settings.black_point;
-        uniform_frame_data.white_point = self.terrain_render_settings.white_point;
-
-        const data = renderer.Slice{
-            .data = @ptrCast(&uniform_frame_data),
-            .size = @sizeOf(UniformFrameData),
-        };
-        self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
-    }
-
-    // Update material buffer
-    {
-        var terrain_material_data: [4]TerrainLayerMaterial = undefined;
-        for (self.terrain_material.layers, 0..) |layer, i| {
-            terrain_material_data[i] = .{
-                .diffuse_index = self.renderer.getTextureBindlessIndex(layer.diffuse),
-                .normal_index = self.renderer.getTextureBindlessIndex(layer.normal),
-                .arm_index = self.renderer.getTextureBindlessIndex(layer.arm),
-                .height_index = self.renderer.getTextureBindlessIndex(layer.height),
-            };
-        }
-
-        const data = renderer.Slice{
-            .data = @ptrCast(&terrain_material_data),
-            .size = @sizeOf(TerrainMaterial),
-        };
-        self.renderer.updateBuffer(data, TerrainMaterial, self.terrain_material_buffers[frame_index]);
-    }
-
-    if (self.frame_instance_count > 0) {
-        const pipeline_id = IdLocal.init("terrain_gbuffer");
-        const pipeline = self.renderer.getPSO(pipeline_id);
-        const root_signature = self.renderer.getRootSignature(pipeline_id);
-        graphics.cmdBindPipeline(cmd_list, pipeline);
-        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_set);
-
-        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-
-        const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]);
-
-        var start_instance_location: u32 = 0;
-        for (self.quads_to_render.items) |quad_index| {
-            const quad = &self.terrain_quad_tree_nodes.items[quad_index];
-
-            const mesh_handle = self.terrain_lod_meshes.items[quad.mesh_lod];
-            const mesh = self.renderer.getMesh(mesh_handle);
-
-            if (mesh.loaded) {
-                const push_constants = InstanceRootConstants{
-                    .start_instance_location = start_instance_location,
-                    .instance_data_buffer_index = instance_data_buffer_index,
-                    .instance_material_buffer_index = renderer_types.InvalidResourceIndex,
-                };
-
-                const vertex_buffers = [_][*c]graphics.Buffer{
-                    mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_POSITION.bits)]],
-                    mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_TEXCOORD0.bits)]],
-                    mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_COLOR.bits)]],
-                };
-
-                graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
-                graphics.cmdBindIndexBuffer(cmd_list, mesh.geometry.*.__union_field1.__struct_field1.pIndexBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
-                graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
-                graphics.cmdDrawIndexedInstanced(
-                    cmd_list,
-                    mesh.geometry.*.pDrawArgs[0].mIndexCount,
-                    mesh.geometry.*.pDrawArgs[0].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[0].mInstanceCount,
-                    mesh.geometry.*.pDrawArgs[0].mVertexOffset,
-                    mesh.geometry.*.pDrawArgs[0].mStartInstance + start_instance_location,
-                );
-            }
-
-            start_instance_location += 1;
-        }
-    }
-}
-
-fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Z PrePass: Terrain Render Pass", 0x00_ff_ff_00);
+    const trazy_zone = ztracy.ZoneNC(@src(), "Gbuffer: Terrain Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
@@ -716,11 +612,11 @@ fn renderZPrePass(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         };
         self.renderer.updateBuffer(data_slice, TerrainInstanceData, self.instance_data_buffers[frame_index]);
 
-        const pipeline_id = IdLocal.init("terrain_depth_only");
+        const pipeline_id = IdLocal.init("terrain_gbuffer");
         const pipeline = self.renderer.getPSO(pipeline_id);
         const root_signature = self.renderer.getRootSignature(pipeline_id);
         graphics.cmdBindPipeline(cmd_list, pipeline);
-        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_set_depth_only);
+        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_set);
 
         const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
         std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
@@ -921,15 +817,6 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
 
     {
-        const root_signature = self.renderer.getRootSignature(IdLocal.init("terrain_depth_only"));
-        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        desc.mMaxSets = renderer.Renderer.data_buffer_count;
-        desc.pRootSignature = root_signature;
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.descriptor_set_depth_only));
-    }
-
-    {
         const root_signature = self.renderer.getRootSignature(IdLocal.init("terrain_shadow_caster"));
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
@@ -964,7 +851,6 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[1].pName = "cbMaterial";
         params[1].__union_field3.ppBuffers = @ptrCast(&material_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_set_depth_only, 1, @ptrCast(&params));
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_set, params.len, @ptrCast(&params));
 
         var shadow_uniform_buffer = self.renderer.getBuffer(self.shadows_uniform_frame_buffers[i]);
@@ -978,7 +864,6 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
 fn unloadDescriptorSets(user_data: *anyopaque) void {
     const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
 
-    graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_set_depth_only);
     graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.shadows_descriptor_set);
 }

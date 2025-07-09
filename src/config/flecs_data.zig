@@ -375,7 +375,6 @@ pub const SurfaceType = enum {
 };
 
 pub const ShadingTechnique = enum {
-    depth_only,
     gbuffer,
     shadow_caster,
 };

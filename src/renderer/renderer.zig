@@ -38,7 +38,6 @@ pub const specular_texture_size: u32 = 128;
 pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
 
 pub const RenderPass = struct {
-    render_zprepass_pass_fn: renderPassRenderFn = null,
     render_ssao_pass_fn: renderPassRenderFn = null,
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
@@ -661,39 +660,8 @@ pub const Renderer = struct {
 
         // profiler.cmdBeginGpuFrameProfile(cmd_list, self.gpu_profile_token, .{ .bUseMarker = true });
 
-        // Z PrePass
-        {
-            // self.z_prepass_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Z PrePass", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
-
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Z PrePass", 0x00_ff_00_00);
-            defer trazy_zone1.End();
-
-            var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
-            };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
-
-            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
-            bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
-            bind_render_targets_desc.mDepthStencil.pDepthStencil = self.depth_buffer;
-            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
-
-            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
-            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
-
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_zprepass_pass_fn) |render_zprepass_pass_fn| {
-                    render_zprepass_pass_fn(cmd_list, render_pass.user_data);
-                }
-            }
-
-            graphics.cmdBindRenderTargets(cmd_list, null);
-        }
-
         // SSAO
-        {
+        if (false) {
             // self.ssao_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "SSAO", .{ .bUseMarker = true });
             // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
 
@@ -754,7 +722,7 @@ pub const Renderer = struct {
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_READ),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -771,7 +739,7 @@ pub const Renderer = struct {
             bind_render_targets_desc.mRenderTargets[2].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
             bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
             bind_render_targets_desc.mDepthStencil.pDepthStencil = self.depth_buffer;
-            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_LOAD;
+            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
             graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
 
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
@@ -799,7 +767,7 @@ pub const Renderer = struct {
                 graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_READ, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.shadow_depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
