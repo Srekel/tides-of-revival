@@ -887,7 +887,7 @@ fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_posi
         return lod_group.lods[3];
     }
 
-    return lod_group.lods[0];
+    return lod_group.lods[lod_group.lod_count - 1];
 }
 
 inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
