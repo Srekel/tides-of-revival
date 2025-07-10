@@ -40,22 +40,21 @@ pub const WindFrameData = struct {
     gust_texture_index: u32,
 };
 
-const DrawCallInfo = struct {
-    pipeline_id: IdLocal,
-    mesh_handle: renderer.MeshHandle,
-    sub_mesh_index: u32,
+const Batch = struct {
+    instances: std.ArrayList(InstanceData),
+    start_instance_location: u32,
 };
 
-const DrawCallInstanced = struct {
-    pipeline_id: IdLocal,
+const BatchKey = struct {
+    material_handle: renderer.MaterialHandle,
     mesh_handle: renderer.MeshHandle,
     sub_mesh_index: u32,
-    start_instance_location: u32,
-    instance_count: u32,
+    surface_type: fd.SurfaceType,
 };
+
+const BatchMap = std.AutoHashMap(BatchKey, Batch);
 
 const max_instances = 10000;
-const max_instances_per_draw_call = 4096;
 const max_draw_distance: f32 = 20000.0;
 
 const cutout_entities_index: u32 = 0;
@@ -88,17 +87,9 @@ pub const GeometryRenderPass = struct {
     tree_descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet,
     tree_descriptor_sets_shadow_caster: [max_entity_types][*c]graphics.DescriptorSet,
 
-    draw_calls_info: std.ArrayList(DrawCallInfo),
-    instance_buffers_gbuffer: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    instance_buffers_shadow_caster: [max_entity_types][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-
-    instances_gbuffer: [max_entity_types]std.ArrayList(InstanceData),
-    draw_calls_gbuffer: [max_entity_types]std.ArrayList(DrawCallInstanced),
-    draw_calls_root_constants_gbuffer: [max_entity_types]std.ArrayList(InstanceRootConstants),
-
-    instances_shadow_caster: [max_entity_types]std.ArrayList(InstanceData),
-    draw_calls_shadow_caster: [max_entity_types]std.ArrayList(DrawCallInstanced),
-    draw_calls_root_constants_shadow_caster: [max_entity_types]std.ArrayList(InstanceRootConstants),
+    batches: BatchMap,
+    instances: std.ArrayList(InstanceData),
+    instance_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
     pub fn init(self: *GeometryRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         const wind_noise_texture = rctx.loadTexture("textures/noise/3d_noise.dds");
@@ -142,67 +133,20 @@ pub const GeometryRenderPass = struct {
             break :blk buffers;
         };
 
-        const instance_data_buffers_gbuffer_opaque = blk: {
+        const instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 const buffer_data = renderer.Slice{
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instance Opaque");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Instances");
             }
 
             break :blk buffers;
         };
 
-        const instance_data_buffers_gbuffer_cutout = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "GBuffer Instance Cutout");
-            }
-
-            break :blk buffers;
-        };
-
-        const instance_data_buffers_shadow_caster_opaque = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instance Opaque");
-            }
-
-            break :blk buffers;
-        };
-
-        const instance_data_buffers_shadow_caster_cutout = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Shadow Caster Instance Cutout");
-            }
-
-            break :blk buffers;
-        };
-
-        const draw_calls_info = std.ArrayList(DrawCallInfo).init(allocator);
-
-        const instances_gbuffer = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
-        const draw_calls_gbuffer = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
-        const draw_calls_root_constants_gbuffer = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
-
-        const instances_shadow_caster = [max_entity_types]std.ArrayList(InstanceData){ std.ArrayList(InstanceData).init(allocator), std.ArrayList(InstanceData).init(allocator) };
-        const draw_calls_shadow_caster = [max_entity_types]std.ArrayList(DrawCallInstanced){ std.ArrayList(DrawCallInstanced).init(allocator), std.ArrayList(DrawCallInstanced).init(allocator) };
-        const draw_calls_root_constants_shadow_caster = [max_entity_types]std.ArrayList(InstanceRootConstants){ std.ArrayList(InstanceRootConstants).init(allocator), std.ArrayList(InstanceRootConstants).init(allocator) };
+        const instances = std.ArrayList(InstanceData).init(allocator);
 
         // Queries
         const query_static_mesh = ecs.query_init(ecsu_world.world, &.{
@@ -213,6 +157,8 @@ pub const GeometryRenderPass = struct {
                 .{ .id = ecs.id(fd.Scale), .inout = .In },
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
         }) catch unreachable;
+
+        const batches = BatchMap.init(allocator);
 
         self.* = .{
             .allocator = allocator,
@@ -232,15 +178,9 @@ pub const GeometryRenderPass = struct {
             .descriptor_sets_shadow_caster = undefined,
             .uniform_frame_data_gbuffer = std.mem.zeroes(UniformFrameData),
             .uniform_frame_buffers_gbuffer = uniform_frame_buffers_gbuffer,
-            .instance_buffers_gbuffer = .{ instance_data_buffers_gbuffer_cutout, instance_data_buffers_gbuffer_opaque },
-            .instance_buffers_shadow_caster = .{ instance_data_buffers_shadow_caster_cutout, instance_data_buffers_shadow_caster_opaque },
-            .draw_calls_info = draw_calls_info,
-            .instances_gbuffer = instances_gbuffer,
-            .draw_calls_gbuffer = draw_calls_gbuffer,
-            .draw_calls_root_constants_gbuffer = draw_calls_root_constants_gbuffer,
-            .instances_shadow_caster = instances_shadow_caster,
-            .draw_calls_shadow_caster = draw_calls_shadow_caster,
-            .draw_calls_root_constants_shadow_caster = draw_calls_root_constants_shadow_caster,
+            .instance_buffers = instance_data_buffers,
+            .batches = batches,
+            .instances = instances,
             .query_static_mesh = query_static_mesh,
         };
 
@@ -263,20 +203,17 @@ pub const GeometryRenderPass = struct {
 
         unloadDescriptorSets(@ptrCast(self));
 
-        self.draw_calls_info.deinit();
-        self.instances_gbuffer[opaque_entities_index].deinit();
-        self.instances_gbuffer[cutout_entities_index].deinit();
-        self.draw_calls_gbuffer[opaque_entities_index].deinit();
-        self.draw_calls_gbuffer[cutout_entities_index].deinit();
-        self.draw_calls_root_constants_gbuffer[opaque_entities_index].deinit();
-        self.draw_calls_root_constants_gbuffer[cutout_entities_index].deinit();
+        {
+            var batch_keys_iterator = self.batches.keyIterator();
+            while (batch_keys_iterator.next()) |batch_key| {
+                const batch = self.batches.getPtr(batch_key.*).?;
+                batch.start_instance_location = 0;
+                batch.instances.deinit();
+            }
+            self.batches.deinit();
+        }
 
-        self.instances_shadow_caster[opaque_entities_index].deinit();
-        self.instances_shadow_caster[cutout_entities_index].deinit();
-        self.draw_calls_shadow_caster[opaque_entities_index].deinit();
-        self.draw_calls_shadow_caster[cutout_entities_index].deinit();
-        self.draw_calls_root_constants_shadow_caster[opaque_entities_index].deinit();
-        self.draw_calls_root_constants_shadow_caster[cutout_entities_index].deinit();
+        self.instances.deinit();
     }
 };
 
@@ -302,7 +239,7 @@ fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c
 }
 
 fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "GBuffer: Geometry Render Pass", 0x00_ff_ff_00);
+    const trazy_zone = ztracy.ZoneNC(@src(), "GBuffer: Geometry Render Pass", 0x00_ff_00_00);
     defer trazy_zone.End();
 
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
@@ -341,85 +278,56 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Render Cutout Objects
     {
-        const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_ff_00);
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_00_00);
         defer trazy_zone1.End();
 
-        cullAndBatchDrawCalls(
-            self,
-            camera_entity,
-            &self.instances_gbuffer[cutout_entities_index],
-            &self.draw_calls_gbuffer[cutout_entities_index],
-            &self.draw_calls_root_constants_gbuffer[cutout_entities_index],
-            self.instance_buffers_gbuffer[cutout_entities_index][frame_index],
-            .cutout,
-            .gbuffer,
-        );
-
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
             defer trazy_zone2.End();
 
-            const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.instances_gbuffer[cutout_entities_index].items),
-                .size = self.instances_gbuffer[cutout_entities_index].items.len * @sizeOf(InstanceData),
-            };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_gbuffer[cutout_entities_index][frame_index]);
-        }
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
 
-        {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
-            defer trazy_zone2.End();
-
-            var pipeline_id: IdLocal = undefined;
-            var pipeline: [*c]graphics.Pipeline = undefined;
-            var root_signature: [*c]graphics.RootSignature = undefined;
-            var root_constant_index: u32 = 0;
-
-            for (self.draw_calls_gbuffer[cutout_entities_index].items, 0..) |draw_call, i| {
-                if (i == 0) {
-                    pipeline_id = draw_call.pipeline_id;
-                    pipeline = self.renderer.getPSO(pipeline_id);
-                    root_signature = self.renderer.getRootSignature(pipeline_id);
-                    graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[cutout_entities_index]);
-                    }
-
-                    root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        pipeline_id = draw_call.pipeline_id;
-                        pipeline = self.renderer.getPSO(pipeline_id);
-                        root_signature = self.renderer.getRootSignature(pipeline_id);
-                        graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[cutout_entities_index]);
-                        }
-
-                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                    }
+            var batch_keys_iterator = self.batches.keyIterator();
+            while (batch_keys_iterator.next()) |batch_key| {
+                if (batch_key.surface_type != .cutout) {
+                    continue;
                 }
 
-                const push_constants = &self.draw_calls_root_constants_gbuffer[cutout_entities_index].items[i];
-                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const batch = self.batches.getPtr(batch_key.*).?;
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                const root_signature = self.renderer.getRootSignature(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+
+                if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
+                } else {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[cutout_entities_index]);
+                }
+
+                const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                const push_constants = InstanceRootConstants{
+                    .start_instance_location = batch.start_instance_location,
+                    .instance_data_buffer_index = instance_data_buffer_index,
+                    .instance_material_buffer_index = material_buffer_index,
+                };
+
+                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
                     bindMeshBuffers(self, mesh, cmd_list);
 
-                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
                     graphics.cmdDrawIndexedInstanced(
                         cmd_list,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mInstanceCount * @as(u32, @intCast(batch.instances.items.len)),
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartInstance + batch.start_instance_location,
                     );
                 }
             }
@@ -428,85 +336,56 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Render Opaque Objects
     {
-        const trazy_zone1 = ztracy.ZoneNC(@src(), "Opaque Objects", 0x00_ff_ff_00);
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Opaque Objects", 0x00_ff_00_00);
         defer trazy_zone1.End();
 
-        cullAndBatchDrawCalls(
-            self,
-            camera_entity,
-            &self.instances_gbuffer[opaque_entities_index],
-            &self.draw_calls_gbuffer[opaque_entities_index],
-            &self.draw_calls_root_constants_gbuffer[opaque_entities_index],
-            self.instance_buffers_gbuffer[opaque_entities_index][frame_index],
-            .@"opaque",
-            .gbuffer,
-        );
-
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
             defer trazy_zone2.End();
 
-            const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.instances_gbuffer[opaque_entities_index].items),
-                .size = self.instances_gbuffer[opaque_entities_index].items.len * @sizeOf(InstanceData),
-            };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_gbuffer[opaque_entities_index][frame_index]);
-        }
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
 
-        {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
-            defer trazy_zone2.End();
-
-            var pipeline_id: IdLocal = undefined;
-            var pipeline: [*c]graphics.Pipeline = undefined;
-            var root_signature: [*c]graphics.RootSignature = undefined;
-            var root_constant_index: u32 = 0;
-
-            for (self.draw_calls_gbuffer[opaque_entities_index].items, 0..) |draw_call, i| {
-                if (i == 0) {
-                    pipeline_id = draw_call.pipeline_id;
-                    pipeline = self.renderer.getPSO(pipeline_id);
-                    root_signature = self.renderer.getRootSignature(pipeline_id);
-                    graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[opaque_entities_index]);
-                    }
-
-                    root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        pipeline_id = draw_call.pipeline_id;
-                        pipeline = self.renderer.getPSO(pipeline_id);
-                        root_signature = self.renderer.getRootSignature(pipeline_id);
-                        graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[opaque_entities_index]);
-                        }
-
-                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                    }
+            var batch_keys_iterator = self.batches.keyIterator();
+            while (batch_keys_iterator.next()) |batch_key| {
+                if (batch_key.surface_type != .@"opaque") {
+                    continue;
                 }
 
-                const push_constants = &self.draw_calls_root_constants_gbuffer[opaque_entities_index].items[i];
-                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const batch = self.batches.getPtr(batch_key.*).?;
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                const root_signature = self.renderer.getRootSignature(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+
+                if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
+                } else {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[opaque_entities_index]);
+                }
+
+                const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                const push_constants = InstanceRootConstants{
+                    .start_instance_location = batch.start_instance_location,
+                    .instance_data_buffer_index = instance_data_buffer_index,
+                    .instance_material_buffer_index = material_buffer_index,
+                };
+
+                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
                     bindMeshBuffers(self, mesh, cmd_list);
 
-                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
                     graphics.cmdDrawIndexedInstanced(
                         cmd_list,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mInstanceCount * @as(u32, @intCast(batch.instances.items.len)),
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartInstance + batch.start_instance_location,
                     );
                 }
             }
@@ -553,174 +432,144 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     };
     self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.uniform_frame_buffers_shadow_caster[frame_index]);
 
-    // Render Shadows Cutout Objects
+    // TODO: Move this out of the renderShadowMap and into an "update" function
     {
-        const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_ff_00);
-        defer trazy_zone1.End();
+        batchEntities(self, camera_entity, &self.batches);
+        self.instances.clearRetainingCapacity();
 
-        cullAndBatchDrawCalls(
-            self,
-            camera_entity,
-            &self.instances_shadow_caster[cutout_entities_index],
-            &self.draw_calls_shadow_caster[cutout_entities_index],
-            &self.draw_calls_root_constants_shadow_caster[cutout_entities_index],
-            self.instance_buffers_shadow_caster[cutout_entities_index][frame_index],
-            .cutout,
-            .shadow_caster,
-        );
+        var batch_keys_iterator = self.batches.keyIterator();
+        var start_instance_location: u32 = 0;
+        while (batch_keys_iterator.next()) |batch_key| {
+            const batch = self.batches.getPtr(batch_key.*).?;
+            batch.start_instance_location = start_instance_location;
+            start_instance_location += @intCast(batch.instances.items.len);
+
+            const index = self.instances.items.len;
+            self.instances.insertSlice(index, batch.instances.items) catch unreachable;
+        }
 
         {
             const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.instances_shadow_caster[cutout_entities_index].items),
-                .size = self.instances_shadow_caster[cutout_entities_index].items.len * @sizeOf(InstanceData),
+                .data = @ptrCast(self.instances.items),
+                .size = self.instances.items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_shadow_caster[cutout_entities_index][frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers[frame_index]);
         }
+    }
+
+    // Render Cutout Shadow Casters
+    {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
 
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
-            var pipeline_id: IdLocal = undefined;
-            var pipeline: [*c]graphics.Pipeline = undefined;
-            var root_signature: [*c]graphics.RootSignature = undefined;
-            var root_constant_index: u32 = 0;
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
 
-            for (self.draw_calls_shadow_caster[cutout_entities_index].items, 0..) |draw_call, i| {
-                if (i == 0) {
-                    pipeline_id = draw_call.pipeline_id;
-                    pipeline = self.renderer.getPSO(pipeline_id);
-                    root_signature = self.renderer.getRootSignature(pipeline_id);
-                    graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
-                    }
-
-                    root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        pipeline_id = draw_call.pipeline_id;
-                        pipeline = self.renderer.getPSO(pipeline_id);
-                        root_signature = self.renderer.getRootSignature(pipeline_id);
-                        graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
-                        }
-
-                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                    }
+            var batch_keys_iterator = self.batches.keyIterator();
+            while (batch_keys_iterator.next()) |batch_key| {
+                if (batch_key.surface_type != .cutout) {
+                    continue;
                 }
 
-                const push_constants = &self.draw_calls_root_constants_shadow_caster[cutout_entities_index].items[i];
-                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const batch = self.batches.getPtr(batch_key.*).?;
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                const root_signature = self.renderer.getRootSignature(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+
+                if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
+                } else {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
+                }
+
+                const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                const push_constants = InstanceRootConstants{
+                    .start_instance_location = batch.start_instance_location,
+                    .instance_data_buffer_index = instance_data_buffer_index,
+                    .instance_material_buffer_index = material_buffer_index,
+                };
+
+                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
                     bindMeshBuffers(self, mesh, cmd_list);
 
-                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
                     graphics.cmdDrawIndexedInstanced(
                         cmd_list,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mInstanceCount * @as(u32, @intCast(batch.instances.items.len)),
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartInstance + batch.start_instance_location,
                     );
                 }
             }
         }
     }
 
-    // Render Shadows Opauqe Objects
+    // Render Opaque Shadow Casters
     {
         const trazy_zone1 = ztracy.ZoneNC(@src(), "Opaque Objects", 0x00_ff_ff_00);
         defer trazy_zone1.End();
 
-        cullAndBatchDrawCalls(
-            self,
-            camera_entity,
-            &self.instances_shadow_caster[opaque_entities_index],
-            &self.draw_calls_shadow_caster[opaque_entities_index],
-            &self.draw_calls_root_constants_shadow_caster[opaque_entities_index],
-            self.instance_buffers_shadow_caster[opaque_entities_index][frame_index],
-            .@"opaque",
-            .shadow_caster,
-        );
-
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
-            const instance_data_slice = renderer.Slice{
-                .data = @ptrCast(self.instances_shadow_caster[opaque_entities_index].items),
-                .size = self.instances_shadow_caster[opaque_entities_index].items.len * @sizeOf(InstanceData),
-            };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers_shadow_caster[opaque_entities_index][frame_index]);
-        }
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
 
-        {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Issue draw calls", 0x00_ff_ff_00);
-            defer trazy_zone2.End();
-
-            var pipeline_id: IdLocal = undefined;
-            var pipeline: [*c]graphics.Pipeline = undefined;
-            var root_signature: [*c]graphics.RootSignature = undefined;
-            var root_constant_index: u32 = 0;
-
-            for (self.draw_calls_shadow_caster[opaque_entities_index].items, 0..) |draw_call, i| {
-                if (i == 0) {
-                    pipeline_id = draw_call.pipeline_id;
-                    pipeline = self.renderer.getPSO(pipeline_id);
-                    root_signature = self.renderer.getRootSignature(pipeline_id);
-                    graphics.cmdBindPipeline(cmd_list, pipeline);
-                    if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
-                    } else {
-                        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
-                    }
-
-                    root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                    std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                } else {
-                    if (pipeline_id.hash != draw_call.pipeline_id.hash) {
-                        pipeline_id = draw_call.pipeline_id;
-                        pipeline = self.renderer.getPSO(pipeline_id);
-                        root_signature = self.renderer.getRootSignature(pipeline_id);
-                        graphics.cmdBindPipeline(cmd_list, pipeline);
-                        if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
-                        } else {
-                            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
-                        }
-
-                        root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-                        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-                    }
+            var batch_keys_iterator = self.batches.keyIterator();
+            while (batch_keys_iterator.next()) |batch_key| {
+                if (batch_key.surface_type != .@"opaque") {
+                    continue;
                 }
 
-                const push_constants = &self.draw_calls_root_constants_shadow_caster[opaque_entities_index].items[i];
-                const mesh = self.renderer.getMesh(draw_call.mesh_handle);
+                const batch = self.batches.getPtr(batch_key.*).?;
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                const root_signature = self.renderer.getRootSignature(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+
+                if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
+                } else {
+                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
+                }
+
+                const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+                const push_constants = InstanceRootConstants{
+                    .start_instance_location = batch.start_instance_location,
+                    .instance_data_buffer_index = instance_data_buffer_index,
+                    .instance_material_buffer_index = material_buffer_index,
+                };
+
+                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
                     bindMeshBuffers(self, mesh, cmd_list);
 
-                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(push_constants));
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
                     graphics.cmdDrawIndexedInstanced(
                         cmd_list,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mIndexCount,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartIndex,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mInstanceCount * draw_call.instance_count,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mVertexOffset,
-                        mesh.geometry.*.pDrawArgs[draw_call.sub_mesh_index].mStartInstance + draw_call.start_instance_location,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mInstanceCount * @as(u32, @intCast(batch.instances.items.len)),
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[sub_mesh_index].mStartInstance + batch.start_instance_location,
                     );
                 }
             }
@@ -884,53 +733,52 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
     graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
 }
 
-fn cullAndBatchDrawCalls(
+fn batchEntities(
     self: *GeometryRenderPass,
     camera_entity: ecsu.Entity,
-    instances: *std.ArrayList(InstanceData),
-    draw_calls: *std.ArrayList(DrawCallInstanced),
-    draw_calls_push_constants: *std.ArrayList(InstanceRootConstants),
-    instances_buffer: renderer.BufferHandle,
-    surface_type: fd.SurfaceType,
-    technique: fd.ShadingTechnique,
+    batch_map: *BatchMap,
 ) void {
-    const trazy_zone = ztracy.ZoneNC(@src(), "Cull and Batch Draw Calls", 0x00_ff_ff_00);
+    const trazy_zone = ztracy.ZoneNC(@src(), "Batch Entities", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
-    const trazy_zone1 = ztracy.ZoneNC(@src(), "Fetching entities", 0x00_ff_ff_00);
     const camera_comps = camera_entity.getComps(struct {
         camera: *const fd.Camera,
         transform: *const fd.Transform,
     });
     const camera_position = camera_comps.transform.getPos00();
-    trazy_zone1.End();
 
+    // Clear existing batches' instances
     {
-        const trazy_zone2 = ztracy.ZoneNC(@src(), "Clearing memory", 0x00_ff_ff_00);
-        defer trazy_zone2.End();
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Clear existing batches", 0x00_ff_ff_00);
+        defer trazy_zone1.End();
 
-        instances.clearRetainingCapacity();
-        draw_calls.clearRetainingCapacity();
-        draw_calls_push_constants.clearRetainingCapacity();
-
-        self.draw_calls_info.clearRetainingCapacity();
+        var batch_keys_iterator = batch_map.keyIterator();
+        while (batch_keys_iterator.next()) |batch_key| {
+            const batch = batch_map.getPtr(batch_key.*).?;
+            batch.start_instance_location = 0;
+            batch.instances.clearRetainingCapacity();
+        }
     }
 
-    // Iterate over all renderable meshes, perform frustum culling and generate instance transforms and materials
-    {
-        const trazy_zone2 = ztracy.ZoneNC(@src(), "Collect Instance and Material data", 0x00_ff_ff_00);
-        defer trazy_zone2.End();
+    const max_draw_distance_squared = max_draw_distance * max_draw_distance;
+    var query_static_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_static_mesh);
+    while (ecs.query_next(&query_static_mesh_iter)) {
+        const trazy_zone1 = ztracy.ZoneNC(@src(), "Fetch fields", 0x00_ff_ff_00);
+        const static_meshes = ecs.field(&query_static_mesh_iter, fd.LodGroup, 0).?;
+        const transforms = ecs.field(&query_static_mesh_iter, fd.Transform, 1).?;
+        const scales = ecs.field(&query_static_mesh_iter, fd.Scale, 2).?;
+        trazy_zone1.End();
 
-        const max_draw_distance_squared = max_draw_distance * max_draw_distance;
-        var query_static_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_static_mesh);
-        while (ecs.query_next(&query_static_mesh_iter)) {
-            const static_meshes = ecs.field(&query_static_mesh_iter, fd.LodGroup, 0).?;
-            const transforms = ecs.field(&query_static_mesh_iter, fd.Transform, 1).?;
-            const scales = ecs.field(&query_static_mesh_iter, fd.Scale, 2).?;
-            for (static_meshes, transforms, scales) |*lod_group_component, transform, scale| {
-                var static_mesh = lod_group_component.lods[0];
-                var sub_mesh_count = static_mesh.materials.items.len;
-                if (sub_mesh_count == 0) continue;
+        for (static_meshes, transforms, scales) |*lod_group_component, transform, scale| {
+            var static_mesh = lod_group_component.lods[0];
+            var sub_mesh_count = static_mesh.materials.items.len;
+            if (sub_mesh_count == 0) {
+                continue;
+            }
+
+            {
+                const trazy_zone2 = ztracy.ZoneNC(@src(), "Cull instance", 0x00_ff_ff_00);
+                defer trazy_zone2.End();
 
                 // Distance culling
                 if (!isWithinCameraDrawDistance(camera_position, transform.getPos00(), max_draw_distance_squared)) {
@@ -949,147 +797,47 @@ fn cullAndBatchDrawCalls(
                 if (!camera_comps.camera.isVisible(bounding_sphere_center, bounding_sphere_radius)) {
                     continue;
                 }
+            }
 
-                // LOD Selection
-                static_mesh = selectLOD(lod_group_component, camera_position, transform.getPos00());
-                sub_mesh_count = static_mesh.materials.items.len;
+            // LOD Selection
+            static_mesh = selectLOD(lod_group_component, camera_position, transform.getPos00());
+            sub_mesh_count = static_mesh.materials.items.len;
 
-                var draw_call_info = DrawCallInfo{
-                    .pipeline_id = undefined,
-                    .mesh_handle = static_mesh.mesh_handle,
-                    .sub_mesh_index = undefined,
-                };
+            {
+                const trazy_zone2 = ztracy.ZoneNC(@src(), "Add instance to batch", 0x00_ff_ff_00);
+                defer trazy_zone2.End();
 
                 for (0..sub_mesh_count) |sub_mesh_index| {
-                    draw_call_info.sub_mesh_index = @intCast(sub_mesh_index);
-
                     const material_handle = static_mesh.materials.items[sub_mesh_index];
-                    const pipeline_ids = self.renderer.getMaterialPipelineIds(material_handle);
+
+                    var batch_key: BatchKey = undefined;
+                    batch_key.material_handle = material_handle;
+                    batch_key.mesh_handle = static_mesh.mesh_handle;
+                    batch_key.sub_mesh_index = @intCast(sub_mesh_index);
+                    batch_key.surface_type = .@"opaque";
+
                     const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_handle);
-
-                    draw_call_info.pipeline_id = undefined;
-
-                    if (technique == .gbuffer) {
-                        if (pipeline_ids.gbuffer_pipeline_id) |p_id| {
-                            draw_call_info.pipeline_id = p_id;
-                        } else {
-                            continue;
-                        }
-                    } else if (technique == .shadow_caster) {
-                        if (pipeline_ids.shadow_caster_pipeline_id) |p_id| {
-                            draw_call_info.pipeline_id = p_id;
-                        } else {
-                            continue;
-                        }
+                    const alpha_test = self.renderer.getMaterialAlphaTest(material_handle);
+                    if (alpha_test) {
+                        batch_key.surface_type = .cutout;
                     }
-
-                    var should_parse_submesh = false;
-
-                    if (surface_type == .@"opaque") {
-                        for (renderer.opaque_pipelines) |pipeline| {
-                            if (draw_call_info.pipeline_id.hash == pipeline.hash) {
-                                should_parse_submesh = true;
-                                break;
-                            }
-                        }
-                    } else {
-                        for (renderer.cutout_pipelines) |pipeline| {
-                            if (draw_call_info.pipeline_id.hash == pipeline.hash) {
-                                should_parse_submesh = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (!should_parse_submesh) {
-                        continue;
-                    }
-
-                    self.draw_calls_info.append(draw_call_info) catch unreachable;
 
                     var instance_data: InstanceData = undefined;
                     storeMat44(transform.matrix[0..], &instance_data.object_to_world);
                     storeMat44(transform.inv_matrix[0..], &instance_data.world_to_object);
                     instance_data.materials_buffer_offset = material_buffer_offset;
                     instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
-                    instances.append(instance_data) catch unreachable;
-                }
-            }
-        }
-    }
 
-    if (self.draw_calls_info.items.len == 0) return;
+                    if (!batch_map.contains(batch_key)) {
+                        const batch = Batch{
+                            .instances = std.ArrayList(InstanceData).init(self.allocator),
+                            .start_instance_location = 0,
+                        };
+                        batch_map.put(batch_key, batch) catch unreachable;
+                    }
 
-    var start_instance_location: u32 = 0;
-    var current_draw_call: DrawCallInstanced = undefined;
-
-    const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(instances_buffer);
-    const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
-
-    {
-        const trazy_zone2 = ztracy.ZoneNC(@src(), "Batch draw calls", 0x00_ff_ff_00);
-        defer trazy_zone2.End();
-
-        for (self.draw_calls_info.items, 0..) |draw_call_info, i| {
-            if (i == 0) {
-                current_draw_call = .{
-                    .pipeline_id = draw_call_info.pipeline_id,
-                    .mesh_handle = draw_call_info.mesh_handle,
-                    .sub_mesh_index = draw_call_info.sub_mesh_index,
-                    .instance_count = 1,
-                    .start_instance_location = start_instance_location,
-                };
-
-                start_instance_location += 1;
-
-                if (i == self.draw_calls_info.items.len - 1) {
-                    draw_calls.append(current_draw_call) catch unreachable;
-                    draw_calls_push_constants.append(.{
-                        .start_instance_location = current_draw_call.start_instance_location,
-                        .instance_material_buffer_index = material_buffer_index,
-                        .instance_data_buffer_index = instance_data_buffer_index,
-                    }) catch unreachable;
-                }
-                continue;
-            }
-
-            if (current_draw_call.mesh_handle.id == draw_call_info.mesh_handle.id and current_draw_call.sub_mesh_index == draw_call_info.sub_mesh_index and current_draw_call.pipeline_id.hash == draw_call_info.pipeline_id.hash) {
-                current_draw_call.instance_count += 1;
-                start_instance_location += 1;
-
-                if (i == self.draw_calls_info.items.len - 1) {
-                    draw_calls.append(current_draw_call) catch unreachable;
-                    draw_calls_push_constants.append(.{
-                        .start_instance_location = current_draw_call.start_instance_location,
-                        .instance_material_buffer_index = material_buffer_index,
-                        .instance_data_buffer_index = instance_data_buffer_index,
-                    }) catch unreachable;
-                }
-            } else {
-                draw_calls.append(current_draw_call) catch unreachable;
-                draw_calls_push_constants.append(.{
-                    .start_instance_location = current_draw_call.start_instance_location,
-                    .instance_material_buffer_index = material_buffer_index,
-                    .instance_data_buffer_index = instance_data_buffer_index,
-                }) catch unreachable;
-
-                current_draw_call = .{
-                    .pipeline_id = draw_call_info.pipeline_id,
-                    .mesh_handle = draw_call_info.mesh_handle,
-                    .sub_mesh_index = draw_call_info.sub_mesh_index,
-                    .instance_count = 1,
-                    .start_instance_location = start_instance_location,
-                };
-
-                start_instance_location += 1;
-
-                if (i == self.draw_calls_info.items.len - 1) {
-                    draw_calls.append(current_draw_call) catch unreachable;
-                    draw_calls_push_constants.append(.{
-                        .start_instance_location = current_draw_call.start_instance_location,
-                        .instance_material_buffer_index = material_buffer_index,
-                        .instance_data_buffer_index = instance_data_buffer_index,
-                    }) catch unreachable;
+                    const batch = batch_map.getPtr(batch_key).?;
+                    batch.*.instances.append(instance_data) catch unreachable;
                 }
             }
         }
@@ -1097,10 +845,9 @@ fn cullAndBatchDrawCalls(
 }
 
 inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [3]f32, max_draw_distance_squared: f32) bool {
-    const dx = camera_position[0] - entity_position[0];
-    const dy = camera_position[1] - entity_position[1];
-    const dz = camera_position[2] - entity_position[2];
-    if ((dx * dx + dy * dy + dz * dz) <= (max_draw_distance_squared)) {
+    const z_camera_position = zm.loadArr3(camera_position);
+    const z_entity_position = zm.loadArr3(entity_position);
+    if (zm.lengthSq3(z_camera_position - z_entity_position)[0] <= (max_draw_distance_squared)) {
         return true;
     }
 
@@ -1108,14 +855,16 @@ inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [
 }
 
 fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_position: [3]f32) fd.StaticMesh {
+    const trazy_zone = ztracy.ZoneNC(@src(), "LOD Selection", 0x00_ff_ff_00);
+    defer trazy_zone.End();
+
     if (lod_group.lod_count == 1) {
         return lod_group.lods[0];
     }
 
-    const dx = camera_position[0] - entity_position[0];
-    const dy = camera_position[1] - entity_position[1];
-    const dz = camera_position[2] - entity_position[2];
-    const distance_squared = (dx * dx + dy * dy + dz * dz);
+    const z_camera_position = zm.loadArr3(camera_position);
+    const z_entity_position = zm.loadArr3(entity_position);
+    const distance_squared = zm.lengthSq3(z_camera_position - z_entity_position)[0];
 
     const lod0_distance_squared = 10.0 * 10.0;
     const lod1_distance_squared = 20.0 * 20.0;

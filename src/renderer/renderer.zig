@@ -1046,7 +1046,6 @@ pub const Renderer = struct {
         };
 
         const pipeline_ids = PassPipelineIds{
-            .depth_only_pipeline_id = material_data.depth_only_pipeline_id,
             .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
             .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
         };
@@ -1063,8 +1062,18 @@ pub const Renderer = struct {
         util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(Material));
         resource_loader.endUpdateResource(&update_desc);
 
-        const handle: MaterialHandle = try self.material_pool.add(.{ .material = material, .buffer_offset = @intCast(offset), .pipeline_ids = pipeline_ids });
+        const handle: MaterialHandle = try self.material_pool.add(.{
+            .material = material,
+            .buffer_offset = @intCast(offset),
+            .pipeline_ids = pipeline_ids,
+            .alpha_test = material_data.alpha_test,
+        });
         return handle;
+    }
+
+    pub fn getMaterialAlphaTest(self: *Renderer, handle: MaterialHandle) bool {
+        const alpha_test = self.material_pool.getColumn(handle, .alpha_test) catch unreachable;
+        return alpha_test;
     }
 
     pub fn getMaterialPipelineIds(self: *Renderer, handle: MaterialHandle) PassPipelineIds {
@@ -1836,12 +1845,11 @@ pub const Material = struct {
 };
 
 pub const PassPipelineIds = struct {
-    depth_only_pipeline_id: ?IdLocal,
     shadow_caster_pipeline_id: ?IdLocal,
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds });
+const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
 pub const MaterialHandle = MaterialPool.Handle;
 
 const MeshPool = Pool(16, 16, Mesh, struct { mesh: Mesh });

@@ -381,9 +381,11 @@ pub const ShadingTechnique = enum {
 
 pub const UberShader = struct {
     // Techniques
-    depth_only_pipeline_id: ?IdLocal,
     gbuffer_pipeline_id: ?IdLocal,
     shadow_caster_pipeline_id: ?IdLocal,
+
+    // Surface Type
+    alpha_test: bool,
 
     // Basic PBR Surface Data
     base_color: ColorRGB,
@@ -423,9 +425,9 @@ pub const UberShader = struct {
 
     pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {
         return .{
-            .depth_only_pipeline_id = null,
             .gbuffer_pipeline_id = null,
             .shadow_caster_pipeline_id = null,
+            .alpha_test = false,
             .base_color = base_color,
             .uv_tiling_offset = .{ 1.0, 1.0, 0.0, 0.0 },
             .roughness = roughness,
