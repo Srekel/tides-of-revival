@@ -21,3 +21,4 @@ imgui.ini
 Logs/*
 prefs.toml
 *.flecs
+content/systems
