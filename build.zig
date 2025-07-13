@@ -164,6 +164,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .enable_ztracy = ztracy_enable,
         .enable_fibers = true,
+        .on_demand = true,
     });
     exe.root_module.addImport("ztracy", ztracy.module("root"));
     exe.linkLibrary(ztracy.artifact("tracy"));
