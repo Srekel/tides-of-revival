@@ -67,6 +67,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const pass_allocator = create_ctx.heap_allocator;
     const ctx_renderer = create_ctx.renderer;
     const ecsu_world = create_ctx.ecsu_world;
+    const prefab_mgr = create_ctx.prefab_mgr;
 
     const ssao_render_pass = arena_system_lifetime.create(SSAORenderPass) catch unreachable;
     ssao_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
@@ -81,7 +82,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     deferred_shading_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const atmosphere_render_pass = arena_system_lifetime.create(AtmosphereRenderPass) catch unreachable;
-    atmosphere_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
+    atmosphere_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pass_allocator);
 
     const water_render_pass = arena_system_lifetime.create(WaterRenderPass) catch unreachable;
     water_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);

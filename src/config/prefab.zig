@@ -27,6 +27,7 @@ pub const medium_house_id = ID("prefab_medium_house");
 pub const player_id = ID("prefab_player");
 pub const sphere_id = ID("prefab_sphere");
 pub const color_calibrator_id = ID("color_calibrator");
+pub const skybox_id = ID("prefab_skybox");
 
 pub const palisade_400x300_a_id = ID("palisade_400x300_a_id");
 pub const palisade_400x300_b_id = ID("palisade_400x300_b_id");
@@ -74,6 +75,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     default_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
     const default_material_handle = prefab_mgr.rctx.uploadMaterial(default_material) catch unreachable;
 
+    const pos_uv0_col_vertex_layout = IdLocal.init("pos_uv0_col");
     const pos_uv0_nor_tan_col_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col");
     const pos_uv0_nor_tan_col_uv1_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col_uv1");
 
@@ -184,6 +186,19 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
                     std.debug.assert(lod_group.lods[i].materials.items.len == 1);
                     lod_group.lods[i].materials.items[0] = material_handle;
                 }
+            }
+        }
+    }
+
+    {
+        var skybox = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/skybox", skybox_id, pos_uv0_col_vertex_layout, ecsu_world);
+        skybox.setOverride(fd.Dynamic{});
+
+        const lod_group_component = skybox.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
+                lod_group.lods[i].materials.items[0] = default_material_handle;
             }
         }
     }

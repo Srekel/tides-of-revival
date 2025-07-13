@@ -145,9 +145,6 @@ pub const Renderer = struct {
     luma_lr: TextureHandle = undefined,
     luminance: TextureHandle = undefined,
 
-    // Resolution Independent Render Targets
-    transmittance_lut: [*c]graphics.RenderTarget = null,
-
     vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
 
@@ -1733,25 +1730,11 @@ pub const Renderer = struct {
     }
 
     fn createResolutionIndependentRenderTargets(self: *Renderer) void {
-        {
-            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Transmittance LUT";
-            rt_desc.mArraySize = 1;
-            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
-            rt_desc.mDepth = 1;
-            rt_desc.mFormat = atmosphere_render_pass.transmittance_lut_format;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = atmosphere_render_pass.transmittance_texture_width;
-            rt_desc.mHeight = atmosphere_render_pass.transmittance_texture_height;
-            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            rt_desc.mSampleQuality = 0;
-            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            graphics.addRenderTarget(self.renderer, &rt_desc, &self.transmittance_lut);
-        }
+        _ = self;
     }
 
     fn destroyResolutionIndependentRenderTargets(self: *Renderer) void {
-        graphics.removeRenderTarget(self.renderer, self.transmittance_lut);
+        _ = self;
     }
 
     fn createCompositeSDRDescriptorSet(self: *Renderer) void {

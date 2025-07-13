@@ -215,40 +215,29 @@ pub const PSOManager = struct {
 
         // Atmosphere Scattering
         {
-            // Transmittance LUT
+            // Procedural Sky
             {
-                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
-                const render_targets = [_]graphics.TinyImageFormat{atmosphere_render_pass.transmittance_lut_format};
-                const desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("transmittance_lut"),
-                    .vert_shader_name = "screen_triangle.vert",
-                    .frag_shader_name = "render_transmittance_lut.frag",
-                    .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer_cull_none,
-                    .sampler_ids = &sampler_ids,
-                };
-                self.createGraphicsPipeline(desc);
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("procedural_sky"), "procedural_sky.comp", &sampler_ids);
             }
 
-            // Multi Scattering
+            // Draw Sky
             {
-                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
-                self.createComputePipeline(IdLocal.init("multi_scattering"), "render_multi_scattering.comp", &sampler_ids);
-            }
-
-            // Sky Ray Marching
-            {
-                var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat };
                 const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
+                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_GREATER);
+
                 const desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("sky_ray_marching"),
-                    .vert_shader_name = "screen_triangle.vert",
-                    .frag_shader_name = "render_ray_marching.frag",
+                    .id = IdLocal.init("draw_sky"),
+                    .vert_shader_name = "draw_sky.vert",
+                    .frag_shader_name = "draw_sky.frag",
                     .render_targets = @constCast(&render_targets),
                     .rasterizer_state = rasterizer_cull_none,
-                    .blend_state = self.blend_states.get(IdLocal.init("bs_additive")).?,
                     .sampler_ids = &sampler_ids,
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .vertex_layout_id = IdLocal.init("pos_uv0_col"),
                 };
                 self.createGraphicsPipeline(desc);
             }
