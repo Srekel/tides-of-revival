@@ -36,6 +36,7 @@ pub const house_3x5_id = ID("house_3x5_id");
 
 pub const brazier_1_id = ID("brazier_1_id");
 pub const brazier_2_id = ID("brazier_2_id");
+pub const stacked_stones_id = ID("stacked_stones");
 
 pub const prefabs = [_]IdLocal{
     arrow_id,
@@ -49,6 +50,7 @@ pub const prefabs = [_]IdLocal{
     palisade_sloped_400x300_b_id,
     brazier_1_id,
     brazier_2_id,
+    stacked_stones_id,
 };
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
@@ -420,6 +422,19 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var brazier_2 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_2", brazier_2_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
         const lod_group_component = brazier_2.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var stacked_stones = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/roads/stacked_stones", stacked_stones_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = stacked_stones.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {

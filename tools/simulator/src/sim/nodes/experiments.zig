@@ -374,16 +374,19 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
             std.log.info("Pathfinding done! {d}", .{path_nodes.items.len});
 
             for (path_nodes.items) |node| {
+                if (rand.float(f32) > 0.5) {
+                    continue;
+                }
                 const pos = [_]f32{
                     node.pos[0],
                     heightmap.getFromFloat(node.pos[0], node.pos[1]),
                     node.pos[1],
                 };
                 props.appendAssumeCapacity(.{
-                    .name = "brazier_2_id",
+                    .name = "stacked_stones",
                     .pos = pos,
                     .rot = node.angle,
-                    .scale = .{ 2, 3, 2 },
+                    // .scale = .{ 2, 3, 2 },
                     .level = 1,
                 });
             }
