@@ -151,7 +151,7 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
 
             var city_ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab);
             city_ent.set(fd.Position.init(pos_x, pos_y, pos_z));
-            city_ent.set(fd.Scale.create(20, 2200, 20));
+            city_ent.set(fd.Scale.create(2, 2, 2));
             city_ents.append(.{
                 .ent = city_ent,
                 .class = 0,

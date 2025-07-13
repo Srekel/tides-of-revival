@@ -35,10 +35,10 @@
       num_relaxations:5,
     },
     {
-      name: "fbm_settings",
+      name: "fbm_settings_trees",
       kind: "FbmSettings",
       seed: 1,
-      frequency: 0.0005,
+      frequency: 0.005,
       octaves: 8,
       rect: "world_settings.size",
       scale: 0.5,
@@ -75,7 +75,7 @@
       name: "fbm_settings_hills",
       kind: "FbmSettings",
       seed: 3,
-      frequency: 0.001,
+      frequency: 0.0005,
       octaves: 3,
       rect: "world_settings.size",
       scale: 1.0,
@@ -411,7 +411,7 @@
       input: "heightmap_plains",
       output: "heightmap_plains",
       new_min: "50",
-      new_max: "125",
+      new_max: "150",
     },
     // END PLAINS
 
@@ -467,7 +467,7 @@
       input: "heightmap_hills",
       output: "heightmap_hills",
       new_min: "150",
-      new_max: "350",
+      new_max: "500",
     },
     // END HILLS
 
@@ -575,9 +575,9 @@
     {
       name: "generate_trees_fbm",
       kind: "fbm",
-      next: "trees_square",
+      next: "generate_trees_points", // trees_square
       // vars
-      settings: "fbm_settings",
+      settings: "fbm_settings_trees",
       output: "fbm_trees_image",
     },
     {
@@ -595,8 +595,8 @@
       // vars
       points: "trees_points",
       image: "fbm_trees_image",
-      cell_size: 16,
-      score_min: 0.6,
+      cell_size: 8,
+      score_min: 0.7,
     },
     {
       name: "output_trees_to_file",
@@ -621,7 +621,7 @@
       image_in: "gradient_image",
       curve:[
         0.0, 1.0,
-        0.0001, 0.0,
+        0.0003, 0.0,
       ],
       image_out: "village_gradient",
     },
@@ -638,7 +638,7 @@
     {
       name: "upsample_village_gradient",
       kind: "upsample",
-      next: "multiply_village_gradient_hills",
+      next: "multiply_village_gradient_plains",
       // vars
       image_in: "village_gradient",
       image_out: "village_gradient",
@@ -646,12 +646,12 @@
       count: 4,
     },
     {
-      name: "multiply_village_gradient_hills",
+      name: "multiply_village_gradient_plains",
       kind: "math",
       next: "village_output_points",
       // vars
       op: "multiply",
-      inputs: ["village_gradient", "weight_hills"],
+      inputs: ["village_gradient", "weight_plains"],
       output: "village_gradient",
     },
     {

@@ -114,7 +114,7 @@ pub const TerrainRenderPass = struct {
         self.renderer = rctx;
         self.world_patch_mgr = world_patch_mgr;
         self.terrain_render_settings = .{
-            .black_point = 0.85,
+            .black_point = 0.45,
             .white_point = 1.0,
         };
         self.frame_instance_count = 0;

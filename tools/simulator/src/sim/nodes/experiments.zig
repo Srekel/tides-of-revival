@@ -19,6 +19,7 @@ const Prop = struct {
     name: []const u8,
     pos: [3]f32,
     rot: f32,
+    scale: ?[3]f32 = null,
     level: i32,
 };
 
@@ -55,7 +56,9 @@ pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *
             writeLine(writer, "        config.flecs_data.Position: {{{d}, {d}, {d}}};", .{ pos[0], pos[1], pos[2] });
             writeLine(writer, "        config.flecs_data.Rotation: {{{d}, {d}, {d}, {d}}};", .{ rot[0], rot[1], rot[2], rot[3] });
             writeLine(writer, "        config.flecs_data.Dynamic: {{}};", .{}); // hack temp
-            writeLine(writer, "        config.flecs_data.Scale: {{1,1,1}};", .{}); // hack temp
+            if (prop.scale) |scale| {
+                writeLine(writer, "        config.flecs_data.Scale: {{{d},{d},{d}}};", .{ scale[0], scale[1], scale[2] }); // hack temp
+            }
 
             // player_camera_ent.set(fd.PointLight{
             //     .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
@@ -274,7 +277,7 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
         if (settlement_height < 60) {
             continue; // hack for sea level
         }
-        if (settlement_height > 150) {
+        if (settlement_height > 250) {
             continue; // hack for mountains
         }
 
@@ -350,7 +353,7 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
             if (settlement_height2 < 60) {
                 continue; // hack for sea level
             }
-            if (settlement_height2 > 150) {
+            if (settlement_height2 > 250) {
                 continue; // hack for mountains
             }
 
@@ -380,9 +383,12 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                     .name = "brazier_2_id",
                     .pos = pos,
                     .rot = node.angle,
+                    .scale = .{ 2, 3, 2 },
                     .level = 1,
                 });
             }
+
+            break; // hack for having a reasonable amount of roads..
         }
 
         cities_out.appendAssumeCapacity(.{ x, settlement_height, z });
