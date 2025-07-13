@@ -54,7 +54,14 @@ pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *
             writeLine(writer, "    {s}_prop{d} : {s} {{", .{ name, prop_i, prop.name });
             writeLine(writer, "        config.flecs_data.Position: {{{d}, {d}, {d}}};", .{ pos[0], pos[1], pos[2] });
             writeLine(writer, "        config.flecs_data.Rotation: {{{d}, {d}, {d}, {d}}};", .{ rot[0], rot[1], rot[2], rot[3] });
-            writeLine(writer, "        config.flecs_data.Dynamic: {{}};", .{}); // temp
+            writeLine(writer, "        config.flecs_data.Dynamic: {{}};", .{}); // hack temp
+            writeLine(writer, "        config.flecs_data.Scale: {{1,1,1}};", .{}); // hack temp
+
+            // player_camera_ent.set(fd.PointLight{
+            //     .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
+            //     .range = 5.0,
+            //     .intensity = 1.0,
+            // });
             writeLine(writer, "     }};", .{});
             writeEmptyLine(writer);
         }
@@ -71,8 +78,152 @@ pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *
     _ = file.writeAll(output_file_data.items) catch unreachable;
 }
 
+const PathResult = struct {
+    pos: [2]f32,
+};
+
+const PathNode = struct {
+    pos: [2]f32,
+    angle: f32,
+    pub fn hash(self: PathNode) u64 {
+        const grid_size = 16;
+        const pos_x: u64 = @intFromFloat(self.pos[0] / grid_size);
+        const pos_z: u64 = @intFromFloat(self.pos[1] / grid_size);
+        const angle_to_segment: f32 = (1.0 / math.tau) * 8.0;
+        var self_angle_positive = self.angle;
+        while (self_angle_positive < 0) {
+            self_angle_positive += math.tau;
+        }
+        const angle: u64 = @intFromFloat(self_angle_positive * angle_to_segment);
+        return pos_x + pos_z * (16000 / grid_size) + angle * 10_000_000;
+    }
+    pub fn distManhattan(self: PathNode, pos: [2]f32) f32 {
+        return @abs(self.pos[0] - pos[0]) + @abs(self.pos[1] - pos[1]);
+    }
+    pub fn dist(self: PathNode, pos: [2]f32) f32 {
+        const x = self.pos[0] - pos[0];
+        const z = self.pos[1] - pos[1];
+        return @sqrt(x * x + z * z);
+    }
+};
+
+const AStarContext = struct {
+    allocator: std.mem.Allocator,
+    path: *std.ArrayList(PathNode),
+    heightmap: types.ImageF32,
+    gradient: types.ImageF32,
+};
+
+fn pathCostHeuristic(pos: [2]f32, target: [2]f32) f32 {
+    const x = pos[0] - target[0];
+    const z = pos[1] - target[1];
+    return @sqrt(x * x + z * z);
+}
+
+fn doAStar(start: PathNode, target: PathNode, ctx: AStarContext) void {
+    var all_nodes = std.ArrayListUnmanaged(PathNode).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    var came_from = std.ArrayListUnmanaged(u32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    came_from.appendNTimesAssumeCapacity(math.maxInt(u32), came_from.capacity);
+
+    var hash_to_index: std.AutoHashMapUnmanaged(u64, u32) = .empty;
+    defer hash_to_index.deinit(ctx.allocator);
+    hash_to_index.ensureTotalCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+
+    // gScore
+    var known_costs = std.ArrayListUnmanaged(f32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    known_costs.appendNTimesAssumeCapacity(math.floatMax(f32), known_costs.capacity);
+    // fScore
+    var open_costs = std.ArrayListUnmanaged(f32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    open_costs.appendNTimesAssumeCapacity(math.floatMax(f32), open_costs.capacity);
+
+    var open_set = std.ArrayListUnmanaged(u32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+
+    all_nodes.appendAssumeCapacity(start);
+    hash_to_index.putAssumeCapacity(start.hash(), 0);
+    known_costs.items[0] = 0;
+    open_costs.items[0] = pathCostHeuristic(start.pos, target.pos);
+    open_set.appendAssumeCapacity(0);
+
+    while (open_set.items.len > 0) {
+        var best_cost = math.floatMax(f32);
+        var best_open_index: u64 = 0;
+        for (open_set.items, 0..) |opennode, i_node| {
+            if (open_costs.items[opennode] < best_cost) {
+                best_cost = open_costs.items[opennode];
+                best_open_index = i_node;
+            }
+        }
+
+        const best_index = open_set.items[best_open_index];
+        _ = open_set.swapRemove(best_open_index);
+
+        const node = all_nodes.items[best_index];
+        const dist = node.dist(target.pos);
+        if (dist < 100) {
+            std.log.info("Pathfinding close {d}", .{best_index});
+            var next = best_index;
+            while (next != std.math.maxInt(u32)) {
+                std.log.info("Pathfinding next {d}", .{next});
+                ctx.path.appendAssumeCapacity(all_nodes.items[next]);
+                next = came_from.items[next];
+            }
+            return;
+        }
+
+        std.log.info("Pathfinding {d}/{d} cost:{d} pos:{d},{d} dist:{d}", .{ best_index, all_nodes.items.len, best_cost, node.pos[0], node.pos[1], dist });
+        const cost_current = known_costs.items[best_index];
+
+        const dist_points = 50;
+        const angle_fwd = node.angle;
+        const pos_curr = node.pos;
+        const height = ctx.heightmap.getFromFloat(pos_curr[0], pos_curr[1]);
+        const angle_offset: f32 = math.degreesToRadians(20);
+        for (0..3) |i_angle| {
+            const angle_next = angle_fwd + (@as(f32, @floatFromInt(i_angle)) - 1) * angle_offset;
+            const dir_next = .{ math.cos(angle_next), math.sin(angle_next) };
+            const pos_next = .{ pos_curr[0] + dir_next[0] * dist_points, pos_curr[1] + dir_next[1] * dist_points };
+            const height_next = ctx.heightmap.getFromFloat(pos_next[0], pos_next[1]);
+            const cost_height = 1 + @abs(height - height_next) * 0.1;
+
+            const cost = dist_points * cost_height;
+            const tentative_cost = cost_current + cost;
+
+            if (height_next < 20) {
+                continue;
+            }
+
+            const node_next: PathNode = .{
+                .pos = pos_next,
+                .angle = angle_next,
+            };
+            const hash_next = node_next.hash();
+
+            const index_next_opt = hash_to_index.get(hash_next);
+
+            if (index_next_opt) |index_next| {
+                const known_cost = known_costs.items[index_next];
+                if (known_cost <= tentative_cost) {
+                    // This node was already tested in a better way, don't re-test it
+                    continue;
+                }
+
+                // We've already tried this node but found a better approach to it
+                known_costs.items[index_next] = tentative_cost;
+            } else {
+                all_nodes.appendAssumeCapacity(node_next);
+                hash_to_index.putAssumeCapacity(hash_next, @intCast(all_nodes.items.len - 1));
+            }
+
+            const index_next = hash_to_index.get(hash_next).?;
+            came_from.items[index_next] = best_index;
+            known_costs.items[index_next] = tentative_cost;
+            open_costs.items[index_next] = tentative_cost + pathCostHeuristic(pos_next, target.pos);
+            open_set.appendAssumeCapacity(index_next);
+        }
+    }
+}
+
 pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gradient: types.ImageF32, city_points: *const types.BackedListVec2, cities_out: *std.ArrayList([3]f32)) void {
-    _ = gradient; // autofix
     _ = world_settings; // autofix
 
     // var buf: [512 * 1024]u8 = undefined;
@@ -110,10 +261,10 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
 
     var prng = std.Random.DefaultPrng.init(seed);
     const rand = prng.random();
-    var props = std.ArrayList(Prop).initCapacity(std.heap.c_allocator, 512) catch unreachable;
+    var props = std.ArrayList(Prop).initCapacity(std.heap.c_allocator, 1024 * 4) catch unreachable;
 
     var valid_settlement_i: u32 = 0;
-    for (city_points.backed_slice[0..city_points.count]) |pt| {
+    for (city_points.backed_slice[0..city_points.count], 0..) |pt, i_city| {
         props.clearRetainingCapacity();
 
         const x = pt[0];
@@ -123,7 +274,11 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
         if (settlement_height < 60) {
             continue; // hack for sea level
         }
+        if (settlement_height > 150) {
+            continue; // hack for mountains
+        }
 
+        // Internal props
         for (0..5) |offset_z| {
             const cutoff_z: f32 = if (offset_z == 0 or offset_z == 4) 0.7 else 1;
             for (0..5) |offset_x| {
@@ -149,13 +304,14 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
 
                 props.appendAssumeCapacity(.{
                     .name = name,
-                    .pos = .{ final_x, house_height - 0.5, final_z }, // temp height hack
+                    .pos = .{ final_x, house_height, final_z },
                     .rot = rand.float(f32) * std.math.tau,
                     .level = 1,
                 });
             }
         }
 
+        // Palisades
         const palisade_length = 4;
         const palisade_count = math.ceil(perimeter / palisade_length);
         for (0..palisade_count) |i_palisade| {
@@ -173,10 +329,6 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                 continue; // hack for sea level
             }
 
-            if (is_palisade) {
-                pos[1] -= 0.5; // hack for anchor
-            }
-
             const name = switch (is_palisade) {
                 true => if (rand.boolean()) "palisade_400x300_a_id" else "palisade_400x300_b_id",
                 else => "brazier_1_id",
@@ -185,9 +337,52 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
             props.appendAssumeCapacity(.{
                 .name = name,
                 .pos = pos,
-                .rot = -angle_rad - math.pi * 0.5,
+                .rot = -angle_rad + math.pi * 0.5,
                 .level = 1,
             });
+        }
+
+        // Roads
+
+        std.log.info("Pathfinding!", .{});
+        for (city_points.backed_slice[i_city + 1 .. city_points.count]) |pt2| {
+            const settlement_height2 = heightmap.get(@as(u32, @intFromFloat(pt2[0])), @as(u32, @intFromFloat(pt2[1])));
+            if (settlement_height2 < 60) {
+                continue; // hack for sea level
+            }
+            if (settlement_height2 > 150) {
+                continue; // hack for mountains
+            }
+
+            var path_nodes = std.ArrayList(PathNode).initCapacity(std.heap.c_allocator, 1024 * 1024) catch unreachable;
+            defer path_nodes.deinit();
+
+            std.log.info("Pathfinding...", .{});
+            doAStar(
+                .{ .pos = pt, .angle = 0 },
+                .{ .pos = pt2, .angle = 0 },
+                .{
+                    .path = &path_nodes,
+                    .allocator = std.heap.c_allocator,
+                    .gradient = gradient,
+                    .heightmap = heightmap,
+                },
+            );
+            std.log.info("Pathfinding done! {d}", .{path_nodes.items.len});
+
+            for (path_nodes.items) |node| {
+                const pos = [_]f32{
+                    node.pos[0],
+                    heightmap.getFromFloat(node.pos[0], node.pos[1]),
+                    node.pos[1],
+                };
+                props.appendAssumeCapacity(.{
+                    .name = "brazier_2_id",
+                    .pos = pos,
+                    .rot = node.angle,
+                    .level = 1,
+                });
+            }
         }
 
         cities_out.appendAssumeCapacity(.{ x, settlement_height, z });
@@ -207,7 +402,7 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
 
     std.fs.cwd().makeDir(folderbufslice) catch {};
 
-    var output_file_data = std.ArrayList(u8).initCapacity(std.heap.c_allocator, cities_out.items.len * 50) catch unreachable;
+    var output_file_data = std.ArrayList(u8).initCapacity(std.heap.c_allocator, cities_out.items.len * 500) catch unreachable;
     defer output_file_data.deinit();
     var writer = output_file_data.writer();
 

@@ -65,6 +65,12 @@ pub fn Image(ElemType: type) type {
             return self.pixels[x + y * self.size.width];
         }
 
+        pub fn getFromFloat(self: Self, x: anytype, y: anytype) ElemType {
+            const ix: u32 = @intFromFloat(x);
+            const iy: u32 = @intFromFloat(y);
+            return self.pixels[ix + iy * self.size.width];
+        }
+
         pub fn set(self: *Self, x: anytype, y: anytype, val: ElemType) void {
             self.pixels[x + y * self.size.width] = val;
         }
