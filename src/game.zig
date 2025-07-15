@@ -469,6 +469,28 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
     const dt_game = dt * environment_info.time_multiplier * debug_times[debug_time_index].mult;
     environment_info.time_multiplier = 1;
 
+    {
+        const sun_entity = util.getSun(ecsu_world);
+        const sun_rotation = sun_entity.?.getMut(fd.Rotation).?;
+
+        const z_sun_delta_rotation = zm.quatFromRollPitchYaw(0.01 * @as(f32, @floatCast(dt_game)), 0, 0);
+        sun_rotation.fromZM(zm.qmul(sun_rotation.asZM(), z_sun_delta_rotation));
+
+        var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
+        const z_sun_forward = zm.normalize4(zm.rotate(sun_rotation.asZM(), zm.Vec{ 0, 0, 1, 0 }));
+
+        const up = zm.Vec{ 0, 1, 0, 0 };
+        var intensity = zm.dot3(z_sun_forward, up)[0];
+        if (intensity > 0) {
+            intensity = 0;
+        } else if (intensity <= -0.25) {
+            intensity = 1;
+        } else {
+            intensity = std.math.lerp(0, 1, -intensity * 4);
+        }
+        sun_light.?.intensity = 10 * intensity;
+    }
+
     const flecs_stats = ecs.get_world_info(ecsu_world.world);
     {
         const world_time = flecs_stats.*.world_time_total;
