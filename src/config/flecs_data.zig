@@ -581,7 +581,7 @@ pub const Camera = struct {
     }
 
     fn distanceToPoint(plane: [4]f32, point: [3]f32) f32 {
-        return plane[0] * point[0] + plane[1] * point[1] + plane[2] * point[2] + plane[3];
+        return plane[0] * point[0] + plane[1] * point[1] + plane[2] * point[2] + plane[3] * plane[3];
     }
 };
 
