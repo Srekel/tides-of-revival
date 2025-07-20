@@ -866,28 +866,24 @@ fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_posi
     const z_entity_position = zm.loadArr3(entity_position);
     const distance_squared = zm.lengthSq3(z_camera_position - z_entity_position)[0];
 
-    const lod0_distance_squared = 10.0 * 10.0;
-    const lod1_distance_squared = 20.0 * 20.0;
-    const lod2_distance_squared = 30.0 * 30.0;
-    const lod3_distance_squared = 40.0 * 40.0;
+    const lod1_distance_squared = 50.0 * 50.0;
+    const lod2_distance_squared = 100.0 * 100.0;
+    const lod3_distance_squared = 200.0 * 200.0;
 
-    if (distance_squared <= lod0_distance_squared) {
-        return lod_group.lods[0];
+    var lod: u32 = 0;
+
+    if (distance_squared >= lod3_distance_squared) {
+        lod = 3;
+    } else if (distance_squared >= lod2_distance_squared) {
+        lod = 2;
+    } else if (distance_squared >= lod1_distance_squared) {
+        lod = 1;
+    } else {
+        lod = 0;
     }
 
-    if (distance_squared <= lod1_distance_squared and lod_group.lod_count >= 2) {
-        return lod_group.lods[1];
-    }
-
-    if (distance_squared <= lod2_distance_squared and lod_group.lod_count >= 3) {
-        return lod_group.lods[2];
-    }
-
-    if (distance_squared <= lod3_distance_squared and lod_group.lod_count >= 4) {
-        return lod_group.lods[3];
-    }
-
-    return lod_group.lods[lod_group.lod_count - 1];
+    lod = @min(lod, lod_group.lod_count - 1);
+    return lod_group.lods[lod];
 }
 
 inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
