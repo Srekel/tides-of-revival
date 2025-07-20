@@ -33,6 +33,8 @@ const ProceduralSkyParams = struct {
 const DrawSkyParams = struct {
     projection: [16]f32,
     view: [16]f32,
+    time_of_day_percent: f32,
+    _pad0: [3]f32,
 };
 
 pub const AtmosphereRenderPass = struct {
@@ -44,6 +46,7 @@ pub const AtmosphereRenderPass = struct {
     procedural_sky_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     draw_sky_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     skybox_cubemap: renderer.TextureHandle,
+    starfield_cubemap: renderer.TextureHandle,
 
     procedural_sky_descriptor_set: [*c]graphics.DescriptorSet,
     draw_sky_descriptor_set: [*c]graphics.DescriptorSet,
@@ -68,6 +71,14 @@ pub const AtmosphereRenderPass = struct {
 
             break :blk buffers;
         };
+
+        // Load starfield cubemap
+        var starfield_cubemap: renderer.TextureHandle = undefined;
+        {
+            var desc = std.mem.zeroes(graphics.TextureDesc);
+            desc.bBindless = false;
+            starfield_cubemap = rctx.loadTextureWithDesc(desc, "textures/env/starfield.dds");
+        }
 
         const skybox_cubemap = blk: {
             var desc = std.mem.zeroes(graphics.TextureDesc);
@@ -100,6 +111,7 @@ pub const AtmosphereRenderPass = struct {
             .procedural_sky_constant_buffers = procedural_sky_constant_buffers,
             .draw_sky_constant_buffers = draw_sky_constant_buffers,
             .skybox_cubemap = skybox_cubemap,
+            .starfield_cubemap = starfield_cubemap,
             .procedural_sky_descriptor_set = undefined,
             .draw_sky_descriptor_set = undefined,
             .skybox_mesh = skybox_mesh,
@@ -208,8 +220,10 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     {
         const z_view = zm.loadMat(camera_comps.camera.view[0..]);
         const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
+        const t01 = util.getTimeOfDayPercent(self.ecsu_world);
 
         var draw_sky_data: DrawSkyParams = std.mem.zeroes(DrawSkyParams);
+        draw_sky_data.time_of_day_percent = t01;
         zm.storeMat(&draw_sky_data.projection, z_proj);
         zm.storeMat(&draw_sky_data.view, z_view);
 
@@ -291,25 +305,38 @@ fn createDescriptorSets(user_data: *anyopaque) void {
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *AtmosphereRenderPass = @ptrCast(@alignCast(user_data));
 
-    var params: [2]graphics.DescriptorData = undefined;
     var skybox_cubemap = self.renderer.getTexture(self.skybox_cubemap);
+    var starfield_cubemap = self.renderer.getTexture(self.starfield_cubemap);
 
     for (0..renderer.Renderer.data_buffer_count) |frame_index| {
-        var procedural_sky_constant_buffer = self.renderer.getBuffer(self.procedural_sky_constant_buffers[frame_index]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "FrameBuffer";
-        params[0].__union_field3.ppBuffers = @ptrCast(&procedural_sky_constant_buffer);
-        params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "skybox_cubemap";
-        params[1].__union_field3.ppTextures = @ptrCast(&skybox_cubemap);
+        {
+            var params: [2]graphics.DescriptorData = undefined;
+            var procedural_sky_constant_buffer = self.renderer.getBuffer(self.procedural_sky_constant_buffers[frame_index]);
+            params[0] = std.mem.zeroes(graphics.DescriptorData);
+            params[0].pName = "FrameBuffer";
+            params[0].__union_field3.ppBuffers = @ptrCast(&procedural_sky_constant_buffer);
+            params[1] = std.mem.zeroes(graphics.DescriptorData);
+            params[1].pName = "skybox_cubemap";
+            params[1].__union_field3.ppTextures = @ptrCast(&skybox_cubemap);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.procedural_sky_descriptor_set, @intCast(params.len), @ptrCast(&params));
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.procedural_sky_descriptor_set, @intCast(params.len), @ptrCast(&params));
+        }
 
-        var draw_sky_constant_buffer = self.renderer.getBuffer(self.draw_sky_constant_buffers[frame_index]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "FrameBuffer";
-        params[0].__union_field3.ppBuffers = @ptrCast(&draw_sky_constant_buffer);
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.draw_sky_descriptor_set, @intCast(params.len), @ptrCast(&params));
+        {
+            var params: [3]graphics.DescriptorData = undefined;
+            var draw_sky_constant_buffer = self.renderer.getBuffer(self.draw_sky_constant_buffers[frame_index]);
+            params[0] = std.mem.zeroes(graphics.DescriptorData);
+            params[0].pName = "FrameBuffer";
+            params[0].__union_field3.ppBuffers = @ptrCast(&draw_sky_constant_buffer);
+            params[1] = std.mem.zeroes(graphics.DescriptorData);
+            params[1].pName = "skybox_cubemap";
+            params[1].__union_field3.ppTextures = @ptrCast(&skybox_cubemap);
+            params[2] = std.mem.zeroes(graphics.DescriptorData);
+            params[2].pName = "starfield_cubemap";
+            params[2].__union_field3.ppTextures = @ptrCast(&starfield_cubemap);
+
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.draw_sky_descriptor_set, @intCast(params.len), @ptrCast(&params));
+        }
     }
 }
 

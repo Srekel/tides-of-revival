@@ -263,14 +263,6 @@ pub fn run() void {
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     config.entity.init(player_pos, &prefab_mgr, ecsu_world, &renderer_ctx);
 
-    const matball_prefab = prefab_mgr.getPrefab(config.prefab.matball_id).?;
-    const matball_position = fd.Position.init(player_pos.x, player_pos.y + 100.0, player_pos.z);
-    var matball_ent = prefab_mgr.instantiatePrefab(ecsu_world, matball_prefab);
-    matball_ent.set(matball_position);
-    matball_ent.set(fd.Rotation{});
-    matball_ent.set(fd.Scale.createScalar(1.0));
-    matball_ent.set(fd.Transform.initFromPosition(matball_position));
-
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
     //    ██║   ██║██╔████╔██║█████╗  ██║     ██║██╔██╗ ██║█████╗  ███████╗
@@ -469,35 +461,31 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
     const dt_game = dt * environment_info.time_multiplier * debug_times[debug_time_index].mult;
     environment_info.time_multiplier = 1;
 
+    const flecs_stats = ecs.get_world_info(ecsu_world.world);
+
+    // Advance day
+    {
+        const world_time = flecs_stats.*.world_time_total;
+        // const time_of_day_percent = std.math.modf(world_time / (60 * 60 * 24));
+        const time_of_day_percent = std.math.modf(world_time / (60 * 60));
+        environment_info.time_of_day_percent = time_of_day_percent.fpart;
+        environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
+        environment_info.world_time = world_time;
+    }
+
+    // Sun orientation
     {
         const sun_entity = util.getSun(ecsu_world);
         const sun_rotation = sun_entity.?.getMut(fd.Rotation).?;
+        sun_rotation.fromZM(zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau), 0.0, 0.0));
 
         const z_sun_delta_rotation = zm.quatFromRollPitchYaw(0.01 * @as(f32, @floatCast(dt_game)), 0, 0);
         sun_rotation.fromZM(zm.qmul(sun_rotation.asZM(), z_sun_delta_rotation));
 
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
-        const z_sun_forward = zm.normalize4(zm.rotate(sun_rotation.asZM(), zm.Vec{ 0, 0, 1, 0 }));
-
-        const up = zm.Vec{ 0, 1, 0, 0 };
-        var intensity = zm.dot3(z_sun_forward, up)[0];
-        if (intensity > 0) {
-            intensity = 0;
-        } else if (intensity <= -0.25) {
-            intensity = 1;
-        } else {
-            intensity = std.math.lerp(0, 1, -intensity * 4);
-        }
-        sun_light.?.intensity = 10 * intensity;
-    }
-
-    const flecs_stats = ecs.get_world_info(ecsu_world.world);
-    {
-        const world_time = flecs_stats.*.world_time_total;
-        const time_of_day_percent = std.math.modf(world_time / (60 * 60 * 24));
-        environment_info.time_of_day_percent = time_of_day_percent.fpart;
-        environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
-        environment_info.world_time = world_time;
+        // TODO: Implement curves so we can have more than constant or linear curves
+        const intensity_multiplier: f32 = if (environment_info.time_of_day_percent <= 0.5) 1.0 else 0.0;
+        sun_light.?.intensity = 10 * intensity_multiplier;
     }
 
     once_per_duration_test += dt_game;

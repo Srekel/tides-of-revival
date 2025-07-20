@@ -23,7 +23,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
 
     const sun_ent = ecsu_world.newEntity();
-    sun_ent.set(fd.Rotation.initFromEulerDegrees(50.0, 30.0, 0.0));
+    sun_ent.set(fd.Rotation.initFromEulerDegrees(0.0, 0.0, 0.0));
     sun_ent.set(fd.DirectionalLight{
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
         .intensity = 10.0,

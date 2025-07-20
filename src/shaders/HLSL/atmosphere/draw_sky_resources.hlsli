@@ -22,8 +22,11 @@ cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
     float4x4 g_proj_mat;
     float4x4 g_view_mat;
+    float g_time_of_day_01;
+    float3 _pad0;
 };
 
 TextureCube<float4> skybox_cubemap : register(t0, UPDATE_FREQ_PER_FRAME);
+TextureCube<float4> starfield_cubemap : register(t1, UPDATE_FREQ_PER_FRAME);
 
 #endif // _DRAW_SKY_RESOURCES

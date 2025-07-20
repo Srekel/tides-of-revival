@@ -119,6 +119,24 @@ pub fn getPlayer(ecsu_world: ecsu.World) ?ecsu.Entity {
     return null;
 }
 
+pub fn getTimeOfDayPercent(ecsu_world: ecsu.World) f32 {
+    const environment_info = ecsu_world.getSingleton(fd.EnvironmentInfo);
+    if (environment_info) |info| {
+        return @floatCast(info.time_of_day_percent);
+    }
+
+    return 0.0;
+}
+
+pub fn getSunHeight(ecsu_world: ecsu.World) f32 {
+    const environment_info = ecsu_world.getSingleton(fd.EnvironmentInfo);
+    if (environment_info) |info| {
+        return @floatCast(info.sun_height);
+    }
+
+    return 0.0;
+}
+
 // pub fn applyTransformRecursively(
 //     ent: flecs.Entity,
 //     parent_pos: fd.WorldPosition,
