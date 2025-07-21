@@ -369,84 +369,6 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        var palisade_400x300_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x300_a", palisade_400x300_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-
-        const lod_group_component = palisade_400x300_a.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
-                }
-            }
-        }
-    }
-
-    {
-        var palisade_400x300_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x300_b", palisade_400x300_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-
-        const lod_group_component = palisade_400x300_b.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
-                }
-            }
-        }
-    }
-
-    {
-        var palisade_sloped_400x300_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_sloped_400x300_a", palisade_sloped_400x300_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-
-        const lod_group_component = palisade_sloped_400x300_a.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
-                }
-            }
-        }
-    }
-
-    {
-        var palisade_sloped_400x300_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_sloped_400x300_b", palisade_sloped_400x300_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-
-        const lod_group_component = palisade_sloped_400x300_b.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
-                }
-            }
-        }
-    }
-
-    {
-        var brazier_1 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_1", brazier_1_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-
-        const lod_group_component = brazier_1.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
-                }
-            }
-        }
-    }
-
-    {
-        var brazier_2 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_2", brazier_2_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-
-        const lod_group_component = brazier_2.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
-                }
-            }
-        }
-    }
-
-    {
         var stacked_stones = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/roads/stacked_stones", stacked_stones_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
         const lod_group_component = stacked_stones.getMut(fd.LodGroup);
@@ -459,22 +381,18 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         }
     }
 
-    {
-        // var vine_material = fd.UberShader.init();
-        // vine_material.depth_only_pipeline_id = pipeline_lit_depth_only_cutout_id;
-        // vine_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_cutout_id;
-        // vine_material.shadow_caster_pipeline_id = pipeline_shadow_caster_cutout_id;
-        // vine_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_VineLeaf_BaseColor.dds");
-        // vine_material.base_color = fd.ColorRGB.init(0.1, 0.34, 0);
-        // const vine_material_handle = prefab_mgr.rctx.uploadMaterial(vine_material) catch unreachable;
 
+    var wood_trim_material_handle: renderer.MaterialHandle = undefined;
+    var metal_ornaments_material_handle: renderer.MaterialHandle = undefined;
+
+    {
         var wood_trim_material = fd.UberShader.init();
         wood_trim_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         wood_trim_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         wood_trim_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_BaseColor.dds");
         wood_trim_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_Roughness.dds");
         wood_trim_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_Normal.dds");
-        const wood_trim_material_handle = prefab_mgr.rctx.uploadMaterial(wood_trim_material) catch unreachable;
+        wood_trim_material_handle = prefab_mgr.rctx.uploadMaterial(wood_trim_material) catch unreachable;
 
         var plaster_material = fd.UberShader.init();
         plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -536,7 +454,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         metal_ornaments_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         metal_ornaments_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_MetalOrnaments_BaseColor.dds");
         metal_ornaments_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_MetalOrnaments_Roughness.dds");
-        const metal_ornaments_material_handle = prefab_mgr.rctx.uploadMaterial(metal_ornaments_material) catch unreachable;
+        metal_ornaments_material_handle = prefab_mgr.rctx.uploadMaterial(metal_ornaments_material) catch unreachable;
 
         var house_3x5 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medieval_village/houses/house_3x5", house_3x5_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
@@ -554,6 +472,86 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
                 lod_group.lods[i].materials.items[6] = wood_trim_material_handle;
                 lod_group.lods[i].materials.items[7] = metal_ornaments_material_handle;
                 lod_group.lods[i].materials.items[8] = uneven_brick_material_handle;
+            }
+        }
+    }
+
+    {
+        var palisade_400x300_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x300_a", palisade_400x300_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_400x300_a.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = wood_trim_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var palisade_400x300_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_400x300_b", palisade_400x300_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_400x300_b.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = wood_trim_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var palisade_sloped_400x300_a = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_sloped_400x300_a", palisade_sloped_400x300_a_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_sloped_400x300_a.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var palisade_sloped_400x300_b = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/palisades/palisade_sloped_400x300_b", palisade_sloped_400x300_b_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = palisade_sloped_400x300_b.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                for (0..lod_group.lods[i].materials.items.len) |material_index| {
+                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                }
+            }
+        }
+    }
+
+    {
+        var brazier_1 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_1", brazier_1_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = brazier_1.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                std.debug.assert(lod_group.lods[i].materials.items.len == 2);
+
+                lod_group.lods[i].materials.items[0] = wood_trim_material_handle;
+                lod_group.lods[i].materials.items[1] = metal_ornaments_material_handle;
+            }
+        }
+    }
+
+    {
+        var brazier_2 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_2", brazier_2_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+        const lod_group_component = brazier_2.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                std.debug.assert(lod_group.lods[i].materials.items.len == 2);
+
+                lod_group.lods[i].materials.items[0] = wood_trim_material_handle;
+                lod_group.lods[i].materials.items[1] = metal_ornaments_material_handle;
             }
         }
     }
