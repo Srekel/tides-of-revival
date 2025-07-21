@@ -182,6 +182,7 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
 
     uint grass_layer_index = 1;
     uint rock_layer_index = 2;
+    uint snow_layer_index = 3;
 
     float triplanarScale = 1;
 
@@ -197,12 +198,27 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float rock_height;
     SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, N, triplanarScale / 32, rock_albedo, rock_normal, rock_arm, rock_height);
 
+    float3 snow_albedo;
+    float3 snow_normal;
+    float3 snow_arm;
+    float snow_height;
+    SampleTerrainLayer(snow_layer_index, Input.PositionWS.xyz, N, triplanarScale, snow_albedo, snow_normal, snow_arm, snow_height);
+
     // TODO(gmodarelli): Blend more than 2 layers
     float b1, b2;
     CalculateBlendingFactors(grass_height, rock_height, slope, 1.0f - slope, b1, b2);
     float3 albedo = HeightBlend(grass_albedo.rgb, rock_albedo.rgb, b1, b2);
     N = normalize(HeightBlend(grass_normal, rock_normal, b1, b2));
     float3 arm = HeightBlend(grass_arm, rock_arm, b1, b2);
+
+    // Blend in snow
+    float world_height_mask = smoothstep(800, 810, Input.PositionWS.y); // saturate(inverseLerp(0, 850, Input.PositionWS.y));
+    world_height_mask *= smoothstep(0.05, 0.1, slope);
+    // world_height_mask += smoothstep(800, 900, Input.PositionWS.y);
+
+    albedo = lerp(albedo, snow_albedo, world_height_mask);
+    N = lerp(N, snow_normal, world_height_mask);
+    arm = lerp(arm, snow_arm, world_height_mask);
 
     arm.g = lerp(1.0f, arm.g, fresnel);
     float reflectance = lerp(0.0f, 0.5f, fresnel);
