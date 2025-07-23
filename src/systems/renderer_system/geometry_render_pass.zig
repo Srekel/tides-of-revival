@@ -282,8 +282,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone1.End();
 
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
-            defer trazy_zone2.End();
+            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
+            // defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
             const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
@@ -340,8 +340,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone1.End();
 
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
-            defer trazy_zone2.End();
+            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
+            // defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
             const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
@@ -449,8 +449,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
-            defer trazy_zone2.End();
+            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            // defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
                 .data = @ptrCast(self.instances.items),
@@ -466,8 +466,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone1.End();
 
         {
-            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_ff_00);
-            defer trazy_zone2.End();
+            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_ff_00);
+            // defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
             const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
@@ -777,8 +777,8 @@ fn batchEntities(
             }
 
             {
-                const trazy_zone2 = ztracy.ZoneNC(@src(), "Cull instance", 0x00_ff_ff_00);
-                defer trazy_zone2.End();
+                // const trazy_zone2 = ztracy.ZoneNC(@src(), "Cull instance", 0x00_ff_ff_00);
+                // defer trazy_zone2.End();
 
                 // Distance culling
                 if (!isWithinCameraDrawDistance(camera_position, transform.getPos00(), max_draw_distance_squared)) {
@@ -804,8 +804,8 @@ fn batchEntities(
             sub_mesh_count = static_mesh.materials.items.len;
 
             {
-                const trazy_zone2 = ztracy.ZoneNC(@src(), "Add instance to batch", 0x00_ff_ff_00);
-                defer trazy_zone2.End();
+                // const trazy_zone2 = ztracy.ZoneNC(@src(), "Add instance to batch", 0x00_ff_ff_00);
+                // defer trazy_zone2.End();
 
                 for (0..sub_mesh_count) |sub_mesh_index| {
                     const material_handle = static_mesh.materials.items[sub_mesh_index];
@@ -855,8 +855,8 @@ inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [
 }
 
 fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_position: [3]f32) fd.StaticMesh {
-    const trazy_zone = ztracy.ZoneNC(@src(), "LOD Selection", 0x00_ff_ff_00);
-    defer trazy_zone.End();
+    // const trazy_zone = ztracy.ZoneNC(@src(), "LOD Selection", 0x00_ff_ff_00);
+    // defer trazy_zone.End();
 
     if (lod_group.lod_count == 1) {
         return lod_group.lods[0];
