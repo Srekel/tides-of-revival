@@ -379,8 +379,22 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
                 }
             }
         }
-    }
 
+        // TEMP: Lantern light
+        const light_ent = ecsu_world.newEntity();
+        light_ent.childOf(stacked_stones);
+        light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
+        light_ent.set(fd.Rotation{});
+        light_ent.set(fd.Scale.createScalar(1));
+        light_ent.set(fd.Transform{});
+        light_ent.set(fd.Dynamic{});
+
+        light_ent.set(fd.PointLight{
+            .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
+            .intensity = 40,
+            .range = 40,
+        });
+    }
 
     var wood_trim_material_handle: renderer.MaterialHandle = undefined;
     var metal_ornaments_material_handle: renderer.MaterialHandle = undefined;

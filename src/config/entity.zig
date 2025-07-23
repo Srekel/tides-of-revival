@@ -119,8 +119,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
-        .range = 5.0,
-        .intensity = 1.0,
+        .range = 15.0,
+        .intensity = 10.0,
     });
     bow_ent.childOf(player_camera_ent);
 
