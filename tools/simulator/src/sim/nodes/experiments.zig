@@ -377,10 +377,10 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
             );
             std.log.info("Pathfinding done! {d}", .{path_nodes.items.len});
 
-            for (path_nodes.items) |node| {
-                if (rand.float(f32) > 0.5) {
-                    continue;
-                }
+            for (path_nodes.items, 0..) |node, node_index| {
+                // if (rand.float(f32) > 0.5) {
+                //     continue;
+                // }
                 const pos = [_]f32{
                     node.pos[0],
                     heightmap.getFromFloat(node.pos[0], node.pos[1]),
@@ -390,8 +390,8 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                     .name = "stacked_stones",
                     .pos = pos,
                     .rot = node.angle,
-                    // .scale = .{ 2, 3, 2 },
-                    .level = 1,
+                    .scale = .{ 1 + rand.float(f32) * 0.25, 1 + rand.float(f32) * 0.5, 1 + rand.float(f32) * 0.25 },
+                    .level = @intCast(1 + (path_nodes.items.len - node_index) / 20),
                 });
             }
 
