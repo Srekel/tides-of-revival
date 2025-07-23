@@ -14,6 +14,7 @@ const patch_prop_system = @import("../systems/patch_prop_system.zig");
 const physics_system = @import("../systems/physics_system.zig");
 const renderer_system = @import("../systems/renderer_system.zig");
 const timeline_system = @import("../systems/timeline_system.zig");
+const worldsim_systems = @import("../systems/worldsim_systems.zig");
 
 const fsm_pc_idle = @import("../fsm/player_controller/state_player_idle.zig");
 const fsm_cam_fps = @import("../fsm/camera/state_camera_fps.zig");
@@ -47,6 +48,7 @@ pub fn createSystems(gameloop_context: anytype) void {
     // city_system.create(city_system.SystemCreateCtx.view(gameloop_context));
 
     patch_prop_system.create(patch_prop_system.SystemCreateCtx.view(gameloop_context));
+    worldsim_systems.create(worldsim_systems.SystemCreateCtx.view(gameloop_context));
 
     // navmesh_sys = try navmesh_system.create(
     //     ID("navmesh_system"),

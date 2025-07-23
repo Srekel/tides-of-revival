@@ -47,10 +47,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Speed);
     ecs.COMPONENT(ecs_world, Quality);
     ecs.COMPONENT(ecs_world, Effect);
-    ecs.COMPONENT(ecs_world, CompCity);
-    ecs.COMPONENT(ecs_world, CompBanditCamp);
-    ecs.COMPONENT(ecs_world, CompCaravan);
-    ecs.COMPONENT(ecs_world, CompCombatant);
+    ecs.COMPONENT(ecs_world, Script);
+    ecs.COMPONENT(ecs_world, Settlement);
     ecs.COMPONENT(ecs_world, EnvironmentInfo);
     ecs.COMPONENT(ecs_world, ProjectileWeapon);
     ecs.COMPONENT(ecs_world, Projectile);
@@ -716,31 +714,47 @@ pub const Effect = struct {
 // ╚██████╗██║   ██║      ██║
 //  ╚═════╝╚═╝   ╚═╝      ╚═╝
 
-pub const CompCity = struct {
-    next_spawn_time: f32,
-    spawn_cooldown: f32,
-    caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]ecs.entity_t,
-    curr_target_city: ecs.entity_t,
-};
-pub const CompBanditCamp = struct {
-    next_spawn_time: f32,
-    spawn_cooldown: f32,
-    caravan_members_to_spawn: i32 = 0,
-    closest_cities: [2]ecs.entity_t,
-    // curr_target_city: ecs.entity_t,
-};
-pub const CompCaravan = struct {
-    start_pos: [3]f32,
-    end_pos: [3]f32,
-    time_to_arrive: f32,
-    time_birth: f32,
-    destroy_on_arrival: bool,
+pub const Script = struct {
+    script: *ecs.script_t,
 };
 
-pub const CompCombatant = struct {
-    faction: i32,
+pub const Settlement = struct {
+    level: i32 = 1,
+    safety: i32 = 0,
 };
+
+// pub const CompCity = struct {
+//     next_spawn_time: f32,
+//     spawn_cooldown: f32,
+//     caravan_members_to_spawn: i32 = 0,
+//     closest_cities: [2]ecs.entity_t,
+//     curr_target_city: ecs.entity_t,
+// };
+// pub const CompBanditCamp = struct {
+//     next_spawn_time: f32,
+//     spawn_cooldown: f32,
+//     caravan_members_to_spawn: i32 = 0,
+//     closest_cities: [2]ecs.entity_t,
+//     // curr_target_city: ecs.entity_t,
+// };
+// pub const CompCaravan = struct {
+//     start_pos: [3]f32,
+//     end_pos: [3]f32,
+//     time_to_arrive: f32,
+//     time_birth: f32,
+//     destroy_on_arrival: bool,
+// };
+
+// pub const CompCombatant = struct {
+//     faction: i32,
+// };
+
+// ███████╗███╗   ██╗██╗   ██╗
+// ██╔════╝████╗  ██║██║   ██║
+// █████╗  ██╔██╗ ██║██║   ██║
+// ██╔══╝  ██║╚██╗██║╚██╗ ██╔╝
+// ███████╗██║ ╚████║ ╚████╔╝
+// ╚══════╝╚═╝  ╚═══╝  ╚═══╝
 
 pub const EnvironmentInfo = struct {
     paused: bool,

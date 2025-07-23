@@ -42,7 +42,7 @@ pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *
 
     writeLine(writer, "using flecs.meta", .{});
 
-    for (0..3) |settlement_level| {
+    for (0..20) |settlement_level| {
         writeEmptyLine(writer);
         writeLine(writer, "if $settlement_level == {d} {{    ", .{settlement_level});
         for (props.items, 0..) |prop, prop_i| {
@@ -392,7 +392,7 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                     .pos = pos,
                     .rot = node.angle,
                     .scale = .{ 1 + rand.float(f32) * 0.25, 1 + rand.float(f32) * 0.5, 1 + rand.float(f32) * 0.25 },
-                    .level = @intCast(1 + (path_nodes.items.len - node_index) / 20),
+                    .level = @intCast(1 + (path_nodes.items.len - node_index) / 10),
                 });
             }
 

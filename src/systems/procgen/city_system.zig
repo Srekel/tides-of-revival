@@ -145,8 +145,8 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
             const filepath = std.fmt.bufPrintZ(&buf2, "content/settlements/{s}.flecs", .{settlement_name}) catch unreachable;
 
             const script_code = asset_mgr.loadAssetBlocking(IdLocal.init(filepath), .instant_blocking);
-            const script = ecs.script_parse(ecsu_world.world, "settlement", @ptrCast(script_code), null);
-            const res = ecs.script_eval(script.?, &desc);
+            const script = ecs.script_parse(ecsu_world.world, "settlement", @ptrCast(script_code), null).?;
+            const res = ecs.script_eval(script, &desc);
             std.debug.assert(res == 0);
 
             var city_ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab);
@@ -158,6 +158,9 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
                 .x = pos_x,
                 .z = pos_z,
             }) catch unreachable;
+
+            city_ent.set(fd.Script{ .script = script });
+            city_ent.set(fd.Settlement{});
 
             if (!added_spawn) {
                 added_spawn = true;
