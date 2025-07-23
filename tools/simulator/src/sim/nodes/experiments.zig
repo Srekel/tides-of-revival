@@ -466,6 +466,10 @@ pub fn write_trees(heightmap: types.ImageF32, points: types.PatchDataPts2d) void
     const PROPS_LOD = 1;
     _ = PROPS_LOD; // autofix
 
+    const seed = 1234;
+    var prng = std.Random.DefaultPrng.init(seed);
+    const rand = prng.random();
+
     const folderbufslice = std.fmt.bufPrintZ(
         folderbuf[0..folderbuf.len],
         "../../../../content/patch/props/lod{}",
@@ -505,7 +509,7 @@ pub fn write_trees(heightmap: types.ImageF32, points: types.PatchDataPts2d) void
                     continue; // HACK
                 }
 
-                const rot = 0;
+                const rot = rand.float(f32) * math.tau;
                 writer.print("tree,{d:.3},{d:.3},{d:.3},{}\n", .{ prop[0], height, prop[1], rot }) catch unreachable;
             }
 
