@@ -257,9 +257,10 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
     };
 
     const seed: u64 = 123;
+    const village_grid_size = 7;
     const cell_size_f: f32 = 25;
-    const radius = 2.5 * cell_size_f;
-    const radius_palisades = 3.2 * cell_size_f;
+    const radius = village_grid_size * cell_size_f * 0.5;
+    const radius_palisades = village_grid_size * cell_size_f * 0.7;
     const perimeter = radius_palisades * math.pi * 2;
 
     var prng = std.Random.DefaultPrng.init(seed);
@@ -282,14 +283,14 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
         }
 
         // Internal props
-        for (0..5) |offset_z| {
-            const cutoff_z: f32 = if (offset_z == 0 or offset_z == 4) 0.7 else 1;
-            for (0..5) |offset_x| {
-                const cutoff_x: f32 = if (offset_x == 0 or offset_x == 4) 0.7 else 1;
-                if ((offset_x == 0 or offset_x == 4) and (offset_z == 0 or offset_z == 4)) {
+        for (0..village_grid_size) |offset_z| {
+            const cutoff_z: f32 = if (offset_z == 0 or offset_z == village_grid_size - 1) 0.7 else 1;
+            for (0..village_grid_size) |offset_x| {
+                const cutoff_x: f32 = if (offset_x == 0 or offset_x == village_grid_size - 1) 0.7 else 1;
+                if ((offset_x == 0 or offset_x == village_grid_size - 1) and (offset_z == 0 or offset_z == village_grid_size - 1)) {
                     continue; // roundify village
                 }
-                if (offset_x == 2 and offset_z == 2) {
+                if (offset_x == village_grid_size / 2 and offset_z == village_grid_size / 2) {
                     // Hack for "well"
                     continue;
                 }
