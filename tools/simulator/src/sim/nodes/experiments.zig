@@ -361,8 +361,12 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
             defer path_nodes.deinit();
 
             std.log.info("Pathfinding...", .{});
+            const start_pos = .{
+                pt[0] + math.cos(0.0) * radius_palisades,
+                pt[1] + math.sin(0.0) * radius_palisades,
+            };
             doAStar(
-                .{ .pos = pt, .angle = 0 },
+                .{ .pos = start_pos, .angle = 0 },
                 .{ .pos = pt2, .angle = 0 },
                 .{
                     .path = &path_nodes,
