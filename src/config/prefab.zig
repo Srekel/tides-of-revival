@@ -7,27 +7,30 @@ const renderer = @import("../renderer/renderer.zig");
 const IdLocal = core.IdLocal;
 const ID = @import("../core/core.zig").ID;
 
-pub var player: ecsu.Entity = undefined;
-pub var giant_ant: ecsu.Entity = undefined;
 pub var bow: ecsu.Entity = undefined;
-pub var default_cube: ecsu.Entity = undefined;
-pub var matball: ecsu.Entity = undefined;
 pub var color_calibrator: ecsu.Entity = undefined;
+pub var default_cube: ecsu.Entity = undefined;
+pub var giant_ant: ecsu.Entity = undefined;
+pub var matball: ecsu.Entity = undefined;
+pub var player: ecsu.Entity = undefined;
+pub var slime: ecsu.Entity = undefined;
 
 pub const arrow_id = ID("prefab_arrow");
 pub const beech_tree_04_id = ID("beech_tree_04");
 pub const bow_id = ID("prefab_bow");
-pub const cube_id = ID("prefab_cube");
-pub const cylinder_id = ID("prefab_cylinder");
-pub const plane_id = ID("prefab_plane");
-pub const debug_sphere_id = ID("prefab_debug_sphere");
+pub const color_calibrator_id = ID("color_calibrator");
 pub const giant_ant_id = ID("prefab_giant_ant");
 pub const matball_id = ID("prefab_matball");
 pub const medium_house_id = ID("prefab_medium_house");
 pub const player_id = ID("prefab_player");
-pub const sphere_id = ID("prefab_sphere");
-pub const color_calibrator_id = ID("color_calibrator");
 pub const skybox_id = ID("prefab_skybox");
+pub const slime_id = ID("prefab_slime");
+
+pub const cube_id = ID("prefab_cube");
+pub const cylinder_id = ID("prefab_cylinder");
+pub const debug_sphere_id = ID("prefab_debug_sphere");
+pub const plane_id = ID("prefab_plane");
+pub const sphere_id = ID("prefab_sphere");
 
 pub const palisade_400x300_a_id = ID("palisade_400x300_a_id");
 pub const palisade_400x300_b_id = ID("palisade_400x300_b_id");
@@ -41,16 +44,17 @@ pub const stacked_stones_id = ID("stacked_stones");
 
 pub const prefabs = [_]IdLocal{
     arrow_id,
-    bow_id,
-    giant_ant_id,
     beech_tree_04_id,
+    bow_id,
+    brazier_1_id,
+    brazier_2_id,
+    giant_ant_id,
     house_3x5_id,
     palisade_400x300_a_id,
     palisade_400x300_b_id,
     palisade_sloped_400x300_a_id,
     palisade_sloped_400x300_b_id,
-    brazier_1_id,
-    brazier_2_id,
+    slime_id,
     stacked_stones_id,
 };
 
@@ -247,6 +251,19 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         sphere.setOverride(fd.Dynamic{});
 
         const lod_group_component = sphere.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
+                lod_group.lods[i].materials.items[0] = default_material_handle;
+            }
+        }
+    }
+
+    {
+        slime = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_sphere", slime_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        slime.setOverride(fd.Dynamic{});
+
+        const lod_group_component = slime.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);

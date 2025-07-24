@@ -41,17 +41,22 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     const capsule_rot_z = zm.quatFromRollPitchYaw(std.math.pi / 2.0, 0, 0);
     zm.storeArr4(&capsule_rot, capsule_rot_z);
 
-    const group_angle = std.crypto.random.float(f32) * std.math.pi * 2;
+    const group_angle = std.crypto.random.float(f32) * std.math.tau;
     const to_spawn = 0 + @divFloor(ctx.stage, 2);
     std.log.info("stage {} to_spawn {}\n", .{ ctx.stage, to_spawn });
     for (0..@intFromFloat(to_spawn)) |i_giant_ant| {
         const individual_angle: f32 = 2 * std.math.pi * @as(f32, @floatFromInt(i_giant_ant)) / to_spawn;
-        var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.giant_ant);
+        var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
         const spawn_pos = [3]f32{
             root_pos.x + (60 + to_spawn * 2) * std.math.sin(group_angle) + (5 + to_spawn * 1) * std.math.sin(individual_angle),
             root_pos.y + 20,
             root_pos.z + (60 + to_spawn * 2) * std.math.cos(group_angle) + (5 + to_spawn * 1) * std.math.cos(individual_angle),
         };
+
+        if (root_pos.x < 0 or root_pos.x >= config.world_size_x or root_pos.z < 0 or root_pos.z >= config.world_size_z) {
+            break;
+        }
+
         ent.set(fd.Position{
             .x = spawn_pos[0],
             .y = spawn_pos[1],
@@ -144,17 +149,15 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
         .curves = &.{},
         .loop_behavior = .loop_no_time_loss,
     };
-    _ = tl_giant_ant_spawn; // autofix
 
     const tli_giant_ant_spawn = config.events.TimelineInstanceData{
         .ent = 0,
         .start_time = 2,
         .timeline = ID("giantAntSpawn"),
     };
-    _ = tli_giant_ant_spawn; // autofix
 
-    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
-    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
+    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
+    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
 
     const tl_particle_trail = config.events.TimelineTemplateData{
         .id = ID("particle_trail"),

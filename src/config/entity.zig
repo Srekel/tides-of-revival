@@ -15,6 +15,7 @@ const graphics = zforge.graphics;
 const DEBUG_CAMERA_ACTIVE = false;
 
 pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer) void {
+
     // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
     // ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██║████╗  ██║██╔════╝
     // ██║     ██║██║  ███╗███████║   ██║   ██║██╔██╗ ██║██║  ███╗
@@ -124,22 +125,12 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     bow_ent.childOf(player_camera_ent);
 
-    // const cylinder_prefab = prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
-    // const village_ent = prefab_mgr.instantiatePrefab(ecsu_world, cylinder_prefab);
-    // village_ent.setName("village_ent");
-    // village_ent.set(fd.Position{ .x = 8000, .y = config.sea_level + 20, .z = 8000 });
-    // village_ent.set(fd.Rotation{});
-    // village_ent.set(fd.Scale.createScalar(100));
-    // village_ent.set(fd.Transform{});
-    // village_ent.set(fd.Dynamic{});
-
     //  ██████╗  ██████╗███████╗ █████╗ ███╗   ██╗
     // ██╔═══██╗██╔════╝██╔════╝██╔══██╗████╗  ██║
     // ██║   ██║██║     █████╗  ███████║██╔██╗ ██║
     // ██║   ██║██║     ██╔══╝  ██╔══██║██║╚██╗██║
     // ╚██████╔╝╚██████╗███████╗██║  ██║██║ ╚████║
     //  ╚═════╝  ╚═════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝
-    //
 
     {
         const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
