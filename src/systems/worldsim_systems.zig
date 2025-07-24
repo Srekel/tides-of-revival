@@ -33,24 +33,12 @@ const SystemUpdateContext = struct {
     },
 };
 
-pub fn registerSystem(world: *ecs.world_t, name: [*:0]const u8, callback: ecs.iter_action_t, update_ctx: anytype, terms: []const ecs.term_t) ecs.entity_t {
-    var system_desc = ecs.system_desc_t{};
-    system_desc.callback = callback;
-    system_desc.ctx = update_ctx;
-    for (terms, 0..) |term, index| {
-        system_desc.query.terms[index] = term;
-    }
-
-    const system_ent = ecs.SYSTEM(world, name, ecs.OnUpdate, &system_desc);
-    return system_ent;
-}
-
 pub fn create(create_ctx: SystemCreateCtx) void {
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{};
 
-    _ = registerSystem(create_ctx.ecsu_world.world, "settlementGrowth", settlementGrowth, update_ctx, &[_]ecs.term_t{
+    _ = ecsu.registerSystem(create_ctx.ecsu_world.world, "settlementGrowth", settlementGrowth, update_ctx, &[_]ecs.term_t{
         .{ .id = ecs.id(fd.Script), .inout = .InOut },
         .{ .id = ecs.id(fd.Settlement), .inout = .In },
         .{ .id = ecs.id(fd.Position), .inout = .In },

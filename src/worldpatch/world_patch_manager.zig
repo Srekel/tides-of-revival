@@ -10,7 +10,7 @@ const debug_server = @import("../network/debug_server.zig");
 
 const DEBUG_LOGGING = false;
 
-const LoD = u4;
+pub const LoD = u4;
 const lod_0_patch_size = config.patch_size;
 const lod_3_patches_side = config.world_size_x / config.largest_patch_width;
 const max_world_size = config.world_size_x;

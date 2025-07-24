@@ -108,7 +108,7 @@ const ObjectLayerPairFilter = extern struct {
 const ContactListener = extern struct {
     usingnamespace zphy.ContactListener.Methods(@This());
     __v: *const zphy.ContactListener.VTable = &vtable,
-    system: *SystemUpdateContext,
+    ctx: *SystemUpdateContext,
 
     const vtable = zphy.ContactListener.VTable{
         .onContactValidate = _onContactValidate,
@@ -141,7 +141,7 @@ const ContactListener = extern struct {
         const ent1 = body1.user_data;
         const ent2 = body2.user_data;
 
-        self.system.state.frame_contacts.append(.{
+        self.ctx.state.frame_contacts.append(.{
             .body_id1 = body1.id,
             .body_id2 = body2.id,
             .ent1 = ent1,
@@ -173,6 +173,7 @@ pub const SystemCreateCtx = struct {
     ecsu_world: ecsu.World,
     event_mgr: *EventManager,
     physics_world: *zphy.PhysicsSystem,
+    physics_world_low: *zphy.PhysicsSystem,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
@@ -183,6 +184,7 @@ const SystemUpdateContext = struct {
     ecsu_world: ecsu.World,
     event_mgr: *EventManager,
     physics_world: *zphy.PhysicsSystem,
+    physics_world_low: *zphy.PhysicsSystem,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     state: struct {
         contact_listener: *ContactListener = undefined,
@@ -190,7 +192,8 @@ const SystemUpdateContext = struct {
         loaders: [1]WorldLoaderData = .{.{}},
         requester_id: world_patch_manager.RequesterId = undefined,
         patches: std.ArrayList(Patch) = undefined,
-        indices: [indices_per_patch]IndexType = undefined,
+        is_low: bool,
+        // indices: [indices_per_patch]IndexType = undefined,
     },
 };
 
@@ -208,16 +211,15 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const object_layer_pair_filter = arena_system_lifetime.create(ObjectLayerPairFilter) catch unreachable;
     object_layer_pair_filter.* = .{};
 
-    create_ctx.physics_world.setGravity(.{ 0, -10.0, 0 });
-
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("physics")),
-        .patches = std.ArrayList(Patch).initCapacity(heap_allocator, 16 * 16) catch unreachable,
-        .indices = undefined,
+        .patches = std.ArrayList(Patch).initCapacity(arena_system_lifetime, 16 * 16) catch unreachable,
+        // .indices = undefined,
         .contact_listener = undefined,
-        .frame_contacts = std.ArrayList(config.events.CollisionContact).initCapacity(heap_allocator, 8192) catch unreachable,
+        .frame_contacts = std.ArrayList(config.events.CollisionContact).initCapacity(arena_system_lifetime, 8192) catch unreachable,
+        .is_low = false,
     };
 
     {
@@ -291,64 +293,118 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     }
 
     const contact_listener = arena_system_lifetime.create(ContactListener) catch unreachable;
-    contact_listener.* = .{ .system = update_ctx };
+    contact_listener.* = .{ .ctx = update_ctx };
     create_ctx.physics_world.setContactListener(contact_listener);
     update_ctx.state.contact_listener = contact_listener;
+
+    // Low physics
+    const update_ctx_low = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
+    update_ctx_low.* = SystemUpdateContext.view(create_ctx);
+    update_ctx_low.*.state = .{
+        .requester_id = world_patch_mgr.registerRequester(IdLocal.init("physics_low")),
+        .patches = std.ArrayList(Patch).initCapacity(heap_allocator, 16 * 16) catch unreachable,
+        .is_low = true,
+    };
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updatePhysicsWorld;
+        system_desc.ctx = update_ctx_low;
+        system_desc.ctx_free = destroy;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updatePhysicsWorldLow",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateLoaders;
+        system_desc.ctx = update_ctx_low;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.WorldLoader), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateLoadersLow",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updatePatches;
+        system_desc.ctx = update_ctx_low;
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updatePatchesLow",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 }
 
-pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
-    const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+pub fn destroy(ctx_opaque: ?*anyopaque) callconv(.C) void {
+    const ctx: *SystemUpdateContext = @ptrCast(@alignCast(ctx_opaque));
 
-    const query = ecs.query_init(system.ecsu_world.world, &.{
+    const query = ecs.query_init(ctx.ecsu_world.world, &.{
         .terms = [_]ecs.term_t{
             .{ .id = ecs.id(fd.PhysicsBody), .inout = .InOut },
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
     }) catch unreachable;
 
-    var query_iter = ecs.query_iter(system.ecsu_world.world, query);
+    var query_iter = ecs.query_iter(ctx.ecsu_world.world, query);
     while (ecs.query_next(&query_iter)) {
         const bodies = ecs.field(&query_iter, fd.PhysicsBody, 0).?;
-        for (bodies) |body_comp| {
+        for (bodies) |*body_comp| {
             if (body_comp.shape_opt) |shape| {
                 shape.release();
+                body_comp.shape_opt = null;
             }
         }
     }
 
-    for (system.state.patches.items) |patch| {
+    for (ctx.state.patches.items) |*patch| {
         if (patch.shape_opt) |shape| {
             shape.release();
+            patch.shape_opt = null;
         }
     }
-    system.state.patches.deinit();
-    system.state.frame_contacts.deinit();
 }
 
 const physics_skip_frame_rate = 1;
 var physics_skip_frame_counter: u32 = 1;
 fn updatePhysicsWorld(it: *ecs.iter_t) callconv(.C) void {
-    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     physics_skip_frame_counter += 1;
     if (physics_skip_frame_counter % physics_skip_frame_rate == 0) {
-        _ = system.physics_world.update(it.delta_time, .{}) catch unreachable;
+        if (ctx.state.is_low) {
+            _ = ctx.physics_world_low.update(it.delta_time, .{}) catch unreachable;
+        } else {
+            _ = ctx.physics_world.update(it.delta_time, .{}) catch unreachable;
+        }
     }
 }
 
 fn updateCollisions(it: *ecs.iter_t) callconv(.C) void {
-    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
-    if (system.state.frame_contacts.items.len == 0) {
+    const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    if (ctx.state.frame_contacts.items.len == 0) {
         return;
     }
 
     const frame_collisions_data = config.events.FrameCollisionsData{
-        .contacts = system.state.frame_contacts.items,
+        .contacts = ctx.state.frame_contacts.items,
     };
-    system.event_mgr.triggerEvent(config.events.frame_collisions_id, &frame_collisions_data);
-    system.state.frame_contacts.clearRetainingCapacity();
+    ctx.event_mgr.triggerEvent(config.events.frame_collisions_id, &frame_collisions_data);
+    ctx.state.frame_contacts.clearRetainingCapacity();
 }
 
 fn updateBodies(it: *ecs.iter_t) callconv(.C) void {
-    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const bodies = ecs.field(it, fd.PhysicsBody, 0).?;
     const positions = ecs.field(it, fd.Position, 1).?;
@@ -357,7 +413,7 @@ fn updateBodies(it: *ecs.iter_t) callconv(.C) void {
     const handedness_offset = std.math.pi;
     const up_world_z = zm.f32x4(0.0, 1.0, 0.0, 1.0);
     const jolt_rot_z = zm.quatFromAxisAngle(up_world_z, handedness_offset);
-    const body_interface = system.physics_world.getBodyInterfaceMut();
+    const body_interface = ctx.physics_world.getBodyInterfaceMut();
     for (bodies, positions, rotations) |body, *pos, *rot| {
         const body_id = body.body_id;
         if (!body_interface.isAdded(body_id)) {
@@ -377,13 +433,14 @@ fn updateBodies(it: *ecs.iter_t) callconv(.C) void {
 }
 
 fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
-    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const world_loaders = ecs.field(it, fd.WorldLoader, 0).?;
     const transforms = ecs.field(it, fd.Transform, 1).?;
 
-    const body_interface = system.physics_world.getBodyInterfaceMut();
-    var arena_state = std.heap.ArenaAllocator.init(system.arena_system_update);
+    const physics_world = if (ctx.state.is_low) ctx.physics_world_low else ctx.physics_world;
+    const body_interface = physics_world.getBodyInterfaceMut();
+    var arena_state = std.heap.ArenaAllocator.init(ctx.arena_system_update);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
@@ -393,44 +450,47 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
         }
 
         var loader = blk: {
-            for (&system.state.loaders) |*loader| {
+            for (&ctx.state.loaders) |*loader| {
                 if (loader.ent == ent) {
                     break :blk loader;
                 }
             }
 
             // HACK
-            system.state.loaders[0].ent = ent;
-            break :blk &system.state.loaders[0];
+            ctx.state.loaders[0].ent = ent;
+            break :blk &ctx.state.loaders[0];
 
             // unreachable;
         };
 
         const pos_new = transform.getPos00();
-        if (tides_math.dist3_xz(pos_new, loader.pos_old) < 32) {
+        const trigger_dist: f32 = if (ctx.state.is_low) 256 else 32;
+        if (tides_math.dist3_xz(pos_new, loader.pos_old) < trigger_dist) {
             continue;
         }
 
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
 
+        const area_width: f32 = if (ctx.state.is_low) (4 * 1024) else 512;
         const area_old = world_patch_manager.RequestRectangle{
-            .x = loader.pos_old[0] - 256,
-            .z = loader.pos_old[2] - 256,
-            .width = 512,
-            .height = 512,
+            .x = loader.pos_old[0] - area_width / 2,
+            .z = loader.pos_old[2] - area_width / 2,
+            .width = area_width,
+            .height = area_width,
         };
 
         const area_new = world_patch_manager.RequestRectangle{
-            .x = pos_new[0] - 256,
-            .z = pos_new[2] - 256,
-            .width = 512,
-            .height = 512,
+            .x = pos_new[0] - area_width / 2,
+            .z = pos_new[2] - area_width / 2,
+            .width = area_width,
+            .height = area_width,
         };
 
-        const patch_type_id = system.world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_old, 0, &lookups_old);
-        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_new, 0, &lookups_new);
+        const patch_lod: world_patch_manager.LoD = if (ctx.state.is_low) 3 else 0;
+        const patch_type_id = ctx.world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_old, patch_lod, &lookups_old);
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_new, patch_lod, &lookups_new);
 
         var i_old: u32 = 0;
         blk: while (i_old < lookups_old.items.len) {
@@ -448,27 +508,27 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
 
         // HACK
         if (loader.pos_old[0] != -100000) {
-            system.world_patch_mgr.removeLoadRequestFromLookups(system.state.requester_id, lookups_old.items);
+            ctx.world_patch_mgr.removeLoadRequestFromLookups(ctx.state.requester_id, lookups_old.items);
 
             for (lookups_old.items) |lookup| {
-                for (system.state.patches.items, 0..) |*patch, i| {
+                for (ctx.state.patches.items, 0..) |*patch, i| {
                     if (patch.lookup.eql(lookup)) {
                         if (patch.body_opt != null) {
                             body_interface.removeAndDestroyBody(patch.body_opt.?);
                             patch.shape_opt.?.release();
                         }
 
-                        _ = system.state.patches.swapRemove(i);
+                        _ = ctx.state.patches.swapRemove(i);
                         break;
                     }
                 }
             }
         }
 
-        system.world_patch_mgr.addLoadRequestFromLookups(system.state.requester_id, lookups_new.items, .high);
+        ctx.world_patch_mgr.addLoadRequestFromLookups(ctx.state.requester_id, lookups_new.items, .high);
 
         for (lookups_new.items) |lookup| {
-            system.state.patches.appendAssumeCapacity(.{
+            ctx.state.patches.appendAssumeCapacity(.{
                 .lookup = lookup,
             });
         }
@@ -478,81 +538,18 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
 }
 
 fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
-    const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
-    for (system.state.patches.items) |*patch| {
+    const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    for (ctx.state.patches.items) |*patch| {
         if (patch.body_opt) |body| {
             _ = body;
             continue;
         }
 
-        const patch_info = system.world_patch_mgr.tryGetPatch(patch.lookup, patch_types.Heightmap);
+        const patch_info = ctx.world_patch_mgr.tryGetPatch(patch.lookup, patch_types.Heightmap);
         if (patch_info.data_opt) |data| {
-            // _ = data;
-
             const world_pos = patch.lookup.getWorldPos();
-            // var vertices: [config.patch_resolution * config.patch_resolution][3]f32 = undefined;
-            // var z: u32 = 0;
-            // while (z < config.patch_resolution) : (z += 1) {
-            //     var x: u32 = 0;
-            //     while (x < config.patch_resolution) : (x += 1) {
-            //         const index = @intCast(u32, x + z * config.patch_resolution);
-            //         const height = data[index];
 
-            //         vertices[index][0] = @floatFromInt(f32, x);
-            //         vertices[index][1] = height;
-            //         vertices[index][2] = @floatFromInt(f32, z);
-            //     }
-            // }
-
-            // var indices = &system.indices;
-            // // var indices: [indices_per_patch]IndexType = undefined;
-
-            // // TODO: Optimize, don't do it for every frame!
-            // var i: u32 = 0;
-            // z = 0;
-            // const width = @intCast(u32, config.patch_resolution);
-            // const height = @intCast(u32, config.patch_resolution);
-            // while (z < height - 1) : (z += 1) {
-            //     var x: u32 = 0;
-            //     while (x < width - 1) : (x += 1) {
-            //         const indices_quad = [_]u32{
-            //             x + z * width, //           0
-            //             x + (z + 1) * width, //     4
-            //             x + 1 + z * width, //       1
-            //             x + 1 + (z + 1) * width, // 5
-            //         };
-
-            //         indices[i + 0] = indices_quad[0]; // 0
-            //         indices[i + 1] = indices_quad[1]; // 4
-            //         indices[i + 2] = indices_quad[2]; // 1
-
-            //         indices[i + 3] = indices_quad[2]; // 1
-            //         indices[i + 4] = indices_quad[1]; // 4
-            //         indices[i + 5] = indices_quad[3]; // 5
-
-            //         // std.debug.print("quad: {any}\n", .{indices_quad});
-            //         // std.debug.print("indices: {any}\n", .{patch_indices[i .. i + 6]});
-            //         // std.debug.print("tri: {any} {any} {any}\n", .{
-            //         //     patch_vertex_positions[patch_indices[i + 0]],
-            //         //     patch_vertex_positions[patch_indices[i + 1]],
-            //         //     patch_vertex_positions[patch_indices[i + 2]],
-            //         // });
-            //         // std.debug.print("tri: {any} {any} {any}\n", .{
-            //         //     patch_vertex_positions[patch_indices[i + 3]],
-            //         //     patch_vertex_positions[patch_indices[i + 4]],
-            //         //     patch_vertex_positions[patch_indices[i + 5]],
-            //         // });
-            //         i += 6;
-            //     }
-            // }
-            // std.debug.assert(i == indices_per_patch);
-            // std.debug.assert(i == indices_per_patch);
-            // std.debug.assert(i == indices_per_patch);
-            // std.debug.assert(i == indices_per_patch);
-
-            // std.debug.assert(patch_indices.len == indices_per_patch);
-
-            //  TODO: Use mesh
+            //  TODO: Use mesh (why though?)
             const height_field_size = config.patch_size;
             var samples: [height_field_size * height_field_size]f32 = undefined;
 
@@ -563,13 +560,8 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
                     const height = data.heightmap[index];
                     const sample = &samples[x + z * width];
                     sample.* = height;
-                    // sample.* = data[0] + @floatFromInt(f32, x + z) * 0.1;
                 }
             }
-            // while (z < height - 1) : (z += 1) {
-            //     var x: u32 = 0;
-            //     while (x < width - 1) : (x += 1) {}
-            // }
 
             const scale: f32 = 65.0 / 64.0;
             var shape_settings = zphy.HeightFieldShapeSettings.create(&samples, height_field_size) catch unreachable;
@@ -577,7 +569,8 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
             defer shape_settings.release();
             const shape = shape_settings.createShape() catch unreachable;
 
-            const body_interface = system.physics_world.getBodyInterfaceMut();
+            const physics_world = if (ctx.state.is_low) ctx.physics_world_low else ctx.physics_world;
+            const body_interface = physics_world.getBodyInterfaceMut();
             const body_id = body_interface.createAndAddBody(.{
                 .position = .{ @as(f32, @floatFromInt(world_pos.world_x)), 0, @as(f32, @floatFromInt(world_pos.world_z)), 1.0 },
                 .rotation = .{ 0.0, 0.0, 0.0, 1.0 },
@@ -587,76 +580,9 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
                 .user_data = 0,
             }, .activate) catch unreachable;
 
-            system.physics_world.optimizeBroadPhase();
+            physics_world.optimizeBroadPhase();
 
-            // const query = system.physics_world.getNarrowPhaseQuery();
-            // for (0..width) |z| {
-            //     for (0..width) |x| {
-            //         const ray_origin = [_]f32{
-            //             @floatFromInt(f32, world_pos.world_x + x),
-            //             1000,
-            //             @floatFromInt(f32, world_pos.world_z + z),
-            //             0,
-            //         };
-            //         const ray_dir = [_]f32{ 0, -1000, 0, 0 };
-            //         var result = query.castRay(.{
-            //             .origin = ray_origin,
-            //             .direction = ray_dir,
-            //         }, .{});
-
-            //         if (result.has_hit) {
-            //             const post_pos = fd.Position.init(
-            //                 ray_origin[0] + ray_dir[0] * result.hit.fraction,
-            //                 ray_origin[1] + ray_dir[1] * result.hit.fraction,
-            //                 ray_origin[2] + ray_dir[2] * result.hit.fraction,
-            //             );
-            //             _ = post_pos;
-            //             const post_pos2 = fd.Position.init(
-            //                 @floatFromInt(f32, world_pos.world_x + x),
-            //                 data[x + z * config.patch_resolution],
-            //                 @floatFromInt(f32, world_pos.world_z + z),
-            //             );
-            //             var post_transform = fd.Transform.initFromPosition(post_pos2);
-            //             post_transform.setScale([_]f32{ 0.2, 0.2, 0.2 });
-
-            //             const post_ent = system.ecsu_world.newEntity();
-            //             post_ent.set(post_pos2);
-            //             post_ent.set(fd.Rotation{});
-            //             post_ent.set(fd.Scale.create(0.2, 0.2, 0.2));
-            //             post_ent.set(post_transform);
-            //         }
-            //     }
-            // }
-            // const trimesh = zbt.initTriangleMeshShape();
-            // trimesh.addIndexVertexArray(
-            //     @intCast(u32, indices_per_patch / 3),
-            //     &system.indices,
-            //     @sizeOf([3]u32),
-            //     @intCast(u32, vertices[0..].len),
-            //     &vertices[0],
-            //     @sizeOf([3]f32),
-            // );
-            // trimesh.finish();
-
-            // const shape = trimesh.asShape();
             patch.shape_opt = shape;
-
-            // const transform = [_]f32{
-            //     1.0,                                 0.0, 0.0,
-            //     0.0,                                 1.0, 0.0,
-            //     0.0,                                 0.0, 1.0,
-            //     @floatFromInt(f32, world_pos.world_x), 0,   @floatFromInt(f32, world_pos.world_z),
-            // };
-
-            // const body = zbt.initBody(
-            //     0,
-            //     &transform,
-            //     patch.shape_opt.?,
-            // );
-
-            // body.setDamping(0.1, 0.1);
-            // body.setRestitution(0.5);
-            // body.setFriction(0.2);
             patch.body_opt = body_id;
         }
     }

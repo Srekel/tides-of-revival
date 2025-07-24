@@ -106,6 +106,7 @@ const ObjectLayerPairFilter = extern struct {
 const PhysicsManager = struct {
     heap_allocator: std.mem.Allocator,
     physics_world: *zphy.PhysicsSystem,
+    physics_world_low: *zphy.PhysicsSystem,
 };
 
 pub fn create(arena_lifetime: std.mem.Allocator, heap_allocator: std.mem.Allocator) PhysicsManager {
@@ -133,13 +134,29 @@ pub fn create(arena_lifetime: std.mem.Allocator, heap_allocator: std.mem.Allocat
 
     physics_world.setGravity(.{ 0, -10.0, 0 });
 
+    const physics_world_low = zphy.PhysicsSystem.create(
+        @as(*const zphy.BroadPhaseLayerInterface, @ptrCast(broad_phase_layer_interface)),
+        @as(*const zphy.ObjectVsBroadPhaseLayerFilter, @ptrCast(object_vs_broad_phase_layer_filter)),
+        @as(*const zphy.ObjectLayerPairFilter, @ptrCast(object_layer_pair_filter)),
+        .{
+            .max_bodies = 16 * 1024,
+            .num_body_mutexes = 0,
+            .max_body_pairs = 16 * 1024,
+            .max_contact_constraints = 16 * 1024,
+        },
+    ) catch unreachable;
+
+    physics_world_low.setGravity(.{ 0, -10.0, 0 });
+
     return .{
         .heap_allocator = heap_allocator,
         .physics_world = physics_world,
+        .physics_world_low = physics_world_low,
     };
 }
 
 pub fn destroy(physics_mgr: *PhysicsManager) void {
+    physics_mgr.physics_world_low.destroy();
     physics_mgr.physics_world.destroy();
     zphy.deinit();
 }

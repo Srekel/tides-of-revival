@@ -14,6 +14,18 @@ pub const columnNonQuery = @import("utils.zig").columnNonQuery;
 pub const componentCast = @import("utils.zig").componentCast;
 pub const meta = @import("meta.zig");
 
+pub fn registerSystem(world: *ecs.world_t, name: [*:0]const u8, callback: ecs.iter_action_t, update_ctx: anytype, terms: []const ecs.term_t) ecs.entity_t {
+    var system_desc = ecs.system_desc_t{};
+    system_desc.callback = callback;
+    system_desc.ctx = update_ctx;
+    for (terms, 0..) |term, index| {
+        system_desc.query.terms[index] = term;
+    }
+
+    const system_ent = ecs.SYSTEM(world, name, ecs.OnUpdate, &system_desc);
+    return system_ent;
+}
+
 // pub const ECS_HI_COMPONENT_ID = 256;
 
 // NOTE(Anders): This folder is essentially a copy of prime31's original bindings with various
