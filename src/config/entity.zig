@@ -144,7 +144,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
             for (0..ocean_tiles_x) |x| {
                 const ocean_plane_position = fd.Position.init(
                     @as(f32, @floatFromInt(x)) * ocean_plane_scale + ocean_plane_scale * 0.5,
-                    config.sea_level,
+                    config.ocean_level,
                     @as(f32, @floatFromInt(z)) * ocean_plane_scale + ocean_plane_scale * 0.5,
                 );
                 var ocean_plane_ent = ecsu_world.newEntity();

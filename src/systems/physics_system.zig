@@ -193,7 +193,6 @@ const SystemUpdateContext = struct {
         requester_id: world_patch_manager.RequesterId = undefined,
         patches: std.ArrayList(Patch) = undefined,
         is_low: bool,
-        // indices: [indices_per_patch]IndexType = undefined,
     },
 };
 
@@ -216,7 +215,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     update_ctx.*.state = .{
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("physics")),
         .patches = std.ArrayList(Patch).initCapacity(arena_system_lifetime, 16 * 16) catch unreachable,
-        // .indices = undefined,
         .contact_listener = undefined,
         .frame_contacts = std.ArrayList(config.events.CollisionContact).initCapacity(arena_system_lifetime, 8192) catch unreachable,
         .is_low = false,
@@ -487,7 +485,7 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
             .height = area_width,
         };
 
-        const patch_lod: world_patch_manager.LoD = if (ctx.state.is_low) 3 else 0;
+        const patch_lod: world_patch_manager.LoD = if (ctx.state.is_low) config.lowest_lod else 0;
         const patch_type_id = ctx.world_patch_mgr.getPatchTypeId(IdLocal.init("heightmap"));
         world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_old, patch_lod, &lookups_old);
         world_patch_manager.WorldPatchManager.getLookupsFromRectangle(patch_type_id, area_new, patch_lod, &lookups_new);

@@ -28,15 +28,22 @@ pub const ROLL_Z = FORWARD_Z;
 pub const km_size = 1024;
 pub const world_size_x = 16 * km_size;
 pub const world_size_z = 16 * km_size;
-pub const sea_level = 50.0;
 pub const patch_size = 64; // 2^6 m
-pub const largest_patch_width = 512;
-pub const patch_resolution = 65;
+pub const patch_size_by_lods = .{
+    patch_size * 1, // lod0: 64
+    patch_size * 2, // lod1: 128
+    patch_size * 4, // lod2: 256
+    patch_size * 8, // lod3: 512
+};
+pub const lowest_lod = 3;
+pub const largest_patch_width = patch_size_by_lods[lowest_lod];
+pub const patch_resolution = patch_size + 1; // 65
 pub const patch_samples = patch_resolution * patch_resolution;
 pub const noise_scale_xz = 1.0 / 2.0;
 pub const noise_scale_y = terrain_span;
 pub const noise_offset_y = 0.0;
 
+pub const ocean_level = 50.0;
 pub const terrain_height_ocean_floor = 0;
 pub const terrain_height_mountain_top = 1000;
 pub const terrain_min = terrain_height_ocean_floor;

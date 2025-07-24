@@ -240,7 +240,7 @@ fn debugServerHandle(data: []const u8, allocator: std.mem.Allocator, ctx: *anyop
         // _ = patch_handle;
         const patch: *Patch = world_patch_mgr.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
         if (patch.lookup.patch_type_id == 0) {
-            const patch_stride = 8 * std.math.pow(u32, 2, 3 - patch.lookup.lod);
+            const patch_stride = 8 * std.math.pow(u32, 2, config.lowest_lod - patch.lookup.lod);
             lods[patch.lookup.lod][patch.patch_x + patch.patch_z * patch_stride] = if (patch.status == .loaded) 2 else 1;
             lods_loaded[patch.lookup.lod] += if (patch.status == .loaded) 1 else 0;
             lods_queued[patch.lookup.lod] += if (patch.status == .not_loaded) 1 else 0;
@@ -349,7 +349,7 @@ pub const WorldPatchManager = struct {
     pub fn getLookupsFromRectangle(patch_type_id: PatchTypeId, area: RequestRectangle, lod: LoD, out_lookups: *std.ArrayList(PatchLookup)) void {
 
         // NOTE(Anders) HACK!
-        const patch_lod_end = lod_3_patches_side * std.math.pow(u16, 2, 3 - lod);
+        const patch_lod_end = lod_3_patches_side * std.math.pow(u16, 2, config.lowest_lod - lod);
 
         const world_stride = lod_0_patch_size * std.math.pow(f32, 2.0, @as(f32, @floatFromInt(lod)));
         const patch_x_begin_i = @as(i32, @intFromFloat(@divFloor(area.x, world_stride)));
