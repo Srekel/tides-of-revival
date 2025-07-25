@@ -561,7 +561,8 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
                 }
             }
 
-            const scale: f32 = 65.0 / 64.0;
+            const lod_scale: f32 = if (ctx.state.is_low) config.largest_patch_width else config.patch_size;
+            const scale: f32 = (lod_scale + 1) / 64.0;
             var shape_settings = zphy.HeightFieldShapeSettings.create(&samples, height_field_size) catch unreachable;
             shape_settings.setScale(.{ scale, 1, scale });
             defer shape_settings.release();

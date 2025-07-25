@@ -38,6 +38,7 @@ pub const StateContext = struct {
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
+    physics_world_low: *zphy.PhysicsSystem,
 };
 
 pub fn create(create_ctx: StateContext) void {
@@ -78,24 +79,36 @@ fn updateMovement(pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: zm
 
 fn updateSnapToTerrain(
     physics_world: *zphy.PhysicsSystem,
+    physics_world_low: *zphy.PhysicsSystem,
     pos: *fd.Position,
     body: *fd.PhysicsBody,
     player_pos: *const fd.Position,
 ) void {
-    const query = physics_world.getNarrowPhaseQuery();
-
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
     const ray = zphy.RRayCast{
         .origin = ray_origin,
         .direction = ray_dir,
     };
-    const result = query.castRay(
+
+    var ray_physics_world = physics_world;
+    var query = physics_world.getNarrowPhaseQuery();
+    var result = query.castRay(
         ray,
         .{
             .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
         },
     );
+    if (!result.has_hit) {
+        ray_physics_world = physics_world_low;
+        query = physics_world_low.getNarrowPhaseQuery();
+        result = query.castRay(
+            ray,
+            .{
+                .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
+            },
+        );
+    }
 
     if (result.has_hit) {
         pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction + 0.1;
@@ -109,7 +122,7 @@ fn updateSnapToTerrain(
         defer read_lock_self.unlock();
         const body_self = read_lock_self.body.?;
 
-        const bodies = physics_world.getBodiesUnsafe();
+        const bodies = ray_physics_world.getBodiesUnsafe();
         const body_hit = zphy.tryGetBody(bodies, result.hit.body_id).?;
         const rot_slope_z = blk: {
             const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
@@ -178,7 +191,7 @@ fn fsm_enemy_idle(it: *ecs.iter_t) callconv(.C) void {
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
             updateMovement(pos, rot, fwd, zm.f32x4s(it.delta_time), player_pos);
             // updateSnapToTerrain(ctx.physics_world, pos, body, player_pos, ctx.gfx);
-            updateSnapToTerrain(ctx.physics_world, pos, body, player_pos);
+            updateSnapToTerrain(ctx.physics_world, ctx.physics_world_low, pos, body, player_pos);
         }
     }
 }
