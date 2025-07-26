@@ -64,20 +64,6 @@ pub const ShadowsUniformFrameData = struct {
     projection_view: [16]f32,
 };
 
-const NormalInfo = struct {
-    heightmap_handle: renderer.TextureHandle,
-    normalmap_handle: renderer.TextureHandle,
-    texture_resolution: u32,
-    lod: u32,
-};
-
-const NormalFromHeightRootConstants = struct {
-    heightmap_index: u32,
-    normalmap_index: u32,
-    texture_resolution: u32,
-    lod: u32,
-};
-
 pub const TerrainRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
@@ -102,7 +88,6 @@ pub const TerrainRenderPass = struct {
     terrain_lod_meshes: std.ArrayList(renderer.MeshHandle),
     quads_to_render: std.ArrayList(u32),
     quads_to_load: std.ArrayList(u32),
-    normals_to_generate: std.ArrayList(NormalInfo),
 
     heightmap_patch_type_id: world_patch_manager.PatchTypeId,
 
@@ -125,7 +110,6 @@ pub const TerrainRenderPass = struct {
         self.terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(self.allocator, max_quad_tree_nodes) catch unreachable;
         self.quads_to_render = std.ArrayList(u32).init(self.allocator);
         self.quads_to_load = std.ArrayList(u32).init(self.allocator);
-        self.normals_to_generate = std.ArrayList(NormalInfo).init(self.allocator);
 
         // Create initial sectors
         {
@@ -146,7 +130,6 @@ pub const TerrainRenderPass = struct {
                         .bounding_sphere_center = undefined,
                         .bounding_sphere_radius = 0.0,
                         .heightmap_handle = renderer.TextureHandle.nil,
-                        .normalmap_handle = renderer.TextureHandle.nil,
                     });
                 }
             }
@@ -230,7 +213,6 @@ pub const TerrainRenderPass = struct {
         self.terrain_quad_tree_nodes.deinit();
         self.quads_to_render.deinit();
         self.quads_to_load.deinit();
-        self.normals_to_generate.deinit();
         self.allocator.destroy(self.instance_data);
     }
 
@@ -385,44 +367,6 @@ pub const TerrainRenderPass = struct {
             ) catch unreachable;
 
             node.heightmap_handle = self.renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
-
-            if (node.normalmap_handle.id != renderer.TextureHandle.nil.id) {
-                return;
-            }
-
-            // Create normal map for this node's heightmap
-            {
-                var desc = std.mem.zeroes(graphics.TextureDesc);
-                desc.mWidth = 65;
-                desc.mHeight = 65;
-                desc.mDepth = 1;
-                desc.mArraySize = 1;
-                desc.mMipLevels = 1;
-                desc.mFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
-                desc.mStartState = graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS;
-                desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
-                desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-                desc.bBindless = true;
-
-                var normal_namebuf: [256]u8 = undefined;
-                const normal_debug_name = std.fmt.bufPrintZ(
-                    normal_namebuf[0..normal_namebuf.len],
-                    "lod{d}/normalmap_x{d}_z{d}",
-                    .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
-                ) catch unreachable;
-
-                desc.pName = normal_debug_name;
-                node.normalmap_handle = self.renderer.createTexture(desc);
-            }
-
-            const normal_info = NormalInfo{
-                .heightmap_handle = node.heightmap_handle,
-                .normalmap_handle = node.normalmap_handle,
-                .texture_resolution = 65,
-                .lod = node.mesh_lod,
-            };
-
-            self.normals_to_generate.append(normal_info) catch unreachable;
         }
     }
 };
@@ -505,42 +449,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    if (self.normals_to_generate.items.len > 0) {
-        const trazy_zone_2 = ztracy.ZoneNC(@src(), "generate normals", 0x00_ff_ff_00);
-        defer trazy_zone_2.End();
-        const pipeline_id = IdLocal.init("normal_from_height");
-        const pipeline = self.renderer.getPSO(pipeline_id);
-        const root_signature = self.renderer.getRootSignature(pipeline_id);
-        const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-        std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-        graphics.cmdBindPipeline(cmd_list, pipeline);
-
-        for (self.normals_to_generate.items) |normals_info| {
-            const heightmap_texture_index = self.renderer.getTextureBindlessIndex(normals_info.heightmap_handle);
-            const normalmap_texture_index = self.renderer.getTextureBindlessIndex(normals_info.normalmap_handle);
-            const push_constants = NormalFromHeightRootConstants{
-                .heightmap_index = heightmap_texture_index,
-                .normalmap_index = normalmap_texture_index,
-                .texture_resolution = normals_info.texture_resolution,
-                .lod = normals_info.lod,
-            };
-
-            graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
-            // 9 == 65 / 8 + 1
-            graphics.cmdDispatch(cmd_list, 9, 9, 1);
-
-            const normalmap_texture = self.renderer.getTexture(normals_info.normalmap_handle);
-            const output_barrier = [_]graphics.TextureBarrier{
-                graphics.TextureBarrier.init(normalmap_texture, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-            };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, output_barrier.len, @constCast(&output_barrier), 0, null);
-        }
-    }
-
     // Reset transforms, materials and draw calls array list
     self.quads_to_render.clearRetainingCapacity();
     self.quads_to_load.clearRetainingCapacity();
-    self.normals_to_generate.clearRetainingCapacity();
 
     {
         const trazy_zone_2 = ztracy.ZoneNC(@src(), "collectQuadsToRenderForSector", 0x00_ff_ff_00);
@@ -591,10 +502,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
                 // TODO: Generate from quad.patch_index
                 self.instance_data[instance_index].heightmap_index = self.renderer.getTextureBindlessIndex(quad.heightmap_handle);
-                self.instance_data[instance_index].normalmap_index = self.renderer.getTextureBindlessIndex(quad.normalmap_handle);
 
                 self.instance_data[instance_index].lod = quad.mesh_lod;
-                self.instance_data[instance_index].padding1 = 42;
+                self.instance_data[instance_index].padding1 = [2]u32{ 42, 42 };
             }
 
             self.frame_instance_count += 1;
@@ -877,9 +787,8 @@ const QuadTreeNode = struct {
     // Bounding Sphere
     bounding_sphere_center: [3]f32,
     bounding_sphere_radius: f32,
-    // TODO(gmodarelli): Do not store these here when we implement streaming
+    // TODO(gmodarelli): Do not store this here when we implement streaming
     heightmap_handle: renderer.TextureHandle,
-    normalmap_handle: renderer.TextureHandle,
 
     pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
         return (point[0] > (self.center[0] - self.size[0]) and
@@ -980,7 +889,6 @@ fn divideQuadTreeNode(
             .bounding_sphere_center = undefined,
             .bounding_sphere_radius = 0.0,
             .heightmap_handle = renderer.TextureHandle.nil,
-            .normalmap_handle = renderer.TextureHandle.nil,
         };
 
         node.child_indices[child_index] = @as(u32, @intCast(nodes.items.len));

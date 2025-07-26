@@ -168,10 +168,7 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
 
     const float3 P = Input.PositionWS.xyz;
     const float3 V = normalize(g_cam_pos.xyz - P);
-
-    Texture2D normalmap = ResourceDescriptorHeap[NonUniformResourceIndex(instance.normalmapTextureIndex)];
-    float3 N = normalize(normalmap.SampleLevel(g_linear_repeat_sampler, Input.UV, 0).rgb * 2.0 - 1.0);
-    N = mul((float3x3)instance.worldMat, N);
+    float3 N = normalize(Input.NormalWS);
 
     // Reduce reflection at grazing angles
     float fresnel = pow5(saturate(1.0f - dot(N, V)));

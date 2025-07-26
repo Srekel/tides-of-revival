@@ -20,9 +20,8 @@ struct TerrainInstanceData
 {
 	float4x4 worldMat;
 	uint heightmapTextureIndex;
-	uint normalmapTextureIndex;
 	uint lod;
-	uint _padding1;
+	uint2 _padding1;
 };
 
 struct GBufferOutput
@@ -110,7 +109,7 @@ struct ShadowVSOutput
 {
 	float4 Position : SV_Position;
 	float2 UV : TEXCOORD0;
-    float2 UV1 : TEXCOORD1;
+	float2 UV1 : TEXCOORD1;
 	uint InstanceID : SV_InstanceID;
 };
 
@@ -127,6 +126,7 @@ struct TerrainVSOutput
 {
 	float4 Position : SV_Position;
 	float3 PositionWS : POSITION;
+	float3 NormalWS : NORMAL;
 	float2 UV : TEXCOORD0;
 	uint InstanceID : SV_InstanceID;
 };

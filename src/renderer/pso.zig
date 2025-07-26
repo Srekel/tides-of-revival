@@ -243,12 +243,6 @@ pub const PSOManager = struct {
             }
         }
 
-        // Normal map from height map
-        {
-            var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
-            self.createComputePipeline(IdLocal.init("normal_from_height"), "normal_from_height.comp", &sampler_ids);
-        }
-
         // SSAO
         {
             var sampler_ids = [_]IdLocal{};

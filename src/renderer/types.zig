@@ -18,7 +18,6 @@ pub const InstanceRootConstants = struct {
 pub const TerrainInstanceData = struct {
     object_to_world: [16]f32,
     heightmap_index: u32,
-    normalmap_index: u32,
     lod: u32,
-    padding1: u32,
+    padding1: [2]u32,
 };
