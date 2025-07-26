@@ -485,7 +485,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
 
-                if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
+                if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
                 } else {
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
@@ -543,7 +543,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
 
-                if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
+                if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
                 } else {
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
