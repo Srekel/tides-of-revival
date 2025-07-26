@@ -5,7 +5,7 @@ float3 ReconstructNormal(float4 sampleNormal, float intensity)
 {
 	float3 tangentNormal;
 	tangentNormal.xy = (sampleNormal.rg * 2.0f - 1.0f) * intensity;
-	tangentNormal.z = sqrt(1.0f - saturate(dot(tangentNormal.xy, tangentNormal.xy)));
+	tangentNormal.z = sqrt(saturate(1.0f - dot(tangentNormal.xy, tangentNormal.xy)));
 	return tangentNormal;
 }
 

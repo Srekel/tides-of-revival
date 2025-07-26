@@ -32,6 +32,23 @@ struct GBufferOutput
 	float4 GBuffer2 : SV_TARGET2;
 };
 
+struct PointLight
+{
+	float4 positionAndRadius;
+	float4 colorAndIntensity;
+};
+
+struct DirectionalLight
+{
+	float4 directionAndShadowMap;
+	float4 colorAndIntensity;
+	float shadowRange;
+	float _pad0;
+	float _pad1;
+	int shadowMapDimensions;
+	float4x4 viewProj;
+};
+
 // NOTE: We will get rid of these once we stop using InputLayouts for our PSOs.
 // We currently depend on The-Forge asset pipeline which makes use of InputLayouts
 // when loading a mesh from file.

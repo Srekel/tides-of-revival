@@ -55,7 +55,7 @@ const BatchKey = struct {
 const BatchMap = std.AutoHashMap(BatchKey, Batch);
 
 const max_instances = 100000;
-const max_draw_distance: f32 = 20000.0;
+const max_draw_distance: f32 = 2000.0;
 
 const cutout_entities_index: u32 = 0;
 const opaque_entities_index: u32 = 1;
@@ -282,8 +282,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone1.End();
 
         {
-            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
-            // defer trazy_zone2.End();
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
+            defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
             const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
@@ -340,8 +340,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone1.End();
 
         {
-            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
-            // defer trazy_zone2.End();
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
+            defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
             const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
@@ -449,8 +449,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         {
-            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
-            // defer trazy_zone2.End();
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
             const instance_data_slice = renderer.Slice{
                 .data = @ptrCast(self.instances.items),
@@ -466,8 +466,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone1.End();
 
         {
-            // const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_ff_00);
-            // defer trazy_zone2.End();
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
             const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
@@ -749,9 +749,6 @@ fn batchEntities(
 
     // Clear existing batches' instances
     {
-        const trazy_zone1 = ztracy.ZoneNC(@src(), "Clear existing batches", 0x00_ff_ff_00);
-        defer trazy_zone1.End();
-
         var batch_keys_iterator = batch_map.keyIterator();
         while (batch_keys_iterator.next()) |batch_key| {
             const batch = batch_map.getPtr(batch_key.*).?;
@@ -763,11 +760,9 @@ fn batchEntities(
     const max_draw_distance_squared = max_draw_distance * max_draw_distance;
     var query_static_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_static_mesh);
     while (ecs.query_next(&query_static_mesh_iter)) {
-        const trazy_zone1 = ztracy.ZoneNC(@src(), "Fetch fields", 0x00_ff_ff_00);
         const static_meshes = ecs.field(&query_static_mesh_iter, fd.LodGroup, 0).?;
         const transforms = ecs.field(&query_static_mesh_iter, fd.Transform, 1).?;
         const scales = ecs.field(&query_static_mesh_iter, fd.Scale, 2).?;
-        trazy_zone1.End();
 
         for (static_meshes, transforms, scales) |*lod_group_component, transform, scale| {
             var static_mesh = lod_group_component.lods[0];
@@ -777,9 +772,6 @@ fn batchEntities(
             }
 
             {
-                // const trazy_zone2 = ztracy.ZoneNC(@src(), "Cull instance", 0x00_ff_ff_00);
-                // defer trazy_zone2.End();
-
                 // Distance culling
                 if (!isWithinCameraDrawDistance(camera_position, transform.getPos00(), max_draw_distance_squared)) {
                     continue;
@@ -804,9 +796,6 @@ fn batchEntities(
             sub_mesh_count = static_mesh.materials.items.len;
 
             {
-                // const trazy_zone2 = ztracy.ZoneNC(@src(), "Add instance to batch", 0x00_ff_ff_00);
-                // defer trazy_zone2.End();
-
                 for (0..sub_mesh_count) |sub_mesh_index| {
                     const material_handle = static_mesh.materials.items[sub_mesh_index];
 
@@ -855,9 +844,6 @@ inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [
 }
 
 fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_position: [3]f32) fd.StaticMesh {
-    // const trazy_zone = ztracy.ZoneNC(@src(), "LOD Selection", 0x00_ff_ff_00);
-    // defer trazy_zone.End();
-
     if (lod_group.lod_count == 1) {
         return lod_group.lods[0];
     }

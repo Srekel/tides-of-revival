@@ -1,22 +1,7 @@
 #ifndef _PBR_H
 #define _PBR_H
 
-struct PointLight
-{
-	float4 positionAndRadius;
-	float4 colorAndIntensity;
-};
-
-struct DirectionalLight
-{
-	float4 directionAndShadowMap;
-	float4 colorAndIntensity;
-	float shadowRange;
-	float _pad0;
-	float _pad1;
-	int shadowMapDimensions;
-	float4x4 viewProj;
-};
+#include "types.hlsli"
 
 // The-Forge PBR Implementation
 #ifndef PI
@@ -140,7 +125,7 @@ float3 FilamentBRDF(float3 n, float3 v, float3 l, float3 albedo, float perceptua
 	float3 Fd = diffuse_color * Fd_Lambert();
 
 	// TODO: Add energy conservation
-	return Fd + Fr;
+	return Fd + (Fr * 0.1f);
 }
 
 //  ██████╗ ██╗     ██████╗     ██████╗ ██████╗ ██████╗
@@ -174,10 +159,10 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
 
 float DistributionGGX(float3 N, float3 H, float roughness)
 {
-	float a = roughness*roughness;
-	float a2 = a*a;
+	float a = roughness * roughness;
+	float a2 = a * a;
 	float NdotH = max(dot(N, H), 0.0);
-	float NdotH2 = NdotH*NdotH;
+	float NdotH2 = NdotH * NdotH;
 	float nom = a2;
 	float denom = (NdotH2 * (a2 - 1.0) + 1.0);
 	denom = PI * denom * denom;
@@ -188,7 +173,7 @@ float DistributionGGX(float3 N, float3 H, float roughness)
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
 	float r = (roughness + 1.0f);
-	float k = (r*r) / 8.0f;
+	float k = (r * r) / 8.0f;
 
 	float nom = NdotV;
 	float denom = NdotV * (1.0 - k) + k;
@@ -254,7 +239,8 @@ float3 EnvironmentBRDF(float3 N, float3 V, float3 albedo, float roughness, float
 	float3 Is = specular * (F * brdf.x + brdf.y);
 	float3 Id = kD * irradiance * max(float3(0.04, 0.04, 0.04), albedo);
 
-	return Is + Id;
+	// TODO: Implement energy conservation
+	return (Is * 0.1) + Id;
 }
 
 #endif // _PBR_H

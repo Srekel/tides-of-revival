@@ -147,7 +147,7 @@ pub const DeferredShadingRenderPass = struct {
 
         const lighting_settings = LightingSettings{
             .apply_shadows = true,
-            .environment_light_intensity = 1.0,
+            .environment_light_intensity = 0.35,
             .fog_color = fd.ColorRGB.init(0.3, 0.35, 0.45),
             .fog_density = 0.00005,
         };
@@ -215,7 +215,7 @@ fn renderImGui(user_data: *anyopaque) void {
 
         _ = zgui.colorEdit3("Sun Color", .{ .col = sun_light.?.color.elems() });
 
-        zgui.text("Time of Day 0-1 {d:.3}", .{ time_of_day_percent });
+        zgui.text("Time of Day 0-1 {d:.3}", .{time_of_day_percent});
         _ = zgui.dragFloat("Sun Intensity", .{ .v = &sun_light.?.intensity, .speed = 0.05, .min = 0.0, .max = 100.0 });
         _ = zgui.checkbox("Cast Shadows", .{ .v = &self.lighting_settings.apply_shadows });
         _ = zgui.dragFloat("Environment Intensity", .{ .v = &self.lighting_settings.environment_light_intensity, .speed = 0.05, .min = 0.0, .max = 1.0 });
