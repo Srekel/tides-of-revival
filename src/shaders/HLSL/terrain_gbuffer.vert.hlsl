@@ -23,23 +23,20 @@ TerrainVSOutput VS_MAIN(TerrainVSInput Input, uint instance_id : SV_InstanceID)
     Out.Position = mul(tempMat, float4(position, 1.0f));
     Out.PositionWS = mul(instance.worldMat, float4(position, 1.0f)).xyz;
 
-    // Super-duper simple normal calculations
+    // Recalculate vertex normal
+    // 4-tap solution
     {
         float texelSize = 1.0f / 65.0f;
+        float r = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV + float2(texelSize, 0), 0).r;
+        float l = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV + float2(-texelSize, 0), 0).r;
+        float f = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV + float2(0, texelSize), 0).r;
+        float b = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV + float2(0, -texelSize), 0).r;
+
         float vertexSpacing = 1u << instance.lod;
 
-        float heightRight = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV + float2(texelSize, 0), 0).r;
-        float3 positionRightWS = float3(Input.Position.x + vertexSpacing, Input.Position.y + heightRight, Input.Position.z);
-        positionRightWS = mul(instance.worldMat, float4(positionRightWS, 1.0f)).xyz;
-
-        float heightForward = heightmap.SampleLevel(g_linear_clamp_edge_sampler, Out.UV + float2(0, texelSize), 0).r;
-        float3 positionForwardWS = float3(Input.Position.x, Input.Position.y + heightForward, Input.Position.z + vertexSpacing);
-        positionForwardWS = mul(instance.worldMat, float4(positionForwardWS, 1.0f)).xyz;
-
-        float3 tangent = normalize(positionForwardWS - Out.PositionWS);
-        float3 bitangent = normalize(positionRightWS - Out.PositionWS);
-
-        Out.NormalWS = normalize(cross(tangent, bitangent));
+        float x = (r - l) / (vertexSpacing * 2);
+        float z = (f - b) / (vertexSpacing * 2);
+        Out.NormalWS = normalize(float3(-x, 1.0, -z));
     }
 
     RETURN(Out);
