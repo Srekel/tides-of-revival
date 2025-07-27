@@ -356,7 +356,7 @@ pub const TerrainRenderPass = struct {
 
             const data_slice = renderer.Slice{
                 .data = @as(*anyopaque, @ptrCast(data.heightmap[0..].ptr)),
-                .size = data.heightmap.len * 4, // f32 -> u8
+                .size = data.heightmap.len * @sizeOf(f32), // f32 -> u8
             };
 
             var namebuf: [256]u8 = undefined;
