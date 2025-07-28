@@ -3,7 +3,7 @@ const math = std.math;
 const ecs = @import("zflecs");
 // const zgpu = @import("zgpu");
 // const zglfw = @import("zglfw");
-// const zm = @import("zmath");
+const zm = @import("zmath");
 // const zgui = @import("zgui");
 // const ztracy = @import("ztracy");
 
@@ -53,9 +53,29 @@ fn settlementGrowth(it: *ecs.iter_t) callconv(.C) void {
     const positions = ecs.field(it, fd.Position, 2).?;
 
     for (scripts, settlements, positions) |script, *settlement, position| {
-        _ = position; //
+        const z_position = position.asZM();
+        var it_inner = ecs.each(ctx.ecsu_world.world, fd.SettlementEnemy);
+        const has_nearby_enemy: bool = blk: {
+            while (ecs.each_next(&it_inner)) {
+                for (it_inner.entities()) |ent_enemy| {
+                    const position_enemy = ecs.get(ctx.ecsu_world.world, ent_enemy, fd.Position).?;
+                    const z_position_enemy = position_enemy.asZM();
+
+                    if (zm.lengthSq3(z_position - z_position_enemy)[0] < 1000 * 1000) {
+                        break :blk true;
+                    }
+                }
+            }
+            break :blk false;
+        };
+
+        if (has_nearby_enemy) {
+            settlement.safety = 0;
+            continue;
+        }
+
         settlement.safety += 1;
-        if (settlement.safety > 500) {
+        if (settlement.safety > 1500) {
             settlement.level += 1;
             settlement.safety = 0;
 

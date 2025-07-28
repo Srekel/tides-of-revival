@@ -16,6 +16,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.TAG(ecs_world, NOCOMP);
     ecs.TAG(ecs_world, LocalSpace);
     ecs.TAG(ecs_world, WorldSpace);
+    ecs.TAG(ecs_world, SettlementEnemy);
     ecs.COMPONENT(ecs_world, ColorRGB);
     ecs.COMPONENT(ecs_world, ColorRGBRoughness);
     ecs.COMPONENT(ecs_world, Position);
@@ -722,6 +723,8 @@ pub const Settlement = struct {
     level: i32 = 1,
     safety: i32 = 0,
 };
+
+pub const SettlementEnemy = struct {};
 
 // pub const CompCity = struct {
 //     next_spawn_time: f32,

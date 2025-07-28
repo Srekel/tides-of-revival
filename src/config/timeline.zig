@@ -132,6 +132,8 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
         }
         // Assign to flecs component
         ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
+
+        ent.add(fd.SettlementEnemy);
     }
 }
 

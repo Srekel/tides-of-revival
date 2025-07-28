@@ -539,6 +539,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
                     // ecs.remove(ecs_world, hit_ent, fd.FSM);
                     ecs.remove(ecs_world, hit_ent, fd.PointLight);
+                    ecs.remove(ecs_world, hit_ent, fd.SettlementEnemy);
 
                     const tli_despawn = config.events.TimelineInstanceData{
                         .ent = hit_ent,
