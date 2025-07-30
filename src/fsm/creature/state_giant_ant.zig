@@ -55,7 +55,8 @@ pub fn create(create_ctx: StateContext) void {
             .{ .id = ecs.id(fd.Forward), .inout = .InOut },
             .{ .id = ecs.id(fd.PhysicsBody), .inout = .InOut },
             .{ .id = ecs.pair(fd.FSM_ENEMY, fd.FSM_ENEMY_Idle), .inout = .InOut },
-        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
+            .{ .id = ecs.id(fd.Scale), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
             "fsm_enemy_idle",
@@ -182,13 +183,21 @@ fn fsm_enemy_idle(it: *ecs.iter_t) callconv(.C) void {
     const rotations = ecs.field(it, fd.Rotation, 1).?;
     const forwards = ecs.field(it, fd.Forward, 2).?;
     const bodies = ecs.field(it, fd.PhysicsBody, 3).?;
+    const scales = ecs.field(it, fd.Scale, 5).?;
 
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-    for (positions, rotations, forwards, bodies) |*pos, *rot, *fwd, *body| {
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const world_time = environment_info.world_time;
+
+    for (positions, rotations, forwards, bodies, scales) |*pos, *rot, *fwd, *body, *scale| {
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
+            scale.x = @floatCast(10 + math.sin(world_time * 3.5) * 1.5);
+            scale.y = @floatCast(10 + math.sin(world_time * 0.3) * 0.7 + math.cos(world_time * 0.5) * 0.7);
+            scale.z = @floatCast(10 + math.cos(world_time * 2.3) * 1.5);
+
             updateMovement(pos, rot, fwd, zm.f32x4s(it.delta_time), player_pos);
             // updateSnapToTerrain(ctx.physics_world, pos, body, player_pos, ctx.gfx);
             updateSnapToTerrain(ctx.physics_world, ctx.physics_world_low, pos, body, player_pos);

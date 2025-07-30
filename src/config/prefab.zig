@@ -260,7 +260,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        slime = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/primitive_sphere", slime_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+
+
+        slime = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/slime/slime", slime_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         slime.setOverride(fd.Dynamic{});
 
         const lod_group_component = slime.getMut(fd.LodGroup);

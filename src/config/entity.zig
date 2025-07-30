@@ -11,10 +11,11 @@ const IdLocal = core.IdLocal;
 const zforge = @import("zforge");
 const zm = @import("zmath");
 const graphics = zforge.graphics;
+const zphy = @import("zphysics");
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer) void {
+pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer, physics_world: *zphy.PhysicsSystem) void {
 
     // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
     // ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██║████╗  ██║██╔════╝
@@ -208,4 +209,60 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     environment_info.sun = sun_ent;
     environment_info.sky_light = sky_light_ent;
     environment_info.player = player_ent;
+
+    // ███████╗███╗   ██╗███████╗███╗   ███╗██╗   ██╗
+    // ██╔════╝████╗  ██║██╔════╝████╗ ████║╚██╗ ██╔╝
+    // █████╗  ██╔██╗ ██║█████╗  ██╔████╔██║ ╚████╔╝
+    // ██╔══╝  ██║╚██╗██║██╔══╝  ██║╚██╔╝██║  ╚██╔╝
+    // ███████╗██║ ╚████║███████╗██║ ╚═╝ ██║   ██║
+    // ╚══════╝╚═╝  ╚═══╝╚══════╝╚═╝     ╚═╝   ╚═╝
+
+    {
+        var ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.slime);
+        const spawn_pos = [3]f32{ 8000, 200, 8000 };
+        ent.set(fd.Position{ .x = spawn_pos[0], .y = spawn_pos[1], .z = spawn_pos[2] });
+
+        const scale: f32 = 10;
+        ent.set(fd.Scale.createScalar(scale));
+        ent.set(fd.Health{ .value = 1 });
+        ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Idle);
+
+        const body_interface = physics_world.getBodyInterfaceMut();
+
+        const shape_settings = zphy.SphereShapeSettings.create(0.5 * scale) catch unreachable;
+        defer shape_settings.release();
+
+        var rot = [_]f32{ 1, 0, 0, 0 };
+        const rot_z = zm.quatFromRollPitchYaw(std.math.pi / 2.0, 0, 0);
+        zm.storeArr4(&rot, rot_z);
+        const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
+            &shape_settings.asShapeSettings().*,
+            rot,
+            .{ 0, 0, 0 },
+        ) catch unreachable;
+        defer root_shape_settings.release();
+        const root_shape = root_shape_settings.createShape() catch unreachable;
+
+        const body_id = body_interface.createAndAddBody(.{
+            .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
+            .rotation = .{ 0, 0, 0, 1 },
+            .shape = root_shape,
+            .motion_type = .kinematic,
+            .object_layer = config.object_layers.moving,
+            .motion_quality = .discrete,
+            .user_data = ent.id,
+            .angular_damping = 0.975,
+            .inertia_multiplier = 10,
+            .friction = 0.5,
+        }, .activate) catch unreachable;
+        ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
+
+        ent.set(fd.PointLight{
+            .color = .{ .r = 0.2, .g = 0.2, .b = 0.9 },
+            .range = 60.0,
+            .intensity = 50.0,
+        });
+
+        ent.add(fd.SettlementEnemy);
+    }
 }
