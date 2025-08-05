@@ -151,15 +151,17 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
         .curves = &.{},
         .loop_behavior = .loop_no_time_loss,
     };
+    _ = tl_giant_ant_spawn; // autofix
 
     const tli_giant_ant_spawn = config.events.TimelineInstanceData{
         .ent = 0,
         .start_time = 2,
         .timeline = ID("giantAntSpawn"),
     };
+    _ = tli_giant_ant_spawn; // autofix
 
-    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
-    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
+    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
+    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
 
     const tl_particle_trail = config.events.TimelineTemplateData{
         .id = ID("particle_trail"),

@@ -39,8 +39,8 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     update_ctx.*.state = .{};
 
     _ = ecsu.registerSystem(create_ctx.ecsu_world.world, "settlementGrowth", settlementGrowth, update_ctx, &[_]ecs.term_t{
-        .{ .id = ecs.id(fd.Script), .inout = .InOut },
-        .{ .id = ecs.id(fd.Settlement), .inout = .In },
+        .{ .id = ecs.id(fd.Script), .inout = .In },
+        .{ .id = ecs.id(fd.Settlement), .inout = .InOut },
         .{ .id = ecs.id(fd.Position), .inout = .In },
     });
 }

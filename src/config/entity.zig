@@ -210,6 +210,24 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     environment_info.sky_light = sky_light_ent;
     environment_info.player = player_ent;
 
+    // ██╗      ██████╗ ██╗    ██╗    ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
+    // ██║     ██╔═══██╗██║    ██║    ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝
+    // ██║     ██║   ██║██║ █╗ ██║    ██████╔╝███████║ ╚████╔╝ ███████╗██║██║     ███████╗
+    // ██║     ██║   ██║██║███╗██║    ██╔═══╝ ██╔══██║  ╚██╔╝  ╚════██║██║██║     ╚════██║
+    // ███████╗╚██████╔╝╚███╔███╔╝    ██║     ██║  ██║   ██║   ███████║██║╚██████╗███████║
+    // ╚══════╝ ╚═════╝  ╚══╝╚══╝     ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝ ╚═════╝╚══════╝
+
+    const loader_ent = ecsu_world.newEntityWithName("low_physics_loader");
+    loader_ent.set(fd.Position{
+        .x = config.world_size_x / 2,
+        .y = 0,
+        .z = config.world_size_z / 2,
+    });
+    loader_ent.set(fd.WorldLoader{
+        .range = 2,
+        .physics = true,
+    });
+
     // ███████╗███╗   ██╗███████╗███╗   ███╗██╗   ██╗
     // ██╔════╝████╗  ██║██╔════╝████╗ ████║╚██╗ ██╔╝
     // █████╗  ██╔██╗ ██║█████╗  ██╔████╔██║ ╚████╔╝
@@ -225,7 +243,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const scale: f32 = 10;
         ent.set(fd.Scale.createScalar(scale));
         ent.set(fd.Health{ .value = 1 });
-        ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Idle);
+        ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
 
         const body_interface = physics_world.getBodyInterfaceMut();
 
@@ -264,5 +282,6 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         });
 
         ent.add(fd.SettlementEnemy);
+        ent.set(fd.Locomotion{});
     }
 }

@@ -189,7 +189,7 @@ const SystemUpdateContext = struct {
     state: struct {
         contact_listener: *ContactListener = undefined,
         frame_contacts: std.ArrayList(config.events.CollisionContact) = undefined,
-        loaders: [1]WorldLoaderData = .{.{}},
+        loaders: [2]WorldLoaderData = .{ .{}, .{} },
         requester_id: world_patch_manager.RequesterId = undefined,
         patches: std.ArrayList(Patch) = undefined,
         is_low: bool,
@@ -247,7 +247,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
     {
         var system_desc = ecs.system_desc_t{};
-        system_desc.callback = updateBodies;
+        system_desc.callback = updateFromBodies;
         system_desc.ctx = update_ctx;
         system_desc.query.terms = [_]ecs.term_t{
             .{ .id = ecs.id(fd.PhysicsBody), .inout = .In },
@@ -256,7 +256,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
-            "updateBodies",
+            "updateFromBodies",
             ecs.OnUpdate,
             &system_desc,
         );
@@ -268,7 +268,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         system_desc.ctx = update_ctx;
         system_desc.query.terms = [_]ecs.term_t{
             .{ .id = ecs.id(fd.WorldLoader), .inout = .InOut },
-            .{ .id = ecs.id(fd.Transform), .inout = .In },
+            .{ .id = ecs.id(fd.Position), .inout = .In },
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
@@ -323,7 +323,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         system_desc.ctx = update_ctx_low;
         system_desc.query.terms = [_]ecs.term_t{
             .{ .id = ecs.id(fd.WorldLoader), .inout = .InOut },
-            .{ .id = ecs.id(fd.Transform), .inout = .In },
+            .{ .id = ecs.id(fd.Position), .inout = .In },
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
@@ -401,7 +401,7 @@ fn updateCollisions(it: *ecs.iter_t) callconv(.C) void {
     ctx.state.frame_contacts.clearRetainingCapacity();
 }
 
-fn updateBodies(it: *ecs.iter_t) callconv(.C) void {
+fn updateFromBodies(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const bodies = ecs.field(it, fd.PhysicsBody, 0).?;
@@ -434,7 +434,7 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const world_loaders = ecs.field(it, fd.WorldLoader, 0).?;
-    const transforms = ecs.field(it, fd.Transform, 1).?;
+    const positions = ecs.field(it, fd.Position, 1).?;
 
     const physics_world = if (ctx.state.is_low) ctx.physics_world_low else ctx.physics_world;
     const body_interface = physics_world.getBodyInterfaceMut();
@@ -442,7 +442,7 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    for (world_loaders, transforms, it.entities()) |loader_comp, transform, ent| {
+    for (world_loaders, positions, it.entities()) |loader_comp, position, ent| {
         if (!loader_comp.physics) {
             continue;
         }
@@ -455,13 +455,14 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
             }
 
             // HACK
-            ctx.state.loaders[0].ent = ent;
+            const loader_index: u32 = if (ctx.state.loaders[0].ent == 0) 0 else 1;
+            ctx.state.loaders[loader_index].ent = ent;
             break :blk &ctx.state.loaders[0];
 
             // unreachable;
         };
 
-        const pos_new = transform.getPos00();
+        const pos_new = position.elemsConst().*;
         const trigger_dist: f32 = if (ctx.state.is_low) 256 else 32;
         if (tides_math.dist3_xz(pos_new, loader.pos_old) < trigger_dist) {
             continue;
