@@ -14,22 +14,7 @@ const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
 const context = @import("../../core/context.zig");
-
-pub const NonMovingBroadPhaseLayerFilter = extern struct {
-    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
-    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
-
-    const vtable = zphy.BroadPhaseLayerFilter.VTable{
-        .shouldCollide = shouldCollide,
-    };
-    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
-        _ = self;
-        if (layer == config.broad_phase_layers.moving) {
-            return false;
-        }
-        return true;
-    }
-};
+const task_queue = @import("../../core/task_queue.zig");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
@@ -39,6 +24,7 @@ pub const StateContext = struct {
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     physics_world_low: *zphy.PhysicsSystem,
+    task_queue: *task_queue.TaskQueue,
 };
 
 pub fn create(create_ctx: StateContext) void {
@@ -76,8 +62,6 @@ fn rotateTowardsPlayer(
     const vec_to_player = player_pos_z - self_pos_z;
     const dist_to_player_sq = zm.lengthSq3(vec_to_player)[0];
     if (dist_to_player_sq > 1) {
-        const handedness_offset = std.math.pi;
-        _ = handedness_offset; // autofix
         const up_z = zm.f32x4(0, 1, 0, 0);
         const skitter = dist_to_player_sq > (15 * 15) and std.math.modf(player_pos.y + pos.y * 0.25).fpart > 0.25;
         const dir_to_player = zm.normalize3(vec_to_player);
@@ -93,6 +77,7 @@ fn rotateTowardsPlayer(
     }
 }
 
+var lol = false;
 fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
@@ -109,8 +94,19 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
 
-    for (positions, rotations, forwards, bodies, scales) |*pos, *rot, *fwd, *body, *scale| {
+    for (positions, rotations, forwards, bodies, scales, it.entities()) |*pos, *rot, *fwd, *body, *scale, ent| {
         _ = fwd; // autofix
+        if (!lol) {
+            lol = true;
+            ctx.task_queue.registerTaskType(.{
+                .id = SlimeDropTask.id,
+                .setup = &SlimeDropTask.setup,
+                .calculate = &SlimeDropTask.calculate,
+                .apply = &SlimeDropTask.apply,
+            });
+            ctx.task_queue.enqueue(SlimeDropTask.id, 10, SlimeDropTask{ .entity = ent });
+            ctx.task_queue.enqueue(SlimeDropTask.id, 100, SlimeDropTask{ .entity = ent });
+        }
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
             scale.x = @floatCast(10 + math.sin(world_time * 3.5) * 1.5);
             scale.y = @floatCast(10 + math.sin(world_time * 0.3) * 0.7 + math.cos(world_time * 0.5) * 0.7);
@@ -120,3 +116,40 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
         }
     }
 }
+
+// ████████╗ █████╗ ███████╗██╗  ██╗███████╗
+// ╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝██╔════╝
+//    ██║   ███████║███████╗█████╔╝ ███████╗
+//    ██║   ██╔══██║╚════██║██╔═██╗ ╚════██║
+//    ██║   ██║  ██║███████║██║  ██╗███████║
+//    ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝
+
+const SlimeDropTask = struct {
+    const id = IdLocal.init("SlimeDropTask");
+
+    entity: ecs.entity_t,
+    pos: [3]f32 = undefined,
+
+    fn setup(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = ctx; // autofix
+        _ = data; // autofix
+        _ = allocator; // autofix
+        // var self: *SlimeDropTask = @ptrCast(data);
+        // const pos = ctx.ecsu_world.get(self.entity, fd.Position);
+        // self.pos = pos.elemsConst().*;
+    }
+
+    fn calculate(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = allocator; // autofix
+        var self: *SlimeDropTask = @alignCast(@ptrCast(data));
+        const pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?;
+        self.pos = pos.elemsConst().*;
+    }
+
+    fn apply(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = allocator; // autofix
+        const self: *SlimeDropTask = @alignCast(@ptrCast(data));
+        const pos = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Position).?;
+        pos.*.y = self.pos[1];
+    }
+};

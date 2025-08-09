@@ -21,6 +21,7 @@ const fd = @import("config/flecs_data.zig");
 const fr = @import("config/flecs_relation.zig");
 const fsm = @import("fsm/fsm.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
+const task_queue = @import("core/task_queue.zig");
 const input = @import("input.zig");
 const prefab_manager = @import("prefab_manager.zig");
 const physics_manager = @import("managers/physics_manager.zig");
@@ -33,6 +34,26 @@ const window = @import("renderer/window.zig");
 const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 // const quality = @import("data/quality.zig");
+
+const GameloopContext = struct {
+    arena_system_lifetime: std.mem.Allocator,
+    arena_system_update: std.mem.Allocator,
+    arena_frame: std.mem.Allocator,
+    heap_allocator: std.mem.Allocator,
+    asset_mgr: *AssetManager,
+    audio_mgr: *audio_manager.AudioManager,
+    ecsu_world: ecsu.World,
+    event_mgr: *EventManager,
+    input_frame_data: *input.FrameData,
+    main_window: *window.Window,
+    physics_world: *zphy.PhysicsSystem,
+    physics_world_low: *zphy.PhysicsSystem,
+    prefab_mgr: *prefab_manager.PrefabManager,
+    renderer: *renderer.Renderer,
+    stats: *renderer.FrameStats,
+    task_queue: *task_queue.TaskQueue,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager,
+};
 
 pub fn run() void {
     zstbi.init(std.heap.page_allocator);
@@ -128,25 +149,6 @@ pub fn run() void {
     // ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║███████║
     // ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝
 
-    const GameloopContext = struct {
-        arena_system_lifetime: std.mem.Allocator,
-        arena_system_update: std.mem.Allocator,
-        arena_frame: std.mem.Allocator,
-        heap_allocator: std.mem.Allocator,
-        asset_mgr: *AssetManager,
-        audio_mgr: *audio_manager.AudioManager,
-        ecsu_world: ecsu.World,
-        event_mgr: *EventManager,
-        input_frame_data: *input.FrameData,
-        main_window: *window.Window,
-        physics_world: *zphy.PhysicsSystem,
-        physics_world_low: *zphy.PhysicsSystem,
-        prefab_mgr: *prefab_manager.PrefabManager,
-        renderer: *renderer.Renderer,
-        stats: *renderer.FrameStats,
-        world_patch_mgr: *world_patch_manager.WorldPatchManager,
-    };
-
     var root_allocator = std.heap.GeneralPurposeAllocator(.{}){};
     var arena_system_lifetime = std.heap.ArenaAllocator.init(root_allocator.allocator());
     var arena_system_update = std.heap.ArenaAllocator.init(root_allocator.allocator());
@@ -189,6 +191,8 @@ pub fn run() void {
         } ++ ecs.array(ecs.member_t, 32 - 4)),
     });
 
+    var task_queue1: task_queue.TaskQueue = undefined;
+
     var gameloop_context: GameloopContext = .{
         .arena_system_lifetime = arena_system_lifetime.allocator(),
         .arena_system_update = arena_system_update.allocator(),
@@ -205,8 +209,11 @@ pub fn run() void {
         .prefab_mgr = &prefab_mgr,
         .renderer = &renderer_ctx,
         .stats = &stats,
+        .task_queue = &task_queue1,
         .world_patch_mgr = world_patch_mgr,
     };
+
+    task_queue1.init(root_allocator.allocator(), gameloop_context);
 
     config.system.createSystems(&gameloop_context);
     config.system.setupSystems(&gameloop_context);
@@ -400,7 +407,7 @@ const debug_times = [_]struct { mult: f64, str: [:0]const u8 }{
 
 var debug_time_index: usize = 4;
 
-fn update_full(gameloop_context: anytype) bool {
+fn update_full(gameloop_context: GameloopContext) bool {
     var input_frame_data = gameloop_context.input_frame_data;
     const ecsu_world = gameloop_context.ecsu_world;
     var world_patch_mgr = gameloop_context.world_patch_mgr;
@@ -452,6 +459,12 @@ fn update_full(gameloop_context: anytype) bool {
         world_patch_mgr.tickOne();
     }
     update(ecsu_world, stats.delta_time);
+
+    const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    gameloop_context.task_queue.findTasksToSetup(environment_info.world_time);
+    gameloop_context.task_queue.setupTasks();
+    gameloop_context.task_queue.calculateTasks();
+    gameloop_context.task_queue.applyTasks();
 
     stats.update();
 
