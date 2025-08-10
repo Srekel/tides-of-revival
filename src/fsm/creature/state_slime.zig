@@ -104,7 +104,11 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 .calculate = &SlimeDropTask.calculate,
                 .apply = &SlimeDropTask.apply,
             });
-            ctx.task_queue.enqueue(SlimeDropTask.id, 10, SlimeDropTask{ .entity = ent });
+            ctx.task_queue.enqueue(SlimeDropTask.id, 5, SlimeDropTask{ .entity = ent });
+            ctx.task_queue.enqueue(SlimeDropTask.id, 20, SlimeDropTask{ .entity = ent });
+            ctx.task_queue.enqueue(SlimeDropTask.id, 30, SlimeDropTask{ .entity = ent });
+            ctx.task_queue.enqueue(SlimeDropTask.id, 40, SlimeDropTask{ .entity = ent });
+            ctx.task_queue.enqueue(SlimeDropTask.id, 50, SlimeDropTask{ .entity = ent });
             ctx.task_queue.enqueue(SlimeDropTask.id, 100, SlimeDropTask{ .entity = ent });
         }
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
@@ -148,8 +152,24 @@ const SlimeDropTask = struct {
 
     fn apply(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
         _ = allocator; // autofix
+
         const self: *SlimeDropTask = @alignCast(@ptrCast(data));
-        const pos = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Position).?;
-        pos.*.y = self.pos[1];
+        {
+            var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
+            const spawn_pos = self.pos;
+            ent.set(fd.Position{
+                .x = spawn_pos[0],
+                .y = spawn_pos[1],
+                .z = spawn_pos[2],
+            });
+
+            ent.set(fd.Scale.create(3, 0.1, 3));
+
+            ent.set(fd.PointLight{
+                .color = .{ .r = 0.2, .g = 0.2, .b = 0.9 },
+                .range = 60.0,
+                .intensity = 50.0,
+            });
+        }
     }
 };

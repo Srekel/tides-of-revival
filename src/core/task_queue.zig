@@ -5,6 +5,7 @@ const IdLocal = @import("core.zig").IdLocal;
 const context = @import("context.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const zphy = @import("zphysics");
+const prefab_manager = @import("../prefab_manager.zig");
 
 // const QueueReAddType = enum {
 //     none:,
@@ -21,6 +22,7 @@ pub const TaskContext = struct {
     ecsu_world: ecsu.World,
     physics_world: *zphy.PhysicsSystem,
     physics_world_low: *zphy.PhysicsSystem,
+    prefab_mgr: *prefab_manager.PrefabManager,
     task_queue: *TaskQueue,
 };
 
