@@ -7,10 +7,15 @@ const ecsu = @import("../flecs_util/flecs_util.zig");
 const zphy = @import("zphysics");
 const prefab_manager = @import("../prefab_manager.zig");
 
-// const QueueReAddType = enum {
-//     none:,
-//     loop:f32,
-// };
+pub const QueueLoopType = union(enum) {
+    once: void,
+    loop: f64,
+};
+
+pub const TaskTimeInfo = struct {
+    time: f64,
+    loop_type: QueueLoopType = .{ .once = {} },
+};
 
 pub fn NoOpTaskFunc(data: []u8) void {
     _ = data; // autofix
@@ -35,19 +40,18 @@ pub const TaskType = struct {
     apply: *const TaskFunc,
 };
 
+const Task = struct {
+    id: IdLocal,
+    data: []u8,
+
+    time_info: TaskTimeInfo, // TODO: Move to parallell array(s) / pool
+};
+
 pub const TaskQueue = struct {
     const ArrayChunk = struct {
         start_time: f64 = undefined,
         tasks: [chunk_size]Task = undefined,
         count: u8 = 0,
-    };
-
-    const Task = struct {
-        time: f64, // TODO: Move to parallell array(s)
-        id: IdLocal,
-        data: []u8,
-
-        // readd_type: QueueReAddType,
     };
 
     const chunk_size = 256;
@@ -82,10 +86,17 @@ pub const TaskQueue = struct {
         self.task_types.put(self.allocator, task_type.id.hash, task_type) catch unreachable;
     }
 
-    pub fn enqueue(self: *TaskQueue, id: IdLocal, time: f64, instance: anytype) void {
+    pub fn allocateTaskData(self: *TaskQueue, time: f64, comptime TaskDataType: type) *TaskDataType {
+        _ = time; // autofix
+
+        const task_data = self.allocator.create(TaskDataType) catch unreachable;
+        return task_data;
+    }
+
+    pub fn enqueue(self: *TaskQueue, id: IdLocal, time_info: TaskTimeInfo, task_data: []u8) void {
         const chunk = blk: {
             for (self.queued_chunks.items) |chunk| {
-                if (chunk.start_time < time) {
+                if (chunk.start_time < time_info.time) {
                     break :blk chunk;
                 }
             } else {
@@ -112,25 +123,23 @@ pub const TaskQueue = struct {
             // TODO: Insert at right place
             std.debug.assert(false);
 
-            insert_chunk = if (rc.start_time < time) rc else lc;
+            insert_chunk = if (rc.start_time < time_info.time) rc else lc;
         }
 
         var task_index = insert_chunk.count;
         for (0..insert_chunk.count) |i_c| {
             const task = &insert_chunk.tasks[i_c];
-            if (task.time > time) {
+            if (task.time_info.time > time_info.time) {
                 std.mem.copyBackwards(Task, insert_chunk.tasks[i_c + 1 .. insert_chunk.count + 1], insert_chunk.tasks[i_c..insert_chunk.count]);
                 task_index = @intCast(i_c);
                 break;
             }
         }
 
-        const task_data = self.allocator.create(@TypeOf(instance)) catch unreachable;
-        task_data.* = instance;
         const task = &insert_chunk.tasks[task_index];
         task.* = .{
-            .time = time,
-            .data = std.mem.asBytes(task_data),
+            .time_info = time_info,
+            .data = task_data,
             .id = id,
         };
 
@@ -141,7 +150,7 @@ pub const TaskQueue = struct {
         for (self.queued_chunks.items) |chunk| {
             var found_tasks_to_setup: u8 = 0;
             for (chunk.tasks[0..chunk.count]) |task| {
-                if (task.time > time) {
+                if (task.time_info.time > time) {
                     break;
                 }
 
@@ -167,14 +176,32 @@ pub const TaskQueue = struct {
     }
 
     pub fn setupTasks(self: *TaskQueue) void {
-        for (self.tasks_to_setup.items) |*task| {
+        self.tasks_to_calculate.appendSlice(self.allocator, self.tasks_to_setup.items) catch unreachable;
+
+        const i_task: u32 = 0;
+        while (i_task < self.tasks_to_setup.items.len) {
+            const task = &self.tasks_to_setup.items[i_task];
             const task_type = self.task_types.get(task.id.hash).?;
             const allocator = self.ctx.heap_allocator; // temp
             task_type.setup(self.ctx, task.data, allocator);
-        }
 
-        self.tasks_to_calculate.appendSlice(self.allocator, self.tasks_to_setup.items) catch unreachable;
-        self.tasks_to_setup.clearRetainingCapacity();
+            switch (task.time_info.loop_type) {
+                .once => {
+                    _ = self.tasks_to_setup.swapRemove(i_task);
+                },
+                .loop => {
+                    self.enqueue(
+                        task.id,
+                        .{
+                            .time = task.time_info.time + task.time_info.loop_type.loop,
+                            .loop_type = task.time_info.loop_type,
+                        },
+                        task.data, // LOL FIX
+                    );
+                    _ = self.tasks_to_setup.swapRemove(i_task);
+                },
+            }
+        }
     }
 
     pub fn calculateTasks(self: *TaskQueue) void {

@@ -104,12 +104,14 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 .calculate = &SlimeDropTask.calculate,
                 .apply = &SlimeDropTask.apply,
             });
-            ctx.task_queue.enqueue(SlimeDropTask.id, 5, SlimeDropTask{ .entity = ent });
-            ctx.task_queue.enqueue(SlimeDropTask.id, 20, SlimeDropTask{ .entity = ent });
-            ctx.task_queue.enqueue(SlimeDropTask.id, 30, SlimeDropTask{ .entity = ent });
-            ctx.task_queue.enqueue(SlimeDropTask.id, 40, SlimeDropTask{ .entity = ent });
-            ctx.task_queue.enqueue(SlimeDropTask.id, 50, SlimeDropTask{ .entity = ent });
-            ctx.task_queue.enqueue(SlimeDropTask.id, 100, SlimeDropTask{ .entity = ent });
+
+            const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
+            task_data.*.entity = ent;
+            ctx.task_queue.enqueue(
+                SlimeDropTask.id,
+                .{ .time = 5, .loop_type = .{ .loop = 5 } },
+                std.mem.asBytes(task_data),
+            );
         }
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
             scale.x = @floatCast(10 + math.sin(world_time * 3.5) * 1.5);
@@ -138,9 +140,6 @@ const SlimeDropTask = struct {
         _ = ctx; // autofix
         _ = data; // autofix
         _ = allocator; // autofix
-        // var self: *SlimeDropTask = @ptrCast(data);
-        // const pos = ctx.ecsu_world.get(self.entity, fd.Position);
-        // self.pos = pos.elemsConst().*;
     }
 
     fn calculate(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
