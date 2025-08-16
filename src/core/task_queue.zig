@@ -166,7 +166,7 @@ pub const TaskQueue = struct {
 
             const new_count = chunk.count - found_tasks_to_setup;
             if (new_count != 0) {
-                std.mem.copyForwards(Task, chunk.tasks[0..new_count], chunk.tasks[found_tasks_to_setup .. chunk.count - found_tasks_to_setup + 1]);
+                std.mem.copyForwards(Task, chunk.tasks[0..new_count], chunk.tasks[found_tasks_to_setup..chunk.count]);
             }
             chunk.count = new_count;
         }
