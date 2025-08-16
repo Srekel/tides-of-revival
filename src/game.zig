@@ -52,6 +52,7 @@ const GameloopContext = struct {
     renderer: *renderer.Renderer,
     stats: *renderer.FrameStats,
     task_queue: *task_queue.TaskQueue,
+    time: *util.GameTime,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
@@ -192,6 +193,7 @@ pub fn run() void {
     });
 
     var task_queue1: task_queue.TaskQueue = undefined;
+    var time = util.GameTime{ .now = 0 };
 
     var gameloop_context: GameloopContext = .{
         .arena_system_lifetime = arena_system_lifetime.allocator(),
@@ -210,6 +212,7 @@ pub fn run() void {
         .renderer = &renderer_ctx,
         .stats = &stats,
         .task_queue = &task_queue1,
+        .time = &time,
         .world_patch_mgr = world_patch_mgr,
     };
 
@@ -458,7 +461,7 @@ fn update_full(gameloop_context: GameloopContext) bool {
     for (0..100) |_| {
         world_patch_mgr.tickOne();
     }
-    update(ecsu_world, stats.delta_time);
+    update(gameloop_context, stats.delta_time);
 
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     gameloop_context.task_queue.findTasksToSetup(environment_info.world_time);
@@ -471,7 +474,8 @@ fn update_full(gameloop_context: GameloopContext) bool {
     return false;
 }
 
-fn update(ecsu_world: ecsu.World, dt: f32) void {
+fn update(gameloop_context: GameloopContext, dt: f32) void {
+    var ecsu_world = gameloop_context.ecsu_world;
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const dt_game = dt * environment_info.time_multiplier * debug_times[debug_time_index].mult;
     environment_info.time_multiplier = 1;
@@ -486,6 +490,7 @@ fn update(ecsu_world: ecsu.World, dt: f32) void {
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
         environment_info.world_time = world_time;
+        gameloop_context.time.now = world_time;
     }
 
     // Sun orientation

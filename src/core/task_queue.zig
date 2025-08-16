@@ -6,6 +6,7 @@ const context = @import("context.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const zphy = @import("zphysics");
 const prefab_manager = @import("../prefab_manager.zig");
+const util = @import("../util.zig");
 
 pub const QueueLoopType = union(enum) {
     once: void,
@@ -29,6 +30,7 @@ pub const TaskContext = struct {
     physics_world_low: *zphy.PhysicsSystem,
     prefab_mgr: *prefab_manager.PrefabManager,
     task_queue: *TaskQueue,
+    time: *util.GameTime,
 };
 
 pub const TaskType = struct {
