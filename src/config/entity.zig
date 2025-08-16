@@ -121,7 +121,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
-        .range = 15.0,
+        .range = 10.0,
         .intensity = 10.0,
     });
     bow_ent.childOf(player_camera_ent);
@@ -275,13 +275,22 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         }, .activate) catch unreachable;
         ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
 
-        ent.set(fd.PointLight{
-            .color = .{ .r = 0.2, .g = 0.2, .b = 0.9 },
-            .range = 60.0,
-            .intensity = 50.0,
-        });
-
         ent.add(fd.SettlementEnemy);
         ent.set(fd.Locomotion{});
+        ent.set(fd.Dynamic{});
+
+        const light_ent = ecsu_world.newEntity();
+        light_ent.childOf(ent);
+        light_ent.set(fd.Position{ .x = 0, .y = 5, .z = 0 });
+        light_ent.set(fd.Rotation{});
+        light_ent.set(fd.Scale.createScalar(1));
+        light_ent.set(fd.Transform{});
+        light_ent.set(fd.Dynamic{});
+
+        light_ent.set(fd.PointLight{
+            .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
+            .range = 200,
+            .intensity = 10,
+        });
     }
 }

@@ -245,7 +245,7 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
             // Light
             proj_ent.set(fd.PointLight{
                 .color = .{ .r = 1, .g = 1, .b = 0.5 },
-                .range = 5.0,
+                .range = 3.0,
                 .intensity = 0.5,
             });
 

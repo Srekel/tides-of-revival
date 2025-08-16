@@ -260,8 +260,6 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-
-
         slime = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/slime/slime", slime_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         slime.setOverride(fd.Dynamic{});
 
@@ -410,8 +408,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
         light_ent.set(fd.PointLight{
             .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
-            .intensity = 40,
-            .range = 40,
+            .range = 10,
+            .intensity = 5,
         });
     }
 
@@ -573,6 +571,21 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
                 lod_group.lods[i].materials.items[1] = metal_ornaments_material_handle;
             }
         }
+
+        // TEMP: Lantern light
+        const light_ent = ecsu_world.newEntity();
+        light_ent.childOf(brazier_1);
+        light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
+        light_ent.set(fd.Rotation{});
+        light_ent.set(fd.Scale.createScalar(1));
+        light_ent.set(fd.Transform{});
+        light_ent.set(fd.Dynamic{});
+
+        light_ent.set(fd.PointLight{
+            .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
+            .range = 10,
+            .intensity = 5,
+        });
     }
 
     {
@@ -587,5 +600,20 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
                 lod_group.lods[i].materials.items[1] = metal_ornaments_material_handle;
             }
         }
+
+        // TEMP: Lantern light
+        const light_ent = ecsu_world.newEntity();
+        light_ent.childOf(brazier_2);
+        light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
+        light_ent.set(fd.Rotation{});
+        light_ent.set(fd.Scale.createScalar(1));
+        light_ent.set(fd.Transform{});
+        light_ent.set(fd.Dynamic{});
+
+        light_ent.set(fd.PointLight{
+            .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
+            .range = 10,
+            .intensity = 5,
+        });
     }
 }
