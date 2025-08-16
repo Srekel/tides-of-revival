@@ -45,24 +45,24 @@ pub const PrefabManager = struct {
         }
 
         var entity = world.newPrefab(id.toCString());
-        entity.setOverride(fd.Forward{});
+        entity.set(fd.Forward{});
 
         // Set position, rotation and scale
         var position = fd.Position.init(0, 0, 0);
         var rotation = fd.Rotation{};
         var scale = fd.Scale.createScalar(1);
-        entity.setOverride(position);
-        entity.setOverride(rotation);
-        entity.setOverride(scale);
+        entity.set(position);
+        entity.set(rotation);
+        entity.set(scale);
 
         // Set transform
         var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
         transform.setPos(position.elems().*);
         transform.setScale(scale.elems().*);
-        entity.setOverride(transform);
+        entity.set(transform);
 
         const hierarchical_static_mesh = self.loadHierarchicalMesh(path, vertex_layout_id);
-        entity.setOverride(hierarchical_static_mesh);
+        entity.set(hierarchical_static_mesh);
 
         self.prefab_hash_map.put(id, entity) catch unreachable;
         return entity;
@@ -76,25 +76,25 @@ pub const PrefabManager = struct {
 
         const mesh_handle = self.rctx.loadMesh(path, vertex_layout_id) catch unreachable;
         var entity = world.newPrefab(id.toCString());
-        entity.setOverride(fd.Forward{});
+        entity.set(fd.Forward{});
 
         // Set position, rotation and scale
         var position = fd.Position.init(0, 0, 0);
         var rotation = fd.Rotation{};
         var scale = fd.Scale.createScalar(1);
-        entity.setOverride(position);
-        entity.setOverride(rotation);
-        entity.setOverride(scale);
+        entity.set(position);
+        entity.set(rotation);
+        entity.set(scale);
 
         // Set transform
         var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
         transform.setPos(position.elems().*);
         transform.setScale(scale.elems().*);
-        entity.setOverride(transform);
+        entity.set(transform);
 
         var static_mesh_component: fd.StaticMesh = undefined;
         static_mesh_component.mesh_handle = mesh_handle;
-        entity.setOverride(static_mesh_component);
+        entity.set(static_mesh_component);
 
         self.prefab_hash_map.put(id, entity) catch unreachable;
         return entity;
