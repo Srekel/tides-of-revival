@@ -240,14 +240,14 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const spawn_pos = [3]f32{ 8000, 200, 8000 };
         ent.set(fd.Position{ .x = spawn_pos[0], .y = spawn_pos[1], .z = spawn_pos[2] });
 
-        const scale: f32 = 10;
+        const scale: f32 = 20; // overridden in state_slime
         ent.set(fd.Scale.createScalar(scale));
         ent.set(fd.Health{ .value = 1 });
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
 
         const body_interface = physics_world.getBodyInterfaceMut();
 
-        const shape_settings = zphy.SphereShapeSettings.create(0.5 * scale) catch unreachable;
+        const shape_settings = zphy.SphereShapeSettings.create(1.5 * scale) catch unreachable;
         defer shape_settings.release();
 
         var rot = [_]f32{ 1, 0, 0, 0 };

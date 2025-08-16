@@ -121,9 +121,9 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
             );
         }
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
-            scale.x = @floatCast(10 + math.sin(world_time * 3.5) * 1.5);
-            scale.y = @floatCast(10 + math.sin(world_time * 0.3) * 0.7 + math.cos(world_time * 0.5) * 0.7);
-            scale.z = @floatCast(10 + math.cos(world_time * 2.3) * 1.5);
+            scale.x = @floatCast(20 + math.sin(world_time * 3.5) * 1.5);
+            scale.y = @floatCast(20 + math.sin(world_time * 0.3) * 0.7 + math.cos(world_time * 0.5) * 0.7);
+            scale.z = @floatCast(20 + math.cos(world_time * 2.3) * 1.5);
 
             rotateTowardsPlayer(pos, rot, player_pos);
         }
