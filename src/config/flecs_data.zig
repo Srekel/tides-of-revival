@@ -807,4 +807,5 @@ pub const Locomotion = struct {
     speed: f32 = 5,
     snap_to_terrain: bool = true,
     align_to_terrain: bool = true,
+    target_position: ?[3]f32 = null,
 };

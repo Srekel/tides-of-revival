@@ -50,6 +50,7 @@ pub const terrain_height_mountain_top = 1000;
 pub const terrain_min = terrain_height_ocean_floor;
 pub const terrain_max = terrain_height_mountain_top;
 pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floor;
+pub const world_center3 = .{ world_size_x / 2, 0, world_size_z / 2 };
 
 pub const patch_type_heightmap = ID("heightmap");
 pub const patch_type_splatmap = ID("splatmap");
