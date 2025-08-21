@@ -176,12 +176,6 @@ const SlimeDropTask = struct {
             ent.set(fd.Transform{});
             ent.set(fd.Dynamic{});
 
-            // ent.set(fd.PointLight{
-            //     .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
-            //     .range = 20.0,
-            //     .intensity = 10.0,
-            // });
-
             const light_ent = ctx.ecsu_world.newEntity();
             light_ent.childOf(ent);
             light_ent.set(fd.Position{ .x = 0, .y = 15, .z = 0 });

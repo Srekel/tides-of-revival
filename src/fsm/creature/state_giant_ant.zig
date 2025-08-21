@@ -24,7 +24,7 @@ pub const NonMovingBroadPhaseLayerFilter = extern struct {
     };
     fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
         _ = self;
-        if (layer == config.broad_phase_layers.moving) {
+        if (layer == config.physics.broad_phase_layers.moving) {
             return false;
         }
         return true;

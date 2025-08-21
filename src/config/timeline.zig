@@ -101,7 +101,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .rotation = .{ 0, 0, 0, 1 },
             .shape = root_shape,
             .motion_type = .kinematic,
-            .object_layer = config.object_layers.moving,
+            .object_layer = config.physics.object_layers.moving,
             .motion_quality = .discrete,
             .user_data = ent.id,
             .angular_damping = 0.975,

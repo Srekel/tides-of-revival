@@ -10,22 +10,6 @@ const input = @import("../input.zig");
 const config = @import("../config/config.zig");
 const context = @import("../core/context.zig");
 
-pub const NonMovingBroadPhaseLayerFilter = extern struct {
-    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
-    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
-
-    const vtable = zphy.BroadPhaseLayerFilter.VTable{
-        .shouldCollide = shouldCollide,
-    };
-    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
-        _ = self;
-        if (layer == config.broad_phase_layers.moving) {
-            return false;
-        }
-        return true;
-    }
-};
-
 pub const SystemCreateCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
@@ -98,7 +82,7 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
     const bodies_all_low = ctx.physics_world_low.getBodiesUnsafe();
 
     const cast_ray_args: zphy.NarrowPhaseQuery.CastRayArgs = .{
-        .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
+        .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
     };
 
     for (locomotions, positions, rotations) |locomotion, *pos, *rot| {

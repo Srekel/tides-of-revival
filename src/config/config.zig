@@ -10,6 +10,7 @@ pub const input = @import("input.zig");
 pub const prefab = @import("prefab.zig");
 pub const system = @import("system.zig");
 pub const timeline = @import("timeline.zig");
+pub const physics = @import("physics.zig");
 
 pub const UP_Z = zm.f32x4(0, 1, 0, 0);
 pub const FORWARD_Z = zm.f32x4(0, 0, 1, 0);
@@ -117,18 +118,6 @@ pub const prefab_mgr = ID("prefab_mgr");
 // ██╔═══╝ ██╔══██║  ╚██╔╝  ╚════██║██║██║     ╚════██║
 // ██║     ██║  ██║   ██║   ███████║██║╚██████╗███████║
 // ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝ ╚═════╝╚══════╝
-
-pub const object_layers = struct {
-    pub const non_moving: zphy.ObjectLayer = 0;
-    pub const moving: zphy.ObjectLayer = 1;
-    pub const len: u32 = 2;
-};
-
-pub const broad_phase_layers = struct {
-    pub const non_moving: zphy.BroadPhaseLayer = 0;
-    pub const moving: zphy.BroadPhaseLayer = 1;
-    pub const len: u32 = 2;
-};
 
 //  ██████╗ ██████╗  █████╗ ██████╗ ██╗  ██╗██╗ ██████╗███████╗
 // ██╔════╝ ██╔══██╗██╔══██╗██╔══██╗██║  ██║██║██╔════╝██╔════╝

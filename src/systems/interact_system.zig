@@ -34,7 +34,7 @@ pub const MovingBroadPhaseLayerFilter = extern struct {
     };
     fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
         _ = self;
-        if (layer == config.broad_phase_layers.moving) {
+        if (layer == config.physics.broad_phase_layers.moving) {
             return true;
         }
         return false;
@@ -231,7 +231,7 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
                 .rotation = proj_rot_world_physics,
                 .shape = proj_shape,
                 .motion_type = .dynamic,
-                .object_layer = config.object_layers.moving,
+                .object_layer = config.physics.object_layers.moving,
                 .motion_quality = .linear_cast,
                 .user_data = proj_ent.id,
             }, .activate) catch unreachable;
