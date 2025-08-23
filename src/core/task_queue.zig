@@ -13,13 +13,26 @@ pub const QueueLoopType = union(enum) {
     loop: f64,
 };
 
+pub const TaskValidity = enum {
+    valid,
+    remove,
+    reschedule,
+};
+
 pub const TaskTimeInfo = struct {
     time: f64,
     loop_type: QueueLoopType = .{ .once = {} },
 };
 
-pub fn NoOpTaskFunc(data: []u8) void {
+pub fn noOpTaskFunc(data: []u8) void {
     _ = data; // autofix
+}
+
+pub fn alwaysValid(ctx: TaskContext, task_data: []u8, allocator: std.mem.Allocator) TaskValidity {
+    _ = ctx; // autofix
+    _ = task_data; // autofix
+    _ = allocator; // autofix
+    return .valid;
 }
 
 pub const TaskContext = struct {
@@ -35,10 +48,12 @@ pub const TaskContext = struct {
 
 pub const TaskType = struct {
     pub const TaskFunc = fn (ctx: TaskContext, data: []u8, allocator: std.mem.Allocator) void;
+    pub const TaskValidateFunc = fn (ctx: TaskContext, data: []u8, allocator: std.mem.Allocator) TaskValidity;
 
     id: IdLocal,
     setup: *const TaskFunc,
     calculate: *const TaskFunc,
+    validate: *const TaskValidateFunc,
     apply: *const TaskFunc,
 };
 
@@ -180,30 +195,12 @@ pub const TaskQueue = struct {
     pub fn setupTasks(self: *TaskQueue) void {
         self.tasks_to_calculate.appendSlice(self.allocator, self.tasks_to_setup.items) catch unreachable;
 
-        const i_task: u32 = 0;
-        while (i_task < self.tasks_to_setup.items.len) {
-            const task = &self.tasks_to_setup.items[i_task];
+        for (self.tasks_to_setup.items) |*task| {
             const task_type = self.task_types.get(task.id.hash).?;
             const allocator = self.ctx.heap_allocator; // temp
             task_type.setup(self.ctx, task.data, allocator);
-
-            switch (task.time_info.loop_type) {
-                .once => {
-                    _ = self.tasks_to_setup.swapRemove(i_task);
-                },
-                .loop => {
-                    self.enqueue(
-                        task.id,
-                        .{
-                            .time = task.time_info.time + task.time_info.loop_type.loop,
-                            .loop_type = task.time_info.loop_type,
-                        },
-                        task.data, // LOL FIX
-                    );
-                    _ = self.tasks_to_setup.swapRemove(i_task);
-                },
-            }
         }
+        self.tasks_to_setup.clearRetainingCapacity();
     }
 
     pub fn calculateTasks(self: *TaskQueue) void {
@@ -221,7 +218,35 @@ pub const TaskQueue = struct {
         for (self.tasks_to_apply.items) |*task| {
             const task_type = self.task_types.get(task.id.hash).?;
             const allocator = self.ctx.heap_allocator; // temp
-            task_type.apply(self.ctx, task.data, allocator);
+
+            const validity = task_type.validate(self.ctx, task.data, allocator);
+            switch (validity) {
+                .valid => {
+                    task_type.apply(self.ctx, task.data, allocator);
+                },
+                .remove => {
+                    task.time_info.loop_type = .once;
+                },
+                .reschedule => {},
+            }
+
+            switch (task.time_info.loop_type) {
+                .once => {
+                    // _ = self.tasks_to_setup.swapRemove(i_task);
+                },
+                .loop => {
+                    const next_time = task.time_info.time + task.time_info.loop_type.loop;
+                    self.enqueue(
+                        task.id,
+                        .{
+                            .time = next_time,
+                            .loop_type = task.time_info.loop_type,
+                        },
+                        task.data, // LOL FIX
+                    );
+                    // _ = self.tasks_to_setup.swapRemove(i_task);
+                },
+            }
         }
 
         self.tasks_to_apply.clearRetainingCapacity();

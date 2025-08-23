@@ -233,6 +233,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 .id = SlimeDropTask.id,
                 .setup = &SlimeDropTask.setup,
                 .calculate = &SlimeDropTask.calculate,
+                .validate = &SlimeDropTask.validate,
                 .apply = &SlimeDropTask.apply,
             });
 
@@ -240,6 +241,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 .id = DieTask.id,
                 .setup = &DieTask.setup,
                 .calculate = &DieTask.calculate,
+                .validate = task_queue.alwaysValid,
                 .apply = &DieTask.apply,
             });
 
@@ -274,19 +276,31 @@ const SlimeDropTask = struct {
     const id = IdLocal.init("SlimeDropTask");
 
     entity: ecs.entity_t,
-    pos: [3]f32 = undefined,
+    pos: ?[3]f32 = null,
 
     fn setup(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) void {
+        _ = allocator; // autofix
+        var self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
+        if (ecs.is_alive(ctx.ecsu_world.world, self.entity)) {
+            const pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?;
+            self.pos = pos.elemsConst().*;
+        }
+    }
+
+    fn calculate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) void {
         _ = ctx; // autofix
         _ = task_data; // autofix
         _ = allocator; // autofix
     }
 
-    fn calculate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) void {
+    fn validate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) task_queue.TaskValidity {
+        _ = ctx; // autofix
         _ = allocator; // autofix
-        var self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
-        const pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?;
-        self.pos = pos.elemsConst().*;
+        const self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
+        if (self.pos == null) {
+            return .remove;
+        }
+        return .valid;
     }
 
     fn apply(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) void {
@@ -296,16 +310,18 @@ const SlimeDropTask = struct {
 
         const self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
         {
-            var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
-            const spawn_pos = self.pos;
+            var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime_trail);
+            const spawn_pos = self.pos.?;
+            const rot = ecs.get(ctx.ecsu_world.world, self.entity, fd.Rotation).?.*;
+
             ent.set(fd.Position{
                 .x = spawn_pos[0],
                 .y = spawn_pos[1],
                 .z = spawn_pos[2],
             });
 
-            ent.set(fd.Scale.create(3, 0.25, 3));
-            ent.set(fd.Rotation{});
+            ent.set(fd.Scale.create(1, 1, 1));
+            ent.set(rot);
             ent.set(fd.Transform{});
             ent.set(fd.Dynamic{});
 
