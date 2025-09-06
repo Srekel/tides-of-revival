@@ -146,7 +146,8 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const rotations = ecs.field(it, fd.Rotation, 2).?;
     const forwards = ecs.field(it, fd.Forward, 3).?;
 
-    for (inputs, positions, rotations, forwards) |input_comp, *pos, *rot, *fwd| {
+    for (inputs, positions, rotations, forwards, it.entities()) |input_comp, *pos, *rot, *fwd, ent| {
+        _ = ent; // autofix
         if (!input_comp.active) {
             continue;
         }
@@ -154,5 +155,11 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         // const pos_before = pos.asZM();
         updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
         updateSnapToTerrain(ctx.physics_world, pos);
+
+        const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+        if (environment_info.journey_time_multiplier != 1) {
+            // var journey = ecs.get_mut(ctx.ecsu_world.world, ent, fd.Journey).?;
+
+        }
     }
 }

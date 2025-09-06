@@ -88,6 +88,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // }
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
+    player_ent.set(fd.Journey{});
 
     const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });

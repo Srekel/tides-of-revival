@@ -477,7 +477,8 @@ fn update_full(gameloop_context: GameloopContext) bool {
 fn update(gameloop_context: GameloopContext, dt: f32) void {
     var ecsu_world = gameloop_context.ecsu_world;
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-    const dt_game = dt * environment_info.time_multiplier * debug_times[debug_time_index].mult;
+    const debug_multiplier = debug_times[debug_time_index].mult;
+    const dt_game = dt * environment_info.time_multiplier * environment_info.journey_time_multiplier * debug_multiplier;
     environment_info.time_multiplier = 1;
 
     const flecs_stats = ecs.get_world_info(ecsu_world.world);

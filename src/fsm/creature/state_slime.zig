@@ -306,8 +306,6 @@ const SlimeDropTask = struct {
     fn apply(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) void {
         _ = allocator; // autofix
 
-        // TODO: Remove task if entity ded
-
         const self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
         {
             var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime_trail);
@@ -339,7 +337,7 @@ const SlimeDropTask = struct {
                 .intensity = 10,
             });
 
-            const task_data_die = ctx.task_queue.allocateTaskData(5, DieTask);
+            const task_data_die = ctx.task_queue.allocateTaskData(3600, DieTask);
             task_data_die.*.entity = ent.id;
             ctx.task_queue.enqueue(
                 DieTask.id,
