@@ -27,6 +27,10 @@ pub const GBufferFrameData = struct {
     projection_view_inverted: [16]f32,
     camera_position: [4]f32,
     time: f32,
+    instance_buffer_index: u32,
+	instance_indirection_buffer_index: u32,
+	gpu_mesh_buffer_index: u32,
+	vertex_buffer_index: u32,
 };
 
 const renderer_buckets: u32 = 2;
@@ -97,7 +101,7 @@ pub const GpuDrivenRenderPass = struct {
             .create_descriptor_sets_fn = createDescriptorSets,
             .prepare_descriptor_sets_fn = prepareDescriptorSets,
             .unload_descriptor_sets_fn = unloadDescriptorSets,
-            .render_gbuffer_pass_fn = null,
+            .render_gbuffer_pass_fn = renderGBuffer,
             .render_shadow_pass_fn = null,
             .user_data = @ptrCast(self),
         };
@@ -116,8 +120,8 @@ fn update(user_data: *anyopaque) void {
 
     if (self.first_update) {
         var instance = std.mem.zeroes(InstanceData);
-        const z_identity = zm.identity();
-        zm.storeMat(&instance.object_to_world, z_identity);
+        const z_world = zm.translation(9168.0, 124.4, 8645.0);
+        zm.storeMat(&instance.object_to_world, z_world);
 
         const instance_data = renderer.Slice{
             .data = @ptrCast(&instance),
@@ -131,7 +135,10 @@ fn update(user_data: *anyopaque) void {
         const indices = self.renderer.getGpuMeshIndices(self.temporary_mesh);
         for (0..indices.count) |index| {
             std.log.debug("Mesh index: {d}", .{indices.indices[index]});
-            instance_indirections.append(.{.instance_index = 0, .gpu_mesh_index = indices.indices[index]}) catch unreachable;
+            var instance_indirection = std.mem.zeroes(InstanceDataIndirection);
+            instance_indirection.gpu_mesh_index = indices.indices[index];
+            instance_indirection.instance_index = 0;
+            instance_indirections.append(instance_indirection) catch unreachable;
         }
 
         const instance_indirection_data = renderer.Slice{
@@ -163,6 +170,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     zm.storeMat(&self.gbuffer_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
     self.gbuffer_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
     self.gbuffer_frame_data.time = @floatCast(self.renderer.time); // keep f64?
+    self.gbuffer_frame_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer);
+    self.gbuffer_frame_data.instance_indirection_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_indirection_buffer);
+    self.gbuffer_frame_data.gpu_mesh_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.gpu_mesh_buffer);
+    self.gbuffer_frame_data.vertex_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.vertex_buffer);
 
     // Update Uniform Frame Buffer
     {
@@ -173,7 +184,25 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         self.renderer.updateBuffer(data, 0, GBufferFrameData, self.gbuffer_frame_data_buffers[frame_index]);
     }
 
-    _ = cmd_list;
+    const index_buffer = self.renderer.getBuffer(self.renderer.index_buffer);
+    graphics.cmdBindIndexBuffer(cmd_list, index_buffer, @intCast(graphics.IndexType.INDEX_TYPE_UINT32.bits), 0);
+
+    const pipeline_id = IdLocal.init("gpu_driven_gbuffer_opaque");
+    const pipeline = self.renderer.getPSO(pipeline_id);
+    graphics.cmdBindPipeline(cmd_list, pipeline);
+    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gbuffer_descriptor_sets[renderer_bucket_opaque]);
+
+    const mesh = self.renderer.getMesh(self.temporary_mesh);
+    for (0..mesh.sub_mesh_count) |sub_mesh_index| {
+        graphics.cmdDrawIndexedInstanced(
+            cmd_list,
+            mesh.sub_meshes[sub_mesh_index].index_count,
+            mesh.sub_meshes[sub_mesh_index].index_offset,
+            1,
+            mesh.sub_meshes[sub_mesh_index].vertex_offset,
+            @intCast(sub_mesh_index),
+        );
+    }
 }
 
 fn createDescriptorSets(user_data: *anyopaque) void {
