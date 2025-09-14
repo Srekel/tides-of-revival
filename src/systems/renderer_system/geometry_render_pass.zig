@@ -295,6 +295,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 }
 
                 const batch = self.batches.getPtr(batch_key.*).?;
+                if (batch.instances.items.len == 0) {
+                    continue;
+                }
+
                 const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
                 const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
@@ -353,6 +357,10 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 }
 
                 const batch = self.batches.getPtr(batch_key.*).?;
+                if (batch.instances.items.len == 0) {
+                    continue;
+                }
+
                 const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
                 const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
@@ -479,6 +487,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 }
 
                 const batch = self.batches.getPtr(batch_key.*).?;
+                if (batch.instances.items.len == 0) {
+                    continue;
+                }
+
                 const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
                 const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
@@ -537,6 +549,10 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 }
 
                 const batch = self.batches.getPtr(batch_key.*).?;
+                if (batch.instances.items.len == 0) {
+                    continue;
+                }
+
                 const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
                 const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
