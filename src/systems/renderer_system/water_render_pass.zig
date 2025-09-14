@@ -288,7 +288,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .data = @ptrCast(&self.uniform_frame_data),
                 .size = @sizeOf(UniformFrameData),
             };
-            self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+            self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
         }
 
         const sun_entity = util.getSun(self.ecsu_world);
@@ -304,12 +304,12 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .data = @ptrCast(&self.uniform_light_data),
                 .size = @sizeOf(UniformLightData),
             };
-            self.renderer.updateBuffer(data, UniformLightData, self.uniform_light_buffers[frame_index]);
+            self.renderer.updateBuffer(data, 0, UniformLightData, self.uniform_light_buffers[frame_index]);
         }
 
         self.instance_data.clearRetainingCapacity();
 
-        var mesh: renderer.Mesh = undefined;
+        var mesh: renderer.LegacyMesh = undefined;
         var first_iteration = true;
         var query_water_iter = ecs.query_iter(self.ecsu_world.world, self.query_water);
         while (ecs.query_next(&query_water_iter)) {
@@ -320,7 +320,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 if (first_iteration) {
                     first_iteration = false;
 
-                    mesh = self.renderer.getMesh(water.mesh_handle);
+                    mesh = self.renderer.getLegacyMesh(water.mesh_handle);
                 }
 
                 var instance_data = std.mem.zeroes(InstanceData);
@@ -347,7 +347,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .data = @ptrCast(self.instance_data.items),
                 .size = self.instance_data.items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_data_buffers[frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, 0, InstanceData, self.instance_data_buffers[frame_index]);
 
             self.material_data.clearRetainingCapacity();
 
@@ -369,7 +369,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .data = @ptrCast(self.material_data.items),
                 .size = self.material_data.items.len * @sizeOf(WaterMaterial),
             };
-            self.renderer.updateBuffer(material_data_slice, WaterMaterial, self.material_data_buffers[frame_index]);
+            self.renderer.updateBuffer(material_data_slice, 0, WaterMaterial, self.material_data_buffers[frame_index]);
 
             const pipeline_id = IdLocal.init("water");
             const pipeline = self.renderer.getPSO(pipeline_id);

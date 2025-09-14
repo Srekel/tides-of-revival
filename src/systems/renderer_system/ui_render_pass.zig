@@ -147,7 +147,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(&self.uniform_frame_data),
         .size = @sizeOf(UniformFrameData),
     };
-    self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+    self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
     self.instance_data.clearRetainingCapacity();
 
@@ -169,7 +169,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(self.instance_data.items),
         .size = self.instance_data.items.len * @sizeOf(UIInstanceData),
     };
-    self.renderer.updateBuffer(instance_data_slice, UIInstanceData, self.instance_data_buffers[frame_index]);
+    self.renderer.updateBuffer(instance_data_slice, 0, UIInstanceData, self.instance_data_buffers[frame_index]);
 
     const pipeline_id = IdLocal.init("ui");
     const pipeline = self.renderer.getPSO(pipeline_id);

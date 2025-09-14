@@ -6,6 +6,7 @@ const renderer_types = @import("types.zig");
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
 const zgui = @import("zgui");
+const geometry = @import("geometry.zig");
 
 const file_system = zforge.file_system;
 const font = zforge.font;
@@ -107,6 +108,21 @@ pub const Renderer = struct {
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
     composite_sdr_profile_token: profiler.ProfileToken = undefined,
 
+    // Geometry Buffers
+    // ================
+    // Vertex Buffer
+    vertex_buffer_mutex: std.Thread.Mutex = undefined,
+    vertex_buffer: BufferHandle = undefined,
+    vertex_buffer_size: u64 = 0,
+    vertex_buffer_offset: u64 = 0,
+    vertex_count: u32 = 0,
+    // Index Buffer
+    index_buffer_mutex: std.Thread.Mutex = undefined,
+    index_buffer: BufferHandle = undefined,
+    index_buffer_size: u64 = 0,
+    index_buffer_offset: u64 = 0,
+    index_count: u32 = 0,
+
     // Render Targets
     // ==============
     // Depth
@@ -153,6 +169,7 @@ pub const Renderer = struct {
     materials_buffer: BufferHandle = undefined,
 
     mesh_pool: MeshPool = undefined,
+    legacy_mesh_pool: LegacyMeshPool = undefined,
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
     pso_manager: pso.PSOManager = undefined,
@@ -363,6 +380,7 @@ pub const Renderer = struct {
         self.frame_index = 0;
 
         self.mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
+        self.legacy_mesh_pool = LegacyMeshPool.initMaxCapacity(allocator) catch unreachable;
         self.texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_manager = pso.PSOManager{};
@@ -382,6 +400,36 @@ pub const Renderer = struct {
 
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
+
+        // Geometry Buffers
+        {
+            self.index_buffer_mutex = std.Thread.Mutex{};
+            self.index_buffer_size = 8 * 1024 * 1024 * @sizeOf(u32);
+            self.index_buffer_offset = 0;
+            self.index_count = 0;
+
+            const index_buffer_data = Slice{
+                .data = null,
+                .size = self.index_buffer_size,
+            };
+            self.index_buffer = self.createIndexBuffer(index_buffer_data, @sizeOf(u32), false, "Index Buffer");
+
+            self.vertex_buffer_mutex = std.Thread.Mutex{};
+            self.vertex_buffer_size = 8 * 1024 * 1024 * @sizeOf(geometry.Vertex);
+            self.vertex_buffer_offset = 0;
+            self.vertex_count = 0;
+
+            const vertex_buffer_data = Slice{
+                .data = null,
+                .size = self.vertex_buffer_size,
+            };
+            self.vertex_buffer = self.createBindlessBuffer(vertex_buffer_data, "Vertex Buffer");
+        }
+
+        // TESTING NEW MESH LOADING
+        {
+            _ = self.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh") catch unreachable;
+        }
     }
 
     pub fn exit(self: *Renderer) void {
@@ -407,10 +455,18 @@ pub const Renderer = struct {
         var mesh_handles = self.mesh_pool.liveHandles();
         while (mesh_handles.next()) |handle| {
             const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+            // TODO
+            _ = mesh;
+        }
+        self.mesh_pool.deinit();
+
+        var legacy_mesh_handles = self.legacy_mesh_pool.liveHandles();
+        while (legacy_mesh_handles.next()) |handle| {
+            const mesh = self.legacy_mesh_pool.getColumn(handle, .mesh) catch unreachable;
             resource_loader.removeResource__Overload3(mesh.geometry);
             resource_loader.removeResource__Overload4(mesh.data);
         }
-        self.mesh_pool.deinit();
+        self.legacy_mesh_pool.deinit();
 
         // TODO(juice): Clean gpu resources
         self.material_pool.deinit();
@@ -1083,10 +1139,70 @@ pub const Renderer = struct {
         return offset;
     }
 
-    pub fn loadMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !MeshHandle {
+    pub fn loadMesh(self: *Renderer, path: []const u8) !MeshHandle {
+        var mesh_data = std.ArrayList(geometry.MeshData).init(self.allocator);
+        defer mesh_data.deinit();
+
+        var load_desc: geometry.MeshLoadDesc = undefined;
+        load_desc.mesh_path = path;
+        load_desc.allocator = self.allocator;
+        load_desc.mesh_data = &mesh_data;
+        geometry.loadMesh(&load_desc);
+
+        var mesh: geometry.Mesh = undefined;
+        mesh.sub_mesh_count = @intCast(mesh_data.items.len);
+
+        for (mesh_data.items, 0..) |md, sub_mesh_index| {
+            mesh.sub_meshes[sub_mesh_index].index_offset = md.first_index + self.index_count;
+            mesh.sub_meshes[sub_mesh_index].vertex_offset = md.first_vertex + self.vertex_count;
+            mesh.sub_meshes[sub_mesh_index].index_count = @intCast(md.indices.items.len);
+            mesh.sub_meshes[sub_mesh_index].vertex_count = @intCast(md.vertices.items.len);
+
+            // Update index buffer
+            {
+                const data = Slice{
+                    .data = @ptrCast(md.indices.items),
+                    .size = md.indices.items.len * @sizeOf(u32),
+                };
+
+                std.debug.assert(self.index_buffer_size > data.size + self.index_buffer_offset);
+                self.updateBuffer(data, self.index_buffer_offset, u32, self.index_buffer);
+
+                self.index_buffer_offset += data.size;
+            }
+
+            // Update vertex buffer
+            {
+                const data = Slice{
+                    .data = @ptrCast(md.vertices.items),
+                    .size = md.vertices.items.len * @sizeOf(geometry.Vertex),
+                };
+
+                std.debug.assert(self.vertex_buffer_size > data.size + self.vertex_buffer_offset);
+                self.updateBuffer(data, self.vertex_buffer_offset, u32, self.vertex_buffer);
+
+                self.vertex_buffer_offset += data.size;
+            }
+        }
+
+        for (mesh_data.items) |md| {
+            self.index_count += @intCast(md.indices.items.len);
+            self.vertex_count += @intCast(md.vertices.items.len);
+        }
+
+        const handle: MeshHandle = try self.mesh_pool.add(.{ .mesh = mesh });
+        return handle;
+    }
+
+    pub fn getMesh(self: *Renderer, handle: MeshHandle) geometry.Mesh {
+        const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+        return mesh;
+    }
+
+    pub fn loadLegacyMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !LegacyMeshHandle {
         const vertex_layout = self.vertex_layouts_map.get(vertex_layout_id).?;
 
-        var mesh: Mesh = undefined;
+        var mesh: LegacyMesh = undefined;
         mesh.geometry = null;
         mesh.data = null;
         mesh.vertex_layout_id = vertex_layout_id;
@@ -1111,12 +1227,12 @@ pub const Renderer = struct {
 
         mesh.loaded = true;
 
-        const handle: MeshHandle = try self.mesh_pool.add(.{ .mesh = mesh });
+        const handle: LegacyMeshHandle = try self.legacy_mesh_pool.add(.{ .mesh = mesh });
         return handle;
     }
 
-    pub fn getMesh(self: *Renderer, handle: MeshHandle) Mesh {
-        const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+    pub fn getLegacyMesh(self: *Renderer, handle: LegacyMeshHandle) LegacyMesh {
+        const mesh = self.legacy_mesh_pool.getColumn(handle, .mesh) catch unreachable;
         return mesh;
     }
 
@@ -1330,12 +1446,13 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn updateBuffer(self: *Renderer, data: Slice, comptime T: type, handle: BufferHandle) void {
+    pub fn updateBuffer(self: *Renderer, data: Slice, dest_offset: u64, comptime T: type, handle: BufferHandle) void {
         const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
         _ = T;
 
         var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
         update_desc.pBuffer = @ptrCast(buffer);
+        update_desc.mDstOffset = dest_offset;
         resource_loader.beginUpdateResource(&update_desc);
         util.memcpy(update_desc.pMappedData.?, data.data.?, data.size);
         resource_loader.endUpdateResource(&update_desc);
@@ -1792,7 +1909,8 @@ pub const Renderer = struct {
     }
 };
 
-pub const Mesh = struct {
+
+pub const LegacyMesh = struct {
     geometry: [*c]resource_loader.Geometry,
     data: [*c]resource_loader.GeometryData,
     buffer_layout_desc: resource_loader.GeometryBufferLayoutDesc,
@@ -1835,8 +1953,11 @@ pub const PassPipelineIds = struct {
 const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
 pub const MaterialHandle = MaterialPool.Handle;
 
-const MeshPool = Pool(16, 16, Mesh, struct { mesh: Mesh });
+const MeshPool = Pool(16, 16, geometry.Mesh, struct { mesh: geometry.Mesh });
 pub const MeshHandle = MeshPool.Handle;
+
+const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
+pub const LegacyMeshHandle = LegacyMeshPool.Handle;
 
 const TexturePool = Pool(16, 16, graphics.Texture, struct { texture: [*c]graphics.Texture });
 pub const TextureHandle = TexturePool.Handle;
@@ -1848,9 +1969,6 @@ pub const Slice = extern struct {
     data: ?*const anyopaque,
     size: u64,
 };
-
-pub const mesh_lod_max_count: u32 = 4;
-pub const sub_mesh_max_count: u32 = 32;
 
 pub const FrameStats = struct {
     time: f64,

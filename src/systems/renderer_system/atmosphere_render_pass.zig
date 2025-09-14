@@ -51,7 +51,7 @@ pub const AtmosphereRenderPass = struct {
     procedural_sky_descriptor_set: [*c]graphics.DescriptorSet,
     draw_sky_descriptor_set: [*c]graphics.DescriptorSet,
 
-    skybox_mesh: renderer.Mesh,
+    skybox_mesh: renderer.LegacyMesh,
 
     pub fn init(self: *AtmosphereRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         const procedural_sky_constant_buffers = blk: {
@@ -101,7 +101,7 @@ pub const AtmosphereRenderPass = struct {
         const skybox_prefab = prefab_mgr.getPrefab(config.prefab.skybox_id).?;
         const skybox_lods = skybox_prefab.get(fd.LodGroup).?;
         const skybox_mesh_handle = skybox_lods.lods[0].mesh_handle;
-        const skybox_mesh = rctx.getMesh(skybox_mesh_handle);
+        const skybox_mesh = rctx.getLegacyMesh(skybox_mesh_handle);
 
         self.* = .{
             .allocator = allocator,
@@ -197,7 +197,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(&procedural_sky_data),
             .size = @sizeOf(ProceduralSkyParams),
         };
-        self.renderer.updateBuffer(data, ProceduralSkyParams, self.procedural_sky_constant_buffers[frame_index]);
+        self.renderer.updateBuffer(data, 0, ProceduralSkyParams, self.procedural_sky_constant_buffers[frame_index]);
 
         const input_barrier = [_]graphics.TextureBarrier{
             graphics.TextureBarrier.init(skybox_cubemap, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
@@ -231,7 +231,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(&draw_sky_data),
             .size = @sizeOf(DrawSkyParams),
         };
-        self.renderer.updateBuffer(data, DrawSkyParams, self.draw_sky_constant_buffers[frame_index]);
+        self.renderer.updateBuffer(data, 0, DrawSkyParams, self.draw_sky_constant_buffers[frame_index]);
 
         var input_rt_barriers = [_]graphics.RenderTargetBarrier{
             graphics.RenderTargetBarrier.init(self.renderer.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_READ),

@@ -184,7 +184,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const prefab_ent = prefab_mgr.getPrefab(prefab_id).?;
         const lod_group = prefab_ent.get(fd.LodGroup);
         const mesh_handle = lod_group.?.lods[0].mesh_handle;
-        const mesh = rctx.getMesh(mesh_handle);
+        const mesh = rctx.getLegacyMesh(mesh_handle);
         const aabbMin = mesh.geometry.*.mAabbMin;
         const aabbMax = mesh.geometry.*.mAabbMax;
         _ = aabbMax;

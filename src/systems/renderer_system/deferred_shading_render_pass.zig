@@ -399,7 +399,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(&self.uniform_frame_data),
         .size = @sizeOf(UniformFrameData),
     };
-    self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+    self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
     self.directional_lights.clearRetainingCapacity();
     var query_directional_lights_iter = ecs.query_iter(self.ecsu_world.world, self.query_directional_lights);
@@ -445,7 +445,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(self.directional_lights.items),
             .size = self.directional_lights.items.len * @sizeOf(DirectionalLight),
         };
-        self.renderer.updateBuffer(directional_lights_slice, DirectionalLight, self.directional_lights_buffers[frame_index]);
+        self.renderer.updateBuffer(directional_lights_slice, 0, DirectionalLight, self.directional_lights_buffers[frame_index]);
     }
 
     if (self.point_lights.items.len > 0) {
@@ -453,7 +453,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(self.point_lights.items),
             .size = self.point_lights.items.len * @sizeOf(PointLight),
         };
-        self.renderer.updateBuffer(point_lights_slice, PointLight, self.point_lights_buffers[frame_index]);
+        self.renderer.updateBuffer(point_lights_slice, 0, PointLight, self.point_lights_buffers[frame_index]);
     }
 
     // Deferred Shading commands

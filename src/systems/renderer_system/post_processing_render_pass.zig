@@ -335,7 +335,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .data = @ptrCast(&constant_buffer_data),
                     .size = @sizeOf(BloomExtractConstantBuffer),
                 };
-                self.renderer.updateBuffer(data, BloomExtractConstantBuffer, self.bloom_extract_constant_buffers[frame_index]);
+                self.renderer.updateBuffer(data, 0, BloomExtractConstantBuffer, self.bloom_extract_constant_buffers[frame_index]);
             }
 
             const pipeline_id = IdLocal.init("bloom_extract");
@@ -376,7 +376,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .data = @ptrCast(&constant_buffer_data),
                     .size = @sizeOf(DownsampleBloomConstantBuffer),
                 };
-                self.renderer.updateBuffer(data, DownsampleBloomConstantBuffer, self.downsample_bloom_constant_buffers[frame_index]);
+                self.renderer.updateBuffer(data, 0, DownsampleBloomConstantBuffer, self.downsample_bloom_constant_buffers[frame_index]);
             }
 
             const pipeline_id = IdLocal.init("downsample_bloom_all");
@@ -453,7 +453,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .data = @ptrCast(&constant_buffer_data),
                 .size = @sizeOf(TonemapConstantBuffer),
             };
-            self.renderer.updateBuffer(data, TonemapConstantBuffer, self.tonemap_constant_buffers[frame_index]);
+            self.renderer.updateBuffer(data, 0, TonemapConstantBuffer, self.tonemap_constant_buffers[frame_index]);
         }
 
         const pipeline_id = IdLocal.init("tonemap");
@@ -500,7 +500,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .data = @ptrCast(&constant_buffer_data),
                 .size = @sizeOf(GenerateHistogramConstantBuffer),
             };
-            self.renderer.updateBuffer(data, GenerateHistogramConstantBuffer, self.generate_histogram_buffers[frame_index]);
+            self.renderer.updateBuffer(data, 0, GenerateHistogramConstantBuffer, self.generate_histogram_buffers[frame_index]);
         }
 
         // Clear histogram
@@ -573,7 +573,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .data = @ptrCast(&constant_buffer_data),
                     .size = @sizeOf(AdaptExposureConstantBuffer),
                 };
-                self.renderer.updateBuffer(data, AdaptExposureConstantBuffer, self.adapt_exposure_buffers[frame_index]);
+                self.renderer.updateBuffer(data, 0, AdaptExposureConstantBuffer, self.adapt_exposure_buffers[frame_index]);
             }
 
             const pipeline_id = IdLocal.init("adapt_exposure");
@@ -617,7 +617,7 @@ fn upsampleAndBlur(
             .data = @ptrCast(&constant_buffer_data),
             .size = @sizeOf(UpsampleAndBlurConstantBuffer),
         };
-        self.renderer.updateBuffer(data, UpsampleAndBlurConstantBuffer, self.upsample_and_blur_constant_buffers[buffer_index][frame_index]);
+        self.renderer.updateBuffer(data, 0, UpsampleAndBlurConstantBuffer, self.upsample_and_blur_constant_buffers[buffer_index][frame_index]);
     }
 
     const pipeline_id = IdLocal.init("upsample_and_blur");

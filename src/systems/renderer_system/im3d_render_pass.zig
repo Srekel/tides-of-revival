@@ -206,6 +206,27 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     //     im3d.Im3d.PopDrawState();
     // }
 
+    {
+        im3d.Im3d.DrawLine(
+            &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
+            &.{ .x = 10.0, .y = 0.0, .z = 0.0 },
+            3.0,
+            im3d.Im3d.Color.init5b(1, 0, 0, 1),
+        );
+        im3d.Im3d.DrawLine(
+            &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
+            &.{ .x = 0.0, .y = 10.0, .z = 0.0 },
+            3.0,
+            im3d.Im3d.Color.init5b(0, 1, 0, 1),
+        );
+        im3d.Im3d.DrawLine(
+            &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
+            &.{ .x = 0.0, .y = 0.0, .z = 1.0 },
+            3.0,
+            im3d.Im3d.Color.init5b(0, 0, 1, 1),
+        );
+    }
+
     im3d.Im3d.EndFrame();
     const draw_list_count = im3d.Im3d.GetDrawListCount();
     const draw_lists = im3d.Im3d.GetDrawLists();
@@ -221,7 +242,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(&self.uniform_frame_data),
         .size = @sizeOf(UniformFrameData),
     };
-    self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+    self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
 
     for (0..draw_list_count) |i| {
         const draw_list = draw_lists[i];
@@ -232,7 +253,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .size = draw_list.m_vertexCount * im3d_vertex_size,
             };
 
-            self.renderer.updateBuffer(vertex_data, im3d.Im3d.VertexData, self.lines_vertex_buffers[frame_index]);
+            self.renderer.updateBuffer(vertex_data, 0, im3d.Im3d.VertexData, self.lines_vertex_buffers[frame_index]);
 
             const pipeline_id = IdLocal.init("im3d_lines");
             const pipeline = self.renderer.getPSO(pipeline_id);
@@ -253,7 +274,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .size = draw_list.m_vertexCount * im3d_vertex_size,
             };
 
-            self.renderer.updateBuffer(vertex_data, im3d.Im3d.VertexData, self.triangles_vertex_buffers[frame_index]);
+            self.renderer.updateBuffer(vertex_data, 0, im3d.Im3d.VertexData, self.triangles_vertex_buffers[frame_index]);
 
             const pipeline_id = IdLocal.init("im3d_triangles");
             const pipeline = self.renderer.getPSO(pipeline_id);
@@ -274,7 +295,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .size = draw_list.m_vertexCount * im3d_vertex_size,
             };
 
-            self.renderer.updateBuffer(vertex_data, im3d.Im3d.VertexData, self.points_vertex_buffers[frame_index]);
+            self.renderer.updateBuffer(vertex_data, 0, im3d.Im3d.VertexData, self.points_vertex_buffers[frame_index]);
 
             const pipeline_id = IdLocal.init("im3d_points");
             const pipeline = self.renderer.getPSO(pipeline_id);

@@ -47,7 +47,7 @@ const Batch = struct {
 
 const BatchKey = struct {
     material_handle: renderer.MaterialHandle,
-    mesh_handle: renderer.MeshHandle,
+    mesh_handle: renderer.LegacyMeshHandle,
     sub_mesh_index: u32,
     surface_type: fd.SurfaceType,
 };
@@ -224,7 +224,7 @@ pub const GeometryRenderPass = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
-fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.Mesh, cmd_list: [*c]graphics.Cmd) void {
+fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.LegacyMesh, cmd_list: [*c]graphics.Cmd) void {
     const vertex_layout = self.renderer.getVertexLayout(mesh.vertex_layout_id).?;
     const vertex_buffer_count_max = 12; // TODO(gmodarelli): Use MAX_SEMANTICS
     var vertex_buffers: [vertex_buffer_count_max][*c]graphics.Buffer = undefined;
@@ -264,7 +264,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(&self.uniform_frame_data_gbuffer),
             .size = @sizeOf(UniformFrameData),
         };
-        self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers_gbuffer[frame_index]);
+        self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers_gbuffer[frame_index]);
     }
 
     // Update Wind Frame Buffer
@@ -273,7 +273,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(&self.wind_frame_data),
             .size = @sizeOf(WindFrameData),
         };
-        self.renderer.updateBuffer(data, WindFrameData, self.wind_frame_buffers[frame_index]);
+        self.renderer.updateBuffer(data, 0, WindFrameData, self.wind_frame_buffers[frame_index]);
     }
 
     // Render Cutout Objects
@@ -314,7 +314,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .instance_material_buffer_index = material_buffer_index,
                 };
 
-                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const mesh = self.renderer.getLegacyMesh(batch_key.mesh_handle);
                 const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
@@ -372,7 +372,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .instance_material_buffer_index = material_buffer_index,
                 };
 
-                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const mesh = self.renderer.getLegacyMesh(batch_key.mesh_handle);
                 const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
@@ -430,7 +430,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(&self.uniform_frame_data_shadow_caster),
         .size = @sizeOf(ShadowsUniformFrameData),
     };
-    self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.uniform_frame_buffers_shadow_caster[frame_index]);
+    self.renderer.updateBuffer(data, 0, ShadowsUniformFrameData, self.uniform_frame_buffers_shadow_caster[frame_index]);
 
     // TODO: Move this out of the renderShadowMap and into an "update" function
     {
@@ -456,7 +456,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 .data = @ptrCast(self.instances.items),
                 .size = self.instances.items.len * @sizeOf(InstanceData),
             };
-            self.renderer.updateBuffer(instance_data_slice, InstanceData, self.instance_buffers[frame_index]);
+            self.renderer.updateBuffer(instance_data_slice, 0, InstanceData, self.instance_buffers[frame_index]);
         }
     }
 
@@ -498,7 +498,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .instance_material_buffer_index = material_buffer_index,
                 };
 
-                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const mesh = self.renderer.getLegacyMesh(batch_key.mesh_handle);
                 const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
@@ -556,7 +556,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .instance_material_buffer_index = material_buffer_index,
                 };
 
-                const mesh = self.renderer.getMesh(batch_key.mesh_handle);
+                const mesh = self.renderer.getLegacyMesh(batch_key.mesh_handle);
                 const sub_mesh_index = batch_key.sub_mesh_index;
 
                 if (mesh.loaded) {
@@ -778,7 +778,7 @@ fn batchEntities(
                 }
 
                 // TODO(gmodarelli): If we're in a shadow-casting pass, we should use the "light's camera frustum"
-                const mesh = self.renderer.getMesh(static_mesh.mesh_handle);
+                const mesh = self.renderer.getLegacyMesh(static_mesh.mesh_handle);
                 var world: [16]f32 = undefined;
                 storeMat44(transform.matrix[0..], &world);
                 const z_world = zm.loadMat(world[0..]);

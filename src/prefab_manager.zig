@@ -8,6 +8,7 @@ const zwin32 = @import("zwin32");
 
 const fd = @import("config/flecs_data.zig");
 const renderer = @import("renderer/renderer.zig");
+const geometry = @import("renderer/geometry.zig");
 const util = @import("util.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
 
@@ -74,7 +75,7 @@ pub const PrefabManager = struct {
             return prefab;
         }
 
-        const mesh_handle = self.rctx.loadMesh(path, vertex_layout_id) catch unreachable;
+        const mesh_handle = self.rctx.loadLegacyMesh(path, vertex_layout_id) catch unreachable;
         var entity = world.newPrefab(id.toCString());
         entity.setOverride(fd.Forward{});
 
@@ -138,7 +139,7 @@ pub const PrefabManager = struct {
         };
 
         // Try to load LODs
-        for (0..renderer.mesh_lod_max_count) |lod| {
+        for (0..geometry.mesh_lod_max_count) |lod| {
             var content_lod_path_buffer: [256]u8 = undefined;
             const content_lod_path = std.fmt.bufPrintZ(
                 content_lod_path_buffer[0..content_lod_path_buffer.len],
@@ -157,9 +158,9 @@ pub const PrefabManager = struct {
                 .{ path, lod },
             ) catch unreachable;
 
-            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadLegacyMesh(lod_path, vertex_layout_id) catch unreachable;
 
-            const mesh = self.rctx.getMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
+            const mesh = self.rctx.getLegacyMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
             lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
             for (0..num_materials) |_| {
@@ -178,9 +179,9 @@ pub const PrefabManager = struct {
                 .{path},
             ) catch unreachable;
 
-            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadLegacyMesh(lod_path, vertex_layout_id) catch unreachable;
 
-            const mesh = self.rctx.getMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
+            const mesh = self.rctx.getLegacyMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
             lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
             for (0..num_materials) |_| {

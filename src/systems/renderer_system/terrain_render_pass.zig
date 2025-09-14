@@ -85,7 +85,7 @@ pub const TerrainRenderPass = struct {
     instance_data: *[max_instances]TerrainInstanceData,
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
-    terrain_lod_meshes: std.ArrayList(renderer.MeshHandle),
+    terrain_lod_meshes: std.ArrayList(renderer.LegacyMeshHandle),
     quads_to_render: std.ArrayList(u32),
     quads_to_load: std.ArrayList(u32),
 
@@ -253,7 +253,7 @@ pub const TerrainRenderPass = struct {
     }
 
     fn loadTerrainMeshes(self: *TerrainRenderPass) !void {
-        self.terrain_lod_meshes = std.ArrayList(renderer.MeshHandle).init(self.allocator);
+        self.terrain_lod_meshes = std.ArrayList(renderer.LegacyMeshHandle).init(self.allocator);
         self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_0.bin") catch unreachable;
         self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_1.bin") catch unreachable;
         self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_2.bin") catch unreachable;
@@ -261,7 +261,7 @@ pub const TerrainRenderPass = struct {
     }
 
     fn loadTerrainMesh(self: *TerrainRenderPass, path: [:0]const u8) !void {
-        const mesh_handle = self.renderer.loadMesh(path, IdLocal.init("pos_uv0_col")) catch unreachable;
+        const mesh_handle = self.renderer.loadLegacyMesh(path, IdLocal.init("pos_uv0_col")) catch unreachable;
         self.terrain_lod_meshes.append(mesh_handle) catch unreachable;
     }
 
@@ -421,7 +421,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(&uniform_frame_data),
             .size = @sizeOf(UniformFrameData),
         };
-        self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+        self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
     }
 
     // Update material buffer
@@ -442,7 +442,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(&terrain_material_data),
             .size = @sizeOf(TerrainMaterial),
         };
-        self.renderer.updateBuffer(data, TerrainMaterial, self.terrain_material_buffers[frame_index]);
+        self.renderer.updateBuffer(data, 0, TerrainMaterial, self.terrain_material_buffers[frame_index]);
     }
 
     var arena_state = std.heap.ArenaAllocator.init(self.allocator);
@@ -520,7 +520,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .data = @ptrCast(self.instance_data),
             .size = self.frame_instance_count * @sizeOf(TerrainInstanceData),
         };
-        self.renderer.updateBuffer(data_slice, TerrainInstanceData, self.instance_data_buffers[frame_index]);
+        self.renderer.updateBuffer(data_slice, 0, TerrainInstanceData, self.instance_data_buffers[frame_index]);
 
         const pipeline_id = IdLocal.init("terrain_gbuffer");
         const pipeline = self.renderer.getPSO(pipeline_id);
@@ -538,7 +538,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const quad = &self.terrain_quad_tree_nodes.items[quad_index];
 
             const mesh_handle = self.terrain_lod_meshes.items[quad.mesh_lod];
-            const mesh = self.renderer.getMesh(mesh_handle);
+            const mesh = self.renderer.getLegacyMesh(mesh_handle);
 
             if (mesh.loaded) {
                 const push_constants = InstanceRootConstants{
@@ -671,7 +671,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(&self.shadows_uniform_frame_data),
         .size = @sizeOf(ShadowsUniformFrameData),
     };
-    self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.shadows_uniform_frame_buffers[frame_index]);
+    self.renderer.updateBuffer(data, 0, ShadowsUniformFrameData, self.shadows_uniform_frame_buffers[frame_index]);
 
     if (self.frame_instance_count > 0) {
         const pipeline_id = IdLocal.init("terrain_shadow_caster");
@@ -690,7 +690,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const quad = &self.terrain_quad_tree_nodes.items[quad_index];
 
             const mesh_handle = self.terrain_lod_meshes.items[quad.mesh_lod];
-            const mesh = self.renderer.getMesh(mesh_handle);
+            const mesh = self.renderer.getLegacyMesh(mesh_handle);
 
             if (mesh.loaded) {
                 const push_constants = InstanceRootConstants{

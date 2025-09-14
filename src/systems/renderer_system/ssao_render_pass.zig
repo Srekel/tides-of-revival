@@ -80,7 +80,7 @@ fn renderSSAO(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(&constant_buffer_data),
         .size = @sizeOf(ConstantBufferData),
     };
-    self.renderer.updateBuffer(data, ConstantBufferData, self.constant_buffers[frame_index]);
+    self.renderer.updateBuffer(data, 0, ConstantBufferData, self.constant_buffers[frame_index]);
 
     const linear_depth = self.renderer.getTexture(self.renderer.linear_depth_buffers[frame_index]);
     const linear_depth_width: u32 = @intCast(self.renderer.window_width);
