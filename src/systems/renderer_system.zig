@@ -20,6 +20,7 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const SSAORenderPass = @import("renderer_system/ssao_render_pass.zig").SSAORenderPass;
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
+const GpuDrivenRenderPass = @import("renderer_system/gpu_driven_render_pass.zig").GpuDrivenRenderPass;
 const DeferredShadingRenderPass = @import("renderer_system/deferred_shading_render_pass.zig").DeferredShadingRenderPass;
 const AtmosphereRenderPass = @import("renderer_system/atmosphere_render_pass.zig").AtmosphereRenderPass;
 const WaterRenderPass = @import("renderer_system/water_render_pass.zig").WaterRenderPass;
@@ -52,6 +53,7 @@ pub const SystemUpdateContext = struct {
         terrain_render_pass: *TerrainRenderPass,
         ssao_render_pass: *SSAORenderPass,
         geometry_render_pass: *GeometryRenderPass,
+        gpu_driven_render_pass: *GpuDrivenRenderPass,
         deferred_shading_render_pass: *DeferredShadingRenderPass,
         atmosphere_render_pass: *AtmosphereRenderPass,
         water_render_pass: *WaterRenderPass,
@@ -78,6 +80,9 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const terrain_render_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
     terrain_render_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
 
+    const gpu_driven_render_pass = arena_system_lifetime.create(GpuDrivenRenderPass) catch unreachable;
+    gpu_driven_render_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
+
     const deferred_shading_render_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
     deferred_shading_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
@@ -102,6 +107,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .ssao_render_pass = ssao_render_pass,
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
+        .gpu_driven_render_pass = gpu_driven_render_pass,
         .deferred_shading_render_pass = deferred_shading_render_pass,
         .atmosphere_render_pass = atmosphere_render_pass,
         .water_render_pass = water_render_pass,
@@ -142,6 +148,7 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     system.state.ssao_render_pass.destroy();
     system.state.terrain_render_pass.destroy();
     system.state.geometry_render_pass.destroy();
+    system.state.gpu_driven_render_pass.destroy();
     system.state.post_processing_pass.destroy();
     system.state.deferred_shading_render_pass.destroy();
     system.state.atmosphere_render_pass.destroy();

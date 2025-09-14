@@ -9,6 +9,13 @@ struct InstanceData
 	float3 _padding;
 };
 
+struct InstanceIndirectionData
+{
+	uint instanceIndex;
+	uint gpuMeshIndex;
+	uint2 _padding;
+};
+
 struct InstanceRootConstants
 {
 	uint startInstanceLocation;

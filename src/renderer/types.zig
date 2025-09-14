@@ -9,6 +9,12 @@ pub const InstanceData = struct {
     _padding: [3]f32,
 };
 
+pub const InstanceDataIndirection = struct {
+    instance_index: u32,
+    gpu_mesh_index: u32,
+    _padding: [2]u32,
+};
+
 pub const InstanceRootConstants = struct {
     start_instance_location: u32,
     instance_data_buffer_index: u32,

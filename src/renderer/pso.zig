@@ -431,6 +431,36 @@ pub const PSOManager = struct {
             }
         }
 
+        // GPU-Driven Opaque and Masked PSOs
+        {
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
+            const render_targets = [_]graphics.TinyImageFormat{
+                self.renderer.gbuffer_0.*.mFormat,
+                self.renderer.gbuffer_1.*.mFormat,
+                self.renderer.gbuffer_2.*.mFormat,
+            };
+
+            const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
+
+            var desc = GraphicsPipelineDesc{
+                .id = IdLocal.init("gpu_driven_gbuffer_opaque"),
+                .vert_shader_name = "gpu_driven_gbuffer.vert",
+                .frag_shader_name = "gpu_driven_gbuffer_opaque.frag",
+                .render_targets = @constCast(&render_targets),
+                .rasterizer_state = rasterizer_cull_back,
+                .depth_state = depth_state,
+                .depth_format = self.renderer.depth_buffer.*.mFormat,
+                .vertex_layout_id = null,
+                .sampler_ids = &sampler_ids,
+            };
+            self.createGraphicsPipeline(desc);
+
+            desc.id = IdLocal.init("gpu_driven_gbuffer_masked");
+            desc.frag_shader_name = "gpu_driven_gbuffer_opaque.frag";
+            desc.rasterizer_state = rasterizer_cull_none;
+            self.createGraphicsPipeline(desc);
+        }
+
         // Deferred
         {
             var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge };

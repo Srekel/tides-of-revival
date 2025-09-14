@@ -124,6 +124,12 @@ pub const Renderer = struct {
     index_buffer_size: u64 = 0,
     index_buffer_offset: u64 = 0,
     index_count: u32 = 0,
+    // GPU Mesh Buffer
+    gpu_mesh_buffer_mutex: std.Thread.Mutex = undefined,
+    gpu_mesh_buffer: BufferHandle = undefined,
+    gpu_mesh_buffer_size: u64 = 0,
+    gpu_mesh_buffer_offset: u64 = 0,
+    gpu_mesh_count: u32 = 0,
 
     // Render Targets
     // ==============
@@ -227,6 +233,7 @@ pub const Renderer = struct {
         log.initLog("Tides Renderer", log.LogLevel.eALL);
 
         var renderer_desc = std.mem.zeroes(graphics.RendererDesc);
+        renderer_desc.mShaderTarget = .SHADER_TARGET_6_8;
         graphics.initGPUConfiguration(null);
         graphics.initRenderer("Tides Renderer", &renderer_desc, &self.renderer);
         if (self.renderer == null) {
@@ -426,11 +433,17 @@ pub const Renderer = struct {
                 .size = self.vertex_buffer_size,
             };
             self.vertex_buffer = self.createBindlessBuffer(vertex_buffer_data, "Vertex Buffer");
-        }
 
-        // TESTING NEW MESH LOADING
-        {
-            _ = self.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh") catch unreachable;
+            self.gpu_mesh_buffer_mutex = std.Thread.Mutex{};
+            self.gpu_mesh_buffer_size = 256 * @sizeOf(geometry.SubMesh);
+            self.gpu_mesh_buffer_offset = 0;
+            self.gpu_mesh_count = 0;
+
+            const gpu_mesh_buffer_data = Slice{
+                .data = null,
+                .size = self.gpu_mesh_buffer_size,
+            };
+            self.gpu_mesh_buffer = self.createBindlessBuffer(gpu_mesh_buffer_data, "Mesh Buffer");
         }
     }
 
@@ -1166,11 +1179,19 @@ pub const Renderer = struct {
         var mesh: geometry.Mesh = undefined;
         mesh.sub_mesh_count = @intCast(mesh_data.items.len);
 
+        var gpu_mesh_indices = std.mem.zeroes(GpuMeshIndices);
+        gpu_mesh_indices.count = @intCast(mesh_data.items.len);
+
         for (mesh_data.items, 0..) |md, sub_mesh_index| {
             mesh.sub_meshes[sub_mesh_index].index_offset = md.first_index + self.index_count;
             mesh.sub_meshes[sub_mesh_index].vertex_offset = md.first_vertex + self.vertex_count;
             mesh.sub_meshes[sub_mesh_index].index_count = @intCast(md.indices.items.len);
             mesh.sub_meshes[sub_mesh_index].vertex_count = @intCast(md.vertices.items.len);
+            @memcpy(&mesh.sub_meshes[sub_mesh_index].bounds.center, &md.bounds.center);
+            @memcpy(&mesh.sub_meshes[sub_mesh_index].bounds.extents, &md.bounds.extents);
+
+            gpu_mesh_indices.indices[sub_mesh_index] = self.gpu_mesh_count;
+            self.gpu_mesh_count += 1;
 
             // Update index buffer
             {
@@ -1197,6 +1218,19 @@ pub const Renderer = struct {
 
                 self.vertex_buffer_offset += data.size;
             }
+
+            // Update gpu mesh buffer
+            {
+                const data = Slice{
+                    .data = @ptrCast(&mesh.sub_meshes[sub_mesh_index]),
+                    .size = @sizeOf(geometry.SubMesh),
+                };
+
+                std.debug.assert(self.gpu_mesh_buffer_size > data.size + self.gpu_mesh_buffer_offset);
+                self.updateBuffer(data, self.gpu_mesh_buffer_offset, u32, self.gpu_mesh_buffer);
+
+                self.gpu_mesh_buffer_offset += data.size;
+            }
         }
 
         for (mesh_data.items) |md| {
@@ -1204,12 +1238,17 @@ pub const Renderer = struct {
             self.vertex_count += @intCast(md.vertices.items.len);
         }
 
-        const handle: MeshHandle = try self.mesh_pool.add(.{ .mesh = mesh });
+        const handle: MeshHandle = try self.mesh_pool.add(.{ .mesh = mesh, .gpu_mesh_indices = gpu_mesh_indices });
         return handle;
     }
 
     pub fn getMesh(self: *Renderer, handle: MeshHandle) geometry.Mesh {
         const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+        return mesh;
+    }
+
+    pub fn getGpuMeshIndices(self: *Renderer, handle: MeshHandle) GpuMeshIndices {
+        const mesh = self.mesh_pool.getColumn(handle, .gpu_mesh_indices) catch unreachable;
         return mesh;
     }
 
@@ -1967,7 +2006,12 @@ pub const PassPipelineIds = struct {
 const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
 pub const MaterialHandle = MaterialPool.Handle;
 
-const MeshPool = Pool(16, 16, geometry.Mesh, struct { mesh: geometry.Mesh });
+pub const GpuMeshIndices = struct {
+    count: u32,
+    indices: [geometry.sub_mesh_max_count]u32,
+};
+
+const MeshPool = Pool(16, 16, geometry.Mesh, struct { mesh: geometry.Mesh, gpu_mesh_indices: GpuMeshIndices });
 pub const MeshHandle = MeshPool.Handle;
 
 const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
