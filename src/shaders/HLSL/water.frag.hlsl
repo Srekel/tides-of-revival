@@ -1,9 +1,8 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#include "water_resources.hlsl"
-#include "pbr.hlsl"
-#include "utils.hlsl"
+#include "water_resources.hlsli"
+#include "pbr.hlsli"
 
 float4 CalculateScreenPosition(float4 clip_position)
 {

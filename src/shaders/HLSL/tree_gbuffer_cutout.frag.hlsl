@@ -3,7 +3,7 @@
 
 #define VL_PosNorTanUv0ColUV1
 #include "tree_gbuffer_resources.hlsli"
-#include "utils.hlsl"
+#include "utils.hlsli"
 
 GBufferOutput PS_MAIN(VSOutput Input, bool isFrontFace : SV_IsFrontFace)
 {

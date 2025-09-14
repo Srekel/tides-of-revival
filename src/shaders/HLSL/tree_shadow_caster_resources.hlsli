@@ -6,6 +6,6 @@
 
 #define WIND_CBUFFER_REG b2
 #define WIND_CBUFFER_BINDING 3
-#include "wind.hlsl"
+#include "wind.hlsli"
 
 #endif // _SHADOWS_TREE_RESOURCES_H

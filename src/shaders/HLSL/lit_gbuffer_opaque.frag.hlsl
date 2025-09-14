@@ -3,7 +3,7 @@
 
 #define VL_PosNorTanUv0Col
 #include "lit_gbuffer_resources.hlsli"
-#include "utils.hlsl"
+#include "utils.hlsli"
 
 GBufferOutput PS_MAIN(VSOutput Input)
 {

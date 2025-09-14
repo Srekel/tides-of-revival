@@ -2,7 +2,7 @@
 #define STAGE_FRAG
 
 #include "../FSL/d3d.h"
-#include "utils.hlsl"
+#include "utils.hlsli"
 
 RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
@@ -19,7 +19,7 @@ RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t6, binding = 10);
 RES(Tex2D(float), shadowDepthBuffer, UPDATE_FREQ_NONE, t7, binding = 11);
 
 #define BRDF_FUNCTION FILAMENT_BRDF
-#include "pbr.hlsl"
+#include "pbr.hlsli"
 
 cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
 {

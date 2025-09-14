@@ -2,8 +2,9 @@
 #define STAGE_FRAG
 
 #include "terrain_shadow_caster_resources.hlsli"
-#include "utils.hlsl"
+#include "utils.hlsli"
 
-void PS_MAIN( TerrainShadowVSOutput Input ) {
+void PS_MAIN(TerrainShadowVSOutput Input)
+{
     INIT_MAIN;
 }

@@ -4,7 +4,7 @@
 #include "../FSL/d3d.h"
 #include "../FSL/ShaderUtilities.h.fsl"
 #include "types.hlsli"
-#include "material.hlsl"
+#include "material.hlsli"
 
 SamplerState g_linear_repeat_sampler : register(s0);
 SamplerState g_linear_clamp_edge_sampler : register(s1);

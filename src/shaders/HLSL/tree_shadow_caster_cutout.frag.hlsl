@@ -3,7 +3,7 @@
 
 #define VL_PosNorTanUv0ColUV1
 #include "tree_shadow_caster_resources.hlsli"
-#include "utils.hlsl"
+#include "utils.hlsli"
 
 void PS_MAIN(ShadowVSOutput Input)
 {

@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "water_resources.hlsl"
+#include "water_resources.hlsli"
 #include "../FSL/ShaderUtilities.h.fsl"
 
 VSOutput VS_MAIN(VSInput Input, uint instance_id : SV_InstanceID)

@@ -2,7 +2,7 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#include "im3d.hlsl"
+#include "im3d.hlsli"
 
 float4 VS_MAIN(VS_OUTPUT _in) : SV_TARGET
 {

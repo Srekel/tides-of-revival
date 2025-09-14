@@ -2,6 +2,7 @@
 #define _PBR_H
 
 #include "types.hlsli"
+#include "utils.hlsli"
 
 // The-Forge PBR Implementation
 #ifndef PI
@@ -15,11 +16,6 @@
 #ifndef PI_DIV2
 #define PI_DIV2 1.57079632679
 #endif
-
-float pow5(float value)
-{
-	return (value * value) * (value * value) * value;
-}
 
 // ███████╗██╗██╗      █████╗ ███╗   ███╗███████╗███╗   ██╗████████╗    ██████╗ ██████╗ ██████╗
 // ██╔════╝██║██║     ██╔══██╗████╗ ████║██╔════╝████╗  ██║╚══██╔══╝    ██╔══██╗██╔══██╗██╔══██╗
