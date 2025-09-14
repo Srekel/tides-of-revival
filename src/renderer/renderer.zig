@@ -27,6 +27,7 @@ const window = @import("window.zig");
 
 pub const ReloadDesc = graphics.ReloadDesc;
 
+pub const renderPassUpdateFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
 pub const renderPassImGuiFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
@@ -39,6 +40,7 @@ pub const specular_texture_size: u32 = 128;
 pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
 
 pub const RenderPass = struct {
+    update_fn: renderPassUpdateFn = null,
     render_ssao_pass_fn: renderPassRenderFn = null,
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
@@ -675,6 +677,18 @@ pub const Renderer = struct {
                 }
 
                 zgui.end();
+            }
+        }
+
+        // Update step
+        {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
+            defer trazy_zone1.End();
+
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.update_fn) |update_fn| {
+                    update_fn(render_pass.user_data);
+                }
             }
         }
 
