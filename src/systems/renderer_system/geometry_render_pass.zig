@@ -55,7 +55,7 @@ const BatchKey = struct {
 const BatchMap = std.AutoHashMap(BatchKey, Batch);
 
 const max_instances = 100000;
-const max_draw_distance: f32 = 2000.0;
+const max_draw_distance: f32 = 20000.0;
 
 const cutout_entities_index: u32 = 0;
 const opaque_entities_index: u32 = 1;

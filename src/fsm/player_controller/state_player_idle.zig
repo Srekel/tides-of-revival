@@ -18,22 +18,6 @@ const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const context = @import("../../core/context.zig");
 
-pub const NonMovingBroadPhaseLayerFilter = extern struct {
-    usingnamespace zphy.BroadPhaseLayerFilter.Methods(@This());
-    __v: *const zphy.BroadPhaseLayerFilter.VTable = &vtable,
-
-    const vtable = zphy.BroadPhaseLayerFilter.VTable{
-        .shouldCollide = shouldCollide,
-    };
-    fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
-        _ = self;
-        if (layer == config.broad_phase_layers.moving) {
-            return false;
-        }
-        return true;
-    }
-};
-
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
@@ -145,7 +129,7 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
             .direction = ray_dir,
         },
         .{
-            .broad_phase_layer_filter = @ptrCast(&NonMovingBroadPhaseLayerFilter{}),
+            .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
         },
     );
 
@@ -162,7 +146,8 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const rotations = ecs.field(it, fd.Rotation, 2).?;
     const forwards = ecs.field(it, fd.Forward, 3).?;
 
-    for (inputs, positions, rotations, forwards) |input_comp, *pos, *rot, *fwd| {
+    for (inputs, positions, rotations, forwards, it.entities()) |input_comp, *pos, *rot, *fwd, ent| {
+        _ = ent; // autofix
         if (!input_comp.active) {
             continue;
         }
@@ -170,5 +155,11 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         // const pos_before = pos.asZM();
         updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
         updateSnapToTerrain(ctx.physics_world, pos);
+
+        const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+        if (environment_info.journey_time_multiplier != 1) {
+            // var journey = ecs.get_mut(ctx.ecsu_world.world, ent, fd.Journey).?;
+
+        }
     }
 }

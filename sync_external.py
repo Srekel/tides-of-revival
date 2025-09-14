@@ -194,7 +194,7 @@ def main():
     sync_lib(
         "zphysics",
         "https://github.com/zig-gamedev/zphysics",
-        "0c60c1a0f2a2393c3c226dabd0bd7315f155f3ef",
+        "e390932a4fc9bbc61cafcd96ead1d7cc8c290065",
     )
     sync_lib(
         "zpix",

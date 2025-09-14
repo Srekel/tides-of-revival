@@ -22,6 +22,8 @@ pub const StateContext = struct {
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
+    physics_world_low: *zphy.PhysicsSystem,
+    prefab_mgr: *PrefabManager,
 };
 
 pub fn create(create_ctx: StateContext) void {
@@ -46,6 +48,44 @@ pub fn create(create_ctx: StateContext) void {
             &system_desc,
         );
     }
+
+    // {
+    //     var system_desc = ecs.system_desc_t{};
+    //     system_desc.callback = updateInteract;
+    //     system_desc.ctx = update_ctx;
+    //     system_desc.query.terms = [_]ecs.term_t{
+    //         .{ .id = ecs.id(fd.Input), .inout = .InOut },
+    //         .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+    //         .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+    //         .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+    //         .{ .id = ecs.pair(fd.FSM_CAM, fd.FSM_CAM_Fps), .inout = .InOut },
+    //     } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
+    //     _ = ecs.SYSTEM(
+    //         create_ctx.ecsu_world.world,
+    //         "updateInteract",
+    //         ecs.OnUpdate,
+    //         &system_desc,
+    //     );
+    // }
+
+    // {
+    //     var system_desc = ecs.system_desc_t{};
+    //     system_desc.callback = updateJourney;
+    //     system_desc.ctx = update_ctx;
+    //     system_desc.query.terms = [_]ecs.term_t{
+    //         .{ .id = ecs.id(fd.Input), .inout = .InOut },
+    //         .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+    //         .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+    //         .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+    //         .{ .id = ecs.id(fd.Journey), .inout = .InOut },
+    //     } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
+    //     _ = ecs.SYSTEM(
+    //         create_ctx.ecsu_world.world,
+    //         "updateJourney",
+    //         ecs.OnUpdate,
+    //         &system_desc,
+    //     );
+    // }
 }
 
 fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
@@ -55,6 +95,11 @@ fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
     const cameras = ecs.field(it, fd.Camera, 1).?;
     const transforms = ecs.field(it, fd.Transform, 2).?;
     const rotations = ecs.field(it, fd.Rotation, 3).?;
+
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    if (environment_info.journey_time_multiplier != 1) {
+        return; // HACK?!
+    }
 
     const movement_pitch = ctx.input_frame_data.get(config.input.look_pitch).number;
     for (inputs, cameras, transforms, rotations) |input_comp, cam, transform, *rot| {
@@ -80,46 +125,113 @@ fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
     }
 }
 
-// fn updateInteract(transform: *fd.Transform, physics_world: *zphy.PhysicsSystem, ecsu_world: ecsu.World, input_state: *const input.FrameData, prefab_mgr: *PrefabManager) void {
+// fn updateInteract(it: *ecs.iter_t) callconv(.C) void {
+//     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
+
+//     const inputs = ecs.field(it, fd.Input, 0).?;
+//     const cameras = ecs.field(it, fd.Camera, 1).?;
+//     const transforms = ecs.field(it, fd.Transform, 2).?;
+//     const rotations = ecs.field(it, fd.Rotation, 3).?;
+
+//     const input_frame_data = ctx.input_frame_data;
+//     const physics_world_low = ctx.physics_world_low;
 //     // TODO: No, interaction shouldn't be in camera.. :)
-//     if (!input_state.just_pressed(config.input.interact)) {
+//     if (!input_frame_data.just_pressed(config.input.interact)) {
 //         return;
 //     }
 
-//     const z_mat = zm.loadMat43(transform.matrix[0..]);
-//     const z_pos = zm.util.getTranslationVec(z_mat);
-//     const z_fwd = zm.util.getAxisZ(z_mat);
+//     for (inputs, cameras, transforms, rotations) |input_comp, cam, transform, *rot| {
+//         _ = input_comp; // autofix
+//         _ = cam; // autofix
+//         _ = rot; // autofix
+//         const z_mat = zm.loadMat43(transform.matrix[0..]);
+//         const z_pos = zm.util.getTranslationVec(z_mat);
+//         const z_fwd = zm.util.getAxisZ(z_mat);
 
-//     const query = physics_world.getNarrowPhaseQuery();
-//     const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
-//     const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
-//     const result = query.castRay(.{
-//         .origin = ray_origin,
-//         .direction = ray_dir,
-//     }, .{});
+//         const query = physics_world_low.getNarrowPhaseQuery();
+//         const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+//         const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
+//         const result = query.castRay(.{
+//             .origin = ray_origin,
+//             .direction = ray_dir,
+//         }, .{});
 
-//     if (result.has_hit) {
-//         const post_pos = fd.Position.init(
-//             ray_origin[0] + ray_dir[0] * result.hit.fraction,
-//             ray_origin[1] + ray_dir[1] * result.hit.fraction,
-//             ray_origin[2] + ray_dir[2] * result.hit.fraction,
-//         );
-//         var post_transform = fd.Transform.initFromPosition(post_pos);
-//         post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
+//         if (result.has_hit) {
+//             const post_pos = fd.Position.init(
+//                 ray_origin[0] + ray_dir[0] * result.hit.fraction,
+//                 ray_origin[1] + ray_dir[1] * result.hit.fraction,
+//                 ray_origin[2] + ray_dir[2] * result.hit.fraction,
+//             );
+//             var post_transform = fd.Transform.initFromPosition(post_pos);
+//             post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
 
-//         const cylinder_prefab = prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
-//         const post_ent = prefab_mgr.instantiatePrefab(ecsu_world, cylinder_prefab);
-//         post_ent.set(post_pos);
-//         post_ent.set(fd.Rotation{});
-//         post_ent.set(fd.Scale.create(0.05, 2, 0.05));
-//         post_ent.set(post_transform);
+//             const cylinder_prefab = ctx.prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
+//             const post_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, cylinder_prefab);
+//             post_ent.set(post_pos);
+//             post_ent.set(fd.Rotation{});
+//             post_ent.set(fd.Scale.create(0.05, 2, 0.05));
+//             post_ent.set(post_transform);
 
-//         // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
-//         // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
-//         // const light_ent = ecsu_world.newEntity();
-//         // light_ent.childOf(post_ent);
-//         // light_ent.set(light_pos);
-//         // light_ent.set(light_transform);
-//         // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
+//             // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
+//             // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
+//             // const light_ent = ecsu_world.newEntity();
+//             // light_ent.childOf(post_ent);
+//             // light_ent.set(light_pos);
+//             // light_ent.set(light_transform);
+//             // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
+//         }
 //     }
 // }
+
+fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
+
+    const inputs = ecs.field(it, fd.Input, 0).?;
+    const cameras = ecs.field(it, fd.Camera, 1).?;
+    const transforms = ecs.field(it, fd.Transform, 2).?;
+    const rotations = ecs.field(it, fd.Rotation, 3).?;
+    const journeys = ecs.field(it, fd.Journey, 4).?;
+
+    const input_frame_data = ctx.input_frame_data;
+    const physics_world_low = ctx.physics_world_low;
+    // TODO: No, interaction shouldn't be in camera.. :)
+    if (!input_frame_data.just_pressed(config.input.interact)) {
+        return;
+    }
+
+    for (inputs, cameras, transforms, rotations, journeys) |input_comp, cam, transform, *rot, *journey| {
+        _ = input_comp; // autofix
+        _ = cam; // autofix
+        _ = rot; // autofix
+        const z_mat = zm.loadMat43(transform.matrix[0..]);
+        const z_pos = zm.util.getTranslationVec(z_mat);
+        const z_fwd = zm.util.getAxisZ(z_mat);
+
+        const query = physics_world_low.getNarrowPhaseQuery();
+        const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+        const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
+        const result = query.castRay(.{
+            .origin = ray_origin,
+            .direction = ray_dir,
+        }, .{});
+
+        if (result.has_hit) {
+            journey.target_position = .{
+                ray_origin[0] + ray_dir[0] * result.hit.fraction,
+                ray_origin[1] + ray_dir[1] * result.hit.fraction,
+                ray_origin[2] + ray_dir[2] * result.hit.fraction,
+            };
+
+            var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+            environment_info.journey_time_multiplier = 5;
+
+            // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
+            // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
+            // const light_ent = ecsu_world.newEntity();
+            // light_ent.childOf(post_ent);
+            // light_ent.set(light_pos);
+            // light_ent.set(light_transform);
+            // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
+        }
+    }
+}

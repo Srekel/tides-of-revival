@@ -182,3 +182,7 @@ pub fn getSunHeight(ecsu_world: ecsu.World) f32 {
 //         }
 //     }
 // }
+
+pub const GameTime = struct {
+    now: f64,
+};

@@ -61,7 +61,7 @@ pub fn componentId(world: *ecs.world_t, comptime T: type) ecs.id_t {
 pub fn FinalChild(comptime T: type) type {
     switch (@typeInfo(T)) {
         .pointer => |info| switch (info.size) {
-            .One => switch (@typeInfo(info.child)) {
+            .one => switch (@typeInfo(info.child)) {
                 .@"struct" => return info.child,
                 .optional => |opt_info| return opt_info.child,
                 else => {

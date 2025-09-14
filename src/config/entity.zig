@@ -11,10 +11,11 @@ const IdLocal = core.IdLocal;
 const zforge = @import("zforge");
 const zm = @import("zmath");
 const graphics = zforge.graphics;
+const zphy = @import("zphysics");
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer) void {
+pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer, physics_world: *zphy.PhysicsSystem) void {
 
     // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
     // ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██║████╗  ██║██╔════╝
@@ -87,6 +88,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // }
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
+    player_ent.set(fd.Journey{});
 
     const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });
@@ -120,7 +122,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
-        .range = 15.0,
+        .range = 10.0,
         .intensity = 10.0,
     });
     bow_ent.childOf(player_camera_ent);
@@ -208,4 +210,88 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     environment_info.sun = sun_ent;
     environment_info.sky_light = sky_light_ent;
     environment_info.player = player_ent;
+
+    // ██╗      ██████╗ ██╗    ██╗    ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗
+    // ██║     ██╔═══██╗██║    ██║    ██╔══██╗██║  ██║╚██╗ ██╔╝██╔════╝██║██╔════╝██╔════╝
+    // ██║     ██║   ██║██║ █╗ ██║    ██████╔╝███████║ ╚████╔╝ ███████╗██║██║     ███████╗
+    // ██║     ██║   ██║██║███╗██║    ██╔═══╝ ██╔══██║  ╚██╔╝  ╚════██║██║██║     ╚════██║
+    // ███████╗╚██████╔╝╚███╔███╔╝    ██║     ██║  ██║   ██║   ███████║██║╚██████╗███████║
+    // ╚══════╝ ╚═════╝  ╚══╝╚══╝     ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝ ╚═════╝╚══════╝
+
+    const loader_ent = ecsu_world.newEntityWithName("low_physics_loader");
+    loader_ent.set(fd.Position{
+        .x = config.world_size_x / 2,
+        .y = 0,
+        .z = config.world_size_z / 2,
+    });
+    loader_ent.set(fd.WorldLoader{
+        .range = 2,
+        .physics = true,
+    });
+
+    // ███████╗███╗   ██╗███████╗███╗   ███╗██╗   ██╗
+    // ██╔════╝████╗  ██║██╔════╝████╗ ████║╚██╗ ██╔╝
+    // █████╗  ██╔██╗ ██║█████╗  ██╔████╔██║ ╚████╔╝
+    // ██╔══╝  ██║╚██╗██║██╔══╝  ██║╚██╔╝██║  ╚██╔╝
+    // ███████╗██║ ╚████║███████╗██║ ╚═╝ ██║   ██║
+    // ╚══════╝╚═╝  ╚═══╝╚══════╝╚═╝     ╚═╝   ╚═╝
+
+    {
+        var ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.slime);
+        const spawn_pos = [3]f32{ 8000, 200, 8000 };
+        ent.set(fd.Position{ .x = spawn_pos[0], .y = spawn_pos[1], .z = spawn_pos[2] });
+
+        const scale: f32 = 20; // overridden in state_slime
+        ent.set(fd.Scale.createScalar(scale));
+        ent.set(fd.Health{ .value = 1 });
+        ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
+
+        const body_interface = physics_world.getBodyInterfaceMut();
+
+        const shape_settings = zphy.SphereShapeSettings.create(1.5 * scale) catch unreachable;
+        defer shape_settings.release();
+
+        var rot = [_]f32{ 1, 0, 0, 0 };
+        const rot_z = zm.quatFromRollPitchYaw(std.math.pi / 2.0, 0, 0);
+        zm.storeArr4(&rot, rot_z);
+        const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
+            &shape_settings.asShapeSettings().*,
+            rot,
+            .{ 0, 0, 0 },
+        ) catch unreachable;
+        defer root_shape_settings.release();
+        const root_shape = root_shape_settings.createShape() catch unreachable;
+
+        const body_id = body_interface.createAndAddBody(.{
+            .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
+            .rotation = .{ 0, 0, 0, 1 },
+            .shape = root_shape,
+            .motion_type = .kinematic,
+            .object_layer = config.physics.object_layers.moving,
+            .motion_quality = .discrete,
+            .user_data = ent.id,
+            .angular_damping = 0.975,
+            .inertia_multiplier = 10,
+            .friction = 0.5,
+        }, .activate) catch unreachable;
+        ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
+
+        ent.add(fd.SettlementEnemy);
+        ent.set(fd.Locomotion{});
+        ent.set(fd.Dynamic{});
+
+        const light_ent = ecsu_world.newEntity();
+        light_ent.childOf(ent);
+        light_ent.set(fd.Position{ .x = 0, .y = 5, .z = 0 });
+        light_ent.set(fd.Rotation{});
+        light_ent.set(fd.Scale.createScalar(1));
+        light_ent.set(fd.Transform{});
+        light_ent.set(fd.Dynamic{});
+
+        light_ent.set(fd.PointLight{
+            .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
+            .range = 200,
+            .intensity = 10,
+        });
+    }
 }

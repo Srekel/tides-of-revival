@@ -10,6 +10,7 @@ pub const input = @import("input.zig");
 pub const prefab = @import("prefab.zig");
 pub const system = @import("system.zig");
 pub const timeline = @import("timeline.zig");
+pub const physics = @import("physics.zig");
 
 pub const UP_Z = zm.f32x4(0, 1, 0, 0);
 pub const FORWARD_Z = zm.f32x4(0, 0, 1, 0);
@@ -49,6 +50,7 @@ pub const terrain_height_mountain_top = 1000;
 pub const terrain_min = terrain_height_ocean_floor;
 pub const terrain_max = terrain_height_mountain_top;
 pub const terrain_span = terrain_height_mountain_top - terrain_height_ocean_floor;
+pub const world_center3 = .{ world_size_x / 2, 0, world_size_z / 2 };
 
 pub const patch_type_heightmap = ID("heightmap");
 pub const patch_type_splatmap = ID("splatmap");
@@ -118,18 +120,6 @@ pub const prefab_mgr = ID("prefab_mgr");
 // ██║     ██║  ██║   ██║   ███████║██║╚██████╗███████║
 // ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝ ╚═════╝╚══════╝
 
-pub const object_layers = struct {
-    pub const non_moving: zphy.ObjectLayer = 0;
-    pub const moving: zphy.ObjectLayer = 1;
-    pub const len: u32 = 2;
-};
-
-pub const broad_phase_layers = struct {
-    pub const non_moving: zphy.BroadPhaseLayer = 0;
-    pub const moving: zphy.BroadPhaseLayer = 1;
-    pub const len: u32 = 2;
-};
-
 //  ██████╗ ██████╗  █████╗ ██████╗ ██╗  ██╗██╗ ██████╗███████╗
 // ██╔════╝ ██╔══██╗██╔══██╗██╔══██╗██║  ██║██║██╔════╝██╔════╝
 // ██║  ███╗██████╔╝███████║██████╔╝███████║██║██║     ███████╗
@@ -169,3 +159,4 @@ pub const FSM_CAM_Freefly = ID("FSM_CAM_Freefly");
 // Enemy
 pub const FSM_ENEMY = ID("FSM_ENEMY");
 pub const FSM_ENEMY_Idle = ID("FSM_ENEMY_Idle");
+pub const FSM_ENEMY_Slime = ID("FSM_ENEMY_Slime");

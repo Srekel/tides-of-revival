@@ -18,8 +18,8 @@ const patch_side_vertex_count = config.patch_resolution;
 const vertices_per_patch: u32 = patch_side_vertex_count * patch_side_vertex_count;
 const indices_per_patch: u32 = (config.patch_resolution - 1) * (config.patch_resolution - 1) * 6;
 
-const object_layers = config.object_layers;
-const broad_phase_layers = config.broad_phase_layers;
+const object_layers = config.physics.object_layers;
+const broad_phase_layers = config.physics.broad_phase_layers;
 
 const BroadPhaseLayerInterface = extern struct {
     usingnamespace zphy.BroadPhaseLayerInterface.Methods(@This());

@@ -3,9 +3,11 @@ const std = @import("std");
 pub const ID = IdLocal.init;
 
 pub const IdLocal = struct {
+    pub const HashType = u64;
+
     str: [191]u8 = .{0} ** 191,
     strlen: u8 = 0,
-    hash: u64 = 0,
+    hash: HashType = 0,
 
     pub fn init(id: []const u8) IdLocal {
         std.debug.assert(id.len < 190);
@@ -25,7 +27,7 @@ pub const IdLocal = struct {
         return res;
     }
 
-    pub fn id64(id: []const u8) u64 {
+    pub fn id64(id: []const u8) HashType {
         return std.hash.Wyhash.hash(0, id);
     }
 
@@ -69,13 +71,13 @@ pub const IdLocal = struct {
     pub fn eqlStr(self: IdLocal, other: []const u8) bool {
         return std.mem.eql(u8, self.str[0..self.strlen], other);
     }
-    pub fn eqlHash(self: IdLocal, other: u64) bool {
+    pub fn eqlHash(self: IdLocal, other: HashType) bool {
         return self.hash == other;
     }
 };
 
 pub const IdLocalHashMapContext = struct {
-    pub fn hash(self: @This(), id: IdLocal) u64 {
+    pub fn hash(self: @This(), id: IdLocal) IdLocal.HashType {
         _ = self;
         return id.hash;
     }

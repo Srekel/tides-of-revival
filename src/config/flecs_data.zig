@@ -17,6 +17,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.TAG(ecs_world, NOCOMP);
     ecs.TAG(ecs_world, LocalSpace);
     ecs.TAG(ecs_world, WorldSpace);
+    ecs.TAG(ecs_world, SettlementEnemy);
+    ecs.COMPONENT(ecs_world, Locomotion);
     ecs.COMPONENT(ecs_world, ColorRGB);
     ecs.COMPONENT(ecs_world, ColorRGBRoughness);
     ecs.COMPONENT(ecs_world, Position);
@@ -53,6 +55,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, EnvironmentInfo);
     ecs.COMPONENT(ecs_world, ProjectileWeapon);
     ecs.COMPONENT(ecs_world, Projectile);
+    ecs.COMPONENT(ecs_world, Journey);
     FSM_PC = ecs.new_entity(ecs_world, config.FSM_PC.toCString());
     FSM_PC_Idle = ecs.new_entity(ecs_world, config.FSM_PC_Idle.toCString());
     FSM_CAM = ecs.new_entity(ecs_world, config.FSM_CAM.toCString());
@@ -60,6 +63,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     FSM_CAM_Freefly = ecs.new_entity(ecs_world, config.FSM_CAM_Freefly.toCString());
     FSM_ENEMY = ecs.new_entity(ecs_world, config.FSM_ENEMY.toCString());
     FSM_ENEMY_Idle = ecs.new_entity(ecs_world, config.FSM_ENEMY_Idle.toCString());
+    FSM_ENEMY_Slime = ecs.new_entity(ecs_world, config.FSM_ENEMY_Slime.toCString());
     ecs.add_id(ecs_world, FSM_PC, ecs.Union);
     ecs.add_id(ecs_world, FSM_CAM, ecs.Union);
     ecs.add_id(ecs_world, FSM_ENEMY, ecs.Union);
@@ -72,6 +76,7 @@ pub var FSM_CAM_Fps: ecs.entity_t = undefined;
 pub var FSM_CAM_Freefly: ecs.entity_t = undefined;
 pub var FSM_ENEMY: ecs.entity_t = undefined;
 pub var FSM_ENEMY_Idle: ecs.entity_t = undefined;
+pub var FSM_ENEMY_Slime: ecs.entity_t = undefined;
 
 pub const NOCOMP = struct {
     // dummy: u32 = 0,
@@ -724,6 +729,8 @@ pub const Settlement = struct {
     safety: i32 = 0,
 };
 
+pub const SettlementEnemy = struct {};
+
 // pub const CompCity = struct {
 //     next_spawn_time: f32,
 //     spawn_cooldown: f32,
@@ -761,6 +768,7 @@ pub const EnvironmentInfo = struct {
     paused: bool,
     active_camera: ?ecsu.Entity,
     time_multiplier: f64 = 1.0,
+    journey_time_multiplier: f64 = 1.0,
     world_time: f64,
     time_of_day_percent: f64,
     sun_height: f64,
@@ -789,4 +797,22 @@ pub const ProjectileWeapon = struct {
 pub const Projectile = struct {
     dummy: u8 = 0,
     // chambered_projectile: ecs.entity_t = 0,
+};
+
+// ██╗      ██████╗  ██████╗ ██████╗ ███╗   ███╗ ██████╗ ████████╗██╗ ██████╗ ███╗   ██╗
+// ██║     ██╔═══██╗██╔════╝██╔═══██╗████╗ ████║██╔═══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
+// ██║     ██║   ██║██║     ██║   ██║██╔████╔██║██║   ██║   ██║   ██║██║   ██║██╔██╗ ██║
+// ██║     ██║   ██║██║     ██║   ██║██║╚██╔╝██║██║   ██║   ██║   ██║██║   ██║██║╚██╗██║
+// ███████╗╚██████╔╝╚██████╗╚██████╔╝██║ ╚═╝ ██║╚██████╔╝   ██║   ██║╚██████╔╝██║ ╚████║
+// ╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝    ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+
+pub const Locomotion = struct {
+    speed: f32 = 5,
+    snap_to_terrain: bool = true,
+    align_to_terrain: bool = true,
+    target_position: ?[3]f32 = null,
+};
+
+pub const Journey = struct {
+    target_position: ?[3]f32 = null,
 };

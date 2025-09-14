@@ -134,6 +134,17 @@ fn heightmapLoad(patch: *world_patch_manager.Patch, ctx: world_patch_manager.Pat
                 }
             }
         },
+        16 => {
+            const insides = config.HeightmapHeader.getInsides(heightmap_data, u16);
+            for (0..config.patch_resolution - 2) |patch_z| {
+                for (0..config.patch_resolution - 2) |patch_x| {
+                    const height_0_255: f32 = @floatFromInt(insides[patch_x + patch_z * (config.patch_resolution - 2)]);
+                    const height = zm.mapLinearV(height_0_255, 0, std.math.maxInt(u16), header.height_min, header.height_max);
+                    const patch_index = patch_x + 1 + (patch_z + 1) * config.patch_resolution;
+                    patch_data[patch_index] = height;
+                }
+            }
+        },
         else => unreachable,
     }
     patch.data = std.mem.asBytes(heightmap);

@@ -176,9 +176,9 @@ pub fn createEntities(allocator: std.mem.Allocator, ecsu_world: ecsu.World, asse
         var light_ent = ecsu_world.newEntity();
         light_ent.set(fd.Transform.initFromPosition(.{ .x = pos_x, .y = pos_y + 5, .z = pos_z }));
         light_ent.set(fd.PointLight{
-            .color = .{ .r = 1, .g = 0.5, .b = 0.25 },
-            .range = 20.0,
-            .intensity = 2.0,
+            .color = .{ .r = 1, .g = 0.75, .b = 0.5 },
+            .range = 500.0,
+            .intensity = 1,
         });
 
         // var light_viz_ent = ecsu_world.newEntity();

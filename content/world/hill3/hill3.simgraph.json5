@@ -673,7 +673,7 @@
       in_points_counter: "village_points_counter",
       out_points: "village_points",
       out_points_counter: "village_points_counter",
-      min_distance: 4000.0,
+      min_distance: 6000.0,
     },
   ],
 }

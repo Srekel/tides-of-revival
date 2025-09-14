@@ -34,7 +34,7 @@ pub const MovingBroadPhaseLayerFilter = extern struct {
     };
     fn shouldCollide(self: *const zphy.BroadPhaseLayerFilter, layer: zphy.BroadPhaseLayer) callconv(.C) bool {
         _ = self;
-        if (layer == config.broad_phase_layers.moving) {
+        if (layer == config.physics.broad_phase_layers.moving) {
             return true;
         }
         return false;
@@ -231,7 +231,7 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
                 .rotation = proj_rot_world_physics,
                 .shape = proj_shape,
                 .motion_type = .dynamic,
-                .object_layer = config.object_layers.moving,
+                .object_layer = config.physics.object_layers.moving,
                 .motion_quality = .linear_cast,
                 .user_data = proj_ent.id,
             }, .activate) catch unreachable;
@@ -245,7 +245,7 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
             // Light
             proj_ent.set(fd.PointLight{
                 .color = .{ .r = 1, .g = 1, .b = 0.5 },
-                .range = 5.0,
+                .range = 3.0,
                 .intensity = 0.5,
             });
 
@@ -539,6 +539,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
                     // ecs.remove(ecs_world, hit_ent, fd.FSM);
                     ecs.remove(ecs_world, hit_ent, fd.PointLight);
+                    ecs.remove(ecs_world, hit_ent, fd.SettlementEnemy);
 
                     const tli_despawn = config.events.TimelineInstanceData{
                         .ent = hit_ent,

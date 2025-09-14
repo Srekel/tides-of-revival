@@ -58,7 +58,7 @@ pub fn heightmap_format(world_settings: types.WorldSettings, heightmap: types.Im
                 // TODO: Figure out height_max_mapped_edge
                 // TODO: height_max_mapped_edge should use f64?
                 const range_diff = range_max - range_min;
-                const bitdepth: u8 = if (range_diff < 2000000) 8 else 16;
+                const bitdepth: u8 = if (range_diff < 2000000) 16 else 16;
                 const height_max_mapped_inside: f32 = @floatFromInt(std.math.pow(u32, 2, bitdepth) - 1);
                 const height_max_mapped_edge: f32 = @floatFromInt(std.math.pow(u32, 2, 30));
                 const target_endian = std.builtin.Endian.little;

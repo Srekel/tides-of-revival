@@ -33,7 +33,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
     //     return;
     // }
 
-    ctx.stage += 1;
+    ctx.stage = 2;
     // timeline_system.modifyInstanceSpeed(ctx.timeline_system, ID("giantAntSpawn").hash, 0, ctx.speed);
     const root_pos = ecs.get(ctx.ecsu_world.world, ctx.root_ent.?, fd.Position).?;
 
@@ -66,7 +66,7 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
         const is_boss = ctx.stage > 7 and std.crypto.random.float(f32) > 0.97;
         const is_big = ctx.stage > 2 and !is_boss and std.crypto.random.float(f32) > 0.9;
 
-        const scale: f32 = if (is_boss) 2.5 else if (is_big) 1.1 else 0.7;
+        const scale: f32 = if (is_boss) 2.5 else if (is_big) 1.1 else 2.7;
         ent.set(fd.Scale.createScalar(scale));
 
         const hp = blk: {
@@ -85,13 +85,13 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
-        const capsule_shape_settings = zphy.CapsuleShapeSettings.create(1.3 * scale, 0.2 * scale) catch unreachable;
+        const capsule_shape_settings = zphy.SphereShapeSettings.create(0.5 * scale) catch unreachable;
         defer capsule_shape_settings.release();
 
         const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
             &capsule_shape_settings.asShapeSettings().*,
             capsule_rot,
-            .{ 0, 1.7 * scale, 0 },
+            .{ 0, 0, 0 },
         ) catch unreachable;
         defer root_shape_settings.release();
         const root_shape = root_shape_settings.createShape() catch unreachable;
@@ -101,12 +101,12 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
             .rotation = .{ 0, 0, 0, 1 },
             .shape = root_shape,
             .motion_type = .kinematic,
-            .object_layer = config.object_layers.moving,
+            .object_layer = config.physics.object_layers.moving,
             .motion_quality = .discrete,
             .user_data = ent.id,
             .angular_damping = 0.975,
-            .inertia_multiplier = 100,
-            .friction = 0.8,
+            .inertia_multiplier = 10,
+            .friction = 0.5,
         }, .activate) catch unreachable;
 
         if (is_boss) {
@@ -132,6 +132,8 @@ fn spawnGiantAnt(entity: ecs.entity_t, data: *anyopaque) void {
         }
         // Assign to flecs component
         ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
+
+        ent.add(fd.SettlementEnemy);
     }
 }
 
@@ -140,7 +142,7 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
         .id = ID("giantAntSpawn"),
         .events = &[_]timeline_system.TimelineEvent{
             .{
-                .trigger_time = 15,
+                .trigger_time = 150,
                 .trigger_id = ID("onSpawnAroundPlayer"),
                 .func = spawnGiantAnt,
                 .data = tl_giant_ant_spawn_ctx,
@@ -149,15 +151,17 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
         .curves = &.{},
         .loop_behavior = .loop_no_time_loss,
     };
+    _ = tl_giant_ant_spawn; // autofix
 
     const tli_giant_ant_spawn = config.events.TimelineInstanceData{
         .ent = 0,
         .start_time = 2,
         .timeline = ID("giantAntSpawn"),
     };
+    _ = tli_giant_ant_spawn; // autofix
 
-    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
-    tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
+    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onRegisterTimeline_id, &tl_giant_ant_spawn);
+    // tl_giant_ant_spawn_ctx.event_mgr.triggerEvent(config.events.onAddTimelineInstance_id, &tli_giant_ant_spawn);
 
     const tl_particle_trail = config.events.TimelineTemplateData{
         .id = ID("particle_trail"),
@@ -184,7 +188,7 @@ pub fn initTimelines(tl_giant_ant_spawn_ctx: *WaveSpawnContext) void {
             .{
                 .id = ID("ignore"), // ID("scale"),
                 .points = &[_]timeline_system.CurvePoint{
-                    .{ .time = 15, .value = 1 },
+                    .{ .time = 150, .value = 1 },
                 },
             },
         },
