@@ -187,7 +187,7 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float3 grass_normal;
     float3 grass_arm;
     float grass_height;
-    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, N, triplanarScale, grass_albedo, grass_normal, grass_arm, grass_height);
+    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, N, triplanarScale / 8, grass_albedo, grass_normal, grass_arm, grass_height);
 
     float3 rock_albedo;
     float3 rock_normal;

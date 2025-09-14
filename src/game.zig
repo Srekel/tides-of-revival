@@ -506,7 +506,7 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
         // TODO: Implement curves so we can have more than constant or linear curves
         const intensity_multiplier: f32 = if (environment_info.time_of_day_percent <= 0.5) 1.0 else 0.0;
-        sun_light.?.intensity = 10 * intensity_multiplier;
+        sun_light.?.intensity = 5 * intensity_multiplier;
     }
 
     once_per_duration_test += dt_game;

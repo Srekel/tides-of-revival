@@ -267,7 +267,7 @@ pub const TerrainRenderPass = struct {
 
     fn loadTerrainMaterial(self: *TerrainRenderPass) !void {
         self.terrain_material.layers[0] = self.loadTerrainLayer("dry_ground_rocks") catch unreachable;
-        self.terrain_material.layers[1] = self.loadTerrainLayer("Wild_Grass_oiloL0_2K") catch unreachable;
+        self.terrain_material.layers[1] = self.loadTerrainLayer("forest_ground_01") catch unreachable;
         self.terrain_material.layers[2] = self.loadTerrainLayer("Layered_Rock_vl0fdhdo_2K") catch unreachable;
         self.terrain_material.layers[3] = self.loadTerrainLayer("snow_02") catch unreachable;
     }
