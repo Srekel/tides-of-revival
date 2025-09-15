@@ -2,6 +2,7 @@
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 #include <meshoptimizer.h>
+#include <mikktspace.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -221,7 +222,7 @@ struct mesh_data_t
 
 	fixed_array_t<float3_t> positions_stream;
 	fixed_array_t<float3_t> normals_stream;
-	fixed_array_t<float3_t> tangents_stream;
+	fixed_array_t<float4_t> tangents_stream;
 	fixed_array_t<float2_t> texcoords_stream;
 
 	fixed_array_t<meshlet_t> meshlets;
@@ -229,6 +230,78 @@ struct mesh_data_t
 	fixed_array_t<meshlet_triangle_t> meshlet_triangles;
 	fixed_array_t<meshlet_bounds_t> meshlet_bounds;
 };
+
+
+struct geometry_contenxt_t
+{
+	mesh_data_t* mesh_data;
+};
+
+int32_t mikkt_get_num_faces(const SMikkTSpaceContext* context)
+{
+	geometry_contenxt_t* geom_context = (geometry_contenxt_t*)context->m_pUserData;
+	return (int32_t)geom_context->mesh_data->indices.count / 3;
+}
+
+int32_t mikkt_get_num_vertices_of_face(const SMikkTSpaceContext* context, int32_t faceIndex) {
+	(void)context;
+	(void)faceIndex;
+
+	return 3;
+}
+
+uint32_t get_vertex_index(geometry_contenxt_t* geom_context, int32_t face_index, int32_t vert_index)
+{
+	uint32_t index = face_index * 3 + vert_index;
+	assert(index < (uint32_t)geom_context->mesh_data->indices.count);
+	uint32_t vertex_index = geom_context->mesh_data->indices.data[index];
+	assert(vertex_index < (uint32_t)geom_context->mesh_data->positions_stream.count);
+	return vertex_index;
+}
+
+void mikkt_get_position(const SMikkTSpaceContext* context, float position[3], int32_t face_index, int32_t vert_index)
+{
+	geometry_contenxt_t* geom_context = (geometry_contenxt_t*)context->m_pUserData;
+	uint32_t vertex_index = get_vertex_index(geom_context, face_index, vert_index);
+	const float3_t vertex_position = geom_context->mesh_data->positions_stream.data[vertex_index];
+
+	position[0] = vertex_position.x;
+	position[1] = vertex_position.y;
+	position[2] = vertex_position.z;
+}
+
+void mikkt_get_normal(const SMikkTSpaceContext* context, float normal[3], int32_t face_index, int32_t vert_index)
+{
+	geometry_contenxt_t* geom_context = (geometry_contenxt_t*)context->m_pUserData;
+	uint32_t vertex_index = get_vertex_index(geom_context, face_index, vert_index);
+	const float3_t vertex_normal = geom_context->mesh_data->normals_stream.data[vertex_index];
+
+	normal[0] = vertex_normal.x;
+	normal[1] = vertex_normal.y;
+	normal[2] = vertex_normal.z;
+}
+
+void mikkt_get_tex_coord(const SMikkTSpaceContext* context, float texcoord[2], int32_t face_index, int32_t vert_index)
+{
+	geometry_contenxt_t* geom_context = (geometry_contenxt_t*)context->m_pUserData;
+	uint32_t vertex_index = get_vertex_index(geom_context, face_index, vert_index);
+	const float2_t vertex_texcoord = geom_context->mesh_data->texcoords_stream.data[vertex_index];
+
+	texcoord[0] = vertex_texcoord.x;
+	texcoord[1] = vertex_texcoord.y;
+}
+
+void mikkt_set_tspace_basic(const SMikkTSpaceContext* context, const float tangent[3], float sign, int32_t face_index, int32_t vert_index)
+{
+	geometry_contenxt_t* geom_context = (geometry_contenxt_t*)context->m_pUserData;
+	uint32_t vertex_index = get_vertex_index(geom_context, face_index, vert_index);
+
+	float4_t* vertex_tangent = &geom_context->mesh_data->tangents_stream.data[vertex_index];
+	vertex_tangent->x = tangent[0];
+	vertex_tangent->y = tangent[1];
+	vertex_tangent->z = tangent[2];
+	vertex_tangent->w = sign;
+}
 
 struct command_line_arguments_t
 {
@@ -374,7 +447,24 @@ int main(int argc, char** argv)
 
 			if (cl_arguments.mikkt_space_tangents)
 			{
-				// TODO
+				mesh_data.tangents_stream.init(mesh_data.positions_stream.count);
+
+				SMikkTSpaceInterface mikkt_interface{};
+				mikkt_interface.m_getNumFaces = mikkt_get_num_faces;
+				mikkt_interface.m_getNumVerticesOfFace = mikkt_get_num_vertices_of_face;
+				mikkt_interface.m_getPosition = mikkt_get_position;
+				mikkt_interface.m_getNormal = mikkt_get_normal;
+				mikkt_interface.m_getTexCoord = mikkt_get_tex_coord;
+				mikkt_interface.m_setTSpaceBasic = mikkt_set_tspace_basic;
+
+				geometry_contenxt_t geom_context{};
+				geom_context.mesh_data = &mesh_datas.data[mesh_index - 1];
+
+				SMikkTSpaceContext mikkt_context{};
+				mikkt_context.m_pUserData = (void*)&geom_context;
+				mikkt_context.m_pInterface = &mikkt_interface;
+
+				genTangSpaceDefault(&mikkt_context);
 			}
 
 			// Optimizations
@@ -389,7 +479,7 @@ int main(int argc, char** argv)
 			meshopt_remapVertexBuffer(mesh_data.normals_stream.data, mesh_data.normals_stream.data, mesh_data.normals_stream.count, sizeof(float3_t), &remap.data[0]);
 			if (cl_arguments.mikkt_space_tangents)
 			{
-				meshopt_remapVertexBuffer(mesh_data.tangents_stream.data, mesh_data.tangents_stream.data, mesh_data.tangents_stream.count, sizeof(float3_t), &remap.data[0]);
+				meshopt_remapVertexBuffer(mesh_data.tangents_stream.data, mesh_data.tangents_stream.data, mesh_data.tangents_stream.count, sizeof(float4_t), &remap.data[0]);
 			}
 			meshopt_remapVertexBuffer(mesh_data.texcoords_stream.data, mesh_data.texcoords_stream.data, mesh_data.texcoords_stream.count, sizeof(float2_t), &remap.data[0]);
 			remap.deinit();
@@ -563,12 +653,12 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-				fwrite((void*)&mesh_data.positions_stream.data[0], sizeof(mesh_data.positions_stream.data[0])* mesh_data.positions_stream.count, 1, file);
-				fwrite((void*)&mesh_data.texcoords_stream.data[0], sizeof(mesh_data.texcoords_stream.data[0])* mesh_data.texcoords_stream.count, 1, file);
-				fwrite((void*)&mesh_data.normals_stream.data[0], sizeof(mesh_data.normals_stream.data[0])* mesh_data.normals_stream.count, 1, file);
+				fwrite((void*)&mesh_data.positions_stream.data[0], sizeof(mesh_data.positions_stream.data[0]) * mesh_data.positions_stream.count, 1, file);
+				fwrite((void*)&mesh_data.texcoords_stream.data[0], sizeof(mesh_data.texcoords_stream.data[0]) * mesh_data.texcoords_stream.count, 1, file);
+				fwrite((void*)&mesh_data.normals_stream.data[0], sizeof(mesh_data.normals_stream.data[0]) * mesh_data.normals_stream.count, 1, file);
 				if (cl_arguments.mikkt_space_tangents && mesh_data.tangents_stream.count > 0)
 				{
-					fwrite((void*)&mesh_data.tangents_stream.data[0], sizeof(mesh_data.normals_stream.data[0]) * mesh_data.normals_stream.count, 1, file);
+					fwrite((void*)&mesh_data.tangents_stream.data[0], sizeof(mesh_data.tangents_stream.data[0]) * mesh_data.tangents_stream.count, 1, file);
 				}
 			}
 
@@ -744,8 +834,8 @@ int main(int argc, char** argv)
 
 				if (cl_arguments.mikkt_space_tangents)
 				{
-					size_t size = sizeof(float3_t) * mesh_data.tangents_stream.count;
-					float3_t* tangents = (float3_t*)malloc(size);
+					size_t size = sizeof(float4_t) * mesh_data.tangents_stream.count;
+					float4_t* tangents = (float4_t*)malloc(size);
 					assert(tangents);
 					fread((void*)tangents, size, 1, file);
 					for (uint32_t ii = 0; ii < mesh_data.tangents_stream.count; ++ii)
