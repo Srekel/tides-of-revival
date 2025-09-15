@@ -403,7 +403,7 @@ pub const Renderer = struct {
             .data = null,
             .size = 1000 * @sizeOf(Material),
         };
-        self.materials_buffer = self.createBindlessBuffer(buffer_data, "Materials Buffer");
+        self.materials_buffer = self.createBindlessBuffer(buffer_data, false, "Materials Buffer");
 
         self.createIBLTextures();
 
@@ -434,7 +434,7 @@ pub const Renderer = struct {
                 .data = null,
                 .size = self.vertex_buffer_size,
             };
-            self.vertex_buffer = self.createBindlessBuffer(vertex_buffer_data, "Vertex Buffer");
+            self.vertex_buffer = self.createBindlessBuffer(vertex_buffer_data, false, "Vertex Buffer");
 
             self.gpu_mesh_buffer_mutex = std.Thread.Mutex{};
             self.gpu_mesh_buffer_size = 256 * @sizeOf(geometry.SubMesh);
@@ -445,7 +445,7 @@ pub const Renderer = struct {
                 .data = null,
                 .size = self.gpu_mesh_buffer_size,
             };
-            self.gpu_mesh_buffer = self.createBindlessBuffer(gpu_mesh_buffer_data, "Mesh Buffer");
+            self.gpu_mesh_buffer = self.createBindlessBuffer(gpu_mesh_buffer_data, false, "Mesh Buffer");
         }
     }
 
@@ -1387,13 +1387,16 @@ pub const Renderer = struct {
         return @intCast(bindless_index);
     }
 
-    pub fn createBindlessBuffer(self: *Renderer, initial_data: Slice, debug_name: [:0]const u8) BufferHandle {
+    pub fn createBindlessBuffer(self: *Renderer, initial_data: Slice, writable: bool, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
         load_desc.mDesc.pName = debug_name;
         load_desc.mDesc.bBindless = true;
         load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW;
+        if (writable) {
+            load_desc.mDesc.mDescriptors.bits |= graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits;
+        }
         load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_SHADER_DEVICE_ADDRESS;
         load_desc.mDesc.mMemoryUsage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
         // NOTE(gmodarelli): The persistent SRV uses a R32_TYPELESS representation, so we need to provide an element count in terms of 32bit data

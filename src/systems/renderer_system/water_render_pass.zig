@@ -114,7 +114,7 @@ pub const WaterRenderPass = struct {
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Water Instance Data");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Water Instance Data");
             }
 
             break :blk buffers;
@@ -127,7 +127,7 @@ pub const WaterRenderPass = struct {
                     .data = null,
                     .size = max_instances * @sizeOf(WaterMaterial),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Water Material Data");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Water Material Data");
             }
 
             break :blk buffers;

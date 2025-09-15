@@ -35,6 +35,17 @@ pub const GBufferFrameData = struct {
 	material_buffer_index: u32,
 };
 
+pub const GpuCullingFrameData = struct {
+    projection_view: [16]f32,
+    counters_buffer_index: u32,
+    counters_buffer_count: u32,
+    instance_buffer_index: u32,
+    instance_indirection_buffer_index: u32,
+    instance_indirection_count: u32,
+    visible_instance_indirection_buffer_index: u32,
+    gpu_mesh_buffer_index: u32,
+};
+
 const renderer_buckets: u32 = 2;
 const renderer_bucket_opaque: u32 = 1;
 const renderer_bucket_masked: u32 = 0;
@@ -54,6 +65,12 @@ pub const GpuDrivenRenderPass = struct {
     // TODO: Do we need to double-buffer these as well?
     instance_buffer: BufferHandle,
     instance_indirection_buffer: BufferHandle,
+    visible_instance_indirection_buffer: BufferHandle,
+    counters_buffer: BufferHandle,
+    gpu_culling_frame_data: GpuCullingFrameData,
+    gpu_culling_frame_data_buffers: [frames_count]BufferHandle,
+    gpu_culling_clear_counters_descriptor_set: [*c]DescriptorSet,
+    gpu_culling_cull_instances_descriptor_set: [*c]DescriptorSet,
 
     temporary_mesh: renderer.MeshHandle,
     first_update: bool,
@@ -79,7 +96,7 @@ pub const GpuDrivenRenderPass = struct {
                 .data = null,
                 .size = 1024 * @sizeOf(InstanceData),
             };
-            break :blk rctx.createBindlessBuffer(buffer_data, "GPU Instances");
+            break :blk rctx.createBindlessBuffer(buffer_data, false, "GPU Instances");
         };
 
         self.instance_indirection_buffer = blk: {
@@ -87,13 +104,38 @@ pub const GpuDrivenRenderPass = struct {
                 .data = null,
                 .size = 1024 * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection),
             };
-            break :blk rctx.createBindlessBuffer(buffer_data, "GPU Instances");
+            break :blk rctx.createBindlessBuffer(buffer_data, false, "GPU Instance Indirections");
+        };
+
+        self.gpu_culling_frame_data = std.mem.zeroes(GpuCullingFrameData);
+        self.gpu_culling_frame_data_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(GpuCullingFrameData);
+            }
+
+            break :blk buffers;
+        };
+
+        self.visible_instance_indirection_buffer = blk: {
+            const buffer_data = renderer.Slice{
+                .data = null,
+                .size = 1024 * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection),
+            };
+            break :blk rctx.createBindlessBuffer(buffer_data, true, "GPU Visible Instance Indirections");
+        };
+
+        self.counters_buffer = blk: {
+            const buffer_data = renderer.Slice{
+                .data = null,
+                .size = 32 * @sizeOf(u32),
+            };
+            break :blk rctx.createBindlessBuffer(buffer_data, true, "Counters Buffer");
         };
 
         // TESTING NEW MESH LOADING
         self.temporary_mesh = self.renderer.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh") catch unreachable;
         self.first_update = true;
-
 
         createDescriptorSets(@ptrCast(self));
         prepareDescriptorSets(@ptrCast(self));
@@ -173,10 +215,68 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         transform: *const fd.Transform,
     });
     const camera_position = camera_comps.transform.getPos00();
-    const z_proj_view = zm.loadMat(camera_comps.camera.view_projection[0..]);
+    const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
-    zm.storeMat(&self.gbuffer_frame_data.projection_view, z_proj_view);
-    zm.storeMat(&self.gbuffer_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
+    // GPU Culling
+    {
+        zm.storeMat(&self.gpu_culling_frame_data.projection_view, z_view_proj);
+        self.gpu_culling_frame_data.counters_buffer_index = self.renderer.getBufferBindlessIndex(self.counters_buffer);
+        self.gpu_culling_frame_data.counters_buffer_count = 20;
+        self.gpu_culling_frame_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer);
+        self.gpu_culling_frame_data.instance_indirection_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_indirection_buffer);
+        self.gpu_culling_frame_data.instance_indirection_count = 2; // TODO
+        self.gpu_culling_frame_data.visible_instance_indirection_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_instance_indirection_buffer);
+        self.gpu_culling_frame_data.gpu_mesh_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.gpu_mesh_buffer);
+
+        // Update GPU Culling Unifor Frame Buffer
+        {
+            const data = renderer.Slice{
+                .data = @ptrCast(&self.gpu_culling_frame_data),
+                .size = @sizeOf(GpuCullingFrameData),
+            };
+            self.renderer.updateBuffer(data, 0, GpuCullingFrameData, self.gpu_culling_frame_data_buffers[frame_index]);
+        }
+
+        const counters_buffer = self.renderer.getBuffer(self.counters_buffer);
+        const visible_instance_indirections_buffer = self.renderer.getBuffer(self.visible_instance_indirection_buffer);
+
+        {
+            const buffer_barriers = [_]graphics.BufferBarrier{
+                graphics.BufferBarrier.init(counters_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
+                graphics.BufferBarrier.init(visible_instance_indirections_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
+            };
+            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+        }
+
+        // Clear counters
+        {
+            const pipeline_id = IdLocal.init("gpu_culling_clear_counters");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gpu_culling_clear_counters_descriptor_set);
+            graphics.cmdDispatch(cmd_list, 1, 1, 1);
+        }
+
+        // Cull Instances
+        {
+            const pipeline_id = IdLocal.init("gpu_culling_cull_instances");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gpu_culling_cull_instances_descriptor_set);
+            graphics.cmdDispatch(cmd_list, 1, 1, 1); // TODO: groupCountX should depend on the total instance indirections
+        }
+
+        {
+            const buffer_barriers = [_]graphics.BufferBarrier{
+                graphics.BufferBarrier.init(counters_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
+                graphics.BufferBarrier.init(visible_instance_indirections_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
+            };
+            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+        }
+    }
+
+    zm.storeMat(&self.gbuffer_frame_data.projection_view, z_view_proj);
+    zm.storeMat(&self.gbuffer_frame_data.projection_view_inverted, zm.inverse(z_view_proj));
     self.gbuffer_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
     self.gbuffer_frame_data.time = @floatCast(self.renderer.time); // keep f64?
     self.gbuffer_frame_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer);
@@ -255,12 +355,30 @@ fn createDescriptorSets(user_data: *anyopaque) void {
         break :blk gbuffer_descriptor_sets;
     };
     self.gbuffer_descriptor_sets = gbuffer_descriptor_sets;
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("gpu_culling_clear_counters"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.gpu_culling_clear_counters_descriptor_set));
+    }
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("gpu_culling_cull_instances"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.gpu_culling_cull_instances_descriptor_set));
+    }
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
 
-    var params: [2]graphics.DescriptorData = undefined;
+    var params: [1]graphics.DescriptorData = undefined;
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
         var uniform_buffer = self.renderer.getBuffer(self.gbuffer_frame_data_buffers[i]);
@@ -271,6 +389,16 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer_bucket_opaque], 1, @ptrCast(&params));
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer_bucket_masked], 1, @ptrCast(&params));
     }
+
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var uniform_buffer = self.renderer.getBuffer(self.gpu_culling_frame_data_buffers[i]);
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "cbFrame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gpu_culling_clear_counters_descriptor_set, 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gpu_culling_cull_instances_descriptor_set, 1, @ptrCast(&params));
+    }
 }
 
 fn unloadDescriptorSets(user_data: *anyopaque) void {
@@ -278,23 +406,6 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
 
     graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer_bucket_opaque]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer_bucket_masked]);
-}
-
-inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
-    mat44[0] = mat43[0];
-    mat44[1] = mat43[1];
-    mat44[2] = mat43[2];
-    mat44[3] = 0;
-    mat44[4] = mat43[3];
-    mat44[5] = mat43[4];
-    mat44[6] = mat43[5];
-    mat44[7] = 0;
-    mat44[8] = mat43[6];
-    mat44[9] = mat43[7];
-    mat44[10] = mat43[8];
-    mat44[11] = 0;
-    mat44[12] = mat43[9];
-    mat44[13] = mat43[10];
-    mat44[14] = mat43[11];
-    mat44[15] = 1;
+    graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_clear_counters_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_cull_instances_descriptor_set);
 }

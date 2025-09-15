@@ -155,7 +155,7 @@ pub const TerrainRenderPass = struct {
                     .data = null,
                     .size = max_instances * @sizeOf(TerrainInstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Terrain Quad Tree Instance Data Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Terrain Quad Tree Instance Data Buffer");
             }
 
             break :blk buffers;

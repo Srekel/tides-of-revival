@@ -68,7 +68,7 @@ pub const UIRenderPass = struct {
                     .data = null,
                     .size = max_instances * @sizeOf(UIInstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "UI Instance Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "UI Instance Buffer");
             }
 
             break :blk buffers;

@@ -109,7 +109,7 @@ pub const DeferredShadingRenderPass = struct {
                     .data = null,
                     .size = directional_lights_count_max * @sizeOf(DirectionalLight),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Directional Lights Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Directional Lights Buffer");
             }
 
             break :blk buffers;
@@ -122,7 +122,7 @@ pub const DeferredShadingRenderPass = struct {
                     .data = null,
                     .size = point_lights_count_max * @sizeOf(PointLight),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Point Lights Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Point Lights Buffer");
             }
 
             break :blk buffers;

@@ -1,6 +1,21 @@
 #ifndef _TYPES_HLSLI
 #define _TYPES_HLSLI
 
+struct BoundingBox
+{
+	float3 center;
+	float3 extents;
+};
+
+struct GpuMeshData
+{
+	uint index_count;
+	uint index_offset;
+	uint vertex_count;
+	uint vertex_offset;
+	BoundingBox bounds;
+};
+
 struct InstanceData
 {
 	float4x4 worldMat;

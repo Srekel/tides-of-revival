@@ -140,7 +140,7 @@ pub const GeometryRenderPass = struct {
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Instances");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Instances");
             }
 
             break :blk buffers;
