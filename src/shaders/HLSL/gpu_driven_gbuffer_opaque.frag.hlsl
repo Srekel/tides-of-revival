@@ -26,9 +26,35 @@ GBufferOutput PS_MAIN(VSOutput Input)
         baseColor *= baseColorSample.rgb;
     }
 
+    float3 N = normalize(Input.Normal.xyz);
+
+    if (hasValidTexture(material.normalTextureIndex))
+    {
+        Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
+
+        float3x3 TBN = ComputeTBN(N, normalize(Input.Tangent));
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, g_linear_repeat_sampler, Input.UV), material.normalIntensity);
+        N = normalize(mul(tangentNormal, TBN));
+    }
+
+    float roughness = material.roughness;
+    float metallic = material.metallic;
+    float occlusion = 1.0f;
+    if (hasValidTexture(material.armTextureIndex))
+    {
+        Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.armTextureIndex)];
+        float3 armSample = armTexture.Sample(g_linear_repeat_sampler, UV).rgb;
+        occlusion = armSample.r;
+        roughness = armSample.g;
+        metallic = armSample.b;
+    }
+
+    // TODO: Provide this value from the material
+    float reflectance = 0.5f;
+
     Out.GBuffer0 = float4(baseColor, 1.0f);
-    Out.GBuffer1 = float4(normalize(Input.Normal), 1.0f);
-    Out.GBuffer2 = float4(1.0f, material.roughness, material.metallic, 0.5f);
+    Out.GBuffer1 = float4(N, 1.0f);
+    Out.GBuffer2 = float4(occlusion, roughness, metallic, reflectance);
 
     RETURN(Out);
 }

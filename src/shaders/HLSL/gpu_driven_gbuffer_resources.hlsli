@@ -10,7 +10,8 @@ struct VSOutput
 {
 	float4 Position : SV_Position;
 	float3 Normal : TEXCOORD0;
-	float2 UV : TEXCOORD1;
+	float4 Tangent : TEXCOORD1;
+	float2 UV : TEXCOORD2;
 	uint InstanceID : SV_InstanceID;
 };
 
