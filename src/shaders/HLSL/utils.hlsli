@@ -34,8 +34,7 @@ float3 NormalBlend(float3 normal1, float3 normal2)
 
 float3x3 ComputeTBN(float3 normal, float4 tangent)
 {
-	float crossSign = (tangent.w > 0.0) ? 1.0 : -1.0;
-	float3 bitangent = cross(normal, tangent.xyz) * crossSign;
+	float3 bitangent = cross(normal, tangent.xyz) * tangent.w;
 	return float3x3(tangent.xyz, bitangent, normal);
 }
 

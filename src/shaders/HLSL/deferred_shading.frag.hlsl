@@ -165,17 +165,17 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
         const float3 Pl = pointLight.positionAndRadius.xyz;
         const float radius = pointLight.positionAndRadius.w;
         const float3 L = normalize(Pl - P);
-        const float NdotL = max(dot(N, L), 0.0f);
+        const float NdotL = max(dot(N, L), 0.00001f);
         const float distance = length(Pl - P);
         const float distanceByRadius = 1.0f - pow((distance / radius), 2);
         const float clamped = pow(saturate(distanceByRadius), 2.0f);
-        const float attenuation = pow( saturate(1 - distance / radius),2); //distanceByRadius / (distance * distance + 1.0f);
+        const float attenuation = pow(saturate(1 - distance / radius), 2); // distanceByRadius / (distance * distance + 1.0f);
         // const float attenuation = distanceByRadius; //distanceByRadius / (distance * distance + 1.0f);
         // const float attenuation = clamped / (distance * distance + 1.0f);
 
         const float3 color = sRGBToLinear_Float3(pointLight.colorAndIntensity.rgb);
         const float intensity = pointLight.colorAndIntensity.a;
-        const float3 radiance = color * intensity * attenuation*1;
+        const float3 radiance = color * intensity * attenuation * 1;
 
 #if BRDF_FUNCTION == FILAMENT_BRDF
         const float3 brdf = FilamentBRDF(N, V, L, baseColor.rgb, roughness, metalness, reflectance);
@@ -191,7 +191,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     {
         const DirectionalLight directionalLight = directionalLightsBuffer.Load<DirectionalLight>(i * sizeof(DirectionalLight));
         const float3 L = directionalLight.directionAndShadowMap.xyz;
-        const float NdotL = max(dot(N, L), 0.0f);
+        const float NdotL = max(dot(N, L), 0.00001f);
         const float3 color = sRGBToLinear_Float3(directionalLight.colorAndIntensity.rgb);
         const float intensity = directionalLight.colorAndIntensity.a;
         const float3 radiance = color * intensity;

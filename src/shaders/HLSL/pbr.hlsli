@@ -31,7 +31,7 @@
 float D_GGX(float NoH, float roughness)
 {
 	float a = NoH * roughness;
-	float k = roughness / (1.0 - NoH * NoH + a * a);
+	float k = roughness / max(0.00001f, (1.0 - NoH * NoH + a * a));
 	return k * k * (1.0 / PI);
 }
 //
@@ -44,7 +44,7 @@ float V_SmithGGXCorrelated(float NoV, float NoL, float roughness)
 	float a2 = roughness * roughness;
 	float GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
 	float GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
-	return 0.5 / (GGXV + GGXL);
+	return 0.5 / max(0.00001f, GGXV + GGXL);
 }
 //
 // Approximation to remove the 2 sqrts. This is a mathematically wrong
@@ -53,7 +53,7 @@ float V_SmithGGXCorrelatedFast(float NoV, float NoL, float roughness)
 	float a = roughness;
 	float GGXV = NoL * (NoV * (1.0 - a) + a);
 	float GGXL = NoV * (NoL * (1.0 - a) + a);
-	return 0.5 / (GGXV + GGXL);
+	return 0.5 / max(0.00001f, GGXV + GGXL);
 }
 //
 // Fresnel (specular F)
