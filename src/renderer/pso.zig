@@ -442,12 +442,16 @@ pub const PSOManager = struct {
 
             const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
+            var rasterizer_state = std.mem.zeroes(graphics.RasterizerStateDesc);
+            rasterizer_state.mCullMode = graphics.CullMode.CULL_MODE_BACK;
+            rasterizer_state.mFrontFace = .FRONT_FACE_CW;
+
             var desc = GraphicsPipelineDesc{
                 .id = IdLocal.init("gpu_driven_gbuffer_opaque"),
                 .vert_shader_name = "gpu_driven_gbuffer.vert",
                 .frag_shader_name = "gpu_driven_gbuffer_opaque.frag",
                 .render_targets = @constCast(&render_targets),
-                .rasterizer_state = rasterizer_cull_back,
+                .rasterizer_state = rasterizer_state,
                 .depth_state = depth_state,
                 .depth_format = self.renderer.depth_buffer.*.mFormat,
                 .vertex_layout_id = null,
@@ -456,8 +460,10 @@ pub const PSOManager = struct {
             self.createGraphicsPipeline(desc);
 
             desc.id = IdLocal.init("gpu_driven_gbuffer_masked");
-            desc.frag_shader_name = "gpu_driven_gbuffer_opaque.frag";
-            desc.rasterizer_state = rasterizer_cull_none;
+            desc.frag_shader_name = "gpu_driven_gbuffer_masked.frag";
+
+            rasterizer_state.mCullMode = graphics.CullMode.CULL_MODE_NONE;
+            desc.rasterizer_state = rasterizer_state;
             self.createGraphicsPipeline(desc);
         }
 
