@@ -9,6 +9,8 @@
 struct VSOutput
 {
 	float4 Position : SV_Position;
+	float3 Normal : TEXCOORD0;
+	float2 UV : TEXCOORD1;
 	uint InstanceID : SV_InstanceID;
 };
 
@@ -33,6 +35,7 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	uint g_InstanceIndirectionBufferIndex;
 	uint g_GpuMeshBufferIndex;
 	uint g_VertexBufferIndex;
+	uint g_MaterialBufferIndex;
 };
 
 #endif // _GPU_DRIVEN_RESOURCES_H

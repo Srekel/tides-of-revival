@@ -12,7 +12,8 @@ pub const InstanceData = struct {
 pub const InstanceDataIndirection = struct {
     instance_index: u32,
     gpu_mesh_index: u32,
-    _padding: [2]u32,
+    material_index: u32,
+    _padding: u32,
 };
 
 pub const InstanceRootConstants = struct {

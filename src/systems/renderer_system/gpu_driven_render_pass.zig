@@ -4,6 +4,7 @@ const ecs = @import("zflecs");
 const ecsu = @import("../../flecs_util/flecs_util.zig");
 const fd = @import("../../config/flecs_data.zig");
 const IdLocal = @import("../../core/core.zig").IdLocal;
+const ID = @import("../../core/core.zig").ID;
 const renderer = @import("../../renderer/renderer.zig");
 const geometry = @import("../../renderer/geometry.zig");
 const renderer_types = @import("../../renderer/types.zig");
@@ -31,6 +32,7 @@ pub const GBufferFrameData = struct {
 	instance_indirection_buffer_index: u32,
 	gpu_mesh_buffer_index: u32,
 	vertex_buffer_index: u32,
+	material_buffer_index: u32,
 };
 
 const renderer_buckets: u32 = 2;
@@ -132,12 +134,19 @@ fn update(user_data: *anyopaque) void {
         var instance_indirections = std.ArrayList(InstanceDataIndirection).init(self.allocator);
         defer instance_indirections.deinit();
 
+        const trunk_material_handle = self.renderer.getMaterialHandle(ID("beech_trunk_04")).?;
+        const trunk_material_index = self.renderer.getMaterialBufferOffset(trunk_material_handle);
+
+        const atlas_material_handle = self.renderer.getMaterialHandle(ID("beech_atlas_v2")).?;
+        const atlas_material_index = self.renderer.getMaterialBufferOffset(atlas_material_handle);
+
         const indices = self.renderer.getGpuMeshIndices(self.temporary_mesh);
         for (0..indices.count) |index| {
             std.log.debug("Mesh index: {d}", .{indices.indices[index]});
             var instance_indirection = std.mem.zeroes(InstanceDataIndirection);
             instance_indirection.gpu_mesh_index = indices.indices[index];
             instance_indirection.instance_index = 0;
+            instance_indirection.material_index = if (index == 0) trunk_material_index else atlas_material_index;
             instance_indirections.append(instance_indirection) catch unreachable;
         }
 
@@ -174,6 +183,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.gbuffer_frame_data.instance_indirection_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_indirection_buffer);
     self.gbuffer_frame_data.gpu_mesh_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.gpu_mesh_buffer);
     self.gbuffer_frame_data.vertex_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.vertex_buffer);
+    self.gbuffer_frame_data.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
 
     // Update Uniform Frame Buffer
     {
@@ -187,20 +197,37 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const index_buffer = self.renderer.getBuffer(self.renderer.index_buffer);
     graphics.cmdBindIndexBuffer(cmd_list, index_buffer, @intCast(graphics.IndexType.INDEX_TYPE_UINT32.bits), 0);
 
-    const pipeline_id = IdLocal.init("gpu_driven_gbuffer_opaque");
-    const pipeline = self.renderer.getPSO(pipeline_id);
-    graphics.cmdBindPipeline(cmd_list, pipeline);
-    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gbuffer_descriptor_sets[renderer_bucket_opaque]);
-
     const mesh = self.renderer.getMesh(self.temporary_mesh);
-    for (0..mesh.sub_mesh_count) |sub_mesh_index| {
+
+    {
+        const pipeline_id = IdLocal.init("gpu_driven_gbuffer_opaque");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gbuffer_descriptor_sets[renderer_bucket_opaque]);
+
         graphics.cmdDrawIndexedInstanced(
             cmd_list,
-            mesh.sub_meshes[sub_mesh_index].index_count,
-            mesh.sub_meshes[sub_mesh_index].index_offset,
+            mesh.sub_meshes[0].index_count,
+            mesh.sub_meshes[0].index_offset,
             1,
-            mesh.sub_meshes[sub_mesh_index].vertex_offset,
-            @intCast(sub_mesh_index),
+            mesh.sub_meshes[0].vertex_offset,
+            0,
+        );
+    }
+
+    {
+        const pipeline_id = IdLocal.init("gpu_driven_gbuffer_masked");
+        const pipeline = self.renderer.getPSO(pipeline_id);
+        graphics.cmdBindPipeline(cmd_list, pipeline);
+        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gbuffer_descriptor_sets[renderer_bucket_masked]);
+
+        graphics.cmdDrawIndexedInstanced(
+            cmd_list,
+            mesh.sub_meshes[1].index_count,
+            mesh.sub_meshes[1].index_offset,
+            1,
+            mesh.sub_meshes[1].vertex_offset,
+            1,
         );
     }
 }

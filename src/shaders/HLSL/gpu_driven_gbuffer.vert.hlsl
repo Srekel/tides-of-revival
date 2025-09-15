@@ -26,6 +26,8 @@ VSOutput VS_MAIN(
 
     float4x4 tempMat = mul(g_ProjView, instance.worldMat);
     Out.Position = mul(tempMat, float4(vertex.position, 1.0f));
+    Out.Normal = normalize(mul((float3x3)instance.worldMat, vertex.normal));
+    Out.UV = vertex.uv;
 
     RETURN(Out);
 }

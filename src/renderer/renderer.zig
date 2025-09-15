@@ -172,6 +172,7 @@ pub const Renderer = struct {
     vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
 
+    material_map: MaterialMap = undefined,
     material_pool: MaterialPool = undefined,
     materials: std.ArrayList(Material) = undefined,
     materials_buffer: BufferHandle = undefined,
@@ -395,6 +396,7 @@ pub const Renderer = struct {
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
 
+        self.material_map = MaterialMap.init(allocator);
         self.material_pool = MaterialPool.initMaxCapacity(allocator) catch unreachable;
         self.materials = std.ArrayList(Material).init(allocator);
         const buffer_data = Slice{
@@ -484,6 +486,7 @@ pub const Renderer = struct {
         self.legacy_mesh_pool.deinit();
 
         // TODO(juice): Clean gpu resources
+        self.material_map.deinit();
         self.material_pool.deinit();
         self.materials.deinit();
 
@@ -1095,7 +1098,7 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    pub fn uploadMaterial(self: *Renderer, material_data: fd.UberShader) !MaterialHandle {
+    pub fn uploadMaterial(self: *Renderer, material_id: IdLocal, material_data: fd.UberShader) !MaterialHandle {
         const offset = self.materials.items.len * @sizeOf(Material);
 
         const material = Material{
@@ -1148,7 +1151,13 @@ pub const Renderer = struct {
             .pipeline_ids = pipeline_ids,
             .alpha_test = material_data.alpha_test,
         });
+
+        self.material_map.put(material_id.hash, handle) catch unreachable;
         return handle;
+    }
+
+    pub fn getMaterialHandle(self: *Renderer, material_id: IdLocal) ?MaterialHandle {
+        return self.material_map.get(material_id.hash);
     }
 
     pub fn getMaterialAlphaTest(self: *Renderer, handle: MaterialHandle) bool {
@@ -2005,6 +2014,7 @@ pub const PassPipelineIds = struct {
 
 const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
 pub const MaterialHandle = MaterialPool.Handle;
+const MaterialMap = std.AutoHashMap(u64, MaterialHandle);
 
 pub const GpuMeshIndices = struct {
     count: u32,

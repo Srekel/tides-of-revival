@@ -13,7 +13,8 @@ struct InstanceIndirectionData
 {
 	uint instanceIndex;
 	uint gpuMeshIndex;
-	uint2 _padding;
+	uint materialIndex;
+	uint _padding;
 };
 
 struct InstanceRootConstants
