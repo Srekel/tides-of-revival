@@ -196,6 +196,9 @@ enum mesh_data_flags_e : uint8_t
 	mesh_data_flag_meshlets = 0x2,
 };
 
+constexpr int clock_wise_index_map[] = { 0, 2, 1 };
+constexpr int counter_clock_wise_index_map[] = { 0, 1, 2 };
+
 struct vertex_data_t
 {
 	float3_t position;
@@ -230,7 +233,6 @@ struct mesh_data_t
 	fixed_array_t<meshlet_triangle_t> meshlet_triangles;
 	fixed_array_t<meshlet_bounds_t> meshlet_bounds;
 };
-
 
 struct geometry_contenxt_t
 {
@@ -310,6 +312,7 @@ struct command_line_arguments_t
 	bool mikkt_space_tangents;
 	bool generate_meshlets;
 	bool interleaved;
+	bool counter_clock_wise_winding;
 };
 
 int main(int argc, char** argv)
@@ -356,6 +359,13 @@ int main(int argc, char** argv)
 			arg_cursor++;
 			continue;
 		}
+
+		if (strcmp("--ccw", argv[arg_cursor]) == 0)
+		{
+			cl_arguments.counter_clock_wise_winding = true;
+			arg_cursor++;
+			continue;
+		}
 	}
 
 	assert(arg_cursor == argc);
@@ -368,6 +378,7 @@ int main(int argc, char** argv)
 	printf("Output File: '%s'\n", cl_arguments.output_path);
 	printf("Generate Meshets: '%s'\n", cl_arguments.generate_meshlets ? "Yes" : "No");
 	printf("Mikkt Space Tangents: '%s'\n", cl_arguments.mikkt_space_tangents ? "Yes" : "No");
+	printf("Winding: '%s'\n", cl_arguments.counter_clock_wise_winding ? "CCW" : "CW");
 
 	cgltf_options options{};
 	cgltf_data* gltf_data = nullptr;
@@ -402,6 +413,16 @@ int main(int argc, char** argv)
 		flags |= mesh_data_flag_meshlets;
 	}
 
+	int index_map[3];
+	if (cl_arguments.counter_clock_wise_winding)
+	{
+		memcpy(&index_map[0], &counter_clock_wise_index_map[0], 3 * sizeof(int));
+	}
+	else
+	{
+		memcpy(&index_map[0], &clock_wise_index_map[0], 3 * sizeof(int));
+	}
+
 	for (uint32_t mi = 0; mi < gltf_data->meshes_count; ++mi)
 	{
 		const cgltf_mesh& mesh = gltf_data->meshes[mi];
@@ -414,7 +435,6 @@ int main(int argc, char** argv)
 			mesh_data.indices.init(primitive.indices->count);
 			first_index += (uint32_t)primitive.indices->count;
 
-			constexpr int index_map[] = { 0, 2, 1 };
 			for (size_t i = 0; i < primitive.indices->count; i += 3)
 			{
 				mesh_data.indices.data[i + 0] = (uint32_t)cgltf_accessor_read_index(primitive.indices, i + index_map[0]);
