@@ -241,10 +241,12 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const spawn_pos = [3]f32{ 8000, 200, 8000 };
         ent.set(fd.Position{ .x = spawn_pos[0], .y = spawn_pos[1], .z = spawn_pos[2] });
 
-        const scale: f32 = 20; // overridden in state_slime
+        const scale: f32 = 1;
         ent.set(fd.Scale.createScalar(scale));
         ent.set(fd.Health{ .value = 1 });
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
+
+        ent.set(fd.Enemy{ .base_scale = 10 });
 
         const body_interface = physics_world.getBodyInterfaceMut();
 

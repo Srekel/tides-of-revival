@@ -55,6 +55,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, ProjectileWeapon);
     ecs.COMPONENT(ecs_world, Projectile);
     ecs.COMPONENT(ecs_world, Journey);
+    ecs.COMPONENT(ecs_world, Enemy);
     FSM_PC = ecs.new_entity(ecs_world, config.FSM_PC.toCString());
     FSM_PC_Idle = ecs.new_entity(ecs_world, config.FSM_PC_Idle.toCString());
     FSM_CAM = ecs.new_entity(ecs_world, config.FSM_CAM.toCString());
@@ -806,7 +807,10 @@ pub const Projectile = struct {
 // ╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝    ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 
 pub const Locomotion = struct {
+    enabled: bool = true,
     speed: f32 = 5,
+    speed_y: f32 = 0,
+    affected_by_gravity: bool = false,
     snap_to_terrain: bool = true,
     align_to_terrain: bool = true,
     target_position: ?[3]f32 = null,
@@ -814,4 +818,16 @@ pub const Locomotion = struct {
 
 pub const Journey = struct {
     target_position: ?[3]f32 = null,
+};
+
+//  █████╗ ██╗
+// ██╔══██╗██║
+// ███████║██║
+// ██╔══██║██║
+// ██║  ██║██║
+// ╚═╝  ╚═╝╚═╝
+
+pub const Enemy = struct {
+    base_scale: f32 = 1,
+    aggressive: bool = false,
 };

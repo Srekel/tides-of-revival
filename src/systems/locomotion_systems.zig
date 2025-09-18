@@ -60,9 +60,17 @@ fn moveForward(it: *ecs.iter_t) callconv(.C) void {
     const locomotions = ecs.field(it, fd.Locomotion, 0).?;
     const forwards = ecs.field(it, fd.Forward, 1).?;
     const positions = ecs.field(it, fd.Position, 2).?;
-    for (locomotions, forwards, positions) |locomotion, fwd, *pos| {
+    for (locomotions, forwards, positions) |*locomotion, fwd, *pos| {
+        if (!locomotion.enabled) {
+            continue;
+        }
+
+        if (locomotion.affected_by_gravity) {
+            locomotion.speed_y -= 20 * it.delta_time;
+            pos.y += locomotion.speed_y * it.delta_time;
+        }
+
         pos.x += locomotion.speed * it.delta_time * fwd.x;
-        pos.y += locomotion.speed * it.delta_time * fwd.y;
         pos.z += locomotion.speed * it.delta_time * fwd.z;
     }
 }
@@ -85,8 +93,11 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
         .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
     };
 
-    for (locomotions, positions, rotations) |locomotion, *pos, *rot| {
+    for (locomotions, positions, rotations) |*locomotion, *pos, *rot| {
         if (!locomotion.snap_to_terrain) {
+            continue;
+        }
+        if (!locomotion.enabled) {
             continue;
         }
 
@@ -105,6 +116,16 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
             ray_bodies_all = bodies_all_low;
             query = ctx.physics_world_low.getNarrowPhaseQuery();
             result = query.castRay(ray, cast_ray_args);
+        }
+
+        if (result.has_hit and locomotion.affected_by_gravity) {
+            const dist = result.hit.fraction * ray_dir[1] * -1;
+            if (dist > 200.1) {
+                result.has_hit = false;
+            } else {
+                locomotion.affected_by_gravity = false;
+                locomotion.speed = 15;
+            }
         }
 
         if (result.has_hit) {
@@ -169,7 +190,8 @@ fn updateBodies(it: *ecs.iter_t) callconv(.C) void {
     for (bodies, positions, rotations) |body, pos, rot| {
         var body_rot_z = rot.asZM();
         body_rot_z = zm.qmul(body_rot_z, jolt_rot_z);
-        zm.storeArr4(&temp_rot, body_rot_z);
+        const normalized_z = zm.normalize4(body_rot_z);
+        zm.storeArr4(&temp_rot, normalized_z);
 
         // read_lock_self.lock(body_lock_interface, body.body_id);
         // defer read_lock_self.unlock();
