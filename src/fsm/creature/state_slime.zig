@@ -96,26 +96,26 @@ fn updateTargetPosition(
         .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
     };
 
-    im3d.Im3d.DrawCone(
-        &.{
-            .x = locomotion.target_position.?[0],
-            .y = locomotion.target_position.?[1],
-            .z = locomotion.target_position.?[2],
-        },
-        &.{ .x = 0, .y = 1, .z = 0 },
-        20,
-        3,
-        3,
-    );
-    im3d.Im3d.DrawArrow(
-        &.{ .x = pos.x, .y = pos.y, .z = pos.z },
-        &.{
-            .x = locomotion.target_position.?[0],
-            .y = locomotion.target_position.?[1],
-            .z = locomotion.target_position.?[2],
-        },
-        .{},
-    );
+    // im3d.Im3d.DrawCone(
+    //     &.{
+    //         .x = locomotion.target_position.?[0],
+    //         .y = locomotion.target_position.?[1],
+    //         .z = locomotion.target_position.?[2],
+    //     },
+    //     &.{ .x = 0, .y = 1, .z = 0 },
+    //     20,
+    //     3,
+    //     3,
+    // );
+    // im3d.Im3d.DrawArrow(
+    //     &.{ .x = pos.x, .y = pos.y, .z = pos.z },
+    //     &.{
+    //         .x = locomotion.target_position.?[0],
+    //         .y = locomotion.target_position.?[1],
+    //         .z = locomotion.target_position.?[2],
+    //     },
+    //     .{},
+    // );
 
     const self_pos_z = zm.loadArr3(pos.elems().*);
     const target_pos_z = zm.loadArr3(locomotion.target_position.?);
@@ -167,17 +167,17 @@ fn updateTargetPosition(
         const height = ray_origin[1] + ray_dir[1] * result.hit.fraction;
         std.log.info("lol {d}", .{height});
 
-        im3d.Im3d.DrawCone(
-            &.{
-                .x = sample_pos[0],
-                .y = height,
-                .z = sample_pos[2],
-            },
-            &.{ .x = 0, .y = 1, .z = 0 },
-            20,
-            3,
-            3,
-        );
+        // im3d.Im3d.DrawCone(
+        //     &.{
+        //         .x = sample_pos[0],
+        //         .y = height,
+        //         .z = sample_pos[2],
+        //     },
+        //     &.{ .x = 0, .y = 1, .z = 0 },
+        //     20,
+        //     3,
+        //     3,
+        // );
 
         if (height > best_target[1]) {
             best_target = .{
