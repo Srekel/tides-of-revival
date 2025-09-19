@@ -92,7 +92,7 @@ pub fn run() void {
 
     // Initialize Renderer
     var renderer_ctx = renderer.Renderer{};
-    renderer_ctx.init(main_window, std.heap.page_allocator) catch unreachable;
+    renderer_ctx.init(main_window, ecsu_world, std.heap.page_allocator) catch unreachable;
     defer renderer_ctx.exit();
     const reload_desc = renderer.ReloadDesc{ .mType = .{ .SHADER = true, .RESIZE = true, .RENDERTARGET = true } };
     renderer_ctx.onLoad(reload_desc) catch unreachable;

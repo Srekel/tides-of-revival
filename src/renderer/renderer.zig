@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const renderer_types = @import("types.zig");
@@ -78,10 +79,66 @@ const visualization_modes = [_][:0]const u8{
     "Reflectance",
 };
 
+// TODO
+// const BigBuffer = struct {
+//     mutex: std.Thread.Mutex = undefined,
+//     buffer: BufferHandle = undefined,
+//     size: u64 = 0,
+//     offset: u64 = 0,
+//     element_count: u32 = 0,
+// };
+
+pub const VertexBufferView = struct {
+    location: u64,
+    elements: u32,
+    stride: u32,
+    offset_from_start: u32,
+};
+
+pub const IndexBufferView = struct {
+    location: u64,
+    elements: u32,
+    offset_from_start: u32,
+    index_type: graphics.IndexType,
+};
+
+pub const Mesh = struct {
+    data_buffer: BufferHandle = undefined,
+
+    position_stream_location: VertexBufferView = undefined,
+    texcoord_stream_location: VertexBufferView = undefined,
+    normal_stream_location: VertexBufferView = undefined,
+    tangent_stream_location: VertexBufferView = undefined,
+    indices_location: IndexBufferView = undefined,
+    bounds: geometry.BoundingBox = undefined,
+
+    meshlets_location: u32 = std.math.maxInt(u32),
+    meshlet_vertices_location: u32 = std.math.maxInt(u32),
+    meshlet_triangles_location: u32 = std.math.maxInt(u32),
+    meshlet_bounds_location: u32 = std.math.maxInt(u32),
+    meshlet_count: u32 = 0,
+};
+
+const GPUMesh = struct {
+    data_buffer: u32,
+    positions_offset: u32,
+    texcoords_offset: u32,
+    normals_offset: u32,
+    tangents_offset: u32,
+    indices_offset: u32,
+    index_byte_size: u32,
+    meshlet_offset: u32,
+    meshlet_vertex_offset: u32,
+    meshlet_triangle_offset: u32,
+    meshlet_bounds_offset: u32,
+    meshlet_count: u32,
+};
+
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
 
     allocator: std.mem.Allocator = undefined,
+    ecsu_world: ecsu.World = undefined,
     renderer: [*c]graphics.Renderer = null,
     window: *window.Window = undefined,
     window_width: i32 = 0,
@@ -112,24 +169,24 @@ pub const Renderer = struct {
 
     // Geometry Buffers
     // ================
-    // Vertex Buffer
-    vertex_buffer_mutex: std.Thread.Mutex = undefined,
-    vertex_buffer: BufferHandle = undefined,
-    vertex_buffer_size: u64 = 0,
-    vertex_buffer_offset: u64 = 0,
-    vertex_count: u32 = 0,
-    // Index Buffer
-    index_buffer_mutex: std.Thread.Mutex = undefined,
-    index_buffer: BufferHandle = undefined,
-    index_buffer_size: u64 = 0,
-    index_buffer_offset: u64 = 0,
-    index_count: u32 = 0,
-    // GPU Mesh Buffer
-    gpu_mesh_buffer_mutex: std.Thread.Mutex = undefined,
-    gpu_mesh_buffer: BufferHandle = undefined,
-    gpu_mesh_buffer_size: u64 = 0,
-    gpu_mesh_buffer_offset: u64 = 0,
-    gpu_mesh_count: u32 = 0,
+    // Meshes Buffer
+    mesh_buffer_mutex: std.Thread.Mutex = undefined,
+    mesh_buffer: BufferHandle = undefined,
+    mesh_buffer_size: u64 = 0,
+    mesh_buffer_offset: u64 = 0,
+    mesh_count: u32 = 0,
+    // // Index Buffer
+    // index_buffer_mutex: std.Thread.Mutex = undefined,
+    // index_buffer: BufferHandle = undefined,
+    // index_buffer_size: u64 = 0,
+    // index_buffer_offset: u64 = 0,
+    // index_count: u32 = 0,
+    // // GPU Mesh Buffer
+    // gpu_mesh_buffer_mutex: std.Thread.Mutex = undefined,
+    // gpu_mesh_buffer: BufferHandle = undefined,
+    // gpu_mesh_buffer_size: u64 = 0,
+    // gpu_mesh_buffer_offset: u64 = 0,
+    // gpu_mesh_count: u32 = 0,
 
     // Render Targets
     // ==============
@@ -177,7 +234,9 @@ pub const Renderer = struct {
     materials: std.ArrayList(Material) = undefined,
     materials_buffer: BufferHandle = undefined,
 
-    mesh_pool: MeshPool = undefined,
+    meshes: std.ArrayList(Mesh) = undefined,
+    mesh_map: MeshHashMap = undefined,
+    //  mesh_pool: MeshPool = undefined,
     legacy_mesh_pool: LegacyMeshPool = undefined,
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
@@ -203,9 +262,9 @@ pub const Renderer = struct {
         FileSystemNotInitialized,
     };
 
-    pub fn init(self: *Renderer, wnd: *window.Window, allocator: std.mem.Allocator) Error!void {
+    pub fn init(self: *Renderer, wnd: *window.Window, ecsu_world: ecsu.World, allocator: std.mem.Allocator) Error!void {
         self.allocator = allocator;
-
+        self.ecsu_world = ecsu_world;
         self.window = wnd;
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
@@ -389,7 +448,9 @@ pub const Renderer = struct {
 
         self.frame_index = 0;
 
-        self.mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
+        // self.mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
+        self.meshes = std.ArrayList(Mesh).init(allocator);
+        self.mesh_map = MeshHashMap.init(allocator);
         self.legacy_mesh_pool = LegacyMeshPool.initMaxCapacity(allocator) catch unreachable;
         self.texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
@@ -414,38 +475,38 @@ pub const Renderer = struct {
 
         // Geometry Buffers
         {
-            self.index_buffer_mutex = std.Thread.Mutex{};
-            self.index_buffer_size = 8 * 1024 * 1024 * @sizeOf(u32);
-            self.index_buffer_offset = 0;
-            self.index_count = 0;
+            // self.index_buffer_mutex = std.Thread.Mutex{};
+            // self.index_buffer_size = 8 * 1024 * 1024 * @sizeOf(u32);
+            // self.index_buffer_offset = 0;
+            // self.index_count = 0;
 
-            const index_buffer_data = Slice{
+            // const index_buffer_data = Slice{
+            //     .data = null,
+            //     .size = self.index_buffer_size,
+            // };
+            // self.index_buffer = self.createIndexBuffer(index_buffer_data, @sizeOf(u32), false, "Index Buffer");
+
+            self.mesh_buffer_mutex = std.Thread.Mutex{};
+            self.mesh_buffer_size = 1024 * @sizeOf(GPUMesh);
+            self.mesh_buffer_offset = 0;
+            self.mesh_count = 0;
+
+            const mesh_buffer_data = Slice{
                 .data = null,
-                .size = self.index_buffer_size,
+                .size = self.mesh_buffer_size,
             };
-            self.index_buffer = self.createIndexBuffer(index_buffer_data, @sizeOf(u32), false, "Index Buffer");
+            self.mesh_buffer = self.createBindlessBuffer(mesh_buffer_data, false, "Meshes");
 
-            self.vertex_buffer_mutex = std.Thread.Mutex{};
-            self.vertex_buffer_size = 8 * 1024 * 1024 * @sizeOf(geometry.Vertex);
-            self.vertex_buffer_offset = 0;
-            self.vertex_count = 0;
+            // self.gpu_mesh_buffer_mutex = std.Thread.Mutex{};
+            // self.gpu_mesh_buffer_size = 256 * @sizeOf(geometry.SubMesh);
+            // self.gpu_mesh_buffer_offset = 0;
+            // self.gpu_mesh_count = 0;
 
-            const vertex_buffer_data = Slice{
-                .data = null,
-                .size = self.vertex_buffer_size,
-            };
-            self.vertex_buffer = self.createBindlessBuffer(vertex_buffer_data, false, "Vertex Buffer");
-
-            self.gpu_mesh_buffer_mutex = std.Thread.Mutex{};
-            self.gpu_mesh_buffer_size = 256 * @sizeOf(geometry.SubMesh);
-            self.gpu_mesh_buffer_offset = 0;
-            self.gpu_mesh_count = 0;
-
-            const gpu_mesh_buffer_data = Slice{
-                .data = null,
-                .size = self.gpu_mesh_buffer_size,
-            };
-            self.gpu_mesh_buffer = self.createBindlessBuffer(gpu_mesh_buffer_data, false, "Mesh Buffer");
+            // const gpu_mesh_buffer_data = Slice{
+            //     .data = null,
+            //     .size = self.gpu_mesh_buffer_size,
+            // };
+            // self.gpu_mesh_buffer = self.createBindlessBuffer(gpu_mesh_buffer_data, false, "Mesh Buffer");
         }
     }
 
@@ -469,13 +530,15 @@ pub const Renderer = struct {
         }
         self.texture_pool.deinit();
 
-        var mesh_handles = self.mesh_pool.liveHandles();
-        while (mesh_handles.next()) |handle| {
-            const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
-            // TODO
-            _ = mesh;
-        }
-        self.mesh_pool.deinit();
+        // var mesh_handles = self.mesh_pool.liveHandles();
+        // while (mesh_handles.next()) |handle| {
+        //     const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+        //     // TODO
+        //     _ = mesh;
+        // }
+        // self.mesh_pool.deinit();
+        self.mesh_map.deinit();
+        self.meshes.deinit();
 
         var legacy_mesh_handles = self.legacy_mesh_pool.liveHandles();
         while (legacy_mesh_handles.next()) |handle| {
@@ -657,6 +720,20 @@ pub const Renderer = struct {
                         // zgui.text("\tUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.ui_pass_profile_token)});
                         // zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
                         // zgui.text("\tComposite SDR Pass: {d}", .{profiler.getGpuProfileAvgTime(self.composite_sdr_profile_token)});
+                    }
+                }
+
+                // Player Camera Settings
+                {
+                    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+                    var camera = camera_entity.getMut(fd.Camera).?;
+
+                    var camera_fov = std.math.radiansToDegrees(camera.fov);
+
+                    if (zgui.collapsingHeader("Camera", .{ .default_open = true })) {
+                        if (zgui.dragFloat("FOV (deg)", .{ .v = &camera_fov, .speed = 1.0, .min = 10.0, .max = 100.0 })) {
+                            camera.fov = std.math.degreesToRadians(camera_fov);
+                        }
                     }
                 }
 
@@ -1175,90 +1252,186 @@ pub const Renderer = struct {
         return offset;
     }
 
-    pub fn loadMesh(self: *Renderer, path: []const u8) !MeshHandle {
-        var mesh_data = std.ArrayList(geometry.MeshData).init(self.allocator);
-        defer mesh_data.deinit();
+    pub fn loadMesh(self: *Renderer, path: []const u8, mesh_id: IdLocal) !void {
+        var meshes_data = std.ArrayList(geometry.MeshData).init(self.allocator);
+        defer meshes_data.deinit();
 
         var load_desc: geometry.MeshLoadDesc = undefined;
         load_desc.mesh_path = path;
         load_desc.allocator = self.allocator;
-        load_desc.mesh_data = &mesh_data;
+        load_desc.mesh_data = &meshes_data;
         geometry.loadMesh(&load_desc);
 
-        var mesh: geometry.Mesh = undefined;
-        mesh.sub_mesh_count = @intCast(mesh_data.items.len);
+        const mesh_index: u32 = @intCast(self.meshes.items.len);
+        const mesh_count: u32 = @intCast(meshes_data.items.len);
+        self.mesh_map.put(mesh_id.hash, .{ .index = mesh_index, .count = mesh_count }) catch unreachable;
 
-        var gpu_mesh_indices = std.mem.zeroes(GpuMeshIndices);
-        gpu_mesh_indices.count = @intCast(mesh_data.items.len);
+        // Upload the mesh
+        var gpu_mesh_data = std.ArrayList(GPUMesh).init(self.allocator);
+        defer gpu_mesh_data.deinit();
 
-        for (mesh_data.items, 0..) |md, sub_mesh_index| {
-            mesh.sub_meshes[sub_mesh_index].index_offset = md.first_index + self.index_count;
-            mesh.sub_meshes[sub_mesh_index].vertex_offset = md.first_vertex + self.vertex_count;
-            mesh.sub_meshes[sub_mesh_index].index_count = @intCast(md.indices.items.len);
-            mesh.sub_meshes[sub_mesh_index].vertex_count = @intCast(md.vertices.items.len);
-            @memcpy(&mesh.sub_meshes[sub_mesh_index].bounds.center, &md.bounds.center);
-            @memcpy(&mesh.sub_meshes[sub_mesh_index].bounds.extents, &md.bounds.extents);
+        for (meshes_data.items) |mesh_data| {
+            var mesh = std.mem.zeroes(Mesh);
+            const alignment: u64 = 16;
 
-            gpu_mesh_indices.indices[sub_mesh_index] = self.gpu_mesh_count;
-            self.gpu_mesh_count += 1;
+            var data_size: usize = 0;
+            data_size += alignUp(mesh_data.indices.items.len * @sizeOf(u32), alignment);
+            data_size += alignUp(mesh_data.positions_stream.items.len * @sizeOf([3]f32), alignment);
+            data_size += alignUp(mesh_data.texcoords_stream.items.len * @sizeOf([2]f32), alignment);
+            data_size += alignUp(mesh_data.normals_stream.items.len * @sizeOf([3]f32), alignment);
+            data_size += alignUp(mesh_data.tangents_stream.items.len * @sizeOf([4]f32), alignment);
+            data_size += alignUp(mesh_data.meshlets.items.len * @sizeOf(geometry.Meshlet), alignment);
+            data_size += alignUp(mesh_data.meshlet_bounds.items.len * @sizeOf(geometry.MeshletBounds), alignment);
+            data_size += alignUp(mesh_data.meshlet_triangles.items.len * @sizeOf(geometry.MeshletTriangle), alignment);
+            data_size += alignUp(mesh_data.meshlet_vertices.items.len * @sizeOf(u32), alignment);
 
-            // Update index buffer
+            const geometry_buffer_slice = Slice { .data = null, .size = data_size };
+            mesh.data_buffer = self.createBindlessBuffer(geometry_buffer_slice, false, "Geometry Buffer");
+
+            const buffer_data = self.allocator.alloc(u8, data_size) catch unreachable;
+            defer self.allocator.free(buffer_data);
+
+            var buffer_data_offset: usize = 0;
+            const buffer_gpu_address = self.getBufferGPUAddress(mesh.data_buffer);
+            // Positions
             {
-                const data = Slice{
-                    .data = @ptrCast(md.indices.items),
-                    .size = md.indices.items.len * @sizeOf(u32),
-                };
+                const stride = @sizeOf([3]f32);
+                mesh.position_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.position_stream_location.elements = @intCast(mesh_data.positions_stream.items.len);
+                mesh.position_stream_location.stride = @intCast(stride);
+                mesh.position_stream_location.offset_from_start = @intCast(buffer_data_offset);
 
-                std.debug.assert(self.index_buffer_size > data.size + self.index_buffer_offset);
-                self.updateBuffer(data, self.index_buffer_offset, u32, self.index_buffer);
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.positions_stream.items.ptr), buffer_data_offset, mesh_data.positions_stream.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.positions_stream.items.len * stride, alignment);
+            }
+            // Texcoords
+            {
+                const stride = @sizeOf([2]f32);
+                mesh.texcoord_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.texcoord_stream_location.elements = @intCast(mesh_data.texcoords_stream.items.len);
+                mesh.texcoord_stream_location.stride = @intCast(stride);
+                mesh.texcoord_stream_location.offset_from_start = @intCast(buffer_data_offset);
 
-                self.index_buffer_offset += data.size;
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.texcoords_stream.items.ptr), buffer_data_offset, mesh_data.texcoords_stream.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.texcoords_stream.items.len * stride, alignment);
+            }
+            // Normals
+            {
+                const stride = @sizeOf([3]f32);
+                mesh.normal_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.normal_stream_location.elements = @intCast(mesh_data.normals_stream.items.len);
+                mesh.normal_stream_location.stride = @intCast(stride);
+                mesh.normal_stream_location.offset_from_start = @intCast(buffer_data_offset);
+
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.normals_stream.items.ptr), buffer_data_offset, mesh_data.normals_stream.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.normals_stream.items.len * stride, alignment);
+            }
+            // Tangents
+            {
+                const stride = @sizeOf([3]f32);
+                mesh.tangent_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.tangent_stream_location.elements = @intCast(mesh_data.tangents_stream.items.len);
+                mesh.tangent_stream_location.stride = @intCast(stride);
+                mesh.tangent_stream_location.offset_from_start = @intCast(buffer_data_offset);
+
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.tangents_stream.items.ptr), buffer_data_offset, mesh_data.tangents_stream.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.tangents_stream.items.len * stride, alignment);
+            }
+            // Indices
+            {
+                // TODO
+                // const small_indices = mesh_data.positions_stream.items.len < std.math.maxInt(u16);
+                // const index_size = if (small_indices) @sizeOf(u16) else @sizeOf(u32);
+                const stride = @sizeOf(u32);
+                mesh.indices_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.indices_location.elements = @intCast(mesh_data.indices.items.len);
+                mesh.indices_location.offset_from_start = @intCast(buffer_data_offset);
+                mesh.indices_location.index_type = .INDEX_TYPE_UINT32;
+
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.indices.items.ptr), buffer_data_offset, mesh_data.indices.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.indices.items.len * stride, alignment);
             }
 
-            // Update vertex buffer
+            // Meshlets
             {
-                const data = Slice{
-                    .data = @ptrCast(md.vertices.items),
-                    .size = md.vertices.items.len * @sizeOf(geometry.Vertex),
-                };
+                const stride = @sizeOf(geometry.Meshlet);
+                mesh.meshlets_location = @intCast(buffer_data_offset);
 
-                std.debug.assert(self.vertex_buffer_size > data.size + self.vertex_buffer_offset);
-                self.updateBuffer(data, self.vertex_buffer_offset, u32, self.vertex_buffer);
-
-                self.vertex_buffer_offset += data.size;
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlets.items.ptr), buffer_data_offset, mesh_data.meshlets.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.meshlets.items.len * stride, alignment);
+                mesh.meshlet_count = @intCast(mesh_data.meshlets.items.len);
             }
 
-            // Update gpu mesh buffer
+            // Meshlet Vertices
             {
-                const data = Slice{
-                    .data = @ptrCast(&mesh.sub_meshes[sub_mesh_index]),
-                    .size = @sizeOf(geometry.SubMesh),
-                };
+                const stride = @sizeOf(u32);
+                mesh.meshlet_vertices_location = @intCast(buffer_data_offset);
 
-                std.debug.assert(self.gpu_mesh_buffer_size > data.size + self.gpu_mesh_buffer_offset);
-                self.updateBuffer(data, self.gpu_mesh_buffer_offset, u32, self.gpu_mesh_buffer);
-
-                self.gpu_mesh_buffer_offset += data.size;
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_vertices.items.ptr), buffer_data_offset, mesh_data.meshlet_vertices.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.meshlet_vertices.items.len * stride, alignment);
             }
+
+            // Meshlet Triangles
+            {
+                const stride = @sizeOf(geometry.MeshletTriangle);
+                mesh.meshlet_triangles_location = @intCast(buffer_data_offset);
+
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_triangles.items.ptr), buffer_data_offset, mesh_data.meshlet_triangles.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.meshlet_triangles.items.len * stride, alignment);
+            }
+
+            // Meshlet Bounds
+            {
+                const stride = @sizeOf(geometry.MeshletBounds);
+                mesh.meshlet_bounds_location = @intCast(buffer_data_offset);
+
+                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_bounds.items.ptr), buffer_data_offset, mesh_data.meshlet_bounds.items.len * stride);
+                buffer_data_offset += alignUp(mesh_data.meshlet_bounds.items.len * stride, alignment);
+            }
+
+            mesh.bounds.center = mesh_data.bounds.center;
+            mesh.bounds.extents = mesh_data.bounds.extents;
+
+            const data_slice = Slice{
+                .data = @ptrCast(buffer_data),
+                .size = data_size,
+            };
+            self.updateBuffer(data_slice, 0, u8, mesh.data_buffer);
+            self.meshes.append(mesh) catch unreachable;
+
+            const gpu_mesh = GPUMesh{
+                .data_buffer = self.getBufferBindlessIndex(mesh.data_buffer),
+                .index_byte_size = 4, // TODO
+                .indices_offset = @intCast(mesh.indices_location.offset_from_start),
+                .positions_offset = @intCast(mesh.position_stream_location.offset_from_start),
+                .texcoords_offset = @intCast(mesh.texcoord_stream_location.offset_from_start),
+                .tangents_offset = @intCast(mesh.tangent_stream_location.offset_from_start),
+                .normals_offset = @intCast(mesh.normal_stream_location.offset_from_start),
+                .meshlet_offset = mesh.meshlets_location,
+                .meshlet_bounds_offset = mesh.meshlet_bounds_location,
+                .meshlet_triangle_offset = mesh.meshlet_triangles_location,
+                .meshlet_vertex_offset = mesh.meshlet_vertices_location,
+                .meshlet_count = mesh.meshlet_count,
+            };
+
+            gpu_mesh_data.append(gpu_mesh) catch unreachable;
         }
 
-        for (mesh_data.items) |md| {
-            self.index_count += @intCast(md.indices.items.len);
-            self.vertex_count += @intCast(md.vertices.items.len);
-        }
-
-        const handle: MeshHandle = try self.mesh_pool.add(.{ .mesh = mesh, .gpu_mesh_indices = gpu_mesh_indices });
-        return handle;
+        const gpu_mesh_data_slice = Slice{
+            .data = @ptrCast(gpu_mesh_data.items),
+            .size = @sizeOf(GPUMesh) * gpu_mesh_data.items.len,
+        };
+        self.updateBuffer(gpu_mesh_data_slice, self.mesh_buffer_offset, GPUMesh, self.mesh_buffer);
+        self.mesh_buffer_offset += gpu_mesh_data_slice.size;
     }
 
-    pub fn getMesh(self: *Renderer, handle: MeshHandle) geometry.Mesh {
-        const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
-        return mesh;
-    }
+    // pub fn getMesh(self: *Renderer, handle: MeshHandle) geometry.Mesh {
+    //     const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+    //     return mesh;
+    // }
 
-    pub fn getGpuMeshIndices(self: *Renderer, handle: MeshHandle) GpuMeshIndices {
-        const mesh = self.mesh_pool.getColumn(handle, .gpu_mesh_indices) catch unreachable;
-        return mesh;
+    fn alignUp(value: u64, alignment: u64) u64 {
+        return (value + (alignment - 1)) & ~(alignment - 1);
     }
 
     pub fn loadLegacyMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !LegacyMeshHandle {
@@ -1532,6 +1705,11 @@ pub const Renderer = struct {
         const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
         const bindless_index = buffer.*.mDx.mDescriptors;
         return @intCast(bindless_index);
+    }
+
+    pub fn getBufferGPUAddress(self: *Renderer, handle: BufferHandle) u64 {
+        const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
+        return @intCast(buffer.*.mDx.mGpuAddress);
     }
 
     pub fn getPSO(self: *Renderer, id: IdLocal) [*c]graphics.Pipeline {
@@ -2024,8 +2202,9 @@ pub const GpuMeshIndices = struct {
     indices: [geometry.sub_mesh_max_count]u32,
 };
 
-const MeshPool = Pool(16, 16, geometry.Mesh, struct { mesh: geometry.Mesh, gpu_mesh_indices: GpuMeshIndices });
-pub const MeshHandle = MeshPool.Handle;
+// const MeshPool = Pool(16, 16, Mesh, struct { mesh: geometry.Mesh, gpu_mesh_indices: GpuMeshIndices });
+// pub const MeshHandle = MeshPool.Handle;
+const MeshHashMap = std.AutoHashMap(u64, struct { index: u32, count: u32 });
 
 const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
 pub const LegacyMeshHandle = LegacyMeshPool.Handle;
@@ -2083,3 +2262,11 @@ pub const FrameStats = struct {
         self.frame_counter += 1;
     }
 };
+
+fn memcpy(dst: *anyopaque, src: *const anyopaque, dst_offset: u64, byte_count: u64) void {
+    const src_slice = @as([*]const u8, @ptrCast(src))[0..byte_count];
+    const dst_slice = @as([*]u8, @ptrCast(dst))[dst_offset..(dst_offset + byte_count)];
+    for (src_slice, 0..) |byte, i| {
+        dst_slice[i] = byte;
+    }
+}

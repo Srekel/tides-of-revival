@@ -9,6 +9,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const renderer = @import("../renderer/renderer.zig");
 const geometry = @import("../renderer/geometry.zig");
 const MaterialHandle = renderer.MaterialHandle;
+// const MeshHandle = renderer.MeshHandle;
 const LegacyMeshHandle = renderer.LegacyMeshHandle;
 const TextureHandle = renderer.TextureHandle;
 
@@ -31,6 +32,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Velocity);
     ecs.COMPONENT(ecs_world, LodGroup);
     ecs.COMPONENT(ecs_world, StaticMesh);
+    ecs.COMPONENT(ecs_world, GpuDrivenMesh);
     ecs.COMPONENT(ecs_world, Water);
     ecs.COMPONENT(ecs_world, SkyLight);
     ecs.COMPONENT(ecs_world, UIImage);
@@ -478,6 +480,10 @@ pub const StaticMesh = struct {
 pub const LodGroup = struct {
     lod_count: u32,
     lods: [geometry.mesh_lod_max_count]StaticMesh,
+};
+
+pub const GpuDrivenMesh = struct {
+    mesh_id: IdLocal,
 };
 
 pub const Water = struct {

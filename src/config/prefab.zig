@@ -46,7 +46,6 @@ pub const stacked_stones_id = ID("stacked_stones");
 
 pub const prefabs = [_]IdLocal{
     arrow_id,
-    beech_tree_04_id,
     bow_id,
     brazier_1_id,
     brazier_2_id,
@@ -84,7 +83,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     const pos_uv0_col_vertex_layout = IdLocal.init("pos_uv0_col");
     const pos_uv0_nor_tan_col_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col");
-    const pos_uv0_nor_tan_col_uv1_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col_uv1");
+    // const pos_uv0_nor_tan_col_uv1_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col_uv1");
 
     {
         player = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/characters/player/player", player_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
@@ -353,6 +352,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_trunk_04_material.wind_stifness = 1.0;
         beech_trunk_04_material.wind_drag = 0.1;
         const beech_trunk_04_material_handle = prefab_mgr.rctx.uploadMaterial(ID("beech_trunk_04"), beech_trunk_04_material) catch unreachable;
+        _ = beech_trunk_04_material_handle;
 
         var beech_atlas_v2_material = fd.UberShader.init();
         beech_atlas_v2_material.alpha_test = true;
@@ -370,35 +370,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_atlas_v2_material.wind_normal_influence = 0.2;
         beech_atlas_v2_material.wind_shiver_directionality = 0.4;
         const beech_atlas_v2_material_handle = prefab_mgr.rctx.uploadMaterial(ID("beech_atlas_v2"), beech_atlas_v2_material) catch unreachable;
+        _ = beech_atlas_v2_material_handle;
 
-        var beech_04_impostor_material = fd.UberShader.init();
-        beech_04_impostor_material.alpha_test = true;
-        beech_04_impostor_material.gbuffer_pipeline_id = pipeline_tree_gbuffer_cutout_id;
-        beech_04_impostor_material.shadow_caster_pipeline_id = pipeline_tree_shadow_caster_masked_id;
-        beech_04_impostor_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_04_impostor_albedo.dds");
-        beech_04_impostor_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_04_impostor_normal.dds");
-        beech_04_impostor_material.roughness = 0.95;
-        beech_04_impostor_material.wind_feature = false;
-        beech_04_impostor_material.wind_shiver_feature = false;
-        const beech_04_impostor_material_handle = prefab_mgr.rctx.uploadMaterial(ID("beech_impostor"), beech_04_impostor_material) catch unreachable;
-
-        var beech_tree_04 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/environment/beech/beech_tree_04", beech_tree_04_id, pos_uv0_nor_tan_col_uv1_vertex_layout, ecsu_world);
-        const lod_group_component = beech_tree_04.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count - 1) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 2);
-
-                lod_group.lods[i].materials.items[0] = beech_trunk_04_material_handle;
-                lod_group.lods[i].materials.items[1] = beech_atlas_v2_material_handle;
-            }
-
-            // Impostor
-            {
-                const lod_impostor_index = lod_group.lod_count - 1;
-                std.debug.assert(lod_group.lods[lod_impostor_index].materials.items.len == 1);
-                lod_group.lods[lod_impostor_index].materials.items[0] = beech_04_impostor_material_handle;
-            }
-        }
+        const beech_tree_04 = prefab_mgr.createGpuDrivenMeshPrefab("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh", beech_tree_04_id, ecsu_world);
+        _ = beech_tree_04;
+        // TODO
+        // var beech_tree_04_mesh = beech_tree_04.getMut(fd.GpuDrivenMesh).?;
+        // std.debug.assert(beech_tree_04_mesh.materials_count == 2);
+        // beech_tree_04_mesh.materials[0] = beech_trunk_04_material_handle;
+        // beech_tree_04_mesh.materials[1] = beech_atlas_v2_material_handle;
     }
 
     {

@@ -79,7 +79,7 @@ def main():
     sync_lib(
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "8db67310f653b7062fc9dc9b132f18369ad48168",
+        "3374f28fe96b7f02fc5887c1a5f41ad9a2164f33",
     )
     sync_lib(
         "ze-forge",

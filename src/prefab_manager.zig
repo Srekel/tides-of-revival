@@ -39,6 +39,39 @@ pub const PrefabManager = struct {
         self.material_hash_map.deinit();
     }
 
+    pub fn createGpuDrivenMeshPrefab(self: *@This(), path: []const u8, id: IdLocal, world: ecsu.World) ecsu.Entity {
+        const existing_prefab = self.prefab_hash_map.get(id);
+        if (existing_prefab) |prefab| {
+            return prefab;
+        }
+
+        var entity = world.newPrefab(id.toCString());
+        entity.set(fd.Forward{});
+
+        // Set position, rotation and scale
+        var position = fd.Position.init(0, 0, 0);
+        var rotation = fd.Rotation{};
+        var scale = fd.Scale.createScalar(1);
+        entity.set(position);
+        entity.set(rotation);
+        entity.set(scale);
+
+        // Set transform
+        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
+        transform.setPos(position.elems().*);
+        transform.setScale(scale.elems().*);
+        entity.set(transform);
+
+        self.rctx.loadMesh(path, id) catch unreachable;
+        const gpu_driven_mesh = fd.GpuDrivenMesh{
+            .mesh_id = id,
+        };
+        entity.set(gpu_driven_mesh);
+
+        self.prefab_hash_map.put(id, entity) catch unreachable;
+        return entity;
+    }
+
     pub fn createHierarchicalStaticMeshPrefab(self: *@This(), path: [:0]const u8, id: IdLocal, vertex_layout_id: IdLocal, world: ecsu.World) ecsu.Entity {
         const existing_prefab = self.prefab_hash_map.get(id);
         if (existing_prefab) |prefab| {

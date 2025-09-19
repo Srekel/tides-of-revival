@@ -13,6 +13,7 @@ const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const zm = @import("zmath");
+const im3d = @import("im3d");
 
 const graphics = zforge.graphics;
 const DescriptorSet = graphics.DescriptorSet;
@@ -22,6 +23,11 @@ const BufferHandle = renderer.BufferHandle;
 const RenderPass = renderer.RenderPass;
 const InstanceData = renderer_types.InstanceData;
 const InstanceDataIndirection = renderer_types.InstanceDataIndirection;
+
+const max_instances = 1000000;
+const max_visible_instances = 10000;
+// NOTE: This could be a set, but it is a hashmap because we might want to store the GPU index as the value to evict instances that are streamed out
+const EntityMap = std.AutoHashMap(ecs.entity_t, bool);
 
 pub const GBufferFrameData = struct {
     projection_view: [16]f32,
@@ -56,24 +62,29 @@ pub const GpuDrivenRenderPass = struct {
     renderer: *Renderer,
     render_pass: RenderPass,
     prefab_mgr: *PrefabManager,
-    // query_gpu_driven_mesh: *ecs.query_t,
+    query_gpu_driven_mesh: *ecs.query_t,
 
     gbuffer_frame_data: GBufferFrameData,
     gbuffer_frame_data_buffers: [frames_count]BufferHandle,
     gbuffer_descriptor_sets: [renderer_buckets][*c]DescriptorSet,
 
-    // TODO: Do we need to double-buffer these as well?
-    instance_buffer: BufferHandle,
-    instance_indirection_buffer: BufferHandle,
-    visible_instance_indirection_buffer: BufferHandle,
-    counters_buffer: BufferHandle,
+    total_instance_indirection_count: u64,
+    instances: std.ArrayList(InstanceData),
+    instance_indirections: std.ArrayList(InstanceDataIndirection),
+    entity_maps: [frames_count]EntityMap,
+    instance_buffers: [frames_count]BufferHandle,
+    instance_buffer_offsets: [frames_count]u64,
+    instance_count: [frames_count]u64,
+    instance_buffer_size: u64,
+    instance_indirection_buffers: [frames_count]BufferHandle,
+    instance_indirection_buffer_offsets: [frames_count]u64,
+    instance_indirection_buffer_size: u64,
+    visible_instance_indirection_buffers: [frames_count]BufferHandle,
+    counters_buffers: [frames_count]BufferHandle,
     gpu_culling_frame_data: GpuCullingFrameData,
     gpu_culling_frame_data_buffers: [frames_count]BufferHandle,
     gpu_culling_clear_counters_descriptor_set: [*c]DescriptorSet,
     gpu_culling_cull_instances_descriptor_set: [*c]DescriptorSet,
-
-    temporary_mesh: renderer.MeshHandle,
-    first_update: bool,
 
     pub fn init(self: *GpuDrivenRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
@@ -83,7 +94,7 @@ pub const GpuDrivenRenderPass = struct {
 
         self.gbuffer_frame_data = std.mem.zeroes(GBufferFrameData);
         self.gbuffer_frame_data_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 buffers[buffer_index] = rctx.createUniformBuffer(GBufferFrameData);
             }
@@ -91,20 +102,37 @@ pub const GpuDrivenRenderPass = struct {
             break :blk buffers;
         };
 
-        self.instance_buffer = blk: {
+        self.total_instance_indirection_count = 0;
+        self.instance_count[0] = 0;
+        self.instance_count[1] = 0;
+        self.instance_buffer_offsets[0] = 0;
+        self.instance_buffer_offsets[1] = 0;
+        self.instance_buffer_size = max_instances * @sizeOf(InstanceData);
+        self.instance_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
             const buffer_data = renderer.Slice{
                 .data = null,
-                .size = 1024 * @sizeOf(InstanceData),
+                .size = self.instance_buffer_size,
             };
-            break :blk rctx.createBindlessBuffer(buffer_data, false, "GPU Instances");
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "GPU Instances");
+            }
+            break :blk buffers;
         };
 
-        self.instance_indirection_buffer = blk: {
+        self.instance_indirection_buffer_offsets[0] = 0;
+        self.instance_indirection_buffer_offsets[1] = 0;
+        self.instance_indirection_buffer_size = max_visible_instances * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection);
+        self.instance_indirection_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
             const buffer_data = renderer.Slice{
                 .data = null,
-                .size = 1024 * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection),
+                .size = self.instance_indirection_buffer_size,
             };
-            break :blk rctx.createBindlessBuffer(buffer_data, false, "GPU Instance Indirections");
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "GPU Instance Indirections");
+            }
+            break :blk buffers;
         };
 
         self.gpu_culling_frame_data = std.mem.zeroes(GpuCullingFrameData);
@@ -117,25 +145,47 @@ pub const GpuDrivenRenderPass = struct {
             break :blk buffers;
         };
 
-        self.visible_instance_indirection_buffer = blk: {
+        self.visible_instance_indirection_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
             const buffer_data = renderer.Slice{
                 .data = null,
-                .size = 1024 * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection),
+                .size = max_visible_instances * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection),
             };
-            break :blk rctx.createBindlessBuffer(buffer_data, true, "GPU Visible Instance Indirections");
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "GPU Visible Instance Indirections");
+            }
+            break :blk buffers;
         };
 
-        self.counters_buffer = blk: {
+        self.counters_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
             const buffer_data = renderer.Slice{
                 .data = null,
                 .size = 32 * @sizeOf(u32),
             };
-            break :blk rctx.createBindlessBuffer(buffer_data, true, "Counters Buffer");
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Counters Buffer");
+            }
+            break :blk buffers;
         };
 
-        // TESTING NEW MESH LOADING
-        self.temporary_mesh = self.renderer.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh") catch unreachable;
-        self.first_update = true;
+        self.query_gpu_driven_mesh = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_gpu_driven_mesh"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.GpuDrivenMesh), .inout = .In },
+                .{ .id = ecs.id(fd.Transform), .inout = .In },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+        }) catch unreachable;
+
+        self.instances = std.ArrayList(InstanceData).init(self.allocator);
+        self.instance_indirections = std.ArrayList(InstanceDataIndirection).init(self.allocator);
+        self.entity_maps = blk: {
+            var entity_maps: [frames_count]EntityMap = undefined;
+            for (entity_maps, 0..) |_, index| {
+                entity_maps[index] = EntityMap.init(self.allocator);
+            }
+            break :blk entity_maps;
+        };
 
         createDescriptorSets(@ptrCast(self));
         prepareDescriptorSets(@ptrCast(self));
@@ -154,182 +204,103 @@ pub const GpuDrivenRenderPass = struct {
 
     pub fn destroy(self: *GpuDrivenRenderPass) void {
         self.renderer.unregisterRenderPass(&self.render_pass);
-
+        self.instances.deinit();
+        self.instance_indirections.deinit();
+        for (self.entity_maps, 0..) |_, index| {
+            self.entity_maps[index].deinit();
+        }
         unloadDescriptorSets(@ptrCast(self));
     }
 };
 
 fn update(user_data: *anyopaque) void {
-    const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
+    _ = user_data;
+    // const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
+    // const frame_index = self.renderer.frame_index;
 
-    if (self.first_update) {
-        var instance = std.mem.zeroes(InstanceData);
-        const z_world = zm.translation(9168.0, 124.4, 8645.0);
-        zm.storeMat(&instance.object_to_world, z_world);
+    // self.instances.clearRetainingCapacity();
+    // self.instance_indirections.clearRetainingCapacity();
 
-        const instance_data = renderer.Slice{
-            .data = @ptrCast(&instance),
-            .size = @sizeOf(InstanceData),
-        };
-        self.renderer.updateBuffer(instance_data, 0, InstanceData, self.instance_buffer);
+    // var query_gpu_driven_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_gpu_driven_mesh);
+    // while (ecs.query_next(&query_gpu_driven_mesh_iter)) {
+    //     const meshes = ecs.field(&query_gpu_driven_mesh_iter, fd.GpuDrivenMesh, 0).?;
+    //     const transforms = ecs.field(&query_gpu_driven_mesh_iter, fd.Transform, 1).?;
 
-        var instance_indirections = std.ArrayList(InstanceDataIndirection).init(self.allocator);
-        defer instance_indirections.deinit();
+    //     for (meshes, transforms, 0..) |*mesh_component, transform, entity_index| {
+    //         const entity_id: ecs.entity_t = query_gpu_driven_mesh_iter.entities()[entity_index];
+    //         if (self.entity_maps[frame_index].contains(entity_id)) {
+    //             continue;
+    //         }
 
-        const trunk_material_handle = self.renderer.getMaterialHandle(ID("beech_trunk_04")).?;
-        const trunk_material_index = self.renderer.getMaterialBufferOffset(trunk_material_handle);
+    //         _ = mesh_component;
 
-        const atlas_material_handle = self.renderer.getMaterialHandle(ID("beech_atlas_v2")).?;
-        const atlas_material_index = self.renderer.getMaterialBufferOffset(atlas_material_handle);
+    //         self.entity_maps[frame_index].put(entity_id, true) catch unreachable;
 
-        const indices = self.renderer.getGpuMeshIndices(self.temporary_mesh);
-        for (0..indices.count) |index| {
-            std.log.debug("Mesh index: {d}", .{indices.indices[index]});
-            var instance_indirection = std.mem.zeroes(InstanceDataIndirection);
-            instance_indirection.gpu_mesh_index = indices.indices[index];
-            instance_indirection.instance_index = 0;
-            instance_indirection.material_index = if (index == 0) trunk_material_index else atlas_material_index;
-            instance_indirections.append(instance_indirection) catch unreachable;
-        }
+    //         const instance_index: u32 = @intCast(self.instance_count[frame_index] + self.instances.items.len);
+    //         _ = instance_index;
 
-        const instance_indirection_data = renderer.Slice{
-            .data = @ptrCast(instance_indirections.items),
-            .size = instance_indirections.items.len * @sizeOf(InstanceDataIndirection),
-        };
-        self.renderer.updateBuffer(instance_indirection_data, 0, InstanceDataIndirection, self.instance_indirection_buffer);
+    //         var instance = std.mem.zeroes(InstanceData);
+    //         storeMat44(transform.matrix[0..], &instance.object_to_world);
+    //         self.instances.append(instance) catch unreachable;
 
-        self.first_update = false;
-    }
+    //         // const gpu_mesh_indices = self.renderer.getGpuMeshIndices(mesh_component.mesh);
+    //         // for (0..gpu_mesh_indices.count) |gpu_mesh_index| {
+    //         //     var instance_indirection = std.mem.zeroes(InstanceDataIndirection);
+    //         //     instance_indirection.gpu_mesh_index = gpu_mesh_indices.indices[gpu_mesh_index];
+    //         //     instance_indirection.instance_index = instance_index;
+    //         //     instance_indirection.entity_id = @intCast(entity_id);
+
+    //         //     instance_indirection.material_index = self.renderer.getMaterialBufferOffset(mesh_component.materials[gpu_mesh_index]);
+    //         //     self.instance_indirections.append(instance_indirection) catch unreachable;
+    //         // }
+    //     }
+    // }
+
+    // if (self.instances.items.len > 0) {
+    //     self.instance_count[frame_index] += self.instances.items.len;
+
+    //     const instance_data = renderer.Slice{
+    //         .data = @ptrCast(self.instances.items),
+    //         .size = self.instances.items.len * @sizeOf(InstanceData),
+    //     };
+
+    //     std.debug.assert(self.instance_buffer_size > instance_data.size + self.instance_buffer_offsets[frame_index]);
+    //     self.renderer.updateBuffer(instance_data, self.instance_buffer_offsets[frame_index], InstanceData, self.instance_buffers[frame_index]);
+    //     self.instance_buffer_offsets[frame_index] += instance_data.size;
+
+    //     const instance_indirection_data = renderer.Slice{
+    //         .data = @ptrCast(self.instance_indirections.items),
+    //         .size = self.instance_indirections.items.len * @sizeOf(InstanceDataIndirection),
+    //     };
+
+    //     std.debug.assert(self.instance_indirection_buffer_size > instance_indirection_data.size + self.instance_indirection_buffer_offsets[frame_index]);
+    //     self.renderer.updateBuffer(instance_indirection_data, self.instance_indirection_buffer_offsets[frame_index], InstanceDataIndirection, self.instance_indirection_buffers[frame_index]);
+    //     self.instance_indirection_buffer_offsets[frame_index] += instance_indirection_data.size;
+
+    //     self.total_instance_indirection_count += self.instance_indirections.items.len;
+    //     std.log.debug("Total Instances: {d}", .{ self.instance_count[frame_index] });
+    // }
 }
 
 fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "GPU Driven: GBuffer", 0x00_ff_00_00);
     defer trazy_zone.End();
 
-    const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
-    const frame_index = self.renderer.frame_index;
+    _ = cmd_list;
+    _ = user_data;
 
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-    const camera_position = camera_comps.transform.getPos00();
-    const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
+    // const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
+    // const frame_index = self.renderer.frame_index;
 
-    // GPU Culling
-    {
-        zm.storeMat(&self.gpu_culling_frame_data.projection_view, z_view_proj);
-        self.gpu_culling_frame_data.counters_buffer_index = self.renderer.getBufferBindlessIndex(self.counters_buffer);
-        self.gpu_culling_frame_data.counters_buffer_count = 20;
-        self.gpu_culling_frame_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer);
-        self.gpu_culling_frame_data.instance_indirection_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_indirection_buffer);
-        self.gpu_culling_frame_data.instance_indirection_count = 2; // TODO
-        self.gpu_culling_frame_data.visible_instance_indirection_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_instance_indirection_buffer);
-        self.gpu_culling_frame_data.gpu_mesh_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.gpu_mesh_buffer);
+    // var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+    // const camera_comps = camera_entity.getComps(struct {
+    //     camera: *const fd.Camera,
+    //     transform: *const fd.Transform,
+    // });
+    // const camera_position = camera_comps.transform.getPos00();
+    // const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
-        // Update GPU Culling Unifor Frame Buffer
-        {
-            const data = renderer.Slice{
-                .data = @ptrCast(&self.gpu_culling_frame_data),
-                .size = @sizeOf(GpuCullingFrameData),
-            };
-            self.renderer.updateBuffer(data, 0, GpuCullingFrameData, self.gpu_culling_frame_data_buffers[frame_index]);
-        }
 
-        const counters_buffer = self.renderer.getBuffer(self.counters_buffer);
-        const visible_instance_indirections_buffer = self.renderer.getBuffer(self.visible_instance_indirection_buffer);
-
-        {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(counters_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
-                graphics.BufferBarrier.init(visible_instance_indirections_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
-        }
-
-        // Clear counters
-        {
-            const pipeline_id = IdLocal.init("gpu_culling_clear_counters");
-            const pipeline = self.renderer.getPSO(pipeline_id);
-            graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gpu_culling_clear_counters_descriptor_set);
-            graphics.cmdDispatch(cmd_list, 1, 1, 1);
-        }
-
-        // Cull Instances
-        {
-            const pipeline_id = IdLocal.init("gpu_culling_cull_instances");
-            const pipeline = self.renderer.getPSO(pipeline_id);
-            graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gpu_culling_cull_instances_descriptor_set);
-            graphics.cmdDispatch(cmd_list, 1, 1, 1); // TODO: groupCountX should depend on the total instance indirections
-        }
-
-        {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(counters_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
-                graphics.BufferBarrier.init(visible_instance_indirections_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
-        }
-    }
-
-    zm.storeMat(&self.gbuffer_frame_data.projection_view, z_view_proj);
-    zm.storeMat(&self.gbuffer_frame_data.projection_view_inverted, zm.inverse(z_view_proj));
-    self.gbuffer_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
-    self.gbuffer_frame_data.time = @floatCast(self.renderer.time); // keep f64?
-    self.gbuffer_frame_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer);
-    self.gbuffer_frame_data.instance_indirection_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_indirection_buffer);
-    self.gbuffer_frame_data.gpu_mesh_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.gpu_mesh_buffer);
-    self.gbuffer_frame_data.vertex_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.vertex_buffer);
-    self.gbuffer_frame_data.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.materials_buffer);
-
-    // Update Uniform Frame Buffer
-    {
-        const data = renderer.Slice{
-            .data = @ptrCast(&self.gbuffer_frame_data),
-            .size = @sizeOf(GBufferFrameData),
-        };
-        self.renderer.updateBuffer(data, 0, GBufferFrameData, self.gbuffer_frame_data_buffers[frame_index]);
-    }
-
-    const index_buffer = self.renderer.getBuffer(self.renderer.index_buffer);
-    graphics.cmdBindIndexBuffer(cmd_list, index_buffer, @intCast(graphics.IndexType.INDEX_TYPE_UINT32.bits), 0);
-
-    const mesh = self.renderer.getMesh(self.temporary_mesh);
-
-    {
-        const pipeline_id = IdLocal.init("gpu_driven_gbuffer_opaque");
-        const pipeline = self.renderer.getPSO(pipeline_id);
-        graphics.cmdBindPipeline(cmd_list, pipeline);
-        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gbuffer_descriptor_sets[renderer_bucket_opaque]);
-
-        graphics.cmdDrawIndexedInstanced(
-            cmd_list,
-            mesh.sub_meshes[0].index_count,
-            mesh.sub_meshes[0].index_offset,
-            1,
-            mesh.sub_meshes[0].vertex_offset,
-            0,
-        );
-    }
-
-    {
-        const pipeline_id = IdLocal.init("gpu_driven_gbuffer_masked");
-        const pipeline = self.renderer.getPSO(pipeline_id);
-        graphics.cmdBindPipeline(cmd_list, pipeline);
-        graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gbuffer_descriptor_sets[renderer_bucket_masked]);
-
-        graphics.cmdDrawIndexedInstanced(
-            cmd_list,
-            mesh.sub_meshes[1].index_count,
-            mesh.sub_meshes[1].index_offset,
-            1,
-            mesh.sub_meshes[1].vertex_offset,
-            1,
-        );
-    }
 }
 
 fn createDescriptorSets(user_data: *anyopaque) void {
@@ -408,4 +379,23 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
     graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer_bucket_masked]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_clear_counters_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_cull_instances_descriptor_set);
+}
+
+inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
+    mat44[0] = mat43[0];
+    mat44[1] = mat43[1];
+    mat44[2] = mat43[2];
+    mat44[3] = 0;
+    mat44[4] = mat43[3];
+    mat44[5] = mat43[4];
+    mat44[6] = mat43[5];
+    mat44[7] = 0;
+    mat44[8] = mat43[6];
+    mat44[9] = mat43[7];
+    mat44[10] = mat43[8];
+    mat44[11] = 0;
+    mat44[12] = mat43[9];
+    mat44[13] = mat43[10];
+    mat44[14] = mat43[11];
+    mat44[15] = 1;
 }
