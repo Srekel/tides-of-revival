@@ -173,10 +173,10 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
                 const do_zoom = wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0 and weapon_comp.charge > 0.25);
                 const target_fov: f32 =
                     if (do_zoom)
-                        (0.25 - 0.15 * weapon_comp.charge * weapon_comp.charge)
+                        (0.25 - 0.15 * weapon_comp.charge * weapon_comp.charge) * math.pi
                     else
-                        0.25;
-                camera_comp.fov = std.math.lerp(camera_comp.fov, target_fov * math.pi, 0.3);
+                        std.math.degreesToRadians(60);
+                camera_comp.fov = std.math.lerp(camera_comp.fov, target_fov, 0.3);
             }
         }
 
