@@ -124,7 +124,6 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
                 result.has_hit = false;
             } else {
                 locomotion.affected_by_gravity = false;
-                locomotion.speed = 15;
             }
         }
 

@@ -829,5 +829,7 @@ pub const Journey = struct {
 
 pub const Enemy = struct {
     base_scale: f32 = 1,
+    idling: bool = true,
     aggressive: bool = false,
+    left_bias: bool = true,
 };
