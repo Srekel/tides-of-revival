@@ -113,7 +113,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.7, .z = 0 });
     player_camera_ent.set(fd.Rotation{});
-    player_camera_ent.set(fd.Scale.createScalar(1));
+    player_camera_ent.set(fd.Scale.createScalar(0.5));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
     player_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
