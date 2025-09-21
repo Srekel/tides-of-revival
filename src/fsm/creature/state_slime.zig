@@ -451,10 +451,37 @@ const SplitIfNearPlayer = struct {
 
         const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
         const self_pos_z = zm.loadArr3(self_pos.elemsConst().*);
-        if (zm.length3(player_pos_z - self_pos_z)[0] < 200) {
-            return .valid;
+        if (zm.length3(player_pos_z - self_pos_z)[0] > 20) {
+            return .reschedule;
         }
-        return .reschedule;
+
+        const cast_ray_args: zphy.NarrowPhaseQuery.CastRayArgs = .{
+            .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
+        };
+
+        const to_player_z = player_pos_z - self_pos_z;
+        const ray_dir_z = to_player_z;
+        var ray_dir: [4]f32 = undefined;
+        zm.storeArr4(&ray_dir, ray_dir_z);
+
+        const ray_origin = [_]f32{
+            self_pos.x,
+            self_pos.y + 1,
+            self_pos.x,
+            0,
+        };
+        const ray = zphy.RRayCast{
+            .origin = ray_origin,
+            .direction = ray_dir,
+        };
+
+        var query = ctx.physics_world.getNarrowPhaseQuery();
+        const result = query.castRay(ray, cast_ray_args);
+        if (result.has_hit) {
+            return .reschedule;
+        }
+
+        return .valid;
     }
 
     fn apply(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
