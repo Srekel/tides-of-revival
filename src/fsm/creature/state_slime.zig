@@ -272,7 +272,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 task_data.*.entity = ent;
                 ctx.task_queue.enqueue(
                     SplitIfNearPlayer.id,
-                    .{ .time = 1, .loop_type = .{ .loop = 2.4 } },
+                    .{ .time = 1, .loop_type = .{ .loop = 5 } },
                     std.mem.asBytes(task_data),
                 );
             }
@@ -462,7 +462,7 @@ const SplitIfNearPlayer = struct {
 
         const self: *SlimeDropTask = @alignCast(@ptrCast(data));
         var enemy = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Enemy).?;
-        enemy.base_scale *= 0.8;
+        enemy.base_scale *= 0.9;
         enemy.aggressive = true;
         enemy.idling = false;
 
@@ -528,8 +528,8 @@ const SplitIfNearPlayer = struct {
             ctx.task_queue.enqueue(
                 SplitIfNearPlayer.id,
                 .{
-                    .time = enemy.base_scale * 2 + std.crypto.random.float(f64) * 2,
-                    .loop_type = .{ .loop = enemy.base_scale * 0.5 + std.crypto.random.float(f64) },
+                    .time = enemy.base_scale * enemy.base_scale + std.crypto.random.float(f64) * 2,
+                    .loop_type = .{ .loop = enemy.base_scale + std.crypto.random.float(f64) },
                 },
                 std.mem.asBytes(task_data),
             );
