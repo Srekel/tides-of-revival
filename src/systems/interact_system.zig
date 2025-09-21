@@ -525,6 +525,13 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 const damage = (speed - 30) * (speed - 30);
                 std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                 hit_health.value -= damage;
+
+                const enemy_opt = ecs.get_mut(system.ecsu_world.world, hit_ent, fd.Enemy);
+                if (enemy_opt) |enemy| {
+                    enemy.aggressive = true;
+                    enemy.idling = false;
+                }
+
                 if (hit_health.value <= 0) {
                     body_interface.setMotionType(hit_body, .dynamic, .activate);
                     body_interface.addImpulseAtPosition(
