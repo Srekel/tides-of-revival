@@ -76,10 +76,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     const pipeline_tree_shadow_caster_opaque_id = IdLocal.init("tree_shadow_caster_opaque");
     const pipeline_tree_shadow_caster_masked_id = IdLocal.init("tree_shadow_caster_cutout");
 
+    const default_material_id = ID("default");
     var default_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(0.5, 0.5, 0.5), 0.8, 0.0);
     default_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
     default_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-    const default_material_handle = prefab_mgr.rctx.uploadMaterial(ID("default"), default_material) catch unreachable;
+    prefab_mgr.rctx.uploadMaterial(default_material_id, default_material) catch unreachable;
 
     const pos_uv0_col_vertex_layout = IdLocal.init("pos_uv0_col");
     const pos_uv0_nor_tan_col_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col");
@@ -93,7 +94,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                    lod_group.lods[i].materials.items[material_index] = default_material_id;
                 }
             }
         }
@@ -106,7 +107,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.albedo = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
         material.arm = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
         material.normal = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
-        const material_handle = prefab_mgr.rctx.uploadMaterial(ID("round_aluminum"), material) catch unreachable;
+        const material_id = ID("round_aluminum");
+        prefab_mgr.rctx.uploadMaterial(material_id, material) catch unreachable;
 
         matball = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/matball", matball_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         matball.setOverride(fd.Dynamic{});
@@ -115,7 +117,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = material_handle;
+                lod_group.lods[i].materials.items[0] = material_id;
             }
         }
     }
@@ -125,7 +127,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/color_calibrator/color_checker_albedo.dds");
-        const material_handle = prefab_mgr.rctx.uploadMaterial(ID("color_checker"), material) catch unreachable;
+        const material_id = ID("color_checker");
+        prefab_mgr.rctx.uploadMaterial(material_id, material) catch unreachable;
 
         color_calibrator = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/color_calibrator/color_calibrator", color_calibrator_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         color_calibrator.setOverride(fd.Dynamic{});
@@ -134,7 +137,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = material_handle;
+                lod_group.lods[i].materials.items[0] = material_id;
             }
         }
     }
@@ -146,7 +149,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_albedo.dds");
         material.arm = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_arm.dds");
         material.normal = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_normal.dds");
-        const material_handle = prefab_mgr.rctx.uploadMaterial(ID("giant_ant"), material) catch unreachable;
+        const material_id = ID("giant_ant");
+        prefab_mgr.rctx.uploadMaterial(material_id, material) catch unreachable;
 
         giant_ant = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/giant_ant/giant_ant", giant_ant_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         giant_ant.setOverride(fd.Dynamic{});
@@ -155,7 +159,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = material_handle;
+                lod_group.lods[i].materials.items[0] = material_id;
             }
         }
     }
@@ -167,7 +171,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_albedo.dds");
         material.arm = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_arm.dds");
         material.normal = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_normal.dds");
-        const material_handle = prefab_mgr.rctx.uploadMaterial(ID("bow_arrow"), material) catch unreachable;
+        const material_id = ID("bow_arrow");
+        prefab_mgr.rctx.uploadMaterial(material_id, material) catch unreachable;
 
         {
             bow = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/bow_arrow/bow", bow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
@@ -177,7 +182,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             if (lod_group_component) |lod_group| {
                 for (0..lod_group.lod_count) |i| {
                     std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                    lod_group.lods[i].materials.items[0] = material_handle;
+                    lod_group.lods[i].materials.items[0] = material_id;
                 }
             }
         }
@@ -190,7 +195,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             if (lod_group_component) |lod_group| {
                 for (0..lod_group.lod_count) |i| {
                     std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                    lod_group.lods[i].materials.items[0] = material_handle;
+                    lod_group.lods[i].materials.items[0] = material_id;
                 }
             }
         }
@@ -204,7 +209,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_material_handle;
+                lod_group.lods[i].materials.items[0] = default_material_id;
             }
         }
     }
@@ -217,7 +222,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_material_handle;
+                lod_group.lods[i].materials.items[0] = default_material_id;
             }
         }
     }
@@ -230,7 +235,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_material_handle;
+                lod_group.lods[i].materials.items[0] = default_material_id;
             }
         }
     }
@@ -243,7 +248,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_material_handle;
+                lod_group.lods[i].materials.items[0] = default_material_id;
             }
         }
     }
@@ -256,7 +261,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_material_handle;
+                lod_group.lods[i].materials.items[0] = default_material_id;
             }
         }
     }
@@ -269,7 +274,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_material_handle;
+                lod_group.lods[i].materials.items[0] = default_material_id;
             }
         }
     }
@@ -282,7 +287,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_material_handle;
+                lod_group.lods[i].materials.items[0] = default_material_id;
             }
         }
     }
@@ -294,7 +299,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         roof_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_albedo.dds");
         roof_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_arm.dds");
         roof_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_normal.dds");
-        const roof_material_handle = prefab_mgr.rctx.uploadMaterial(ID("medium_house_roof"), roof_material) catch unreachable;
+        const roof_material_id = ID("medium_house_roof");
+        prefab_mgr.rctx.uploadMaterial(roof_material_id, roof_material) catch unreachable;
 
         var wood_material = fd.UberShader.init();
         wood_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -302,7 +308,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         wood_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_albedo.dds");
         wood_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_arm.dds");
         wood_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_normal.dds");
-        const wood_material_handle = prefab_mgr.rctx.uploadMaterial(ID("medium_house_wood"), wood_material) catch unreachable;
+        const wood_material_id = ID("medium_house_wood");
+        prefab_mgr.rctx.uploadMaterial(wood_material_id, wood_material) catch unreachable;
 
         var plaster_material = fd.UberShader.init();
         plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -310,7 +317,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_albedo.dds");
         plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_arm.dds");
         plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_normal.dds");
-        const plaster_material_handle = prefab_mgr.rctx.uploadMaterial(ID("medium_house_plaster"), plaster_material) catch unreachable;
+        const plaster_material_id = ID("medium_house_plaster");
+        prefab_mgr.rctx.uploadMaterial(plaster_material_id, plaster_material) catch unreachable;
 
         var stone_material = fd.UberShader.init();
         stone_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -318,7 +326,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         stone_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_albedo.dds");
         stone_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_arm.dds");
         stone_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_normal.dds");
-        const stone_material_handle = prefab_mgr.rctx.uploadMaterial(ID("medium_house_stone"), stone_material) catch unreachable;
+        const stone_material_id = ID("medium_house_stone");
+        prefab_mgr.rctx.uploadMaterial(stone_material_id, stone_material) catch unreachable;
 
         var medium_house = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medium_house/medium_house", medium_house_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         const lod_group_component = medium_house.getMut(fd.LodGroup);
@@ -326,10 +335,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 4);
 
-                lod_group.lods[i].materials.items[0] = roof_material_handle;
-                lod_group.lods[i].materials.items[1] = wood_material_handle;
-                lod_group.lods[i].materials.items[2] = plaster_material_handle;
-                lod_group.lods[i].materials.items[3] = stone_material_handle;
+                lod_group.lods[i].materials.items[0] = roof_material_id;
+                lod_group.lods[i].materials.items[1] = wood_material_id;
+                lod_group.lods[i].materials.items[2] = plaster_material_id;
+                lod_group.lods[i].materials.items[3] = stone_material_id;
             }
         }
     }
@@ -351,8 +360,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_trunk_04_material.wind_initial_bend = 1.0;
         beech_trunk_04_material.wind_stifness = 1.0;
         beech_trunk_04_material.wind_drag = 0.1;
-        const beech_trunk_04_material_handle = prefab_mgr.rctx.uploadMaterial(ID("beech_trunk_04"), beech_trunk_04_material) catch unreachable;
-        _ = beech_trunk_04_material_handle;
+        const beech_trunk_04_material_id = ID("beech_trunk_04");
+        prefab_mgr.rctx.uploadMaterial(beech_trunk_04_material_id, beech_trunk_04_material) catch unreachable;
 
         var beech_atlas_v2_material = fd.UberShader.init();
         beech_atlas_v2_material.alpha_test = true;
@@ -369,8 +378,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_atlas_v2_material.wind_shiver_drag = 0.1;
         beech_atlas_v2_material.wind_normal_influence = 0.2;
         beech_atlas_v2_material.wind_shiver_directionality = 0.4;
-        const beech_atlas_v2_material_handle = prefab_mgr.rctx.uploadMaterial(ID("beech_atlas_v2"), beech_atlas_v2_material) catch unreachable;
-        _ = beech_atlas_v2_material_handle;
+        const beech_atlas_v2_material_id = ID("beech_atlas_v2");
+        prefab_mgr.rctx.uploadMaterial(beech_atlas_v2_material_id, beech_atlas_v2_material) catch unreachable;
 
         const beech_tree_04 = prefab_mgr.createGpuDrivenMeshPrefab("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh", beech_tree_04_id, ecsu_world);
         _ = beech_tree_04;
@@ -388,7 +397,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                    lod_group.lods[i].materials.items[material_index] = default_material_id;
                 }
             }
         }
@@ -409,8 +418,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         });
     }
 
-    var wood_trim_material_handle: renderer.MaterialHandle = undefined;
-    var metal_ornaments_material_handle: renderer.MaterialHandle = undefined;
+    const wood_trim_material_id = ID("house_wood_trim");
+    const metal_ornaments_material_id = ID("house_metal_ornaments");
 
     {
         var wood_trim_material = fd.UberShader.init();
@@ -419,7 +428,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         wood_trim_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_BaseColor.dds");
         wood_trim_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_Roughness.dds");
         wood_trim_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_Normal.dds");
-        wood_trim_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_wood_trim"), wood_trim_material) catch unreachable;
+        prefab_mgr.rctx.uploadMaterial(wood_trim_material_id, wood_trim_material) catch unreachable;
 
         var plaster_material = fd.UberShader.init();
         plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -427,7 +436,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_BaseColor.dds");
         plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_ORM.dds");
         plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_Normal.dds");
-        const plaster_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_plaster"), plaster_material) catch unreachable;
+        const plaster_material_id = ID("house_plaster");
+        prefab_mgr.rctx.uploadMaterial(plaster_material_id, plaster_material) catch unreachable;
 
         var brick_material = fd.UberShader.init();
         brick_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -435,7 +445,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         brick_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Brick_BaseColor.dds");
         brick_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Brick_Roughness.dds");
         brick_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Brick_Normal.dds");
-        const brick_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_brick"), brick_material) catch unreachable;
+        const brick_material_id = ID("house_brick");
+        prefab_mgr.rctx.uploadMaterial(brick_material_id, brick_material) catch unreachable;
 
         var uneven_brick_material = fd.UberShader.init();
         uneven_brick_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -443,7 +454,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         uneven_brick_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_UnevenBrick_BaseColor.dds");
         uneven_brick_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_UnevenBrick_Roughness.dds");
         uneven_brick_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_UnevenBrick_Normal.dds");
-        const uneven_brick_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_uneven_brick"), uneven_brick_material) catch unreachable;
+        const uneven_brick_material_id = ID("house_uneven_brick");
+        prefab_mgr.rctx.uploadMaterial(uneven_brick_material_id, uneven_brick_material) catch unreachable;
 
         var flat_tiles_material = fd.UberShader.init();
         flat_tiles_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -452,7 +464,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         flat_tiles_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_FlatTiles_Roughness.dds");
         flat_tiles_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_FlatTiles_Normal.dds");
         flat_tiles_material.normal_intensity = 0.5;
-        const flat_tiles_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_flat_tiles"), flat_tiles_material) catch unreachable;
+        const flat_tiles_material_id = ID("house_flat_tiles");
+        prefab_mgr.rctx.uploadMaterial(flat_tiles_material_id, flat_tiles_material) catch unreachable;
 
         var round_tiles_material = fd.UberShader.init();
         round_tiles_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -460,13 +473,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         round_tiles_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_RoundTiles_BaseColor.dds");
         round_tiles_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_RoundTiles_Roughness.dds");
         round_tiles_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_RoundTiles_Normal.dds");
-        const round_tiles_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_round_tiles"), round_tiles_material) catch unreachable;
+        const round_tiles_material_id = ID("house_round_tiles");
+        prefab_mgr.rctx.uploadMaterial(round_tiles_material_id, round_tiles_material) catch unreachable;
 
         // var window_glass_material = fd.UberShader.initNoTexture(fd.ColorRGB.init(0.8, 0.8, 0.8), 0.5, 0.0);
         // window_glass_material.depth_only_pipeline_id = pipeline_lit_depth_only_opaque_id;
         // window_glass_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         // window_glass_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        // const window_glass_material_handle = prefab_mgr.rctx.uploadMaterial(window_glass_material) catch unreachable;
+        // const window_glass_material_id = ID("house_glass");
+        // prefab_mgr.rctx.uploadMaterial(window_glass_material_id, window_glass_material) catch unreachable;
 
         var rock_trim_material = fd.UberShader.init();
         rock_trim_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -474,14 +489,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         rock_trim_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_RockTrim_BaseColor.dds");
         rock_trim_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_RockTrim_ORM.dds");
         rock_trim_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_RockTrim_Normal.dds");
-        const rock_trim_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_rock_trim"), rock_trim_material) catch unreachable;
+        const rock_trim_material_id = ID("house_rock_trim");
+        prefab_mgr.rctx.uploadMaterial(rock_trim_material_id, rock_trim_material) catch unreachable;
 
         var metal_ornaments_material = fd.UberShader.init();
         metal_ornaments_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         metal_ornaments_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         metal_ornaments_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_MetalOrnaments_BaseColor.dds");
         metal_ornaments_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_MetalOrnaments_Roughness.dds");
-        metal_ornaments_material_handle = prefab_mgr.rctx.uploadMaterial(ID("house_metal_ornaments"), metal_ornaments_material) catch unreachable;
+        prefab_mgr.rctx.uploadMaterial(metal_ornaments_material_id, metal_ornaments_material) catch unreachable;
 
         var house_3x5 = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medieval_village/houses/house_3x5", house_3x5_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
 
@@ -490,15 +506,15 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 9);
 
-                lod_group.lods[i].materials.items[0] = wood_trim_material_handle;
-                lod_group.lods[i].materials.items[1] = plaster_material_handle;
-                lod_group.lods[i].materials.items[2] = brick_material_handle;
-                lod_group.lods[i].materials.items[3] = flat_tiles_material_handle;
-                lod_group.lods[i].materials.items[4] = round_tiles_material_handle;
-                lod_group.lods[i].materials.items[5] = rock_trim_material_handle;
-                lod_group.lods[i].materials.items[6] = wood_trim_material_handle;
-                lod_group.lods[i].materials.items[7] = metal_ornaments_material_handle;
-                lod_group.lods[i].materials.items[8] = uneven_brick_material_handle;
+                lod_group.lods[i].materials.items[0] = wood_trim_material_id;
+                lod_group.lods[i].materials.items[1] = plaster_material_id;
+                lod_group.lods[i].materials.items[2] = brick_material_id;
+                lod_group.lods[i].materials.items[3] = flat_tiles_material_id;
+                lod_group.lods[i].materials.items[4] = round_tiles_material_id;
+                lod_group.lods[i].materials.items[5] = rock_trim_material_id;
+                lod_group.lods[i].materials.items[6] = wood_trim_material_id;
+                lod_group.lods[i].materials.items[7] = metal_ornaments_material_id;
+                lod_group.lods[i].materials.items[8] = uneven_brick_material_id;
             }
         }
     }
@@ -510,7 +526,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = wood_trim_material_handle;
+                    lod_group.lods[i].materials.items[material_index] = wood_trim_material_id;
                 }
             }
         }
@@ -523,7 +539,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = wood_trim_material_handle;
+                    lod_group.lods[i].materials.items[material_index] = wood_trim_material_id;
                 }
             }
         }
@@ -536,7 +552,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                    lod_group.lods[i].materials.items[material_index] = default_material_id;
                 }
             }
         }
@@ -549,7 +565,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_material_handle;
+                    lod_group.lods[i].materials.items[material_index] = default_material_id;
                 }
             }
         }
@@ -563,8 +579,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 2);
 
-                lod_group.lods[i].materials.items[0] = wood_trim_material_handle;
-                lod_group.lods[i].materials.items[1] = metal_ornaments_material_handle;
+                lod_group.lods[i].materials.items[0] = wood_trim_material_id;
+                lod_group.lods[i].materials.items[1] = metal_ornaments_material_id;
             }
         }
 
@@ -592,8 +608,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials.items.len == 2);
 
-                lod_group.lods[i].materials.items[0] = wood_trim_material_handle;
-                lod_group.lods[i].materials.items[1] = metal_ornaments_material_handle;
+                lod_group.lods[i].materials.items[0] = wood_trim_material_id;
+                lod_group.lods[i].materials.items[1] = metal_ornaments_material_id;
             }
         }
 

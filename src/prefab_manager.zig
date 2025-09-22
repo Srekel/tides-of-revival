@@ -11,11 +11,14 @@ const renderer = @import("renderer/renderer.zig");
 const geometry = @import("renderer/geometry.zig");
 const util = @import("util.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
+const ID = @import("core/core.zig").ID;
 
 const assert = std.debug.assert;
 
 const PrefabHashMap = std.AutoHashMap(IdLocal, ecsu.Entity);
 const MaterialHashmap = std.AutoHashMap(IdLocal, fd.UberShader);
+
+const InvalidID = ID("_invalid_id_");
 
 pub const PrefabManager = struct {
     prefab_hash_map: PrefabHashMap,
@@ -195,9 +198,9 @@ pub const PrefabManager = struct {
 
             const mesh = self.rctx.getLegacyMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
-            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
+            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(IdLocal).initCapacity(self.allocator, num_materials) catch unreachable;
             for (0..num_materials) |_| {
-                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(renderer.MaterialHandle.nil);
+                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(InvalidID);
             }
 
             lod_group.lod_count += 1;
@@ -216,9 +219,9 @@ pub const PrefabManager = struct {
 
             const mesh = self.rctx.getLegacyMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
-            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
+            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(IdLocal).initCapacity(self.allocator, num_materials) catch unreachable;
             for (0..num_materials) |_| {
-                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(renderer.MaterialHandle.nil);
+                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(InvalidID);
             }
 
             lod_group.lod_count += 1;

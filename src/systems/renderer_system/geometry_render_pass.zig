@@ -46,7 +46,7 @@ const Batch = struct {
 };
 
 const BatchKey = struct {
-    material_handle: renderer.MaterialHandle,
+    material_id: IdLocal,
     mesh_handle: renderer.LegacyMeshHandle,
     sub_mesh_index: u32,
     surface_type: fd.SurfaceType,
@@ -299,7 +299,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -361,7 +361,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -491,7 +491,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -553,7 +553,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_handle);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -813,16 +813,16 @@ fn batchEntities(
 
             {
                 for (0..sub_mesh_count) |sub_mesh_index| {
-                    const material_handle = static_mesh.materials.items[sub_mesh_index];
+                    const material_id = static_mesh.materials.items[sub_mesh_index];
 
                     var batch_key: BatchKey = undefined;
-                    batch_key.material_handle = material_handle;
+                    batch_key.material_id = material_id;
                     batch_key.mesh_handle = static_mesh.mesh_handle;
                     batch_key.sub_mesh_index = @intCast(sub_mesh_index);
                     batch_key.surface_type = .@"opaque";
 
-                    const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_handle);
-                    const alpha_test = self.renderer.getMaterialAlphaTest(material_handle);
+                    const material_buffer_offset = self.renderer.getMaterialBufferOffset(material_id);
+                    const alpha_test = self.renderer.getMaterialAlphaTest(material_id);
                     if (alpha_test) {
                         batch_key.surface_type = .cutout;
                     }

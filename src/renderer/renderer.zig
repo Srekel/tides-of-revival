@@ -230,13 +230,11 @@ pub const Renderer = struct {
     roboto_font_id: u32 = 0,
 
     material_map: MaterialMap = undefined,
-    material_pool: MaterialPool = undefined,
     materials: std.ArrayList(Material) = undefined,
     materials_buffer: BufferHandle = undefined,
 
     meshes: std.ArrayList(Mesh) = undefined,
     mesh_map: MeshHashMap = undefined,
-    //  mesh_pool: MeshPool = undefined,
     legacy_mesh_pool: LegacyMeshPool = undefined,
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
@@ -458,7 +456,6 @@ pub const Renderer = struct {
         self.pso_manager.init(self, allocator) catch unreachable;
 
         self.material_map = MaterialMap.init(allocator);
-        self.material_pool = MaterialPool.initMaxCapacity(allocator) catch unreachable;
         self.materials = std.ArrayList(Material).init(allocator);
         const buffer_data = Slice{
             .data = null,
@@ -475,17 +472,6 @@ pub const Renderer = struct {
 
         // Geometry Buffers
         {
-            // self.index_buffer_mutex = std.Thread.Mutex{};
-            // self.index_buffer_size = 8 * 1024 * 1024 * @sizeOf(u32);
-            // self.index_buffer_offset = 0;
-            // self.index_count = 0;
-
-            // const index_buffer_data = Slice{
-            //     .data = null,
-            //     .size = self.index_buffer_size,
-            // };
-            // self.index_buffer = self.createIndexBuffer(index_buffer_data, @sizeOf(u32), false, "Index Buffer");
-
             self.mesh_buffer_mutex = std.Thread.Mutex{};
             self.mesh_buffer_size = 1024 * @sizeOf(GPUMesh);
             self.mesh_buffer_offset = 0;
@@ -496,17 +482,6 @@ pub const Renderer = struct {
                 .size = self.mesh_buffer_size,
             };
             self.mesh_buffer = self.createBindlessBuffer(mesh_buffer_data, false, "Meshes");
-
-            // self.gpu_mesh_buffer_mutex = std.Thread.Mutex{};
-            // self.gpu_mesh_buffer_size = 256 * @sizeOf(geometry.SubMesh);
-            // self.gpu_mesh_buffer_offset = 0;
-            // self.gpu_mesh_count = 0;
-
-            // const gpu_mesh_buffer_data = Slice{
-            //     .data = null,
-            //     .size = self.gpu_mesh_buffer_size,
-            // };
-            // self.gpu_mesh_buffer = self.createBindlessBuffer(gpu_mesh_buffer_data, false, "Mesh Buffer");
         }
     }
 
@@ -550,7 +525,6 @@ pub const Renderer = struct {
 
         // TODO(juice): Clean gpu resources
         self.material_map.deinit();
-        self.material_pool.deinit();
         self.materials.deinit();
 
         self.render_passes.deinit();
@@ -1175,7 +1149,7 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    pub fn uploadMaterial(self: *Renderer, material_id: IdLocal, material_data: fd.UberShader) !MaterialHandle {
+    pub fn uploadMaterial(self: *Renderer, material_id: IdLocal, material_data: fd.UberShader) !void {
         const offset = self.materials.items.len * @sizeOf(Material);
 
         const material = Material{
@@ -1222,34 +1196,27 @@ pub const Renderer = struct {
         util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(Material));
         resource_loader.endUpdateResource(&update_desc);
 
-        const handle: MaterialHandle = try self.material_pool.add(.{
+        self.material_map.put(material_id.hash, .{
             .material = material,
             .buffer_offset = @intCast(offset),
             .pipeline_ids = pipeline_ids,
             .alpha_test = material_data.alpha_test,
-        });
-
-        self.material_map.put(material_id.hash, handle) catch unreachable;
-        return handle;
+        }) catch unreachable;
     }
 
-    pub fn getMaterialHandle(self: *Renderer, material_id: IdLocal) ?MaterialHandle {
-        return self.material_map.get(material_id.hash);
+    pub fn getMaterialAlphaTest(self: *Renderer, material_id: IdLocal) bool {
+        const material_data = self.material_map.get(material_id.hash);
+        return material_data.?.alpha_test;
     }
 
-    pub fn getMaterialAlphaTest(self: *Renderer, handle: MaterialHandle) bool {
-        const alpha_test = self.material_pool.getColumn(handle, .alpha_test) catch unreachable;
-        return alpha_test;
+    pub fn getMaterialPipelineIds(self: *Renderer, material_id: IdLocal) PassPipelineIds {
+        const material_data = self.material_map.get(material_id.hash);
+        return material_data.?.pipeline_ids;
     }
 
-    pub fn getMaterialPipelineIds(self: *Renderer, handle: MaterialHandle) PassPipelineIds {
-        const pipeline_ids = self.material_pool.getColumn(handle, .pipeline_ids) catch unreachable;
-        return pipeline_ids;
-    }
-
-    pub fn getMaterialBufferOffset(self: *Renderer, handle: MaterialHandle) u32 {
-        const offset = self.material_pool.getColumn(handle, .buffer_offset) catch unreachable;
-        return offset;
+    pub fn getMaterialBufferOffset(self: *Renderer, material_id: IdLocal) u32 {
+        const material_data = self.material_map.get(material_id.hash);
+        return material_data.?.buffer_offset;
     }
 
     pub fn loadMesh(self: *Renderer, path: []const u8, mesh_id: IdLocal) !void {
@@ -1285,7 +1252,7 @@ pub const Renderer = struct {
             data_size += alignUp(mesh_data.meshlet_triangles.items.len * @sizeOf(geometry.MeshletTriangle), alignment);
             data_size += alignUp(mesh_data.meshlet_vertices.items.len * @sizeOf(u32), alignment);
 
-            const geometry_buffer_slice = Slice { .data = null, .size = data_size };
+            const geometry_buffer_slice = Slice{ .data = null, .size = data_size };
             mesh.data_buffer = self.createBindlessBuffer(geometry_buffer_slice, false, "Geometry Buffer");
 
             const buffer_data = self.allocator.alloc(u8, data_size) catch unreachable;
@@ -2152,7 +2119,6 @@ pub const Renderer = struct {
     }
 };
 
-
 pub const LegacyMesh = struct {
     geometry: [*c]resource_loader.Geometry,
     data: [*c]resource_loader.GeometryData,
@@ -2193,17 +2159,13 @@ pub const PassPipelineIds = struct {
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
-pub const MaterialHandle = MaterialPool.Handle;
-const MaterialMap = std.AutoHashMap(u64, MaterialHandle);
+const MaterialMap = std.AutoHashMap(u64, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
 
 pub const GpuMeshIndices = struct {
     count: u32,
     indices: [geometry.sub_mesh_max_count]u32,
 };
 
-// const MeshPool = Pool(16, 16, Mesh, struct { mesh: geometry.Mesh, gpu_mesh_indices: GpuMeshIndices });
-// pub const MeshHandle = MeshPool.Handle;
 const MeshHashMap = std.AutoHashMap(u64, struct { index: u32, count: u32 });
 
 const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });

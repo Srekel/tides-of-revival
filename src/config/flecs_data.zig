@@ -8,8 +8,6 @@ const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const renderer = @import("../renderer/renderer.zig");
 const geometry = @import("../renderer/geometry.zig");
-const MaterialHandle = renderer.MaterialHandle;
-// const MeshHandle = renderer.MeshHandle;
 const LegacyMeshHandle = renderer.LegacyMeshHandle;
 const TextureHandle = renderer.TextureHandle;
 
@@ -474,7 +472,7 @@ pub const UIMaterial = struct {
 
 pub const StaticMesh = struct {
     mesh_handle: LegacyMeshHandle,
-    materials: std.ArrayList(MaterialHandle),
+    materials: std.ArrayList(IdLocal),
 };
 
 pub const LodGroup = struct {
