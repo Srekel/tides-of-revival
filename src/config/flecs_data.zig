@@ -29,8 +29,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
     ecs.COMPONENT(ecs_world, LodGroup);
-    ecs.COMPONENT(ecs_world, StaticMesh);
-    ecs.COMPONENT(ecs_world, GpuDrivenMesh);
+    ecs.COMPONENT(ecs_world, Renderable);
     ecs.COMPONENT(ecs_world, Water);
     ecs.COMPONENT(ecs_world, SkyLight);
     ecs.COMPONENT(ecs_world, UIImage);
@@ -373,93 +372,6 @@ pub const Velocity = struct {
 // ██║ ╚═╝ ██║███████╗███████║██║  ██║
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
-pub const SurfaceType = enum {
-    @"opaque",
-    cutout,
-};
-
-pub const ShadingTechnique = enum {
-    gbuffer,
-    shadow_caster,
-};
-
-pub const UberShader = struct {
-    // Techniques
-    gbuffer_pipeline_id: ?IdLocal,
-    shadow_caster_pipeline_id: ?IdLocal,
-
-    // Surface Type
-    alpha_test: bool,
-
-    // Basic PBR Surface Data
-    base_color: ColorRGB,
-    uv_tiling_offset: [4]f32,
-    metallic: f32,
-    roughness: f32,
-    normal_intensity: f32,
-    emissive_strength: f32,
-    albedo: TextureHandle,
-    normal: TextureHandle,
-    arm: TextureHandle,
-    emissive: TextureHandle,
-
-    // Detail Feature
-    detail_feature: bool,
-    detail_mask: TextureHandle,
-    detail_base_color: TextureHandle,
-    detail_normal: TextureHandle,
-    detail_arm: TextureHandle,
-    detail_use_uv2: bool,
-
-    // Wind Feature
-    wind_feature: bool,
-    wind_initial_bend: f32,
-    wind_stifness: f32,
-    wind_drag: f32,
-
-    // Wind Shiver Feature
-    wind_shiver_feature: bool,
-    wind_shiver_drag: f32,
-    wind_shiver_directionality: f32,
-    wind_normal_influence: f32,
-
-    pub fn init() UberShader {
-        return initNoTexture(ColorRGB.init(1, 1, 1), 0.5, 0.0);
-    }
-
-    pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {
-        return .{
-            .gbuffer_pipeline_id = null,
-            .shadow_caster_pipeline_id = null,
-            .alpha_test = false,
-            .base_color = base_color,
-            .uv_tiling_offset = .{ 1.0, 1.0, 0.0, 0.0 },
-            .roughness = roughness,
-            .metallic = metallic,
-            .normal_intensity = 1.0,
-            .emissive_strength = 1.0,
-            .albedo = TextureHandle.nil,
-            .normal = TextureHandle.nil,
-            .arm = TextureHandle.nil,
-            .emissive = TextureHandle.nil,
-            .detail_feature = false,
-            .detail_mask = TextureHandle.nil,
-            .detail_base_color = TextureHandle.nil,
-            .detail_normal = TextureHandle.nil,
-            .detail_arm = TextureHandle.nil,
-            .detail_use_uv2 = false,
-            .wind_feature = false,
-            .wind_initial_bend = 1.0,
-            .wind_stifness = 1.0,
-            .wind_drag = 0.1,
-            .wind_shiver_feature = false,
-            .wind_shiver_drag = 0.1,
-            .wind_normal_influence = 0,
-            .wind_shiver_directionality = 0.4,
-        };
-    }
-};
-
 pub const UIImage = struct {
     rect: [4]f32,
     material: UIMaterial,
@@ -480,8 +392,8 @@ pub const LodGroup = struct {
     lods: [geometry.mesh_lod_max_count]StaticMesh,
 };
 
-pub const GpuDrivenMesh = struct {
-    mesh_id: IdLocal,
+pub const Renderable = struct {
+    id: IdLocal,
 };
 
 pub const Water = struct {

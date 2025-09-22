@@ -35,10 +35,10 @@ pub const GBufferFrameData = struct {
     camera_position: [4]f32,
     time: f32,
     instance_buffer_index: u32,
-	instance_indirection_buffer_index: u32,
-	gpu_mesh_buffer_index: u32,
-	vertex_buffer_index: u32,
-	material_buffer_index: u32,
+    instance_indirection_buffer_index: u32,
+    gpu_mesh_buffer_index: u32,
+    vertex_buffer_index: u32,
+    material_buffer_index: u32,
 };
 
 pub const GpuCullingFrameData = struct {
@@ -62,7 +62,7 @@ pub const GpuDrivenRenderPass = struct {
     renderer: *Renderer,
     render_pass: RenderPass,
     prefab_mgr: *PrefabManager,
-    query_gpu_driven_mesh: *ecs.query_t,
+    query_renderables: *ecs.query_t,
 
     gbuffer_frame_data: GBufferFrameData,
     gbuffer_frame_data_buffers: [frames_count]BufferHandle,
@@ -169,10 +169,10 @@ pub const GpuDrivenRenderPass = struct {
             break :blk buffers;
         };
 
-        self.query_gpu_driven_mesh = ecs.query_init(ecsu_world.world, &.{
-            .entity = ecs.new_entity(ecsu_world.world, "query_gpu_driven_mesh"),
+        self.query_renderables = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_renderables"),
             .terms = [_]ecs.term_t{
-                .{ .id = ecs.id(fd.GpuDrivenMesh), .inout = .In },
+                .{ .id = ecs.id(fd.Renderable), .inout = .In },
                 .{ .id = ecs.id(fd.Transform), .inout = .In },
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
         }) catch unreachable;
@@ -219,7 +219,6 @@ fn update(user_data: *anyopaque) void {
     // const frame_index = self.renderer.frame_index;
 
     // self.instances.clearRetainingCapacity();
-    // self.instance_indirections.clearRetainingCapacity();
 
     // var query_gpu_driven_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_gpu_driven_mesh);
     // while (ecs.query_next(&query_gpu_driven_mesh_iter)) {
@@ -250,7 +249,7 @@ fn update(user_data: *anyopaque) void {
     //         //     instance_indirection.instance_index = instance_index;
     //         //     instance_indirection.entity_id = @intCast(entity_id);
 
-    //         //     instance_indirection.material_index = self.renderer.getMaterialBufferOffset(mesh_component.materials[gpu_mesh_index]);
+    //         //     instance_indirection.material_index = self.renderer.getLegacyMaterialBufferOffset(mesh_component.materials[gpu_mesh_index]);
     //         //     self.instance_indirections.append(instance_indirection) catch unreachable;
     //         // }
     //     }
@@ -267,18 +266,6 @@ fn update(user_data: *anyopaque) void {
     //     std.debug.assert(self.instance_buffer_size > instance_data.size + self.instance_buffer_offsets[frame_index]);
     //     self.renderer.updateBuffer(instance_data, self.instance_buffer_offsets[frame_index], InstanceData, self.instance_buffers[frame_index]);
     //     self.instance_buffer_offsets[frame_index] += instance_data.size;
-
-    //     const instance_indirection_data = renderer.Slice{
-    //         .data = @ptrCast(self.instance_indirections.items),
-    //         .size = self.instance_indirections.items.len * @sizeOf(InstanceDataIndirection),
-    //     };
-
-    //     std.debug.assert(self.instance_indirection_buffer_size > instance_indirection_data.size + self.instance_indirection_buffer_offsets[frame_index]);
-    //     self.renderer.updateBuffer(instance_indirection_data, self.instance_indirection_buffer_offsets[frame_index], InstanceDataIndirection, self.instance_indirection_buffers[frame_index]);
-    //     self.instance_indirection_buffer_offsets[frame_index] += instance_indirection_data.size;
-
-    //     self.total_instance_indirection_count += self.instance_indirections.items.len;
-    //     std.log.debug("Total Instances: {d}", .{ self.instance_count[frame_index] });
     // }
 }
 
@@ -299,7 +286,6 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     // });
     // const camera_position = camera_comps.transform.getPos00();
     // const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
-
 
 }
 

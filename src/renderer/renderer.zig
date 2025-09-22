@@ -79,59 +79,27 @@ const visualization_modes = [_][:0]const u8{
     "Reflectance",
 };
 
-// TODO
-// const BigBuffer = struct {
-//     mutex: std.Thread.Mutex = undefined,
-//     buffer: BufferHandle = undefined,
-//     size: u64 = 0,
-//     offset: u64 = 0,
-//     element_count: u32 = 0,
-// };
+const ElementBindlessBuffer = struct {
+    mutex: std.Thread.Mutex = undefined,
+    buffer: BufferHandle = undefined,
+    stride: u64 = 0,
+    size: u64 = 0,
+    offset: u64 = 0,
+    element_count: u32 = 0,
 
-pub const VertexBufferView = struct {
-    location: u64,
-    elements: u32,
-    stride: u32,
-    offset_from_start: u32,
-};
+    pub fn init(self: *@This(), renderer: *Renderer, elements_count_limit: u64, stride: usize, uav: bool, debug_name: []const u8) void {
+        self.mutex = std.Thread.Mutex{};
+        self.size = elements_count_limit * stride;
+        self.stride = stride;
+        self.offset = 0;
+        self.element_count = 0;
 
-pub const IndexBufferView = struct {
-    location: u64,
-    elements: u32,
-    offset_from_start: u32,
-    index_type: graphics.IndexType,
-};
-
-pub const Mesh = struct {
-    data_buffer: BufferHandle = undefined,
-
-    position_stream_location: VertexBufferView = undefined,
-    texcoord_stream_location: VertexBufferView = undefined,
-    normal_stream_location: VertexBufferView = undefined,
-    tangent_stream_location: VertexBufferView = undefined,
-    indices_location: IndexBufferView = undefined,
-    bounds: geometry.BoundingBox = undefined,
-
-    meshlets_location: u32 = std.math.maxInt(u32),
-    meshlet_vertices_location: u32 = std.math.maxInt(u32),
-    meshlet_triangles_location: u32 = std.math.maxInt(u32),
-    meshlet_bounds_location: u32 = std.math.maxInt(u32),
-    meshlet_count: u32 = 0,
-};
-
-const GPUMesh = struct {
-    data_buffer: u32,
-    positions_offset: u32,
-    texcoords_offset: u32,
-    normals_offset: u32,
-    tangents_offset: u32,
-    indices_offset: u32,
-    index_byte_size: u32,
-    meshlet_offset: u32,
-    meshlet_vertex_offset: u32,
-    meshlet_triangle_offset: u32,
-    meshlet_bounds_offset: u32,
-    meshlet_count: u32,
+        const buffer_data = Slice{
+            .data = null,
+            .size = self.size,
+        };
+        self.buffer = renderer.createBindlessBuffer(buffer_data, uav, debug_name);
+    }
 };
 
 pub const Renderer = struct {
@@ -167,26 +135,16 @@ pub const Renderer = struct {
     imgui_pass_profile_token: profiler.ProfileToken = undefined,
     composite_sdr_profile_token: profiler.ProfileToken = undefined,
 
-    // Geometry Buffers
-    // ================
-    // Meshes Buffer
-    mesh_buffer_mutex: std.Thread.Mutex = undefined,
-    mesh_buffer: BufferHandle = undefined,
-    mesh_buffer_size: u64 = 0,
-    mesh_buffer_offset: u64 = 0,
-    mesh_count: u32 = 0,
-    // // Index Buffer
-    // index_buffer_mutex: std.Thread.Mutex = undefined,
-    // index_buffer: BufferHandle = undefined,
-    // index_buffer_size: u64 = 0,
-    // index_buffer_offset: u64 = 0,
-    // index_count: u32 = 0,
-    // // GPU Mesh Buffer
-    // gpu_mesh_buffer_mutex: std.Thread.Mutex = undefined,
-    // gpu_mesh_buffer: BufferHandle = undefined,
-    // gpu_mesh_buffer_size: u64 = 0,
-    // gpu_mesh_buffer_offset: u64 = 0,
-    // gpu_mesh_count: u32 = 0,
+    // Resources
+    // =========
+    renderable_map: RenderableHashMap = undefined,
+    // TODO: Figure out if we need to store this data on the CPU
+    meshes: std.ArrayList(Mesh) = undefined,
+    mesh_map: MeshHashMap = undefined,
+    mesh_buffer: ElementBindlessBuffer = undefined,
+    // materials: std.ArrayList(GpuMaterial) = undefined,
+    material_map: MaterialMap = undefined,
+    material_buffer: ElementBindlessBuffer = undefined,
 
     // Render Targets
     // ==============
@@ -229,12 +187,10 @@ pub const Renderer = struct {
     vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
 
-    material_map: MaterialMap = undefined,
-    materials: std.ArrayList(Material) = undefined,
-    materials_buffer: BufferHandle = undefined,
+    legacy_material_map: LegacyMaterialMap = undefined,
+    legacy_materials: std.ArrayList(LegacyMaterial) = undefined,
+    legacy_materials_buffer: BufferHandle = undefined,
 
-    meshes: std.ArrayList(Mesh) = undefined,
-    mesh_map: MeshHashMap = undefined,
     legacy_mesh_pool: LegacyMeshPool = undefined,
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
@@ -446,22 +402,20 @@ pub const Renderer = struct {
 
         self.frame_index = 0;
 
-        // self.mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
-        self.meshes = std.ArrayList(Mesh).init(allocator);
-        self.mesh_map = MeshHashMap.init(allocator);
+
         self.legacy_mesh_pool = LegacyMeshPool.initMaxCapacity(allocator) catch unreachable;
         self.texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
 
-        self.material_map = MaterialMap.init(allocator);
-        self.materials = std.ArrayList(Material).init(allocator);
+        self.legacy_material_map = LegacyMaterialMap.init(allocator);
+        self.legacy_materials = std.ArrayList(LegacyMaterial).init(allocator);
         const buffer_data = Slice{
             .data = null,
-            .size = 1000 * @sizeOf(Material),
+            .size = 1000 * @sizeOf(LegacyMaterial),
         };
-        self.materials_buffer = self.createBindlessBuffer(buffer_data, false, "Materials Buffer");
+        self.legacy_materials_buffer = self.createBindlessBuffer(buffer_data, false, "Materials Buffer");
 
         self.createIBLTextures();
 
@@ -470,19 +424,14 @@ pub const Renderer = struct {
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
 
-        // Geometry Buffers
-        {
-            self.mesh_buffer_mutex = std.Thread.Mutex{};
-            self.mesh_buffer_size = 1024 * @sizeOf(GPUMesh);
-            self.mesh_buffer_offset = 0;
-            self.mesh_count = 0;
+        self.renderable_map = RenderableHashMap.init(allocator);
 
-            const mesh_buffer_data = Slice{
-                .data = null,
-                .size = self.mesh_buffer_size,
-            };
-            self.mesh_buffer = self.createBindlessBuffer(mesh_buffer_data, false, "Meshes");
-        }
+        self.meshes = std.ArrayList(Mesh).init(allocator);
+        self.mesh_map = MeshHashMap.init(allocator);
+        self.mesh_buffer.init(self, 1024, @sizeOf(GPUMesh), false, "Meshes Buffer");
+
+        self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Materials Buffer");
+        self.material_map = MaterialMap.init(allocator);
     }
 
     pub fn exit(self: *Renderer) void {
@@ -505,15 +454,10 @@ pub const Renderer = struct {
         }
         self.texture_pool.deinit();
 
-        // var mesh_handles = self.mesh_pool.liveHandles();
-        // while (mesh_handles.next()) |handle| {
-        //     const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
-        //     // TODO
-        //     _ = mesh;
-        // }
-        // self.mesh_pool.deinit();
+        self.renderable_map.deinit();
         self.mesh_map.deinit();
         self.meshes.deinit();
+        self.material_map.deinit();
 
         var legacy_mesh_handles = self.legacy_mesh_pool.liveHandles();
         while (legacy_mesh_handles.next()) |handle| {
@@ -524,8 +468,8 @@ pub const Renderer = struct {
         self.legacy_mesh_pool.deinit();
 
         // TODO(juice): Clean gpu resources
-        self.material_map.deinit();
-        self.materials.deinit();
+        self.legacy_material_map.deinit();
+        self.legacy_materials.deinit();
 
         self.render_passes.deinit();
 
@@ -1149,10 +1093,58 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    pub fn uploadMaterial(self: *Renderer, material_id: IdLocal, material_data: fd.UberShader) !void {
-        const offset = self.materials.items.len * @sizeOf(Material);
+    pub fn registerRenderable(self: *Renderer, id: IdLocal, mesh_id: IdLocal, materials: []const IdLocal) void {
+        const mesh = self.mesh_map.get(mesh_id.hash).?;
+        std.debug.assert(mesh.count == @as(u32, @intCast(materials.len)));
 
-        const material = Material{
+        var renderable: Renderable = undefined;
+        renderable.mesh_id = mesh_id;
+        renderable.material_count = @intCast(materials.len);
+        for (0..materials.len) |i| {
+            renderable.materials[i] = materials[i];
+        }
+
+        self.renderable_map.put(id.hash, renderable) catch unreachable;
+    }
+
+    pub fn loadMaterial(self: *Renderer, material_id: IdLocal, material_data: UberShaderMaterialData) !void {
+        var gpu_material: GpuMaterial = undefined;
+        gpu_material.albedo_color[0] = material_data.base_color.r;
+        gpu_material.albedo_color[1] = material_data.base_color.g;
+        gpu_material.albedo_color[2] = material_data.base_color.b;
+        gpu_material.albedo_color[3] = 1.0;
+        gpu_material.uv_tiling_offset[0] = material_data.uv_tiling_offset[0];
+        gpu_material.uv_tiling_offset[1] = material_data.uv_tiling_offset[1];
+        gpu_material.uv_tiling_offset[2] = material_data.uv_tiling_offset[2];
+        gpu_material.uv_tiling_offset[3] = material_data.uv_tiling_offset[3];
+        gpu_material.roughness = material_data.roughness;
+        gpu_material.metallic = material_data.metallic;
+        gpu_material.normal_intensity = material_data.normal_intensity;
+        gpu_material.emissive_strength = material_data.emissive_strength;
+        gpu_material.albedo_texture_index = self.getTextureBindlessIndex(material_data.albedo);
+        gpu_material.albedo_sampler_index = renderer_types.InvalidResourceIndex;
+        gpu_material.emissive_texture_index = self.getTextureBindlessIndex(material_data.emissive);
+        gpu_material.emissive_sampler_index = renderer_types.InvalidResourceIndex;
+        gpu_material.normal_texture_index = self.getTextureBindlessIndex(material_data.normal);
+        gpu_material.normal_sampler_index = renderer_types.InvalidResourceIndex;
+        gpu_material.arm_texture_index = self.getTextureBindlessIndex(material_data.arm);
+        gpu_material.arm_sampler_index = renderer_types.InvalidResourceIndex;
+        gpu_material.rasterizer_bin = if (material_data.alpha_test) 1 else 0;
+
+        const gpu_material_data_slice = Slice{
+            .data = @ptrCast(&gpu_material),
+            .size = @sizeOf(GPUMesh),
+        };
+        self.updateBuffer(gpu_material_data_slice, self.material_buffer.offset, GPUMesh, self.material_buffer.buffer);
+        self.material_buffer.offset += gpu_material_data_slice.size;
+        self.material_map.put(material_id.hash, self.material_buffer.element_count) catch unreachable;
+        self.material_buffer.element_count += 1;
+    }
+
+    pub fn uploadLegacyMaterial(self: *Renderer, material_id: IdLocal, material_data: UberShaderMaterialData) !void {
+        const offset = self.legacy_materials.items.len * @sizeOf(LegacyMaterial);
+
+        const material = LegacyMaterial{
             .albedo_color = [4]f32{ material_data.base_color.r, material_data.base_color.g, material_data.base_color.b, 1.0 },
             .uv_tiling_offset = [4]f32{ material_data.uv_tiling_offset[0], material_data.uv_tiling_offset[1], material_data.uv_tiling_offset[2], material_data.uv_tiling_offset[3] },
             .roughness = material_data.roughness,
@@ -1184,19 +1176,19 @@ pub const Renderer = struct {
             .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
         };
 
-        self.materials.append(material) catch unreachable;
+        self.legacy_materials.append(material) catch unreachable;
 
-        const buffer = self.buffer_pool.getColumn(self.materials_buffer, .buffer) catch unreachable;
+        const buffer = self.buffer_pool.getColumn(self.legacy_materials_buffer, .buffer) catch unreachable;
 
         var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
         update_desc.pBuffer = @ptrCast(buffer);
         update_desc.mDstOffset = offset;
-        update_desc.mSize = @sizeOf(Material);
+        update_desc.mSize = @sizeOf(LegacyMaterial);
         resource_loader.beginUpdateResource(&update_desc);
-        util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(Material));
+        util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(LegacyMaterial));
         resource_loader.endUpdateResource(&update_desc);
 
-        self.material_map.put(material_id.hash, .{
+        self.legacy_material_map.put(material_id.hash, .{
             .material = material,
             .buffer_offset = @intCast(offset),
             .pipeline_ids = pipeline_ids,
@@ -1204,18 +1196,18 @@ pub const Renderer = struct {
         }) catch unreachable;
     }
 
-    pub fn getMaterialAlphaTest(self: *Renderer, material_id: IdLocal) bool {
-        const material_data = self.material_map.get(material_id.hash);
+    pub fn getLegacyMaterialAlphaTest(self: *Renderer, material_id: IdLocal) bool {
+        const material_data = self.legacy_material_map.get(material_id.hash);
         return material_data.?.alpha_test;
     }
 
-    pub fn getMaterialPipelineIds(self: *Renderer, material_id: IdLocal) PassPipelineIds {
-        const material_data = self.material_map.get(material_id.hash);
+    pub fn getLegacyMaterialPipelineIds(self: *Renderer, material_id: IdLocal) PassPipelineIds {
+        const material_data = self.legacy_material_map.get(material_id.hash);
         return material_data.?.pipeline_ids;
     }
 
-    pub fn getMaterialBufferOffset(self: *Renderer, material_id: IdLocal) u32 {
-        const material_data = self.material_map.get(material_id.hash);
+    pub fn getLegacyMaterialBufferOffset(self: *Renderer, material_id: IdLocal) u32 {
+        const material_data = self.legacy_material_map.get(material_id.hash);
         return material_data.?.buffer_offset;
     }
 
@@ -1388,14 +1380,9 @@ pub const Renderer = struct {
             .data = @ptrCast(gpu_mesh_data.items),
             .size = @sizeOf(GPUMesh) * gpu_mesh_data.items.len,
         };
-        self.updateBuffer(gpu_mesh_data_slice, self.mesh_buffer_offset, GPUMesh, self.mesh_buffer);
-        self.mesh_buffer_offset += gpu_mesh_data_slice.size;
+        self.updateBuffer(gpu_mesh_data_slice, self.mesh_buffer.offset, GPUMesh, self.mesh_buffer.buffer);
+        self.mesh_buffer.offset += gpu_mesh_data_slice.size;
     }
-
-    // pub fn getMesh(self: *Renderer, handle: MeshHandle) geometry.Mesh {
-    //     const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
-    //     return mesh;
-    // }
 
     fn alignUp(value: u64, alignment: u64) u64 {
         return (value + (alignment - 1)) & ~(alignment - 1);
@@ -1527,11 +1514,11 @@ pub const Renderer = struct {
         return @intCast(bindless_index);
     }
 
-    pub fn createBindlessBuffer(self: *Renderer, initial_data: Slice, writable: bool, debug_name: [:0]const u8) BufferHandle {
+    pub fn createBindlessBuffer(self: *Renderer, initial_data: Slice, writable: bool, debug_name: []const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
-        load_desc.mDesc.pName = debug_name;
+        load_desc.mDesc.pName = @constCast(debug_name.ptr);
         load_desc.mDesc.bBindless = true;
         load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW;
         if (writable) {
@@ -2119,6 +2106,118 @@ pub const Renderer = struct {
     }
 };
 
+// ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗
+// ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
+// ██████╔╝█████╗  ██╔██╗ ██║██║  ██║█████╗  ██████╔╝███████║██████╔╝██║     █████╗  ███████╗
+// ██╔══██╗██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗██╔══██║██╔══██╗██║     ██╔══╝  ╚════██║
+// ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
+// ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
+
+const materials_per_renderable_max_count: u32 = 8;
+
+const Renderable = struct {
+    mesh_id: IdLocal,
+    materials: [materials_per_renderable_max_count]IdLocal,
+    material_count: u32,
+};
+
+const RenderableHashMap = std.AutoHashMap(u64, Renderable);
+
+// ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
+// ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝
+// ██╔████╔██║█████╗  ███████╗███████║█████╗  ███████╗
+// ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║██╔══╝  ╚════██║
+// ██║ ╚═╝ ██║███████╗███████║██║  ██║███████╗███████║
+// ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+const VertexBufferView = struct {
+    location: u64,
+    elements: u32,
+    stride: u32,
+    offset_from_start: u32,
+};
+
+const IndexBufferView = struct {
+    location: u64,
+    elements: u32,
+    offset_from_start: u32,
+    index_type: graphics.IndexType,
+};
+
+pub const Mesh = struct {
+    data_buffer: BufferHandle = undefined,
+
+    position_stream_location: VertexBufferView = undefined,
+    texcoord_stream_location: VertexBufferView = undefined,
+    normal_stream_location: VertexBufferView = undefined,
+    tangent_stream_location: VertexBufferView = undefined,
+    indices_location: IndexBufferView = undefined,
+    bounds: geometry.BoundingBox = undefined,
+
+    meshlets_location: u32 = std.math.maxInt(u32),
+    meshlet_vertices_location: u32 = std.math.maxInt(u32),
+    meshlet_triangles_location: u32 = std.math.maxInt(u32),
+    meshlet_bounds_location: u32 = std.math.maxInt(u32),
+    meshlet_count: u32 = 0,
+};
+
+const GPUMesh = struct {
+    data_buffer: u32,
+    positions_offset: u32,
+    texcoords_offset: u32,
+    normals_offset: u32,
+    tangents_offset: u32,
+    indices_offset: u32,
+    index_byte_size: u32,
+    meshlet_offset: u32,
+    meshlet_vertex_offset: u32,
+    meshlet_triangle_offset: u32,
+    meshlet_bounds_offset: u32,
+    meshlet_count: u32,
+};
+
+const MeshHashMap = std.AutoHashMap(u64, struct { index: u32, count: u32 });
+
+// ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗     ███████╗
+// ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║     ██╔════╝
+// ██╔████╔██║███████║   ██║   █████╗  ██████╔╝██║███████║██║     ███████╗
+// ██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║██╔══██║██║     ╚════██║
+// ██║ ╚═╝ ██║██║  ██║   ██║   ███████╗██║  ██║██║██║  ██║███████╗███████║
+// ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+const GpuMaterial = struct {
+    albedo_color: [4]f32,
+    uv_tiling_offset: [4]f32,
+    roughness: f32,
+    metallic: f32,
+    normal_intensity: f32,
+    emissive_strength: f32,
+    albedo_texture_index: u32,
+    albedo_sampler_index: u32,
+    emissive_texture_index: u32,
+    emissive_sampler_index: u32,
+    normal_texture_index: u32,
+    normal_sampler_index: u32,
+    arm_texture_index: u32,
+    arm_sampler_index: u32,
+    rasterizer_bin: u32,
+    _padding: [3]u32 = .{ 42, 42, 42 },
+};
+
+const MaterialMap = std.AutoHashMap(u64, usize);
+
+// ██╗     ███████╗ ██████╗  █████╗  ██████╗██╗   ██╗    ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
+// ██║     ██╔════╝██╔════╝ ██╔══██╗██╔════╝╚██╗ ██╔╝    ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝
+// ██║     █████╗  ██║  ███╗███████║██║      ╚████╔╝     ██╔████╔██║█████╗  ███████╗███████║█████╗  ███████╗
+// ██║     ██╔══╝  ██║   ██║██╔══██║██║       ╚██╔╝      ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║██╔══╝  ╚════██║
+// ███████╗███████╗╚██████╔╝██║  ██║╚██████╗   ██║       ██║ ╚═╝ ██║███████╗███████║██║  ██║███████╗███████║
+// ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝   ╚═╝       ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+pub const GpuMeshIndices = struct {
+    count: u32,
+    indices: [geometry.sub_mesh_max_count]u32,
+};
+
 pub const LegacyMesh = struct {
     geometry: [*c]resource_loader.Geometry,
     data: [*c]resource_loader.GeometryData,
@@ -2127,7 +2226,104 @@ pub const LegacyMesh = struct {
     loaded: bool,
 };
 
-pub const Material = struct {
+const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
+pub const LegacyMeshHandle = LegacyMeshPool.Handle;
+
+// ██╗     ███████╗ ██████╗  █████╗  ██████╗██╗   ██╗    ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗     ███████╗
+// ██║     ██╔════╝██╔════╝ ██╔══██╗██╔════╝╚██╗ ██╔╝    ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║     ██╔════╝
+// ██║     █████╗  ██║  ███╗███████║██║      ╚████╔╝     ██╔████╔██║███████║   ██║   █████╗  ██████╔╝██║███████║██║     ███████╗
+// ██║     ██╔══╝  ██║   ██║██╔══██║██║       ╚██╔╝      ██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║██╔══██║██║     ╚════██║
+// ███████╗███████╗╚██████╔╝██║  ██║╚██████╗   ██║       ██║ ╚═╝ ██║██║  ██║   ██║   ███████╗██║  ██║██║██║  ██║███████╗███████║
+// ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝   ╚═╝       ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+pub const SurfaceType = enum {
+    @"opaque",
+    cutout,
+};
+
+pub const ShadingTechnique = enum {
+    gbuffer,
+    shadow_caster,
+};
+
+pub const UberShaderMaterialData = struct {
+    // Techniques
+    gbuffer_pipeline_id: ?IdLocal,
+    shadow_caster_pipeline_id: ?IdLocal,
+
+    // Surface Type
+    alpha_test: bool,
+
+    // Basic PBR Surface Data
+    base_color: fd.ColorRGB,
+    uv_tiling_offset: [4]f32,
+    metallic: f32,
+    roughness: f32,
+    normal_intensity: f32,
+    emissive_strength: f32,
+    albedo: TextureHandle,
+    normal: TextureHandle,
+    arm: TextureHandle,
+    emissive: TextureHandle,
+
+    // Detail Feature
+    detail_feature: bool,
+    detail_mask: TextureHandle,
+    detail_base_color: TextureHandle,
+    detail_normal: TextureHandle,
+    detail_arm: TextureHandle,
+    detail_use_uv2: bool,
+
+    // Wind Feature
+    wind_feature: bool,
+    wind_initial_bend: f32,
+    wind_stifness: f32,
+    wind_drag: f32,
+
+    // Wind Shiver Feature
+    wind_shiver_feature: bool,
+    wind_shiver_drag: f32,
+    wind_shiver_directionality: f32,
+    wind_normal_influence: f32,
+
+    pub fn init() UberShaderMaterialData {
+        return initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.5, 0.0);
+    }
+
+    pub fn initNoTexture(base_color: fd.ColorRGB, roughness: f32, metallic: f32) UberShaderMaterialData {
+        return .{
+            .gbuffer_pipeline_id = null,
+            .shadow_caster_pipeline_id = null,
+            .alpha_test = false,
+            .base_color = base_color,
+            .uv_tiling_offset = .{ 1.0, 1.0, 0.0, 0.0 },
+            .roughness = roughness,
+            .metallic = metallic,
+            .normal_intensity = 1.0,
+            .emissive_strength = 1.0,
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
+            .detail_feature = false,
+            .detail_mask = TextureHandle.nil,
+            .detail_base_color = TextureHandle.nil,
+            .detail_normal = TextureHandle.nil,
+            .detail_arm = TextureHandle.nil,
+            .detail_use_uv2 = false,
+            .wind_feature = false,
+            .wind_initial_bend = 1.0,
+            .wind_stifness = 1.0,
+            .wind_drag = 0.1,
+            .wind_shiver_feature = false,
+            .wind_shiver_drag = 0.1,
+            .wind_normal_influence = 0,
+            .wind_shiver_directionality = 0.4,
+        };
+    }
+};
+
+const LegacyMaterial = struct {
     albedo_color: [4]f32,
     uv_tiling_offset: [4]f32,
     roughness: f32,
@@ -2159,17 +2355,7 @@ pub const PassPipelineIds = struct {
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const MaterialMap = std.AutoHashMap(u64, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
-
-pub const GpuMeshIndices = struct {
-    count: u32,
-    indices: [geometry.sub_mesh_max_count]u32,
-};
-
-const MeshHashMap = std.AutoHashMap(u64, struct { index: u32, count: u32 });
-
-const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
-pub const LegacyMeshHandle = LegacyMeshPool.Handle;
+const LegacyMaterialMap = std.AutoHashMap(u64, struct { material: LegacyMaterial, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
 
 const TexturePool = Pool(16, 16, graphics.Texture, struct { texture: [*c]graphics.Texture });
 pub const TextureHandle = TexturePool.Handle;

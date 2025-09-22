@@ -1,4 +1,5 @@
 const std = @import("std");
+const IdLocal = @import("../core/core.zig").IdLocal;
 
 pub const InvalidResourceIndex = std.math.maxInt(u32);
 
@@ -13,7 +14,7 @@ pub const InstanceDataIndirection = struct {
     instance_index: u32,
     gpu_mesh_index: u32,
     material_index: u32,
-    _padding: u32,
+    entity_id: u32,
 };
 
 pub const InstanceRootConstants = struct {
