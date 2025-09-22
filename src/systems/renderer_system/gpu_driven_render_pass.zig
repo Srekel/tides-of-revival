@@ -29,6 +29,17 @@ const max_visible_instances = 10000;
 // NOTE: This could be a set, but it is a hashmap because we might want to store the GPU index as the value to evict instances that are streamed out
 const EntityMap = std.AutoHashMap(ecs.entity_t, bool);
 
+const GpuInstance = struct {
+    world: [16]f32,
+    local_bounds_origin: [3]f32,
+    _pad0: u32,
+    local_bounds_extents: [3]f32,
+    id: u32,
+    mesh_index: u32,
+    material_index: u32,
+    _pad1: [2]u32,
+};
+
 pub const GBufferFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
@@ -52,10 +63,6 @@ pub const GpuCullingFrameData = struct {
     gpu_mesh_buffer_index: u32,
 };
 
-const renderer_buckets: u32 = 2;
-const renderer_bucket_opaque: u32 = 1;
-const renderer_bucket_masked: u32 = 0;
-
 pub const GpuDrivenRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
@@ -66,21 +73,14 @@ pub const GpuDrivenRenderPass = struct {
 
     gbuffer_frame_data: GBufferFrameData,
     gbuffer_frame_data_buffers: [frames_count]BufferHandle,
-    gbuffer_descriptor_sets: [renderer_buckets][*c]DescriptorSet,
+    gbuffer_descriptor_sets: [renderer.renderer_buckets][*c]DescriptorSet,
 
-    total_instance_indirection_count: u64,
-    instances: std.ArrayList(InstanceData),
-    instance_indirections: std.ArrayList(InstanceDataIndirection),
+    instances: std.ArrayList(GpuInstance),
     entity_maps: [frames_count]EntityMap,
-    instance_buffers: [frames_count]BufferHandle,
-    instance_buffer_offsets: [frames_count]u64,
-    instance_count: [frames_count]u64,
-    instance_buffer_size: u64,
-    instance_indirection_buffers: [frames_count]BufferHandle,
-    instance_indirection_buffer_offsets: [frames_count]u64,
-    instance_indirection_buffer_size: u64,
-    visible_instance_indirection_buffers: [frames_count]BufferHandle,
+
+    instance_buffers: [frames_count]renderer.ElementBindlessBuffer,
     counters_buffers: [frames_count]BufferHandle,
+
     gpu_culling_frame_data: GpuCullingFrameData,
     gpu_culling_frame_data_buffers: [frames_count]BufferHandle,
     gpu_culling_clear_counters_descriptor_set: [*c]DescriptorSet,
@@ -102,35 +102,18 @@ pub const GpuDrivenRenderPass = struct {
             break :blk buffers;
         };
 
-        self.total_instance_indirection_count = 0;
-        self.instance_count[0] = 0;
-        self.instance_count[1] = 0;
-        self.instance_buffer_offsets[0] = 0;
-        self.instance_buffer_offsets[1] = 0;
-        self.instance_buffer_size = max_instances * @sizeOf(InstanceData);
-        self.instance_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = self.instance_buffer_size,
-            };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "GPU Instances");
-            }
-            break :blk buffers;
-        };
+        for (self.instance_buffers, 0..) |_, buffer_index| {
+            self.instance_buffers[buffer_index].init(rctx, max_instances, @sizeOf(GpuInstance), false, "GPU Instances");
+        }
 
-        self.instance_indirection_buffer_offsets[0] = 0;
-        self.instance_indirection_buffer_offsets[1] = 0;
-        self.instance_indirection_buffer_size = max_visible_instances * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection);
-        self.instance_indirection_buffers = blk: {
+        self.counters_buffers = blk: {
             var buffers: [frames_count]renderer.BufferHandle = undefined;
             const buffer_data = renderer.Slice{
                 .data = null,
-                .size = self.instance_indirection_buffer_size,
+                .size = 32 * @sizeOf(u32),
             };
             for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "GPU Instance Indirections");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Counters Buffer");
             }
             break :blk buffers;
         };
@@ -145,30 +128,6 @@ pub const GpuDrivenRenderPass = struct {
             break :blk buffers;
         };
 
-        self.visible_instance_indirection_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = max_visible_instances * geometry.sub_mesh_max_count * @sizeOf(InstanceDataIndirection),
-            };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "GPU Visible Instance Indirections");
-            }
-            break :blk buffers;
-        };
-
-        self.counters_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = 32 * @sizeOf(u32),
-            };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Counters Buffer");
-            }
-            break :blk buffers;
-        };
-
         self.query_renderables = ecs.query_init(ecsu_world.world, &.{
             .entity = ecs.new_entity(ecsu_world.world, "query_renderables"),
             .terms = [_]ecs.term_t{
@@ -177,8 +136,7 @@ pub const GpuDrivenRenderPass = struct {
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
         }) catch unreachable;
 
-        self.instances = std.ArrayList(InstanceData).init(self.allocator);
-        self.instance_indirections = std.ArrayList(InstanceDataIndirection).init(self.allocator);
+        self.instances = std.ArrayList(GpuInstance).init(self.allocator);
         self.entity_maps = blk: {
             var entity_maps: [frames_count]EntityMap = undefined;
             for (entity_maps, 0..) |_, index| {
@@ -205,7 +163,6 @@ pub const GpuDrivenRenderPass = struct {
     pub fn destroy(self: *GpuDrivenRenderPass) void {
         self.renderer.unregisterRenderPass(&self.render_pass);
         self.instances.deinit();
-        self.instance_indirections.deinit();
         for (self.entity_maps, 0..) |_, index| {
             self.entity_maps[index].deinit();
         }
@@ -214,59 +171,55 @@ pub const GpuDrivenRenderPass = struct {
 };
 
 fn update(user_data: *anyopaque) void {
-    _ = user_data;
-    // const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
-    // const frame_index = self.renderer.frame_index;
+    const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
+    const frame_index = self.renderer.frame_index;
 
-    // self.instances.clearRetainingCapacity();
+    self.instances.clearRetainingCapacity();
 
-    // var query_gpu_driven_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_gpu_driven_mesh);
-    // while (ecs.query_next(&query_gpu_driven_mesh_iter)) {
-    //     const meshes = ecs.field(&query_gpu_driven_mesh_iter, fd.GpuDrivenMesh, 0).?;
-    //     const transforms = ecs.field(&query_gpu_driven_mesh_iter, fd.Transform, 1).?;
+    var query_renderables_iter = ecs.query_iter(self.ecsu_world.world, self.query_renderables);
+    while (ecs.query_next(&query_renderables_iter)) {
+        const renderables = ecs.field(&query_renderables_iter, fd.Renderable, 0).?;
+        const transforms = ecs.field(&query_renderables_iter, fd.Transform, 1).?;
 
-    //     for (meshes, transforms, 0..) |*mesh_component, transform, entity_index| {
-    //         const entity_id: ecs.entity_t = query_gpu_driven_mesh_iter.entities()[entity_index];
-    //         if (self.entity_maps[frame_index].contains(entity_id)) {
-    //             continue;
-    //         }
+        for (renderables, transforms, 0..) |renderable, transform, entity_index| {
+            const entity_id: ecs.entity_t = query_renderables_iter.entities()[entity_index];
+            if (self.entity_maps[frame_index].contains(entity_id)) {
+                continue;
+            }
 
-    //         _ = mesh_component;
+            const renderable_data = self .renderer.getRenderable(renderable.id);
+            const mesh_info = self.renderer.getMeshInfo(renderable_data.mesh_id);
 
-    //         self.entity_maps[frame_index].put(entity_id, true) catch unreachable;
+            for (0..mesh_info.count) |mesh_index_offset| {
+                const mesh = &self.renderer.meshes.items[mesh_info.index + mesh_index_offset];
+                const material_index = self.renderer.getMaterialIndex(renderable_data.materials[mesh_index_offset]);
+                var gpu_instance = std.mem.zeroes(GpuInstance);
+                storeMat44(transform.matrix[0..], gpu_instance.world[0..]);
+                gpu_instance.id = @intCast(self.instance_buffers[frame_index].element_count + self.instances.items.len);
+                gpu_instance.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
+                gpu_instance.material_index = @intCast(material_index);
+                gpu_instance.local_bounds_origin = mesh.bounds.center;
+                gpu_instance.local_bounds_extents = mesh.bounds.extents;
 
-    //         const instance_index: u32 = @intCast(self.instance_count[frame_index] + self.instances.items.len);
-    //         _ = instance_index;
+                self.instances.append(gpu_instance) catch unreachable;
+            }
 
-    //         var instance = std.mem.zeroes(InstanceData);
-    //         storeMat44(transform.matrix[0..], &instance.object_to_world);
-    //         self.instances.append(instance) catch unreachable;
+            self.entity_maps[frame_index].put(entity_id, true) catch unreachable;
+        }
+    }
 
-    //         // const gpu_mesh_indices = self.renderer.getGpuMeshIndices(mesh_component.mesh);
-    //         // for (0..gpu_mesh_indices.count) |gpu_mesh_index| {
-    //         //     var instance_indirection = std.mem.zeroes(InstanceDataIndirection);
-    //         //     instance_indirection.gpu_mesh_index = gpu_mesh_indices.indices[gpu_mesh_index];
-    //         //     instance_indirection.instance_index = instance_index;
-    //         //     instance_indirection.entity_id = @intCast(entity_id);
+    if (self.instances.items.len > 0) {
+        self.instance_buffers[frame_index].element_count += @intCast(self.instances.items.len);
 
-    //         //     instance_indirection.material_index = self.renderer.getLegacyMaterialBufferOffset(mesh_component.materials[gpu_mesh_index]);
-    //         //     self.instance_indirections.append(instance_indirection) catch unreachable;
-    //         // }
-    //     }
-    // }
+        const instance_data = renderer.Slice{
+            .data = @ptrCast(self.instances.items),
+            .size = self.instances.items.len * @sizeOf(GpuInstance),
+        };
 
-    // if (self.instances.items.len > 0) {
-    //     self.instance_count[frame_index] += self.instances.items.len;
-
-    //     const instance_data = renderer.Slice{
-    //         .data = @ptrCast(self.instances.items),
-    //         .size = self.instances.items.len * @sizeOf(InstanceData),
-    //     };
-
-    //     std.debug.assert(self.instance_buffer_size > instance_data.size + self.instance_buffer_offsets[frame_index]);
-    //     self.renderer.updateBuffer(instance_data, self.instance_buffer_offsets[frame_index], InstanceData, self.instance_buffers[frame_index]);
-    //     self.instance_buffer_offsets[frame_index] += instance_data.size;
-    // }
+        std.debug.assert(self.instance_buffers[frame_index].size > instance_data.size + self.instance_buffers[frame_index].offset);
+        self.renderer.updateBuffer(instance_data, self.instance_buffers[frame_index].offset, GpuInstance, self.instance_buffers[frame_index].buffer);
+        self.instance_buffers[frame_index].offset += instance_data.size;
+    }
 }
 
 fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
@@ -296,12 +249,12 @@ fn createDescriptorSets(user_data: *anyopaque) void {
         const root_signature_opaque = self.renderer.getRootSignature(IdLocal.init("gpu_driven_gbuffer_opaque"));
         const root_signature_masked = self.renderer.getRootSignature(IdLocal.init("gpu_driven_gbuffer_masked"));
 
-        var gbuffer_descriptor_sets: [renderer_buckets][*c]graphics.DescriptorSet = undefined;
+        var gbuffer_descriptor_sets: [renderer.renderer_buckets][*c]graphics.DescriptorSet = undefined;
         for (gbuffer_descriptor_sets, 0..) |_, index| {
             var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
             desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
             desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == renderer_bucket_opaque) {
+            if (index == renderer.renderer_bucket_opaque) {
                 desc.pRootSignature = root_signature_opaque;
             } else {
                 desc.pRootSignature = root_signature_masked;
@@ -343,8 +296,8 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[0].pName = "cbFrame";
         params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer_bucket_opaque], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer_bucket_masked], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer.renderer_bucket_opaque], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer.renderer_bucket_masked], 1, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
@@ -361,8 +314,8 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
 fn unloadDescriptorSets(user_data: *anyopaque) void {
     const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
 
-    graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer_bucket_opaque]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer_bucket_masked]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer.renderer_bucket_opaque]);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer.renderer_bucket_masked]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_clear_counters_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_cull_instances_descriptor_set);
 }

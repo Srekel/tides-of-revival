@@ -79,7 +79,7 @@ const visualization_modes = [_][:0]const u8{
     "Reflectance",
 };
 
-const ElementBindlessBuffer = struct {
+pub const ElementBindlessBuffer = struct {
     mutex: std.Thread.Mutex = undefined,
     buffer: BufferHandle = undefined,
     stride: u64 = 0,
@@ -1107,6 +1107,10 @@ pub const Renderer = struct {
         self.renderable_map.put(id.hash, renderable) catch unreachable;
     }
 
+    pub fn getRenderable(self: *Renderer, id: IdLocal) Renderable {
+        return self.renderable_map.get(id.hash).?;
+    }
+
     pub fn loadMaterial(self: *Renderer, material_id: IdLocal, material_data: UberShaderMaterialData) !void {
         var gpu_material: GpuMaterial = undefined;
         gpu_material.albedo_color[0] = material_data.base_color.r;
@@ -1139,6 +1143,10 @@ pub const Renderer = struct {
         self.material_buffer.offset += gpu_material_data_slice.size;
         self.material_map.put(material_id.hash, self.material_buffer.element_count) catch unreachable;
         self.material_buffer.element_count += 1;
+    }
+
+    pub fn getMaterialIndex(self: *Renderer, material_id: IdLocal) usize {
+        return self.material_map.get(material_id.hash).?;
     }
 
     pub fn uploadLegacyMaterial(self: *Renderer, material_id: IdLocal, material_data: UberShaderMaterialData) !void {
@@ -1382,6 +1390,10 @@ pub const Renderer = struct {
         };
         self.updateBuffer(gpu_mesh_data_slice, self.mesh_buffer.offset, GPUMesh, self.mesh_buffer.buffer);
         self.mesh_buffer.offset += gpu_mesh_data_slice.size;
+    }
+
+    pub fn getMeshInfo(self: *Renderer, mesh_id: IdLocal) MeshInfo {
+        return self.mesh_map.get(mesh_id.hash).?;
     }
 
     fn alignUp(value: u64, alignment: u64) u64 {
@@ -2113,6 +2125,10 @@ pub const Renderer = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
 
+pub const renderer_buckets: u32 = 2;
+pub const renderer_bucket_opaque: u32 = 1;
+pub const renderer_bucket_masked: u32 = 0;
+
 const materials_per_renderable_max_count: u32 = 8;
 
 const Renderable = struct {
@@ -2176,7 +2192,11 @@ const GPUMesh = struct {
     meshlet_count: u32,
 };
 
-const MeshHashMap = std.AutoHashMap(u64, struct { index: u32, count: u32 });
+pub const MeshInfo = struct {
+    index: u32,
+    count: u32,
+};
+const MeshHashMap = std.AutoHashMap(u64, MeshInfo);
 
 // ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗     ███████╗
 // ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║     ██╔════╝
