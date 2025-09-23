@@ -7,15 +7,15 @@
 
 struct GBufferOutput
 {
-	float4 GBuffer0 : SV_TARGET0;
-	float4 GBuffer1 : SV_TARGET1;
-	float4 GBuffer2 : SV_TARGET2;
+    float4 GBuffer0 : SV_TARGET0;
+    float4 GBuffer1 : SV_TARGET1;
+    float4 GBuffer2 : SV_TARGET2;
 };
 
 struct PrimitiveAttribute
 {
-    uint primitive_id : SV_PrimitiveID;
-    uint candidate_index : CANDIDATE_INDEX;
+    uint primitiveId : SV_PrimitiveID;
+    uint candidateIndex : CANDIDATE_INDEX;
 };
 
 struct VertexAttribute
@@ -44,14 +44,14 @@ cbuffer g_RasterizerParams : register(b1, UPDATE_FREQ_PER_FRAME)
 
 Instance getInstance(uint instance_index)
 {
-    ByteAddressBuffer instance_buffer = ResourceDescriptorHeap[g_Frame.instance_buffer_index];
+    ByteAddressBuffer instance_buffer = ResourceDescriptorHeap[g_Frame.instanceBufferIndex];
     Instance instance = instance_buffer.Load<Instance>(instance_index * sizeof(Instance));
     return instance;
 }
 
 MaterialData getMaterial(uint material_index)
 {
-    ByteAddressBuffer material_buffer = ResourceDescriptorHeap[g_Frame.material_buffer_index];
+    ByteAddressBuffer material_buffer = ResourceDescriptorHeap[g_Frame.materialBufferIndex];
     MaterialData material = material_buffer.Load<MaterialData>(material_index * sizeof(MaterialData));
     return material;
 }
@@ -59,11 +59,11 @@ MaterialData getMaterial(uint material_index)
 VertexAttribute FetchVertexAttribute(Mesh mesh, float4x4 world, uint vertex_id)
 {
     VertexAttribute attribute = (VertexAttribute)0;
-    ByteAddressBuffer data_buffer = ResourceDescriptorHeap[NonUniformResourceIndex(mesh.data_buffer_index)];
-    float3 position = data_buffer.Load<float3>(vertex_id * sizeof(float3) + mesh.positions_offset);
+    ByteAddressBuffer data_buffer = ResourceDescriptorHeap[NonUniformResourceIndex(mesh.dataBufferIndex)];
+    float3 position = data_buffer.Load<float3>(vertex_id * sizeof(float3) + mesh.positionsOffset);
     float3 position_ws = mul(float4(position, 1.0f), world).xyz;
-    attribute.position = mul(float4(position_ws, 1.0f), g_Frame.view_proj);
-    float2 uv = data_buffer.Load<float2>(vertex_id * sizeof(float2) + mesh.texcoords_offset);
+    attribute.position = mul(float4(position_ws, 1.0f), g_Frame.viewProj);
+    float2 uv = data_buffer.Load<float2>(vertex_id * sizeof(float2) + mesh.texcoordsOffset);
     attribute.uv = uv;
     return attribute;
 }

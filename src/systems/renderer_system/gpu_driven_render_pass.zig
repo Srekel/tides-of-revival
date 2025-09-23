@@ -24,8 +24,8 @@ const RenderPass = renderer.RenderPass;
 const InstanceData = renderer_types.InstanceData;
 const InstanceDataIndirection = renderer_types.InstanceDataIndirection;
 
-const max_instances = 1000000;
-const max_visible_instances = 10000;
+const instancens_max_count = 1000000;
+const meshlets_max_count = 1 << 20;
 // NOTE: This could be a set, but it is a hashmap because we might want to store the GPU index as the value to evict instances that are streamed out
 const EntityMap = std.AutoHashMap(ecs.entity_t, bool);
 
@@ -40,27 +40,40 @@ const GpuInstance = struct {
     _pad1: [2]u32,
 };
 
-pub const GBufferFrameData = struct {
-    projection_view: [16]f32,
-    projection_view_inverted: [16]f32,
-    camera_position: [4]f32,
-    time: f32,
-    instance_buffer_index: u32,
-    instance_indirection_buffer_index: u32,
-    gpu_mesh_buffer_index: u32,
-    vertex_buffer_index: u32,
-    material_buffer_index: u32,
+const GpuMeshletCandidate = struct {
+    instance_id: u32,
+    meshlet_index: u32,
 };
 
-pub const GpuCullingFrameData = struct {
-    projection_view: [16]f32,
-    counters_buffer_index: u32,
-    counters_buffer_count: u32,
+const Frame = struct {
+    view: [16]f32,
+    proj: [16]f32,
+    view_proj: [16]f32,
+    view_proj_inv: [16]f32,
+    viewport_info: [4]f32,
+    camera_position: [4]f32,
+    camera_near_plane: f32,
+    camera_far_plane: f32,
+    time: f32,
+    _padding0: u32,
+    linear_repeat_sampler_index: u32,
+    linear_clamp_sampler_index: u32,
+    shadow_sampler_index: u32,
+    shadow_pcf_sampler_index: u32,
     instance_buffer_index: u32,
-    instance_indirection_buffer_index: u32,
-    instance_indirection_count: u32,
-    visible_instance_indirection_buffer_index: u32,
-    gpu_mesh_buffer_index: u32,
+    material_buffer_index: u32,
+    meshes_buffer_index: u32,
+    instance_count: u32,
+};
+
+const ClearUavParams = struct {
+    candidate_meshlets_counter_buffer_index: u32,
+    visible_meshlets_counter_buffer_index: u32,
+};
+
+const CullInstancesParams = struct {
+    candidate_meshlets_counter_buffer_index: u32,
+    candidate_meshlets_buffer_index: u32,
 };
 
 pub const GpuDrivenRenderPass = struct {
@@ -71,20 +84,23 @@ pub const GpuDrivenRenderPass = struct {
     prefab_mgr: *PrefabManager,
     query_renderables: *ecs.query_t,
 
-    gbuffer_frame_data: GBufferFrameData,
-    gbuffer_frame_data_buffers: [frames_count]BufferHandle,
-    gbuffer_descriptor_sets: [renderer.renderer_buckets][*c]DescriptorSet,
-
     instances: std.ArrayList(GpuInstance),
     entity_maps: [frames_count]EntityMap,
 
     instance_buffers: [frames_count]renderer.ElementBindlessBuffer,
-    counters_buffers: [frames_count]BufferHandle,
+    candidate_meshlets_counters_buffers: [frames_count]BufferHandle,
+    candidate_meshlets_buffers: [frames_count]BufferHandle,
+    visible_meshlets_counters_buffers: [frames_count]BufferHandle,
+    visible_meshlets_buffers: [frames_count]BufferHandle,
 
-    gpu_culling_frame_data: GpuCullingFrameData,
-    gpu_culling_frame_data_buffers: [frames_count]BufferHandle,
-    gpu_culling_clear_counters_descriptor_set: [*c]DescriptorSet,
-    gpu_culling_cull_instances_descriptor_set: [*c]DescriptorSet,
+    frame_data_buffers: [frames_count]BufferHandle,
+
+    // Clear Counters
+    clear_uav_params_buffers: [frames_count]BufferHandle,
+    clear_uav_descriptor_set: [*c]DescriptorSet,
+    // Cull Instances
+    cull_instances_params_buffers: [frames_count]BufferHandle,
+    cull_instances_descriptor_set: [*c]DescriptorSet,
 
     pub fn init(self: *GpuDrivenRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
@@ -92,37 +108,83 @@ pub const GpuDrivenRenderPass = struct {
         self.renderer = rctx;
         self.prefab_mgr = prefab_mgr;
 
-        self.gbuffer_frame_data = std.mem.zeroes(GBufferFrameData);
-        self.gbuffer_frame_data_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(GBufferFrameData);
-            }
-
-            break :blk buffers;
-        };
-
         for (self.instance_buffers, 0..) |_, buffer_index| {
-            self.instance_buffers[buffer_index].init(rctx, max_instances, @sizeOf(GpuInstance), false, "GPU Instances");
+            self.instance_buffers[buffer_index].init(rctx, instancens_max_count, @sizeOf(GpuInstance), false, "GPU Instances");
         }
 
-        self.counters_buffers = blk: {
+        self.candidate_meshlets_counters_buffers = blk: {
             var buffers: [frames_count]renderer.BufferHandle = undefined;
             const buffer_data = renderer.Slice{
                 .data = null,
-                .size = 32 * @sizeOf(u32),
+                .size = 8 * @sizeOf(u32),
             };
             for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Counters Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Counters Buffer");
             }
             break :blk buffers;
         };
 
-        self.gpu_culling_frame_data = std.mem.zeroes(GpuCullingFrameData);
-        self.gpu_culling_frame_data_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+        self.candidate_meshlets_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
+            const buffer_data = renderer.Slice{
+                .data = null,
+                .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
+            };
             for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(GpuCullingFrameData);
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Buffer");
+            }
+            break :blk buffers;
+        };
+
+        self.visible_meshlets_counters_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
+            const buffer_data = renderer.Slice{
+                .data = null,
+                .size = 8 * @sizeOf(u32),
+            };
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Counters Buffer");
+            }
+            break :blk buffers;
+        };
+
+        self.visible_meshlets_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
+            const buffer_data = renderer.Slice{
+                .data = null,
+                .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
+            };
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Buffer");
+            }
+            break :blk buffers;
+        };
+
+        // Frame Uniform Buffers
+        self.frame_data_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(Frame);
+            }
+
+            break :blk buffers;
+        };
+
+        // Clear UAV Params
+        self.clear_uav_params_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(ClearUavParams);
+            }
+
+            break :blk buffers;
+        };
+
+        // Cull Instances Params
+        self.cull_instances_params_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(CullInstancesParams);
             }
 
             break :blk buffers;
@@ -226,98 +288,171 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "GPU Driven: GBuffer", 0x00_ff_00_00);
     defer trazy_zone.End();
 
-    _ = cmd_list;
-    _ = user_data;
+    const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
+    const frame_index = self.renderer.frame_index;
 
-    // const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
-    // const frame_index = self.renderer.frame_index;
+    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct {
+        camera: *const fd.Camera,
+        transform: *const fd.Transform,
+    });
+    const camera_position = camera_comps.transform.getPos00();
+    const z_view = zm.loadMat(camera_comps.camera.view[0..]);
+    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
+    const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
-    // var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    // const camera_comps = camera_entity.getComps(struct {
-    //     camera: *const fd.Camera,
-    //     transform: *const fd.Transform,
-    // });
-    // const camera_position = camera_comps.transform.getPos00();
-    // const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
+    var frame = std.mem.zeroes(Frame);
+    zm.storeMat(&frame.view, z_view);
+    zm.storeMat(&frame.proj, z_proj);
+    zm.storeMat(&frame.view_proj, z_view_proj);
+    zm.storeMat(&frame.view_proj_inv, zm.inverse(z_view_proj));
+    frame.camera_position[0] = camera_position[0];
+    frame.camera_position[1] = camera_position[1];
+    frame.camera_position[2] = camera_position[2];
+    frame.camera_position[3] = 1.0;
+    frame.camera_near_plane = camera_comps.camera.near;
+    frame.camera_far_plane = camera_comps.camera.far;
+    frame.time = @floatCast(self.renderer.time);
+    frame._padding0 = 42;
+    frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
+    frame.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
+    frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
+    frame.instance_count = self.instance_buffers[frame_index].element_count;
 
+    const frame_data = renderer.Slice{
+        .data = @ptrCast(&frame),
+        .size = @sizeOf(Frame),
+    };
+    self.renderer.updateBuffer(frame_data, 0, Frame, self.frame_data_buffers[frame_index]);
+
+    // Clear UAV Counters
+    {
+        const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_counters_buffers[frame_index]);
+        const visible_meshlets_counters_buffer = self.renderer.getBuffer(self.visible_meshlets_counters_buffers[frame_index]);
+        {
+            const buffer_barriers = [_]graphics.BufferBarrier{
+                graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                graphics.BufferBarrier.init(visible_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+            };
+            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+        }
+
+        {
+            const clear_uav_params = ClearUavParams{
+                .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+                .visible_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
+            };
+            const clear_uav_params_data = renderer.Slice{
+                .data = @ptrCast(&clear_uav_params),
+                .size = @sizeOf(ClearUavParams),
+            };
+            self.renderer.updateBuffer(clear_uav_params_data, 0, ClearUavParams, self.clear_uav_params_buffers[frame_index]);
+
+            const pipeline_id = ID("meshlet_clear_counters");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.clear_uav_descriptor_set);
+            graphics.cmdDispatch(cmd_list, 1, 1, 1);
+        }
+    }
+
+    // Cull Instances
+    {
+        const candidate_meshlets_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers[frame_index]);
+        {
+            const buffer_barriers = [_]graphics.BufferBarrier{
+                graphics.BufferBarrier.init(candidate_meshlets_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+            };
+            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+        }
+
+        {
+            const cull_instances_params = CullInstancesParams{
+                .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
+                .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+            };
+
+            const cull_instances_params_data = renderer.Slice{
+                .data = @ptrCast(&cull_instances_params),
+                .size = @sizeOf(CullInstancesParams),
+            };
+            self.renderer.updateBuffer(cull_instances_params_data, 0, CullInstancesParams, self.cull_instances_params_buffers[frame_index]);
+
+            const pipeline_id = ID("meshlet_cull_instances");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.cull_instances_descriptor_set);
+            const cull_instances_threads_count: u32 = 64;
+            const group_count_x = (self.instance_buffers[frame_index].element_count + cull_instances_threads_count - 1) / cull_instances_threads_count;
+            graphics.cmdDispatch(cmd_list, group_count_x, 1, 1);
+        }
+
+        const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers[frame_index]);
+        {
+            const buffer_barriers = [_]graphics.BufferBarrier{
+                graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+            };
+            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+        }
+    }
 }
 
 fn createDescriptorSets(user_data: *anyopaque) void {
     const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
 
-    const gbuffer_descriptor_sets = blk: {
-        const root_signature_opaque = self.renderer.getRootSignature(IdLocal.init("gpu_driven_gbuffer_opaque"));
-        const root_signature_masked = self.renderer.getRootSignature(IdLocal.init("gpu_driven_gbuffer_masked"));
-
-        var gbuffer_descriptor_sets: [renderer.renderer_buckets][*c]graphics.DescriptorSet = undefined;
-        for (gbuffer_descriptor_sets, 0..) |_, index| {
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == renderer.renderer_bucket_opaque) {
-                desc.pRootSignature = root_signature_opaque;
-            } else {
-                desc.pRootSignature = root_signature_masked;
-            }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&gbuffer_descriptor_sets[index]));
-        }
-
-        break :blk gbuffer_descriptor_sets;
-    };
-    self.gbuffer_descriptor_sets = gbuffer_descriptor_sets;
-
     {
-        const root_signature = self.renderer.getRootSignature(IdLocal.init("gpu_culling_clear_counters"));
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("meshlet_clear_counters"));
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        desc.mMaxSets = frames_count;
         desc.pRootSignature = root_signature;
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.gpu_culling_clear_counters_descriptor_set));
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.clear_uav_descriptor_set));
     }
 
     {
-        const root_signature = self.renderer.getRootSignature(IdLocal.init("gpu_culling_cull_instances"));
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("meshlet_cull_instances"));
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        desc.mMaxSets = frames_count;
         desc.pRootSignature = root_signature;
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.gpu_culling_cull_instances_descriptor_set));
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.cull_instances_descriptor_set));
     }
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
 
-    var params: [1]graphics.DescriptorData = undefined;
+    var params: [2]graphics.DescriptorData = undefined;
 
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.gbuffer_frame_data_buffers[i]);
+    for (0..frames_count) |i| {
+        var uniform_buffer = self.renderer.getBuffer(self.clear_uav_params_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
+        params[0].pName = "g_ClearUAVParams";
         params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer.renderer_bucket_opaque], 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gbuffer_descriptor_sets[renderer.renderer_bucket_masked], 1, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.clear_uav_descriptor_set, 1, @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.gpu_culling_frame_data_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_data_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+        params[0].pName = "g_Frame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gpu_culling_clear_counters_descriptor_set, 1, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.gpu_culling_cull_instances_descriptor_set, 1, @ptrCast(&params));
+        var cull_instances_params_buffer = self.renderer.getBuffer(self.cull_instances_params_buffers[i]);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "g_CullInstancesParams";
+        params[1].__union_field3.ppBuffers = @ptrCast(&cull_instances_params_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.cull_instances_descriptor_set, 2, @ptrCast(&params));
     }
 }
 
 fn unloadDescriptorSets(user_data: *anyopaque) void {
     const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
 
-    graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer.renderer_bucket_opaque]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.gbuffer_descriptor_sets[renderer.renderer_bucket_masked]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_clear_counters_descriptor_set);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.gpu_culling_cull_instances_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.clear_uav_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.cull_instances_descriptor_set);
 }
 
 inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {

@@ -402,7 +402,6 @@ pub const Renderer = struct {
 
         self.frame_index = 0;
 
-
         self.legacy_mesh_pool = LegacyMeshPool.initMaxCapacity(allocator) catch unreachable;
         self.texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
@@ -415,7 +414,7 @@ pub const Renderer = struct {
             .data = null,
             .size = 1000 * @sizeOf(LegacyMaterial),
         };
-        self.legacy_materials_buffer = self.createBindlessBuffer(buffer_data, false, "Materials Buffer");
+        self.legacy_materials_buffer = self.createBindlessBuffer(buffer_data, false, "Legacy Materials Buffer");
 
         self.createIBLTextures();
 
@@ -428,9 +427,9 @@ pub const Renderer = struct {
 
         self.meshes = std.ArrayList(Mesh).init(allocator);
         self.mesh_map = MeshHashMap.init(allocator);
-        self.mesh_buffer.init(self, 1024, @sizeOf(GPUMesh), false, "Meshes Buffer");
+        self.mesh_buffer.init(self, 1024, @sizeOf(GPUMesh), false, "GpuMesh Buffer");
 
-        self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Materials Buffer");
+        self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Material Buffer");
         self.material_map = MaterialMap.init(allocator);
     }
 
@@ -1137,9 +1136,9 @@ pub const Renderer = struct {
 
         const gpu_material_data_slice = Slice{
             .data = @ptrCast(&gpu_material),
-            .size = @sizeOf(GPUMesh),
+            .size = @sizeOf(GpuMaterial),
         };
-        self.updateBuffer(gpu_material_data_slice, self.material_buffer.offset, GPUMesh, self.material_buffer.buffer);
+        self.updateBuffer(gpu_material_data_slice, self.material_buffer.offset, GpuMaterial, self.material_buffer.buffer);
         self.material_buffer.offset += gpu_material_data_slice.size;
         self.material_map.put(material_id.hash, self.material_buffer.element_count) catch unreachable;
         self.material_buffer.element_count += 1;
@@ -2180,8 +2179,8 @@ pub const Mesh = struct {
 const GPUMesh = struct {
     data_buffer: u32,
     positions_offset: u32,
-    texcoords_offset: u32,
     normals_offset: u32,
+    texcoords_offset: u32,
     tangents_offset: u32,
     indices_offset: u32,
     index_byte_size: u32,

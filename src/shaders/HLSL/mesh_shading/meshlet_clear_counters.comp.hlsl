@@ -4,7 +4,7 @@
 
 struct ClearUAVParams
 {
-    uint candidateMeshletsCounterBufferIndex;
+    uint candidateMeshletsCountersBufferIndex;
     uint visibleMeshletsCountersBufferIndex;
 };
 
@@ -13,10 +13,9 @@ cbuffer g_ClearUAVParams : register(b0, UPDATE_FREQ_PER_FRAME)
     ClearUAVParams g_ClearUAVParams;
 };
 
-[numthreads(1, 1, 1)]
-void main()
+[numthreads(1, 1, 1)] void main()
 {
-    RWByteAddressBuffer candidateMeshletsCountersBuffer = ResourceDescriptorHeap[g_ClearUAVParams.candidateMeshletsCounterBufferIndex];
+    RWByteAddressBuffer candidateMeshletsCountersBuffer = ResourceDescriptorHeap[g_ClearUAVParams.candidateMeshletsCountersBufferIndex];
     candidateMeshletsCountersBuffer.Store<uint>(COUNTER_TOTAL_CANDIDATE_MESHLETS * sizeof(uint), 0);
     candidateMeshletsCountersBuffer.Store<uint>(COUNTER_PHASE1_CANDIDATE_MESHLETS * sizeof(uint), 0);
     candidateMeshletsCountersBuffer.Store<uint>(COUNTER_PHASE2_CANDIDATE_MESHLETS * sizeof(uint), 0);

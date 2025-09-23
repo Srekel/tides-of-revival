@@ -496,6 +496,12 @@ pub const PSOManager = struct {
                 self.createComputePipeline(IdLocal.init("meshlet_clear_counters"), "meshlet_clear_counters.comp", &sampler_ids);
             }
 
+            // Cull Instances Params
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_cull_instances"), "meshlet_cull_instances.comp", &sampler_ids);
+            }
+
             // Meshlets Rasterization
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
