@@ -199,15 +199,25 @@ fn updateCameraMatrices(it: *ecs.iter_t) callconv(.C) void {
 
         const z_projection =
             zm.perspectiveFovLh(
-            cam.fov,
-            @as(f32, @floatFromInt(ctx.renderer.window_width)) / @as(f32, @floatFromInt(ctx.renderer.window_height)),
-            cam.far,
-            cam.near,
-        );
+                cam.fov,
+                @as(f32, @floatFromInt(ctx.renderer.window_width)) / @as(f32, @floatFromInt(ctx.renderer.window_height)),
+                cam.near,
+                cam.far,
+            );
+
+        const z_projection_reverse =
+            zm.perspectiveFovLh(
+                cam.fov,
+                @as(f32, @floatFromInt(ctx.renderer.window_width)) / @as(f32, @floatFromInt(ctx.renderer.window_height)),
+                cam.far,
+                cam.near,
+            );
 
         zm.storeMat(cam.view[0..], z_view);
-        zm.storeMat(cam.projection[0..], z_projection);
-        zm.storeMat(cam.view_projection[0..], zm.mul(z_view, z_projection));
+        zm.storeMat(cam.projection[0..], z_projection_reverse);
+        zm.storeMat(cam.projection_standard[0..], z_projection);
+        zm.storeMat(cam.view_projection[0..], zm.mul(z_view, z_projection_reverse));
+        zm.storeMat(cam.view_projection_standard[0..], zm.mul(z_view, z_projection));
     }
 }
 

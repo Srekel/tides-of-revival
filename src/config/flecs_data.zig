@@ -426,7 +426,9 @@ pub const Camera = struct {
     fov: f32,
     view: [16]f32 = undefined,
     projection: [16]f32 = undefined,
+    projection_standard: [16]f32 = undefined,
     view_projection: [16]f32 = undefined,
+    view_projection_standard: [16]f32 = undefined,
     frustum_planes: [4][4]f32 = undefined,
     active: bool = false,
     class: u32 = 0,
@@ -683,6 +685,7 @@ pub const SettlementEnemy = struct {};
 pub const EnvironmentInfo = struct {
     paused: bool,
     active_camera: ?ecsu.Entity,
+    player_camera: ?ecsu.Entity,
     time_multiplier: f64 = 1.0,
     journey_time_multiplier: f64 = 1.0,
     world_time: f64,

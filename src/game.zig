@@ -227,6 +227,7 @@ pub fn run() void {
         .sun_height = 0,
         .world_time = 0,
         .active_camera = null,
+        .player_camera = null,
         .sun = null,
         .sky_light = null,
         .player = null,

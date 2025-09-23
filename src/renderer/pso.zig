@@ -490,16 +490,28 @@ pub const PSOManager = struct {
                 self.createGraphicsPipeline(desc);
             }
 
-            // Clear UAV Params
+            // Clear UAV
             {
                 var sampler_ids = [_]IdLocal{};
                 self.createComputePipeline(IdLocal.init("meshlet_clear_counters"), "meshlet_clear_counters.comp", &sampler_ids);
             }
 
-            // Cull Instances Params
+            // Cull Instances
             {
                 var sampler_ids = [_]IdLocal{};
                 self.createComputePipeline(IdLocal.init("meshlet_cull_instances"), "meshlet_cull_instances.comp", &sampler_ids);
+            }
+
+            // Build Meshlets Cull Args
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_build_meshlets_cull_args"), "meshlet_build_cull_meshlets_args.comp", &sampler_ids);
+            }
+
+            // Cull Meshlets
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_cull_meshlets"), "meshlet_cull_meshlets.comp", &sampler_ids);
             }
 
             // Meshlets Rasterization
