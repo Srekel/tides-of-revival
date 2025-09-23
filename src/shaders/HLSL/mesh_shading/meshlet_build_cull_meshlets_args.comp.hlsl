@@ -1,6 +1,4 @@
-#include "../../FSL/d3d.h"
-#include "defines.hlsli"
-#include "types.hlsli"
+#include "meshlet_culling_common.hlsli"
 
 struct MeshletsCullArgsParams
 {
@@ -8,7 +6,7 @@ struct MeshletsCullArgsParams
     uint dispatchArgsBufferInex;
 };
 
-cbuffer g_MeshletsCullArgsParams : register(b0, UPDATE_FREQ_PER_FRAME)
+cbuffer g_MeshletsCullArgsParams : register(b1, UPDATE_FREQ_PER_FRAME)
 {
     MeshletsCullArgsParams g_MeshletsCullArgsParams;
 };

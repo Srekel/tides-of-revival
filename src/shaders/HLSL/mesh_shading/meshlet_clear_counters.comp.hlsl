@@ -1,6 +1,4 @@
-#include "../../FSL/d3d.h"
-#include "defines.hlsli"
-#include "types.hlsli"
+#include "meshlet_culling_common.hlsli"
 
 struct ClearUAVParams
 {
@@ -8,7 +6,7 @@ struct ClearUAVParams
     uint visibleMeshletsCountersBufferIndex;
 };
 
-cbuffer g_ClearUAVParams : register(b0, UPDATE_FREQ_PER_FRAME)
+cbuffer g_ClearUAVParams : register(b1, UPDATE_FREQ_PER_FRAME)
 {
     ClearUAVParams g_ClearUAVParams;
 };

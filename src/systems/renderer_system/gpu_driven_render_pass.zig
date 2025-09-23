@@ -578,12 +578,17 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     var params: [2]graphics.DescriptorData = undefined;
 
     for (0..frames_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.clear_uav_params_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_data_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "g_ClearUAVParams";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+        params[0].pName = "g_Frame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.clear_uav_descriptor_set, 1, @ptrCast(&params));
+        var uniform_buffer = self.renderer.getBuffer(self.clear_uav_params_buffers[i]);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "g_ClearUAVParams";
+        params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.clear_uav_descriptor_set, @intCast(params.len), @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
@@ -597,16 +602,21 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[1].pName = "g_CullInstancesParams";
         params[1].__union_field3.ppBuffers = @ptrCast(&cull_instances_params_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.cull_instances_descriptor_set, 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.cull_instances_descriptor_set, @intCast(params.len), @ptrCast(&params));
     }
 
     for (0..frames_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.build_meshlet_cull_args_params_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_data_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "g_MeshletsCullArgsParams";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+        params[0].pName = "g_Frame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.build_meshlet_cull_args_descriptor_set, 1, @ptrCast(&params));
+        var uniform_buffer = self.renderer.getBuffer(self.build_meshlet_cull_args_params_buffers[i]);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "g_MeshletsCullArgsParams";
+        params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.build_meshlet_cull_args_descriptor_set, @intCast(params.len), @ptrCast(&params));
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
@@ -620,7 +630,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         params[1].pName = "g_CullMeshletsParams";
         params[1].__union_field3.ppBuffers = @ptrCast(&cull_meshlets_params_buffer);
 
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.cull_meshlets_descriptor_set, 2, @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.cull_meshlets_descriptor_set, @intCast(params.len), @ptrCast(&params));
     }
 }
 
