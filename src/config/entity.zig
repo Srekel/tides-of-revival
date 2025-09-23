@@ -292,8 +292,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
         light_ent.set(fd.PointLight{
             .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
-            .range = 200,
-            .intensity = 10,
+            .range = 100,
+            .intensity = 7,
         });
     }
 }

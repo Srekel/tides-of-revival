@@ -76,7 +76,7 @@
       kind: "FbmSettings",
       seed: 3,
       frequency: 0.0005,
-      octaves: 3,
+      octaves: 6,
       rect: "world_settings.size",
       scale: 1.0,
     },
@@ -677,3 +677,4 @@
     },
   ],
 }
+

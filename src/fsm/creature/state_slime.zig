@@ -91,6 +91,7 @@ fn updateTargetPosition(
     fwd: *fd.Forward,
     locomotion: *fd.Locomotion,
     physics_world_low: *zphy.PhysicsSystem,
+    is_day: bool,
 ) void {
     if (locomotion.target_position == null) {
         locomotion.target_position = pos.elemsConst().*;
@@ -132,7 +133,11 @@ fn updateTargetPosition(
     const angle_curr = math.atan2(fwd.z, fwd.x);
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
 
-    var best_target = [3]f32{ 0, -1000, 0 };
+    var best_target = [3]f32{
+        0,
+        if (is_day) -1000 else 1000,
+        0,
+    };
 
     const angles = 5;
     for (0..angles) |i_angle| {
@@ -183,7 +188,7 @@ fn updateTargetPosition(
         //     3,
         // );
 
-        if (height > best_target[1]) {
+        if ((is_day and height > best_target[1]) or (!is_day and height < best_target[1])) {
             best_target = .{
                 ray_origin[0],
                 height,
@@ -232,6 +237,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
 
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
+    const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
 
     for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, enemy, ent| {
         if (!lol) {
@@ -287,7 +293,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
             if (enemy.aggressive) {
                 locomotion.target_position = player_pos.elemsConst().*;
             } else {
-                updateTargetPosition(pos, fwd, locomotion, ctx.physics_world_low);
+                updateTargetPosition(pos, fwd, locomotion, ctx.physics_world_low, is_day);
             }
 
             if (!locomotion.affected_by_gravity) {
@@ -374,7 +380,7 @@ const SlimeDropTask = struct {
             task_data_die.*.entity = ent.id;
             ctx.task_queue.enqueue(
                 DieTask.id,
-                .{ .time = ctx.time.now + 3600, .loop_type = .once },
+                .{ .time = ctx.time.now + 1000, .loop_type = .once },
                 std.mem.asBytes(task_data_die),
             );
         }
@@ -407,7 +413,7 @@ const DieTask = struct {
 };
 
 const SplitIfNearPlayer = struct {
-    const id = IdLocal.init("DieTask");
+    const id = IdLocal.init("SplitIfNearPlayer");
 
     entity: ecs.entity_t,
 
@@ -451,7 +457,7 @@ const SplitIfNearPlayer = struct {
 
         const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
         const self_pos_z = zm.loadArr3(self_pos.elemsConst().*);
-        if (zm.length3(player_pos_z - self_pos_z)[0] > 20) {
+        if (zm.length3(player_pos_z - self_pos_z)[0] > 200) {
             return .reschedule;
         }
 
@@ -466,7 +472,7 @@ const SplitIfNearPlayer = struct {
 
         const ray_origin = [_]f32{
             self_pos.x,
-            self_pos.y + 1,
+            self_pos.y + 3,
             self_pos.x,
             0,
         };
@@ -502,7 +508,7 @@ const SplitIfNearPlayer = struct {
         var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
         ent.set(pos);
 
-        const base_scale = enemy.base_scale * 0.6;
+        const base_scale = enemy.base_scale * 0.7;
         const rot = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
         ent.set(fd.Scale.create(1, 1, 1));
         ent.set(rot);
@@ -555,7 +561,7 @@ const SplitIfNearPlayer = struct {
             ctx.task_queue.enqueue(
                 SplitIfNearPlayer.id,
                 .{
-                    .time = enemy.base_scale * enemy.base_scale + std.crypto.random.float(f64) * 2,
+                    .time = ctx.time.now + enemy.base_scale * enemy.base_scale + std.crypto.random.float(f64) * 2,
                     .loop_type = .{ .loop = enemy.base_scale + std.crypto.random.float(f64) },
                 },
                 std.mem.asBytes(task_data),
@@ -573,7 +579,7 @@ const SplitIfNearPlayer = struct {
         light_ent.set(fd.PointLight{
             .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
             .range = 20,
-            .intensity = 5,
+            .intensity = 4,
         });
     }
 };

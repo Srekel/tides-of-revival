@@ -487,7 +487,7 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     {
         const world_time = flecs_stats.*.world_time_total;
         // const time_of_day_percent = std.math.modf(world_time / (60 * 60 * 24));
-        const time_of_day_percent = std.math.modf(world_time / (60 * 60));
+        const time_of_day_percent = std.math.modf(world_time * 2 / (60 * 60));
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
         environment_info.world_time = world_time;
@@ -498,7 +498,7 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     {
         const sun_entity = util.getSun(ecsu_world);
         const sun_rotation = sun_entity.?.getMut(fd.Rotation).?;
-        sun_rotation.fromZM(zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau), 0.0, 0.0));
+        sun_rotation.fromZM(zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau + 1.0), 0.0, 0.0));
 
         const z_sun_delta_rotation = zm.quatFromRollPitchYaw(0.01 * @as(f32, @floatCast(dt_game)), 0, 0);
         sun_rotation.fromZM(zm.qmul(sun_rotation.asZM(), z_sun_delta_rotation));
