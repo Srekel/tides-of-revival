@@ -26,10 +26,10 @@ struct VertexAttribute
 
 struct RasterizerParams
 {
-    uint bin_index;
-    uint visible_meshlets_buffer_index;
-    uint binned_meshlets_buffer_index;
-    uint meshlet_bin_data_buffer_index;
+    uint binIndex;
+    uint visibleMeshletsBufferIndex;
+    uint binnedMeshletsBufferIndex;
+    uint meshletBinDataBufferIndex;
 };
 
 cbuffer g_Frame : register(b0, UPDATE_FREQ_PER_FRAME)
@@ -39,7 +39,7 @@ cbuffer g_Frame : register(b0, UPDATE_FREQ_PER_FRAME)
 
 cbuffer g_RasterizerParams : register(b1, UPDATE_FREQ_PER_FRAME)
 {
-    RasterizerParams g_rasterizer_params;
+    RasterizerParams g_RasterizerParams;
 };
 
 Instance getInstance(uint instance_index)

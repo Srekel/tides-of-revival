@@ -2124,7 +2124,7 @@ pub const Renderer = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
 
-pub const renderer_buckets: u32 = 2;
+pub const renderer_bins_count: u32 = 2;
 pub const renderer_bucket_opaque: u32 = 1;
 pub const renderer_bucket_masked: u32 = 0;
 
