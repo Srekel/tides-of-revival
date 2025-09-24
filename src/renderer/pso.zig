@@ -490,28 +490,52 @@ pub const PSOManager = struct {
                 self.createGraphicsPipeline(desc);
             }
 
-            // Clear UAV
+            // Culling: Clear UAV
             {
                 var sampler_ids = [_]IdLocal{};
                 self.createComputePipeline(IdLocal.init("meshlet_clear_counters"), "meshlet_clear_counters.comp", &sampler_ids);
             }
 
-            // Cull Instances
+            // Culling: Cull Instances
             {
                 var sampler_ids = [_]IdLocal{};
                 self.createComputePipeline(IdLocal.init("meshlet_cull_instances"), "meshlet_cull_instances.comp", &sampler_ids);
             }
 
-            // Build Meshlets Cull Args
+            // Culling: Build Meshlets Cull Args
             {
                 var sampler_ids = [_]IdLocal{};
                 self.createComputePipeline(IdLocal.init("meshlet_build_meshlets_cull_args"), "meshlet_build_cull_meshlets_args.comp", &sampler_ids);
             }
 
-            // Cull Meshlets
+            // Culling: Cull Meshlets
             {
                 var sampler_ids = [_]IdLocal{};
                 self.createComputePipeline(IdLocal.init("meshlet_cull_meshlets"), "meshlet_cull_meshlets.comp", &sampler_ids);
+            }
+
+            // Binning: Prepare Args
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_prepare_args"), "meshlet_binning_prepare_args.comp", &sampler_ids);
+            }
+
+            // Binning: Classify Meshlets
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_classify_meshlets"), "meshlet_binning_classify_meshlets.comp", &sampler_ids);
+            }
+
+            // Binning: Allocate Bin Ranges
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_allocate_bin_ranges"), "meshlet_binning_allocate_bin.comp", &sampler_ids);
+            }
+
+            // Binning: Write Bin Ranges
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_write_bin_ranges"), "meshlet_binning_write_bins.comp", &sampler_ids);
             }
 
             // Meshlets Rasterization

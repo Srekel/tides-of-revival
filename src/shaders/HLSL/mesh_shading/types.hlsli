@@ -86,11 +86,20 @@ struct Instance
 
 struct MaterialData
 {
+    float4 albedoColor;
+    float4 uvTilingOffset;
+    float roughness;
+    float metallic;
+    float normalIntensity;
+    float emissiveStrength;
     uint albedoTextureIndex;
     uint albedoSamplerIndex;
+    uint emissiveTextureIndex;
+    uint emissiveSamplerIndex;
     uint normalTextureIndex;
     uint normalSamplerIndex;
-    float4 baseColor;
+    uint armTextureIndex;
+    uint armSamplerIndex;
     uint rasterizerBin;
     uint3 _pad0;
 };

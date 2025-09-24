@@ -88,6 +88,17 @@ const CullMeshletsParams = struct {
     visible_meshlets_buffer_index: u32,
 };
 
+const BinningParams = struct {
+    bins_count: u32,
+    meshlet_counts_buffer_index: u32,
+    meshlet_offset_and_counts_buffer_index: u32,
+    global_meshlet_counter_buffer_index: u32,
+    binned_meshlets_buffer_index: u32,
+    dispatch_args_buffer_index: u32,
+    visible_meshlets_buffer_index: u32,
+    visible_meshlets_counters_buffer_index: u32,
+};
+
 pub const GpuDrivenRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
@@ -99,27 +110,42 @@ pub const GpuDrivenRenderPass = struct {
     instances: std.ArrayList(GpuInstance),
     entity_maps: [frames_count]EntityMap,
 
+    // Global Buffers
     instance_buffers: [frames_count]renderer.ElementBindlessBuffer,
+    // Meshlet Culling Buffers
     candidate_meshlets_counters_buffers: [frames_count]BufferHandle,
     candidate_meshlets_buffers: [frames_count]BufferHandle,
     visible_meshlets_counters_buffers: [frames_count]BufferHandle,
     visible_meshlets_buffers: [frames_count]BufferHandle,
     meshlet_cull_args_buffers: [frames_count]BufferHandle,
+    // Meshlet Binning Buffers
+    meshlet_count_buffers: [frames_count]BufferHandle,
+    meshlet_offset_and_count_buffers: [frames_count]BufferHandle,
+    meshlet_global_count_buffers: [frames_count]BufferHandle,
+    binned_meshlets_buffers: [frames_count]BufferHandle,
+    classify_meshes_dispatch_args_buffers: [frames_count]BufferHandle,
 
-    frame_data_buffers: [frames_count]BufferHandle,
+    frame_uniform_buffers: [frames_count]BufferHandle,
 
-    // Clear Counters
-    clear_uav_params_buffers: [frames_count]BufferHandle,
+    // Culling: Clear Counters
+    clear_uav_uniform_buffers: [frames_count]BufferHandle,
     clear_uav_descriptor_set: [*c]DescriptorSet,
-    // Cull Instances
-    cull_instances_params_buffers: [frames_count]BufferHandle,
+    // Culling: Cull Instances
+    cull_instances_uniform_buffers: [frames_count]BufferHandle,
     cull_instances_descriptor_set: [*c]DescriptorSet,
-    // Build Meshlet Cull Args
-    build_meshlet_cull_args_params_buffers: [frames_count]BufferHandle,
+    // Culling: Build Meshlet Cull Args
+    build_meshlet_cull_args_uniform_buffers: [frames_count]BufferHandle,
     build_meshlet_cull_args_descriptor_set: [*c]DescriptorSet,
-    // Cull Meshlets
-    cull_meshlets_params_buffers: [frames_count]BufferHandle,
+    // Culling: Cull Meshlets
+    cull_meshlets_uniform_buffers: [frames_count]BufferHandle,
     cull_meshlets_descriptor_set: [*c]DescriptorSet,
+    // Binning: All PSOs
+    binning_meshlets_uniform_buffers: [frames_count]BufferHandle,
+    // Binning: Prepare Args
+    binning_prepare_args_descriptor_set: [*c]DescriptorSet,
+    binning_classify_meshlets_descriptor_set: [*c]DescriptorSet,
+    binning_allocate_bin_ranges_descriptor_set: [*c]DescriptorSet,
+    binning_write_bin_ranges_descriptor_set: [*c]DescriptorSet,
 
     pub fn init(self: *GpuDrivenRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
@@ -127,119 +153,199 @@ pub const GpuDrivenRenderPass = struct {
         self.renderer = rctx;
         self.prefab_mgr = prefab_mgr;
 
+        // Global Buffers
         for (self.instance_buffers, 0..) |_, buffer_index| {
             self.instance_buffers[buffer_index].init(rctx, instancens_max_count, @sizeOf(GpuInstance), false, "GPU Instances");
         }
 
-        self.candidate_meshlets_counters_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = 8 * @sizeOf(u32),
+        // Meshlet Culling Buffers
+        {
+            self.candidate_meshlets_counters_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = 8 * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Counters Buffer");
+                }
+                break :blk buffers;
             };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Counters Buffer");
-            }
-            break :blk buffers;
-        };
 
-        self.candidate_meshlets_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
+            self.candidate_meshlets_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Buffer");
+                }
+                break :blk buffers;
             };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Buffer");
-            }
-            break :blk buffers;
-        };
 
-        self.visible_meshlets_counters_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = 8 * @sizeOf(u32),
+            self.visible_meshlets_counters_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = 8 * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Counters Buffer");
+                }
+                break :blk buffers;
             };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Counters Buffer");
-            }
-            break :blk buffers;
-        };
 
-        self.visible_meshlets_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
+            self.visible_meshlets_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Buffer");
+                }
+                break :blk buffers;
             };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Buffer");
-            }
-            break :blk buffers;
-        };
 
-        self.meshlet_cull_args_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
-                .data = null,
-                .size = 8 * @sizeOf(u32),
+            self.meshlet_cull_args_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = 8 * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlets Cull Dispatch Args Buffer");
+                }
+                break :blk buffers;
             };
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlets Cull Dispatch Args Buffer");
-            }
-            break :blk buffers;
-        };
+        }
 
-        // Frame Uniform Buffers
-        self.frame_data_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(Frame);
-            }
+        // Meshlet Binning Buffers
+        {
+            self.meshlet_count_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = 16 * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Meshlets Count");
+                }
+                break :blk buffers;
+            };
 
-            break :blk buffers;
-        };
+            self.meshlet_offset_and_count_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = 16 * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Meshlets Offset and Count");
+                }
+                break :blk buffers;
+            };
 
-        // Clear UAV Params
-        self.clear_uav_params_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(ClearUavParams);
-            }
+            self.meshlet_global_count_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = 16 * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Meshlets Global Count");
+                }
+                break :blk buffers;
+            };
 
-            break :blk buffers;
-        };
+            self.binned_meshlets_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = meshlets_max_count * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Binned Meshlets");
+                }
+                break :blk buffers;
+            };
 
-        // Cull Instances Params
-        self.cull_instances_params_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(CullInstancesParams);
-            }
+            self.classify_meshes_dispatch_args_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                const buffer_data = renderer.Slice{
+                    .data = null,
+                    .size = 16 * @sizeOf(u32),
+                };
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Classify Meshlets Dispatch Args");
+                }
+                break :blk buffers;
+            };
+        }
 
-            break :blk buffers;
-        };
+        // Uniform Buffers
+        {
+            // Frame Uniform Buffers
+            self.frame_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(Frame);
+                }
 
-        // Build Meshlet Cull Args Params
-        self.build_meshlet_cull_args_params_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(BuildMeshletsCullArgsParams);
-            }
+                break :blk buffers;
+            };
 
-            break :blk buffers;
-        };
+            // Clear UAV Uniform Buffers
+            self.clear_uav_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(ClearUavParams);
+                }
 
-        // Cull Meshlets Params
-        self.cull_meshlets_params_buffers = blk: {
-            var buffers: [frames_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(CullMeshletsParams);
-            }
+                break :blk buffers;
+            };
 
-            break :blk buffers;
-        };
+            // Cull Instances Uniform Buffers
+            self.cull_instances_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(CullInstancesParams);
+                }
+
+                break :blk buffers;
+            };
+
+            // Build Meshlet Cull Args Uniform Buffers
+            self.build_meshlet_cull_args_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(BuildMeshletsCullArgsParams);
+                }
+
+                break :blk buffers;
+            };
+
+            // Cull Meshlets Uniform Buffers
+            self.cull_meshlets_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(CullMeshletsParams);
+                }
+
+                break :blk buffers;
+            };
+
+            // Meshlets Binning Uniform Buffers
+            self.binning_meshlets_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(BinningParams);
+                }
+
+                break :blk buffers;
+            };
+        }
 
         self.query_renderables = ecs.query_init(ecsu_world.world, &.{
             .entity = ecs.new_entity(ecsu_world.world, "query_renderables"),
@@ -378,156 +484,275 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         .data = @ptrCast(&frame),
         .size = @sizeOf(Frame),
     };
-    self.renderer.updateBuffer(frame_data, 0, Frame, self.frame_data_buffers[frame_index]);
+    self.renderer.updateBuffer(frame_data, 0, Frame, self.frame_uniform_buffers[frame_index]);
 
-    // Clear UAV Counters
+    // Meshlets Culling
     {
-        const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_counters_buffers[frame_index]);
-        const visible_meshlets_counters_buffer = self.renderer.getBuffer(self.visible_meshlets_counters_buffers[frame_index]);
+        // Clear UAV Counters
         {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
-                graphics.BufferBarrier.init(visible_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
-        }
+            const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_counters_buffers[frame_index]);
+            const visible_meshlets_counters_buffer = self.renderer.getBuffer(self.visible_meshlets_counters_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                    graphics.BufferBarrier.init(visible_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
 
-        {
-            const clear_uav_params = ClearUavParams{
-                .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
-                .visible_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
-            };
-            const clear_uav_params_data = renderer.Slice{
-                .data = @ptrCast(&clear_uav_params),
-                .size = @sizeOf(ClearUavParams),
-            };
-            self.renderer.updateBuffer(clear_uav_params_data, 0, ClearUavParams, self.clear_uav_params_buffers[frame_index]);
+            {
+                const clear_uav_params = ClearUavParams{
+                    .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+                    .visible_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
+                };
+                const clear_uav_params_data = renderer.Slice{
+                    .data = @ptrCast(&clear_uav_params),
+                    .size = @sizeOf(ClearUavParams),
+                };
+                self.renderer.updateBuffer(clear_uav_params_data, 0, ClearUavParams, self.clear_uav_uniform_buffers[frame_index]);
 
-            const pipeline_id = ID("meshlet_clear_counters");
-            const pipeline = self.renderer.getPSO(pipeline_id);
-            graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.clear_uav_descriptor_set);
-            graphics.cmdDispatch(cmd_list, 1, 1, 1);
-        }
-    }
-
-    // Cull Instances
-    {
-        const candidate_meshlets_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers[frame_index]);
-        {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(candidate_meshlets_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
-        }
-
-        {
-            const cull_instances_params = CullInstancesParams{
-                .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
-                .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
-            };
-
-            const cull_instances_params_data = renderer.Slice{
-                .data = @ptrCast(&cull_instances_params),
-                .size = @sizeOf(CullInstancesParams),
-            };
-            self.renderer.updateBuffer(cull_instances_params_data, 0, CullInstancesParams, self.cull_instances_params_buffers[frame_index]);
-
-            const pipeline_id = ID("meshlet_cull_instances");
-            const pipeline = self.renderer.getPSO(pipeline_id);
-            graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.cull_instances_descriptor_set);
-            const cull_instances_threads_count: u32 = 64;
-            const group_count_x = (self.instance_buffers[frame_index].element_count + cull_instances_threads_count - 1) / cull_instances_threads_count;
-            if (group_count_x > 0) {
-                graphics.cmdDispatch(cmd_list, group_count_x, 1, 1);
+                const pipeline_id = ID("meshlet_clear_counters");
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.clear_uav_descriptor_set);
+                graphics.cmdDispatch(cmd_list, 1, 1, 1);
             }
         }
 
-        const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers[frame_index]);
+        // Cull Instances
         {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            const candidate_meshlets_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(candidate_meshlets_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+
+            {
+                const cull_instances_params = CullInstancesParams{
+                    .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
+                    .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+                };
+
+                const cull_instances_params_data = renderer.Slice{
+                    .data = @ptrCast(&cull_instances_params),
+                    .size = @sizeOf(CullInstancesParams),
+                };
+                self.renderer.updateBuffer(cull_instances_params_data, 0, CullInstancesParams, self.cull_instances_uniform_buffers[frame_index]);
+
+                const pipeline_id = ID("meshlet_cull_instances");
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.cull_instances_descriptor_set);
+                const cull_instances_threads_count: u32 = 64;
+                const group_count_x = (self.instance_buffers[frame_index].element_count + cull_instances_threads_count - 1) / cull_instances_threads_count;
+                if (group_count_x > 0) {
+                    graphics.cmdDispatch(cmd_list, group_count_x, 1, 1);
+                }
+            }
+
+            const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+        }
+
+        // Build Meshlet Cull Dispatch Arguments
+        {
+            const meshlets_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(meshlets_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+
+            {
+                const build_meshlets_cull_args_params = BuildMeshletsCullArgsParams{
+                    .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+                    .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_cull_args_buffers[frame_index]),
+                };
+                const params_data = renderer.Slice{
+                    .data = @ptrCast(&build_meshlets_cull_args_params),
+                    .size = @sizeOf(BuildMeshletsCullArgsParams),
+                };
+                self.renderer.updateBuffer(params_data, 0, BuildMeshletsCullArgsParams, self.build_meshlet_cull_args_uniform_buffers[frame_index]);
+
+                const pipeline_id = ID("meshlet_build_meshlets_cull_args");
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.build_meshlet_cull_args_descriptor_set);
+                graphics.cmdDispatch(cmd_list, 1, 1, 1);
+            }
+
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(meshlets_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+        }
+
+        // Cull Meshlets
+        {
+            const visible_meshlet_buffer = self.renderer.getBuffer(self.visible_meshlets_buffers[frame_index]);
+            const meshlet_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(visible_meshlet_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                    graphics.BufferBarrier.init(meshlet_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_INDIRECT_ARGUMENT),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+
+            {
+                const cull_meshlets_params = CullMeshletsParams{
+                    .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
+                    .candidate_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+                    .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers[frame_index]),
+                    .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
+                };
+
+                const cull_meshlets_params_data = renderer.Slice{
+                    .data = @ptrCast(&cull_meshlets_params),
+                    .size = @sizeOf(CullMeshletsParams),
+                };
+                self.renderer.updateBuffer(cull_meshlets_params_data, 0, CullMeshletsParams, self.cull_meshlets_uniform_buffers[frame_index]);
+
+                const pipeline_id = ID("meshlet_cull_meshlets");
+                const pipeline = self.renderer.getPSO(pipeline_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.cull_meshlets_descriptor_set);
+                graphics.cmdExecuteIndirect(cmd_list, .INDIRECT_DISPATCH, 1, meshlet_cull_args_buffer, 0, null, 0);
+            }
+
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(visible_meshlet_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                    graphics.BufferBarrier.init(meshlet_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_INDIRECT_ARGUMENT, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
         }
     }
 
-    // Build Meshlet Cull Dispatch Arguments
+    // Binning Meshets
     {
-        const meshlets_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers[frame_index]);
-        {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(meshlets_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
-        }
+        var binning_params = BinningParams{
+            .bins_count = 2, // TODO
+            .meshlet_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_count_buffers[frame_index]),
+            .meshlet_offset_and_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_offset_and_count_buffers[frame_index]),
+            .global_meshlet_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_global_count_buffers[frame_index]),
+            .binned_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.binned_meshlets_buffers[frame_index]),
+            .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.classify_meshes_dispatch_args_buffers[frame_index]),
+            .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers[frame_index]),
+            .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
+        };
 
-        {
-            const build_meshlets_cull_args_params = BuildMeshletsCullArgsParams{
-                .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
-                .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_cull_args_buffers[frame_index]),
-            };
-            const params_data = renderer.Slice{
-                .data = @ptrCast(&build_meshlets_cull_args_params),
-                .size = @sizeOf(BuildMeshletsCullArgsParams),
-            };
-            self.renderer.updateBuffer(params_data, 0, BuildMeshletsCullArgsParams, self.build_meshlet_cull_args_params_buffers[frame_index]);
+        const data = renderer.Slice{
+            .data = @ptrCast(&binning_params),
+            .size = @sizeOf(BinningParams),
+        };
+        self.renderer.updateBuffer(data, 0, BinningParams, self.binning_meshlets_uniform_buffers[frame_index]);
 
-            const pipeline_id = ID("meshlet_build_meshlets_cull_args");
+        // Binning: Prepare Args
+        {
+            const meshlet_count_buffer = self.renderer.getBuffer(self.meshlet_count_buffers[frame_index]);
+            const meshlet_global_count_buffer = self.renderer.getBuffer(self.meshlet_global_count_buffers[frame_index]);
+            const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(meshlet_count_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                    graphics.BufferBarrier.init(meshlet_global_count_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                    graphics.BufferBarrier.init(classify_meshes_dispatch_args_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+
+            const pipeline_id = ID("meshlet_binning_prepare_args");
             const pipeline = self.renderer.getPSO(pipeline_id);
             graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.build_meshlet_cull_args_descriptor_set);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.binning_prepare_args_descriptor_set);
             graphics.cmdDispatch(cmd_list, 1, 1, 1);
+
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(meshlet_count_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                    graphics.BufferBarrier.init(meshlet_global_count_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
         }
 
+        // Binning: Classify Meshlets
         {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(meshlets_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
-        }
-    }
+            const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(classify_meshes_dispatch_args_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_INDIRECT_ARGUMENT),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
 
-    // Cull Meshlets
-    {
-        const visible_meshlet_buffer = self.renderer.getBuffer(self.visible_meshlets_buffers[frame_index]);
-        const meshlet_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers[frame_index]);
-        {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(visible_meshlet_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
-                graphics.BufferBarrier.init(meshlet_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_INDIRECT_ARGUMENT),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
-        }
-
-        {
-            const cull_meshlets_params = CullMeshletsParams{
-                .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
-                .candidate_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
-                .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers[frame_index]),
-                .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
-            };
-
-            const cull_meshlets_params_data = renderer.Slice{
-                .data = @ptrCast(&cull_meshlets_params),
-                .size = @sizeOf(CullMeshletsParams),
-            };
-            self.renderer.updateBuffer(cull_meshlets_params_data, 0, CullMeshletsParams, self.cull_meshlets_params_buffers[frame_index]);
-
-            const pipeline_id = ID("meshlet_cull_meshlets");
+            const pipeline_id = ID("meshlet_binning_classify_meshlets");
             const pipeline = self.renderer.getPSO(pipeline_id);
             graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.cull_meshlets_descriptor_set);
-            graphics.cmdExecuteIndirect(cmd_list, .INDIRECT_DISPATCH, 1, meshlet_cull_args_buffer, 0, null, 0);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.binning_classify_meshlets_descriptor_set);
+            graphics.cmdExecuteIndirect(cmd_list, .INDIRECT_DISPATCH, 1, classify_meshes_dispatch_args_buffer, 0, null, 0);
         }
 
+        // Binning: Allocate Bin Ranges
         {
-            const buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(visible_meshlet_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
-                graphics.BufferBarrier.init(meshlet_cull_args_buffer, graphics.ResourceState.RESOURCE_STATE_INDIRECT_ARGUMENT, graphics.ResourceState.RESOURCE_STATE_COMMON),
-            };
-            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            const meshlet_offset_and_count_buffer = self.renderer.getBuffer(self.meshlet_offset_and_count_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(meshlet_offset_and_count_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+
+            const pipeline_id = ID("meshlet_binning_allocate_bin_ranges");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.binning_allocate_bin_ranges_descriptor_set);
+            graphics.cmdDispatch(cmd_list, 1, 1, 1);
+
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(meshlet_offset_and_count_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+        }
+
+        // Binning: Write Bin Ranges
+        {
+            const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers[frame_index]);
+            const binned_meshlets_buffer = self.renderer.getBuffer(self.binned_meshlets_buffers[frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(binned_meshlets_buffer, graphics.ResourceState.RESOURCE_STATE_COMMON, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+
+            const pipeline_id = ID("meshlet_binning_write_bin_ranges");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.binning_write_bin_ranges_descriptor_set);
+            graphics.cmdExecuteIndirect(cmd_list, .INDIRECT_DISPATCH, 1, classify_meshes_dispatch_args_buffer, 0, null, 0);
+
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(binned_meshlets_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                    graphics.BufferBarrier.init(classify_meshes_dispatch_args_buffer, graphics.ResourceState.RESOURCE_STATE_INDIRECT_ARGUMENT, graphics.ResourceState.RESOURCE_STATE_COMMON),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
         }
     }
 }
@@ -570,6 +795,42 @@ fn createDescriptorSets(user_data: *anyopaque) void {
         desc.pRootSignature = root_signature;
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.cull_meshlets_descriptor_set));
     }
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("meshlet_binning_prepare_args"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = frames_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.binning_prepare_args_descriptor_set));
+    }
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("meshlet_binning_classify_meshlets"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = frames_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.binning_classify_meshlets_descriptor_set));
+    }
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("meshlet_binning_allocate_bin_ranges"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = frames_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.binning_allocate_bin_ranges_descriptor_set));
+    }
+
+    {
+        const root_signature = self.renderer.getRootSignature(IdLocal.init("meshlet_binning_write_bin_ranges"));
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = frames_count;
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.binning_write_bin_ranges_descriptor_set));
+    }
 }
 
 fn prepareDescriptorSets(user_data: *anyopaque) void {
@@ -578,12 +839,12 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     var params: [2]graphics.DescriptorData = undefined;
 
     for (0..frames_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_data_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-        var uniform_buffer = self.renderer.getBuffer(self.clear_uav_params_buffers[i]);
+        var uniform_buffer = self.renderer.getBuffer(self.clear_uav_uniform_buffers[i]);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
         params[1].pName = "g_ClearUAVParams";
         params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
@@ -592,12 +853,12 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_data_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-        var cull_instances_params_buffer = self.renderer.getBuffer(self.cull_instances_params_buffers[i]);
+        var cull_instances_params_buffer = self.renderer.getBuffer(self.cull_instances_uniform_buffers[i]);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
         params[1].pName = "g_CullInstancesParams";
         params[1].__union_field3.ppBuffers = @ptrCast(&cull_instances_params_buffer);
@@ -606,12 +867,12 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     }
 
     for (0..frames_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_data_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-        var uniform_buffer = self.renderer.getBuffer(self.build_meshlet_cull_args_params_buffers[i]);
+        var uniform_buffer = self.renderer.getBuffer(self.build_meshlet_cull_args_uniform_buffers[i]);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
         params[1].pName = "g_MeshletsCullArgsParams";
         params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
@@ -620,17 +881,34 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_data_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-        var cull_meshlets_params_buffer = self.renderer.getBuffer(self.cull_meshlets_params_buffers[i]);
+        var cull_meshlets_params_buffer = self.renderer.getBuffer(self.cull_meshlets_uniform_buffers[i]);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
         params[1].pName = "g_CullMeshletsParams";
         params[1].__union_field3.ppBuffers = @ptrCast(&cull_meshlets_params_buffer);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.cull_meshlets_descriptor_set, @intCast(params.len), @ptrCast(&params));
+    }
+
+    for (0..renderer.Renderer.data_buffer_count) |i| {
+        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
+        params[0] = std.mem.zeroes(graphics.DescriptorData);
+        params[0].pName = "g_Frame";
+        params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
+
+        var binning_meshlets_params_buffer = self.renderer.getBuffer(self.binning_meshlets_uniform_buffers[i]);
+        params[1] = std.mem.zeroes(graphics.DescriptorData);
+        params[1].pName = "g_BinningParams";
+        params[1].__union_field3.ppBuffers = @ptrCast(&binning_meshlets_params_buffer);
+
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.binning_prepare_args_descriptor_set, @intCast(params.len), @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.binning_classify_meshlets_descriptor_set, @intCast(params.len), @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.binning_allocate_bin_ranges_descriptor_set, @intCast(params.len), @ptrCast(&params));
+        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.binning_write_bin_ranges_descriptor_set, @intCast(params.len), @ptrCast(&params));
     }
 }
 
@@ -641,6 +919,10 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
     graphics.removeDescriptorSet(self.renderer.renderer, self.cull_instances_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.build_meshlet_cull_args_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.cull_meshlets_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.binning_prepare_args_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.binning_classify_meshlets_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.binning_allocate_bin_ranges_descriptor_set);
+    graphics.removeDescriptorSet(self.renderer.renderer, self.binning_write_bin_ranges_descriptor_set);
 }
 
 inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
