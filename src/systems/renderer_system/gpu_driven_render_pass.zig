@@ -508,11 +508,12 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     });
     const camera_position = camera_comps.transform.getPos00();
     const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-    const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
     // Frame Uniform Buffer
     {
+        const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
+        const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
+
         var frame = std.mem.zeroes(Frame);
 
         zm.storeMat(&frame.view, zm.transpose(z_view));
@@ -541,6 +542,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Frame Culling Uniform Buffer
     {
+        const z_proj = zm.loadMat(camera_comps.camera.projection_standard[0..]);
+        const z_view_proj = zm.loadMat(camera_comps.camera.view_projection_standard[0..]);
+
         if (!self.render_settings.freeze_rendering) {
             zm.storeMat(&self.frame_culling_uniform_data[frame_index].view, zm.transpose(z_view));
             zm.storeMat(&self.frame_culling_uniform_data[frame_index].proj, zm.transpose(z_proj));
