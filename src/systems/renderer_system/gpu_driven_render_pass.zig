@@ -13,6 +13,7 @@ const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const zm = @import("zmath");
+const zgui = @import("zgui");
 const im3d = @import("im3d");
 
 const graphics = zforge.graphics;
@@ -107,6 +108,10 @@ const RasterizerParams = struct {
     meshlet_bin_data_buffer_index: u32,
 };
 
+const RenderSettings = struct {
+    freeze_rendering: bool,
+};
+
 pub const GpuDrivenRenderPass = struct {
     allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
@@ -114,6 +119,7 @@ pub const GpuDrivenRenderPass = struct {
     render_pass: RenderPass,
     prefab_mgr: *PrefabManager,
     query_renderables: *ecs.query_t,
+    render_settings: RenderSettings,
 
     instances: std.ArrayList(GpuInstance),
     entity_maps: [frames_count]EntityMap,
@@ -135,6 +141,9 @@ pub const GpuDrivenRenderPass = struct {
 
     frame_uniform_buffers: [frames_count]BufferHandle,
 
+    // Culling: All PSOs
+    frame_culling_uniform_data: [frames_count]Frame,
+    frame_culling_uniform_buffers: [frames_count]BufferHandle,
     // Culling: Clear Counters
     clear_uav_uniform_buffers: [frames_count]BufferHandle,
     clear_uav_descriptor_set: [*c]DescriptorSet,
@@ -307,6 +316,16 @@ pub const GpuDrivenRenderPass = struct {
                 break :blk buffers;
             };
 
+            // Frame Culling Uniform Buffers
+            self.frame_culling_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(Frame);
+                }
+
+                break :blk buffers;
+            };
+
             // Clear UAV Uniform Buffers
             self.clear_uav_uniform_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
@@ -395,6 +414,7 @@ pub const GpuDrivenRenderPass = struct {
             .prepare_descriptor_sets_fn = prepareDescriptorSets,
             .unload_descriptor_sets_fn = unloadDescriptorSets,
             .render_gbuffer_pass_fn = renderGBuffer,
+            .render_imgui_fn = renderImGui,
             .render_shadow_pass_fn = null,
             .user_data = @ptrCast(self),
         };
@@ -467,6 +487,13 @@ fn update(user_data: *anyopaque) void {
     }
 }
 
+fn renderImGui(user_data: *anyopaque) void {
+    if (zgui.collapsingHeader("GPU Driven Renderer", .{})) {
+        const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
+
+        _ = zgui.checkbox("Freeze Culling", .{ .v = &self.render_settings.freeze_rendering });    }
+}
+
 fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "GPU Driven: GBuffer", 0x00_ff_00_00);
     defer trazy_zone.End();
@@ -474,39 +501,72 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
 
-    var camera_entity = util.getPlayerCameraEnt(self.ecsu_world);
+    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
     const camera_comps = camera_entity.getComps(struct {
         camera: *const fd.Camera,
         transform: *const fd.Transform,
     });
     const camera_position = camera_comps.transform.getPos00();
     const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-    const z_proj = zm.loadMat(camera_comps.camera.projection_standard[0..]);
-    const z_view_proj = zm.loadMat(camera_comps.camera.view_projection_standard[0..]);
+    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
+    const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
-    var frame = std.mem.zeroes(Frame);
-    zm.storeMat(&frame.view, zm.transpose(z_view));
-    zm.storeMat(&frame.proj, zm.transpose(z_proj));
-    zm.storeMat(&frame.view_proj, zm.transpose(z_view_proj));
-    zm.storeMat(&frame.view_proj_inv, zm.transpose(zm.inverse(z_view_proj)));
-    frame.camera_position[0] = camera_position[0];
-    frame.camera_position[1] = camera_position[1];
-    frame.camera_position[2] = camera_position[2];
-    frame.camera_position[3] = 1.0;
-    frame.camera_near_plane = camera_comps.camera.near;
-    frame.camera_far_plane = camera_comps.camera.far;
-    frame.time = @floatCast(self.renderer.time);
-    frame._padding0 = 42;
-    frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
-    frame.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
-    frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
-    frame.instance_count = self.instance_buffers[frame_index].element_count;
+    // Frame Uniform Buffer
+    {
+        var frame = std.mem.zeroes(Frame);
 
-    const frame_data = renderer.Slice{
-        .data = @ptrCast(&frame),
-        .size = @sizeOf(Frame),
-    };
-    self.renderer.updateBuffer(frame_data, 0, Frame, self.frame_uniform_buffers[frame_index]);
+        zm.storeMat(&frame.view, zm.transpose(z_view));
+        zm.storeMat(&frame.proj, zm.transpose(z_proj));
+        zm.storeMat(&frame.view_proj, zm.transpose(z_view_proj));
+        zm.storeMat(&frame.view_proj_inv, zm.transpose(zm.inverse(z_view_proj)));
+        frame.camera_position[0] = camera_position[0];
+        frame.camera_position[1] = camera_position[1];
+        frame.camera_position[2] = camera_position[2];
+        frame.camera_position[3] = 1.0;
+        frame.camera_near_plane = camera_comps.camera.near;
+        frame.camera_far_plane = camera_comps.camera.far;
+        frame.time = @floatCast(self.renderer.time);
+        frame._padding0 = 42;
+        frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
+        frame.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
+        frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
+        frame.instance_count = self.instance_buffers[frame_index].element_count;
+
+        const frame_data = renderer.Slice{
+            .data = @ptrCast(&frame),
+            .size = @sizeOf(Frame),
+        };
+        self.renderer.updateBuffer(frame_data, 0, Frame, self.frame_uniform_buffers[frame_index]);
+    }
+
+    // Frame Culling Uniform Buffer
+    {
+        if (!self.render_settings.freeze_rendering) {
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view, zm.transpose(z_view));
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].proj, zm.transpose(z_proj));
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view_proj, zm.transpose(z_view_proj));
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view_proj_inv, zm.transpose(zm.inverse(z_view_proj)));
+            self.frame_culling_uniform_data[frame_index].camera_position[0] = camera_position[0];
+            self.frame_culling_uniform_data[frame_index].camera_position[1] = camera_position[1];
+            self.frame_culling_uniform_data[frame_index].camera_position[2] = camera_position[2];
+            self.frame_culling_uniform_data[frame_index].camera_position[3] = 1.0;
+            self.frame_culling_uniform_data[frame_index].camera_near_plane = camera_comps.camera.near;
+            self.frame_culling_uniform_data[frame_index].camera_far_plane = camera_comps.camera.far;
+        }
+
+        self.frame_culling_uniform_data[frame_index].time = @floatCast(self.renderer.time);
+        self.frame_culling_uniform_data[frame_index]._padding0 = 42;
+        self.frame_culling_uniform_data[frame_index].instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
+        self.frame_culling_uniform_data[frame_index].material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
+        self.frame_culling_uniform_data[frame_index].meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
+        self.frame_culling_uniform_data[frame_index].instance_count = self.instance_buffers[frame_index].element_count;
+
+        const frame_culling_data = renderer.Slice{
+            .data = @ptrCast(&self.frame_culling_uniform_data[frame_index]),
+            .size = @sizeOf(Frame),
+        };
+        self.renderer.updateBuffer(frame_culling_data, 0, Frame, self.frame_culling_uniform_buffers[frame_index]);
+    }
 
     // Meshlets Culling
     {
@@ -913,7 +973,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     var params: [2]graphics.DescriptorData = undefined;
 
     for (0..frames_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_culling_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
@@ -927,7 +987,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_culling_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
@@ -941,7 +1001,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     }
 
     for (0..frames_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_culling_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
@@ -955,7 +1015,7 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
     }
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
-        var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
+        var frame_buffer = self.renderer.getBuffer(self.frame_culling_uniform_buffers[i]);
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "g_Frame";
         params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
