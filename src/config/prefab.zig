@@ -345,7 +345,13 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         const beech_04_LOD0_id = ID("beech_tree_04_lod0");
+        const beech_04_LOD1_id = ID("beech_tree_04_lod1");
+        const beech_04_LOD2_id = ID("beech_tree_04_lod2");
+        // const beech_04_LOD3_id = ID("beech_tree_04_lod3");
         prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh", beech_04_LOD0_id) catch unreachable;
+        prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD1.mesh", beech_04_LOD1_id) catch unreachable;
+        prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD2.mesh", beech_04_LOD2_id) catch unreachable;
+        // prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD3.mesh", beech_04_LOD3_id) catch unreachable;
 
         var beech_trunk_04_material = renderer.UberShaderMaterialData.init();
         beech_trunk_04_material.gbuffer_pipeline_id = pipeline_tree_gbuffer_opaque_id;
@@ -368,7 +374,24 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const beech_atlas_v2_material_id = ID("beech_atlas_v2");
         prefab_mgr.rctx.loadMaterial(beech_atlas_v2_material_id, beech_atlas_v2_material) catch unreachable;
 
-        prefab_mgr.rctx.registerRenderable(beech_tree_04_id, beech_04_LOD0_id, &[_]IdLocal{ beech_trunk_04_material_id, beech_atlas_v2_material_id});
+        var renderable_desc = renderer.RenderableDesc{
+            .lods_count = 3,
+            .lods = undefined,
+        };
+        renderable_desc.lods[0].mesh_id = beech_04_LOD0_id;
+        renderable_desc.lods[0].materials_count = 2;
+        renderable_desc.lods[0].materials[0] = beech_trunk_04_material_id;
+        renderable_desc.lods[0].materials[1] = beech_atlas_v2_material_id;
+        renderable_desc.lods[1].mesh_id = beech_04_LOD1_id;
+        renderable_desc.lods[1].materials_count = 2;
+        renderable_desc.lods[1].materials[0] = beech_trunk_04_material_id;
+        renderable_desc.lods[1].materials[1] = beech_atlas_v2_material_id;
+        renderable_desc.lods[2].mesh_id = beech_04_LOD2_id;
+        renderable_desc.lods[2].materials_count = 2;
+        renderable_desc.lods[2].materials[0] = beech_trunk_04_material_id;
+        renderable_desc.lods[2].materials[1] = beech_atlas_v2_material_id;
+
+        prefab_mgr.rctx.registerRenderable(beech_tree_04_id, renderable_desc);
 
         const beech_tree_04 = prefab_mgr.createRenderablePrefab(beech_tree_04_id, ecsu_world);
         var renderable = beech_tree_04.getMut(fd.Renderable).?;
