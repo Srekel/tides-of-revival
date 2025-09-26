@@ -34,7 +34,7 @@ struct Mesh
     uint positionsOffset;
     uint normalsOffset;
     uint texcoordsOffset;
-    uint tangentOffsets;
+    uint tangentsOffset;
     uint indicesOffset;
     uint indexByteSize;
     uint meshletOffset;
@@ -76,12 +76,10 @@ struct Instance
 {
     float4x4 world;
     float3 localBoundsOrigin;
-    uint _pad0;
-    float3 localBoundsExtents;
     uint id;
-    uint meshIndex;
+    float3 localBoundsExtents;
+    uint3 meshLodIndices;
     uint materialIndex;
-    uint2 _pad1;
 };
 
 struct MaterialData

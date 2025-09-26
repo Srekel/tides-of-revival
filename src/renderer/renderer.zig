@@ -1092,15 +1092,18 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    pub fn registerRenderable(self: *Renderer, id: IdLocal, mesh_id: IdLocal, materials: []const IdLocal) void {
-        const mesh = self.mesh_map.get(mesh_id.hash).?;
-        std.debug.assert(mesh.count == @as(u32, @intCast(materials.len)));
-
+    pub fn registerRenderable(self: *Renderer, id: IdLocal, desc: RenderableDesc) void {
         var renderable: Renderable = undefined;
-        renderable.mesh_id = mesh_id;
-        renderable.material_count = @intCast(materials.len);
-        for (0..materials.len) |i| {
-            renderable.materials[i] = materials[i];
+        renderable.lods_count = desc.lods_count;
+
+        for (desc.lods, 0..) |lod, lod_index| {
+            const mesh = self.mesh_map.get(lod.mesh_id.hash).?;
+            std.debug.assert(mesh.count == @as(u32, @intCast(lod.materials_count)));
+            renderable.lods[lod_index].mesh_id = lod.mesh_id;
+            renderable.lods[lod_index].materials_count = lod.materials_count;
+            for (0..lod.materials_count) |material_index| {
+                renderable.lods[lod_index].materials[material_index] = lod.materials[material_index];
+            }
         }
 
         self.renderable_map.put(id.hash, renderable) catch unreachable;
@@ -2129,11 +2132,22 @@ pub const renderer_bucket_opaque: u32 = 1;
 pub const renderer_bucket_masked: u32 = 0;
 
 const materials_per_renderable_max_count: u32 = 8;
+const lods_per_renderable_max_count: u32 = 3;
 
-const Renderable = struct {
+pub const RenderableDesc = struct {
+    lods: [lods_per_renderable_max_count]RenderableLod,
+    lods_count: u32,
+};
+
+pub const RenderableLod = struct {
     mesh_id: IdLocal,
     materials: [materials_per_renderable_max_count]IdLocal,
-    material_count: u32,
+    materials_count: u32,
+};
+
+const Renderable = struct {
+    lods: [lods_per_renderable_max_count]RenderableLod,
+    lods_count: u32,
 };
 
 const RenderableHashMap = std.AutoHashMap(u64, Renderable);

@@ -97,7 +97,7 @@ bool FrustumCull(float3 aabb_center, float3 aabb_extents, float4x4 world, float4
     rect_max = max(rect_max, corner_101_cs);
     rect_max = max(rect_max, corner_011_cs);
     rect_max = max(rect_max, corner_111_cs);
-    rect_max = max(rect_max, float3(1, 1, 1));
+    rect_max = max(rect_max, float3(-1, -1, -1));
 
     is_visible &= rect_max.z > 0;
 

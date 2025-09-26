@@ -26,7 +26,7 @@ cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
     Instance instance = getInstance(instanceIndex);
 
     ByteAddressBuffer mesh_buffer = ResourceDescriptorHeap[g_Frame.meshesBufferIndex];
-    Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
+    Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshLodIndices[2] * sizeof(Mesh));
 
     bool isVisible = FrustumCull(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj);
 
