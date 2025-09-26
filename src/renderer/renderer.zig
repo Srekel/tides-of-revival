@@ -121,19 +121,11 @@ pub const Renderer = struct {
     swap_chain_image_index: u32 = 0,
     graphics_queue: [*c]graphics.Queue = null,
     frame_index: u32 = 0,
-
-    gpu_profile_token: profiler.ProfileToken = undefined,
-    ssao_pass_profile_token: profiler.ProfileToken = undefined,
-    z_prepass_pass_profile_token: profiler.ProfileToken = undefined,
-    shadow_pass_profile_token: profiler.ProfileToken = undefined,
-    gbuffer_pass_profile_token: profiler.ProfileToken = undefined,
-    deferred_pass_profile_token: profiler.ProfileToken = undefined,
-    atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
-    water_pass_profile_token: profiler.ProfileToken = undefined,
-    post_processing_pass_profile_token: profiler.ProfileToken = undefined,
-    ui_pass_profile_token: profiler.ProfileToken = undefined,
-    imgui_pass_profile_token: profiler.ProfileToken = undefined,
-    composite_sdr_profile_token: profiler.ProfileToken = undefined,
+    profiler: Profiler = undefined,
+    gpu_frame_profile_index: usize = 0,
+    gpu_terrain_pass_profile_index: usize = 0,
+    gpu_geometry_pass_profile_index: usize = 0,
+    gpu_gpu_driven_pass_profile_index: usize = 0,
 
     // Resources
     // =========
@@ -296,6 +288,8 @@ pub const Renderer = struct {
         // profiler_desc.pRenderer = self.renderer;
         // profiler.initProfiler(&profiler_desc);
         // self.gpu_profile_token = profiler.initGpuProfiler(self.renderer, self.graphics_queue, "Graphics");
+
+        self.profiler.init(self, self.allocator);
 
         self.vertex_layouts_map = VertexLayoutHashMap.init(allocator);
 
@@ -480,6 +474,7 @@ pub const Renderer = struct {
 
         // profiler.exitGpuProfiler(self.gpu_profile_token);
         // profiler.exitProfiler();
+        self.profiler.shutdown();
 
         self.destroyResolutionIndependentRenderTargets();
 
@@ -490,6 +485,29 @@ pub const Renderer = struct {
         font.platformExitFontSystem();
         log.exitLog();
         file_system.exitFileSystem();
+    }
+
+    pub fn startGpuProfile(self: *Renderer, cmd_list: [*c]graphics.Cmd, name: []const u8) usize {
+        return self.profiler.startProfile(cmd_list, name);
+    }
+
+    pub fn endGpuProfile(self: *Renderer, cmd_list: [*c]graphics.Cmd, profile_index: usize) void {
+        self.profiler.endProfile(cmd_list, profile_index);
+    }
+
+    pub fn getFrameAvgTimeMs(self: *Renderer) f32 {
+        return getProfilerAvgTimeMs(self.frame_profiler_index);
+    }
+
+    pub fn getProfilerAvgTimeMs(self: *Renderer, profiler_index: usize) f32 {
+        const profile_data = self.profiler.profiles.items[profiler_index];
+        var sum: f64 = 0;
+
+        for (0..ProfileData.filter_size) |i| {
+            sum += profile_data.time_samples[i];
+        }
+        sum /= 64.0;
+        return @floatCast(sum);
     }
 
     pub fn registerRenderPass(self: *Renderer, render_pass: *RenderPass) void {
@@ -625,7 +643,10 @@ pub const Renderer = struct {
                 // GPU Profiler
                 {
                     if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
-                        // zgui.text("GPU Average time: {d}", .{profiler.getGpuProfileAvgTime(self.gpu_profile_token)});
+                        zgui.text("GPU Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_frame_profile_index)});
+                        zgui.text("Terrain Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_terrain_pass_profile_index)});
+                        zgui.text("Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_geometry_pass_profile_index)});
+                        zgui.text("GPU-Driven Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_gpu_driven_pass_profile_index)});
 
                         // zgui.text("\tZ PrePass: {d}", .{profiler.getGpuProfileAvgTime(self.z_prepass_pass_profile_token)});
                         // zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
@@ -735,7 +756,7 @@ pub const Renderer = struct {
         var cmd_list = elem.cmds[0];
         graphics.beginCmd(cmd_list);
 
-        // profiler.cmdBeginGpuFrameProfile(cmd_list, self.gpu_profile_token, .{ .bUseMarker = true });
+        self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
 
         // SSAO
         if (false) {
@@ -1052,6 +1073,8 @@ pub const Renderer = struct {
             }
 
             // profiler.cmdEndGpuFrameProfile(cmd_list, self.gpu_profile_token);
+            self.endGpuProfile(cmd_list, self.gpu_frame_profile_index);
+            self.profiler.endFrame();
             graphics.endCmd(cmd_list);
 
             var flush_update_desc = std.mem.zeroes(resource_loader.FlushResourceUpdateDesc);
@@ -2442,6 +2465,145 @@ pub const FrameStats = struct {
         }
         self.frame_counter += 1;
     }
+};
+
+// ██████╗ ██████╗  ██████╗ ███████╗██╗██╗     ███████╗██████╗
+// ██╔══██╗██╔══██╗██╔═══██╗██╔════╝██║██║     ██╔════╝██╔══██╗
+// ██████╔╝██████╔╝██║   ██║█████╗  ██║██║     █████╗  ██████╔╝
+// ██╔═══╝ ██╔══██╗██║   ██║██╔══╝  ██║██║     ██╔══╝  ██╔══██╗
+// ██║     ██║  ██║╚██████╔╝██║     ██║███████╗███████╗██║  ██║
+// ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
+//
+
+// Ported from: https://github.com/TheRealMJP/DXRPathTracer/blob/master/SampleFramework12/v1.02/Graphics/Profiler.h
+
+pub const Profiler = struct {
+    const profiles_max_count: usize = 64;
+    const invalid_profile_index: usize = std.math.maxInt(usize);
+
+    renderer: *Renderer,
+    profiles: std.ArrayList(ProfileData),
+    query_pools: [Renderer.data_buffer_count][*c]graphics.QueryPool,
+
+    pub fn init(self: *Profiler, renderer: *Renderer, allocator: std.mem.Allocator) void {
+        self.profiles = std.ArrayList(ProfileData).init(allocator);
+        self.renderer = renderer;
+
+        for (0..Renderer.data_buffer_count) |frame_index| {
+            const query_pool_desc = graphics.QueryPoolDesc{
+                .pName = "GPU Profiler",
+                .mType = .QUERY_TYPE_TIMESTAMP,
+                .mQueryCount = profiles_max_count,
+                .mNodeIndex = 0,
+            };
+
+            graphics.initQueryPool(self.renderer.renderer, @ptrCast(&query_pool_desc), &self.query_pools[frame_index]);
+        }
+    }
+
+    pub fn shutdown(self: *Profiler) void {
+        for (0..Renderer.data_buffer_count) |frame_index| {
+            graphics.exitQueryPool(self.renderer.renderer, self.query_pools[frame_index]);
+        }
+        self.profiles.deinit();
+    }
+
+    pub fn startProfile(self: *Profiler, cmd_list: [*c]graphics.Cmd, name: []const u8) usize {
+        const id = IdLocal.init(name);
+
+        var profile_index: usize = invalid_profile_index;
+        for (self.profiles.items, 0..) |profile, index| {
+            if (profile.id.hash == id.hash) {
+                profile_index = index;
+                break;
+            }
+        }
+
+        if (profile_index == invalid_profile_index) {
+            std.debug.assert(self.profiles.items.len < profiles_max_count);
+            profile_index = self.profiles.items.len;
+
+            var profile = std.mem.zeroes(ProfileData);
+            profile.id = id;
+            memcpy(&profile.name, @ptrCast(&name.ptr), 0, name.len);
+            @memset(profile.time_samples[0..], 0);
+            self.profiles.append(profile) catch unreachable;
+        }
+
+        var profile_data = &self.profiles.items[profile_index];
+        std.debug.assert(profile_data.query_started == false);
+        std.debug.assert(profile_data.query_finished == false);
+        profile_data.active = true;
+        profile_data.query_started = true;
+
+        // Insert the start timestamp
+        const query_desc = graphics.QueryDesc{
+            .mIndex = @intCast(profile_index),
+        };
+
+        graphics.cmdBeginDebugMarker(cmd_list, 0.1, 0.8, 0.1, @ptrCast(name[0..]));
+        graphics.cmdBeginQuery(cmd_list, self.query_pools[self.renderer.frame_index], @constCast(&query_desc));
+
+        return profile_index;
+    }
+
+    pub fn endProfile(self: *Profiler, cmd_list: [*c]graphics.Cmd, profile_index: usize) void {
+        std.debug.assert(profile_index < self.profiles.items.len);
+
+        var profile_data = &self.profiles.items[profile_index];
+        std.debug.assert(profile_data.query_started == true);
+        std.debug.assert(profile_data.query_finished == false);
+
+        // Insert the end timestamp
+        const query_desc = graphics.QueryDesc{
+            .mIndex = @intCast(profile_index),
+        };
+        graphics.cmdEndQuery(cmd_list, self.query_pools[self.renderer.frame_index], @constCast(&query_desc));
+
+        // Resolve the data
+        graphics.cmdResolveQuery(cmd_list, self.query_pools[self.renderer.frame_index], query_desc.mIndex, 1);
+        graphics.cmdEndDebugMarker(cmd_list);
+
+        profile_data.query_started = false;
+        profile_data.query_finished = true;
+    }
+
+    pub fn endFrame(self: *Profiler) void {
+        var timestamp_frequency: f64 = 0;
+        graphics.getTimestampFrequency(self.renderer.graphics_queue, @ptrCast(&timestamp_frequency));
+
+        for (self.profiles.items, 0..) |*profile, profile_index| {
+            profile.query_finished = false;
+
+            var query_data = std.mem.zeroes(graphics.QueryData);
+            graphics.getQueryData(self.renderer.renderer, self.query_pools[self.renderer.frame_index], @intCast(profile_index), @ptrCast(&query_data));
+
+            var time: f64 = 0.0;
+            const start_time = query_data.__union_field1.__struct_field3.mBeginTimestamp;
+            const end_time = query_data.__union_field1.__struct_field3.mEndTimestamp;
+            if (end_time > start_time) {
+                const delta = end_time - start_time;
+                time = @as(f64, @floatFromInt(delta)) / timestamp_frequency * 1000.0;
+            }
+
+            profile.time_samples[profile.current_sample] = time;
+            profile.current_sample = (profile.current_sample + 1) % ProfileData.filter_size;
+
+            profile.active = false;
+        }
+    }
+};
+
+const ProfileData = struct {
+    pub const filter_size: usize = 64;
+
+    name: [256]u8,
+    id: IdLocal,
+    query_started: bool,
+    query_finished: bool,
+    active: bool,
+    time_samples: [filter_size]f64 = undefined,
+    current_sample: usize,
 };
 
 fn memcpy(dst: *anyopaque, src: *const anyopaque, dst_offset: u64, byte_count: u64) void {

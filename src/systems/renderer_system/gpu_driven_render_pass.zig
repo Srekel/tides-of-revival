@@ -517,6 +517,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const self: *GpuDrivenRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
 
+    self.renderer.gpu_gpu_driven_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "GPU-Driven");
+    defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_gpu_driven_pass_profile_index);
+
     var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
     const camera_comps = camera_entity.getComps(struct {
         camera: *const fd.Camera,

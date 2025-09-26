@@ -393,6 +393,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
 
+    self.renderer.gpu_terrain_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "Terrain");
+    defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_terrain_pass_profile_index);
+
     const frame_index = self.renderer.frame_index;
 
     var camera_entity = util.getActiveCameraEnt(self.ecsu_world);

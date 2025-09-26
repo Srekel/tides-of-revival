@@ -245,6 +245,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
 
+    self.renderer.gpu_geometry_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "Geometry");
+    defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_geometry_pass_profile_index);
+
     var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
     const camera_comps = camera_entity.getComps(struct {
         camera: *const fd.Camera,
