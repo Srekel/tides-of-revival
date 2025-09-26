@@ -8,25 +8,58 @@ GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
     MeshletCandidate candidate = visibleMeshletBuffer.Load<MeshletCandidate>(primitive.candidateIndex * sizeof(MeshletCandidate));
     Instance instance = getInstance(candidate.instanceId);
     MaterialData material = getMaterial(instance.materialIndex);
+    SamplerState sampler = SamplerDescriptorHeap[g_Frame.linearRepeatSamplerIndex];
 
-    float3 albedo = material.albedoColor.rgb;
-    if (material.albedoTextureIndex != 0xFFFFFFFF)
+    const float3 P = vertex.positionWS;
+    const float3 V = normalize(g_Frame.cameraPosition.xyz - P);
+    float2 UV = vertex.uv * material.uvTilingOffset.xy;
+
+    float3 baseColor = sRGBToLinear_Float3(material.albedoColor.rgb);
+    if (hasValidTexture(material.albedoTextureIndex))
     {
-        Texture2D<float4> albedo_texture = ResourceDescriptorHeap[NonUniformResourceIndex(material.albedoTextureIndex)];
-        SamplerState sampler = SamplerDescriptorHeap[g_Frame.linearRepeatSamplerIndex];
-        float4 albedo_sample = albedo_texture.Sample(sampler, vertex.uv);
-        if (albedo_sample.a < 0.5)
+        Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.albedoTextureIndex)];
+        float4 baseColorSample = baseColorTexture.Sample(sampler, UV);
+        if (baseColorSample.a < 0.5)
         {
             discard;
         }
-
-        albedo *= albedo_sample.rgb;
+        baseColor *= baseColorSample.rgb;
+    }
+    else
+    {
+        baseColor *= sRGBToLinear_Float3(vertex.color.rgb);
     }
 
+    float3 N = normalize(vertex.normal);
+
+    if (hasValidTexture(material.normalTextureIndex))
+    {
+        Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
+
+        float3x3 TBN = ComputeTBN(N, normalize(vertex.tangent));
+        float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, sampler, UV), material.normalIntensity);
+        N = normalize(mul(tangentNormal, TBN));
+    }
+
+    float roughness = material.roughness;
+    float metallic = material.metallic;
+    float occlusion = 1.0f;
+    if (hasValidTexture(material.armTextureIndex))
+    {
+        Texture2D armTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.armTextureIndex)];
+        float3 armSample = armTexture.Sample(sampler, UV).rgb;
+        occlusion = armSample.r;
+        roughness = armSample.g;
+        metallic = armSample.b;
+    }
+
+    // TODO: Provide this value from the material
+    float reflectance = 0.5f;
+
     GBufferOutput Out;
-    Out.GBuffer0 = float4(albedo, 1.0f);
-    Out.GBuffer1 = float4(0.0f, 1.0f, 0.0f, 1.0f);
-    Out.GBuffer2 = float4(1.0f, 0.04f, 0.0f, 0.5f);
+    Out.GBuffer0 = float4(baseColor, 1.0f);
+    Out.GBuffer1 = float4(N, 1.0f);
+    Out.GBuffer2 = float4(occlusion, roughness, metallic, reflectance);
 
     return Out;
 }

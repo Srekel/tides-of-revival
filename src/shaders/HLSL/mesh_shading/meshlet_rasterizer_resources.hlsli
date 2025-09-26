@@ -2,6 +2,7 @@
 #define _MESH_SHADING_MESHLET_RASTERIZER_HLSLI_
 
 #include "../../FSL/d3d.h"
+#include "../utils.hlsli"
 #include "defines.hlsli"
 #include "types.hlsli"
 
@@ -22,6 +23,10 @@ struct VertexAttribute
 {
     float4 position : SV_Position;
     float2 uv : TEXCOORD0;
+    float3 positionWS : TEXCOORD1;
+    float4 tangent : TEXCOORD2;
+    float3 normal : TEXCOORD3;
+    float4 color : TEXCOORD4;
 };
 
 struct RasterizerParams
@@ -63,8 +68,11 @@ VertexAttribute FetchVertexAttribute(Mesh mesh, float4x4 world, uint vertex_id)
     float3 position = data_buffer.Load<float3>(vertex_id * sizeof(float3) + mesh.positionsOffset);
     float3 position_ws = mul(float4(position, 1.0f), world).xyz;
     attribute.position = mul(float4(position_ws, 1.0f), g_Frame.viewProj);
-    float2 uv = data_buffer.Load<float2>(vertex_id * sizeof(float2) + mesh.texcoordsOffset);
-    attribute.uv = uv;
+    attribute.positionWS = position_ws;
+    attribute.uv = data_buffer.Load<float2>(vertex_id * sizeof(float2) + mesh.texcoordsOffset);
+    attribute.normal = data_buffer.Load<float3>(vertex_id * sizeof(float3) + mesh.normalsOffset);
+    attribute.tangent = data_buffer.Load<float4>(vertex_id * sizeof(float4) + mesh.tangentsOffset);
+    attribute.color = float4(1, 1, 1, 1);
     return attribute;
 }
 
