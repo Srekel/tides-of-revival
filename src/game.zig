@@ -26,6 +26,7 @@ const input = @import("input.zig");
 const prefab_manager = @import("prefab_manager.zig");
 const physics_manager = @import("managers/physics_manager.zig");
 
+const FrameStats = @import("frame_stats.zig").FrameStats;
 const renderer = @import("renderer/renderer.zig");
 const util = @import("util.zig");
 const Variant = @import("core/core.zig").Variant;
@@ -50,7 +51,7 @@ const GameloopContext = struct {
     physics_world_low: *zphy.PhysicsSystem,
     prefab_mgr: *prefab_manager.PrefabManager,
     renderer: *renderer.Renderer,
-    stats: *renderer.FrameStats,
+    stats: *FrameStats,
     task_queue: *task_queue.TaskQueue,
     time: *util.GameTime,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
@@ -82,7 +83,7 @@ pub fn run() void {
     fr.registerRelations(ecsu_world);
 
     // Frame Stats
-    var stats = renderer.FrameStats.init();
+    var stats = FrameStats.init();
 
     // Window
     window.init(std.heap.page_allocator) catch unreachable;
