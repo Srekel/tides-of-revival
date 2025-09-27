@@ -8,6 +8,7 @@ const IdLocal = @import("../../core/core.zig").IdLocal;
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const renderer = @import("../../renderer/renderer.zig");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zforge = @import("zforge");
 const zgui = @import("zgui");
 const zm = @import("zmath");
@@ -193,7 +194,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         procedural_sky_data.inv_dimensions[1] = 1.0 / @as(f32, @floatFromInt(cubemap_height));
         procedural_sky_data._pad0 = .{ 42, 42 };
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&procedural_sky_data),
             .size = @sizeOf(ProceduralSkyParams),
         };
@@ -227,7 +228,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         zm.storeMat(&draw_sky_data.projection, z_proj);
         zm.storeMat(&draw_sky_data.view, z_view);
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&draw_sky_data),
             .size = @sizeOf(DrawSkyParams),
         };

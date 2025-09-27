@@ -10,6 +10,7 @@ const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zm = @import("zmath");
 
 const graphics = zforge.graphics;
@@ -151,7 +152,7 @@ pub const PostProcessingRenderPass = struct {
                 1.0 / (k_initial_max_log - k_initial_min_log),
             };
 
-            const exposure_data = renderer.Slice{
+            const exposure_data = OpaqueSlice{
                 .data = @ptrCast(&exposure_initial_data),
                 .size = exposure_initial_data.len * @sizeOf(f32),
             };
@@ -165,7 +166,7 @@ pub const PostProcessingRenderPass = struct {
         const histogram_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
 
-            const histogram_data = renderer.Slice{
+            const histogram_data = OpaqueSlice{
                 .data = null,
                 .size = 256 * @sizeOf(u32),
             };
@@ -331,7 +332,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 constant_buffer_data.inverse_output_size[0] = 1.0 / @as(f32, @floatFromInt(self.renderer.bloom_width));
                 constant_buffer_data.inverse_output_size[1] = 1.0 / @as(f32, @floatFromInt(self.renderer.bloom_height));
 
-                const data = renderer.Slice{
+                const data = OpaqueSlice{
                     .data = @ptrCast(&constant_buffer_data),
                     .size = @sizeOf(BloomExtractConstantBuffer),
                 };
@@ -372,7 +373,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 constant_buffer_data.inverse_dimensions[0] = 1.0 / @as(f32, @floatFromInt(self.renderer.bloom_width));
                 constant_buffer_data.inverse_dimensions[1] = 1.0 / @as(f32, @floatFromInt(self.renderer.bloom_height));
 
-                const data = renderer.Slice{
+                const data = OpaqueSlice{
                     .data = @ptrCast(&constant_buffer_data),
                     .size = @sizeOf(DownsampleBloomConstantBuffer),
                 };
@@ -449,7 +450,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             constant_buffer_data.paper_white_ratio = 0.2;
             constant_buffer_data.max_brightness = 1000.0;
 
-            const data = renderer.Slice{
+            const data = OpaqueSlice{
                 .data = @ptrCast(&constant_buffer_data),
                 .size = @sizeOf(TonemapConstantBuffer),
             };
@@ -496,7 +497,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             var constant_buffer_data = std.mem.zeroes(GenerateHistogramConstantBuffer);
             constant_buffer_data.buffer_height = luma_height;
 
-            const data = renderer.Slice{
+            const data = OpaqueSlice{
                 .data = @ptrCast(&constant_buffer_data),
                 .size = @sizeOf(GenerateHistogramConstantBuffer),
             };
@@ -569,7 +570,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 constant_buffer_data.max_exposure = self.exposure_settings.max_exposure;
                 constant_buffer_data.pixel_count = luma_width * luma_height;
 
-                const data = renderer.Slice{
+                const data = OpaqueSlice{
                     .data = @ptrCast(&constant_buffer_data),
                     .size = @sizeOf(AdaptExposureConstantBuffer),
                 };
@@ -613,7 +614,7 @@ fn upsampleAndBlur(
         constant_buffer_data.inverse_dimensions[1] = 1.0 / @as(f32, @floatFromInt(higher_res_height));
         constant_buffer_data.upsample_blend_factor = 0.65;
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&constant_buffer_data),
             .size = @sizeOf(UpsampleAndBlurConstantBuffer),
         };

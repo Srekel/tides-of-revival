@@ -10,6 +10,7 @@ const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zm = @import("zmath");
 
 const graphics = zforge.graphics;
@@ -105,7 +106,7 @@ pub const DeferredShadingRenderPass = struct {
         const directional_lights_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = directional_lights_count_max * @sizeOf(DirectionalLight),
                 };
@@ -118,7 +119,7 @@ pub const DeferredShadingRenderPass = struct {
         const point_lights_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = point_lights_count_max * @sizeOf(PointLight),
                 };
@@ -146,7 +147,7 @@ pub const DeferredShadingRenderPass = struct {
         }) catch unreachable;
 
         const lighting_settings = LightingSettings{
-            .apply_shadows = true,
+            .apply_shadows = false,
             .environment_light_intensity = 0.35,
             .fog_color = fd.ColorRGB.init(0.3, 0.35, 0.45),
             .fog_density = 0.00005,
@@ -395,7 +396,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.uniform_frame_data.fog_density = self.lighting_settings.fog_density;
     self.uniform_frame_data._padding = [2]f32{ 42, 42 };
 
-    const data = renderer.Slice{
+    const data = OpaqueSlice{
         .data = @ptrCast(&self.uniform_frame_data),
         .size = @sizeOf(UniformFrameData),
     };
@@ -441,7 +442,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 
     if (self.directional_lights.items.len > 0) {
-        const directional_lights_slice = renderer.Slice{
+        const directional_lights_slice = OpaqueSlice{
             .data = @ptrCast(self.directional_lights.items),
             .size = self.directional_lights.items.len * @sizeOf(DirectionalLight),
         };
@@ -449,7 +450,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 
     if (self.point_lights.items.len > 0) {
-        const point_lights_slice = renderer.Slice{
+        const point_lights_slice = OpaqueSlice{
             .data = @ptrCast(self.point_lights.items),
             .size = self.point_lights.items.len * @sizeOf(PointLight),
         };

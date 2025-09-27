@@ -8,6 +8,7 @@ const renderer = @import("../../renderer/renderer.zig");
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zm = @import("zmath");
 
 const graphics = zforge.graphics;
@@ -53,7 +54,7 @@ pub const UIRenderPass = struct {
         const index_buffer = blk: {
             const indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
 
-            const buffer_data = renderer.Slice{
+            const buffer_data = OpaqueSlice{
                 .data = @constCast(&indices),
                 .size = 6 * @sizeOf(u16),
             };
@@ -64,7 +65,7 @@ pub const UIRenderPass = struct {
         const instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = max_instances * @sizeOf(UIInstanceData),
                 };
@@ -143,7 +144,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.uniform_frame_data.screen_to_clip[15] = 1.0;
     self.uniform_frame_data.ui_instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]);
 
-    const data = renderer.Slice{
+    const data = OpaqueSlice{
         .data = @ptrCast(&self.uniform_frame_data),
         .size = @sizeOf(UniformFrameData),
     };
@@ -165,7 +166,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
     }
 
-    const instance_data_slice = renderer.Slice{
+    const instance_data_slice = OpaqueSlice{
         .data = @ptrCast(self.instance_data.items),
         .size = self.instance_data.items.len * @sizeOf(UIInstanceData),
     };

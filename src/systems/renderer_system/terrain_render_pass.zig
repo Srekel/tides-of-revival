@@ -13,6 +13,7 @@ const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const world_patch_manager = @import("../../worldpatch/world_patch_manager.zig");
 const zm = @import("zmath");
 const patch_types = @import("../../worldpatch/patch_types.zig");
@@ -151,7 +152,7 @@ pub const TerrainRenderPass = struct {
         self.instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = max_instances * @sizeOf(TerrainInstanceData),
                 };
@@ -354,7 +355,7 @@ pub const TerrainRenderPass = struct {
                 node.bounding_sphere_radius = @max(node_diagonal, (data.max - data.min));
             }
 
-            const data_slice = renderer.Slice{
+            const data_slice = OpaqueSlice{
                 .data = @as(*anyopaque, @ptrCast(data.heightmap[0..].ptr)),
                 .size = data.heightmap.len * @sizeOf(f32), // f32 -> u8
             };
@@ -420,7 +421,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         uniform_frame_data.black_point = self.terrain_render_settings.black_point;
         uniform_frame_data.white_point = self.terrain_render_settings.white_point;
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&uniform_frame_data),
             .size = @sizeOf(UniformFrameData),
         };
@@ -441,7 +442,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             };
         }
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&terrain_material_data),
             .size = @sizeOf(TerrainMaterial),
         };
@@ -519,7 +520,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone_2.End();
 
         std.debug.assert(self.frame_instance_count <= max_instances);
-        const data_slice = renderer.Slice{
+        const data_slice = OpaqueSlice{
             .data = @ptrCast(self.instance_data),
             .size = self.frame_instance_count * @sizeOf(TerrainInstanceData),
         };
@@ -670,7 +671,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const z_proj_view = zm.mul(z_view, z_proj);
     zm.storeMat(&self.shadows_uniform_frame_data.projection_view, z_proj_view);
 
-    const data = renderer.Slice{
+    const data = OpaqueSlice{
         .data = @ptrCast(&self.shadows_uniform_frame_data),
         .size = @sizeOf(ShadowsUniformFrameData),
     };

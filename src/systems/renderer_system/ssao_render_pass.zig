@@ -12,6 +12,7 @@ const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 
 const graphics = zforge.graphics;
 
@@ -76,7 +77,7 @@ fn renderSSAO(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const constant_buffer_data = ConstantBufferData{
         .zmagic = (camera_comps.camera.far - camera_comps.camera.near) / camera_comps.camera.near,
     };
-    const data = renderer.Slice{
+    const data = OpaqueSlice{
         .data = @ptrCast(&constant_buffer_data),
         .size = @sizeOf(ConstantBufferData),
     };

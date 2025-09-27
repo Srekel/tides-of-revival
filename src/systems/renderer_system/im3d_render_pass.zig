@@ -8,6 +8,7 @@ const renderer = @import("../../renderer/renderer.zig");
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zm = @import("zmath");
 const im3d = @import("im3d");
 
@@ -47,7 +48,7 @@ pub const Im3dRenderPass = struct {
 
         const lines_vertex_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
+            const buffer_data = OpaqueSlice{
                 .data = undefined,
                 .size = max_vertices * im3d_vertex_size,
             };
@@ -61,7 +62,7 @@ pub const Im3dRenderPass = struct {
 
         const triangles_vertex_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
+            const buffer_data = OpaqueSlice{
                 .data = undefined,
                 .size = max_vertices * im3d_vertex_size,
             };
@@ -75,7 +76,7 @@ pub const Im3dRenderPass = struct {
 
         const points_vertex_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            const buffer_data = renderer.Slice{
+            const buffer_data = OpaqueSlice{
                 .data = undefined,
                 .size = max_vertices * im3d_vertex_size,
             };
@@ -238,7 +239,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.uniform_frame_data.viewport = [2]f32{ @floatFromInt(self.renderer.window_width), @floatFromInt(self.renderer.window_height) };
     zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
 
-    const data = renderer.Slice{
+    const data = OpaqueSlice{
         .data = @ptrCast(&self.uniform_frame_data),
         .size = @sizeOf(UniformFrameData),
     };
@@ -248,7 +249,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         const draw_list = draw_lists[i];
 
         if (draw_list.m_primType.bits == im3d.Im3d.DrawPrimitiveType.DrawPrimitive_Lines.bits) {
-            const vertex_data = renderer.Slice{
+            const vertex_data = OpaqueSlice{
                 .data = @ptrCast(draw_list.m_vertexData),
                 .size = draw_list.m_vertexCount * im3d_vertex_size,
             };
@@ -269,7 +270,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         if (draw_list.m_primType.bits == im3d.Im3d.DrawPrimitiveType.DrawPrimitive_Triangles.bits) {
-            const vertex_data = renderer.Slice{
+            const vertex_data = OpaqueSlice{
                 .data = @ptrCast(draw_list.m_vertexData),
                 .size = draw_list.m_vertexCount * im3d_vertex_size,
             };
@@ -290,7 +291,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         if (draw_list.m_primType.bits == im3d.Im3d.DrawPrimitiveType.DrawPrimitive_Points.bits) {
-            const vertex_data = renderer.Slice{
+            const vertex_data = OpaqueSlice{
                 .data = @ptrCast(draw_list.m_vertexData),
                 .size = draw_list.m_vertexCount * im3d_vertex_size,
             };

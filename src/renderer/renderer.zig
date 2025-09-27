@@ -15,9 +15,10 @@ const graphics = zforge.graphics;
 const log = zforge.log;
 const memory = zforge.memory;
 const pso = @import("pso.zig");
-const profiler = zforge.profiler;
+const profiler = @import("profiler.zig");
 const resource_loader = zforge.resource_loader;
 const util = @import("../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const ztracy = @import("ztracy");
 
 const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
@@ -94,7 +95,7 @@ pub const ElementBindlessBuffer = struct {
         self.offset = 0;
         self.element_count = 0;
 
-        const buffer_data = Slice{
+        const buffer_data = OpaqueSlice{
             .data = null,
             .size = self.size,
         };
@@ -121,7 +122,7 @@ pub const Renderer = struct {
     swap_chain_image_index: u32 = 0,
     graphics_queue: [*c]graphics.Queue = null,
     frame_index: u32 = 0,
-    profiler: Profiler = undefined,
+    profiler: profiler.Profiler = undefined,
     gpu_frame_profile_index: usize = 0,
     gpu_terrain_pass_profile_index: usize = 0,
     gpu_geometry_pass_profile_index: usize = 0,
@@ -284,11 +285,6 @@ pub const Renderer = struct {
             return Error.FontSystemNotInitialized;
         }
 
-        // var profiler_desc = profiler.ProfilerDesc{};
-        // profiler_desc.pRenderer = self.renderer;
-        // profiler.initProfiler(&profiler_desc);
-        // self.gpu_profile_token = profiler.initGpuProfiler(self.renderer, self.graphics_queue, "Graphics");
-
         self.profiler.init(self, self.allocator);
 
         self.vertex_layouts_map = VertexLayoutHashMap.init(allocator);
@@ -404,7 +400,7 @@ pub const Renderer = struct {
 
         self.legacy_material_map = LegacyMaterialMap.init(allocator);
         self.legacy_materials = std.ArrayList(LegacyMaterial).init(allocator);
-        const buffer_data = Slice{
+        const buffer_data = OpaqueSlice{
             .data = null,
             .size = 1000 * @sizeOf(LegacyMaterial),
         };
@@ -472,8 +468,6 @@ pub const Renderer = struct {
         self.gpu_cmd_ring.destroy(self.renderer);
         graphics.exitSemaphore(self.renderer, self.image_acquired_semaphore);
 
-        // profiler.exitGpuProfiler(self.gpu_profile_token);
-        // profiler.exitProfiler();
         self.profiler.shutdown();
 
         self.destroyResolutionIndependentRenderTargets();
@@ -503,7 +497,7 @@ pub const Renderer = struct {
         const profile_data = self.profiler.profiles.items[profiler_index];
         var sum: f64 = 0;
 
-        for (0..ProfileData.filter_size) |i| {
+        for (0..profiler.ProfileData.filter_size) |i| {
             sum += profile_data.time_samples[i];
         }
         sum /= 64.0;
@@ -778,8 +772,8 @@ pub const Renderer = struct {
 
         // Shadow Map Pass
         {
-            // self.shadow_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Shadows");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -810,8 +804,8 @@ pub const Renderer = struct {
 
         // GBuffer Pass
         {
-            // self.gbuffer_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "GBuffer Pass", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "GBuffer");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "GBuffer Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -854,8 +848,8 @@ pub const Renderer = struct {
 
         // Deferred Shading
         {
-            // self.deferred_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Deferred Shading");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -892,8 +886,8 @@ pub const Renderer = struct {
 
         // Atmospheric Scattering Pass
         {
-            // self.atmosphere_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Atmosphere", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Atmospheric Scattering");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -909,8 +903,8 @@ pub const Renderer = struct {
 
         // Water Pass
         {
-            // self.water_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Water", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Water");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Water", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -926,8 +920,8 @@ pub const Renderer = struct {
 
         // Post Processing
         {
-            // self.post_processing_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Post Processing", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Post");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -958,8 +952,8 @@ pub const Renderer = struct {
 
             // UI Pass
             {
-                // self.ui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "UI Pass", .{ .bUseMarker = true });
-                // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+                const profile_index = self.startGpuProfile(cmd_list, "UI");
+                defer self.endGpuProfile(cmd_list, profile_index);
 
                 const trazy_zone1 = ztracy.ZoneNC(@src(), "UI Pass", 0x00_ff_00_00);
                 defer trazy_zone1.End();
@@ -973,8 +967,8 @@ pub const Renderer = struct {
 
             // ImGUI Pass
             if (self.render_imgui) {
-                // self.imgui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "ImGUI Pass", .{ .bUseMarker = true });
-                // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+                const profile_index = self.startGpuProfile(cmd_list, "ImGui");
+                defer self.endGpuProfile(cmd_list, profile_index);
 
                 const trazy_zone1 = ztracy.ZoneNC(@src(), "ImGUI Pass", 0x00_ff_00_00);
                 defer trazy_zone1.End();
@@ -997,8 +991,8 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Composite SDR", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            // self.composite_sdr_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Composite SDR", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Composite SDR");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
 
@@ -1072,7 +1066,6 @@ pub const Renderer = struct {
                 graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, 1, &barrier);
             }
 
-            // profiler.cmdEndGpuFrameProfile(cmd_list, self.gpu_profile_token);
             self.endGpuProfile(cmd_list, self.gpu_frame_profile_index);
             self.profiler.endFrame();
             graphics.endCmd(cmd_list);
@@ -1162,7 +1155,7 @@ pub const Renderer = struct {
         gpu_material.arm_sampler_index = renderer_types.InvalidResourceIndex;
         gpu_material.rasterizer_bin = if (material_data.alpha_test) 1 else 0;
 
-        const gpu_material_data_slice = Slice{
+        const gpu_material_data_slice = OpaqueSlice{
             .data = @ptrCast(&gpu_material),
             .size = @sizeOf(GpuMaterial),
         };
@@ -1220,7 +1213,7 @@ pub const Renderer = struct {
         update_desc.mDstOffset = offset;
         update_desc.mSize = @sizeOf(LegacyMaterial);
         resource_loader.beginUpdateResource(&update_desc);
-        util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(LegacyMaterial));
+        util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(LegacyMaterial), .{});
         resource_loader.endUpdateResource(&update_desc);
 
         self.legacy_material_map.put(material_id.hash, .{
@@ -1279,7 +1272,7 @@ pub const Renderer = struct {
             data_size += alignUp(mesh_data.meshlet_triangles.items.len * @sizeOf(geometry.MeshletTriangle), alignment);
             data_size += alignUp(mesh_data.meshlet_vertices.items.len * @sizeOf(u32), alignment);
 
-            const geometry_buffer_slice = Slice{ .data = null, .size = data_size };
+            const geometry_buffer_slice = OpaqueSlice{ .data = null, .size = data_size };
             mesh.data_buffer = self.createBindlessBuffer(geometry_buffer_slice, false, "Geometry Buffer");
 
             const buffer_data = self.allocator.alloc(u8, data_size) catch unreachable;
@@ -1295,7 +1288,7 @@ pub const Renderer = struct {
                 mesh.position_stream_location.stride = @intCast(stride);
                 mesh.position_stream_location.offset_from_start = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.positions_stream.items.ptr), buffer_data_offset, mesh_data.positions_stream.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.positions_stream.items.ptr), mesh_data.positions_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.positions_stream.items.len * stride, alignment);
             }
             // Texcoords
@@ -1306,7 +1299,7 @@ pub const Renderer = struct {
                 mesh.texcoord_stream_location.stride = @intCast(stride);
                 mesh.texcoord_stream_location.offset_from_start = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.texcoords_stream.items.ptr), buffer_data_offset, mesh_data.texcoords_stream.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.texcoords_stream.items.ptr), mesh_data.texcoords_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.texcoords_stream.items.len * stride, alignment);
             }
             // Normals
@@ -1317,7 +1310,7 @@ pub const Renderer = struct {
                 mesh.normal_stream_location.stride = @intCast(stride);
                 mesh.normal_stream_location.offset_from_start = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.normals_stream.items.ptr), buffer_data_offset, mesh_data.normals_stream.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.normals_stream.items.ptr), mesh_data.normals_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.normals_stream.items.len * stride, alignment);
             }
             // Tangents
@@ -1328,7 +1321,7 @@ pub const Renderer = struct {
                 mesh.tangent_stream_location.stride = @intCast(stride);
                 mesh.tangent_stream_location.offset_from_start = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.tangents_stream.items.ptr), buffer_data_offset, mesh_data.tangents_stream.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.tangents_stream.items.ptr), mesh_data.tangents_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.tangents_stream.items.len * stride, alignment);
             }
             // Indices
@@ -1342,7 +1335,7 @@ pub const Renderer = struct {
                 mesh.indices_location.offset_from_start = @intCast(buffer_data_offset);
                 mesh.indices_location.index_type = .INDEX_TYPE_UINT32;
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.indices.items.ptr), buffer_data_offset, mesh_data.indices.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.indices.items.ptr), mesh_data.indices.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.indices.items.len * stride, alignment);
             }
 
@@ -1351,7 +1344,7 @@ pub const Renderer = struct {
                 const stride = @sizeOf(geometry.Meshlet);
                 mesh.meshlets_location = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlets.items.ptr), buffer_data_offset, mesh_data.meshlets.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlets.items.ptr), mesh_data.meshlets.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.meshlets.items.len * stride, alignment);
                 mesh.meshlet_count = @intCast(mesh_data.meshlets.items.len);
             }
@@ -1361,7 +1354,7 @@ pub const Renderer = struct {
                 const stride = @sizeOf(u32);
                 mesh.meshlet_vertices_location = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_vertices.items.ptr), buffer_data_offset, mesh_data.meshlet_vertices.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_vertices.items.ptr), mesh_data.meshlet_vertices.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.meshlet_vertices.items.len * stride, alignment);
             }
 
@@ -1370,7 +1363,7 @@ pub const Renderer = struct {
                 const stride = @sizeOf(geometry.MeshletTriangle);
                 mesh.meshlet_triangles_location = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_triangles.items.ptr), buffer_data_offset, mesh_data.meshlet_triangles.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_triangles.items.ptr), mesh_data.meshlet_triangles.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.meshlet_triangles.items.len * stride, alignment);
             }
 
@@ -1379,14 +1372,14 @@ pub const Renderer = struct {
                 const stride = @sizeOf(geometry.MeshletBounds);
                 mesh.meshlet_bounds_location = @intCast(buffer_data_offset);
 
-                memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_bounds.items.ptr), buffer_data_offset, mesh_data.meshlet_bounds.items.len * stride);
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_bounds.items.ptr), mesh_data.meshlet_bounds.items.len * stride, .{ .dst_offset = buffer_data_offset });
                 buffer_data_offset += alignUp(mesh_data.meshlet_bounds.items.len * stride, alignment);
             }
 
             mesh.bounds.center = mesh_data.bounds.center;
             mesh.bounds.extents = mesh_data.bounds.extents;
 
-            const data_slice = Slice{
+            const data_slice = OpaqueSlice{
                 .data = @ptrCast(buffer_data),
                 .size = data_size,
             };
@@ -1411,7 +1404,7 @@ pub const Renderer = struct {
             gpu_mesh_data.append(gpu_mesh) catch unreachable;
         }
 
-        const gpu_mesh_data_slice = Slice{
+        const gpu_mesh_data_slice = OpaqueSlice{
             .data = @ptrCast(gpu_mesh_data.items),
             .size = @sizeOf(GPUMesh) * gpu_mesh_data.items.len,
         };
@@ -1505,7 +1498,7 @@ pub const Renderer = struct {
         return self.loadTextureWithDesc(desc, path);
     }
 
-    pub fn loadTextureFromMemory(self: *Renderer, width: u32, height: u32, format: graphics.TinyImageFormat, data_slice: Slice, debug_name: [*:0]const u8) TextureHandle {
+    pub fn loadTextureFromMemory(self: *Renderer, width: u32, height: u32, format: graphics.TinyImageFormat, data_slice: OpaqueSlice, debug_name: [*:0]const u8) TextureHandle {
         var texture: [*c]graphics.Texture = null;
 
         var desc = std.mem.zeroes(graphics.TextureDesc);
@@ -1553,7 +1546,7 @@ pub const Renderer = struct {
         return @intCast(bindless_index);
     }
 
-    pub fn createBindlessBuffer(self: *Renderer, initial_data: Slice, writable: bool, debug_name: []const u8) BufferHandle {
+    pub fn createBindlessBuffer(self: *Renderer, initial_data: OpaqueSlice, writable: bool, debug_name: []const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
@@ -1582,7 +1575,7 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createIndexBuffer(self: *Renderer, initial_data: Slice, index_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
+    pub fn createIndexBuffer(self: *Renderer, initial_data: OpaqueSlice, index_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -1609,7 +1602,7 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createVertexBuffer(self: *Renderer, initial_data: Slice, vertex_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
+    pub fn createVertexBuffer(self: *Renderer, initial_data: OpaqueSlice, vertex_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -1651,7 +1644,7 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createStructuredBuffer(self: *Renderer, initial_data: Slice, debug_name: [:0]const u8) BufferHandle {
+    pub fn createStructuredBuffer(self: *Renderer, initial_data: OpaqueSlice, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
@@ -1677,7 +1670,7 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn updateBuffer(self: *Renderer, data: Slice, dest_offset: u64, comptime T: type, handle: BufferHandle) void {
+    pub fn updateBuffer(self: *Renderer, data: OpaqueSlice, dest_offset: u64, comptime T: type, handle: BufferHandle) void {
         const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
         _ = T;
 
@@ -1685,7 +1678,7 @@ pub const Renderer = struct {
         update_desc.pBuffer = @ptrCast(buffer);
         update_desc.mDstOffset = dest_offset;
         resource_loader.beginUpdateResource(&update_desc);
-        util.memcpy(update_desc.pMappedData.?, data.data.?, data.size);
+        util.memcpy(update_desc.pMappedData.?, data.data.?, data.size, .{});
         resource_loader.endUpdateResource(&update_desc);
     }
 
@@ -2421,155 +2414,3 @@ pub const TextureHandle = TexturePool.Handle;
 
 const BufferPool = Pool(16, 16, graphics.Buffer, struct { buffer: [*c]graphics.Buffer });
 pub const BufferHandle = BufferPool.Handle;
-
-pub const Slice = extern struct {
-    data: ?*const anyopaque,
-    size: u64,
-};
-
-// ██████╗ ██████╗  ██████╗ ███████╗██╗██╗     ███████╗██████╗
-// ██╔══██╗██╔══██╗██╔═══██╗██╔════╝██║██║     ██╔════╝██╔══██╗
-// ██████╔╝██████╔╝██║   ██║█████╗  ██║██║     █████╗  ██████╔╝
-// ██╔═══╝ ██╔══██╗██║   ██║██╔══╝  ██║██║     ██╔══╝  ██╔══██╗
-// ██║     ██║  ██║╚██████╔╝██║     ██║███████╗███████╗██║  ██║
-// ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
-//
-
-// Ported from: https://github.com/TheRealMJP/DXRPathTracer/blob/master/SampleFramework12/v1.02/Graphics/Profiler.h
-
-pub const Profiler = struct {
-    const profiles_max_count: usize = 64;
-    const invalid_profile_index: usize = std.math.maxInt(usize);
-
-    renderer: *Renderer,
-    profiles: std.ArrayList(ProfileData),
-    query_pools: [Renderer.data_buffer_count][*c]graphics.QueryPool,
-
-    pub fn init(self: *Profiler, renderer: *Renderer, allocator: std.mem.Allocator) void {
-        self.profiles = std.ArrayList(ProfileData).init(allocator);
-        self.renderer = renderer;
-
-        for (0..Renderer.data_buffer_count) |frame_index| {
-            const query_pool_desc = graphics.QueryPoolDesc{
-                .pName = "GPU Profiler",
-                .mType = .QUERY_TYPE_TIMESTAMP,
-                .mQueryCount = profiles_max_count,
-                .mNodeIndex = 0,
-            };
-
-            graphics.initQueryPool(self.renderer.renderer, @ptrCast(&query_pool_desc), &self.query_pools[frame_index]);
-        }
-    }
-
-    pub fn shutdown(self: *Profiler) void {
-        for (0..Renderer.data_buffer_count) |frame_index| {
-            graphics.exitQueryPool(self.renderer.renderer, self.query_pools[frame_index]);
-        }
-        self.profiles.deinit();
-    }
-
-    pub fn startProfile(self: *Profiler, cmd_list: [*c]graphics.Cmd, name: []const u8) usize {
-        const id = IdLocal.init(name);
-
-        var profile_index: usize = invalid_profile_index;
-        for (self.profiles.items, 0..) |profile, index| {
-            if (profile.id.hash == id.hash) {
-                profile_index = index;
-                break;
-            }
-        }
-
-        if (profile_index == invalid_profile_index) {
-            std.debug.assert(self.profiles.items.len < profiles_max_count);
-            profile_index = self.profiles.items.len;
-
-            var profile = std.mem.zeroes(ProfileData);
-            profile.id = id;
-            memcpy(&profile.name, @ptrCast(&name.ptr), 0, name.len);
-            @memset(profile.time_samples[0..], 0);
-            self.profiles.append(profile) catch unreachable;
-        }
-
-        var profile_data = &self.profiles.items[profile_index];
-        std.debug.assert(profile_data.query_started == false);
-        std.debug.assert(profile_data.query_finished == false);
-        profile_data.active = true;
-        profile_data.query_started = true;
-
-        // Insert the start timestamp
-        const query_desc = graphics.QueryDesc{
-            .mIndex = @intCast(profile_index),
-        };
-
-        graphics.cmdBeginDebugMarker(cmd_list, 0.1, 0.8, 0.1, @ptrCast(name[0..]));
-        graphics.cmdBeginQuery(cmd_list, self.query_pools[self.renderer.frame_index], @constCast(&query_desc));
-
-        return profile_index;
-    }
-
-    pub fn endProfile(self: *Profiler, cmd_list: [*c]graphics.Cmd, profile_index: usize) void {
-        std.debug.assert(profile_index < self.profiles.items.len);
-
-        var profile_data = &self.profiles.items[profile_index];
-        std.debug.assert(profile_data.query_started == true);
-        std.debug.assert(profile_data.query_finished == false);
-
-        // Insert the end timestamp
-        const query_desc = graphics.QueryDesc{
-            .mIndex = @intCast(profile_index),
-        };
-        graphics.cmdEndQuery(cmd_list, self.query_pools[self.renderer.frame_index], @constCast(&query_desc));
-
-        // Resolve the data
-        graphics.cmdResolveQuery(cmd_list, self.query_pools[self.renderer.frame_index], query_desc.mIndex, 1);
-        graphics.cmdEndDebugMarker(cmd_list);
-
-        profile_data.query_started = false;
-        profile_data.query_finished = true;
-    }
-
-    pub fn endFrame(self: *Profiler) void {
-        var timestamp_frequency: f64 = 0;
-        graphics.getTimestampFrequency(self.renderer.graphics_queue, @ptrCast(&timestamp_frequency));
-
-        for (self.profiles.items, 0..) |*profile, profile_index| {
-            profile.query_finished = false;
-
-            var query_data = std.mem.zeroes(graphics.QueryData);
-            graphics.getQueryData(self.renderer.renderer, self.query_pools[self.renderer.frame_index], @intCast(profile_index), @ptrCast(&query_data));
-
-            var time: f64 = 0.0;
-            const start_time = query_data.__union_field1.__struct_field3.mBeginTimestamp;
-            const end_time = query_data.__union_field1.__struct_field3.mEndTimestamp;
-            if (end_time > start_time) {
-                const delta = end_time - start_time;
-                time = @as(f64, @floatFromInt(delta)) / timestamp_frequency * 1000.0;
-            }
-
-            profile.time_samples[profile.current_sample] = time;
-            profile.current_sample = (profile.current_sample + 1) % ProfileData.filter_size;
-
-            profile.active = false;
-        }
-    }
-};
-
-const ProfileData = struct {
-    pub const filter_size: usize = 64;
-
-    name: [256]u8,
-    id: IdLocal,
-    query_started: bool,
-    query_finished: bool,
-    active: bool,
-    time_samples: [filter_size]f64 = undefined,
-    current_sample: usize,
-};
-
-fn memcpy(dst: *anyopaque, src: *const anyopaque, dst_offset: u64, byte_count: u64) void {
-    const src_slice = @as([*]const u8, @ptrCast(src))[0..byte_count];
-    const dst_slice = @as([*]u8, @ptrCast(dst))[dst_offset..(dst_offset + byte_count)];
-    for (src_slice, 0..) |byte, i| {
-        dst_slice[i] = byte;
-    }
-}

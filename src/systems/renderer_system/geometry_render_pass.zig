@@ -10,6 +10,7 @@ const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zm = @import("zmath");
 
 const graphics = zforge.graphics;
@@ -136,7 +137,7 @@ pub const GeometryRenderPass = struct {
         const instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
@@ -263,7 +264,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Update Uniform Frame Buffer
     {
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&self.uniform_frame_data_gbuffer),
             .size = @sizeOf(UniformFrameData),
         };
@@ -272,7 +273,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Update Wind Frame Buffer
     {
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&self.wind_frame_data),
             .size = @sizeOf(WindFrameData),
         };
@@ -437,7 +438,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     zm.storeMat(&self.uniform_frame_data_shadow_caster.projection_view, z_proj_view);
     self.uniform_frame_data_shadow_caster.time = @floatCast(self.renderer.time);
 
-    const data = renderer.Slice{
+    const data = OpaqueSlice{
         .data = @ptrCast(&self.uniform_frame_data_shadow_caster),
         .size = @sizeOf(ShadowsUniformFrameData),
     };
@@ -463,7 +464,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const trazy_zone2 = ztracy.ZoneNC(@src(), "Upload instance data", 0x00_ff_ff_00);
             defer trazy_zone2.End();
 
-            const instance_data_slice = renderer.Slice{
+            const instance_data_slice = OpaqueSlice{
                 .data = @ptrCast(self.instances.items),
                 .size = self.instances.items.len * @sizeOf(InstanceData),
             };

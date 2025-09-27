@@ -8,6 +8,11 @@ const ecsu = @import("flecs_util/flecs_util.zig");
 
 pub const Context = context.Context;
 
+pub const OpaqueSlice = extern struct {
+    data: ?*const anyopaque,
+    size: u64,
+};
+
 pub fn sliceOfInstance(comptime T: type, instance: *T) []T {
     const arrptr: *[1]T = instance;
     const slice: []T = arrptr;
@@ -57,9 +62,9 @@ pub fn castOpaqueConst(comptime T: type, ptr: *const anyopaque) *const T {
     return @as(*const T, @ptrCast(@alignCast(ptr)));
 }
 
-pub fn memcpy(dst: *anyopaque, src: *const anyopaque, byte_count: u64) void {
+pub fn memcpy(dst: *anyopaque, src: *const anyopaque, byte_count: u64, opts: struct { dst_offset: u64 = 0 }) void {
     const src_slice = @as([*]const u8, @ptrCast(src))[0..byte_count];
-    const dst_slice = @as([*]u8, @ptrCast(dst))[0..byte_count];
+    const dst_slice = @as([*]u8, @ptrCast(dst))[opts.dst_offset..(opts.dst_offset + byte_count)];
     for (src_slice, 0..) |byte, i| {
         dst_slice[i] = byte;
     }

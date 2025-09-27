@@ -10,6 +10,7 @@ const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zm = @import("zmath");
 
 const graphics = zforge.graphics;
@@ -110,7 +111,7 @@ pub const WaterRenderPass = struct {
         const instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = max_instances * @sizeOf(InstanceData),
                 };
@@ -123,7 +124,7 @@ pub const WaterRenderPass = struct {
         const material_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = max_instances * @sizeOf(WaterMaterial),
                 };
@@ -284,7 +285,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         // Update Uniform Frame Buffer
         {
-            const data = renderer.Slice{
+            const data = OpaqueSlice{
                 .data = @ptrCast(&self.uniform_frame_data),
                 .size = @sizeOf(UniformFrameData),
             };
@@ -300,7 +301,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         // Update Light Buffer
         {
-            const data = renderer.Slice{
+            const data = OpaqueSlice{
                 .data = @ptrCast(&self.uniform_light_data),
                 .size = @sizeOf(UniformLightData),
             };
@@ -343,7 +344,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         }
 
         if (self.instance_data.items.len > 0) {
-            const instance_data_slice = renderer.Slice{
+            const instance_data_slice = OpaqueSlice{
                 .data = @ptrCast(self.instance_data.items),
                 .size = self.instance_data.items.len * @sizeOf(InstanceData),
             };
@@ -365,7 +366,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             };
             self.material_data.append(water_material) catch unreachable;
 
-            const material_data_slice = renderer.Slice{
+            const material_data_slice = OpaqueSlice{
                 .data = @ptrCast(self.material_data.items),
                 .size = self.material_data.items.len * @sizeOf(WaterMaterial),
             };

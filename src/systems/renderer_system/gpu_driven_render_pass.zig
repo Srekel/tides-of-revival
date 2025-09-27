@@ -12,6 +12,7 @@ const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const zm = @import("zmath");
 const zgui = @import("zgui");
 const im3d = @import("im3d");
@@ -183,7 +184,7 @@ pub const GpuDrivenRenderPass = struct {
         {
             self.candidate_meshlets_counters_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = 8 * @sizeOf(u32),
                 };
@@ -195,7 +196,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.candidate_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
                 };
@@ -207,7 +208,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.visible_meshlets_counters_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = 8 * @sizeOf(u32),
                 };
@@ -219,7 +220,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.visible_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
                 };
@@ -231,7 +232,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.meshlet_cull_args_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = 8 * @sizeOf(u32),
                 };
@@ -246,7 +247,7 @@ pub const GpuDrivenRenderPass = struct {
         {
             self.meshlet_count_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = 16 * @sizeOf(u32),
                 };
@@ -258,7 +259,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.meshlet_offset_and_count_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = renderer_bins_count * @sizeOf([4]u32),
                 };
@@ -270,7 +271,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.meshlet_global_count_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = 16 * @sizeOf(u32),
                 };
@@ -282,7 +283,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.binned_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = meshlets_max_count * @sizeOf(u32),
                 };
@@ -294,7 +295,7 @@ pub const GpuDrivenRenderPass = struct {
 
             self.classify_meshes_dispatch_args_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = @sizeOf([4]u32),
                 };
@@ -481,7 +482,7 @@ fn update(user_data: *anyopaque) void {
     if (self.instances.items.len > 0) {
         self.instance_buffers[frame_index].element_count += @intCast(self.instances.items.len);
 
-        const instance_data = renderer.Slice{
+        const instance_data = OpaqueSlice{
             .data = @ptrCast(self.instances.items),
             .size = self.instances.items.len * @sizeOf(GpuInstance),
         };
@@ -543,7 +544,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
         frame.instance_count = self.instance_buffers[frame_index].element_count;
 
-        const frame_data = renderer.Slice{
+        const frame_data = OpaqueSlice{
             .data = @ptrCast(&frame),
             .size = @sizeOf(Frame),
         };
@@ -575,7 +576,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         self.frame_culling_uniform_data[frame_index].meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
         self.frame_culling_uniform_data[frame_index].instance_count = self.instance_buffers[frame_index].element_count;
 
-        const frame_culling_data = renderer.Slice{
+        const frame_culling_data = OpaqueSlice{
             .data = @ptrCast(&self.frame_culling_uniform_data[frame_index]),
             .size = @sizeOf(Frame),
         };
@@ -601,7 +602,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
                     .visible_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
                 };
-                const clear_uav_params_data = renderer.Slice{
+                const clear_uav_params_data = OpaqueSlice{
                     .data = @ptrCast(&clear_uav_params),
                     .size = @sizeOf(ClearUavParams),
                 };
@@ -631,7 +632,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
                 };
 
-                const cull_instances_params_data = renderer.Slice{
+                const cull_instances_params_data = OpaqueSlice{
                     .data = @ptrCast(&cull_instances_params),
                     .size = @sizeOf(CullInstancesParams),
                 };
@@ -672,7 +673,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
                     .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_cull_args_buffers[frame_index]),
                 };
-                const params_data = renderer.Slice{
+                const params_data = OpaqueSlice{
                     .data = @ptrCast(&build_meshlets_cull_args_params),
                     .size = @sizeOf(BuildMeshletsCullArgsParams),
                 };
@@ -713,7 +714,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
                 };
 
-                const cull_meshlets_params_data = renderer.Slice{
+                const cull_meshlets_params_data = OpaqueSlice{
                     .data = @ptrCast(&cull_meshlets_params),
                     .size = @sizeOf(CullMeshletsParams),
                 };
@@ -749,7 +750,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
         };
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&binning_params),
             .size = @sizeOf(BinningParams),
         };
@@ -862,7 +863,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .meshlet_bin_data_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_offset_and_count_buffers[frame_index]),
                 };
 
-                const data_slice = renderer.Slice{
+                const data_slice = OpaqueSlice{
                     .data = @ptrCast(&rasterizer_params),
                     .size = @sizeOf(RasterizerParams),
                 };
