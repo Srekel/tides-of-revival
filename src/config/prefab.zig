@@ -345,12 +345,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     {
         const beech_04_LOD0_id = ID("beech_tree_04_lod0");
-        const beech_04_LOD1_id = ID("beech_tree_04_lod1");
-        const beech_04_LOD2_id = ID("beech_tree_04_lod2");
-        // const beech_04_LOD3_id = ID("beech_tree_04_lod3");
         prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD0.mesh", beech_04_LOD0_id) catch unreachable;
+        const beech_04_LOD1_id = ID("beech_tree_04_lod1");
         prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD1.mesh", beech_04_LOD1_id) catch unreachable;
+        const beech_04_LOD2_id = ID("beech_tree_04_lod2");
         prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD2.mesh", beech_04_LOD2_id) catch unreachable;
+        // const beech_04_LOD3_id = ID("beech_tree_04_lod3");
         // prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD3.mesh", beech_04_LOD3_id) catch unreachable;
 
         var beech_trunk_04_material = renderer.UberShaderMaterialData.init();
@@ -382,14 +382,20 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].materials_count = 2;
         renderable_desc.lods[0].materials[0] = beech_trunk_04_material_id;
         renderable_desc.lods[0].materials[1] = beech_atlas_v2_material_id;
+        renderable_desc.lods[0].screen_percentage_range[0] = 0.8;
+        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[1].mesh_id = beech_04_LOD1_id;
         renderable_desc.lods[1].materials_count = 2;
         renderable_desc.lods[1].materials[0] = beech_trunk_04_material_id;
         renderable_desc.lods[1].materials[1] = beech_atlas_v2_material_id;
+        renderable_desc.lods[1].screen_percentage_range[0] = 0.6;
+        renderable_desc.lods[1].screen_percentage_range[1] = 0.8;
         renderable_desc.lods[2].mesh_id = beech_04_LOD2_id;
         renderable_desc.lods[2].materials_count = 2;
         renderable_desc.lods[2].materials[0] = beech_trunk_04_material_id;
         renderable_desc.lods[2].materials[1] = beech_atlas_v2_material_id;
+        renderable_desc.lods[2].screen_percentage_range[0] = 0.0;
+        renderable_desc.lods[2].screen_percentage_range[1] = 0.6;
 
         prefab_mgr.rctx.registerRenderable(beech_tree_04_id, renderable_desc);
 

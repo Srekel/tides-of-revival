@@ -71,7 +71,9 @@ VertexAttribute FetchVertexAttribute(Mesh mesh, float4x4 world, uint vertex_id)
     attribute.positionWS = position_ws;
     attribute.uv = data_buffer.Load<float2>(vertex_id * sizeof(float2) + mesh.texcoordsOffset);
     attribute.normal = data_buffer.Load<float3>(vertex_id * sizeof(float3) + mesh.normalsOffset);
+    attribute.normal = mul(attribute.normal, (float3x3)world);
     attribute.tangent = data_buffer.Load<float4>(vertex_id * sizeof(float4) + mesh.tangentsOffset);
+    attribute.tangent.xyz = mul(attribute.tangent.xyz, (float3x3)world);
     attribute.color = float4(1, 1, 1, 1);
     return attribute;
 }

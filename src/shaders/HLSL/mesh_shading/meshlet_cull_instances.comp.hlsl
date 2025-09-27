@@ -11,6 +11,12 @@ cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
     CullInstancesParams g_CullInstancesParams;
 };
 
+// TODO
+float CalculateScreenPercentage(float3 aabb_center, float3 aabb_extents, float4x4 world, float4x4 view_proj)
+{
+    return 0.1f;
+}
+
 [numthreads(CULL_INSTANCES_THREADS_COUNT, 1, 1)] void main(uint DTid : SV_DispatchThreadID)
 {
     RWByteAddressBuffer candidateMeshletsCountersBuffer = ResourceDescriptorHeap[g_CullInstancesParams.candidateMeshletsCountersBufferIndex];
@@ -26,9 +32,12 @@ cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
     Instance instance = getInstance(instanceIndex);
 
     ByteAddressBuffer mesh_buffer = ResourceDescriptorHeap[g_Frame.meshesBufferIndex];
-    Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshLodIndices[2] * sizeof(Mesh));
+    Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
 
-    bool isVisible = FrustumCull(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj);
+    float screenPercentage = CalculateScreenPercentage(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj);
+    bool isVisible = screenPercentage >= instance.screenPercentageMin && screenPercentage < instance.screenPercentageMax;
+
+    isVisible &= FrustumCull(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj);
 
     if (isVisible)
     {

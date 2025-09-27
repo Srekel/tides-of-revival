@@ -76,10 +76,13 @@ struct Instance
 {
     float4x4 world;
     float3 localBoundsOrigin;
-    uint id;
+    float screenPercentageMin;
     float3 localBoundsExtents;
-    uint3 meshLodIndices;
+    float screenPercentageMax;
+    uint id;
+    uint meshIndex;
     uint materialIndex;
+    uint _padding0;
 };
 
 struct MaterialData

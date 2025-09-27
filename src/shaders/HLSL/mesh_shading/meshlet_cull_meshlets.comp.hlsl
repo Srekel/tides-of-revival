@@ -28,7 +28,7 @@ cbuffer g_CullMeshletsParams : register(b1, UPDATE_FREQ_PER_FRAME)
         Instance instance = getInstance(candidate.instanceId);
 
         ByteAddressBuffer mesh_buffer = ResourceDescriptorHeap[g_Frame.meshesBufferIndex];
-        Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshLodIndices[2] * sizeof(Mesh));
+        Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
 
         ByteAddressBuffer data_buffer = ResourceDescriptorHeap[NonUniformResourceIndex(mesh.dataBufferIndex)];
         MeshletBounds bounds = data_buffer.Load<MeshletBounds>(candidate.meshletIndex * sizeof(MeshletBounds) + mesh.meshletBoundsOffset);

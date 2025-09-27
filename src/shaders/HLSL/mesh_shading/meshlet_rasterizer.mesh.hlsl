@@ -22,7 +22,7 @@
 
     MeshletCandidate candidate = visibleMeshletBuffer.Load<MeshletCandidate>(meshletIndex * sizeof(MeshletCandidate));
     Instance instance = getInstance(candidate.instanceId);
-    Mesh mesh = meshesBuffer.Load<Mesh>(instance.meshLodIndices[2] * sizeof(Mesh));
+    Mesh mesh = meshesBuffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
     ByteAddressBuffer dataBuffer = ResourceDescriptorHeap[NonUniformResourceIndex(mesh.dataBufferIndex)];
     Meshlet meshlet = dataBuffer.Load<Meshlet>(candidate.meshletIndex * sizeof(Meshlet) + mesh.meshletOffset);
 

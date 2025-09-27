@@ -1123,6 +1123,8 @@ pub const Renderer = struct {
             const mesh = self.mesh_map.get(lod.mesh_id.hash).?;
             std.debug.assert(mesh.count == @as(u32, @intCast(lod.materials_count)));
             renderable.lods[lod_index].mesh_id = lod.mesh_id;
+            renderable.lods[lod_index].screen_percentage_range[0] = lod.screen_percentage_range[0];
+            renderable.lods[lod_index].screen_percentage_range[1] = lod.screen_percentage_range[1];
             renderable.lods[lod_index].materials_count = lod.materials_count;
             for (0..lod.materials_count) |material_index| {
                 renderable.lods[lod_index].materials[material_index] = lod.materials[material_index];
@@ -2166,6 +2168,7 @@ pub const RenderableLod = struct {
     mesh_id: IdLocal,
     materials: [materials_per_renderable_max_count]IdLocal,
     materials_count: u32,
+    screen_percentage_range: [2]f32,
 };
 
 const Renderable = struct {

@@ -34,10 +34,13 @@ const EntityMap = std.AutoHashMap(ecs.entity_t, bool);
 const GpuInstance = struct {
     world: [16]f32,
     local_bounds_origin: [3]f32,
-    id: u32,
+    screen_percentage_min: f32,
     local_bounds_extents: [3]f32,
-    mesh_lod_indices: [3]u32,
+    screen_percentage_max: f32,
+    id: u32,
+    mesh_index: u32,
     material_index: u32,
+    _padding: u32,
 };
 
 const GpuMeshletCandidate = struct {
@@ -447,40 +450,28 @@ fn update(user_data: *anyopaque) void {
             }
 
             const renderable_data = self.renderer.getRenderable(renderable.id);
-            const lod0_mesh_info = self.renderer.getMeshInfo(renderable_data.lods[0].mesh_id);
-            var lod1_mesh_info: ?renderer.MeshInfo = null;
-            var lod2_mesh_info: ?renderer.MeshInfo = null;
-            if (renderable_data.lods_count > 1) {
-                lod1_mesh_info = self.renderer.getMeshInfo(renderable_data.lods[1].mesh_id);
-            }
-            if (renderable_data.lods_count > 2) {
-                lod2_mesh_info = self.renderer.getMeshInfo(renderable_data.lods[2].mesh_id);
-            }
+            for (0..renderable_data.lods_count) |lod_index| {
+                const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[lod_index].mesh_id);
 
-            for (0..lod0_mesh_info.count) |mesh_index_offset| {
-                const mesh = &self.renderer.meshes.items[lod0_mesh_info.index + mesh_index_offset];
-                // TODO: Allow for multiple materials?
-                const material_index = self.renderer.getMaterialIndex(renderable_data.lods[0].materials[mesh_index_offset]);
-                var gpu_instance = std.mem.zeroes(GpuInstance);
-                var world: [16]f32 = undefined;
-                storeMat44(transform.matrix[0..], world[0..]);
-                const z_world = zm.loadMat(&world);
-                zm.storeMat(&gpu_instance.world, zm.transpose(z_world));
-                gpu_instance.id = @intCast(self.instance_buffers[frame_index].element_count + self.instances.items.len);
-                gpu_instance.mesh_lod_indices[0] = @intCast(lod0_mesh_info.index + mesh_index_offset);
-                gpu_instance.mesh_lod_indices[1] = std.math.maxInt(u32);
-                gpu_instance.mesh_lod_indices[2] = std.math.maxInt(u32);
-                if (lod1_mesh_info) |lod1| {
-                    gpu_instance.mesh_lod_indices[1] = @intCast(lod1.index + mesh_index_offset);
-                }
-                if (lod2_mesh_info) |lod2| {
-                    gpu_instance.mesh_lod_indices[2] = @intCast(lod2.index + mesh_index_offset);
-                }
-                gpu_instance.material_index = @intCast(material_index);
-                gpu_instance.local_bounds_origin = mesh.bounds.center;
-                gpu_instance.local_bounds_extents = mesh.bounds.extents;
+                for (0..mesh_info.count) |mesh_index_offset| {
+                    const mesh = &self.renderer.meshes.items[mesh_info.index + mesh_index_offset];
 
-                self.instances.append(gpu_instance) catch unreachable;
+                    const material_index = self.renderer.getMaterialIndex(renderable_data.lods[0].materials[mesh_index_offset]);
+                    var gpu_instance = std.mem.zeroes(GpuInstance);
+                    var world: [16]f32 = undefined;
+                    storeMat44(transform.matrix[0..], world[0..]);
+                    const z_world = zm.loadMat(&world);
+                    zm.storeMat(&gpu_instance.world, zm.transpose(z_world));
+                    gpu_instance.id = @intCast(self.instance_buffers[frame_index].element_count + self.instances.items.len);
+                    gpu_instance.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
+                    gpu_instance.material_index = @intCast(material_index);
+                    gpu_instance.local_bounds_origin = mesh.bounds.center;
+                    gpu_instance.local_bounds_extents = mesh.bounds.extents;
+                    gpu_instance.screen_percentage_min = renderable_data.lods[lod_index].screen_percentage_range[0];
+                    gpu_instance.screen_percentage_max = renderable_data.lods[lod_index].screen_percentage_range[1];
+
+                    self.instances.append(gpu_instance) catch unreachable;
+                }
             }
 
             self.entity_maps[frame_index].put(entity_id, true) catch unreachable;
