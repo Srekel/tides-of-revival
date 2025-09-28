@@ -82,7 +82,7 @@ struct Instance
     uint id;
     uint meshIndex;
     uint materialIndex;
-    uint _padding0;
+    uint flags;
 };
 
 struct MaterialData

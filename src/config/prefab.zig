@@ -67,14 +67,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     const pipeline_lit_gbuffer_cutout_id = IdLocal.init("lit_gbuffer_cutout");
     _ = pipeline_lit_gbuffer_cutout_id;
 
-    const pipeline_tree_gbuffer_opaque_id = IdLocal.init("tree_gbuffer_opaque");
-    const pipeline_tree_gbuffer_cutout_id = IdLocal.init("tree_gbuffer_cutout");
+    const pso_meshlet_opaque_gbuffer_id = IdLocal.init("meshlet_gbuffer_opaque");
+    const pso_meshlet_masked_gbuffer_id = IdLocal.init("meshlet_gbuffer_masked");
 
     const pipeline_shadow_caster_opaque_id = IdLocal.init("lit_shadow_caster_opaque");
-    const pipeline_shadow_caster_cutout_id = IdLocal.init("lit_shadow_caster_cutout");
-    _ = pipeline_shadow_caster_cutout_id;
-    const pipeline_tree_shadow_caster_opaque_id = IdLocal.init("tree_shadow_caster_opaque");
-    const pipeline_tree_shadow_caster_masked_id = IdLocal.init("tree_shadow_caster_cutout");
 
     const default_material_id = ID("default");
     var default_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(0.5, 0.5, 0.5), 0.8, 0.0);
@@ -350,12 +346,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD1.mesh", beech_04_LOD1_id) catch unreachable;
         const beech_04_LOD2_id = ID("beech_tree_04_lod2");
         prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD2.mesh", beech_04_LOD2_id) catch unreachable;
-        // const beech_04_LOD3_id = ID("beech_tree_04_lod3");
-        // prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD3.mesh", beech_04_LOD3_id) catch unreachable;
+        const beech_04_LOD3_id = ID("beech_tree_04_lod3");
+        prefab_mgr.rctx.loadMesh("content/prefabs/environment/beech/beech_tree_04_LOD3.mesh", beech_04_LOD3_id) catch unreachable;
 
         var beech_trunk_04_material = renderer.UberShaderMaterialData.init();
-        beech_trunk_04_material.gbuffer_pipeline_id = pipeline_tree_gbuffer_opaque_id;
-        beech_trunk_04_material.shadow_caster_pipeline_id = pipeline_tree_shadow_caster_opaque_id;
+        beech_trunk_04_material.gbuffer_pipeline_id = pso_meshlet_opaque_gbuffer_id;
+        beech_trunk_04_material.shadow_caster_pipeline_id = null;
         beech_trunk_04_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_albedo.dds");
         beech_trunk_04_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_arm.dds");
         beech_trunk_04_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_trunk_04_normal.dds");
@@ -365,8 +361,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
         var beech_atlas_v2_material = renderer.UberShaderMaterialData.init();
         beech_atlas_v2_material.alpha_test = true;
-        beech_atlas_v2_material.gbuffer_pipeline_id = pipeline_tree_gbuffer_cutout_id;
-        beech_atlas_v2_material.shadow_caster_pipeline_id = pipeline_tree_shadow_caster_masked_id;
+        beech_atlas_v2_material.gbuffer_pipeline_id = pso_meshlet_masked_gbuffer_id;
+        beech_atlas_v2_material.shadow_caster_pipeline_id = null;
         beech_atlas_v2_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_v2_albedo.dds");
         beech_atlas_v2_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_arm.dds");
         beech_atlas_v2_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_normal.dds");
@@ -374,8 +370,19 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const beech_atlas_v2_material_id = ID("beech_atlas_v2");
         prefab_mgr.rctx.loadMaterial(beech_atlas_v2_material_id, beech_atlas_v2_material) catch unreachable;
 
+        var beech_04_impostor_material = renderer.UberShaderMaterialData.init();
+        beech_04_impostor_material.alpha_test = true;
+        beech_04_impostor_material.gbuffer_pipeline_id = pso_meshlet_masked_gbuffer_id;
+        beech_04_impostor_material.shadow_caster_pipeline_id = null;
+        beech_04_impostor_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_04_impostor_albedo.dds");
+        beech_04_impostor_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_04_impostor_normal.dds");
+        beech_04_impostor_material.roughness = 0.95;
+
+        const beech_04_impostor_material_id = ID("beech_04_impostor");
+        prefab_mgr.rctx.loadMaterial(beech_04_impostor_material_id, beech_04_impostor_material) catch unreachable;
+
         var renderable_desc = renderer.RenderableDesc{
-            .lods_count = 3,
+            .lods_count = 4,
             .lods = undefined,
         };
         renderable_desc.lods[0].mesh_id = beech_04_LOD0_id;
@@ -394,8 +401,13 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[2].materials_count = 2;
         renderable_desc.lods[2].materials[0] = beech_trunk_04_material_id;
         renderable_desc.lods[2].materials[1] = beech_atlas_v2_material_id;
-        renderable_desc.lods[2].screen_percentage_range[0] = 0.0;
+        renderable_desc.lods[2].screen_percentage_range[0] = 0.4;
         renderable_desc.lods[2].screen_percentage_range[1] = 0.6;
+        renderable_desc.lods[3].mesh_id = beech_04_LOD3_id;
+        renderable_desc.lods[3].materials_count = 1;
+        renderable_desc.lods[3].materials[0] = beech_04_impostor_material_id;
+        renderable_desc.lods[3].screen_percentage_range[0] = 0.0;
+        renderable_desc.lods[3].screen_percentage_range[1] = 0.4;
 
         prefab_mgr.rctx.registerRenderable(beech_tree_04_id, renderable_desc);
 

@@ -11,12 +11,6 @@ cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
     CullInstancesParams g_CullInstancesParams;
 };
 
-// TODO
-float CalculateScreenPercentage(float3 aabb_center, float3 aabb_extents, float4x4 world, float4x4 view_proj)
-{
-    return 0.1f;
-}
-
 [numthreads(CULL_INSTANCES_THREADS_COUNT, 1, 1)] void main(uint DTid : SV_DispatchThreadID)
 {
     RWByteAddressBuffer candidateMeshletsCountersBuffer = ResourceDescriptorHeap[g_CullInstancesParams.candidateMeshletsCountersBufferIndex];

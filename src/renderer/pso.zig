@@ -58,12 +58,18 @@ const MeshPipelineDesc = struct {
     sampler_ids: []IdLocal = undefined,
 };
 
+pub const PsoBin = struct {
+    gbuffer_id: IdLocal,
+    shadow_caster_id: IdLocal = undefined,
+};
+
 pub const PSOManager = struct {
     allocator: std.mem.Allocator = undefined,
     renderer: *Renderer = undefined,
 
     pso_pool: PSOPool = undefined,
     pso_map: PSOMap = undefined,
+    pso_bins: std.ArrayList(PsoBin) = undefined,
     blend_states: BlendStates = undefined,
     samplers: StaticSamplers = undefined,
 
@@ -74,6 +80,7 @@ pub const PSOManager = struct {
         self.renderer = renderer;
         self.pso_pool = PSOPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_map = PSOMap.init(allocator);
+        self.pso_bins = std.ArrayList(PsoBin).init(self.allocator);
         self.blend_states = BlendStates.init(allocator);
         self.samplers = StaticSamplers.create(renderer.renderer, allocator);
 
@@ -94,6 +101,7 @@ pub const PSOManager = struct {
         }
         self.pso_pool.deinit();
         self.pso_map.deinit();
+        self.pso_bins.deinit();
         self.blend_states.deinit();
 
         self.samplers.exit(self.renderer.renderer);
@@ -196,6 +204,20 @@ pub const PSOManager = struct {
             desc.mIndependentBlend = false;
             self.blend_states.put(id, desc) catch unreachable;
         }
+    }
+
+    pub fn getPsoBinsCount(self: *PSOManager) usize {
+        return self.pso_bins.items.len;
+    }
+
+    pub fn getPsoBinId(self: *PSOManager, id: IdLocal) ?u32 {
+        for (self.pso_bins.items, 0..) |pso_bin, pso_bin_id| {
+            if (id.hash == pso_bin.gbuffer_id.hash or id.hash == pso_bin.shadow_caster_id.hash) {
+                return @intCast(pso_bin_id);
+            }
+        }
+
+        return null;
     }
 
     pub fn getPipeline(self: *PSOManager, id: IdLocal) [*c]graphics.Pipeline {
@@ -517,11 +539,13 @@ pub const PSOManager = struct {
                     .sampler_ids = &sampler_ids,
                 };
                 self.createMeshPipeline(desc);
+                self.pso_bins.append(.{ .gbuffer_id = desc.id }) catch unreachable;
 
                 desc.id = IdLocal.init("meshlet_gbuffer_masked");
                 desc.rasterizer_state = rasterizer_cull_none;
                 desc.frag_shader_name = "meshlet_rasterizer_masked.frag";
                 self.createMeshPipeline(desc);
+                self.pso_bins.append(.{ .gbuffer_id = desc.id }) catch unreachable;
             }
         }
 

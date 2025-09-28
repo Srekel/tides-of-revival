@@ -9,6 +9,7 @@ const IdLocal = @import("../core/core.zig").IdLocal;
 const im3d = @import("im3d");
 const input = @import("../input.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
+const PSOManager = @import("../renderer/pso.zig").PSOManager;
 const renderer = @import("../renderer/renderer.zig");
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
@@ -40,6 +41,7 @@ pub const SystemCreateCtx = struct {
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
     prefab_mgr: *PrefabManager,
+    pso_mgr: *PSOManager,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
@@ -70,6 +72,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const ctx_renderer = create_ctx.renderer;
     const ecsu_world = create_ctx.ecsu_world;
     const prefab_mgr = create_ctx.prefab_mgr;
+    const pso_mgr = create_ctx.pso_mgr;
 
     const ssao_render_pass = arena_system_lifetime.create(SSAORenderPass) catch unreachable;
     ssao_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
@@ -81,7 +84,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     terrain_render_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
 
     const gpu_driven_render_pass = arena_system_lifetime.create(GpuDrivenRenderPass) catch unreachable;
-    gpu_driven_render_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
+    gpu_driven_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pso_mgr, pass_allocator);
 
     const deferred_shading_render_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
     deferred_shading_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);

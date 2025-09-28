@@ -25,6 +25,7 @@ const task_queue = @import("core/task_queue.zig");
 const input = @import("input.zig");
 const prefab_manager = @import("prefab_manager.zig");
 const physics_manager = @import("managers/physics_manager.zig");
+const pso = @import("renderer/pso.zig");
 
 const FrameStats = @import("frame_stats.zig").FrameStats;
 const renderer = @import("renderer/renderer.zig");
@@ -50,6 +51,7 @@ const GameloopContext = struct {
     physics_world: *zphy.PhysicsSystem,
     physics_world_low: *zphy.PhysicsSystem,
     prefab_mgr: *prefab_manager.PrefabManager,
+    pso_mgr: *pso.PSOManager,
     renderer: *renderer.Renderer,
     stats: *FrameStats,
     task_queue: *task_queue.TaskQueue,
@@ -210,6 +212,7 @@ pub fn run() void {
         .physics_world = physics_mgr.physics_world,
         .physics_world_low = physics_mgr.physics_world_low,
         .prefab_mgr = &prefab_mgr,
+        .pso_mgr = &renderer_ctx.pso_manager,
         .renderer = &renderer_ctx,
         .stats = &stats,
         .task_queue = &task_queue1,

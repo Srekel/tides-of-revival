@@ -9,6 +9,7 @@ const renderer = @import("../../renderer/renderer.zig");
 const geometry = @import("../../renderer/geometry.zig");
 const renderer_types = @import("../../renderer/types.zig");
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
+const pso = @import("../../renderer/pso.zig");
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
@@ -21,7 +22,6 @@ const graphics = zforge.graphics;
 const DescriptorSet = graphics.DescriptorSet;
 const Renderer = renderer.Renderer;
 const frames_count = Renderer.data_buffer_count;
-const renderer_bins_count = renderer.renderer_bins_count;
 const BufferHandle = renderer.BufferHandle;
 const RenderPass = renderer.RenderPass;
 const InstanceData = renderer_types.InstanceData;
@@ -29,8 +29,12 @@ const InstanceDataIndirection = renderer_types.InstanceDataIndirection;
 
 const instancens_max_count = 1000000;
 const meshlets_max_count = 1 << 20;
-// NOTE: This could be a set, but it is a hashmap because we might want to store the GPU index as the value to evict instances that are streamed out
-const EntityMap = std.AutoHashMap(ecs.entity_t, bool);
+const EntityMap = std.AutoHashMap(ecs.entity_t, struct { index: usize, count: u32 });
+
+const GpuInstanceFlags = packed struct(u32) {
+    destroyed: u1,
+    _padding: u31,
+};
 
 const GpuInstance = struct {
     world: [16]f32,
@@ -41,7 +45,7 @@ const GpuInstance = struct {
     id: u32,
     mesh_index: u32,
     material_index: u32,
-    _padding: u32,
+    flags: GpuInstanceFlags,
 };
 
 const GpuMeshletCandidate = struct {
@@ -120,6 +124,7 @@ pub const GpuDrivenRenderPass = struct {
     renderer: *Renderer,
     render_pass: RenderPass,
     prefab_mgr: *PrefabManager,
+    pso_mgr: *pso.PSOManager,
     query_renderables: *ecs.query_t,
     render_settings: RenderSettings,
 
@@ -166,14 +171,15 @@ pub const GpuDrivenRenderPass = struct {
     binning_allocate_bin_ranges_descriptor_set: [*c]DescriptorSet,
     binning_write_bin_ranges_descriptor_set: [*c]DescriptorSet,
     // Rasterizer
-    meshlets_rasterizer_uniform_buffers: [renderer_bins_count][frames_count]BufferHandle,
-    meshlets_rasterizer_descriptor_sets: [renderer_bins_count][*c]DescriptorSet,
+    meshlets_rasterizer_uniform_buffers: std.ArrayList([frames_count]BufferHandle),
+    meshlets_rasterizer_descriptor_sets: std.ArrayList([*c]DescriptorSet),
 
-    pub fn init(self: *GpuDrivenRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
+    pub fn init(self: *GpuDrivenRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, pso_mgr: *pso.PSOManager, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
         self.ecsu_world = ecsu_world;
         self.renderer = rctx;
         self.prefab_mgr = prefab_mgr;
+        self.pso_mgr = pso_mgr;
 
         // Global Buffers
         for (self.instance_buffers, 0..) |_, buffer_index| {
@@ -261,7 +267,7 @@ pub const GpuDrivenRenderPass = struct {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
                 const buffer_data = OpaqueSlice{
                     .data = null,
-                    .size = renderer_bins_count * @sizeOf([4]u32),
+                    .size = self.pso_mgr.getPsoBinsCount() * @sizeOf([4]u32),
                 };
                 for (buffers, 0..) |_, buffer_index| {
                     buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Meshlets Offset and Count");
@@ -378,8 +384,11 @@ pub const GpuDrivenRenderPass = struct {
                 break :blk buffers;
             };
 
-            for (0..renderer_bins_count) |bin_id| {
-                self.meshlets_rasterizer_uniform_buffers[bin_id] = blk: {
+            self.meshlets_rasterizer_uniform_buffers = std.ArrayList([frames_count]BufferHandle).init(self.allocator);
+            self.meshlets_rasterizer_descriptor_sets = std.ArrayList([*c]DescriptorSet).init(self.allocator);
+
+            for (0..self.pso_mgr.getPsoBinsCount()) |_| {
+                const meshlets_rasterizer_uniform_buffers = blk: {
                     var buffers: [frames_count]renderer.BufferHandle = undefined;
                     for (buffers, 0..) |_, buffer_index| {
                         buffers[buffer_index] = rctx.createUniformBuffer(RasterizerParams);
@@ -387,6 +396,7 @@ pub const GpuDrivenRenderPass = struct {
 
                     break :blk buffers;
                 };
+                self.meshlets_rasterizer_uniform_buffers.append(meshlets_rasterizer_uniform_buffers) catch unreachable;
             }
         }
 
@@ -430,6 +440,9 @@ pub const GpuDrivenRenderPass = struct {
             self.entity_maps[index].deinit();
         }
         unloadDescriptorSets(@ptrCast(self));
+
+        self.meshlets_rasterizer_uniform_buffers.deinit();
+        self.meshlets_rasterizer_descriptor_sets.deinit();
     }
 };
 
@@ -450,6 +463,9 @@ fn update(user_data: *anyopaque) void {
                 continue;
             }
 
+            const instance_buffer_index: usize = self.instance_buffers[frame_index].element_count + self.instances.items.len;
+            var instances_count: u32 = 0;
+
             const renderable_data = self.renderer.getRenderable(renderable.id);
             for (0..renderable_data.lods_count) |lod_index| {
                 const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[lod_index].mesh_id);
@@ -457,7 +473,7 @@ fn update(user_data: *anyopaque) void {
                 for (0..mesh_info.count) |mesh_index_offset| {
                     const mesh = &self.renderer.meshes.items[mesh_info.index + mesh_index_offset];
 
-                    const material_index = self.renderer.getMaterialIndex(renderable_data.lods[0].materials[mesh_index_offset]);
+                    const material_index = self.renderer.getMaterialIndex(renderable_data.lods[lod_index].materials[mesh_index_offset]);
                     var gpu_instance = std.mem.zeroes(GpuInstance);
                     var world: [16]f32 = undefined;
                     storeMat44(transform.matrix[0..], world[0..]);
@@ -470,12 +486,14 @@ fn update(user_data: *anyopaque) void {
                     gpu_instance.local_bounds_extents = mesh.bounds.extents;
                     gpu_instance.screen_percentage_min = renderable_data.lods[lod_index].screen_percentage_range[0];
                     gpu_instance.screen_percentage_max = renderable_data.lods[lod_index].screen_percentage_range[1];
+                    gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
 
                     self.instances.append(gpu_instance) catch unreachable;
+                    instances_count += 1;
                 }
             }
 
-            self.entity_maps[frame_index].put(entity_id, true) catch unreachable;
+            self.entity_maps[frame_index].put(entity_id, .{ .index = instance_buffer_index, .count = instances_count }) catch unreachable;
         }
     }
 
@@ -740,7 +758,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     // Binning Meshets
     {
         var binning_params = BinningParams{
-            .bins_count = renderer_bins_count,
+            .bins_count = @intCast(self.pso_mgr.getPsoBinsCount()),
             .meshlet_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_count_buffers[frame_index]),
             .meshlet_offset_and_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_offset_and_count_buffers[frame_index]),
             .global_meshlet_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_global_count_buffers[frame_index]),
@@ -855,7 +873,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
             }
 
-            for (0..renderer_bins_count) |bin_id| {
+            for (self.pso_mgr.pso_bins.items, 0..) |pso_bin, bin_id| {
                 var rasterizer_params = RasterizerParams{
                     .bin_index = @intCast(bin_id),
                     .binned_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.binned_meshlets_buffers[frame_index]),
@@ -867,18 +885,12 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                     .data = @ptrCast(&rasterizer_params),
                     .size = @sizeOf(RasterizerParams),
                 };
-                self.renderer.updateBuffer(data_slice, 0, RasterizerParams, self.meshlets_rasterizer_uniform_buffers[bin_id][frame_index]);
+                self.renderer.updateBuffer(data_slice, 0, RasterizerParams, self.meshlets_rasterizer_uniform_buffers.items[bin_id][frame_index]);
 
-                // TODO: Make a list of pipelines
-                if (bin_id == 0) {
-                    const pipeline = self.renderer.getPSO(IdLocal.init("meshlet_gbuffer_opaque"));
-                    graphics.cmdBindPipeline(cmd_list, pipeline);
-                } else {
-                    const pipeline = self.renderer.getPSO(IdLocal.init("meshlet_gbuffer_masked"));
-                    graphics.cmdBindPipeline(cmd_list, pipeline);
-                }
+                const pipeline = self.renderer.getPSO(pso_bin.gbuffer_id);
+                graphics.cmdBindPipeline(cmd_list, pipeline);
 
-                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.meshlets_rasterizer_descriptor_sets[bin_id]);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.meshlets_rasterizer_descriptor_sets.items[bin_id]);
                 graphics.cmdExecuteIndirect(cmd_list, .INDIRECT_DISPATCH_MESH, 1, meshlet_offset_and_count_buffer, bin_id * @sizeOf([4]u32), null, 0);
             }
 
@@ -967,18 +979,13 @@ fn createDescriptorSets(user_data: *anyopaque) void {
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.binning_write_bin_ranges_descriptor_set));
     }
 
-    for (0..renderer_bins_count) |bin_id| {
+    for (self.pso_mgr.pso_bins.items, 0..) |pso_bin, bin_id| {
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
         desc.mMaxSets = frames_count;
-
-        // TODO: Make a list of pipelines
-        if (bin_id == 0) {
-            desc.pRootSignature = self.renderer.getRootSignature(IdLocal.init("meshlet_gbuffer_opaque"));
-        } else {
-            desc.pRootSignature = self.renderer.getRootSignature(IdLocal.init("meshlet_gbuffer_masked"));
-        }
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.meshlets_rasterizer_descriptor_sets[bin_id]));
+        desc.pRootSignature = self.renderer.getRootSignature(pso_bin.gbuffer_id);
+        self.meshlets_rasterizer_descriptor_sets.append(null) catch unreachable;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.meshlets_rasterizer_descriptor_sets.items[bin_id]));
     }
 }
 
@@ -1060,19 +1067,19 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.binning_write_bin_ranges_descriptor_set, @intCast(params.len), @ptrCast(&params));
     }
 
-    for (0..renderer_bins_count) |bin_id| {
+    for (0..self.pso_mgr.getPsoBinsCount()) |bin_id| {
         for (0..renderer.Renderer.data_buffer_count) |i| {
             var frame_buffer = self.renderer.getBuffer(self.frame_uniform_buffers[i]);
             params[0] = std.mem.zeroes(graphics.DescriptorData);
             params[0].pName = "g_Frame";
             params[0].__union_field3.ppBuffers = @ptrCast(&frame_buffer);
 
-            var meshlet_rasterizer_buffer = self.renderer.getBuffer(self.meshlets_rasterizer_uniform_buffers[bin_id][i]);
+            var meshlet_rasterizer_buffer = self.renderer.getBuffer(self.meshlets_rasterizer_uniform_buffers.items[bin_id][i]);
             params[1] = std.mem.zeroes(graphics.DescriptorData);
             params[1].pName = "g_RasterizerParams";
             params[1].__union_field3.ppBuffers = @ptrCast(&meshlet_rasterizer_buffer);
 
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.meshlets_rasterizer_descriptor_sets[bin_id], @intCast(params.len), @ptrCast(&params));
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.meshlets_rasterizer_descriptor_sets.items[bin_id], @intCast(params.len), @ptrCast(&params));
         }
     }
 }
@@ -1088,8 +1095,8 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
     graphics.removeDescriptorSet(self.renderer.renderer, self.binning_classify_meshlets_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.binning_allocate_bin_ranges_descriptor_set);
     graphics.removeDescriptorSet(self.renderer.renderer, self.binning_write_bin_ranges_descriptor_set);
-    for (0..renderer_bins_count) |bin_id| {
-        graphics.removeDescriptorSet(self.renderer.renderer, self.meshlets_rasterizer_descriptor_sets[bin_id]);
+    for (0..self.pso_mgr.getPsoBinsCount()) |bin_id| {
+        graphics.removeDescriptorSet(self.renderer.renderer, self.meshlets_rasterizer_descriptor_sets.items[bin_id]);
     }
 }
 

@@ -1153,7 +1153,7 @@ pub const Renderer = struct {
         gpu_material.normal_sampler_index = renderer_types.InvalidResourceIndex;
         gpu_material.arm_texture_index = self.getTextureBindlessIndex(material_data.arm);
         gpu_material.arm_sampler_index = renderer_types.InvalidResourceIndex;
-        gpu_material.rasterizer_bin = if (material_data.alpha_test) 1 else 0;
+        gpu_material.rasterizer_bin = self.pso_manager.getPsoBinId(material_data.gbuffer_pipeline_id.?).?;
 
         const gpu_material_data_slice = OpaqueSlice{
             .data = @ptrCast(&gpu_material),
@@ -2145,12 +2145,8 @@ pub const Renderer = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
 
-pub const renderer_bins_count: u32 = 2;
-pub const renderer_bucket_opaque: u32 = 1;
-pub const renderer_bucket_masked: u32 = 0;
-
 const materials_per_renderable_max_count: u32 = 8;
-const lods_per_renderable_max_count: u32 = 3;
+const lods_per_renderable_max_count: u32 = 4;
 
 pub const RenderableDesc = struct {
     lods: [lods_per_renderable_max_count]RenderableLod,
