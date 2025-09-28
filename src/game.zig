@@ -33,7 +33,7 @@ const window = @import("renderer/window.zig");
 
 const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
-// const quality = @import("data/quality.zig");
+const utility_scoring = @import("core/utility_scoring.zig");
 
 const GameloopContext = struct {
     arena_system_lifetime: std.mem.Allocator,
@@ -498,15 +498,31 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     {
         const sun_entity = util.getSun(ecsu_world);
         const sun_rotation = sun_entity.?.getMut(fd.Rotation).?;
-        sun_rotation.fromZM(zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau + 1.0), 0.0, 0.0));
+        sun_rotation.fromZM(zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau), 0.0, 0.0));
 
         const z_sun_delta_rotation = zm.quatFromRollPitchYaw(0.01 * @as(f32, @floatCast(dt_game)), 0, 0);
         sun_rotation.fromZM(zm.qmul(sun_rotation.asZM(), z_sun_delta_rotation));
 
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
-        // TODO: Implement curves so we can have more than constant or linear curves
-        const intensity_multiplier: f32 = if (environment_info.time_of_day_percent <= 0.5) 1.0 else 0.0;
-        sun_light.?.intensity = 5 * intensity_multiplier;
+        {
+            const curve = utility_scoring.Curve{
+                0.9, 1.0, 1.0, 0.6,
+                0.1, 0.0, 0.0, 0.5,
+                0.9,
+            };
+            const intensity_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
+            sun_light.?.intensity = 5 * intensity_multiplier;
+        }
+        {
+            const curve = utility_scoring.Curve{
+                0.5, 1.0, 1.0, 1.0,
+                0.5, 0.0, 0.0, 0.25,
+                0.5,
+            };
+            const gb_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
+            sun_light.?.color.g = gb_multiplier;
+            sun_light.?.color.b = gb_multiplier;
+        }
     }
 
     once_per_duration_test += dt_game;
