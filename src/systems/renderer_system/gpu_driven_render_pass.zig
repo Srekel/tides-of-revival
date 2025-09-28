@@ -571,8 +571,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Frame Culling Uniform Buffer
     {
-        const z_proj = zm.loadMat(camera_comps.camera.projection_standard[0..]);
-        const z_view_proj = zm.loadMat(camera_comps.camera.view_projection_standard[0..]);
+        const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
+        const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
         if (!self.render_settings.freeze_rendering) {
             zm.storeMat(&self.frame_culling_uniform_data[frame_index].view, zm.transpose(z_view));
