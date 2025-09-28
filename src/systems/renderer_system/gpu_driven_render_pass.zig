@@ -979,6 +979,8 @@ fn createDescriptorSets(user_data: *anyopaque) void {
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.binning_write_bin_ranges_descriptor_set));
     }
 
+    self.meshlets_rasterizer_descriptor_sets.clearRetainingCapacity();
+
     for (self.pso_mgr.pso_bins.items, 0..) |pso_bin, bin_id| {
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;

@@ -233,6 +233,8 @@ pub const PSOManager = struct {
     }
 
     pub fn createPipelines(self: *PSOManager) void {
+        self.pso_bins.clearRetainingCapacity();
+
         var rasterizer_cull_back = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_back.mCullMode = graphics.CullMode.CULL_MODE_BACK;
 
