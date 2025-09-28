@@ -54,11 +54,11 @@ const kind_WorldSettings = hash("WorldSettings");
 
 fn writePreview(writer: anytype, image_name: []const u8, node_name: []const u8) void {
     writeLine(writer, "", .{});
-    writeLine(writer, "    // types.saveImageF32({s}, \"{s}\", false);", .{ image_name, node_name });
+    // writeLine(writer, "     types.saveImageF32({s}, \"{s}\", false);", .{ image_name, node_name });
 
-    writeLine(writer, "    // types.image_preview_f32({s}, &preview_image_{s});", .{ image_name, node_name });
-    writeLine(writer, "    // const preview_key_{s} = \"{s}.image\";", .{ node_name, node_name });
-    writeLine(writer, "    // ctx.previews.putAssumeCapacity(preview_key_{s}, .{{ .data = preview_image_{s}.asBytes() }});", .{ node_name, node_name });
+    writeLine(writer, "     types.image_preview_f32({s}, &preview_image_{s});", .{ image_name, node_name });
+    writeLine(writer, "     const preview_key_{s} = \"{s}.image\";", .{ node_name, node_name });
+    writeLine(writer, "     ctx.previews.putAssumeCapacity(preview_key_{s}, .{{ .data = preview_image_{s}.asBytes() }});", .{ node_name, node_name });
 }
 
 fn writePreviewIndexed(writer: anytype, image_name: []const u8, node_name: []const u8, index: usize) void {

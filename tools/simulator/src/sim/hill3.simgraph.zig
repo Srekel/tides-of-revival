@@ -302,7 +302,7 @@ pub fn generate_landscape_from_image(ctx: *Context) void {
         .voronoi_grid = voronoi.diagram,
         .voronoi_cells = @ptrCast(voronoi.cells.items.ptr),
     };
-    cpp_nodes.generate_landscape_from_image(&c_voronoi, "content/tides_2.0.png");
+    cpp_nodes.generate_landscape_from_image(&c_voronoi, "../../../../content/world/hill3/tides.png");
 
     const preview_grid = cpp_nodes.generate_landscape_preview(&c_voronoi, preview_size, preview_size);
     const preview_grid_key = "generate_landscape_from_image.image";
@@ -332,10 +332,9 @@ pub fn generate_image_from_voronoi(ctx: *Context) void {
     voronoi_image.copyPixels(imagef32_data);
     nodes.math.rerangify(&voronoi_image);
 
-    // types.saveImageF32(voronoi_image, "generate_image_from_voronoi", false);
-    // types.image_preview_f32(voronoi_image, &preview_image_generate_image_from_voronoi);
-    // const preview_key_generate_image_from_voronoi = "generate_image_from_voronoi.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_image_from_voronoi, .{ .data = preview_image_generate_image_from_voronoi.asBytes() });
+     types.image_preview_f32(voronoi_image, &preview_image_generate_image_from_voronoi);
+     const preview_key_generate_image_from_voronoi = "generate_image_from_voronoi.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_image_from_voronoi, .{ .data = preview_image_generate_image_from_voronoi.asBytes() });
 
     // Leaf node
 }
@@ -360,10 +359,9 @@ pub fn generate_heightmap_water(ctx: *Context) void {
 
     compute.remap(&heightmap_water, &scratch_image, 0, 1);
 
-    // types.saveImageF32(heightmap_water, "generate_heightmap_water", false);
-    // types.image_preview_f32(heightmap_water, &preview_image_generate_heightmap_water);
-    // const preview_key_generate_heightmap_water = "generate_heightmap_water.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_water, .{ .data = preview_image_generate_heightmap_water.asBytes() });
+     types.image_preview_f32(heightmap_water, &preview_image_generate_heightmap_water);
+     const preview_key_generate_heightmap_water = "generate_heightmap_water.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_water, .{ .data = preview_image_generate_heightmap_water.asBytes() });
 
     // Leaf node
 }
@@ -379,10 +377,9 @@ pub fn generate_voronoi_weight_water(ctx: *Context) void {
     };
     compute.remapCurve(&voronoi_image, &curve, &weight_water);
 
-    // types.saveImageF32(weight_water, "generate_voronoi_weight_water", false);
-    // types.image_preview_f32(weight_water, &preview_image_generate_voronoi_weight_water);
-    // const preview_key_generate_voronoi_weight_water = "generate_voronoi_weight_water.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_water, .{ .data = preview_image_generate_voronoi_weight_water.asBytes() });
+     types.image_preview_f32(weight_water, &preview_image_generate_voronoi_weight_water);
+     const preview_key_generate_voronoi_weight_water = "generate_voronoi_weight_water.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_water, .{ .data = preview_image_generate_voronoi_weight_water.asBytes() });
 
     ctx.next_nodes.insert(0, blur_weight_water) catch unreachable;
 }
@@ -392,10 +389,9 @@ pub fn blur_weight_water(ctx: *Context) void {
 
     compute.blur(&weight_water, &scratch_image, &weight_water);
 
-    // types.saveImageF32(weight_water, "blur_weight_water", false);
-    // types.image_preview_f32(weight_water, &preview_image_blur_weight_water);
-    // const preview_key_blur_weight_water = "blur_weight_water.image";
-    // ctx.previews.putAssumeCapacity(preview_key_blur_weight_water, .{ .data = preview_image_blur_weight_water.asBytes() });
+     types.image_preview_f32(weight_water, &preview_image_blur_weight_water);
+     const preview_key_blur_weight_water = "blur_weight_water.image";
+     ctx.previews.putAssumeCapacity(preview_key_blur_weight_water, .{ .data = preview_image_blur_weight_water.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_water) catch unreachable;
 }
@@ -405,10 +401,9 @@ pub fn multiply_heightmap_weight_water(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_water, &weight_water, &heightmap_water, &scratch_image);
 
-    // types.saveImageF32(heightmap_water, "multiply_heightmap_weight_water", false);
-    // types.image_preview_f32(heightmap_water, &preview_image_multiply_heightmap_weight_water);
-    // const preview_key_multiply_heightmap_weight_water = "multiply_heightmap_weight_water.image";
-    // ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_water, .{ .data = preview_image_multiply_heightmap_weight_water.asBytes() });
+     types.image_preview_f32(heightmap_water, &preview_image_multiply_heightmap_weight_water);
+     const preview_key_multiply_heightmap_weight_water = "multiply_heightmap_weight_water.image";
+     ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_water, .{ .data = preview_image_multiply_heightmap_weight_water.asBytes() });
 
     // Leaf node
 }
@@ -418,10 +413,9 @@ pub fn remap_heightmap_water(ctx: *Context) void {
 
     compute.remap(&heightmap_water, &scratch_image, 0, 50);
 
-    // types.saveImageF32(heightmap_water, "remap_heightmap_water", false);
-    // types.image_preview_f32(heightmap_water, &preview_image_remap_heightmap_water);
-    // const preview_key_remap_heightmap_water = "remap_heightmap_water.image";
-    // ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_water, .{ .data = preview_image_remap_heightmap_water.asBytes() });
+     types.image_preview_f32(heightmap_water, &preview_image_remap_heightmap_water);
+     const preview_key_remap_heightmap_water = "remap_heightmap_water.image";
+     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_water, .{ .data = preview_image_remap_heightmap_water.asBytes() });
 
     ctx.next_nodes.insert(0, multiply_heightmap_weight_water) catch unreachable;
 }
@@ -446,10 +440,9 @@ pub fn generate_heightmap_plains(ctx: *Context) void {
 
     compute.remap(&heightmap_plains, &scratch_image, 0, 1);
 
-    // types.saveImageF32(heightmap_plains, "generate_heightmap_plains", false);
-    // types.image_preview_f32(heightmap_plains, &preview_image_generate_heightmap_plains);
-    // const preview_key_generate_heightmap_plains = "generate_heightmap_plains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_plains, .{ .data = preview_image_generate_heightmap_plains.asBytes() });
+     types.image_preview_f32(heightmap_plains, &preview_image_generate_heightmap_plains);
+     const preview_key_generate_heightmap_plains = "generate_heightmap_plains.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_plains, .{ .data = preview_image_generate_heightmap_plains.asBytes() });
 
     ctx.next_nodes.insert(0, generate_voronoi_weight_plains) catch unreachable;
 }
@@ -466,10 +459,9 @@ pub fn generate_voronoi_weight_plains(ctx: *Context) void {
     };
     compute.remapCurve(&voronoi_image, &curve, &weight_plains);
 
-    // types.saveImageF32(weight_plains, "generate_voronoi_weight_plains", false);
-    // types.image_preview_f32(weight_plains, &preview_image_generate_voronoi_weight_plains);
-    // const preview_key_generate_voronoi_weight_plains = "generate_voronoi_weight_plains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_plains, .{ .data = preview_image_generate_voronoi_weight_plains.asBytes() });
+     types.image_preview_f32(weight_plains, &preview_image_generate_voronoi_weight_plains);
+     const preview_key_generate_voronoi_weight_plains = "generate_voronoi_weight_plains.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_plains, .{ .data = preview_image_generate_voronoi_weight_plains.asBytes() });
 
     ctx.next_nodes.insert(0, blur_weight_plains) catch unreachable;
 }
@@ -479,10 +471,9 @@ pub fn blur_weight_plains(ctx: *Context) void {
 
     compute.blur(&weight_plains, &scratch_image, &weight_plains);
 
-    // types.saveImageF32(weight_plains, "blur_weight_plains", false);
-    // types.image_preview_f32(weight_plains, &preview_image_blur_weight_plains);
-    // const preview_key_blur_weight_plains = "blur_weight_plains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_blur_weight_plains, .{ .data = preview_image_blur_weight_plains.asBytes() });
+     types.image_preview_f32(weight_plains, &preview_image_blur_weight_plains);
+     const preview_key_blur_weight_plains = "blur_weight_plains.image";
+     ctx.previews.putAssumeCapacity(preview_key_blur_weight_plains, .{ .data = preview_image_blur_weight_plains.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_plains) catch unreachable;
 }
@@ -492,10 +483,9 @@ pub fn multiply_heightmap_weight_plains(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_plains, &weight_plains, &heightmap_plains, &scratch_image);
 
-    // types.saveImageF32(heightmap_plains, "multiply_heightmap_weight_plains", false);
-    // types.image_preview_f32(heightmap_plains, &preview_image_multiply_heightmap_weight_plains);
-    // const preview_key_multiply_heightmap_weight_plains = "multiply_heightmap_weight_plains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
+     types.image_preview_f32(heightmap_plains, &preview_image_multiply_heightmap_weight_plains);
+     const preview_key_multiply_heightmap_weight_plains = "multiply_heightmap_weight_plains.image";
+     ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_plains, .{ .data = preview_image_multiply_heightmap_weight_plains.asBytes() });
 
     // Leaf node
 }
@@ -505,10 +495,9 @@ pub fn remap_heightmap_plains(ctx: *Context) void {
 
     compute.remap(&heightmap_plains, &scratch_image, 50, 150);
 
-    // types.saveImageF32(heightmap_plains, "remap_heightmap_plains", false);
-    // types.image_preview_f32(heightmap_plains, &preview_image_remap_heightmap_plains);
-    // const preview_key_remap_heightmap_plains = "remap_heightmap_plains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_plains, .{ .data = preview_image_remap_heightmap_plains.asBytes() });
+     types.image_preview_f32(heightmap_plains, &preview_image_remap_heightmap_plains);
+     const preview_key_remap_heightmap_plains = "remap_heightmap_plains.image";
+     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_plains, .{ .data = preview_image_remap_heightmap_plains.asBytes() });
 
     ctx.next_nodes.insert(0, multiply_heightmap_weight_plains) catch unreachable;
 }
@@ -533,10 +522,9 @@ pub fn generate_heightmap_hills(ctx: *Context) void {
 
     compute.remap(&heightmap_hills, &scratch_image, 0, 1);
 
-    // types.saveImageF32(heightmap_hills, "generate_heightmap_hills", false);
-    // types.image_preview_f32(heightmap_hills, &preview_image_generate_heightmap_hills);
-    // const preview_key_generate_heightmap_hills = "generate_heightmap_hills.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_hills, .{ .data = preview_image_generate_heightmap_hills.asBytes() });
+     types.image_preview_f32(heightmap_hills, &preview_image_generate_heightmap_hills);
+     const preview_key_generate_heightmap_hills = "generate_heightmap_hills.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_hills, .{ .data = preview_image_generate_heightmap_hills.asBytes() });
 
     ctx.next_nodes.insert(0, generate_voronoi_weight_hills) catch unreachable;
 }
@@ -554,10 +542,9 @@ pub fn generate_voronoi_weight_hills(ctx: *Context) void {
     };
     compute.remapCurve(&voronoi_image, &curve, &weight_hills);
 
-    // types.saveImageF32(weight_hills, "generate_voronoi_weight_hills", false);
-    // types.image_preview_f32(weight_hills, &preview_image_generate_voronoi_weight_hills);
-    // const preview_key_generate_voronoi_weight_hills = "generate_voronoi_weight_hills.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_hills, .{ .data = preview_image_generate_voronoi_weight_hills.asBytes() });
+     types.image_preview_f32(weight_hills, &preview_image_generate_voronoi_weight_hills);
+     const preview_key_generate_voronoi_weight_hills = "generate_voronoi_weight_hills.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_hills, .{ .data = preview_image_generate_voronoi_weight_hills.asBytes() });
 
     ctx.next_nodes.insert(0, blur_weight_hills) catch unreachable;
 }
@@ -567,10 +554,9 @@ pub fn blur_weight_hills(ctx: *Context) void {
 
     compute.blur(&weight_hills, &scratch_image, &weight_hills);
 
-    // types.saveImageF32(weight_hills, "blur_weight_hills", false);
-    // types.image_preview_f32(weight_hills, &preview_image_blur_weight_hills);
-    // const preview_key_blur_weight_hills = "blur_weight_hills.image";
-    // ctx.previews.putAssumeCapacity(preview_key_blur_weight_hills, .{ .data = preview_image_blur_weight_hills.asBytes() });
+     types.image_preview_f32(weight_hills, &preview_image_blur_weight_hills);
+     const preview_key_blur_weight_hills = "blur_weight_hills.image";
+     ctx.previews.putAssumeCapacity(preview_key_blur_weight_hills, .{ .data = preview_image_blur_weight_hills.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_hills) catch unreachable;
 }
@@ -580,10 +566,9 @@ pub fn multiply_heightmap_weight_hills(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_hills, &weight_hills, &heightmap_hills, &scratch_image);
 
-    // types.saveImageF32(heightmap_hills, "multiply_heightmap_weight_hills", false);
-    // types.image_preview_f32(heightmap_hills, &preview_image_multiply_heightmap_weight_hills);
-    // const preview_key_multiply_heightmap_weight_hills = "multiply_heightmap_weight_hills.image";
-    // ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_hills, .{ .data = preview_image_multiply_heightmap_weight_hills.asBytes() });
+     types.image_preview_f32(heightmap_hills, &preview_image_multiply_heightmap_weight_hills);
+     const preview_key_multiply_heightmap_weight_hills = "multiply_heightmap_weight_hills.image";
+     ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_hills, .{ .data = preview_image_multiply_heightmap_weight_hills.asBytes() });
 
     // Leaf node
 }
@@ -593,10 +578,9 @@ pub fn remap_heightmap_hills(ctx: *Context) void {
 
     compute.remap(&heightmap_hills, &scratch_image, 150, 500);
 
-    // types.saveImageF32(heightmap_hills, "remap_heightmap_hills", false);
-    // types.image_preview_f32(heightmap_hills, &preview_image_remap_heightmap_hills);
-    // const preview_key_remap_heightmap_hills = "remap_heightmap_hills.image";
-    // ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_hills, .{ .data = preview_image_remap_heightmap_hills.asBytes() });
+     types.image_preview_f32(heightmap_hills, &preview_image_remap_heightmap_hills);
+     const preview_key_remap_heightmap_hills = "remap_heightmap_hills.image";
+     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_hills, .{ .data = preview_image_remap_heightmap_hills.asBytes() });
 
     ctx.next_nodes.insert(0, multiply_heightmap_weight_hills) catch unreachable;
 }
@@ -621,10 +605,9 @@ pub fn generate_heightmap_mountains(ctx: *Context) void {
 
     compute.remap(&heightmap_mountains, &scratch_image, 0, 1);
 
-    // types.saveImageF32(heightmap_mountains, "generate_heightmap_mountains", false);
-    // types.image_preview_f32(heightmap_mountains, &preview_image_generate_heightmap_mountains);
-    // const preview_key_generate_heightmap_mountains = "generate_heightmap_mountains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_mountains, .{ .data = preview_image_generate_heightmap_mountains.asBytes() });
+     types.image_preview_f32(heightmap_mountains, &preview_image_generate_heightmap_mountains);
+     const preview_key_generate_heightmap_mountains = "generate_heightmap_mountains.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_mountains, .{ .data = preview_image_generate_heightmap_mountains.asBytes() });
 
     ctx.next_nodes.insert(0, generate_voronoi_weight_mountains) catch unreachable;
 }
@@ -642,10 +625,9 @@ pub fn generate_voronoi_weight_mountains(ctx: *Context) void {
     };
     compute.remapCurve(&voronoi_image, &curve, &weight_mountains);
 
-    // types.saveImageF32(weight_mountains, "generate_voronoi_weight_mountains", false);
-    // types.image_preview_f32(weight_mountains, &preview_image_generate_voronoi_weight_mountains);
-    // const preview_key_generate_voronoi_weight_mountains = "generate_voronoi_weight_mountains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_mountains, .{ .data = preview_image_generate_voronoi_weight_mountains.asBytes() });
+     types.image_preview_f32(weight_mountains, &preview_image_generate_voronoi_weight_mountains);
+     const preview_key_generate_voronoi_weight_mountains = "generate_voronoi_weight_mountains.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_voronoi_weight_mountains, .{ .data = preview_image_generate_voronoi_weight_mountains.asBytes() });
 
     ctx.next_nodes.insert(0, blur_weight_mountains) catch unreachable;
 }
@@ -655,10 +637,9 @@ pub fn blur_weight_mountains(ctx: *Context) void {
 
     compute.blur(&weight_mountains, &scratch_image, &weight_mountains);
 
-    // types.saveImageF32(weight_mountains, "blur_weight_mountains", false);
-    // types.image_preview_f32(weight_mountains, &preview_image_blur_weight_mountains);
-    // const preview_key_blur_weight_mountains = "blur_weight_mountains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_blur_weight_mountains, .{ .data = preview_image_blur_weight_mountains.asBytes() });
+     types.image_preview_f32(weight_mountains, &preview_image_blur_weight_mountains);
+     const preview_key_blur_weight_mountains = "blur_weight_mountains.image";
+     ctx.previews.putAssumeCapacity(preview_key_blur_weight_mountains, .{ .data = preview_image_blur_weight_mountains.asBytes() });
 
     ctx.next_nodes.insert(0, remap_heightmap_mountains) catch unreachable;
 }
@@ -668,10 +649,9 @@ pub fn multiply_heightmap_weight_mountains(ctx: *Context) void {
 
     compute.math_multiply( &heightmap_mountains, &weight_mountains, &heightmap_mountains, &scratch_image);
 
-    // types.saveImageF32(heightmap_mountains, "multiply_heightmap_weight_mountains", false);
-    // types.image_preview_f32(heightmap_mountains, &preview_image_multiply_heightmap_weight_mountains);
-    // const preview_key_multiply_heightmap_weight_mountains = "multiply_heightmap_weight_mountains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_mountains, .{ .data = preview_image_multiply_heightmap_weight_mountains.asBytes() });
+     types.image_preview_f32(heightmap_mountains, &preview_image_multiply_heightmap_weight_mountains);
+     const preview_key_multiply_heightmap_weight_mountains = "multiply_heightmap_weight_mountains.image";
+     ctx.previews.putAssumeCapacity(preview_key_multiply_heightmap_weight_mountains, .{ .data = preview_image_multiply_heightmap_weight_mountains.asBytes() });
 
     // Leaf node
 }
@@ -681,10 +661,9 @@ pub fn remap_heightmap_mountains(ctx: *Context) void {
 
     compute.remap(&heightmap_mountains, &scratch_image, 20, 1500);
 
-    // types.saveImageF32(heightmap_mountains, "remap_heightmap_mountains", false);
-    // types.image_preview_f32(heightmap_mountains, &preview_image_remap_heightmap_mountains);
-    // const preview_key_remap_heightmap_mountains = "remap_heightmap_mountains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_mountains, .{ .data = preview_image_remap_heightmap_mountains.asBytes() });
+     types.image_preview_f32(heightmap_mountains, &preview_image_remap_heightmap_mountains);
+     const preview_key_remap_heightmap_mountains = "remap_heightmap_mountains.image";
+     ctx.previews.putAssumeCapacity(preview_key_remap_heightmap_mountains, .{ .data = preview_image_remap_heightmap_mountains.asBytes() });
 
     ctx.next_nodes.insert(0, multiply_heightmap_weight_mountains) catch unreachable;
 }
@@ -696,10 +675,9 @@ pub fn merge_heightmaps(ctx: *Context) void {
     compute.math_add( &heightmap_hills, &heightmap, &heightmap, &scratch_image);
     compute.math_add( &heightmap_mountains, &heightmap, &heightmap, &scratch_image);
 
-    // types.saveImageF32(heightmap, "merge_heightmaps", false);
-    // types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
-    // const preview_key_merge_heightmaps = "merge_heightmaps.image";
-    // ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps, .{ .data = preview_image_merge_heightmaps.asBytes() });
+     types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
+     const preview_key_merge_heightmaps = "merge_heightmaps.image";
+     ctx.previews.putAssumeCapacity(preview_key_merge_heightmaps, .{ .data = preview_image_merge_heightmaps.asBytes() });
 
     // Leaf node
 }
@@ -709,10 +687,9 @@ pub fn generate_heightmap_gradient(ctx: *Context) void {
 
     nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
 
-    // types.saveImageF32(gradient_image, "generate_heightmap_gradient", false);
-    // types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient);
-    // const preview_key_generate_heightmap_gradient = "generate_heightmap_gradient.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_gradient, .{ .data = preview_image_generate_heightmap_gradient.asBytes() });
+     types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient);
+     const preview_key_generate_heightmap_gradient = "generate_heightmap_gradient.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_gradient, .{ .data = preview_image_generate_heightmap_gradient.asBytes() });
 
     // Leaf node
 }
@@ -731,10 +708,9 @@ pub fn generate_terrace(ctx: *Context) void {
         }
     }
 
-    // types.saveImageF32(heightmap, "generate_terrace", false);
-    // types.image_preview_f32(heightmap, &preview_image_generate_terrace);
-    // const preview_key_generate_terrace = "generate_terrace.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_terrace, .{ .data = preview_image_generate_terrace.asBytes() });
+     types.image_preview_f32(heightmap, &preview_image_generate_terrace);
+     const preview_key_generate_terrace = "generate_terrace.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_terrace, .{ .data = preview_image_generate_terrace.asBytes() });
 
     // Leaf node
 }
@@ -744,10 +720,9 @@ pub fn generate_heightmap_gradient2(ctx: *Context) void {
 
     nodes.gradient.gradient(heightmap, 1 / world_settings.terrain_height_max, &gradient_image);
 
-    // types.saveImageF32(gradient_image, "generate_heightmap_gradient2", false);
-    // types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient2);
-    // const preview_key_generate_heightmap_gradient2 = "generate_heightmap_gradient2.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_gradient2, .{ .data = preview_image_generate_heightmap_gradient2.asBytes() });
+     types.image_preview_f32(gradient_image, &preview_image_generate_heightmap_gradient2);
+     const preview_key_generate_heightmap_gradient2 = "generate_heightmap_gradient2.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_heightmap_gradient2, .{ .data = preview_image_generate_heightmap_gradient2.asBytes() });
 
     // Leaf node
 }
@@ -784,10 +759,9 @@ pub fn generate_trees_fbm(ctx: *Context) void {
 
     compute.remap(&fbm_trees_image, &scratch_image, 0, 1);
 
-    // types.saveImageF32(fbm_trees_image, "generate_trees_fbm", false);
-    // types.image_preview_f32(fbm_trees_image, &preview_image_generate_trees_fbm);
-    // const preview_key_generate_trees_fbm = "generate_trees_fbm.image";
-    // ctx.previews.putAssumeCapacity(preview_key_generate_trees_fbm, .{ .data = preview_image_generate_trees_fbm.asBytes() });
+     types.image_preview_f32(fbm_trees_image, &preview_image_generate_trees_fbm);
+     const preview_key_generate_trees_fbm = "generate_trees_fbm.image";
+     ctx.previews.putAssumeCapacity(preview_key_generate_trees_fbm, .{ .data = preview_image_generate_trees_fbm.asBytes() });
 
     ctx.next_nodes.insert(0, generate_trees_points) catch unreachable;
 }
@@ -797,10 +771,9 @@ pub fn trees_square(ctx: *Context) void {
 
     compute.square(&fbm_trees_image, &scratch_image);
 
-    // types.saveImageF32(fbm_trees_image, "trees_square", false);
-    // types.image_preview_f32(fbm_trees_image, &preview_image_trees_square);
-    // const preview_key_trees_square = "trees_square.image";
-    // ctx.previews.putAssumeCapacity(preview_key_trees_square, .{ .data = preview_image_trees_square.asBytes() });
+     types.image_preview_f32(fbm_trees_image, &preview_image_trees_square);
+     const preview_key_trees_square = "trees_square.image";
+     ctx.previews.putAssumeCapacity(preview_key_trees_square, .{ .data = preview_image_trees_square.asBytes() });
 
     ctx.next_nodes.insert(0, generate_trees_points) catch unreachable;
 }
@@ -845,10 +818,9 @@ pub fn remap_village_gradient(ctx: *Context) void {
     };
     compute.remapCurve(&gradient_image, &curve, &village_gradient);
 
-    // types.saveImageF32(village_gradient, "remap_village_gradient", false);
-    // types.image_preview_f32(village_gradient, &preview_image_remap_village_gradient);
-    // const preview_key_remap_village_gradient = "remap_village_gradient.image";
-    // ctx.previews.putAssumeCapacity(preview_key_remap_village_gradient, .{ .data = preview_image_remap_village_gradient.asBytes() });
+     types.image_preview_f32(village_gradient, &preview_image_remap_village_gradient);
+     const preview_key_remap_village_gradient = "remap_village_gradient.image";
+     ctx.previews.putAssumeCapacity(preview_key_remap_village_gradient, .{ .data = preview_image_remap_village_gradient.asBytes() });
 
     ctx.next_nodes.insert(0, downsample_village_gradient) catch unreachable;
 }
@@ -863,10 +835,9 @@ pub fn downsample_village_gradient(ctx: *Context) void {
     compute.downsample(&village_gradient, &scratch_image, &village_gradient, .min);
     scratch_image.size = orig_scratch_image_size;
 
-    // types.saveImageF32(village_gradient, "downsample_village_gradient", false);
-    // types.image_preview_f32(village_gradient, &preview_image_downsample_village_gradient);
-    // const preview_key_downsample_village_gradient = "downsample_village_gradient.image";
-    // ctx.previews.putAssumeCapacity(preview_key_downsample_village_gradient, .{ .data = preview_image_downsample_village_gradient.asBytes() });
+     types.image_preview_f32(village_gradient, &preview_image_downsample_village_gradient);
+     const preview_key_downsample_village_gradient = "downsample_village_gradient.image";
+     ctx.previews.putAssumeCapacity(preview_key_downsample_village_gradient, .{ .data = preview_image_downsample_village_gradient.asBytes() });
 
     ctx.next_nodes.insert(0, upsample_village_gradient) catch unreachable;
 }
@@ -881,10 +852,9 @@ pub fn upsample_village_gradient(ctx: *Context) void {
     compute.upsample(&village_gradient, &scratch_image, &village_gradient, .first);
     scratch_image.size = orig_scratch_image_size;
 
-    // types.saveImageF32(village_gradient, "upsample_village_gradient", false);
-    // types.image_preview_f32(village_gradient, &preview_image_upsample_village_gradient);
-    // const preview_key_upsample_village_gradient = "upsample_village_gradient.image";
-    // ctx.previews.putAssumeCapacity(preview_key_upsample_village_gradient, .{ .data = preview_image_upsample_village_gradient.asBytes() });
+     types.image_preview_f32(village_gradient, &preview_image_upsample_village_gradient);
+     const preview_key_upsample_village_gradient = "upsample_village_gradient.image";
+     ctx.previews.putAssumeCapacity(preview_key_upsample_village_gradient, .{ .data = preview_image_upsample_village_gradient.asBytes() });
 
     ctx.next_nodes.insert(0, multiply_village_gradient_plains) catch unreachable;
 }
@@ -894,10 +864,9 @@ pub fn multiply_village_gradient_plains(ctx: *Context) void {
 
     compute.math_multiply( &village_gradient, &weight_plains, &village_gradient, &scratch_image);
 
-    // types.saveImageF32(village_gradient, "multiply_village_gradient_plains", false);
-    // types.image_preview_f32(village_gradient, &preview_image_multiply_village_gradient_plains);
-    // const preview_key_multiply_village_gradient_plains = "multiply_village_gradient_plains.image";
-    // ctx.previews.putAssumeCapacity(preview_key_multiply_village_gradient_plains, .{ .data = preview_image_multiply_village_gradient_plains.asBytes() });
+     types.image_preview_f32(village_gradient, &preview_image_multiply_village_gradient_plains);
+     const preview_key_multiply_village_gradient_plains = "multiply_village_gradient_plains.image";
+     ctx.previews.putAssumeCapacity(preview_key_multiply_village_gradient_plains, .{ .data = preview_image_multiply_village_gradient_plains.asBytes() });
 
     ctx.next_nodes.insert(0, village_output_points) catch unreachable;
 }
@@ -918,7 +887,7 @@ pub fn village_points_filter_proximity(ctx: *Context) void {
 
     var x = types.BackedListVec2.createFromImageVec2(&village_points, village_points_counter.pixels[0]);
     std.log.info("points_filter_proximity count:{d}", .{x.count} );
-    nodes.points.points_filter_proximity_vec2(&x, &x, 6000);
+    nodes.points.points_filter_proximity_vec2(&x, &x, 9000);
     village_points_counter.pixels[0] = x.count;
     std.log.info("points_filter_proximity count:{d}", .{x.count} );
 
