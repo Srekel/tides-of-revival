@@ -99,7 +99,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
     debug_camera_ent.set(fd.Dynamic{});
-    debug_camera_ent.set(fd.Camera.create(0.1, 25000, 0.25 * std.math.pi, DEBUG_CAMERA_ACTIVE, 0));
+    debug_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), DEBUG_CAMERA_ACTIVE, 0));
     debug_camera_ent.set(fd.WorldLoader{
         .range = 2,
         .props = true,
@@ -113,12 +113,12 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.setName("playercamera");
     player_camera_ent.set(fd.Position{ .x = 0, .y = 1.7, .z = 0 });
     player_camera_ent.set(fd.Rotation{});
-    player_camera_ent.set(fd.Scale.createScalar(1));
+    player_camera_ent.set(fd.Scale.createScalar(0.5));
     player_camera_ent.set(fd.Transform{});
     player_camera_ent.set(fd.Dynamic{});
     player_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
     player_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Fps);
-    player_camera_ent.set(fd.Camera.create(0.1, 25000, 0.25 * std.math.pi, !DEBUG_CAMERA_ACTIVE, 1));
+    player_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), !DEBUG_CAMERA_ACTIVE, 1));
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
@@ -242,10 +242,12 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const spawn_pos = [3]f32{ 8000, 200, 8000 };
         ent.set(fd.Position{ .x = spawn_pos[0], .y = spawn_pos[1], .z = spawn_pos[2] });
 
-        const scale: f32 = 20; // overridden in state_slime
+        const scale: f32 = 1;
         ent.set(fd.Scale.createScalar(scale));
-        ent.set(fd.Health{ .value = 1 });
+        ent.set(fd.Health{ .value = 10000 });
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
+
+        ent.set(fd.Enemy{ .base_scale = 10 });
 
         const body_interface = physics_world.getBodyInterfaceMut();
 
@@ -291,8 +293,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
         light_ent.set(fd.PointLight{
             .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
-            .range = 200,
-            .intensity = 10,
+            .range = 100,
+            .intensity = 7,
         });
     }
 }

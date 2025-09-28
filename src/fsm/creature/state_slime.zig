@@ -44,7 +44,8 @@ pub fn create(create_ctx: StateContext) void {
             .{ .id = ecs.pair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime), .inout = .InOut },
             .{ .id = ecs.id(fd.Scale), .inout = .InOut },
             .{ .id = ecs.id(fd.Locomotion), .inout = .InOut },
-        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 7);
+            .{ .id = ecs.id(fd.Enemy), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 8);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
             "fsm_enemy_slime",
@@ -57,6 +58,8 @@ pub fn create(create_ctx: StateContext) void {
 fn rotateTowardsTarget(
     pos: *fd.Position,
     rot: *fd.Rotation,
+    locomotion: *fd.Locomotion,
+    enemy: *const fd.Enemy,
     target_pos: [3]f32,
 ) void {
     const player_pos_z = zm.loadArr3(target_pos);
@@ -65,17 +68,21 @@ fn rotateTowardsTarget(
     const dist_to_player_sq = zm.lengthSq3(vec_to_player)[0];
     if (dist_to_player_sq > 1) {
         const up_z = zm.f32x4(0, 1, 0, 0);
-        const skitter = dist_to_player_sq > (1500 * 1500) and std.math.modf(target_pos[1] + pos.y * 0.25).fpart > 0.25;
+        const skitter = !enemy.idling and dist_to_player_sq > (40 * 40) and std.math.modf(target_pos[1] + pos.y * 0.125).fpart > 0.25;
         const dir_to_player = zm.normalize3(vec_to_player);
-        const skitter_angle_offset: f32 = if (skitter) std.math.modf(target_pos[1] + pos.y * 0.25).fpart * 3 - 1.5 else 0;
+        const skitter_angle_offset: f32 = if (skitter) if (enemy.left_bias) -1.5 else 1.5 else 0;
         const angle_to_player = std.math.atan2(dir_to_player[0], dir_to_player[2]) + skitter_angle_offset;
         const rot_towards_player_z = zm.quatFromAxisAngle(up_z, angle_to_player);
 
         const rot_curr_z = rot.asZM();
-        const slerp_factor: f32 = if (skitter) 0.1 else 0.1;
+        const slerp_factor: f32 = if (skitter) 0.05 else 0.1;
         const rot_new_z = zm.slerp(rot_curr_z, rot_towards_player_z, slerp_factor); // TODO SmoothDamp
         const rot_new_normalized_z = zm.normalize4(rot_new_z);
         zm.storeArr4(rot.elems(), rot_new_normalized_z);
+
+        if (!locomotion.affected_by_gravity and enemy.aggressive) {
+            locomotion.speed = if (skitter) 20 / enemy.base_scale else 8 / enemy.base_scale;
+        }
     }
 }
 
@@ -84,6 +91,7 @@ fn updateTargetPosition(
     fwd: *fd.Forward,
     locomotion: *fd.Locomotion,
     physics_world_low: *zphy.PhysicsSystem,
+    is_day: bool,
 ) void {
     if (locomotion.target_position == null) {
         locomotion.target_position = pos.elemsConst().*;
@@ -93,26 +101,26 @@ fn updateTargetPosition(
         .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
     };
 
-    im3d.Im3d.DrawCone(
-        &.{
-            .x = locomotion.target_position.?[0],
-            .y = locomotion.target_position.?[1],
-            .z = locomotion.target_position.?[2],
-        },
-        &.{ .x = 0, .y = 1, .z = 0 },
-        20,
-        3,
-        3,
-    );
-    im3d.Im3d.DrawArrow(
-        &.{ .x = pos.x, .y = pos.y, .z = pos.z },
-        &.{
-            .x = locomotion.target_position.?[0],
-            .y = locomotion.target_position.?[1],
-            .z = locomotion.target_position.?[2],
-        },
-        .{},
-    );
+    // im3d.Im3d.DrawCone(
+    //     &.{
+    //         .x = locomotion.target_position.?[0],
+    //         .y = locomotion.target_position.?[1],
+    //         .z = locomotion.target_position.?[2],
+    //     },
+    //     &.{ .x = 0, .y = 1, .z = 0 },
+    //     20,
+    //     3,
+    //     3,
+    // );
+    // im3d.Im3d.DrawArrow(
+    //     &.{ .x = pos.x, .y = pos.y, .z = pos.z },
+    //     &.{
+    //         .x = locomotion.target_position.?[0],
+    //         .y = locomotion.target_position.?[1],
+    //         .z = locomotion.target_position.?[2],
+    //     },
+    //     .{},
+    // );
 
     const self_pos_z = zm.loadArr3(pos.elems().*);
     const target_pos_z = zm.loadArr3(locomotion.target_position.?);
@@ -125,7 +133,11 @@ fn updateTargetPosition(
     const angle_curr = math.atan2(fwd.z, fwd.x);
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
 
-    var best_target = [3]f32{ 0, -1000, 0 };
+    var best_target = [3]f32{
+        0,
+        if (is_day) -1000 else 1000,
+        0,
+    };
 
     const angles = 5;
     for (0..angles) |i_angle| {
@@ -164,19 +176,19 @@ fn updateTargetPosition(
         const height = ray_origin[1] + ray_dir[1] * result.hit.fraction;
         std.log.info("lol {d}", .{height});
 
-        im3d.Im3d.DrawCone(
-            &.{
-                .x = sample_pos[0],
-                .y = height,
-                .z = sample_pos[2],
-            },
-            &.{ .x = 0, .y = 1, .z = 0 },
-            20,
-            3,
-            3,
-        );
+        // im3d.Im3d.DrawCone(
+        //     &.{
+        //         .x = sample_pos[0],
+        //         .y = height,
+        //         .z = sample_pos[2],
+        //     },
+        //     &.{ .x = 0, .y = 1, .z = 0 },
+        //     20,
+        //     3,
+        //     3,
+        // );
 
-        if (height > best_target[1]) {
+        if ((is_day and height > best_target[1]) or (!is_day and height < best_target[1])) {
             best_target = .{
                 ray_origin[0],
                 height,
@@ -217,16 +229,17 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
     const bodies = ecs.field(it, fd.PhysicsBody, 3).?;
     const scales = ecs.field(it, fd.Scale, 5).?;
     const locomotions = ecs.field(it, fd.Locomotion, 6).?;
+    const enemies = ecs.field(it, fd.Enemy, 7).?;
 
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
-    _ = player_pos; // autofix
     const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
+    const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
 
-    for (positions, rotations, forwards, bodies, scales, locomotions, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, ent| {
+    for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, enemy, ent| {
         if (!lol) {
             lol = true;
             ctx.task_queue.registerTaskType(.{
@@ -244,22 +257,48 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 .validate = task_queue.alwaysValid,
                 .apply = &DieTask.apply,
             });
-
-            const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
-            task_data.*.entity = ent;
-            ctx.task_queue.enqueue(
-                SlimeDropTask.id,
-                .{ .time = 5, .loop_type = .{ .loop = 60 } },
-                std.mem.asBytes(task_data),
-            );
+            ctx.task_queue.registerTaskType(.{
+                .id = SplitIfNearPlayer.id,
+                .setup = &SplitIfNearPlayer.setup,
+                .calculate = &SplitIfNearPlayer.calculate,
+                .validate = SplitIfNearPlayer.validate,
+                .apply = &SplitIfNearPlayer.apply,
+            });
+            {
+                const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
+                task_data.*.entity = ent;
+                ctx.task_queue.enqueue(
+                    SlimeDropTask.id,
+                    .{ .time = 5, .loop_type = .{ .loop = 60 } },
+                    std.mem.asBytes(task_data),
+                );
+            }
+            {
+                const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
+                task_data.*.entity = ent;
+                ctx.task_queue.enqueue(
+                    SplitIfNearPlayer.id,
+                    .{ .time = 1, .loop_type = .{ .loop = 5 } },
+                    std.mem.asBytes(task_data),
+                );
+            }
         }
-        if (body_interface.getMotionType(body.body_id) == .kinematic) {
-            scale.x = @floatCast(20 + math.sin(world_time * 3.5) * 1.5);
-            scale.y = @floatCast(20 + math.sin(world_time * 0.3) * 0.7 + math.cos(world_time * 0.5) * 0.7);
-            scale.z = @floatCast(20 + math.cos(world_time * 2.3) * 1.5);
 
-            updateTargetPosition(pos, fwd, locomotion, ctx.physics_world_low);
-            rotateTowardsTarget(pos, rot, locomotion.target_position.?);
+        if (body_interface.getMotionType(body.body_id) == .kinematic) {
+            const jiggle = 0.1 + 0.1 * 1.0 / enemy.base_scale;
+            scale.x = @floatCast(enemy.base_scale * (1 + math.sin(world_time * 3.5) * jiggle));
+            scale.y = @floatCast(enemy.base_scale * (1 + math.sin(world_time * 0.3) * 0.05 + math.cos(world_time * 0.5) * 0.05));
+            scale.z = @floatCast(enemy.base_scale * (1 + math.cos(world_time * 2.3) * jiggle));
+
+            if (enemy.aggressive) {
+                locomotion.target_position = player_pos.elemsConst().*;
+            } else {
+                updateTargetPosition(pos, fwd, locomotion, ctx.physics_world_low, is_day);
+            }
+
+            if (!locomotion.affected_by_gravity) {
+                rotateTowardsTarget(pos, rot, locomotion, &enemy, locomotion.target_position.?);
+            }
             // rotateTowardsTarget(pos, rot, player_pos.elemsConst().*);
         }
     }
@@ -341,7 +380,7 @@ const SlimeDropTask = struct {
             task_data_die.*.entity = ent.id;
             ctx.task_queue.enqueue(
                 DieTask.id,
-                .{ .time = ctx.time.now + 3600, .loop_type = .once },
+                .{ .time = ctx.time.now + 1000, .loop_type = .once },
                 std.mem.asBytes(task_data_die),
             );
         }
@@ -370,5 +409,177 @@ const DieTask = struct {
 
         const self: *SlimeDropTask = @alignCast(@ptrCast(data));
         ecs.delete(ctx.ecsu_world.world, self.entity);
+    }
+};
+
+const SplitIfNearPlayer = struct {
+    const id = IdLocal.init("SplitIfNearPlayer");
+
+    entity: ecs.entity_t,
+
+    fn setup(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = ctx; // autofix
+        _ = data; // autofix
+        _ = allocator; // autofix
+    }
+
+    fn calculate(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = ctx; // autofix
+        _ = data; // autofix
+        _ = allocator; // autofix
+    }
+
+    fn validate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) task_queue.TaskValidity {
+        _ = allocator; // autofix
+        const self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
+        const enemy_opt = ecs.get(ctx.ecsu_world.world, self.entity, fd.Enemy);
+        if (enemy_opt == null) {
+            return .remove;
+        }
+        const enemy = enemy_opt.?;
+
+        const locomotion = ecs.get(ctx.ecsu_world.world, self.entity, fd.Locomotion).?;
+        if (enemy.base_scale <= 1.2) {
+            return .remove;
+        }
+
+        if (locomotion.affected_by_gravity) {
+            return .reschedule;
+        }
+
+        if (enemy.aggressive) {
+            return .valid;
+        }
+
+        const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
+        const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
+        const self_pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?;
+
+        const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
+        const self_pos_z = zm.loadArr3(self_pos.elemsConst().*);
+        if (zm.length3(player_pos_z - self_pos_z)[0] > 200) {
+            return .reschedule;
+        }
+
+        const cast_ray_args: zphy.NarrowPhaseQuery.CastRayArgs = .{
+            .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
+        };
+
+        const to_player_z = player_pos_z - self_pos_z;
+        const ray_dir_z = to_player_z;
+        var ray_dir: [4]f32 = undefined;
+        zm.storeArr4(&ray_dir, ray_dir_z);
+
+        const ray_origin = [_]f32{
+            self_pos.x,
+            self_pos.y + 3,
+            self_pos.x,
+            0,
+        };
+        const ray = zphy.RRayCast{
+            .origin = ray_origin,
+            .direction = ray_dir,
+        };
+
+        var query = ctx.physics_world.getNarrowPhaseQuery();
+        const result = query.castRay(ray, cast_ray_args);
+        if (result.has_hit) {
+            return .reschedule;
+        }
+
+        return .valid;
+    }
+
+    fn apply(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = allocator; // autofix
+
+        const self: *SlimeDropTask = @alignCast(@ptrCast(data));
+        var enemy = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Enemy).?;
+        enemy.base_scale *= 0.9;
+        enemy.aggressive = true;
+        enemy.idling = false;
+
+        var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
+        health.value = enemy.base_scale * enemy.base_scale * enemy.base_scale;
+
+        var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
+        pos.y += 5;
+
+        var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
+        ent.set(pos);
+
+        const base_scale = enemy.base_scale * 0.7;
+        const rot = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
+        ent.set(fd.Scale.create(1, 1, 1));
+        ent.set(rot);
+        ent.set(fd.Transform{});
+        ent.set(fd.Dynamic{});
+        ent.set(fd.Locomotion{
+            .affected_by_gravity = true,
+            .speed = 15 + std.crypto.random.float(f32) * enemy.base_scale,
+            .speed_y = 15 + std.crypto.random.float(f32) * enemy.base_scale,
+        });
+        ent.set(fd.Enemy{
+            .base_scale = base_scale,
+            .aggressive = true,
+            .idling = false,
+            .left_bias = std.crypto.random.float(f32) > 0.5,
+        });
+        ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
+        ent.set(fd.Health{ .value = 10 * base_scale * base_scale });
+
+        const body_interface = ctx.physics_world.getBodyInterfaceMut();
+
+        const shape_settings = zphy.SphereShapeSettings.create(1.5 * 1) catch unreachable;
+        defer shape_settings.release();
+
+        const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
+            &shape_settings.asShapeSettings().*,
+            rot.elemsConst().*,
+            .{ 0, 0, 0 },
+        ) catch unreachable;
+        defer root_shape_settings.release();
+        const root_shape = root_shape_settings.createShape() catch unreachable;
+
+        const body_id = body_interface.createAndAddBody(.{
+            .position = .{ pos.x, pos.y, pos.z, 0 },
+            .rotation = rot.elemsConst().*,
+            .shape = root_shape,
+            .motion_type = .kinematic,
+            .object_layer = config.physics.object_layers.moving,
+            .motion_quality = .discrete,
+            .user_data = ent.id,
+            .angular_damping = 0.975,
+            .inertia_multiplier = 10,
+            .friction = 0.5,
+        }, .activate) catch unreachable;
+        ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
+
+        {
+            const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
+            task_data.*.entity = ent.id;
+            ctx.task_queue.enqueue(
+                SplitIfNearPlayer.id,
+                .{
+                    .time = ctx.time.now + enemy.base_scale * enemy.base_scale + std.crypto.random.float(f64) * 2,
+                    .loop_type = .{ .loop = enemy.base_scale + std.crypto.random.float(f64) },
+                },
+                std.mem.asBytes(task_data),
+            );
+        }
+
+        const light_ent = ctx.ecsu_world.newEntity();
+        light_ent.childOf(ent);
+        light_ent.set(fd.Position{ .x = 0, .y = 15, .z = 0 });
+        light_ent.set(fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32), 0));
+        light_ent.set(fd.Scale.createScalar(1));
+        light_ent.set(fd.Transform{});
+        light_ent.set(fd.Dynamic{});
+
+        light_ent.set(fd.PointLight{
+            .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
+            .range = 20,
+            .intensity = 4,
+        });
     }
 };

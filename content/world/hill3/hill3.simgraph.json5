@@ -76,7 +76,7 @@
       kind: "FbmSettings",
       seed: 3,
       frequency: 0.0005,
-      octaves: 3,
+      octaves: 6,
       rect: "world_settings.size",
       scale: 1.0,
     },
@@ -280,7 +280,7 @@
       kind: "landscape_from_image",
       // next: "generate_contours",
       // vars
-      image: "content/tides_2.0.png",
+      image: "../../../../content/world/hill3/tides.png",
       voronoi: "voronoi",
     },
     {
@@ -673,7 +673,8 @@
       in_points_counter: "village_points_counter",
       out_points: "village_points",
       out_points_counter: "village_points_counter",
-      min_distance: 6000.0,
+      min_distance: 9000.0,
     },
   ],
 }
+

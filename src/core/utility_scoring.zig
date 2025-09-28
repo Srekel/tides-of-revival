@@ -1,17 +1,25 @@
 const std = @import("std");
 
-const Curve = [9]f32;
+pub const Curve = [9]f32;
 
-const Utility = struct {
+pub const Utility = struct {
     xs: []f32,
     curves: []const Curve,
 };
 
+pub fn eval_linear_curve(x_value_0_1: f32, curve_ys: Curve) f32 {
+    const value = x_value_0_1 * 8;
+    return eval_linear_curve_8(value, curve_ys);
+}
+
 pub fn eval_linear_curve_8(x_value_0_8: f32, curve_ys: Curve) f32 {
-    const index1 = @floor(x_value_0_8);
+    const x_before = @floor(x_value_0_8);
+    const index1: u8 = @intFromFloat(x_before);
     const index2 = index1 + 1;
-    const lerp_t: f32 = (x_value_0_8 - index1);
-    const y_value = std.math.lerp(curve_ys[index1], curve_ys[index2], lerp_t);
+    const lerp_t: f32 = (x_value_0_8 - x_before);
+    const y_before = curve_ys[index1];
+    const y_after = curve_ys[index2];
+    const y_value = std.math.lerp(y_before, y_after, lerp_t);
     return y_value;
 }
 

@@ -173,10 +173,10 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
                 const do_zoom = wielded_use_secondary_held or (wielded_use_primary_held and weapon_comp.chambered_projectile != 0 and weapon_comp.charge > 0.25);
                 const target_fov: f32 =
                     if (do_zoom)
-                        (0.25 - 0.15 * weapon_comp.charge * weapon_comp.charge)
+                        (0.25 - 0.15 * weapon_comp.charge * weapon_comp.charge) * math.pi
                     else
-                        0.25;
-                camera_comp.fov = std.math.lerp(camera_comp.fov, target_fov * math.pi, 0.3);
+                        std.math.degreesToRadians(60);
+                camera_comp.fov = std.math.lerp(camera_comp.fov, target_fov, 0.3);
             }
         }
 
@@ -525,6 +525,13 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 const damage = (speed - 30) * (speed - 30);
                 std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
                 hit_health.value -= damage;
+
+                const enemy_opt = ecs.get_mut(system.ecsu_world.world, hit_ent, fd.Enemy);
+                if (enemy_opt) |enemy| {
+                    enemy.aggressive = true;
+                    enemy.idling = false;
+                }
+
                 if (hit_health.value <= 0) {
                     body_interface.setMotionType(hit_body, .dynamic, .activate);
                     body_interface.addImpulseAtPosition(
@@ -537,9 +544,12 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                         pos,
                     );
 
-                    // ecs.remove(ecs_world, hit_ent, fd.FSM);
+                    ecs.remove(ecs_world, hit_ent, fd.Enemy);
                     ecs.remove(ecs_world, hit_ent, fd.PointLight);
                     ecs.remove(ecs_world, hit_ent, fd.SettlementEnemy);
+
+                    var locomotion = ecs.get_mut(ecs_world, hit_ent, fd.Locomotion).?;
+                    locomotion.speed = 0;
 
                     const tli_despawn = config.events.TimelineInstanceData{
                         .ent = hit_ent,
