@@ -21,16 +21,6 @@ struct MaterialData
 	uint detailNormalTextureIndex;
 	uint detailArmTextureIndex;
 	uint detailUseUV2;
-	// Wind Feature
-	uint windFeature;
-	float windInitialBend;
-	float windStifness;
-	float windDrag;
-	// Wind Shiver Feature
-	uint windShiverFeature;
-	float windShiverDrag;
-	float windNormalInfluence;
-	float windShiverDirectionality;
 };
 
 #endif // _MATERIAL_H

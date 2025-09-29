@@ -1176,14 +1176,6 @@ pub const Renderer = struct {
             .detail_normal_texture_index = self.getTextureBindlessIndex(material_data.detail_normal),
             .detail_arm_texture_index = self.getTextureBindlessIndex(material_data.detail_arm),
             .detail_use_uv2 = if (material_data.detail_use_uv2) 1 else 0,
-            .wind_feature = if (material_data.wind_feature) 1 else 0,
-            .wind_initial_bend = material_data.wind_initial_bend,
-            .wind_stifness = material_data.wind_stifness,
-            .wind_drag = material_data.wind_drag,
-            .wind_shiver_feature = if (material_data.wind_shiver_feature) 1 else 0,
-            .wind_shiver_drag = material_data.wind_shiver_drag,
-            .wind_normal_influence = material_data.wind_normal_influence,
-            .wind_shiver_directionality = material_data.wind_shiver_directionality,
         };
 
         const pipeline_ids = PassPipelineIds{
@@ -2309,18 +2301,6 @@ pub const UberShaderMaterialData = struct {
     detail_arm: TextureHandle,
     detail_use_uv2: bool,
 
-    // Wind Feature
-    wind_feature: bool,
-    wind_initial_bend: f32,
-    wind_stifness: f32,
-    wind_drag: f32,
-
-    // Wind Shiver Feature
-    wind_shiver_feature: bool,
-    wind_shiver_drag: f32,
-    wind_shiver_directionality: f32,
-    wind_normal_influence: f32,
-
     pub fn init() UberShaderMaterialData {
         return initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.5, 0.0);
     }
@@ -2346,14 +2326,6 @@ pub const UberShaderMaterialData = struct {
             .detail_normal = TextureHandle.nil,
             .detail_arm = TextureHandle.nil,
             .detail_use_uv2 = false,
-            .wind_feature = false,
-            .wind_initial_bend = 1.0,
-            .wind_stifness = 1.0,
-            .wind_drag = 0.1,
-            .wind_shiver_feature = false,
-            .wind_shiver_drag = 0.1,
-            .wind_normal_influence = 0,
-            .wind_shiver_directionality = 0.4,
         };
     }
 };
@@ -2375,14 +2347,6 @@ const LegacyMaterial = struct {
     detail_normal_texture_index: u32,
     detail_arm_texture_index: u32,
     detail_use_uv2: u32,
-    wind_feature: u32,
-    wind_initial_bend: f32,
-    wind_stifness: f32,
-    wind_drag: f32,
-    wind_shiver_feature: u32,
-    wind_shiver_drag: f32,
-    wind_normal_influence: f32,
-    wind_shiver_directionality: f32,
 };
 
 pub const PassPipelineIds = struct {

@@ -30,17 +30,6 @@ pub const ShadowsUniformFrameData = struct {
     time: f32,
 };
 
-pub const WindFrameData = struct {
-    world_direction_and_speed: [4]f32,
-    flex_noise_scale: f32,
-    turbulence: f32,
-    gust_speed: f32,
-    gust_scale: f32,
-    gust_world_scale: f32,
-    noise_texture_index: u32,
-    gust_texture_index: u32,
-};
-
 const Batch = struct {
     instances: std.ArrayList(InstanceData),
     start_instance_location: u32,
@@ -80,42 +69,11 @@ pub const GeometryRenderPass = struct {
     // TODO(gmodarelli): Descriptor Set should be associated to materials
     descriptor_sets_shadow_caster: [max_entity_types][*c]graphics.DescriptorSet,
 
-    wind_noise_texture: renderer.TextureHandle,
-    wind_gust_texture: renderer.TextureHandle,
-    wind_frame_data: WindFrameData,
-    wind_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    // TODO(gmodarelli): Descriptor Set should be associated to materials
-    tree_descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet,
-    tree_descriptor_sets_shadow_caster: [max_entity_types][*c]graphics.DescriptorSet,
-
     batches: BatchMap,
     instances: std.ArrayList(InstanceData),
     instance_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
     pub fn init(self: *GeometryRenderPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, prefab_mgr: *PrefabManager, allocator: std.mem.Allocator) void {
-        const wind_noise_texture = rctx.loadTexture("textures/noise/3d_noise.dds");
-        const wind_gust_texture = rctx.loadTexture("textures/noise/gust_noise.dds");
-
-        const wind_frame_data = WindFrameData{
-            .world_direction_and_speed = [4]f32{ 0, 0, 1, 20 },
-            .flex_noise_scale = 175,
-            .turbulence = 0.25,
-            .gust_speed = 20,
-            .gust_scale = 1.6,
-            .gust_world_scale = 600,
-            .noise_texture_index = rctx.getTextureBindlessIndex(wind_noise_texture),
-            .gust_texture_index = rctx.getTextureBindlessIndex(wind_gust_texture),
-        };
-
-        const wind_frame_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(WindFrameData);
-            }
-
-            break :blk buffers;
-        };
-
         const uniform_frame_buffers_gbuffer = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -167,12 +125,6 @@ pub const GeometryRenderPass = struct {
             .renderer = rctx,
             .render_pass = undefined,
             .prefab_mgr = prefab_mgr,
-            .wind_frame_data = wind_frame_data,
-            .wind_frame_buffers = wind_frame_buffers,
-            .wind_noise_texture = wind_noise_texture,
-            .wind_gust_texture = wind_gust_texture,
-            .tree_descriptor_sets_gbuffer = undefined,
-            .tree_descriptor_sets_shadow_caster = undefined,
             .uniform_frame_data_shadow_caster = std.mem.zeroes(ShadowsUniformFrameData),
             .uniform_frame_buffers_shadow_caster = uniform_frame_buffers_shadow_caster,
             .descriptor_sets_gbuffer = undefined,
@@ -271,15 +223,6 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers_gbuffer[frame_index]);
     }
 
-    // Update Wind Frame Buffer
-    {
-        const data = OpaqueSlice{
-            .data = @ptrCast(&self.wind_frame_data),
-            .size = @sizeOf(WindFrameData),
-        };
-        self.renderer.updateBuffer(data, 0, WindFrameData, self.wind_frame_buffers[frame_index]);
-    }
-
     // Render Cutout Objects
     {
         const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_00_00);
@@ -308,12 +251,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
-
-                if (pipeline_id.hash == renderer.cutout_pipelines[2].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[cutout_entities_index]);
-                }
+                std.debug.assert(pipeline_id.hash == renderer.cutout_pipelines[0].hash);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[cutout_entities_index]);
 
                 const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                 const push_constants = InstanceRootConstants{
@@ -370,12 +309,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
-
-                if (pipeline_id.hash == renderer.opaque_pipelines[2].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[opaque_entities_index]);
-                }
+                std.debug.assert(pipeline_id.hash == renderer.opaque_pipelines[0].hash);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_gbuffer[opaque_entities_index]);
 
                 const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                 const push_constants = InstanceRootConstants{
@@ -500,12 +435,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
-
-                if (pipeline_id.hash == renderer.cutout_pipelines[3].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
-                }
+                std.debug.assert(pipeline_id.hash == renderer.cutout_pipelines[1].hash);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[cutout_entities_index]);
 
                 const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                 const push_constants = InstanceRootConstants{
@@ -562,12 +493,8 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
-
-                if (pipeline_id.hash == renderer.opaque_pipelines[3].hash) {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
-                } else {
-                    graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
-                }
+                std.debug.assert(pipeline_id.hash == renderer.opaque_pipelines[1].hash);
+                graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.descriptor_sets_shadow_caster[opaque_entities_index]);
 
                 const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
                 const push_constants = InstanceRootConstants{
@@ -621,48 +548,6 @@ fn createDescriptorSets(user_data: *anyopaque) void {
     };
     self.descriptor_sets_shadow_caster = descriptor_sets_shadow_caster;
 
-    const tree_descriptor_sets_shadow_caster = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree_shadow_caster_opaque"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_shadow_caster_cutout"));
-
-        var descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets_gbuffer, 0..) |_, index| {
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == opaque_entities_index) {
-                desc.pRootSignature = root_signature_lit;
-            } else {
-                desc.pRootSignature = root_signature_lit_masked;
-            }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_gbuffer[index]));
-        }
-
-        break :blk descriptor_sets_gbuffer;
-    };
-    self.tree_descriptor_sets_shadow_caster = tree_descriptor_sets_shadow_caster;
-
-    const tree_descriptor_sets_gbuffer = blk: {
-        const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("tree_gbuffer_opaque"));
-        const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("tree_gbuffer_cutout"));
-
-        var descriptor_sets_gbuffer: [max_entity_types][*c]graphics.DescriptorSet = undefined;
-        for (descriptor_sets_gbuffer, 0..) |_, index| {
-            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
-            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-            desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            if (index == opaque_entities_index) {
-                desc.pRootSignature = root_signature_lit;
-            } else {
-                desc.pRootSignature = root_signature_lit_masked;
-            }
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&descriptor_sets_gbuffer[index]));
-        }
-
-        break :blk descriptor_sets_gbuffer;
-    };
-    self.tree_descriptor_sets_gbuffer = tree_descriptor_sets_gbuffer;
-
     const descriptor_sets_gbuffer = blk: {
         const root_signature_lit = self.renderer.getRootSignature(IdLocal.init("lit_gbuffer_opaque"));
         const root_signature_lit_masked = self.renderer.getRootSignature(IdLocal.init("lit_gbuffer_cutout"));
@@ -709,34 +594,6 @@ fn prepareDescriptorSets(user_data: *anyopaque) void {
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_shadow_caster[opaque_entities_index], 1, @ptrCast(&params));
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.descriptor_sets_shadow_caster[cutout_entities_index], 1, @ptrCast(&params));
     }
-
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_gbuffer[i]);
-        var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
-        params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "cbWind";
-        params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
-
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_gbuffer[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_gbuffer[cutout_entities_index], 2, @ptrCast(&params));
-    }
-
-    for (0..renderer.Renderer.data_buffer_count) |i| {
-        var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers_shadow_caster[i]);
-        var wind_buffer = self.renderer.getBuffer(self.wind_frame_buffers[i]);
-        params[0] = std.mem.zeroes(graphics.DescriptorData);
-        params[0].pName = "cbFrame";
-        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
-        params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "cbWind";
-        params[1].__union_field3.ppBuffers = @ptrCast(&wind_buffer);
-
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_shadow_caster[opaque_entities_index], 2, @ptrCast(&params));
-        graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.tree_descriptor_sets_shadow_caster[cutout_entities_index], 2, @ptrCast(&params));
-    }
 }
 
 fn unloadDescriptorSets(user_data: *anyopaque) void {
@@ -746,11 +603,6 @@ fn unloadDescriptorSets(user_data: *anyopaque) void {
     graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_gbuffer[cutout_entities_index]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_shadow_caster[opaque_entities_index]);
     graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_sets_shadow_caster[cutout_entities_index]);
-
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_gbuffer[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_gbuffer[cutout_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_shadow_caster[opaque_entities_index]);
-    graphics.removeDescriptorSet(self.renderer.renderer, self.tree_descriptor_sets_shadow_caster[cutout_entities_index]);
 }
 
 fn batchEntities(

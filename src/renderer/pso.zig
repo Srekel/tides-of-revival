@@ -14,15 +14,11 @@ const Pool = @import("zpool").Pool;
 pub const opaque_pipelines = [_]IdLocal{
     IdLocal.init("lit_gbuffer_opaque"),
     IdLocal.init("lit_shadow_caster_opaque"),
-    IdLocal.init("tree_gbuffer_opaque"),
-    IdLocal.init("tree_shadow_caster_opaque"),
 };
 
 pub const cutout_pipelines = [_]IdLocal{
     IdLocal.init("lit_gbuffer_cutout"),
     IdLocal.init("lit_shadow_caster_cutout"),
-    IdLocal.init("tree_gbuffer_cutout"),
-    IdLocal.init("tree_shadow_caster_cutout"),
 };
 
 const PSOPool = Pool(16, 16, graphics.Shader, struct { shader: [*c]graphics.Shader, root_signature: [*c]graphics.RootSignature, pipeline: [*c]graphics.Pipeline });
