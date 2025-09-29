@@ -346,8 +346,8 @@ pub const Renderer = struct {
             vertex_layout.mAttribs[2].mOffset = 0;
             self.vertex_layouts_map.put(IdLocal.init("pos_uv0_col"), vertex_layout) catch unreachable;
 
-            vertex_layout.mBindingCount = 4;
-            vertex_layout.mAttribCount = 4;
+            vertex_layout.mBindingCount = 5;
+            vertex_layout.mAttribCount = 5;
             vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.SEMANTIC_POSITION;
             vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
             vertex_layout.mAttribs[0].mBinding = 0;
@@ -369,25 +369,12 @@ pub const Renderer = struct {
             vertex_layout.mAttribs[3].mBinding = 3;
             vertex_layout.mAttribs[3].mLocation = 3;
             vertex_layout.mAttribs[3].mOffset = 0;
-            self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan"), vertex_layout) catch unreachable;
-
-            vertex_layout.mBindingCount = 5;
-            vertex_layout.mAttribCount = 5;
             vertex_layout.mAttribs[4].mSemantic = graphics.ShaderSemantic.SEMANTIC_COLOR;
             vertex_layout.mAttribs[4].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
             vertex_layout.mAttribs[4].mBinding = 4;
             vertex_layout.mAttribs[4].mLocation = 4;
             vertex_layout.mAttribs[4].mOffset = 0;
             self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan_col"), vertex_layout) catch unreachable;
-
-            vertex_layout.mBindingCount = 6;
-            vertex_layout.mAttribCount = 6;
-            vertex_layout.mAttribs[5].mSemantic = graphics.ShaderSemantic.SEMANTIC_TEXCOORD1;
-            vertex_layout.mAttribs[5].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
-            vertex_layout.mAttribs[5].mBinding = 5;
-            vertex_layout.mAttribs[5].mLocation = 5;
-            vertex_layout.mAttribs[5].mOffset = 0;
-            self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan_col_uv1"), vertex_layout) catch unreachable;
         }
 
         self.frame_index = 0;
@@ -402,7 +389,7 @@ pub const Renderer = struct {
         self.legacy_materials = std.ArrayList(LegacyMaterial).init(allocator);
         const buffer_data = OpaqueSlice{
             .data = null,
-            .size = 1000 * @sizeOf(LegacyMaterial),
+            .size = 64 * @sizeOf(LegacyMaterial),
         };
         self.legacy_materials_buffer = self.createBindlessBuffer(buffer_data, false, "Legacy Materials Buffer");
 
