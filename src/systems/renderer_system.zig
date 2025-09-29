@@ -18,7 +18,6 @@ const zm = @import("zmath");
 const zgui = @import("zgui");
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 
-const SSAORenderPass = @import("renderer_system/ssao_render_pass.zig").SSAORenderPass;
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
 const GpuDrivenRenderPass = @import("renderer_system/gpu_driven_render_pass.zig").GpuDrivenRenderPass;
@@ -53,7 +52,6 @@ pub const SystemUpdateContext = struct {
     renderer: *renderer.Renderer,
     state: struct {
         terrain_render_pass: *TerrainRenderPass,
-        ssao_render_pass: *SSAORenderPass,
         geometry_render_pass: *GeometryRenderPass,
         gpu_driven_render_pass: *GpuDrivenRenderPass,
         deferred_shading_render_pass: *DeferredShadingRenderPass,
@@ -73,9 +71,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const ecsu_world = create_ctx.ecsu_world;
     const prefab_mgr = create_ctx.prefab_mgr;
     const pso_mgr = create_ctx.pso_mgr;
-
-    const ssao_render_pass = arena_system_lifetime.create(SSAORenderPass) catch unreachable;
-    ssao_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const geometry_render_pass = arena_system_lifetime.create(GeometryRenderPass) catch unreachable;
     geometry_render_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
@@ -107,7 +102,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
-        .ssao_render_pass = ssao_render_pass,
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
         .gpu_driven_render_pass = gpu_driven_render_pass,
@@ -148,7 +142,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
-    system.state.ssao_render_pass.destroy();
     system.state.terrain_render_pass.destroy();
     system.state.geometry_render_pass.destroy();
     system.state.gpu_driven_render_pass.destroy();

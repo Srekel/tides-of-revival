@@ -739,24 +739,6 @@ pub const Renderer = struct {
 
         self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
 
-        // SSAO
-        if (false) {
-            // self.ssao_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "SSAO", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
-
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "SSAO", 0x00_ff_00_00);
-            defer trazy_zone1.End();
-
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_ssao_pass_fn) |render_ssao_pass_fn| {
-                    render_ssao_pass_fn(cmd_list, render_pass.user_data);
-                    // NOTE: There musto be only one render_pass that renders SSAO. This abstraction
-                    // has already reached its breaking point :D
-                    break;
-                }
-            }
-        }
-
         // Shadow Map Pass
         {
             const profile_index = self.startGpuProfile(cmd_list, "Shadows");

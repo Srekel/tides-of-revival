@@ -276,12 +276,6 @@ pub const PSOManager = struct {
             }
         }
 
-        // SSAO
-        {
-            var sampler_ids = [_]IdLocal{};
-            self.createComputePipeline(IdLocal.init("linearize_depth"), "linearize_depth.comp", &sampler_ids);
-        }
-
         // Terrain
         // ======
         {
