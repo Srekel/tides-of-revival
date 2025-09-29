@@ -349,13 +349,52 @@ const SlimeDropTask = struct {
         {
             var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime_trail);
             const spawn_pos = self.pos.?;
-            const rot = ecs.get(ctx.ecsu_world.world, self.entity, fd.Rotation).?.*;
+            var rot = ecs.get(ctx.ecsu_world.world, self.entity, fd.Rotation).?.*;
 
             ent.set(fd.Position{
                 .x = spawn_pos[0],
                 .y = spawn_pos[1],
                 .z = spawn_pos[2],
             });
+
+            const cast_ray_args: zphy.NarrowPhaseQuery.CastRayArgs = .{
+                .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
+            };
+
+            const ray_dir: [4]f32 = .{ 0, -20, 0, 0 };
+            const ray_origin = [_]f32{
+                spawn_pos[0],
+                spawn_pos[1] + 10,
+                spawn_pos[2],
+                0,
+            };
+            const ray = zphy.RRayCast{
+                .origin = ray_origin,
+                .direction = ray_dir,
+            };
+
+            var query = ctx.physics_world_low.getNarrowPhaseQuery();
+            const result = query.castRay(ray, cast_ray_args);
+            if (result.has_hit) {
+                const bodies = ctx.physics_world_low.getBodiesUnsafe();
+                const body_hit = zphy.tryGetBody(bodies, result.hit.body_id).?;
+
+                const rot_slope_z = blk: {
+                    const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
+                    const hit_normal_z = zm.loadArr3(hit_normal);
+                    const up_z = zm.f32x4(0, 1, 0, 0);
+                    if (hit_normal[1] < 0.99) { // TODO: Find a good value, this was just arbitrarily picked :)
+                        const rot_axis_z = zm.cross3(up_z, hit_normal_z);
+                        const dot = zm.dot3(up_z, hit_normal_z)[0];
+                        const rot_angle = std.math.acos(dot);
+                        break :blk zm.quatFromAxisAngle(rot_axis_z, rot_angle);
+                    } else {
+                        break :blk zm.quatFromAxisAngle(up_z, 0);
+                    }
+                };
+
+                rot.fromZM(rot_slope_z);
+            }
 
             ent.set(fd.Scale.create(1, 1, 1));
             ent.set(rot);
@@ -373,7 +412,7 @@ const SlimeDropTask = struct {
             light_ent.set(fd.PointLight{
                 .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
                 .range = 30,
-                .intensity = 10,
+                .intensity = 7,
             });
 
             const task_data_die = ctx.task_queue.allocateTaskData(3600, DieTask);
