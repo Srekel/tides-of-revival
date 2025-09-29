@@ -174,7 +174,6 @@ fn updateTargetPosition(
             continue;
         }
         const height = ray_origin[1] + ray_dir[1] * result.hit.fraction;
-        std.log.info("lol {d}", .{height});
 
         // im3d.Im3d.DrawCone(
         //     &.{

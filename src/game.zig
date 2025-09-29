@@ -517,7 +517,7 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         {
             const curve = utility_scoring.Curve{
                 0.5, 1.0, 1.0, 1.0,
-                0.5, 0.0, 0.0, 0.25,
+                0.6, 0.2, 0.0, 0.25,
                 0.5,
             };
             const gb_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
