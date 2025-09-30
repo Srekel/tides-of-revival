@@ -11,6 +11,7 @@
         ///////////////////
         // zig-gamedev libs
         .system_sdk = .{ .path = "external/system_sdk" },
+        .zaudio = .{ .path = "external/zaudio" },
         .zflecs = .{ .path = "external/zflecs" },
         .zglfw = .{ .path = "external/zglfw" },
         .zgui = .{ .path = "external/zgui" },

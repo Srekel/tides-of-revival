@@ -3,6 +3,7 @@ const args = @import("args");
 const ecs = @import("zflecs");
 const ecsu = @import("flecs_util/flecs_util.zig");
 const graphics = @import("zforge").graphics;
+const zaudio = @import("zaudio");
 const zglfw = @import("zglfw");
 const zgui = @import("zgui");
 const zm = @import("zmath");
@@ -10,9 +11,6 @@ const zmesh = @import("zmesh");
 const zphy = @import("zphysics");
 const zstbi = @import("zstbi");
 const ztracy = @import("ztracy");
-// const AK = @import("wwise-zig");
-// const AK_ID = @import("wwise-ids");
-const audio_manager = @import("audio/audio_manager_mock.zig");
 
 const AssetManager = @import("core/asset_manager.zig").AssetManager;
 const config = @import("config/config.zig");
@@ -41,7 +39,7 @@ const GameloopContext = struct {
     arena_frame: std.mem.Allocator,
     heap_allocator: std.mem.Allocator,
     asset_mgr: *AssetManager,
-    audio_mgr: *audio_manager.AudioManager,
+    audio: *zaudio.Engine,
     ecsu_world: ecsu.World,
     event_mgr: *EventManager,
     input_frame_data: *input.FrameData,
@@ -60,20 +58,7 @@ pub fn run() void {
     zstbi.init(std.heap.page_allocator);
     defer zstbi.deinit();
 
-    // Audio
-    var audio_mgr = audio_manager.AudioManager.create(std.heap.page_allocator) catch unreachable;
-    defer audio_mgr.destroy() catch unreachable;
-
-    // AK.SoundEngine.registerGameObjWithName(std.heap.page_allocator, config.audio_player_oid, "Player") catch unreachable;
-    // defer AK.SoundEngine.unregisterGameObj(config.audio_player_oid) catch {};
-    // AK.SoundEngine.setDefaultListeners(&.{config.audio_player_oid}) catch unreachable;
-
-    // const bank_id = AK.SoundEngine.loadBankString(std.heap.page_allocator, "Player_SoundBank", .{}) catch unreachable;
-    // defer AK.SoundEngine.unloadBankID(bank_id, null, .{}) catch {};
-
     // Flecs
-    // ecs.zflecs_init();
-    // defer ecs.zflecs_fini();
     var ecsu_world = ecsu.World.init();
     defer ecsu_world.deinit();
     ecsu_world.progress(0);
@@ -166,6 +151,21 @@ pub fn run() void {
     var physics_mgr = physics_manager.create(arena_system_lifetime.allocator(), root_allocator.allocator());
     defer physics_manager.destroy(&physics_mgr);
 
+    // Audio
+    zaudio.init(arena_system_lifetime.allocator());
+    defer zaudio.deinit();
+
+    const audio = zaudio.Engine.create(null) catch unreachable;
+    defer audio.destroy();
+
+    const music = audio.createSoundFromFile(
+        "content/audio/music/the_first_forayst.mp3",
+        .{ .flags = .{ .stream = true } },
+    ) catch unreachable;
+    defer music.destroy();
+    music.setVolume(5);
+    music.start() catch unreachable;
+
     _ = ecs.struct_init(ecsu_world.world, .{
         .entity = ecs.id(fd.Position), // Make sure to use existing id
         .members = ([_]ecs.member_t{
@@ -199,9 +199,9 @@ pub fn run() void {
         .arena_system_lifetime = arena_system_lifetime.allocator(),
         .arena_system_update = arena_system_update.allocator(),
         .arena_frame = arena_frame.allocator(),
+        .audio = audio,
         .heap_allocator = root_allocator.allocator(),
         .asset_mgr = &asset_mgr,
-        .audio_mgr = &audio_mgr,
         .ecsu_world = ecsu_world,
         .event_mgr = &event_mgr,
         .input_frame_data = &input_frame_data,

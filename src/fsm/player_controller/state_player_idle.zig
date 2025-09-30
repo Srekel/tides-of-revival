@@ -11,9 +11,9 @@ const fr = @import("../../config/flecs_relation.zig");
 const zm = @import("zmath");
 const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
+const zaudio = @import("zaudio");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
-const audio_manager = @import("../../audio/audio_manager_mock.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const context = @import("../../core/context.zig");
@@ -22,7 +22,7 @@ pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
     heap_allocator: std.mem.Allocator,
-    audio_mgr: *audio_manager.AudioManager,
+    audio: *zaudio.Engine,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
@@ -41,8 +41,9 @@ pub fn create(create_ctx: StateContext) void {
             .{ .id = ecs.id(fd.Position), .inout = .InOut },
             .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
             .{ .id = ecs.id(fd.Forward), .inout = .InOut },
+            .{ .id = ecs.id(fd.Player), .inout = .InOut },
             .{ .id = ecs.pair(fd.FSM_PC, fd.FSM_PC_Idle), .inout = .InOut },
-        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
             "playerStateIdle",
@@ -58,14 +59,13 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
     const environment_info = ctx.ecsu_world.getSingleton(fd.EnvironmentInfo).?;
     const boosting = boost_active_time > environment_info.world_time;
 
-    var speed_scalar: f32 = 1.7;
+    var speed_scalar: f32 = 1.35;
     if (input_state.held(config.input.move_fast)) {
-        speed_scalar = 6;
+        speed_scalar = 8;
     } else if (input_state.held(config.input.move_slow)) {
         speed_scalar = 0.5;
     }
 
-    speed_scalar *= 2.0;
     if (boosting) {
         speed_scalar = 500;
     }
@@ -145,16 +145,57 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const positions = ecs.field(it, fd.Position, 1).?;
     const rotations = ecs.field(it, fd.Rotation, 2).?;
     const forwards = ecs.field(it, fd.Forward, 3).?;
+    const players = ecs.field(it, fd.Player, 4).?;
 
-    for (inputs, positions, rotations, forwards, it.entities()) |input_comp, *pos, *rot, *fwd, ent| {
+    for (inputs, positions, rotations, forwards, players, it.entities()) |input_comp, *pos, *rot, *fwd, *player, ent| {
         _ = ent; // autofix
         if (!input_comp.active) {
             continue;
         }
 
-        // const pos_before = pos.asZM();
+        const pos_before = pos.asZM();
         updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
         updateSnapToTerrain(ctx.physics_world, pos);
+
+        const pos_after = pos.asZM();
+        player.*.amount_moved += zm.length3(pos_after - pos_before)[0];
+
+        const step_length: f32 = if (ctx.input_frame_data.held(config.input.move_fast)) 3 else 0.8;
+        if (player.amount_moved > step_length) {
+            if (player.sfx_footstep_index > 1) {
+                player.sfx_footstep_index = 0;
+            }
+            player.sfx_footstep_index += 1;
+            player.amount_moved -= step_length;
+
+            var sound_buffer: [256]u8 = undefined;
+            const sound_path = std.fmt.bufPrintZ(
+                sound_buffer[0..sound_buffer.len],
+                "content/audio/footsteps/grass{d}.wav",
+                .{player.sfx_footstep_index},
+            ) catch unreachable;
+            std.log.info("lol{str}", .{sound_path});
+            ctx.audio.playSound(sound_path, null) catch unreachable;
+        }
+
+        // var fwd_xz_z = comps.fwd.asZM();
+        // fwd_xz_z[1] = 0;
+        // fwd_xz_z = zm.normalize3(fwd_xz_z);
+        // const ak_pos = AK.AkSoundPosition{
+        //     .position = .{
+        //         .x = comps.pos.x,
+        //         .y = comps.pos.y,
+        //         .z = comps.pos.z,
+        //     },
+        //     .orientation_front = .{
+        //         .x = fwd_xz_z[0],
+        //         .z = fwd_xz_z[2],
+        //     },
+        //     .orientation_top = .{
+        //         .y = 1.0,
+        //     },
+        // };
+        // AK.SoundEngine.setPosition(config.audio_player_oid, ak_pos, .{}) catch unreachable;
 
         const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
         if (environment_info.journey_time_multiplier != 1) {

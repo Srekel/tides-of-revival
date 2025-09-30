@@ -56,6 +56,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Projectile);
     ecs.COMPONENT(ecs_world, Journey);
     ecs.COMPONENT(ecs_world, Enemy);
+    ecs.COMPONENT(ecs_world, Player);
     FSM_PC = ecs.new_entity(ecs_world, config.FSM_PC.toCString());
     FSM_PC_Idle = ecs.new_entity(ecs_world, config.FSM_PC_Idle.toCString());
     FSM_CAM = ecs.new_entity(ecs_world, config.FSM_CAM.toCString());
@@ -832,4 +833,9 @@ pub const Enemy = struct {
     idling: bool = true,
     aggressive: bool = false,
     left_bias: bool = true,
+};
+
+pub const Player = struct {
+    amount_moved: f32 = 0,
+    sfx_footstep_index: u32 = 0,
 };
