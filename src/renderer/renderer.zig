@@ -139,6 +139,9 @@ pub const Renderer = struct {
     material_map: MaterialMap = undefined,
     material_buffer: ElementBindlessBuffer = undefined,
 
+    // Bindless Sampler
+    linear_repeat_sampler: [*c]graphics.Sampler = null,
+
     // Render Targets
     // ==============
     // Depth
@@ -377,6 +380,19 @@ pub const Renderer = struct {
             self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan_col"), vertex_layout) catch unreachable;
         }
 
+        // Bindless Samplers
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+
+            graphics.addSampler(self.renderer, &desc, true, &self.linear_repeat_sampler);
+        }
+
         self.frame_index = 0;
 
         self.legacy_mesh_pool = LegacyMeshPool.initMaxCapacity(allocator) catch unreachable;
@@ -450,6 +466,8 @@ pub const Renderer = struct {
         self.render_passes.deinit();
 
         self.vertex_layouts_map.deinit();
+
+        graphics.removeSampler(self.renderer, self.linear_repeat_sampler);
 
         graphics.exitQueue(self.renderer, self.graphics_queue);
         self.gpu_cmd_ring.destroy(self.renderer);
@@ -628,17 +646,6 @@ pub const Renderer = struct {
                         zgui.text("Terrain Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_terrain_pass_profile_index)});
                         zgui.text("Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_geometry_pass_profile_index)});
                         zgui.text("GPU-Driven Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_gpu_driven_pass_profile_index)});
-
-                        // zgui.text("\tZ PrePass: {d}", .{profiler.getGpuProfileAvgTime(self.z_prepass_pass_profile_token)});
-                        // zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
-                        // zgui.text("\tGBuffer Pass: {d}", .{profiler.getGpuProfileAvgTime(self.gbuffer_pass_profile_token)});
-                        // zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
-                        // zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
-                        // zgui.text("\tWater Pass: {d}", .{profiler.getGpuProfileAvgTime(self.water_pass_profile_token)});
-                        // zgui.text("\tPost Processing Pass: {d}", .{profiler.getGpuProfileAvgTime(self.post_processing_pass_profile_token)});
-                        // zgui.text("\tUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.ui_pass_profile_token)});
-                        // zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
-                        // zgui.text("\tComposite SDR Pass: {d}", .{profiler.getGpuProfileAvgTime(self.composite_sdr_profile_token)});
                     }
                 }
 
@@ -678,7 +685,6 @@ pub const Renderer = struct {
                             }
                             zgui.endPopup();
                         }
-                        // _ = zgui.checkbox("Post Processing", .{ .v = &self.pp_enabled });
                     }
                 }
 
@@ -1081,7 +1087,8 @@ pub const Renderer = struct {
         var renderable: Renderable = undefined;
         renderable.lods_count = desc.lods_count;
 
-        for (desc.lods, 0..) |lod, lod_index| {
+        for (0..desc.lods_count) |lod_index| {
+            const lod = &desc.lods[lod_index];
             const mesh = self.mesh_map.get(lod.mesh_id.hash).?;
             std.debug.assert(mesh.count == @as(u32, @intCast(lod.materials_count)));
             renderable.lods[lod_index].mesh_id = lod.mesh_id;
@@ -2106,7 +2113,7 @@ pub const Renderer = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
 
-const materials_per_renderable_max_count: u32 = 8;
+const materials_per_renderable_max_count: u32 = 16;
 const lods_per_renderable_max_count: u32 = 4;
 
 pub const RenderableDesc = struct {

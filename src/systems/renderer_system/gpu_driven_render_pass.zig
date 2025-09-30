@@ -561,6 +561,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         frame.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
         frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
         frame.instance_count = self.instance_buffers[frame_index].element_count;
+        // TODO: Create a getSamplerBindlessIndex in renderer.zig
+        frame.linear_repeat_sampler_index = @intCast(self.renderer.linear_repeat_sampler.*.mDx.mDescriptor);
 
         const frame_data = OpaqueSlice{
             .data = @ptrCast(&frame),
