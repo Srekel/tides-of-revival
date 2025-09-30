@@ -32,7 +32,9 @@ GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
     {
         Texture2D normalTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.normalTextureIndex)];
 
-        float3x3 TBN = ComputeTBN(N, normalize(vertex.tangent));
+        float4 tangent = vertex.tangent;
+        tangent.xyz = normalize(tangent.xyz);
+        float3x3 TBN = ComputeTBN(N, tangent);
         float3 tangentNormal = ReconstructNormal(SampleTex2D(normalTexture, sampler, UV), material.normalIntensity);
         N = normalize(mul(tangentNormal, TBN));
     }

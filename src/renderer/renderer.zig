@@ -1283,7 +1283,7 @@ pub const Renderer = struct {
             }
             // Tangents
             {
-                const stride = @sizeOf([3]f32);
+                const stride = @sizeOf([4]f32);
                 mesh.tangent_stream_location.location = buffer_gpu_address + buffer_data_offset;
                 mesh.tangent_stream_location.elements = @intCast(mesh_data.tangents_stream.items.len);
                 mesh.tangent_stream_location.stride = @intCast(stride);
