@@ -1,5 +1,6 @@
 #include "../../FSL/d3d.h"
 #include "defines.hlsli"
+#include "../math.hlsli"
 #include "meshlet_rasterizer_resources.hlsli"
 
 GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
@@ -25,6 +26,17 @@ GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
     {
         baseColor *= sRGBToLinear_Float3(vertex.color.rgb);
     }
+
+#if 0
+    // Testing Screen-Size Percentage
+    {
+        float3 rect_min;
+        float3 rect_max;
+        ClipSpaceAabbMinMax(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj, rect_min, rect_max);
+        float d = distance(rect_min, rect_max) * 0.5f;
+        baseColor = float3(d, 0, 0);
+    }
+#endif
 
     float3 N = normalize(vertex.normal);
 
