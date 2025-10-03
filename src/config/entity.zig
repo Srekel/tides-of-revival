@@ -30,6 +30,9 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
         .intensity = 10.0,
         .shadow_range = 100.0,
+        .cast_shadows = true,
+        .shadow_cascades = 4,
+        .pssm_factor = 0.85,
     });
 
     const sky_light_ent = ecsu_world.newEntity();

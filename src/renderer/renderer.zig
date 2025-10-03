@@ -12,7 +12,6 @@ const geometry = @import("geometry.zig");
 const file_system = zforge.file_system;
 const font = zforge.font;
 const graphics = zforge.graphics;
-const log = zforge.log;
 const memory = zforge.memory;
 const pso = @import("pso.zig");
 const profiler = @import("profiler.zig");
@@ -20,6 +19,7 @@ const resource_loader = zforge.resource_loader;
 const util = @import("../util.zig");
 const OpaqueSlice = util.OpaqueSlice;
 const ztracy = @import("ztracy");
+const zm = @import("zmath");
 
 const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
 
@@ -30,7 +30,7 @@ const window = @import("window.zig");
 pub const ReloadDesc = graphics.ReloadDesc;
 
 pub const renderPassUpdateFn = ?*const fn (user_data: *anyopaque) void;
-pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
+pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, render_view: RenderView, user_data: *anyopaque) void;
 pub const renderPassImGuiFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
@@ -41,9 +41,10 @@ pub const irradiance_texture_size: u32 = 32;
 pub const specular_texture_size: u32 = 128;
 pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
 
+pub const cascaded_shadow_resolution: u32 = 4096;
+
 pub const RenderPass = struct {
     update_fn: renderPassUpdateFn = null,
-    render_ssao_pass_fn: renderPassRenderFn = null,
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
     render_deferred_pass_fn: renderPassRenderFn = null,
@@ -105,6 +106,7 @@ pub const ElementBindlessBuffer = struct {
 
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
+    const cascades_max_count: u32 = 4;
 
     allocator: std.mem.Allocator = undefined,
     ecsu_world: ecsu.World = undefined,
@@ -150,6 +152,8 @@ pub const Renderer = struct {
     linear_depth_buffers: [2]TextureHandle = .{ undefined, undefined },
 
     // Shadows
+    shadow_cascade_depths: [cascades_max_count]f32 = undefined,
+    // shadow_views: [cascades_max_count]ShadowView = undefined,
     shadow_depth_buffer: [*c]graphics.RenderTarget = null,
 
     // GBuffer
@@ -240,7 +244,7 @@ pub const Renderer = struct {
             return Error.FontSystemNotInitialized;
         }
 
-        log.initLog("Tides Renderer", log.LogLevel.eALL);
+        zforge.log.initLog("Tides Renderer", zforge.log.LogLevel.eALL);
 
         var renderer_desc = std.mem.zeroes(graphics.RendererDesc);
         renderer_desc.mShaderTarget = .SHADER_TARGET_6_8;
@@ -482,7 +486,7 @@ pub const Renderer = struct {
         graphics.exitRenderer(self.renderer);
 
         font.platformExitFontSystem();
-        log.exitLog();
+        zforge.log.exitLog();
         file_system.exitFileSystem();
     }
 
@@ -634,84 +638,15 @@ pub const Renderer = struct {
     }
 
     pub fn draw(self: *Renderer) void {
-        if (self.render_imgui) {
-            zgui.setNextWindowSize(.{ .w = 600, .h = 1000, .cond = .first_use_ever });
-            if (!zgui.begin("Renderer Settings", .{})) {
-                zgui.end();
-            } else {
-                // GPU Profiler
-                {
-                    if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
-                        zgui.text("GPU Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_frame_profile_index)});
-                        zgui.text("Terrain Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_terrain_pass_profile_index)});
-                        zgui.text("Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_geometry_pass_profile_index)});
-                        zgui.text("GPU-Driven Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_gpu_driven_pass_profile_index)});
-                    }
-                }
-
-                // Player Camera Settings
-                {
-                    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-                    var camera = camera_entity.getMut(fd.Camera).?;
-
-                    var camera_fov = std.math.radiansToDegrees(camera.fov);
-
-                    if (zgui.collapsingHeader("Camera", .{ .default_open = true })) {
-                        if (zgui.dragFloat("FOV (deg)", .{ .v = &camera_fov, .speed = 1.0, .min = 10.0, .max = 100.0 })) {
-                            camera.fov = std.math.degreesToRadians(camera_fov);
-                        }
-                    }
-                }
-
-                // Renderer Settings
-                {
-                    if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
-                        _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
-                        _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
-
-                        if (zgui.button("Visualization Mode", .{})) {
-                            zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
-                        }
-                        zgui.sameLine(.{});
-                        zgui.textUnformatted(if (self.selected_visualization_mode == -1) "<None>" else visualization_modes[@intCast(self.selected_visualization_mode)]);
-                        if (zgui.beginPopup("viz_mode_popup", .{})) {
-                            if (zgui.selectable("None", .{})) {
-                                self.selected_visualization_mode = -1;
-                            }
-                            for (visualization_modes, 0..) |mode, index| {
-                                if (zgui.selectable(mode, .{})) {
-                                    self.selected_visualization_mode = @intCast(index);
-                                }
-                            }
-                            zgui.endPopup();
-                        }
-                    }
-                }
-
-                for (self.render_passes.items) |render_pass| {
-                    if (render_pass.render_imgui_fn) |render_imgui_fn| {
-                        render_imgui_fn(render_pass.user_data);
-                    }
-                }
-
-                zgui.end();
-            }
-        }
-
-        // Update step
-        {
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
-            defer trazy_zone1.End();
-
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.update_fn) |update_fn| {
-                    update_fn(render_pass.user_data);
-                }
-            }
-        }
-
         const trazy_zone = ztracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
         defer trazy_zone.End();
+
+        self.drawRenderSettings();
+        self.generateShadowViews();
+
+        self.updateStep();
+
+        const render_view = self.generateRenderView();
 
         if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
             graphics.waitQueueIdle(self.graphics_queue);
@@ -770,7 +705,7 @@ pub const Renderer = struct {
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_shadow_pass_fn) |render_shadow_pass_fn| {
-                    render_shadow_pass_fn(cmd_list, render_pass.user_data);
+                    render_shadow_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
 
@@ -814,7 +749,7 @@ pub const Renderer = struct {
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_gbuffer_pass_fn) |render_gbuffer_pass_fn| {
-                    render_gbuffer_pass_fn(cmd_list, render_pass.user_data);
+                    render_gbuffer_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
 
@@ -852,7 +787,7 @@ pub const Renderer = struct {
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_deferred_pass_fn) |render_deferred_pass_fn| {
-                    render_deferred_pass_fn(cmd_list, render_pass.user_data);
+                    render_deferred_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
 
@@ -869,7 +804,7 @@ pub const Renderer = struct {
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_atmosphere_pass_fn) |render_atmosphere_pass_fn| {
-                    render_atmosphere_pass_fn(cmd_list, render_pass.user_data);
+                    render_atmosphere_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
 
@@ -886,7 +821,7 @@ pub const Renderer = struct {
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_water_pass_fn) |render_water_pass_fn| {
-                    render_water_pass_fn(cmd_list, render_pass.user_data);
+                    render_water_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
 
@@ -903,7 +838,7 @@ pub const Renderer = struct {
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_post_processing_pass_fn) |render_post_processing_pass_fn| {
-                    render_post_processing_pass_fn(cmd_list, render_pass.user_data);
+                    render_post_processing_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
         }
@@ -935,7 +870,7 @@ pub const Renderer = struct {
 
                 for (self.render_passes.items) |render_pass| {
                     if (render_pass.render_ui_pass_fn) |render_ui_pass_fn| {
-                        render_ui_pass_fn(cmd_list, render_pass.user_data);
+                        render_ui_pass_fn(cmd_list, render_view, render_pass.user_data);
                     }
                 }
             }
@@ -1081,6 +1016,214 @@ pub const Renderer = struct {
         }
 
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
+    }
+
+    fn updateStep(self: *Renderer) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
+        defer trazy_zone.End();
+
+        for (self.render_passes.items) |render_pass| {
+            if (render_pass.update_fn) |update_fn| {
+                update_fn(render_pass.user_data);
+            }
+        }
+    }
+
+    fn drawRenderSettings(self: *Renderer) void {
+        if (!self.render_imgui) {
+            return;
+        }
+
+        zgui.setNextWindowSize(.{ .w = 600, .h = 1000, .cond = .first_use_ever });
+        if (!zgui.begin("Renderer Settings", .{})) {
+            zgui.end();
+        } else {
+            // GPU Profiler
+            {
+                if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
+                    zgui.text("GPU Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_frame_profile_index)});
+                    zgui.text("Terrain Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_terrain_pass_profile_index)});
+                    zgui.text("Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_geometry_pass_profile_index)});
+                    zgui.text("GPU-Driven Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_gpu_driven_pass_profile_index)});
+                }
+            }
+
+            // Player Camera Settings
+            {
+                var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+                var camera = camera_entity.getMut(fd.Camera).?;
+
+                var camera_fov = std.math.radiansToDegrees(camera.fov);
+
+                if (zgui.collapsingHeader("Camera", .{ .default_open = true })) {
+                    if (zgui.dragFloat("FOV (deg)", .{ .v = &camera_fov, .speed = 1.0, .min = 10.0, .max = 100.0 })) {
+                        camera.fov = std.math.degreesToRadians(camera_fov);
+                    }
+                }
+            }
+
+            // Renderer Settings
+            {
+                if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
+                    _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
+                    _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
+
+                    if (zgui.button("Visualization Mode", .{})) {
+                        zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
+                    }
+                    zgui.sameLine(.{});
+                    zgui.textUnformatted(if (self.selected_visualization_mode == -1) "<None>" else visualization_modes[@intCast(self.selected_visualization_mode)]);
+                    if (zgui.beginPopup("viz_mode_popup", .{})) {
+                        if (zgui.selectable("None", .{})) {
+                            self.selected_visualization_mode = -1;
+                        }
+                        for (visualization_modes, 0..) |mode, index| {
+                            if (zgui.selectable(mode, .{})) {
+                                self.selected_visualization_mode = @intCast(index);
+                            }
+                        }
+                        zgui.endPopup();
+                    }
+                }
+            }
+
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_imgui_fn) |render_imgui_fn| {
+                    render_imgui_fn(render_pass.user_data);
+                }
+            }
+
+            zgui.end();
+        }
+    }
+
+    fn generateRenderView(self: *Renderer) RenderView {
+        var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+        const camera_comps = camera_entity.getComps(struct {
+            camera: *const fd.Camera,
+            transform: *const fd.Transform,
+        });
+
+        var render_view = std.mem.zeroes(RenderView);
+        render_view.view = zm.loadMat(camera_comps.camera.view[0..]);
+        render_view.view_inverse = zm.inverse(render_view.view);
+        render_view.projection = zm.loadMat(camera_comps.camera.projection[0..]);
+        render_view.projection_inverse = zm.inverse(render_view.projection);
+        render_view.view_projection = zm.loadMat(camera_comps.camera.view_projection[0..]);
+        render_view.view_projection_inverse = zm.inverse(render_view.view_projection);
+        render_view.position = camera_comps.transform.getPos00();
+        render_view.fov = camera_comps.camera.fov;
+        render_view.near_plane = @min(camera_comps.camera.near, camera_comps.camera.far);
+        render_view.far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
+        render_view.viewport = [2]f32{ @floatFromInt(self.window_width), @floatFromInt(self.window_height) };
+        render_view.aspect = render_view.viewport[0] / render_view.viewport[1];
+
+        return render_view;
+    }
+
+    fn generateShadowViews(self: *Renderer) void {
+        const min_point: f32 = 0;
+        const max_point: f32 = 1;
+
+        const sun_entity = util.getSun(self.ecsu_world);
+        const sun_comps = sun_entity.?.getComps(struct {
+            rotation: *const fd.Rotation,
+            light: *const fd.DirectionalLight,
+        });
+
+        const cascades_count = sun_comps.light.shadow_cascades;
+        std.debug.assert(cascades_count <= cascades_max_count);
+        const pssm_factor = sun_comps.light.pssm_factor;
+
+        var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+        const camera_comps = camera_entity.getComps(struct {
+            camera: *const fd.Camera,
+            transform: *const fd.Transform,
+        });
+
+        const near_plane = @min(camera_comps.camera.near, camera_comps.camera.far);
+        var far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
+        // Reduce the distance of the last cascade
+        far_plane = @min(1500, far_plane);
+
+        const clip_range = far_plane - near_plane;
+        const min_z = near_plane + min_point * clip_range;
+        const max_z = near_plane + max_point * clip_range;
+
+        var cascade_splits = std.mem.zeroes([cascades_max_count]f32);
+
+        for (0..cascades_count) |i| {
+            const p: f32 = @as(f32, @floatFromInt(i + 1)) / @as(f32, @floatFromInt(cascades_count));
+            const log: f32 = min_z * std.math.pow(f32, max_z / min_z, p);
+            const uniform: f32 = min_z + (max_z - min_z) * p;
+            const d: f32 = pssm_factor * (log - uniform) + uniform;
+            cascade_splits[i] = (d - near_plane) / clip_range;
+        }
+
+        const main_view = zm.loadMat(&camera_comps.camera.view);
+        const main_view_inverse = zm.inverse(main_view);
+        const frustum_corners_ws = [_]zm.Vec{
+            transformVec3Coord(zm.Vec{-1, -1, 1, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{-1, -1, 0, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{-1, 1, 1, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{-1, 1, 0, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{1, 1, 1, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{1, 1, 0, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{1, -1, 1, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{1, -1, 0, 0}, main_view_inverse),
+        };
+
+        const light_view = zm.inverse(zm.matFromQuat(sun_comps.rotation.asZM()));
+        for (0..cascades_count) |i| {
+            const previous_cascade_split = if (i == 0) min_point else cascade_splits[i - 1];
+            const current_cascade_split = cascade_splits[i];
+
+            // Compute the frustum corners for the cascade in view space
+            const frustum_corners_vs = [_]zm.Vec{
+                transformVec3Coord(zm.lerp(frustum_corners_ws[0], frustum_corners_ws[1], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[0], frustum_corners_ws[1], current_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[2], frustum_corners_ws[3], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[2], frustum_corners_ws[3], current_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[4], frustum_corners_ws[5], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[4], frustum_corners_ws[5], current_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[6], frustum_corners_ws[7], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[6], frustum_corners_ws[7], current_cascade_split), light_view),
+            };
+
+            var center = zm.Vec{0, 0, 0, 0};
+            for (frustum_corners_vs) |corner| {
+                center = center + corner;
+            }
+            center = center / zm.splat(zm.Vec, @as(f32, @floatFromInt(frustum_corners_vs.len)));
+
+            // Create a bounding sphere to maintain aspect in projection to avoid flickering when rotating
+            var radius: f32 = 0;
+            for (frustum_corners_vs) |corner| {
+                const dist = zm.length3(center - corner)[0];
+                radius = @max(dist, radius);
+            }
+            var extents_min = center - zm.splat(zm.Vec, radius);
+            var extents_max = center + zm.splat(zm.Vec, radius);
+
+            // Snap the cascade to the resolution of the shadowmap
+            const extents = extents_max - extents_min;
+            const texel_size = extents / zm.splat(zm.Vec, @floatFromInt(cascaded_shadow_resolution));
+            extents_min = zm.floor(extents_min / texel_size) * texel_size;
+            extents_max = zm.floor(extents_max / texel_size) * texel_size;
+            center = (extents + extents) * zm.splat(zm.Vec, 0.5);
+
+            // Z-bounds extents
+            var extents_z = @abs(center[2] - extents_min[2]);
+            extents_z = @max(extents_z, far_plane * 0.5);
+            extents_min[2] = center[2] - extents_z;
+            extents_max[2] = center[2] + extents_z;
+
+            const proj = zm.orthographicOffCenterLh(extents_min[0], extents_max[0], extents_max[1], extents_min[1], extents_min[0], extents_max[1]);
+            const proj_view = zm.transpose(zm.mul(light_view, proj));
+            _ = proj_view;
+
+            self.shadow_cascade_depths[i] = near_plane + current_cascade_split * (far_plane - near_plane);
+        }
     }
 
     pub fn registerRenderable(self: *Renderer, id: IdLocal, desc: RenderableDesc) void {
@@ -2106,6 +2249,36 @@ pub const Renderer = struct {
     }
 };
 
+// ██╗   ██╗██╗███████╗██╗    ██╗███████╗
+// ██║   ██║██║██╔════╝██║    ██║██╔════╝
+// ██║   ██║██║█████╗  ██║ █╗ ██║███████╗
+// ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║╚════██║
+//  ╚████╔╝ ██║███████╗╚███╔███╔╝███████║
+//   ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚══════╝
+
+pub const RenderView = struct {
+    view: zm.Mat,
+    view_inverse: zm.Mat,
+    projection: zm.Mat,
+    projection_inverse: zm.Mat,
+    view_projection: zm.Mat,
+    view_projection_inverse: zm.Mat,
+
+    position: [3]f32,
+    fov: f32,
+    near_plane: f32,
+    far_plane: f32,
+    viewport: [2]f32,
+    aspect: f32,
+};
+
+// const ShadowView
+// {
+//     view_proj: zm.Mat,
+
+// }
+
+
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗
 // ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
 // ██████╔╝█████╗  ██╔██╗ ██║██║  ██║█████╗  ██████╔╝███████║██████╔╝██║     █████╗  ███████╗
@@ -2350,3 +2523,19 @@ pub const TextureHandle = TexturePool.Handle;
 
 const BufferPool = Pool(16, 16, graphics.Buffer, struct { buffer: [*c]graphics.Buffer });
 pub const BufferHandle = BufferPool.Handle;
+
+pub inline fn transformVec3Coord(v: zm.Vec, m: zm.Mat) zm.Vec {
+    const z = zm.splat(zm.F32x4, v[2]);
+    const y = zm.splat(zm.F32x4, v[1]);
+    const x = zm.splat(zm.F32x4, v[0]);
+
+    var result = zm.mulAdd(z, m[2], m[3]);
+    result = zm.mulAdd(y, m[1], result);
+    result = zm.mulAdd(x, m[0], result);
+
+    result[0] /= result[3];
+    result[1] /= result[3];
+    result[2] /= result[3];
+    result[3] = 1.0;
+    return result;
+}

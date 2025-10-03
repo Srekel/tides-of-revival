@@ -191,7 +191,7 @@ fn bindMeshBuffers(self: *GeometryRenderPass, mesh: renderer.LegacyMesh, cmd_lis
     graphics.cmdBindIndexBuffer(cmd_list, mesh.geometry.*.__union_field1.__struct_field1.pIndexBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
 }
 
-fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "GBuffer: Geometry Render Pass", 0x00_ff_00_00);
     defer trazy_zone.End();
 
@@ -201,17 +201,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.renderer.gpu_geometry_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "Geometry");
     defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_geometry_pass_profile_index);
 
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-    const camera_position = camera_comps.transform.getPos00();
-    const z_proj_view = zm.loadMat(camera_comps.camera.view_projection[0..]);
-
-    zm.storeMat(&self.uniform_frame_data_gbuffer.projection_view, z_proj_view);
-    zm.storeMat(&self.uniform_frame_data_gbuffer.projection_view_inverted, zm.inverse(z_proj_view));
-    self.uniform_frame_data_gbuffer.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+    zm.storeMat(&self.uniform_frame_data_gbuffer.projection_view, render_view.view_projection);
+    zm.storeMat(&self.uniform_frame_data_gbuffer.projection_view_inverted, render_view.view_projection_inverse);
+    self.uniform_frame_data_gbuffer.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
     self.uniform_frame_data_gbuffer.time = @floatCast(self.renderer.time); // keep f64?
 
     // Update Uniform Frame Buffer
@@ -340,19 +332,12 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     }
 }
 
-fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Shadow Map: Geometry Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *GeometryRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
-
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-    const camera_position = camera_comps.transform.getPos00();
 
     const sun_entity = util.getSun(self.ecsu_world);
     const sun_comps = sun_entity.?.getComps(struct {
@@ -362,7 +347,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     const z_forward = zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
     const z_view = zm.lookToLh(
-        zm.f32x4(camera_position[0], camera_position[1], camera_position[2], 1.0),
+        zm.f32x4(render_view.position[0], render_view.position[1], render_view.position[2], 1.0),
         z_forward * zm.f32x4s(-1.0),
         zm.f32x4(0.0, 1.0, 0.0, 0.0),
     );
@@ -381,6 +366,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // TODO: Move this out of the renderShadowMap and into an "update" function
     {
+        const camera_entity = util.getActiveCameraEnt(self.ecsu_world);
         batchEntities(self, camera_entity, &self.batches);
         self.instances.clearRetainingCapacity();
 

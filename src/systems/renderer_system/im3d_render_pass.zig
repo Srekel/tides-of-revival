@@ -130,18 +130,12 @@ pub const Im3dRenderPass = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
-fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Im3D", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *Im3dRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
-
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
 
     // Im3d samples
     // ============
@@ -232,12 +226,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const draw_list_count = im3d.Im3d.GetDrawListCount();
     const draw_lists = im3d.Im3d.GetDrawLists();
 
-    const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-    const z_proj_view = zm.mul(z_view, z_proj);
-
-    self.uniform_frame_data.viewport = [2]f32{ @floatFromInt(self.renderer.window_width), @floatFromInt(self.renderer.window_height) };
-    zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
+    self.uniform_frame_data.viewport = render_view.viewport;
+    zm.storeMat(&self.uniform_frame_data.projection_view, render_view.view_projection);
 
     const data = OpaqueSlice{
         .data = @ptrCast(&self.uniform_frame_data),

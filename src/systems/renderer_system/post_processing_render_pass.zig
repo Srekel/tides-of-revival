@@ -290,7 +290,7 @@ pub const PostProcessingRenderPass = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
-fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Bloom", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
@@ -444,8 +444,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         // Update constant buffer
         {
             var constant_buffer_data = std.mem.zeroes(TonemapConstantBuffer);
-            constant_buffer_data.rpc_buffer_dimensions[0] = 1.0 / @as(f32, @floatFromInt(self.renderer.window_width));
-            constant_buffer_data.rpc_buffer_dimensions[1] = 1.0 / @as(f32, @floatFromInt(self.renderer.window_height));
+            constant_buffer_data.rpc_buffer_dimensions[0] = 1.0 / render_view.viewport[0];
+            constant_buffer_data.rpc_buffer_dimensions[1] = 1.0 / render_view.viewport[1];
             constant_buffer_data.bloom_strength = self.bloom_settings.bloom_strength;
             constant_buffer_data.paper_white_ratio = 0.2;
             constant_buffer_data.max_brightness = 1000.0;
@@ -461,7 +461,7 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         const pipeline = self.renderer.getPSO(pipeline_id);
         graphics.cmdBindPipeline(cmd_list, pipeline);
         graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemap_descriptor_set);
-        graphics.cmdDispatch(cmd_list, (@as(u32, @intCast(self.renderer.window_width)) + 8 - 1) / 8, (@as(u32, @intCast(self.renderer.window_height)) + 8 - 1) / 8, 1);
+        graphics.cmdDispatch(cmd_list, (@as(u32, @intFromFloat(render_view.viewport[0])) + 8 - 1) / 8, (@as(u32, @intFromFloat(render_view.viewport[1])) + 8 - 1) / 8, 1);
 
         rt_barriers = [_]graphics.RenderTargetBarrier{
             graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),

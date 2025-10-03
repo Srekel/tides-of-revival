@@ -146,24 +146,18 @@ pub const AtmosphereRenderPass = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
-fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Atmosphere Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *AtmosphereRenderPass = @ptrCast(@alignCast(user_data));
     const frame_index = self.renderer.frame_index;
 
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-
     const skybox_cubemap = self.renderer.getTexture(self.skybox_cubemap);
 
     // Compute: Procedural Sky
     {
-        const camera_pos = camera_comps.transform.getPos00();
+        const camera_pos = render_view.position;
 
         const sun_entity = util.getSun(self.ecsu_world);
         const sun_comps = sun_entity.?.getComps(struct {
@@ -219,14 +213,12 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Graphics: Draw Sky
     {
-        const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-        const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
         const t01 = util.getTimeOfDayPercent(self.ecsu_world);
 
         var draw_sky_data: DrawSkyParams = std.mem.zeroes(DrawSkyParams);
         draw_sky_data.time_of_day_percent = t01;
-        zm.storeMat(&draw_sky_data.projection, z_proj);
-        zm.storeMat(&draw_sky_data.view, z_view);
+        zm.storeMat(&draw_sky_data.projection, render_view.projection);
+        zm.storeMat(&draw_sky_data.view, render_view.view);
 
         const data = OpaqueSlice{
             .data = @ptrCast(&draw_sky_data),

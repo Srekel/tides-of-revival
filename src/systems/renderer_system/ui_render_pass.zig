@@ -127,7 +127,7 @@ pub const UIRenderPass = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
-fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "UI Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
@@ -135,8 +135,8 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const frame_index = self.renderer.frame_index;
 
     self.uniform_frame_data.screen_to_clip = std.mem.zeroes([16]f32);
-    self.uniform_frame_data.screen_to_clip[0] = 2.0 / @as(f32, @floatFromInt(self.renderer.window_width));
-    self.uniform_frame_data.screen_to_clip[5] = -2.0 / @as(f32, @floatFromInt(self.renderer.window_height));
+    self.uniform_frame_data.screen_to_clip[0] = 2.0 / render_view.viewport[0];
+    self.uniform_frame_data.screen_to_clip[5] = -2.0 / render_view.viewport[1];
     self.uniform_frame_data.screen_to_clip[10] = 0.5;
     self.uniform_frame_data.screen_to_clip[12] = -1.0;
     self.uniform_frame_data.screen_to_clip[13] = 1.0;

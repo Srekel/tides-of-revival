@@ -388,7 +388,7 @@ fn renderImGui(user_data: *anyopaque) void {
     }
 }
 
-fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Gbuffer: Terrain Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
@@ -399,25 +399,15 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     const frame_index = self.renderer.frame_index;
 
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-    const camera_position = camera_comps.transform.getPos00();
-    const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-    const z_proj_view = zm.mul(z_view, z_proj);
-
     // Update frame buffer
     {
         const trazy_zone_2 = ztracy.ZoneNC(@src(), "frame buffer", 0x00_ff_ff_00);
         defer trazy_zone_2.End();
 
         var uniform_frame_data = std.mem.zeroes(UniformFrameData);
-        zm.storeMat(&uniform_frame_data.projection_view, z_proj_view);
-        zm.storeMat(&uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
-        uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+        zm.storeMat(&uniform_frame_data.projection_view, render_view.view_projection);
+        zm.storeMat(&uniform_frame_data.projection_view_inverted, render_view.view_projection_inverse);
+        uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
         uniform_frame_data.black_point = self.terrain_render_settings.black_point;
         uniform_frame_data.white_point = self.terrain_render_settings.white_point;
 
@@ -460,7 +450,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     {
         const trazy_zone_2 = ztracy.ZoneNC(@src(), "collectQuadsToRenderForSector", 0x00_ff_ff_00);
         defer trazy_zone_2.End();
-        const camera_point = [2]f32{ camera_position[0], camera_position[2] };
+        const camera_point = [2]f32{ render_view.position[0], render_view.position[2] };
 
         var sector_index: u32 = 0;
         while (sector_index < lod_3_patches_total) : (sector_index += 1) {
@@ -476,6 +466,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             ) catch unreachable;
         }
     }
+
+    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct { camera: *const fd.Camera });
 
     self.frame_instance_count = 0;
     {
@@ -582,7 +575,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     trazy_zone_loadNodeHeightmap.End();
 
     // Load high-lod patches near camera
-    if (tides_math.dist3_xz(self.cam_pos_old, camera_position) > 32) {
+    if (tides_math.dist3_xz(self.cam_pos_old, render_view.position) > 32) {
         const trazy_zone_2 = ztracy.ZoneNC(@src(), "refresh patches", 0x00_ff_ff_00);
         defer trazy_zone_2.End();
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
@@ -601,8 +594,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             };
 
             const area_new = world_patch_manager.RequestRectangle{
-                .x = camera_position[0] - area_width,
-                .z = camera_position[2] - area_width,
+                .x = render_view.position[0] - area_width,
+                .z = render_view.position[2] - area_width,
                 .width = area_width * 2,
                 .height = area_width * 2,
             };
@@ -634,11 +627,13 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             self.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
         }
 
-        self.cam_pos_old = camera_position;
+        self.cam_pos_old = render_view.position;
     }
 }
 
-fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
+    _ = render_view;
+
     const trazy_zone = ztracy.ZoneNC(@src(), "Shadow Map: Terrain Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 

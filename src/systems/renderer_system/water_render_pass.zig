@@ -220,7 +220,7 @@ fn renderImGui(user_data: *anyopaque) void {
     }
 }
 
-fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Water Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
@@ -265,21 +265,12 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Render Water
     {
-        var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-        const camera_comps = camera_entity.getComps(struct {
-            camera: *const fd.Camera,
-            transform: *const fd.Transform,
-        });
-        const camera_position = camera_comps.transform.getPos00();
-        const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-        const z_proj_view = zm.loadMat(camera_comps.camera.view_projection[0..]);
-
-        zm.storeMat(&self.uniform_frame_data.projection, z_proj);
-        zm.storeMat(&self.uniform_frame_data.projection_view, z_proj_view);
-        zm.storeMat(&self.uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
-        self.uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
-        const near = camera_comps.camera.near;
-        const far = camera_comps.camera.far;
+        zm.storeMat(&self.uniform_frame_data.projection, render_view.projection);
+        zm.storeMat(&self.uniform_frame_data.projection_view, render_view.view_projection);
+        zm.storeMat(&self.uniform_frame_data.projection_view_inverted, render_view.view_projection_inverse);
+        self.uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
+        const near = render_view.near_plane;
+        const far = render_view.far_plane;
         self.uniform_frame_data.depth_buffer_parameters = [4]f32{ far / near - 1.0, 1, (1 / near - 1 / far), 1 / far };
         self.uniform_frame_data.time = @floatCast(self.renderer.time);
 
@@ -310,9 +301,11 @@ fn render(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
         self.instance_data.clearRetainingCapacity();
 
-        var mesh: renderer.LegacyMesh = undefined;
+        var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+        const camera_comps = camera_entity.getComps(struct { camera: *const fd.Camera });
         var first_iteration = true;
         var query_water_iter = ecs.query_iter(self.ecsu_world.world, self.query_water);
+        var mesh: renderer.LegacyMesh = undefined;
         while (ecs.query_next(&query_water_iter)) {
             const transforms = ecs.field(&query_water_iter, fd.Transform, 0).?;
             const waters = ecs.field(&query_water_iter, fd.Water, 1).?;

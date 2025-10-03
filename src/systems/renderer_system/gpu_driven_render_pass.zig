@@ -520,7 +520,7 @@ fn renderImGui(user_data: *anyopaque) void {
     }
 }
 
-fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "GPU Driven: GBuffer", 0x00_ff_00_00);
     defer trazy_zone.End();
 
@@ -530,31 +530,20 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     self.renderer.gpu_gpu_driven_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "GPU-Driven");
     defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_gpu_driven_pass_profile_index);
 
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-    const camera_position = camera_comps.transform.getPos00();
-    const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-
     // Frame Uniform Buffer
     {
-        const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-        const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
-
         var frame = std.mem.zeroes(Frame);
 
-        zm.storeMat(&frame.view, zm.transpose(z_view));
-        zm.storeMat(&frame.proj, zm.transpose(z_proj));
-        zm.storeMat(&frame.view_proj, zm.transpose(z_view_proj));
-        zm.storeMat(&frame.view_proj_inv, zm.transpose(zm.inverse(z_view_proj)));
-        frame.camera_position[0] = camera_position[0];
-        frame.camera_position[1] = camera_position[1];
-        frame.camera_position[2] = camera_position[2];
+        zm.storeMat(&frame.view, zm.transpose(render_view.view));
+        zm.storeMat(&frame.proj, zm.transpose(render_view.projection));
+        zm.storeMat(&frame.view_proj, zm.transpose(render_view.view_projection));
+        zm.storeMat(&frame.view_proj_inv, zm.transpose(render_view.view_projection_inverse));
+        frame.camera_position[0] = render_view.position[0];
+        frame.camera_position[1] = render_view.position[1];
+        frame.camera_position[2] = render_view.position[2];
         frame.camera_position[3] = 1.0;
-        frame.camera_near_plane = camera_comps.camera.near;
-        frame.camera_far_plane = camera_comps.camera.far;
+        frame.camera_near_plane = render_view.near_plane;
+        frame.camera_far_plane = render_view.far_plane;
         frame.time = @floatCast(self.renderer.time);
         frame._padding0 = 42;
         frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
@@ -573,20 +562,18 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
 
     // Frame Culling Uniform Buffer
     {
-        const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-        const z_view_proj = zm.loadMat(camera_comps.camera.view_projection[0..]);
 
         if (!self.render_settings.freeze_rendering) {
-            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view, zm.transpose(z_view));
-            zm.storeMat(&self.frame_culling_uniform_data[frame_index].proj, zm.transpose(z_proj));
-            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view_proj, zm.transpose(z_view_proj));
-            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view_proj_inv, zm.transpose(zm.inverse(z_view_proj)));
-            self.frame_culling_uniform_data[frame_index].camera_position[0] = camera_position[0];
-            self.frame_culling_uniform_data[frame_index].camera_position[1] = camera_position[1];
-            self.frame_culling_uniform_data[frame_index].camera_position[2] = camera_position[2];
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view, zm.transpose(render_view.view));
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].proj, zm.transpose(render_view.projection));
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view_proj, zm.transpose(render_view.view_projection));
+            zm.storeMat(&self.frame_culling_uniform_data[frame_index].view_proj_inv, zm.transpose(render_view.view_projection_inverse));
+            self.frame_culling_uniform_data[frame_index].camera_position[0] = render_view.position[0];
+            self.frame_culling_uniform_data[frame_index].camera_position[1] = render_view.position[1];
+            self.frame_culling_uniform_data[frame_index].camera_position[2] = render_view.position[2];
             self.frame_culling_uniform_data[frame_index].camera_position[3] = 1.0;
-            self.frame_culling_uniform_data[frame_index].camera_near_plane = camera_comps.camera.near;
-            self.frame_culling_uniform_data[frame_index].camera_far_plane = camera_comps.camera.far;
+            self.frame_culling_uniform_data[frame_index].camera_near_plane = render_view.near_plane;
+            self.frame_culling_uniform_data[frame_index].camera_far_plane = render_view.far_plane;
         }
 
         self.frame_culling_uniform_data[frame_index].time = @floatCast(self.renderer.time);

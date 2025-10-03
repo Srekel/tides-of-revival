@@ -564,6 +564,9 @@ pub const DirectionalLight = struct {
     color: ColorRGB,
     intensity: f32,
     shadow_range: f32,
+    cast_shadows: bool,
+    shadow_cascades: u32,
+    pssm_factor: f32,
 };
 
 pub const PointLight = struct {
