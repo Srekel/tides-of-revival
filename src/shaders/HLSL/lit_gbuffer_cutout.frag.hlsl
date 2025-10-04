@@ -15,16 +15,16 @@ GBufferOutput PS_MAIN(VSOutput Input, bool isFrontFace : SV_IsFrontFace)
     InstanceData instance = instanceTransformsBuffer.Load<InstanceData>(instanceIndex * sizeof(InstanceData));
 
     ByteAddressBuffer materialsBuffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
-    MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialBufferOffset);
+    MaterialData material = materialsBuffer.Load<MaterialData>(instance.materialIndex * sizeof(MaterialData));
 
     const float3 P = Input.PositionWS.xyz;
     const float3 V = normalize(g_cam_pos.xyz - P);
     float2 UV = Input.UV * material.uvTilingOffset.xy;
 
-    float3 baseColor = sRGBToLinear_Float3(material.baseColor.rgb);
-    if (hasValidTexture(material.baseColorTextureIndex))
+    float3 baseColor = sRGBToLinear_Float3(material.albedoColor.rgb);
+    if (hasValidTexture(material.albedoTextureIndex))
     {
-        Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.baseColorTextureIndex)];
+        Texture2D baseColorTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.albedoTextureIndex)];
         float4 baseColorSample = baseColorTexture.Sample(g_linear_repeat_sampler, UV);
         clip(baseColorSample.a - 0.5);
         baseColor *= baseColorSample.rgb;

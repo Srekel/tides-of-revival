@@ -663,7 +663,7 @@ fn batchEntities(
                     batch_key.sub_mesh_index = @intCast(sub_mesh_index);
                     batch_key.surface_type = .@"opaque";
 
-                    const material_buffer_offset = self.renderer.getLegacyMaterialBufferOffset(material_id);
+                    const material_index = self.renderer.getLegacyMaterialIndex(material_id);
                     const alpha_test = self.renderer.getLegacyMaterialAlphaTest(material_id);
                     if (alpha_test) {
                         batch_key.surface_type = .cutout;
@@ -672,7 +672,7 @@ fn batchEntities(
                     var instance_data: InstanceData = undefined;
                     storeMat44(transform.matrix[0..], &instance_data.object_to_world);
                     storeMat44(transform.inv_matrix[0..], &instance_data.world_to_object);
-                    instance_data.materials_buffer_offset = material_buffer_offset;
+                    instance_data.material_index = material_index;
                     instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
 
                     if (!batch_map.contains(batch_key)) {

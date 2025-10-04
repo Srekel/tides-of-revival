@@ -1343,12 +1343,6 @@ pub const Renderer = struct {
             .emissive_texture_index = self.getTextureBindlessIndex(material_data.emissive),
             .normal_texture_index = self.getTextureBindlessIndex(material_data.normal),
             .arm_texture_index = self.getTextureBindlessIndex(material_data.arm),
-            .detail_feature = if (material_data.detail_feature) 1 else 0,
-            .detail_mask_texture_index = self.getTextureBindlessIndex(material_data.detail_mask),
-            .detail_baseColor_texture_index = self.getTextureBindlessIndex(material_data.detail_base_color),
-            .detail_normal_texture_index = self.getTextureBindlessIndex(material_data.detail_normal),
-            .detail_arm_texture_index = self.getTextureBindlessIndex(material_data.detail_arm),
-            .detail_use_uv2 = if (material_data.detail_use_uv2) 1 else 0,
         };
 
         const pipeline_ids = PassPipelineIds{
@@ -1370,7 +1364,7 @@ pub const Renderer = struct {
 
         self.legacy_material_map.put(material_id.hash, .{
             .material = material,
-            .buffer_offset = @intCast(offset),
+            .material_index = @intCast(self.legacy_materials.items.len - 1),
             .pipeline_ids = pipeline_ids,
             .alpha_test = material_data.alpha_test,
         }) catch unreachable;
@@ -1386,9 +1380,9 @@ pub const Renderer = struct {
         return material_data.?.pipeline_ids;
     }
 
-    pub fn getLegacyMaterialBufferOffset(self: *Renderer, material_id: IdLocal) u32 {
+    pub fn getLegacyMaterialIndex(self: *Renderer, material_id: IdLocal) u32 {
         const material_data = self.legacy_material_map.get(material_id.hash);
-        return material_data.?.buffer_offset;
+        return material_data.?.material_index;
     }
 
     pub fn loadMesh(self: *Renderer, path: []const u8, mesh_id: IdLocal) !void {
@@ -2443,14 +2437,6 @@ pub const UberShaderMaterialData = struct {
     arm: TextureHandle,
     emissive: TextureHandle,
 
-    // Detail Feature
-    detail_feature: bool,
-    detail_mask: TextureHandle,
-    detail_base_color: TextureHandle,
-    detail_normal: TextureHandle,
-    detail_arm: TextureHandle,
-    detail_use_uv2: bool,
-
     pub fn init() UberShaderMaterialData {
         return initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.5, 0.0);
     }
@@ -2470,12 +2456,6 @@ pub const UberShaderMaterialData = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
-            .detail_feature = false,
-            .detail_mask = TextureHandle.nil,
-            .detail_base_color = TextureHandle.nil,
-            .detail_normal = TextureHandle.nil,
-            .detail_arm = TextureHandle.nil,
-            .detail_use_uv2 = false,
         };
     }
 };
@@ -2488,15 +2468,15 @@ const LegacyMaterial = struct {
     normal_intensity: f32,
     emissive_strength: f32,
     albedo_texture_index: u32,
+    albedo_sampler_index: u32 = renderer_types.InvalidResourceIndex,
     emissive_texture_index: u32,
+    emissive_sampler_index: u32 = renderer_types.InvalidResourceIndex,
     normal_texture_index: u32,
+    normal_sampler_index: u32 = renderer_types.InvalidResourceIndex,
     arm_texture_index: u32,
-    detail_feature: u32,
-    detail_mask_texture_index: u32,
-    detail_baseColor_texture_index: u32,
-    detail_normal_texture_index: u32,
-    detail_arm_texture_index: u32,
-    detail_use_uv2: u32,
+    arm_sampler_index: u32 = renderer_types.InvalidResourceIndex,
+    rasterizer_bin: u32 = 0,
+    _pad0: [3]u32 = .{ 42, 42, 42 },
 };
 
 pub const PassPipelineIds = struct {
@@ -2504,7 +2484,7 @@ pub const PassPipelineIds = struct {
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const LegacyMaterialMap = std.AutoHashMap(u64, struct { material: LegacyMaterial, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
+const LegacyMaterialMap = std.AutoHashMap(u64, struct { material: LegacyMaterial, material_index: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
 
 const TexturePool = Pool(16, 16, graphics.Texture, struct { texture: [*c]graphics.Texture });
 pub const TextureHandle = TexturePool.Handle;

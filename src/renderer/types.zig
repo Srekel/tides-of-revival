@@ -45,7 +45,7 @@ pub const UpdateDesc = struct {
 pub const InstanceData = struct {
     object_to_world: [16]f32,
     world_to_object: [16]f32,
-    materials_buffer_offset: u32,
+    material_index: u32,
     _padding: [3]f32,
 };
 

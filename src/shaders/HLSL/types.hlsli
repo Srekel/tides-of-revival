@@ -20,7 +20,7 @@ struct InstanceData
 {
 	float4x4 worldMat;
 	float4x4 worldMatInverted;
-	uint materialBufferOffset;
+	uint materialIndex;
 	float3 _padding;
 };
 

@@ -1,6 +1,8 @@
 #ifndef _MESH_SHADING_TYPES_HLSLI_
 #define _MESH_SHADING_TYPES_HLSLI_
 
+#include "../material.hlsli"
+
 struct Frame
 {
     float4x4 view;
@@ -83,26 +85,6 @@ struct Instance
     uint meshIndex;
     uint materialIndex;
     uint flags;
-};
-
-struct MaterialData
-{
-    float4 albedoColor;
-    float4 uvTilingOffset;
-    float roughness;
-    float metallic;
-    float normalIntensity;
-    float emissiveStrength;
-    uint albedoTextureIndex;
-    uint albedoSamplerIndex;
-    uint emissiveTextureIndex;
-    uint emissiveSamplerIndex;
-    uint normalTextureIndex;
-    uint normalSamplerIndex;
-    uint armTextureIndex;
-    uint armSamplerIndex;
-    uint rasterizerBin;
-    uint3 _pad0;
 };
 
 #endif // _MESH_SHADING_TYPES_HLSLI_

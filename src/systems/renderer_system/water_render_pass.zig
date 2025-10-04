@@ -299,7 +299,7 @@ fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_dat
 
                 storeMat44(transform.inv_matrix[0..], &instance_data.world_to_object);
                 // NOTE(gmodarelli): We're using a single material for now
-                instance_data.materials_buffer_offset = 0;
+                instance_data.material_index = 0;
                 self.instance_data.append(instance_data) catch unreachable;
             }
         }

@@ -3,24 +3,22 @@
 
 struct MaterialData
 {
-	// Surface
-	float4 baseColor;
+	float4 albedoColor;
 	float4 uvTilingOffset;
 	float roughness;
 	float metallic;
 	float normalIntensity;
 	float emissiveStrength;
-	uint baseColorTextureIndex;
+	uint albedoTextureIndex;
+	uint albedoSamplerIndex;
 	uint emissiveTextureIndex;
+	uint emissiveSamplerIndex;
 	uint normalTextureIndex;
+	uint normalSamplerIndex;
 	uint armTextureIndex;
-	// Details
-	uint detailFeature;
-	uint detailMaskTextureIndex;
-	uint detailBaseColorTextureIndex;
-	uint detailNormalTextureIndex;
-	uint detailArmTextureIndex;
-	uint detailUseUV2;
+	uint armSamplerIndex;
+	uint rasterizerBin;
+	uint3 _pad0;
 };
 
 #endif // _MATERIAL_H

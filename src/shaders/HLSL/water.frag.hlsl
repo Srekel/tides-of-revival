@@ -25,7 +25,7 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     InstanceData instance = instance_transform_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
     ByteAddressBuffer material_buffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
-    WaterMaterial material = material_buffer.Load<WaterMaterial>(instance.materialBufferOffset);
+    WaterMaterial material = material_buffer.Load<WaterMaterial>(instance.materialIndex * sizeof(WaterMaterial));
 
     float4 clip_position = mul(g_proj_view_mat, float4(Input.PositionWS, 1.0f));
     float4 screen_position = CalculateScreenPosition(clip_position);
