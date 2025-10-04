@@ -403,7 +403,7 @@ pub const LodGroup = struct {
 };
 
 pub const Water = struct {
-    mesh_handle: LegacyMeshHandle,
+    tag: bool = true,
 };
 
 pub const Renderable = struct {

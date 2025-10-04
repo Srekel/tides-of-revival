@@ -22,7 +22,6 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
 const GpuDrivenRenderPass = @import("renderer_system/gpu_driven_render_pass.zig").GpuDrivenRenderPass;
-const WaterRenderPass = @import("renderer_system/water_render_pass.zig").WaterRenderPass;
 const PostProcessingRenderPass = @import("renderer_system/post_processing_render_pass.zig").PostProcessingRenderPass;
 const UIRenderPass = @import("renderer_system/ui_render_pass.zig").UIRenderPass;
 const Im3dRenderPass = @import("renderer_system/im3d_render_pass.zig").Im3dRenderPass;
@@ -53,7 +52,6 @@ pub const SystemUpdateContext = struct {
         terrain_render_pass: *TerrainRenderPass,
         geometry_render_pass: *GeometryRenderPass,
         gpu_driven_render_pass: *GpuDrivenRenderPass,
-        water_render_pass: *WaterRenderPass,
         post_processing_pass: *PostProcessingRenderPass,
         ui_render_pass: *UIRenderPass,
         im3d_render_pass: *Im3dRenderPass,
@@ -61,6 +59,9 @@ pub const SystemUpdateContext = struct {
 
         query_point_lights: *ecs.query_t,
         point_lights: std.ArrayList(renderer_types.PointLight),
+
+        query_ocean_tiles: *ecs.query_t,
+        ocean_tiles: std.ArrayList(renderer_types.OceanTile),
     },
 };
 
@@ -81,9 +82,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const gpu_driven_render_pass = arena_system_lifetime.create(GpuDrivenRenderPass) catch unreachable;
     gpu_driven_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pso_mgr, pass_allocator);
 
-    const water_render_pass = arena_system_lifetime.create(WaterRenderPass) catch unreachable;
-    water_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
-
     const post_processing_render_pass = arena_system_lifetime.create(PostProcessingRenderPass) catch unreachable;
     post_processing_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
@@ -101,19 +99,29 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
     }) catch unreachable;
 
+    const query_ocean_tiles = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_ocean_tiles"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.Transform), .inout = .In },
+                .{ .id = ecs.id(fd.Water), .inout = .In },
+                .{ .id = ecs.id(fd.Scale), .inout = .In },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
+        }) catch unreachable;
+
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
         .gpu_driven_render_pass = gpu_driven_render_pass,
-        .water_render_pass = water_render_pass,
         .post_processing_pass = post_processing_render_pass,
         .ui_render_pass = ui_render_pass,
         .im3d_render_pass = im3d_render_pass,
         .render_imgui = false,
         .query_point_lights = query_point_lights,
         .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
+        .query_ocean_tiles = query_ocean_tiles,
+        .ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(pass_allocator),
     };
 
     {
@@ -148,11 +156,11 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     system.state.geometry_render_pass.destroy();
     system.state.gpu_driven_render_pass.destroy();
     system.state.post_processing_pass.destroy();
-    system.state.water_render_pass.destroy();
     system.state.ui_render_pass.destroy();
     system.state.im3d_render_pass.destroy();
 
     system.state.point_lights.deinit();
+    system.state.ocean_tiles.deinit();
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -264,6 +272,30 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         update_desc.point_lights = &system.state.point_lights;
     }
 
+    // Find all ocean tiles
+    {
+        system.state.ocean_tiles.clearRetainingCapacity();
+
+        var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_ocean_tiles);
+        while (ecs.query_next(&iter)) {
+            const transforms = ecs.field(&iter, fd.Transform, 0).?;
+            const waters = ecs.field(&iter, fd.Water, 1).?;
+            const scales = ecs.field(&iter, fd.Scale, 2).?;
+            for (transforms, waters, scales) |transform, _, scale| {
+                var world: [16]f32 = undefined;
+                storeMat44(transform.matrix[0..], &world);
+
+                var ocean_tile = renderer_types.OceanTile{};
+                ocean_tile.world = zm.loadMat(world[0..]);
+                ocean_tile.scale = @max(scale.x, @max(scale.y, scale.z));
+
+                system.state.ocean_tiles.append(ocean_tile) catch unreachable;
+            }
+        }
+
+        update_desc.ocean_tiles = &system.state.ocean_tiles;
+    }
+
     // Find Height Fog
     {
         update_desc.height_fog = renderer_types.HeightFogSettings{};
@@ -291,4 +323,23 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
 
 fn draw(rctx: *renderer.Renderer) void {
     rctx.draw();
+}
+
+inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
+    mat44[0] = mat43[0];
+    mat44[1] = mat43[1];
+    mat44[2] = mat43[2];
+    mat44[3] = 0;
+    mat44[4] = mat43[3];
+    mat44[5] = mat43[4];
+    mat44[6] = mat43[5];
+    mat44[7] = 0;
+    mat44[8] = mat43[6];
+    mat44[9] = mat43[7];
+    mat44[10] = mat43[8];
+    mat44[11] = 0;
+    mat44[12] = mat43[9];
+    mat44[13] = mat43[10];
+    mat44[14] = mat43[11];
+    mat44[15] = 1;
 }

@@ -135,9 +135,6 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     //  ╚═════╝  ╚═════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝
 
     {
-        const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
-        const lod_group = plane_prefab.get(fd.LodGroup);
-        const mesh_handle = lod_group.?.lods[0].mesh_handle;
         const ocean_plane_scale: f32 = @floatFromInt(config.km_size);
         const padding = 4;
         const ocean_tiles_x = 2 * padding + config.world_size_x / config.km_size;
@@ -160,7 +157,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
                     ocean_plane_position.z,
                     ocean_plane_scale,
                 ));
-                ocean_plane_ent.set(fd.Water{ .mesh_handle = mesh_handle });
+                ocean_plane_ent.set(fd.Water{});
             }
         }
     }

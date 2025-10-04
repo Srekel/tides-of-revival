@@ -24,9 +24,6 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     uint instance_index = Input.InstanceID + g_instanceRootConstants.startInstanceLocation;
     InstanceData instance = instance_transform_buffer.Load<InstanceData>(instance_index * sizeof(InstanceData));
 
-    ByteAddressBuffer material_buffer = ResourceDescriptorHeap[g_instanceRootConstants.materialBufferIndex];
-    WaterMaterial material = material_buffer.Load<WaterMaterial>(instance.materialIndex * sizeof(WaterMaterial));
-
     float4 clip_position = mul(g_proj_view_mat, float4(Input.PositionWS, 1.0f));
     float4 screen_position = CalculateScreenPosition(clip_position);
     float2 screen_uv = screen_position.xy / screen_position.w;
@@ -40,17 +37,17 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
 
     // Surface lighting
     float3 N = normalize(Input.Normal);
-    if (hasValidTexture(material.m_normal_map_1_texture_index) && hasValidTexture(material.m_normal_map_2_texture_index))
+    if (hasValidTexture(m_normal_map_1_texture_index) && hasValidTexture(m_normal_map_2_texture_index))
     {
         float3x3 TBN = ComputeTBN(N, normalize(Input.Tangent));
-        Texture2D normal_texture_1 = ResourceDescriptorHeap[NonUniformResourceIndex(material.m_normal_map_1_texture_index)];
-        Texture2D normal_texture_2 = ResourceDescriptorHeap[NonUniformResourceIndex(material.m_normal_map_2_texture_index)];
+        Texture2D normal_texture_1 = ResourceDescriptorHeap[NonUniformResourceIndex(m_normal_map_1_texture_index)];
+        Texture2D normal_texture_2 = ResourceDescriptorHeap[NonUniformResourceIndex(m_normal_map_2_texture_index)];
 
-        float2 water_1_uv = Input.PositionWS.xz * material.m_normal_map_1_params.x + (normalize(material.m_normal_map_1_params.yz) * g_time * material.m_normal_map_1_params.x);
-        float2 water_2_uv = Input.PositionWS.xz * material.m_normal_map_2_params.x + (normalize(material.m_normal_map_2_params.yz) * g_time * material.m_normal_map_2_params.x);
+        float2 water_1_uv = Input.PositionWS.xz * m_normal_map_1_params.x + (normalize(m_normal_map_1_params.yz) * g_time * m_normal_map_1_params.x);
+        float2 water_2_uv = Input.PositionWS.xz * m_normal_map_2_params.x + (normalize(m_normal_map_2_params.yz) * g_time * m_normal_map_2_params.x);
 
-        float3 tangent_normal_1 = ReconstructNormal(SampleTex2D(normal_texture_1, g_linear_repeat_sampler, water_1_uv), material.m_normal_map_1_params.w);
-        float3 tangent_normal_2 = ReconstructNormal(SampleTex2D(normal_texture_2, g_linear_repeat_sampler, water_2_uv), material.m_normal_map_2_params.w);
+        float3 tangent_normal_1 = ReconstructNormal(SampleTex2D(normal_texture_1, g_linear_repeat_sampler, water_1_uv), m_normal_map_1_params.w);
+        float3 tangent_normal_2 = ReconstructNormal(SampleTex2D(normal_texture_2, g_linear_repeat_sampler, water_2_uv), m_normal_map_2_params.w);
         float3 tangent_normal = NormalBlend(tangent_normal_1, tangent_normal_2);
         N = normalize(mul(tangent_normal, TBN));
     }
@@ -59,8 +56,8 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     surfaceInfo.position = Input.PositionWS.xyz;
     surfaceInfo.normal = N;
     surfaceInfo.view = normalize(g_cam_pos.xyz - Input.PositionWS.xyz);
-    surfaceInfo.albedo = lerp(scene_color, material.m_albedo_surface.rgb, material.m_surface_opacity);
-    surfaceInfo.perceptual_roughness = max(0.04f, material.m_surface_roughness);
+    surfaceInfo.albedo = lerp(scene_color, m_albedo_surface.rgb, m_surface_opacity);
+    surfaceInfo.perceptual_roughness = max(0.04f, m_surface_roughness);
     surfaceInfo.metallic = 0.0;
     surfaceInfo.reflectance = 1.0;
 

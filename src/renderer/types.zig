@@ -1,5 +1,6 @@
 const std = @import("std");
 const IdLocal = @import("../core/core.zig").IdLocal;
+const zm = @import("zmath");
 
 pub const InvalidResourceIndex = std.math.maxInt(u32);
 
@@ -41,6 +42,9 @@ pub const UpdateDesc = struct {
     sun_light: DirectionalLight = undefined,
     point_lights: *std.ArrayList(PointLight) = undefined,
     height_fog: HeightFogSettings = undefined,
+
+    // Entities
+    ocean_tiles: *std.ArrayList(OceanTile) = undefined,
 };
 
 pub const InstanceData = struct {
@@ -68,4 +72,9 @@ pub const TerrainInstanceData = struct {
     heightmap_index: u32,
     lod: u32,
     padding1: [2]u32,
+};
+
+pub const OceanTile = struct {
+    world: zm.Mat = undefined,
+    scale: f32 = 0,
 };

@@ -25,9 +25,20 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	uint g_lights_buffer_index;
 	uint g_lights_count;
 	float g_time;
-	uint _padding;
+	uint _padding0;
 	float3 g_fog_color;
 	float g_fog_density;
+
+	// Water material
+	float3 m_albedo_surface;
+	float m_surface_opacity;
+	float4 m_normal_map_1_params;
+	float4 m_normal_map_2_params;
+
+	uint m_normal_map_1_texture_index;
+	uint m_normal_map_2_texture_index;
+	float m_surface_roughness;
+	float _padding1;
 };
 
 struct VSInput
@@ -48,19 +59,6 @@ struct VSOutput
 	float2 UV : TEXCOORD0;
 	float4 Color : COLOR;
 	uint InstanceID : SV_InstanceID;
-};
-
-struct WaterMaterial
-{
-	float4 m_albedo_surface;
-
-	uint m_normal_map_1_texture_index;
-	uint m_normal_map_2_texture_index;
-	float m_surface_roughness;
-	float m_surface_opacity;
-
-	float4 m_normal_map_1_params;
-	float4 m_normal_map_2_params;
 };
 
 #endif // _WATER_RESOURCES_H
