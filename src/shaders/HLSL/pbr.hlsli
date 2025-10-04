@@ -17,6 +17,17 @@
 #define PI_DIV2 1.57079632679
 #endif
 
+struct SurfaceInfo
+{
+	float3 normal;
+	float3 position;
+	float3 view;
+	float3 albedo;
+	float perceptual_roughness;
+	float metallic;
+	float reflectance;
+};
+
 // ███████╗██╗██╗      █████╗ ███╗   ███╗███████╗███╗   ██╗████████╗    ██████╗ ██████╗ ██████╗
 // ██╔════╝██║██║     ██╔══██╗████╗ ████║██╔════╝████╗  ██║╚══██╔══╝    ██╔══██╗██╔══██╗██╔══██╗
 // █████╗  ██║██║     ███████║██╔████╔██║█████╗  ██╔██╗ ██║   ██║       ██████╔╝██████╔╝██████╔╝
@@ -92,23 +103,23 @@ float Fd_Burley(float NoV, float NoL, float LoH, float roughness)
 // ====
 // NOTE: Reflectance values for various types of materials are available at the following link
 // https://google.github.io/filament/Filament.md.html#table_commonmatreflectance
-float3 FilamentBRDF(float3 n, float3 v, float3 l, float3 albedo, float perceptual_roughness, float metallic, float reflectance)
+float3 FilamentBRDF(float3 l, SurfaceInfo surfaceInfo)
 {
-	float3 h = normalize(v + l);
+	float3 h = normalize(surfaceInfo.normal + l);
 
-	float NoV = abs(dot(n, v)) + 1e-5;
-	float NoL = clamp(dot(n, l), 0.0, 1.0);
-	float NoH = clamp(dot(n, h), 0.0, 1.0);
+	float NoV = abs(dot(surfaceInfo.normal, surfaceInfo.view)) + 1e-5;
+	float NoL = clamp(dot(surfaceInfo.normal, l), 0.0, 1.0);
+	float NoH = clamp(dot(surfaceInfo.normal, h), 0.0, 1.0);
 	float LoH = clamp(dot(l, h), 0.0, 1.0);
 
 	// Base color remapping
-	float3 diffuse_color = (1.0f - metallic) * albedo;
+	float3 diffuse_color = (1.0f - surfaceInfo.metallic) * surfaceInfo.albedo;
 
 	// Perceptually linear roughness to roughness
-	float roughness = perceptual_roughness * perceptual_roughness;
+	float roughness = surfaceInfo.perceptual_roughness * surfaceInfo.perceptual_roughness;
 
 	// Compute f0 for both dielectric and metallic materials
-	float3 f0 = 0.16f * reflectance * reflectance * (1.0 - metallic) + albedo * metallic;
+	float3 f0 = 0.16f * surfaceInfo.reflectance * surfaceInfo.reflectance * (1.0 - surfaceInfo.metallic) + surfaceInfo.albedo * surfaceInfo.metallic;
 
 	float D = D_GGX(NoH, roughness);
 	float3 F = F_Schlick(LoH, f0, 1.0f);
@@ -124,119 +135,45 @@ float3 FilamentBRDF(float3 n, float3 v, float3 l, float3 albedo, float perceptua
 	return Fd + (Fr * 0.1f);
 }
 
-//  ██████╗ ██╗     ██████╗     ██████╗ ██████╗ ██████╗
-// ██╔═══██╗██║     ██╔══██╗    ██╔══██╗██╔══██╗██╔══██╗
-// ██║   ██║██║     ██║  ██║    ██████╔╝██████╔╝██████╔╝
-// ██║   ██║██║     ██║  ██║    ██╔═══╝ ██╔══██╗██╔══██╗
-// ╚██████╔╝███████╗██████╔╝    ██║     ██████╔╝██║  ██║
-//  ╚═════╝ ╚══════╝╚═════╝     ╚═╝     ╚═════╝ ╚═╝  ╚═╝
-//
-
-//
-// LIGHTING FUNCTIONS
-//
-float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+float3 ShadeDirectionalLight(GpuLight light, SurfaceInfo surfaceInfo, float shadowAttenuation)
 {
-	float3 ret = float3(0.0, 0.0, 0.0);
-	float powTheta = pow5(1.0 - cosTheta);
-	float invRough = float(1.0 - roughness);
+	const float3 L = light.position;
+	const float NdotL = max(dot(surfaceInfo.normal, L), 0.00001f);
+	const float3 color = sRGBToLinear_Float3(light.color);
+	const float3 radiance = color * light.intensity;
 
-	ret.x = F0.x + (max(invRough, F0.x) - F0.x) * powTheta;
-	ret.y = F0.y + (max(invRough, F0.y) - F0.y) * powTheta;
-	ret.z = F0.z + (max(invRough, F0.z) - F0.z) * powTheta;
-
-	return ret;
+	const float3 brdf = FilamentBRDF(L, surfaceInfo);
+	return brdf * radiance * NdotL * shadowAttenuation;
 }
 
-float3 FresnelSchlick(float cosTheta, float3 F0)
+float3 ShadePointLight(GpuLight light, SurfaceInfo surfaceInfo, float shadowAttenuation)
 {
-	return F0 + (1.0f - F0) * pow5(1.0 - cosTheta);
+	const float3 Pl = light.position;
+	const float radius = light.radius;
+	const float3 L = normalize(Pl - surfaceInfo.position);
+	const float NdotL = max(dot(surfaceInfo.normal, L), 0.00001f);
+	const float distance = length(Pl - surfaceInfo.position);
+	const float attenuation = pow(saturate(1 - distance / radius), 2);
+
+	const float3 color = sRGBToLinear_Float3(light.color);
+	const float3 radiance = color * light.intensity * attenuation * 1;
+
+	const float3 brdf = FilamentBRDF(L, surfaceInfo);
+	return brdf * radiance * NdotL * shadowAttenuation;
 }
 
-float DistributionGGX(float3 N, float3 H, float roughness)
+float3 ShadeLight(GpuLight light, SurfaceInfo surfaceInfo, float shadowAttenuation)
 {
-	float a = roughness * roughness;
-	float a2 = a * a;
-	float NdotH = max(dot(N, H), 0.0);
-	float NdotH2 = NdotH * NdotH;
-	float nom = a2;
-	float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-	denom = PI * denom * denom;
+	if (light.light_type == 0)
+	{
+		return ShadeDirectionalLight(light, surfaceInfo, shadowAttenuation);
+	}
+	else if (light.light_type == 1)
+	{
+		return ShadePointLight(light, surfaceInfo, shadowAttenuation);
+	}
 
-	return nom / denom;
-}
-
-float GeometrySchlickGGX(float NdotV, float roughness)
-{
-	float r = (roughness + 1.0f);
-	float k = (r * r) / 8.0f;
-
-	float nom = NdotV;
-	float denom = NdotV * (1.0 - k) + k;
-
-	return nom / denom;
-}
-
-float GeometrySmith(float3 N, float3 V, float3 L, float roughness)
-{
-	float NdotV = max(dot(N, V), 0.0);
-	float NdotL = max(dot(N, L), 0.0);
-	float ggx2 = GeometrySchlickGGX(NdotV, roughness);
-	float ggx1 = GeometrySchlickGGX(NdotL, roughness);
-
-	return ggx1 * ggx2;
-}
-
-float3 LambertDiffuse(float3 albedo, float3 kD)
-{
-	return kD * albedo / PI;
-}
-
-float3 BRDF(float3 N, float3 V, float3 L, float3 albedo, float roughness, float metalness)
-{
-	const float3 H = normalize(V + L);
-
-	// F0 represents the base reflectivity (calculated using IOR: index of refraction)
-	float3 F0 = float3(0.04f, 0.04f, 0.04f);
-	F0 = lerp(F0, albedo, metalness);
-
-	float NDF = DistributionGGX(N, H, roughness);
-	float G = GeometrySmith(N, V, L, roughness);
-	float3 F = FresnelSchlick(max(dot(N, H), 0.0f), F0);
-
-	float3 kS = F;
-	float3 kD = (float3(1.0f, 1.0f, 1.0f) - kS) * (1.0f - metalness);
-
-	float3 Is = NDF * G * F / (4.0f * max(dot(N, V), 0.0f) * max(dot(N, L), 0.0f) + 0.001f);
-	float3 Id = LambertDiffuse(albedo, kD);
-
-	return Id + Is;
-}
-
-float3 EnvironmentBRDF(float3 N, float3 V, float3 albedo, float roughness, float metalness)
-{
-	const float3 R = reflect(-V, N);
-
-	// F0 represents the base reflectivity (calculated using IOR: index of refraction)
-	float3 F0 = float3(0.04f, 0.04f, 0.04f);
-	F0 = lerp(F0, albedo, metalness);
-
-	float3 F = FresnelSchlickRoughness(max(dot(N, V), 0.0f), F0, roughness);
-
-	float3 kS = F;
-	float3 kD = (float3(1.0f, 1.0f, 1.0f) - kS) * (1.0f - metalness);
-
-	float3 irradiance = SampleTexCube(g_irradiance_map, Get(g_linear_repeat_sampler), N).rgb;
-	float3 specular = SampleLvlTexCube(g_specular_map, Get(g_linear_repeat_sampler), R, roughness * 4).rgb;
-
-	float2 maxNVRough = float2(max(dot(N, V), 0.0), roughness);
-	float2 brdf = SampleTex2D(g_brdf_integration_map, Get(g_linear_clamp_edge_sampler), maxNVRough).rg;
-
-	float3 Is = specular * (F * brdf.x + brdf.y);
-	float3 Id = kD * irradiance * max(float3(0.04, 0.04, 0.04), albedo);
-
-	// TODO: Implement energy conservation
-	return (Is * 0.1) + Id;
+	return float3(1, 0, 1);
 }
 
 #endif // _PBR_H

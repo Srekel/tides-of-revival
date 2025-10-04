@@ -24,19 +24,16 @@ pub const UniformFrameData = struct {
     projection_view_inverted: [16]f32,
     camera_position: [4]f32,
     depth_buffer_parameters: [4]f32,
+    lights_buffer_index: u32,
+    lights_count: u32,
     time: f32,
-};
-
-pub const UniformLightData = struct {
-    // TODO(gmodarelli): Use light buffers
-    sun_color_intensity: [4]f32 = [4]f32{ 0.0, 0.0, 0.0, 0.0 },
-    sun_direction: [3]f32 = [3]f32{ 0.0, 0.0, 0.0 },
-    _padding1: f32 = 42.0,
+    _padding: u32,
+    fog_color: [3]f32,
+    fog_density: f32,
 };
 
 pub const WaterMaterialInstance = struct {
-    absorption_color: [3]f32,
-    absorption_coefficient: f32,
+    surface_albedo: [3]f32,
     surface_roughness: f32,
     surface_opacity: f32,
 
@@ -53,8 +50,7 @@ pub const WaterMaterialInstance = struct {
 };
 
 pub const WaterMaterial = struct {
-    absorption_color: [3]f32,
-    absorption_coefficient: f32,
+    surface_albedo: [4]f32,
 
     normal_map_1_texture_index: u32 = renderer_types.InvalidResourceIndex,
     normal_map_2_texture_index: u32 = renderer_types.InvalidResourceIndex,
@@ -74,12 +70,9 @@ pub const WaterRenderPass = struct {
     render_pass: renderer.RenderPass,
     query_water: *ecs.query_t,
 
-    uniform_frame_data: UniformFrameData,
-    uniform_light_data: UniformLightData,
     water_material_instance: WaterMaterialInstance,
 
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    uniform_light_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     water_descriptor_sets: [*c]graphics.DescriptorSet,
     rt_copy_descriptor_sets: [*c]graphics.DescriptorSet,
 
@@ -94,15 +87,6 @@ pub const WaterRenderPass = struct {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 buffers[buffer_index] = rctx.createUniformBuffer(UniformFrameData);
-            }
-
-            break :blk buffers;
-        };
-
-        const uniform_light_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(UniformLightData);
             }
 
             break :blk buffers;
@@ -145,8 +129,7 @@ pub const WaterRenderPass = struct {
 
         const water_normal_handle = rctx.loadTexture("prefabs/environment/water/water_normal.dds");
         const water_material_instance = WaterMaterialInstance{
-            .absorption_color = [3]f32{ 0.12, 0.0, 0.0 },
-            .absorption_coefficient = 0.8,
+            .surface_albedo = [3]f32{ 0.02, 0.2, 0.4 },
             .surface_roughness = 0.2,
             .surface_opacity = 0.8,
 
@@ -160,10 +143,7 @@ pub const WaterRenderPass = struct {
             .renderer = rctx,
             .render_pass = undefined,
             .water_material_instance = water_material_instance,
-            .uniform_frame_data = std.mem.zeroes(UniformFrameData),
-            .uniform_light_data = std.mem.zeroes(UniformLightData),
             .uniform_frame_buffers = uniform_frame_buffers,
-            .uniform_light_buffers = uniform_light_buffers,
             .water_descriptor_sets = undefined,
             .rt_copy_descriptor_sets = undefined,
             .instance_data = std.ArrayList(InstanceData).init(allocator),
@@ -207,8 +187,7 @@ fn renderImGui(user_data: *anyopaque) void {
     if (zgui.collapsingHeader("Water", .{})) {
         const self: *WaterRenderPass = @ptrCast(@alignCast(user_data));
 
-        _ = zgui.colorEdit3("Absorption Color", .{ .col = &self.water_material_instance.absorption_color });
-        _ = zgui.dragFloat("Absorption Coefficient", .{ .v = &self.water_material_instance.absorption_coefficient, .speed = 0.05, .min = 0.0, .max = 1.0 });
+        _ = zgui.colorEdit3("Surface Color", .{ .col = &self.water_material_instance.surface_albedo });
         _ = zgui.dragFloat("Surface Roughness", .{ .v = &self.water_material_instance.surface_roughness, .speed = 0.01, .min = 0.04, .max = 1.0 });
         _ = zgui.dragFloat("Surface Opacity", .{ .v = &self.water_material_instance.surface_opacity, .speed = 0.01, .min = 0.0, .max = 1.0 });
         _ = zgui.dragFloat("Water 1 Tiling", .{ .v = &self.water_material_instance.normal_map_1_tiling, .speed = 0.01, .min = 0.0, .max = 10.0 });
@@ -265,38 +244,28 @@ fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_dat
 
     // Render Water
     {
-        zm.storeMat(&self.uniform_frame_data.projection, render_view.projection);
-        zm.storeMat(&self.uniform_frame_data.projection_view, render_view.view_projection);
-        zm.storeMat(&self.uniform_frame_data.projection_view_inverted, render_view.view_projection_inverse);
-        self.uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
+        var frame_data = std.mem.zeroes(UniformFrameData);
+        zm.storeMat(&frame_data.projection, render_view.projection);
+        zm.storeMat(&frame_data.projection_view, render_view.view_projection);
+        zm.storeMat(&frame_data.projection_view_inverted, render_view.view_projection_inverse);
+        frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
         const near = render_view.near_plane;
         const far = render_view.far_plane;
-        self.uniform_frame_data.depth_buffer_parameters = [4]f32{ far / near - 1.0, 1, (1 / near - 1 / far), 1 / far };
-        self.uniform_frame_data.time = @floatCast(self.renderer.time);
+        frame_data.depth_buffer_parameters = [4]f32{ far / near - 1.0, 1, (1 / near - 1 / far), 1 / far };
+        frame_data.time = @floatCast(self.renderer.time);
+        frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
+        frame_data.lights_count = self.renderer.light_buffer.element_count;
+        // TODO: Move to the renderer
+        frame_data.fog_color = [3]f32{0.3, 0.35, 0.45};
+        frame_data.fog_density = 0.00005;
 
         // Update Uniform Frame Buffer
         {
             const data = OpaqueSlice{
-                .data = @ptrCast(&self.uniform_frame_data),
+                .data = @ptrCast(&frame_data),
                 .size = @sizeOf(UniformFrameData),
             };
             self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
-        }
-
-        const sun_entity = util.getSun(self.ecsu_world);
-        const sun_light = sun_entity.?.get(fd.DirectionalLight);
-        const sun_rotation = sun_entity.?.get(fd.Rotation);
-        const z_sun_forward = zm.normalize4(zm.rotate(sun_rotation.?.asZM(), zm.Vec{ 0, 0, 1, 0 }));
-        zm.storeArr3(&self.uniform_light_data.sun_direction, z_sun_forward);
-        self.uniform_light_data.sun_color_intensity = [4]f32{ sun_light.?.color.r, sun_light.?.color.g, sun_light.?.color.b, sun_light.?.intensity };
-
-        // Update Light Buffer
-        {
-            const data = OpaqueSlice{
-                .data = @ptrCast(&self.uniform_light_data),
-                .size = @sizeOf(UniformLightData),
-            };
-            self.renderer.updateBuffer(data, 0, UniformLightData, self.uniform_light_buffers[frame_index]);
         }
 
         self.instance_data.clearRetainingCapacity();
@@ -346,8 +315,7 @@ fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_dat
             self.material_data.clearRetainingCapacity();
 
             const water_material = WaterMaterial{
-                .absorption_color = self.water_material_instance.absorption_color,
-                .absorption_coefficient = self.water_material_instance.absorption_coefficient,
+                .surface_albedo = [4]f32{ self.water_material_instance.surface_albedo[0], self.water_material_instance.surface_albedo[1], self.water_material_instance.surface_albedo[2], 1 },
 
                 .normal_map_1_texture_index = self.renderer.getTextureBindlessIndex(self.water_material_instance.normal_map_1_texture),
                 .normal_map_2_texture_index = self.renderer.getTextureBindlessIndex(self.water_material_instance.normal_map_2_texture),
@@ -448,36 +416,20 @@ fn createDescriptorSets(user_data: *anyopaque) void {
 fn prepareDescriptorSets(user_data: *anyopaque) void {
     const self: *WaterRenderPass = @ptrCast(@alignCast(user_data));
 
-    var params: [7]graphics.DescriptorData = undefined;
+    var params: [3]graphics.DescriptorData = undefined;
 
     for (0..renderer.Renderer.data_buffer_count) |i| {
         var uniform_frame_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
-        var uniform_light_buffer = self.renderer.getBuffer(self.uniform_light_buffers[i]);
-        var brdf_lut_texture = self.renderer.getTexture(self.renderer.brdf_lut_texture);
-        var irradiance_texture = self.renderer.getTexture(self.renderer.irradiance_texture);
-        var specular_texture = self.renderer.getTexture(self.renderer.specular_texture);
 
         params[0] = std.mem.zeroes(graphics.DescriptorData);
         params[0].pName = "cbFrame";
         params[0].__union_field3.ppBuffers = @ptrCast(&uniform_frame_buffer);
         params[1] = std.mem.zeroes(graphics.DescriptorData);
-        params[1].pName = "cbLight";
-        params[1].__union_field3.ppBuffers = @ptrCast(&uniform_light_buffer);
+        params[1].pName = "g_scene_color";
+        params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color_copy.*.pTexture);
         params[2] = std.mem.zeroes(graphics.DescriptorData);
-        params[2].pName = "g_brdf_integration_map";
-        params[2].__union_field3.ppTextures = @ptrCast(&brdf_lut_texture);
-        params[3] = std.mem.zeroes(graphics.DescriptorData);
-        params[3].pName = "g_irradiance_map";
-        params[3].__union_field3.ppTextures = @ptrCast(&irradiance_texture);
-        params[4] = std.mem.zeroes(graphics.DescriptorData);
-        params[4].pName = "g_specular_map";
-        params[4].__union_field3.ppTextures = @ptrCast(&specular_texture);
-        params[5] = std.mem.zeroes(graphics.DescriptorData);
-        params[5].pName = "g_scene_color";
-        params[5].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color_copy.*.pTexture);
-        params[6] = std.mem.zeroes(graphics.DescriptorData);
-        params[6].pName = "g_depth_buffer";
-        params[6].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer_copy.*.pTexture);
+        params[2].pName = "g_depth_buffer";
+        params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer_copy.*.pTexture);
 
         graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.water_descriptor_sets, params.len, @ptrCast(&params));
 

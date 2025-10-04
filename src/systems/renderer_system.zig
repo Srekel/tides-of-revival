@@ -11,6 +11,7 @@ const input = @import("../input.zig");
 const PrefabManager = @import("../prefab_manager.zig").PrefabManager;
 const PSOManager = @import("../renderer/pso.zig").PSOManager;
 const renderer = @import("../renderer/renderer.zig");
+const renderer_types = @import("../renderer/types.zig");
 const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../util.zig");
@@ -21,7 +22,6 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
 const GpuDrivenRenderPass = @import("renderer_system/gpu_driven_render_pass.zig").GpuDrivenRenderPass;
-const DeferredShadingRenderPass = @import("renderer_system/deferred_shading_render_pass.zig").DeferredShadingRenderPass;
 const AtmosphereRenderPass = @import("renderer_system/atmosphere_render_pass.zig").AtmosphereRenderPass;
 const WaterRenderPass = @import("renderer_system/water_render_pass.zig").WaterRenderPass;
 const PostProcessingRenderPass = @import("renderer_system/post_processing_render_pass.zig").PostProcessingRenderPass;
@@ -54,13 +54,15 @@ pub const SystemUpdateContext = struct {
         terrain_render_pass: *TerrainRenderPass,
         geometry_render_pass: *GeometryRenderPass,
         gpu_driven_render_pass: *GpuDrivenRenderPass,
-        deferred_shading_render_pass: *DeferredShadingRenderPass,
         atmosphere_render_pass: *AtmosphereRenderPass,
         water_render_pass: *WaterRenderPass,
         post_processing_pass: *PostProcessingRenderPass,
         ui_render_pass: *UIRenderPass,
         im3d_render_pass: *Im3dRenderPass,
         render_imgui: bool,
+
+        query_point_lights: *ecs.query_t,
+        point_lights: std.ArrayList(renderer_types.PointLight),
     },
 };
 
@@ -81,9 +83,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const gpu_driven_render_pass = arena_system_lifetime.create(GpuDrivenRenderPass) catch unreachable;
     gpu_driven_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pso_mgr, pass_allocator);
 
-    const deferred_shading_render_pass = arena_system_lifetime.create(DeferredShadingRenderPass) catch unreachable;
-    deferred_shading_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
-
     const atmosphere_render_pass = arena_system_lifetime.create(AtmosphereRenderPass) catch unreachable;
     atmosphere_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pass_allocator);
 
@@ -99,19 +98,28 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const im3d_render_pass = arena_system_lifetime.create(Im3dRenderPass) catch unreachable;
     im3d_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
+    const query_point_lights = ecs.query_init(ecsu_world.world, &.{
+        .entity = ecs.new_entity(ecsu_world.world, "query_point_lights"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Transform), .inout = .Out },
+            .{ .id = ecs.id(fd.PointLight), .inout = .Out },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+    }) catch unreachable;
+
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
         .gpu_driven_render_pass = gpu_driven_render_pass,
-        .deferred_shading_render_pass = deferred_shading_render_pass,
         .atmosphere_render_pass = atmosphere_render_pass,
         .water_render_pass = water_render_pass,
         .post_processing_pass = post_processing_render_pass,
         .ui_render_pass = ui_render_pass,
         .im3d_render_pass = im3d_render_pass,
         .render_imgui = false,
+        .query_point_lights = query_point_lights,
+        .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
     };
 
     {
@@ -146,11 +154,12 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     system.state.geometry_render_pass.destroy();
     system.state.gpu_driven_render_pass.destroy();
     system.state.post_processing_pass.destroy();
-    system.state.deferred_shading_render_pass.destroy();
     system.state.atmosphere_render_pass.destroy();
     system.state.water_render_pass.destroy();
     system.state.ui_render_pass.destroy();
     system.state.im3d_render_pass.destroy();
+
+    system.state.point_lights.deinit();
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -215,9 +224,54 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
 
     // defer ecs.iter_fini(it);
     const system: *SystemUpdateContext = @ptrCast(@alignCast(it.ctx));
-    var rctx = system.renderer;
 
-    rctx.draw();
+    // Collect scene data
+    var update_desc = renderer_types.UpdateDesc{};
+
+    // Find sun light
+    {
+        const sun_entity = util.getSun(system.ecsu_world);
+        const sun_comps = sun_entity.?.getComps(struct {
+            light: *const fd.DirectionalLight,
+            rotation: *const fd.Rotation,
+        });
+        const z_forward = zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
+        update_desc.sun_light = renderer_types.DirectionalLight{
+            .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
+            .shadow_map = 0,
+            .color = [3]f32{ sun_comps.light.color.r, sun_comps.light.color.g, sun_comps.light.color.b },
+            .intensity = sun_comps.light.intensity,
+            .shadow_range = sun_comps.light.shadow_range,
+            ._pad = [2]f32{ 42, 42 },
+            .shadow_map_dimensions = 0,
+            .view_proj = [16]f32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        };
+    }
+
+    // Find all point lights
+    {
+        system.state.point_lights.clearRetainingCapacity();
+        var query_point_lights_iter = ecs.query_iter(system.ecsu_world.world, system.state.query_point_lights);
+        while (ecs.query_next(&query_point_lights_iter)) {
+            const transforms = ecs.field(&query_point_lights_iter, fd.Transform, 0).?;
+            const lights = ecs.field(&query_point_lights_iter, fd.PointLight, 1).?;
+            for (transforms, lights) |transform, light| {
+                const point_light = renderer_types.PointLight{
+                    .position = transform.getPos00(),
+                    .radius = light.range,
+                    .color = [3]f32{ light.color.r, light.color.g, light.color.b },
+                    .intensity = light.intensity,
+                };
+
+                system.state.point_lights.append(point_light) catch unreachable;
+            }
+        }
+        update_desc.point_lights = &system.state.point_lights;
+    }
+
+    system.renderer.update(update_desc);
+
+    system.renderer.draw();
 }
 
 // ██████╗ ██████╗  █████╗ ██╗    ██╗

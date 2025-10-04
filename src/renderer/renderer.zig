@@ -22,6 +22,7 @@ const ztracy = @import("ztracy");
 const zm = @import("zmath");
 
 const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
+const DeferredShadingPass = @import("passes/deferred_shading_pass.zig").DeferredShadingPass;
 
 const Pool = @import("zpool").Pool;
 
@@ -47,7 +48,7 @@ pub const RenderPass = struct {
     update_fn: renderPassUpdateFn = null,
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
-    render_deferred_pass_fn: renderPassRenderFn = null,
+
     render_atmosphere_pass_fn: renderPassRenderFn = null,
     render_water_pass_fn: renderPassRenderFn = null,
     render_post_processing_pass_fn: renderPassRenderFn = null,
@@ -116,7 +117,6 @@ pub const Renderer = struct {
     window_height: i32 = 0,
     time: f64 = 0.0,
     vsync_enabled: bool = true,
-    ibl_enabled: bool = true,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -130,19 +130,28 @@ pub const Renderer = struct {
     gpu_geometry_pass_profile_index: usize = 0,
     gpu_gpu_driven_pass_profile_index: usize = 0,
 
+    // GPU Bindless Buffers
+    // ====================
+    // These buffers are accessible to all shaders
+    light_buffer: ElementBindlessBuffer = undefined,
+    mesh_buffer: ElementBindlessBuffer = undefined,
+    material_buffer: ElementBindlessBuffer = undefined,
+
     // Resources
     // =========
     renderable_map: RenderableHashMap = undefined,
     // TODO: Figure out if we need to store this data on the CPU
     meshes: std.ArrayList(Mesh) = undefined,
     mesh_map: MeshHashMap = undefined,
-    mesh_buffer: ElementBindlessBuffer = undefined,
     // materials: std.ArrayList(GpuMaterial) = undefined,
     material_map: MaterialMap = undefined,
-    material_buffer: ElementBindlessBuffer = undefined,
 
     // Bindless Sampler
     linear_repeat_sampler: [*c]graphics.Sampler = null,
+
+    // Render Passes
+    // =============
+    deferred_shading_pass: DeferredShadingPass = undefined,
 
     // Render Targets
     // ==============
@@ -167,11 +176,6 @@ pub const Renderer = struct {
 
     // UI
     ui_overlay: [*c]graphics.RenderTarget = null,
-
-    // IBL Textures
-    brdf_lut_texture: TextureHandle = undefined,
-    irradiance_texture: TextureHandle = undefined,
-    specular_texture: TextureHandle = undefined,
 
     // Bloom Render Targets
     bloom_width: u32 = 0,
@@ -224,7 +228,6 @@ pub const Renderer = struct {
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
         self.vsync_enabled = true;
-        self.ibl_enabled = true;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -412,9 +415,6 @@ pub const Renderer = struct {
             .size = 64 * @sizeOf(LegacyMaterial),
         };
         self.legacy_materials_buffer = self.createBindlessBuffer(buffer_data, false, "Legacy Materials Buffer");
-
-        self.createIBLTextures();
-
         self.render_passes = std.ArrayList(*RenderPass).init(allocator);
 
         zgui.init(allocator);
@@ -422,15 +422,21 @@ pub const Renderer = struct {
 
         self.renderable_map = RenderableHashMap.init(allocator);
 
+        self.light_buffer.init(self, 2048, @sizeOf(renderer_types.GpuLight), false, "GpuLight Buffer");
+
         self.meshes = std.ArrayList(Mesh).init(allocator);
         self.mesh_map = MeshHashMap.init(allocator);
         self.mesh_buffer.init(self, 1024, @sizeOf(GPUMesh), false, "GpuMesh Buffer");
 
         self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Material Buffer");
         self.material_map = MaterialMap.init(allocator);
+
+        self.deferred_shading_pass.init(self, self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
+        self.deferred_shading_pass.destroy();
+
         self.pso_manager.exit();
 
         graphics.removeDescriptorSet(self.renderer, self.composite_sdr_pass_descriptor_set);
@@ -571,6 +577,8 @@ pub const Renderer = struct {
             self.createCompositeSDRDescriptorSet();
             self.createBuffersVisualizationDescriptorSet();
 
+            self.deferred_shading_pass.createDescriptorSets();
+
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                     create_descriptor_sets_fn(render_pass.user_data);
@@ -580,6 +588,8 @@ pub const Renderer = struct {
 
         self.prepareCompositeSDRDescriptorSet();
         self.prepareBuffersVisualizationDescriptorSet();
+
+        self.deferred_shading_pass.prepareDescriptorSets();
 
         for (self.render_passes.items) |render_pass| {
             if (render_pass.prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -613,6 +623,8 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER) {
+            self.deferred_shading_pass.unloadDescriptorSets();
+
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                     unload_descriptor_sets_fn(render_pass.user_data);
@@ -635,6 +647,34 @@ pub const Renderer = struct {
             .mType = .{ .SHADER = true },
         };
         self.requestReload(reload_desc);
+    }
+
+    pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc) void {
+        var lights = std.ArrayList(renderer_types.GpuLight).init(self.allocator);
+        lights.append(.{
+            .light_type = 0,
+            .position = update_desc.sun_light.direction,
+            .color = update_desc.sun_light.color,
+            .intensity = update_desc.sun_light.intensity,
+            .cast_shadows = 1,
+        }) catch unreachable;
+
+        for (update_desc.point_lights.items) |point_light| {
+            lights.append(.{
+                .light_type = 1,
+                .position = point_light.position,
+                .radius = point_light.radius,
+                .color = point_light.color,
+                .intensity = point_light.intensity,
+            }) catch unreachable;
+        }
+
+        const data_slice = OpaqueSlice{
+            .data = @ptrCast(lights.items),
+            .size = @sizeOf(renderer_types.GpuLight) * lights.items.len,
+        };
+        self.updateBuffer(data_slice, self.light_buffer.offset, renderer_types.GpuLight, self.light_buffer.buffer);
+        self.light_buffer.element_count = @intCast(lights.items.len);
     }
 
     pub fn draw(self: *Renderer) void {
@@ -785,11 +825,7 @@ pub const Renderer = struct {
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_deferred_pass_fn) |render_deferred_pass_fn| {
-                    render_deferred_pass_fn(cmd_list, render_view, render_pass.user_data);
-                }
-            }
+            self.deferred_shading_pass.render(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
@@ -1066,7 +1102,6 @@ pub const Renderer = struct {
             {
                 if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
                     _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
-                    _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
 
                     if (zgui.button("Visualization Mode", .{})) {
                         zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
@@ -1086,6 +1121,8 @@ pub const Renderer = struct {
                     }
                 }
             }
+
+            self.deferred_shading_pass.renderImGui();
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_imgui_fn) |render_imgui_fn| {
@@ -2131,59 +2168,6 @@ pub const Renderer = struct {
         texture = self.getTexture(self.bloom_uav5[1]);
         resource_loader.removeResource__Overload2(texture);
         self.texture_pool.removeAssumeLive(self.bloom_uav5[1]);
-    }
-
-    fn createIBLTextures(self: *Renderer) void {
-        // Create empty texture for BRDF integration map
-        {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = brdf_lut_texture_size;
-            desc.mHeight = brdf_lut_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 1;
-            desc.mMipLevels = 1;
-            desc.mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "BRDF LUT";
-            self.brdf_lut_texture = self.createTexture(desc);
-        }
-
-        // Create empty texture for Irradiance map
-        {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = irradiance_texture_size;
-            desc.mHeight = irradiance_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 6;
-            desc.mMipLevels = 1;
-            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "Irradiance Map";
-            self.irradiance_texture = self.createTexture(desc);
-        }
-
-        // Create empty texture for Specular map
-        {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = specular_texture_size;
-            desc.mHeight = specular_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 6;
-            desc.mMipLevels = specular_texture_mips;
-            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "Specular Map";
-            self.specular_texture = self.createTexture(desc);
-        }
     }
 
     fn createResolutionIndependentRenderTargets(self: *Renderer) void {

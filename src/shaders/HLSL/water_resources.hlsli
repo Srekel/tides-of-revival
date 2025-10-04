@@ -7,12 +7,8 @@
 SamplerState g_linear_repeat_sampler : register(s0, UPDATE_FREQ_NONE);
 SamplerState g_linear_clamp_edge_sampler : register(s1, UPDATE_FREQ_NONE);
 
-Texture2D<float2> g_brdf_integration_map : register(t0, UPDATE_FREQ_PER_FRAME);
-TextureCube<float4> g_irradiance_map : register(t1, UPDATE_FREQ_PER_FRAME);
-TextureCube<float4> g_specular_map : register(t2, UPDATE_FREQ_PER_FRAME);
-
-Texture2D<float4> g_scene_color : register(t3, UPDATE_FREQ_PER_FRAME);
-Texture2D<float> g_depth_buffer : register(t4, UPDATE_FREQ_PER_FRAME);
+Texture2D<float4> g_scene_color : register(t0, UPDATE_FREQ_PER_FRAME);
+Texture2D<float> g_depth_buffer : register(t1, UPDATE_FREQ_PER_FRAME);
 
 cbuffer RootConstant : register(b0)
 {
@@ -26,16 +22,13 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float4x4 g_inv_proj_view_mat;
 	float4 g_cam_pos;
 	float4 g_depth_buffer_params;
+	uint g_lights_buffer_index;
+	uint g_lights_count;
 	float g_time;
+	uint _padding;
+	float3 g_fog_color;
+	float g_fog_density;
 };
-
-cbuffer cbLight : register(b2, UPDATE_FREQ_PER_FRAME)
-{
-	// TODO(gmodarelli): Use light buffers
-	float4 g_sun_color_intensity;
-	float3 g_sun_direction;
-	float _padding1;
-}
 
 struct VSInput
 {
@@ -59,11 +52,7 @@ struct VSOutput
 
 struct WaterMaterial
 {
-	float3 m_absorption_color;
-	float m_absorption_coefficient;
-
 	float4 m_albedo_surface;
-	float4 m_albedo2_surface;
 
 	uint m_normal_map_1_texture_index;
 	uint m_normal_map_2_texture_index;

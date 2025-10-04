@@ -54,6 +54,17 @@ struct GBufferOutput
 	float4 GBuffer2 : SV_TARGET2;
 };
 
+struct GpuLight
+{
+	float3 position; // Direction for directional light
+	uint light_type; // 0 - Directional, 1 - Point
+	float3 color;
+	float intensity;
+	uint cast_shadows; // 0 - No, 1 - Yes
+	float radius;	   // Unused for directional light
+	float2 _padding;
+};
+
 struct PointLight
 {
 	float4 positionAndRadius;
