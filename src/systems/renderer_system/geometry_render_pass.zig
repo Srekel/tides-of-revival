@@ -225,7 +225,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, u
             defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
-            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.legacy_materials_buffer);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
             var batch_keys_iterator = self.batches.keyIterator();
             while (batch_keys_iterator.next()) |batch_key| {
@@ -238,7 +238,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, u
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getLegacyMaterialPipelineIds(batch_key.material_id);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -283,7 +283,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, u
             defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
-            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.legacy_materials_buffer);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
             var batch_keys_iterator = self.batches.keyIterator();
             while (batch_keys_iterator.next()) |batch_key| {
@@ -296,7 +296,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, u
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getLegacyMaterialPipelineIds(batch_key.material_id);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.gbuffer_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -403,7 +403,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView,
             defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
-            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.legacy_materials_buffer);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
             var batch_keys_iterator = self.batches.keyIterator();
             while (batch_keys_iterator.next()) |batch_key| {
@@ -416,7 +416,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView,
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getLegacyMaterialPipelineIds(batch_key.material_id);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -461,7 +461,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView,
             defer trazy_zone2.End();
 
             const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index]);
-            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.legacy_materials_buffer);
+            const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
             var batch_keys_iterator = self.batches.keyIterator();
             while (batch_keys_iterator.next()) |batch_key| {
@@ -474,7 +474,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView,
                     continue;
                 }
 
-                const pipeline_ids = self.renderer.getLegacyMaterialPipelineIds(batch_key.material_id);
+                const pipeline_ids = self.renderer.getMaterialPipelineIds(batch_key.material_id);
                 const pipeline_id = pipeline_ids.shadow_caster_pipeline_id.?;
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 const root_signature = self.renderer.getRootSignature(pipeline_id);
@@ -663,8 +663,8 @@ fn batchEntities(
                     batch_key.sub_mesh_index = @intCast(sub_mesh_index);
                     batch_key.surface_type = .@"opaque";
 
-                    const material_index = self.renderer.getLegacyMaterialIndex(material_id);
-                    const alpha_test = self.renderer.getLegacyMaterialAlphaTest(material_id);
+                    const material_index = self.renderer.getMaterialIndex(material_id);
+                    const alpha_test = self.renderer.getMaterialAlphaTest(material_id);
                     if (alpha_test) {
                         batch_key.surface_type = .cutout;
                     }
@@ -672,7 +672,7 @@ fn batchEntities(
                     var instance_data: InstanceData = undefined;
                     storeMat44(transform.matrix[0..], &instance_data.object_to_world);
                     storeMat44(transform.inv_matrix[0..], &instance_data.world_to_object);
-                    instance_data.material_index = material_index;
+                    instance_data.material_index = @intCast(material_index);
                     instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
 
                     if (!batch_map.contains(batch_key)) {

@@ -72,11 +72,11 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     const pipeline_shadow_caster_opaque_id = IdLocal.init("lit_shadow_caster_opaque");
 
-    const default_legacy_material_id = ID("legacy_default");
-    var default_legacy_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(0.5, 0.5, 0.5), 0.8, 0.0);
-    default_legacy_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-    default_legacy_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-    prefab_mgr.rctx.uploadLegacyMaterial(default_legacy_material_id, default_legacy_material) catch unreachable;
+    const default_material_id = ID("legacy_default");
+    var default_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(0.5, 0.5, 0.5), 0.8, 0.0);
+    default_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+    default_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+    prefab_mgr.rctx.loadMaterial(default_material_id, default_material) catch unreachable;
 
     const pos_uv0_col_vertex_layout = IdLocal.init("pos_uv0_col");
     const pos_uv0_nor_tan_col_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col");
@@ -89,7 +89,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 for (0..lod_group.lods[i].materials_count) |material_index| {
-                    lod_group.lods[i].materials[material_index] = default_legacy_material_id;
+                    lod_group.lods[i].materials[material_index] = default_material_id;
                 }
             }
         }
@@ -103,7 +103,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.arm = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
         material.normal = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
         const material_id = ID("round_aluminum");
-        prefab_mgr.rctx.uploadLegacyMaterial(material_id, material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(material_id, material) catch unreachable;
 
         matball = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/matball", matball_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         matball.setOverride(fd.Dynamic{});
@@ -123,7 +123,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
         material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/color_calibrator/color_checker_albedo.dds");
         const material_id = ID("color_checker");
-        prefab_mgr.rctx.uploadLegacyMaterial(material_id, material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(material_id, material) catch unreachable;
 
         color_calibrator = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/color_calibrator/color_calibrator", color_calibrator_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         color_calibrator.setOverride(fd.Dynamic{});
@@ -145,7 +145,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.arm = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_arm.dds");
         material.normal = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_normal.dds");
         const material_id = ID("giant_ant");
-        prefab_mgr.rctx.uploadLegacyMaterial(material_id, material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(material_id, material) catch unreachable;
 
         giant_ant = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/giant_ant/giant_ant", giant_ant_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         giant_ant.setOverride(fd.Dynamic{});
@@ -167,7 +167,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         material.arm = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_arm.dds");
         material.normal = prefab_mgr.rctx.loadTexture("prefabs/props/bow_arrow/bow_arrow_normal.dds");
         const material_id = ID("bow_arrow");
-        prefab_mgr.rctx.uploadLegacyMaterial(material_id, material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(material_id, material) catch unreachable;
 
         {
             bow = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/bow_arrow/bow", bow_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
@@ -204,7 +204,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_legacy_material_id;
+                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }
@@ -217,7 +217,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_legacy_material_id;
+                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }
@@ -230,7 +230,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_legacy_material_id;
+                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }
@@ -243,7 +243,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_legacy_material_id;
+                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }
@@ -256,7 +256,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_legacy_material_id;
+                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }
@@ -269,7 +269,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_legacy_material_id;
+                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }
@@ -282,7 +282,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_legacy_material_id;
+                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }
@@ -295,7 +295,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         roof_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_arm.dds");
         roof_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_normal.dds");
         const roof_material_id = ID("medium_house_roof");
-        prefab_mgr.rctx.uploadLegacyMaterial(roof_material_id, roof_material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(roof_material_id, roof_material) catch unreachable;
 
         var wood_material = renderer.UberShaderMaterialData.init();
         wood_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -304,7 +304,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         wood_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_arm.dds");
         wood_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_normal.dds");
         const wood_material_id = ID("medium_house_wood");
-        prefab_mgr.rctx.uploadLegacyMaterial(wood_material_id, wood_material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(wood_material_id, wood_material) catch unreachable;
 
         var plaster_material = renderer.UberShaderMaterialData.init();
         plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -313,7 +313,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_arm.dds");
         plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_normal.dds");
         const plaster_material_id = ID("medium_house_plaster");
-        prefab_mgr.rctx.uploadLegacyMaterial(plaster_material_id, plaster_material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(plaster_material_id, plaster_material) catch unreachable;
 
         var stone_material = renderer.UberShaderMaterialData.init();
         stone_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -322,7 +322,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         stone_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_arm.dds");
         stone_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_normal.dds");
         const stone_material_id = ID("medium_house_stone");
-        prefab_mgr.rctx.uploadLegacyMaterial(stone_material_id, stone_material) catch unreachable;
+        prefab_mgr.rctx.loadMaterial(stone_material_id, stone_material) catch unreachable;
 
         var medium_house = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medium_house/medium_house", medium_house_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         const lod_group_component = medium_house.getMut(fd.LodGroup);

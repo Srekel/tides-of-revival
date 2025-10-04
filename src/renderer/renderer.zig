@@ -193,10 +193,6 @@ pub const Renderer = struct {
     vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
 
-    legacy_material_map: LegacyMaterialMap = undefined,
-    legacy_materials: std.ArrayList(LegacyMaterial) = undefined,
-    legacy_materials_buffer: BufferHandle = undefined,
-
     legacy_mesh_pool: LegacyMeshPool = undefined,
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
@@ -409,14 +405,6 @@ pub const Renderer = struct {
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
-
-        self.legacy_material_map = LegacyMaterialMap.init(allocator);
-        self.legacy_materials = std.ArrayList(LegacyMaterial).init(allocator);
-        const buffer_data = OpaqueSlice{
-            .data = null,
-            .size = 64 * @sizeOf(LegacyMaterial),
-        };
-        self.legacy_materials_buffer = self.createBindlessBuffer(buffer_data, false, "Legacy Materials Buffer");
         self.render_passes = std.ArrayList(*RenderPass).init(allocator);
 
         zgui.init(allocator);
@@ -470,10 +458,6 @@ pub const Renderer = struct {
             resource_loader.removeResource__Overload4(mesh.data);
         }
         self.legacy_mesh_pool.deinit();
-
-        // TODO(juice): Clean gpu resources
-        self.legacy_material_map.deinit();
-        self.legacy_materials.deinit();
 
         self.render_passes.deinit();
 
@@ -1313,7 +1297,9 @@ pub const Renderer = struct {
         gpu_material.normal_sampler_index = renderer_types.InvalidResourceIndex;
         gpu_material.arm_texture_index = self.getTextureBindlessIndex(material_data.arm);
         gpu_material.arm_sampler_index = renderer_types.InvalidResourceIndex;
-        gpu_material.rasterizer_bin = self.pso_manager.getPsoBinId(material_data.gbuffer_pipeline_id.?).?;
+        if (self.pso_manager.getPsoBinId(material_data.gbuffer_pipeline_id.?)) |rasterizer_bin| {
+            gpu_material.rasterizer_bin = rasterizer_bin;
+        }
 
         const gpu_material_data_slice = OpaqueSlice{
             .data = @ptrCast(&gpu_material),
@@ -1321,68 +1307,29 @@ pub const Renderer = struct {
         };
         self.updateBuffer(gpu_material_data_slice, self.material_buffer.offset, GpuMaterial, self.material_buffer.buffer);
         self.material_buffer.offset += gpu_material_data_slice.size;
-        self.material_map.put(material_id.hash, self.material_buffer.element_count) catch unreachable;
-        self.material_buffer.element_count += 1;
-    }
-
-    pub fn getMaterialIndex(self: *Renderer, material_id: IdLocal) usize {
-        return self.material_map.get(material_id.hash).?;
-    }
-
-    pub fn uploadLegacyMaterial(self: *Renderer, material_id: IdLocal, material_data: UberShaderMaterialData) !void {
-        const offset = self.legacy_materials.items.len * @sizeOf(LegacyMaterial);
-
-        const material = LegacyMaterial{
-            .albedo_color = [4]f32{ material_data.base_color.r, material_data.base_color.g, material_data.base_color.b, 1.0 },
-            .uv_tiling_offset = [4]f32{ material_data.uv_tiling_offset[0], material_data.uv_tiling_offset[1], material_data.uv_tiling_offset[2], material_data.uv_tiling_offset[3] },
-            .roughness = material_data.roughness,
-            .metallic = material_data.metallic,
-            .normal_intensity = material_data.normal_intensity,
-            .emissive_strength = material_data.emissive_strength,
-            .albedo_texture_index = self.getTextureBindlessIndex(material_data.albedo),
-            .emissive_texture_index = self.getTextureBindlessIndex(material_data.emissive),
-            .normal_texture_index = self.getTextureBindlessIndex(material_data.normal),
-            .arm_texture_index = self.getTextureBindlessIndex(material_data.arm),
-        };
 
         const pipeline_ids = PassPipelineIds{
             .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
             .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
         };
 
-        self.legacy_materials.append(material) catch unreachable;
-
-        const buffer = self.buffer_pool.getColumn(self.legacy_materials_buffer, .buffer) catch unreachable;
-
-        var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
-        update_desc.pBuffer = @ptrCast(buffer);
-        update_desc.mDstOffset = offset;
-        update_desc.mSize = @sizeOf(LegacyMaterial);
-        resource_loader.beginUpdateResource(&update_desc);
-        util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(LegacyMaterial), .{});
-        resource_loader.endUpdateResource(&update_desc);
-
-        self.legacy_material_map.put(material_id.hash, .{
-            .material = material,
-            .material_index = @intCast(self.legacy_materials.items.len - 1),
-            .pipeline_ids = pipeline_ids,
-            .alpha_test = material_data.alpha_test,
-        }) catch unreachable;
+        self.material_map.put(material_id.hash, .{ .index = self.material_buffer.element_count, .pipeline_ids = pipeline_ids, .alpha_test = material_data.alpha_test }) catch unreachable;
+        self.material_buffer.element_count += 1;
     }
 
-    pub fn getLegacyMaterialAlphaTest(self: *Renderer, material_id: IdLocal) bool {
-        const material_data = self.legacy_material_map.get(material_id.hash);
+    pub fn getMaterialIndex(self: *Renderer, material_id: IdLocal) usize {
+        const material_info = self.material_map.get(material_id.hash).?;
+        return material_info.index;
+    }
+
+    pub fn getMaterialAlphaTest(self: *Renderer, material_id: IdLocal) bool {
+        const material_data = self.material_map.get(material_id.hash);
         return material_data.?.alpha_test;
     }
 
-    pub fn getLegacyMaterialPipelineIds(self: *Renderer, material_id: IdLocal) PassPipelineIds {
-        const material_data = self.legacy_material_map.get(material_id.hash);
+    pub fn getMaterialPipelineIds(self: *Renderer, material_id: IdLocal) PassPipelineIds {
+        const material_data = self.material_map.get(material_id.hash);
         return material_data.?.pipeline_ids;
-    }
-
-    pub fn getLegacyMaterialIndex(self: *Renderer, material_id: IdLocal) u32 {
-        const material_data = self.legacy_material_map.get(material_id.hash);
-        return material_data.?.material_index;
     }
 
     pub fn loadMesh(self: *Renderer, path: []const u8, mesh_id: IdLocal) !void {
@@ -2375,37 +2322,7 @@ const GpuMaterial = struct {
     _padding: [3]u32 = .{ 42, 42, 42 },
 };
 
-const MaterialMap = std.AutoHashMap(u64, usize);
-
-// ██╗     ███████╗ ██████╗  █████╗  ██████╗██╗   ██╗    ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
-// ██║     ██╔════╝██╔════╝ ██╔══██╗██╔════╝╚██╗ ██╔╝    ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝
-// ██║     █████╗  ██║  ███╗███████║██║      ╚████╔╝     ██╔████╔██║█████╗  ███████╗███████║█████╗  ███████╗
-// ██║     ██╔══╝  ██║   ██║██╔══██║██║       ╚██╔╝      ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║██╔══╝  ╚════██║
-// ███████╗███████╗╚██████╔╝██║  ██║╚██████╗   ██║       ██║ ╚═╝ ██║███████╗███████║██║  ██║███████╗███████║
-// ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝   ╚═╝       ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
-
-pub const GpuMeshIndices = struct {
-    count: u32,
-    indices: [geometry.sub_mesh_max_count]u32,
-};
-
-pub const LegacyMesh = struct {
-    geometry: [*c]resource_loader.Geometry,
-    data: [*c]resource_loader.GeometryData,
-    buffer_layout_desc: resource_loader.GeometryBufferLayoutDesc,
-    vertex_layout_id: IdLocal,
-    loaded: bool,
-};
-
-const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
-pub const LegacyMeshHandle = LegacyMeshPool.Handle;
-
-// ██╗     ███████╗ ██████╗  █████╗  ██████╗██╗   ██╗    ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗     ███████╗
-// ██║     ██╔════╝██╔════╝ ██╔══██╗██╔════╝╚██╗ ██╔╝    ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║     ██╔════╝
-// ██║     █████╗  ██║  ███╗███████║██║      ╚████╔╝     ██╔████╔██║███████║   ██║   █████╗  ██████╔╝██║███████║██║     ███████╗
-// ██║     ██╔══╝  ██║   ██║██╔══██║██║       ╚██╔╝      ██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║██╔══██║██║     ╚════██║
-// ███████╗███████╗╚██████╔╝██║  ██║╚██████╗   ██║       ██║ ╚═╝ ██║██║  ██║   ██║   ███████╗██║  ██║██║██║  ██║███████╗███████║
-// ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝   ╚═╝       ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚══════╝
+const MaterialMap = std.AutoHashMap(u64, struct { index: usize, pipeline_ids: PassPipelineIds, alpha_test: bool });
 
 pub const SurfaceType = enum {
     @"opaque",
@@ -2460,31 +2377,33 @@ pub const UberShaderMaterialData = struct {
     }
 };
 
-const LegacyMaterial = struct {
-    albedo_color: [4]f32,
-    uv_tiling_offset: [4]f32,
-    roughness: f32,
-    metallic: f32,
-    normal_intensity: f32,
-    emissive_strength: f32,
-    albedo_texture_index: u32,
-    albedo_sampler_index: u32 = renderer_types.InvalidResourceIndex,
-    emissive_texture_index: u32,
-    emissive_sampler_index: u32 = renderer_types.InvalidResourceIndex,
-    normal_texture_index: u32,
-    normal_sampler_index: u32 = renderer_types.InvalidResourceIndex,
-    arm_texture_index: u32,
-    arm_sampler_index: u32 = renderer_types.InvalidResourceIndex,
-    rasterizer_bin: u32 = 0,
-    _pad0: [3]u32 = .{ 42, 42, 42 },
-};
-
 pub const PassPipelineIds = struct {
     shadow_caster_pipeline_id: ?IdLocal,
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const LegacyMaterialMap = std.AutoHashMap(u64, struct { material: LegacyMaterial, material_index: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
+// ██╗     ███████╗ ██████╗  █████╗  ██████╗██╗   ██╗    ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
+// ██║     ██╔════╝██╔════╝ ██╔══██╗██╔════╝╚██╗ ██╔╝    ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝
+// ██║     █████╗  ██║  ███╗███████║██║      ╚████╔╝     ██╔████╔██║█████╗  ███████╗███████║█████╗  ███████╗
+// ██║     ██╔══╝  ██║   ██║██╔══██║██║       ╚██╔╝      ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║██╔══╝  ╚════██║
+// ███████╗███████╗╚██████╔╝██║  ██║╚██████╗   ██║       ██║ ╚═╝ ██║███████╗███████║██║  ██║███████╗███████║
+// ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝   ╚═╝       ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+pub const GpuMeshIndices = struct {
+    count: u32,
+    indices: [geometry.sub_mesh_max_count]u32,
+};
+
+pub const LegacyMesh = struct {
+    geometry: [*c]resource_loader.Geometry,
+    data: [*c]resource_loader.GeometryData,
+    buffer_layout_desc: resource_loader.GeometryBufferLayoutDesc,
+    vertex_layout_id: IdLocal,
+    loaded: bool,
+};
+
+const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
+pub const LegacyMeshHandle = LegacyMeshPool.Handle;
 
 const TexturePool = Pool(16, 16, graphics.Texture, struct { texture: [*c]graphics.Texture });
 pub const TextureHandle = TexturePool.Handle;
