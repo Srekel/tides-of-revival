@@ -22,7 +22,6 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
 const GpuDrivenRenderPass = @import("renderer_system/gpu_driven_render_pass.zig").GpuDrivenRenderPass;
-const AtmosphereRenderPass = @import("renderer_system/atmosphere_render_pass.zig").AtmosphereRenderPass;
 const WaterRenderPass = @import("renderer_system/water_render_pass.zig").WaterRenderPass;
 const PostProcessingRenderPass = @import("renderer_system/post_processing_render_pass.zig").PostProcessingRenderPass;
 const UIRenderPass = @import("renderer_system/ui_render_pass.zig").UIRenderPass;
@@ -54,7 +53,6 @@ pub const SystemUpdateContext = struct {
         terrain_render_pass: *TerrainRenderPass,
         geometry_render_pass: *GeometryRenderPass,
         gpu_driven_render_pass: *GpuDrivenRenderPass,
-        atmosphere_render_pass: *AtmosphereRenderPass,
         water_render_pass: *WaterRenderPass,
         post_processing_pass: *PostProcessingRenderPass,
         ui_render_pass: *UIRenderPass,
@@ -83,9 +81,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const gpu_driven_render_pass = arena_system_lifetime.create(GpuDrivenRenderPass) catch unreachable;
     gpu_driven_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pso_mgr, pass_allocator);
 
-    const atmosphere_render_pass = arena_system_lifetime.create(AtmosphereRenderPass) catch unreachable;
-    atmosphere_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pass_allocator);
-
     const water_render_pass = arena_system_lifetime.create(WaterRenderPass) catch unreachable;
     water_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
@@ -112,7 +107,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
         .gpu_driven_render_pass = gpu_driven_render_pass,
-        .atmosphere_render_pass = atmosphere_render_pass,
         .water_render_pass = water_render_pass,
         .post_processing_pass = post_processing_render_pass,
         .ui_render_pass = ui_render_pass,
@@ -154,7 +148,6 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     system.state.geometry_render_pass.destroy();
     system.state.gpu_driven_render_pass.destroy();
     system.state.post_processing_pass.destroy();
-    system.state.atmosphere_render_pass.destroy();
     system.state.water_render_pass.destroy();
     system.state.ui_render_pass.destroy();
     system.state.im3d_render_pass.destroy();
@@ -227,6 +220,8 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
 
     // Collect scene data
     var update_desc = renderer_types.UpdateDesc{};
+
+    update_desc.time_of_day_01 = util.getTimeOfDayPercent(system.ecsu_world);
 
     // Find sun light
     {

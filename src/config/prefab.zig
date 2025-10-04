@@ -78,7 +78,6 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     default_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
     prefab_mgr.rctx.loadMaterial(default_material_id, default_material) catch unreachable;
 
-    const pos_uv0_col_vertex_layout = IdLocal.init("pos_uv0_col");
     const pos_uv0_nor_tan_col_vertex_layout = IdLocal.init("pos_uv0_nor_tan_col");
 
     {
@@ -192,19 +191,6 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
                     std.debug.assert(lod_group.lods[i].materials_count == 1);
                     lod_group.lods[i].materials[0] = material_id;
                 }
-            }
-        }
-    }
-
-    {
-        var skybox = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/skybox", skybox_id, pos_uv0_col_vertex_layout, ecsu_world);
-        skybox.setOverride(fd.Dynamic{});
-
-        const lod_group_component = skybox.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_material_id;
             }
         }
     }

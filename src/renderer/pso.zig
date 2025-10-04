@@ -7,8 +7,6 @@ const zforge = @import("zforge");
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
-const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
-
 const Pool = @import("zpool").Pool;
 
 pub const opaque_pipelines = [_]IdLocal{

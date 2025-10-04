@@ -2,45 +2,36 @@ const std = @import("std");
 
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
+const file_system = zforge.file_system;
+const font = zforge.font;
+const geometry = @import("geometry.zig");
+const graphics = zforge.graphics;
 const IdLocal = @import("../core/core.zig").IdLocal;
+const memory = zforge.memory;
+const OpaqueSlice = util.OpaqueSlice;
+const Pool = @import("zpool").Pool;
+const profiler = @import("profiler.zig");
+const pso = @import("pso.zig");
 const renderer_types = @import("types.zig");
+const resource_loader = zforge.resource_loader;
+const util = @import("../util.zig");
+const window = @import("window.zig");
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
 const zgui = @import("zgui");
-const geometry = @import("geometry.zig");
-
-const file_system = zforge.file_system;
-const font = zforge.font;
-const graphics = zforge.graphics;
-const memory = zforge.memory;
-const pso = @import("pso.zig");
-const profiler = @import("profiler.zig");
-const resource_loader = zforge.resource_loader;
-const util = @import("../util.zig");
-const OpaqueSlice = util.OpaqueSlice;
-const ztracy = @import("ztracy");
 const zm = @import("zmath");
+const ztracy = @import("ztracy");
 
-const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
 const DeferredShadingPass = @import("passes/deferred_shading_pass.zig").DeferredShadingPass;
-
-const Pool = @import("zpool").Pool;
-
-const window = @import("window.zig");
+const ProceduralSkyboxPass = @import("passes/procedural_skybox_pass.zig").ProceduralSkyboxPass;
 
 pub const ReloadDesc = graphics.ReloadDesc;
-
 pub const renderPassUpdateFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, render_view: RenderView, user_data: *anyopaque) void;
 pub const renderPassImGuiFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
-
-pub const brdf_lut_texture_size: u32 = 512;
-pub const irradiance_texture_size: u32 = 32;
-pub const specular_texture_size: u32 = 128;
-pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
 
 pub const cascaded_shadow_resolution: u32 = 4096;
 
@@ -49,7 +40,6 @@ pub const RenderPass = struct {
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
 
-    render_atmosphere_pass_fn: renderPassRenderFn = null,
     render_water_pass_fn: renderPassRenderFn = null,
     render_post_processing_pass_fn: renderPassRenderFn = null,
     render_ui_pass_fn: renderPassRenderFn = null,
@@ -130,6 +120,8 @@ pub const Renderer = struct {
     gpu_geometry_pass_profile_index: usize = 0,
     gpu_gpu_driven_pass_profile_index: usize = 0,
 
+    time_of_day_01: f32 = 0.0,
+    sun_light: renderer_types.DirectionalLight = undefined,
     height_fog_settings: renderer_types.HeightFogSettings = undefined,
 
     // GPU Bindless Buffers
@@ -154,6 +146,7 @@ pub const Renderer = struct {
     // Render Passes
     // =============
     deferred_shading_pass: DeferredShadingPass = undefined,
+    procedural_skybox_pass: ProceduralSkyboxPass = undefined,
 
     // Render Targets
     // ==============
@@ -422,9 +415,11 @@ pub const Renderer = struct {
         self.material_map = MaterialMap.init(allocator);
 
         self.deferred_shading_pass.init(self, self.allocator);
+        self.procedural_skybox_pass.init(self, self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
+        self.procedural_skybox_pass.destroy();
         self.deferred_shading_pass.destroy();
 
         self.pso_manager.exit();
@@ -564,6 +559,7 @@ pub const Renderer = struct {
             self.createBuffersVisualizationDescriptorSet();
 
             self.deferred_shading_pass.createDescriptorSets();
+            self.procedural_skybox_pass.createDescriptorSets();
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.create_descriptor_sets_fn) |create_descriptor_sets_fn| {
@@ -576,6 +572,7 @@ pub const Renderer = struct {
         self.prepareBuffersVisualizationDescriptorSet();
 
         self.deferred_shading_pass.prepareDescriptorSets();
+        self.procedural_skybox_pass.prepareDescriptorSets();
 
         for (self.render_passes.items) |render_pass| {
             if (render_pass.prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -610,6 +607,7 @@ pub const Renderer = struct {
 
         if (reload_desc.mType.SHADER) {
             self.deferred_shading_pass.unloadDescriptorSets();
+            self.procedural_skybox_pass.unloadDescriptorSets();
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
@@ -636,6 +634,8 @@ pub const Renderer = struct {
     }
 
     pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc) void {
+        self.sun_light = update_desc.sun_light;
+
         var lights = std.ArrayList(renderer_types.GpuLight).init(self.allocator);
         lights.append(.{
             .light_type = 0,
@@ -818,19 +818,15 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // Atmospheric Scattering Pass
+        // Procedural Skybox
         {
-            const profile_index = self.startGpuProfile(cmd_list, "Atmospheric Scattering");
+            const profile_index = self.startGpuProfile(cmd_list, "Procedural Skybox");
             defer self.endGpuProfile(cmd_list, profile_index);
 
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Procedural Skybox", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_atmosphere_pass_fn) |render_atmosphere_pass_fn| {
-                    render_atmosphere_pass_fn(cmd_list, render_view, render_pass.user_data);
-                }
-            }
+            self.procedural_skybox_pass.render(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }

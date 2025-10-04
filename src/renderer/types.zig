@@ -37,6 +37,7 @@ pub const HeightFogSettings = struct {
 };
 
 pub const UpdateDesc = struct {
+    time_of_day_01: f32 = 0.0,
     sun_light: DirectionalLight = undefined,
     point_lights: *std.ArrayList(PointLight) = undefined,
     height_fog: HeightFogSettings = undefined,
