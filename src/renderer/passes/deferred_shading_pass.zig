@@ -23,18 +23,10 @@ const UniformFrameData = struct {
     fog_density: f32,
 };
 
-const LightingSettings = struct {
-    apply_shadows: bool,
-    fog_color: fd.ColorRGB,
-    fog_density: f32,
-};
-
 pub const DeferredShadingPass = struct {
     allocator: std.mem.Allocator,
     renderer: *renderer.Renderer,
     render_pass: renderer.RenderPass,
-
-    lighting_settings: LightingSettings,
 
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     deferred_descriptor_sets: [2][*c]graphics.DescriptorSet,
@@ -49,14 +41,6 @@ pub const DeferredShadingPass = struct {
             break :blk buffers;
         };
 
-
-        // TODO: Move to the renderer
-        self.lighting_settings = LightingSettings{
-            .apply_shadows = false,
-            .fog_color = fd.ColorRGB.init(0.3, 0.35, 0.45),
-            .fog_density = 0.00005,
-        };
-
         self.allocator = allocator;
         self.renderer = rctx;
     }
@@ -66,10 +50,8 @@ pub const DeferredShadingPass = struct {
     }
 
     pub fn renderImGui(self: *@This()) void {
+        _ = self;
         if (zgui.collapsingHeader("Deferred Shading", .{})) {
-            _ = zgui.checkbox("Cast Shadows", .{ .v = &self.lighting_settings.apply_shadows });
-            _ = zgui.colorEdit3("Fog Color", .{ .col = self.lighting_settings.fog_color.elems() });
-            _ = zgui.dragFloat("Fog Density", .{ .v = &self.lighting_settings.fog_density, .speed = 0.0001, .min = 0.0, .max = 1.0, .cfmt = "%.5f" });
         }
     }
 
@@ -86,8 +68,8 @@ pub const DeferredShadingPass = struct {
         frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
         frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
         frame_data.lights_count = self.renderer.light_buffer.element_count;
-        frame_data.fog_color = [3]f32{ self.lighting_settings.fog_color.r, self.lighting_settings.fog_color.g, self.lighting_settings.fog_color.b };
-        frame_data.fog_density = self.lighting_settings.fog_density;
+        frame_data.fog_color = self.renderer.height_fog_settings.color;
+        frame_data.fog_density = self.renderer.height_fog_settings.density;
         frame_data._padding = [2]u32 { 42, 42 };
 
         const data = OpaqueSlice{
@@ -120,7 +102,7 @@ pub const DeferredShadingPass = struct {
     }
 
     pub fn prepareDescriptorSets(self: *@This()) void {
-        var params: [5]graphics.DescriptorData = undefined;
+        var params: [4]graphics.DescriptorData = undefined;
 
         for (0..renderer.Renderer.data_buffer_count) |i| {
             params[0] = std.mem.zeroes(graphics.DescriptorData);
@@ -135,10 +117,7 @@ pub const DeferredShadingPass = struct {
             params[3] = std.mem.zeroes(graphics.DescriptorData);
             params[3].pName = "depthBuffer";
             params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer.*.pTexture);
-            params[4] = std.mem.zeroes(graphics.DescriptorData);
-            params[4].pName = "shadowDepthBuffer";
-            params[4].__union_field3.ppTextures = @ptrCast(&self.renderer.shadow_depth_buffer.*.pTexture);
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 5, @ptrCast(&params));
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 4, @ptrCast(&params));
 
             var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
             params[0] = std.mem.zeroes(graphics.DescriptorData);

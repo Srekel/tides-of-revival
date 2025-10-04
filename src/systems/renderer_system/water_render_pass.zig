@@ -255,9 +255,8 @@ fn render(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_dat
         frame_data.time = @floatCast(self.renderer.time);
         frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
         frame_data.lights_count = self.renderer.light_buffer.element_count;
-        // TODO: Move to the renderer
-        frame_data.fog_color = [3]f32{0.3, 0.35, 0.45};
-        frame_data.fog_density = 0.00005;
+        frame_data.fog_color = self.renderer.height_fog_settings.color;
+        frame_data.fog_density = self.renderer.height_fog_settings.density;
 
         // Update Uniform Frame Buffer
         {

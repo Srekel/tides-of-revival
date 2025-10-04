@@ -130,6 +130,8 @@ pub const Renderer = struct {
     gpu_geometry_pass_profile_index: usize = 0,
     gpu_gpu_driven_pass_profile_index: usize = 0,
 
+    height_fog_settings: renderer_types.HeightFogSettings = undefined,
+
     // GPU Bindless Buffers
     // ====================
     // These buffers are accessible to all shaders
@@ -675,6 +677,8 @@ pub const Renderer = struct {
         };
         self.updateBuffer(data_slice, self.light_buffer.offset, renderer_types.GpuLight, self.light_buffer.buffer);
         self.light_buffer.element_count = @intCast(lights.items.len);
+        self.height_fog_settings.color = update_desc.height_fog.color;
+        self.height_fog_settings.density = update_desc.height_fog.density;
     }
 
     pub fn draw(self: *Renderer) void {

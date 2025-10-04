@@ -233,7 +233,7 @@ pub fn run() void {
         .active_camera = null,
         .player_camera = null,
         .sun = null,
-        .sky_light = null,
+        .height_fog = null,
         .player = null,
     });
 
@@ -278,7 +278,7 @@ pub fn run() void {
     };
 
     const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    config.entity.init(player_pos, &prefab_mgr, ecsu_world, &renderer_ctx, gameloop_context.physics_world);
+    config.entity.init(player_pos, &prefab_mgr, ecsu_world, gameloop_context.physics_world);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝

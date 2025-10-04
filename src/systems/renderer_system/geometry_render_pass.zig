@@ -618,13 +618,13 @@ fn batchEntities(
     const max_draw_distance_squared = max_draw_distance * max_draw_distance;
     var query_static_mesh_iter = ecs.query_iter(self.ecsu_world.world, self.query_static_mesh);
     while (ecs.query_next(&query_static_mesh_iter)) {
-        const static_meshes = ecs.field(&query_static_mesh_iter, fd.LodGroup, 0).?;
+        const lod_groups = ecs.field(&query_static_mesh_iter, fd.LodGroup, 0).?;
         const transforms = ecs.field(&query_static_mesh_iter, fd.Transform, 1).?;
         const scales = ecs.field(&query_static_mesh_iter, fd.Scale, 2).?;
 
-        for (static_meshes, transforms, scales) |*lod_group_component, transform, scale| {
-            var static_mesh = lod_group_component.lods[0];
-            var sub_mesh_count = static_mesh.materials.items.len;
+        for (lod_groups, transforms, scales) |*lod_group_component, transform, scale| {
+            var lod = lod_group_component.lods[0];
+            var sub_mesh_count = lod.materials_count;
             if (sub_mesh_count == 0) {
                 continue;
             }
@@ -636,7 +636,7 @@ fn batchEntities(
                 }
 
                 // TODO(gmodarelli): If we're in a shadow-casting pass, we should use the "light's camera frustum"
-                const mesh = self.renderer.getLegacyMesh(static_mesh.mesh_handle);
+                const mesh = self.renderer.getLegacyMesh(lod.mesh_handle);
                 var world: [16]f32 = undefined;
                 storeMat44(transform.matrix[0..], &world);
                 const z_world = zm.loadMat(world[0..]);
@@ -650,16 +650,16 @@ fn batchEntities(
             }
 
             // LOD Selection
-            static_mesh = selectLOD(lod_group_component, camera_position, transform.getPos00());
-            sub_mesh_count = static_mesh.materials.items.len;
+            lod = selectLOD(lod_group_component, camera_position, transform.getPos00());
+            sub_mesh_count = lod.materials_count;
 
             {
                 for (0..sub_mesh_count) |sub_mesh_index| {
-                    const material_id = static_mesh.materials.items[sub_mesh_index];
+                    const material_id = lod.materials[sub_mesh_index];
 
                     var batch_key: BatchKey = undefined;
                     batch_key.material_id = material_id;
-                    batch_key.mesh_handle = static_mesh.mesh_handle;
+                    batch_key.mesh_handle = lod.mesh_handle;
                     batch_key.sub_mesh_index = @intCast(sub_mesh_index);
                     batch_key.surface_type = .@"opaque";
 
@@ -701,7 +701,7 @@ inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [
     return false;
 }
 
-fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_position: [3]f32) fd.StaticMesh {
+fn selectLOD(lod_group: *const fd.LodGroup, camera_position: [3]f32, entity_position: [3]f32) fd.Lod {
     if (lod_group.lod_count == 1) {
         return lod_group.lods[0];
     }

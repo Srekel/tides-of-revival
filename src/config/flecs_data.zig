@@ -31,7 +31,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, LodGroup);
     ecs.COMPONENT(ecs_world, Renderable);
     ecs.COMPONENT(ecs_world, Water);
-    ecs.COMPONENT(ecs_world, SkyLight);
+    ecs.COMPONENT(ecs_world, HeightFog);
     ecs.COMPONENT(ecs_world, UIImage);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
@@ -366,12 +366,12 @@ pub const Velocity = struct {
     }
 };
 
-// ███╗   ███╗███████╗███████╗██╗  ██╗
-// ████╗ ████║██╔════╝██╔════╝██║  ██║
-// ██╔████╔██║█████╗  ███████╗███████║
-// ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║
-// ██║ ╚═╝ ██║███████╗███████║██║  ██║
-// ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
+// ██╗   ██╗██╗
+// ██║   ██║██║
+// ██║   ██║██║
+// ██║   ██║██║
+// ╚██████╔╝██║
+//  ╚═════╝ ╚═╝
 
 pub const UIImage = struct {
     rect: [4]f32,
@@ -383,34 +383,42 @@ pub const UIMaterial = struct {
     texture: TextureHandle,
 };
 
-pub const StaticMesh = struct {
+// ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗
+// ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
+// ██████╔╝█████╗  ██╔██╗ ██║██║  ██║█████╗  ██████╔╝███████║██████╔╝██║     █████╗  ███████╗
+// ██╔══██╗██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗██╔══██║██╔══██╗██║     ██╔══╝  ╚════██║
+// ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
+// ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
+
+pub const Lod = struct {
     mesh_handle: LegacyMeshHandle,
-    materials: std.ArrayList(IdLocal),
+    materials: [geometry.sub_mesh_max_count]IdLocal,
+    materials_count: u32,
 };
 
 pub const LodGroup = struct {
     lod_count: u32,
-    lods: [geometry.mesh_lod_max_count]StaticMesh,
-};
-
-pub const Renderable = struct {
-    id: IdLocal,
+    lods: [geometry.mesh_lod_max_count]Lod,
 };
 
 pub const Water = struct {
     mesh_handle: LegacyMeshHandle,
 };
 
-// ███████╗██╗  ██╗██╗   ██╗██████╗  ██████╗ ██╗  ██╗
-// ██╔════╝██║ ██╔╝╚██╗ ██╔╝██╔══██╗██╔═══██╗╚██╗██╔╝
-// ███████╗█████╔╝  ╚████╔╝ ██████╔╝██║   ██║ ╚███╔╝
-// ╚════██║██╔═██╗   ╚██╔╝  ██╔══██╗██║   ██║ ██╔██╗
-// ███████║██║  ██╗   ██║   ██████╔╝╚██████╔╝██╔╝ ██╗
-// ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+pub const Renderable = struct {
+    id: IdLocal,
+};
 
-pub const SkyLight = struct {
-    hdri: TextureHandle,
-    intensity: f32,
+// ███████╗ ██████╗  ██████╗
+// ██╔════╝██╔═══██╗██╔════╝
+// █████╗  ██║   ██║██║  ███╗
+// ██╔══╝  ██║   ██║██║   ██║
+// ██║     ╚██████╔╝╚██████╔╝
+// ╚═╝      ╚═════╝  ╚═════╝
+
+pub const HeightFog = struct {
+    color: ColorRGB,
+    density: f32,
 };
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
@@ -693,7 +701,7 @@ pub const EnvironmentInfo = struct {
     world_time: f64,
     time_of_day_percent: f64,
     sun_height: f64,
-    sky_light: ?ecsu.Entity,
+    height_fog: ?ecsu.Entity,
     sun: ?ecsu.Entity,
     player: ?ecsu.Entity,
     // time_of_day_hour: f32,

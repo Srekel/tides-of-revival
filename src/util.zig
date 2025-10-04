@@ -102,10 +102,10 @@ pub fn getPlayerCameraEnt(ecsu_world: ecsu.World) ecsu.Entity {
     return environment_info.?.player_camera.?;
 }
 
-pub fn getSkyLight(ecsu_world: ecsu.World) ?ecsu.Entity {
+pub fn getHeightFog(ecsu_world: ecsu.World) ?ecsu.Entity {
     const environment_info = ecsu_world.getSingleton(fd.EnvironmentInfo);
     if (environment_info) |info| {
-        return info.sky_light;
+        return info.height_fog;
     }
 
     return null;

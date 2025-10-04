@@ -12,7 +12,6 @@ RES(Tex2D(float4), gBuffer0, UPDATE_FREQ_NONE, t0, binding = 4);
 RES(Tex2D(float4), gBuffer1, UPDATE_FREQ_NONE, t1, binding = 5);
 RES(Tex2D(float4), gBuffer2, UPDATE_FREQ_NONE, t2, binding = 6);
 RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t3, binding = 7);
-RES(Tex2D(float), shadowDepthBuffer, UPDATE_FREQ_NONE, t4, binding = 8);
 
 #define BRDF_FUNCTION FILAMENT_BRDF
 #include "pbr.hlsli"

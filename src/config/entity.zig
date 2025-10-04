@@ -15,7 +15,7 @@ const zphy = @import("zphysics");
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer, physics_world: *zphy.PhysicsSystem) void {
+pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, physics_world: *zphy.PhysicsSystem) void {
 
     // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
     // ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██║████╗  ██║██╔════╝
@@ -35,18 +35,14 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .pssm_factor = 0.85,
     });
 
-    const sky_light_ent = ecsu_world.newEntity();
+    const height_fog_ent = ecsu_world.newEntity();
     {
-        var sky_light_component = fd.SkyLight{
-            .hdri = renderer.TextureHandle.nil,
-            .intensity = 0.3,
+        const height_fog_component = fd.HeightFog{
+            .color = fd.ColorRGB.init(0.3, 0.35, 0.45),
+            .density = 0.00005,
         };
 
-        var desc = std.mem.zeroes(graphics.TextureDesc);
-        desc.bBindless = false;
-        sky_light_component.hdri = rctx.loadTextureWithDesc(desc, "textures/env/kloofendal_43d_clear_puresky_2k_cube_radiance.dds");
-
-        sky_light_ent.set(sky_light_component);
+        height_fog_ent.set(height_fog_component);
     }
 
     // ██████╗  ██████╗ ██╗    ██╗
@@ -212,7 +208,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     environment_info.active_camera = player_camera_ent;
     environment_info.player_camera = player_camera_ent;
     environment_info.sun = sun_ent;
-    environment_info.sky_light = sky_light_ent;
+    environment_info.height_fog = height_fog_ent;
     environment_info.player = player_ent;
 
     // ██╗      ██████╗ ██╗    ██╗    ██████╗ ██╗  ██╗██╗   ██╗███████╗██╗ ██████╗███████╗

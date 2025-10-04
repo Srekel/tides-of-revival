@@ -269,6 +269,19 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         update_desc.point_lights = &system.state.point_lights;
     }
 
+    // Find Height Fog
+    {
+        update_desc.height_fog = renderer_types.HeightFogSettings{};
+        const height_fog_entity = util.getHeightFog(system.ecsu_world);
+        if (height_fog_entity) |entity| {
+            const comps = entity.getComps(struct { height_fog: *const fd.HeightFog });
+            update_desc.height_fog.color[0] = comps.height_fog.color.r;
+            update_desc.height_fog.color[1] = comps.height_fog.color.g;
+            update_desc.height_fog.color[2] = comps.height_fog.color.b;
+            update_desc.height_fog.density = comps.height_fog.density;
+        }
+    }
+
     system.renderer.update(update_desc);
 
     system.renderer.draw();

@@ -88,8 +88,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = player.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                for (0..lod_group.lods[i].materials.items.len) |material_index| {
-                    lod_group.lods[i].materials.items[material_index] = default_legacy_material_id;
+                for (0..lod_group.lods[i].materials_count) |material_index| {
+                    lod_group.lods[i].materials[material_index] = default_legacy_material_id;
                 }
             }
         }
@@ -111,8 +111,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = matball.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = material_id;
             }
         }
     }
@@ -131,8 +131,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = color_calibrator.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = material_id;
             }
         }
     }
@@ -153,8 +153,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = giant_ant.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = material_id;
             }
         }
     }
@@ -176,8 +176,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             const lod_group_component = bow.getMut(fd.LodGroup);
             if (lod_group_component) |lod_group| {
                 for (0..lod_group.lod_count) |i| {
-                    std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                    lod_group.lods[i].materials.items[0] = material_id;
+                    std.debug.assert(lod_group.lods[i].materials_count == 1);
+                    lod_group.lods[i].materials[0] = material_id;
                 }
             }
         }
@@ -189,8 +189,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             const lod_group_component = arrow.getMut(fd.LodGroup);
             if (lod_group_component) |lod_group| {
                 for (0..lod_group.lod_count) |i| {
-                    std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                    lod_group.lods[i].materials.items[0] = material_id;
+                    std.debug.assert(lod_group.lods[i].materials_count == 1);
+                    lod_group.lods[i].materials[0] = material_id;
                 }
             }
         }
@@ -203,8 +203,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = skybox.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_legacy_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = default_legacy_material_id;
             }
         }
     }
@@ -216,8 +216,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = default_cube.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_legacy_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = default_legacy_material_id;
             }
         }
     }
@@ -229,8 +229,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = cylinder.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_legacy_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = default_legacy_material_id;
             }
         }
     }
@@ -242,8 +242,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = plane.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_legacy_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = default_legacy_material_id;
             }
         }
     }
@@ -255,8 +255,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = sphere.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_legacy_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = default_legacy_material_id;
             }
         }
     }
@@ -268,8 +268,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = slime.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_legacy_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = default_legacy_material_id;
             }
         }
     }
@@ -281,8 +281,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = slime_trail.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 1);
-                lod_group.lods[i].materials.items[0] = default_legacy_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 1);
+                lod_group.lods[i].materials[0] = default_legacy_material_id;
             }
         }
     }
@@ -328,12 +328,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = medium_house.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials.items.len == 4);
+                std.debug.assert(lod_group.lods[i].materials_count == 4);
 
-                lod_group.lods[i].materials.items[0] = roof_material_id;
-                lod_group.lods[i].materials.items[1] = wood_material_id;
-                lod_group.lods[i].materials.items[2] = plaster_material_id;
-                lod_group.lods[i].materials.items[3] = stone_material_id;
+                lod_group.lods[i].materials[0] = roof_material_id;
+                lod_group.lods[i].materials[1] = wood_material_id;
+                lod_group.lods[i].materials[2] = plaster_material_id;
+                lod_group.lods[i].materials[3] = stone_material_id;
             }
         }
     }

@@ -31,9 +31,15 @@ pub const DirectionalLight = extern struct {
     view_proj: [16]f32,
 };
 
+pub const HeightFogSettings = struct {
+    color: [3]f32 = [3]f32{ 0, 0, 0 },
+    density: f32 = 0,
+};
+
 pub const UpdateDesc = struct {
     sun_light: DirectionalLight = undefined,
     point_lights: *std.ArrayList(PointLight) = undefined,
+    height_fog: HeightFogSettings = undefined,
 };
 
 pub const InstanceData = struct {
