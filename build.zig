@@ -79,6 +79,15 @@ pub fn build(b: *std.Build) void {
     }));
 
     // ZIG GAMEDEV
+
+    // zaudio
+    const zaudio = b.dependency("zaudio", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("zaudio", zaudio.module("root"));
+    exe.linkLibrary(zaudio.artifact("miniaudio"));
+
     // zglfw
     const zglfw = b.dependency("zglfw", .{
         .target = target,

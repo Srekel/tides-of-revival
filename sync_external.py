@@ -157,6 +157,11 @@ def main():
         "c0dbf11cdc17da5904ea8a17eadc54dee26567ec",
     )
     sync_lib(
+        "zaudio",
+        "https://github.com/zig-gamedev/zaudio",
+        "ea4200e7e9a877953ecb3fe8aa18a0d0d58a4bc2",
+    )
+    sync_lib(
         "zglfw",
         "https://github.com/zig-gamedev/zglfw",
         "c337cb3d3f984468ea7a386335937a5d555fc024",

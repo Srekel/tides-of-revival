@@ -88,6 +88,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
     player_ent.set(fd.Journey{});
+    player_ent.set(fd.Player{});
 
     const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });
@@ -138,15 +139,16 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const lod_group = plane_prefab.get(fd.LodGroup);
         const mesh_handle = lod_group.?.lods[0].mesh_handle;
         const ocean_plane_scale: f32 = @floatFromInt(config.km_size);
-        const ocean_tiles_x = config.world_size_x / config.km_size;
-        const ocean_tiles_z = config.world_size_z / config.km_size;
+        const padding = 4;
+        const ocean_tiles_x = 2 * padding + config.world_size_x / config.km_size;
+        const ocean_tiles_z = 2 * padding + config.world_size_z / config.km_size;
 
         for (0..ocean_tiles_z) |z| {
             for (0..ocean_tiles_x) |x| {
                 const ocean_plane_position = fd.Position.init(
-                    @as(f32, @floatFromInt(x)) * ocean_plane_scale + ocean_plane_scale * 0.5,
+                    (@as(f32, @floatFromInt(x)) - padding) * ocean_plane_scale + ocean_plane_scale * 0.5,
                     config.ocean_level,
-                    @as(f32, @floatFromInt(z)) * ocean_plane_scale + ocean_plane_scale * 0.5,
+                    (@as(f32, @floatFromInt(z)) - padding) * ocean_plane_scale + ocean_plane_scale * 0.5,
                 );
                 var ocean_plane_ent = ecsu_world.newEntity();
                 ocean_plane_ent.set(ocean_plane_position);
