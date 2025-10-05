@@ -26,8 +26,6 @@ cbuffer CB0 : register(b0, UPDATE_FREQ_PER_FRAME)
 {
     float2 g_RcpBufferDim;
     float g_BloomStrength;
-    float PaperWhiteRatio; // PaperWhite / MaxBrightness
-    float MaxBrightness;
     float g_Exposure;
 };
 

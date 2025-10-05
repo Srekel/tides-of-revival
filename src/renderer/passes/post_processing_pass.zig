@@ -65,8 +65,7 @@ const TonemapSettings = struct {
 const TonemapConstantBuffer = struct {
     rpc_buffer_dimensions: [2]f32,
     bloom_strength: f32,
-    paper_white_ratio: f32,
-    max_brightness: f32,
+
     exposure: f32,
 };
 
@@ -148,8 +147,7 @@ pub const PostProcessingPass = struct {
         };
     }
 
-    pub fn destroy(_: *PostProcessingPass) void {
-    }
+    pub fn destroy(_: *PostProcessingPass) void {}
 
     pub fn render(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Bloom", 0x00_ff_ff_00);
@@ -304,8 +302,6 @@ pub const PostProcessingPass = struct {
                 constant_buffer_data.rpc_buffer_dimensions[0] = 1.0 / render_view.viewport[0];
                 constant_buffer_data.rpc_buffer_dimensions[1] = 1.0 / render_view.viewport[1];
                 constant_buffer_data.bloom_strength = self.bloom_settings.bloom_strength;
-                constant_buffer_data.paper_white_ratio = 0.2;
-                constant_buffer_data.max_brightness = 1000.0;
                 constant_buffer_data.exposure = self.exposure_settings.exposure;
 
                 const data = OpaqueSlice{
