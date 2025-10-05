@@ -57,6 +57,8 @@ pub const PsoBin = struct {
     shadow_caster_id: IdLocal = undefined,
 };
 
+pub const pso_bins_max_count: u32 = 8;
+
 pub const PSOManager = struct {
     allocator: std.mem.Allocator = undefined,
     renderer: *Renderer = undefined,

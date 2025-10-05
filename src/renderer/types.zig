@@ -5,12 +5,12 @@ const zm = @import("zmath");
 pub const InvalidResourceIndex = std.math.maxInt(u32);
 
 pub const GpuLight = struct {
-    position: [3]f32,   // Direction for directional light
-    light_type: u32,    // 0 - Directional, 1 - Point
+    position: [3]f32, // Direction for directional light
+    light_type: u32, // 0 - Directional, 1 - Point
     color: [3]f32,
     intensity: f32,
-    cast_shadows: u32 = 0,  // 0 - No, 1 - Yes
-    radius: f32 = 0,        // Unused for directional light
+    cast_shadows: u32 = 0, // 0 - No, 1 - Yes
+    radius: f32 = 0, // Unused for directional light
     _padding: [2]f32 = [2]f32{ 42, 42 },
 };
 
@@ -45,6 +45,7 @@ pub const UpdateDesc = struct {
 
     // Entities
     ocean_tiles: *std.ArrayList(OceanTile) = undefined,
+    static_entities: *std.ArrayList(RenderableEntity) = undefined,
 };
 
 pub const InstanceData = struct {
@@ -77,4 +78,10 @@ pub const TerrainInstanceData = struct {
 pub const OceanTile = struct {
     world: zm.Mat = undefined,
     scale: f32 = 0,
+};
+
+pub const RenderableEntity = struct {
+    entity_id: u64,
+    renderable_id: IdLocal,
+    world: zm.Mat,
 };

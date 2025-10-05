@@ -22,6 +22,7 @@ const zgui = @import("zgui");
 const zm = @import("zmath");
 const ztracy = @import("ztracy");
 
+const StaticGeometryPass = @import("passes/static_geometry_pass.zig").StaticGeometryPass;
 const DeferredShadingPass = @import("passes/deferred_shading_pass.zig").DeferredShadingPass;
 const ProceduralSkyboxPass = @import("passes/procedural_skybox_pass.zig").ProceduralSkyboxPass;
 const WaterPass = @import("passes/water_pass.zig").WaterPass;
@@ -71,29 +72,6 @@ const visualization_modes = [_][:0]const u8{
     "Reflectance",
 };
 
-pub const ElementBindlessBuffer = struct {
-    mutex: std.Thread.Mutex = undefined,
-    buffer: BufferHandle = undefined,
-    stride: u64 = 0,
-    size: u64 = 0,
-    offset: u64 = 0,
-    element_count: u32 = 0,
-
-    pub fn init(self: *@This(), renderer: *Renderer, elements_count_limit: u64, stride: usize, uav: bool, debug_name: []const u8) void {
-        self.mutex = std.Thread.Mutex{};
-        self.size = elements_count_limit * stride;
-        self.stride = stride;
-        self.offset = 0;
-        self.element_count = 0;
-
-        const buffer_data = OpaqueSlice{
-            .data = null,
-            .size = self.size,
-        };
-        self.buffer = renderer.createBindlessBuffer(buffer_data, uav, debug_name);
-    }
-};
-
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
     const cascades_max_count: u32 = 4;
@@ -119,12 +97,14 @@ pub const Renderer = struct {
     gpu_geometry_pass_profile_index: usize = 0,
     gpu_gpu_driven_pass_profile_index: usize = 0,
 
+    // TODO: Create a scene structs
     // Scene Data
     // ==========
     time_of_day_01: f32 = 0.0,
     sun_light: renderer_types.DirectionalLight = undefined,
     height_fog_settings: renderer_types.HeightFogSettings = undefined,
     ocean_tiles: std.ArrayList(renderer_types.OceanTile) = undefined,
+    static_entitites: std.ArrayList(renderer_types.RenderableEntity) = undefined,
 
     // GPU Bindless Buffers
     // ====================
@@ -147,6 +127,7 @@ pub const Renderer = struct {
 
     // Render Passes
     // =============
+    static_geometry_pass: StaticGeometryPass = undefined,
     deferred_shading_pass: DeferredShadingPass = undefined,
     procedural_skybox_pass: ProceduralSkyboxPass = undefined,
     water_pass: WaterPass = undefined,
@@ -402,6 +383,7 @@ pub const Renderer = struct {
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
+
         self.render_passes = std.ArrayList(*RenderPass).init(allocator);
 
         zgui.init(allocator);
@@ -418,6 +400,7 @@ pub const Renderer = struct {
         self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Material Buffer");
         self.material_map = MaterialMap.init(allocator);
 
+        self.static_geometry_pass.init(self, self.allocator);
         self.deferred_shading_pass.init(self, self.allocator);
         self.procedural_skybox_pass.init(self, self.allocator);
         self.water_pass.init(self, self.allocator);
@@ -425,16 +408,19 @@ pub const Renderer = struct {
 
         // Scene Data
         self.ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(self.allocator);
+        self.static_entitites = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
         // Scene Data
         self.ocean_tiles.deinit();
+        self.static_entitites.deinit();
 
         self.post_processing_pass.destroy();
         self.water_pass.destroy();
         self.procedural_skybox_pass.destroy();
         self.deferred_shading_pass.destroy();
+        self.static_geometry_pass.destroy();
 
         self.pso_manager.exit();
 
@@ -572,6 +558,7 @@ pub const Renderer = struct {
             self.createCompositeSDRDescriptorSet();
             self.createBuffersVisualizationDescriptorSet();
 
+            self.static_geometry_pass.createDescriptorSets();
             self.deferred_shading_pass.createDescriptorSets();
             self.procedural_skybox_pass.createDescriptorSets();
             self.water_pass.createDescriptorSets();
@@ -587,6 +574,7 @@ pub const Renderer = struct {
         self.prepareCompositeSDRDescriptorSet();
         self.prepareBuffersVisualizationDescriptorSet();
 
+        self.static_geometry_pass.prepareDescriptorSets();
         self.deferred_shading_pass.prepareDescriptorSets();
         self.procedural_skybox_pass.prepareDescriptorSets();
         self.water_pass.prepareDescriptorSets();
@@ -624,6 +612,7 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER) {
+            self.static_geometry_pass.unloadDescriptorSets();
             self.deferred_shading_pass.unloadDescriptorSets();
             self.procedural_skybox_pass.unloadDescriptorSets();
             self.water_pass.unloadDescriptorSets();
@@ -686,6 +675,9 @@ pub const Renderer = struct {
 
         self.ocean_tiles.clearRetainingCapacity();
         self.ocean_tiles.appendSlice(update_desc.ocean_tiles.items) catch unreachable;
+
+        self.static_entitites.clearRetainingCapacity();
+        self.static_entitites.appendSlice(update_desc.static_entities.items) catch unreachable;
     }
 
     pub fn draw(self: *Renderer) void {
@@ -803,6 +795,8 @@ pub const Renderer = struct {
                     render_gbuffer_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
+
+            self.static_geometry_pass.renderGBuffer(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
@@ -1057,11 +1051,7 @@ pub const Renderer = struct {
         const trazy_zone = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
         defer trazy_zone.End();
 
-        for (self.render_passes.items) |render_pass| {
-            if (render_pass.update_fn) |update_fn| {
-                update_fn(render_pass.user_data);
-            }
-        }
+        self.static_geometry_pass.update();
     }
 
     fn drawRenderSettings(self: *Renderer) void {
@@ -1121,6 +1111,7 @@ pub const Renderer = struct {
                 }
             }
 
+            self.static_geometry_pass.renderImGui();
             self.deferred_shading_pass.renderImGui();
             self.procedural_skybox_pass.renderImGui();
             self.water_pass.renderImGui();
@@ -1202,14 +1193,14 @@ pub const Renderer = struct {
         const main_view = zm.loadMat(&camera_comps.camera.view);
         const main_view_inverse = zm.inverse(main_view);
         const frustum_corners_ws = [_]zm.Vec{
-            transformVec3Coord(zm.Vec{-1, -1, 1, 0}, main_view_inverse),
-            transformVec3Coord(zm.Vec{-1, -1, 0, 0}, main_view_inverse),
-            transformVec3Coord(zm.Vec{-1, 1, 1, 0}, main_view_inverse),
-            transformVec3Coord(zm.Vec{-1, 1, 0, 0}, main_view_inverse),
-            transformVec3Coord(zm.Vec{1, 1, 1, 0}, main_view_inverse),
-            transformVec3Coord(zm.Vec{1, 1, 0, 0}, main_view_inverse),
-            transformVec3Coord(zm.Vec{1, -1, 1, 0}, main_view_inverse),
-            transformVec3Coord(zm.Vec{1, -1, 0, 0}, main_view_inverse),
+            transformVec3Coord(zm.Vec{ -1, -1, 1, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ -1, -1, 0, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ -1, 1, 1, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ -1, 1, 0, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ 1, 1, 1, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ 1, 1, 0, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ 1, -1, 1, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ 1, -1, 0, 0 }, main_view_inverse),
         };
 
         const light_view = zm.inverse(zm.matFromQuat(sun_comps.rotation.asZM()));
@@ -1229,7 +1220,7 @@ pub const Renderer = struct {
                 transformVec3Coord(zm.lerp(frustum_corners_ws[6], frustum_corners_ws[7], current_cascade_split), light_view),
             };
 
-            var center = zm.Vec{0, 0, 0, 0};
+            var center = zm.Vec{ 0, 0, 0, 0 };
             for (frustum_corners_vs) |corner| {
                 center = center + corner;
             }
@@ -2192,6 +2183,29 @@ pub const Renderer = struct {
     }
 };
 
+pub const ElementBindlessBuffer = struct {
+    mutex: std.Thread.Mutex = undefined,
+    buffer: BufferHandle = undefined,
+    stride: u64 = 0,
+    size: u64 = 0,
+    offset: u64 = 0,
+    element_count: u32 = 0,
+
+    pub fn init(self: *@This(), renderer: *Renderer, elements_count_limit: u64, stride: usize, uav: bool, debug_name: []const u8) void {
+        self.mutex = std.Thread.Mutex{};
+        self.size = elements_count_limit * stride;
+        self.stride = stride;
+        self.offset = 0;
+        self.element_count = 0;
+
+        const buffer_data = OpaqueSlice{
+            .data = null,
+            .size = self.size,
+        };
+        self.buffer = renderer.createBindlessBuffer(buffer_data, uav, debug_name);
+    }
+};
+
 // ██╗   ██╗██╗███████╗██╗    ██╗███████╗
 // ██║   ██║██║██╔════╝██║    ██║██╔════╝
 // ██║   ██║██║█████╗  ██║ █╗ ██║███████╗
@@ -2220,7 +2234,6 @@ pub const RenderView = struct {
 //     view_proj: zm.Mat,
 
 // }
-
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗
 // ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝

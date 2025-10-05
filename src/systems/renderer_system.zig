@@ -21,7 +21,6 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
-const GpuDrivenRenderPass = @import("renderer_system/gpu_driven_render_pass.zig").GpuDrivenRenderPass;
 const UIRenderPass = @import("renderer_system/ui_render_pass.zig").UIRenderPass;
 const Im3dRenderPass = @import("renderer_system/im3d_render_pass.zig").Im3dRenderPass;
 
@@ -50,7 +49,6 @@ pub const SystemUpdateContext = struct {
     state: struct {
         terrain_render_pass: *TerrainRenderPass,
         geometry_render_pass: *GeometryRenderPass,
-        gpu_driven_render_pass: *GpuDrivenRenderPass,
         ui_render_pass: *UIRenderPass,
         im3d_render_pass: *Im3dRenderPass,
         render_imgui: bool,
@@ -60,6 +58,9 @@ pub const SystemUpdateContext = struct {
 
         query_ocean_tiles: *ecs.query_t,
         ocean_tiles: std.ArrayList(renderer_types.OceanTile),
+
+        query_static_entities: *ecs.query_t,
+        static_entities: std.ArrayList(renderer_types.RenderableEntity),
     },
 };
 
@@ -68,17 +69,12 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const pass_allocator = create_ctx.heap_allocator;
     const ctx_renderer = create_ctx.renderer;
     const ecsu_world = create_ctx.ecsu_world;
-    const prefab_mgr = create_ctx.prefab_mgr;
-    const pso_mgr = create_ctx.pso_mgr;
 
     const geometry_render_pass = arena_system_lifetime.create(GeometryRenderPass) catch unreachable;
     geometry_render_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
 
     const terrain_render_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
     terrain_render_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
-
-    const gpu_driven_render_pass = arena_system_lifetime.create(GpuDrivenRenderPass) catch unreachable;
-    gpu_driven_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pso_mgr, pass_allocator);
 
     const ui_render_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
     ui_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
@@ -95,20 +91,27 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     }) catch unreachable;
 
     const query_ocean_tiles = ecs.query_init(ecsu_world.world, &.{
-            .entity = ecs.new_entity(ecsu_world.world, "query_ocean_tiles"),
-            .terms = [_]ecs.term_t{
-                .{ .id = ecs.id(fd.Transform), .inout = .In },
-                .{ .id = ecs.id(fd.Water), .inout = .In },
-                .{ .id = ecs.id(fd.Scale), .inout = .In },
-            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
-        }) catch unreachable;
+        .entity = ecs.new_entity(ecsu_world.world, "query_ocean_tiles"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Transform), .inout = .In },
+            .{ .id = ecs.id(fd.Water), .inout = .In },
+            .{ .id = ecs.id(fd.Scale), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
+    }) catch unreachable;
+
+    const query_static_entities = ecs.query_init(ecsu_world.world, &.{
+        .entity = ecs.new_entity(ecsu_world.world, "query_static_entities"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Renderable), .inout = .In },
+            .{ .id = ecs.id(fd.Transform), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+    }) catch unreachable;
 
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
-        .gpu_driven_render_pass = gpu_driven_render_pass,
         .ui_render_pass = ui_render_pass,
         .im3d_render_pass = im3d_render_pass,
         .render_imgui = false,
@@ -116,6 +119,8 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
         .query_ocean_tiles = query_ocean_tiles,
         .ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(pass_allocator),
+        .query_static_entities = query_static_entities,
+        .static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
     };
 
     {
@@ -148,12 +153,12 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
     system.state.terrain_render_pass.destroy();
     system.state.geometry_render_pass.destroy();
-    system.state.gpu_driven_render_pass.destroy();
     system.state.ui_render_pass.destroy();
     system.state.im3d_render_pass.destroy();
 
     system.state.point_lights.deinit();
     system.state.ocean_tiles.deinit();
+    system.state.static_entities.deinit();
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -224,6 +229,19 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
 
     update_desc.time_of_day_01 = util.getTimeOfDayPercent(system.ecsu_world);
 
+    // Find Height Fog
+    {
+        update_desc.height_fog = renderer_types.HeightFogSettings{};
+        const height_fog_entity = util.getHeightFog(system.ecsu_world);
+        if (height_fog_entity) |entity| {
+            const comps = entity.getComps(struct { height_fog: *const fd.HeightFog });
+            update_desc.height_fog.color[0] = comps.height_fog.color.r;
+            update_desc.height_fog.color[1] = comps.height_fog.color.g;
+            update_desc.height_fog.color[2] = comps.height_fog.color.b;
+            update_desc.height_fog.density = comps.height_fog.density;
+        }
+    }
+
     // Find sun light
     {
         const sun_entity = util.getSun(system.ecsu_world);
@@ -289,17 +307,28 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         update_desc.ocean_tiles = &system.state.ocean_tiles;
     }
 
-    // Find Height Fog
+    // Find all static entities
     {
-        update_desc.height_fog = renderer_types.HeightFogSettings{};
-        const height_fog_entity = util.getHeightFog(system.ecsu_world);
-        if (height_fog_entity) |entity| {
-            const comps = entity.getComps(struct { height_fog: *const fd.HeightFog });
-            update_desc.height_fog.color[0] = comps.height_fog.color.r;
-            update_desc.height_fog.color[1] = comps.height_fog.color.g;
-            update_desc.height_fog.color[2] = comps.height_fog.color.b;
-            update_desc.height_fog.density = comps.height_fog.density;
+        system.state.static_entities.clearRetainingCapacity();
+
+        var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_static_entities);
+        while (ecs.query_next(&iter)) {
+            const renderables = ecs.field(&iter, fd.Renderable, 0).?;
+            const transforms = ecs.field(&iter, fd.Transform, 1).?;
+
+            for (renderables, transforms, 0..) |renderable, transform, entity_index| {
+                var world: [16]f32 = undefined;
+                storeMat44(transform.matrix[0..], world[0..]);
+
+                system.state.static_entities.append(.{
+                    .entity_id = iter.entities()[entity_index],
+                    .renderable_id = renderable.id,
+                    .world = zm.loadMat(&world),
+                }) catch unreachable;
+            }
         }
+
+        update_desc.static_entities = &system.state.static_entities;
     }
 
     system.renderer.update(update_desc);
