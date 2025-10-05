@@ -15,7 +15,7 @@ const zphy = @import("zphysics");
 
 const DEBUG_CAMERA_ACTIVE = false;
 
-pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer, physics_world: *zphy.PhysicsSystem) void {
+pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, rctx: *renderer.Renderer, ctx: anytype) void {
 
     // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
     // ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██║████╗  ██║██╔════╝
@@ -70,6 +70,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     const player_ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.player);
     player_ent.setName("main_player");
     player_ent.set(player_pos);
+    player_ent.set(fd.Rotation.initFromEulerDegrees(0, 90, 0));
     player_ent.set(fd.Transform.initFromPosition(player_pos));
     player_ent.set(fd.Forward{});
     player_ent.set(fd.Velocity{});
@@ -89,7 +90,14 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
     player_ent.set(fd.Journey{});
-    player_ent.set(fd.Player{});
+
+    const music = ctx.audio.createSoundFromFile(
+        "content/audio/music/the_first_forayst.mp3",
+        .{ .flags = .{ .stream = true } },
+    ) catch unreachable;
+    music.setVolume(3);
+
+    player_ent.set(fd.Player{ .music = music });
 
     const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });
@@ -250,7 +258,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
         ent.set(fd.Enemy{ .base_scale = 10 });
 
-        const body_interface = physics_world.getBodyInterfaceMut();
+        const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
         const shape_settings = zphy.SphereShapeSettings.create(1.5 * scale) catch unreachable;
         defer shape_settings.release();

@@ -159,6 +159,7 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
 
         const pos_after = pos.asZM();
         player.*.amount_moved += zm.length3(pos_after - pos_before)[0];
+        player.*.amount_moved_total += zm.length3(pos_after - pos_before)[0];
 
         const step_length: f32 = if (ctx.input_frame_data.held(config.input.move_fast)) 3 else 0.8;
         if (player.amount_moved > step_length) {
@@ -166,7 +167,7 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
                 player.sfx_footstep_index = 0;
             }
             player.sfx_footstep_index += 1;
-            player.amount_moved -= step_length;
+            player.amount_moved = 0;
 
             var sound_buffer: [256]u8 = undefined;
             const sound_path = std.fmt.bufPrintZ(
@@ -174,8 +175,12 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
                 "content/audio/footsteps/grass{d}.wav",
                 .{player.sfx_footstep_index},
             ) catch unreachable;
-            std.log.info("lol{str}", .{sound_path});
             ctx.audio.playSound(sound_path, null) catch unreachable;
+        }
+
+        if (player.amount_moved_total > 100) {
+            player.amount_moved_total = -2000;
+            player.music.?.start() catch unreachable;
         }
 
         // var fwd_xz_z = comps.fwd.asZM();
