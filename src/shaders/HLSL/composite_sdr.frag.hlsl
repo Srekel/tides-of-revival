@@ -15,14 +15,13 @@
 // Author:  James Stanard
 //
 
-#include "ShaderUtility.hlsli"
+#include "shader_utility.hlsli"
 
 Texture2D<float3> MainBuffer : register(t0, UPDATE_FREQ_PER_FRAME);
 Texture2D<float4> OverlayBuffer : register(t1, UPDATE_FREQ_PER_FRAME);
 
 float4 main(float4 position : SV_Position) : SV_Target0
 {
-    // float3 MainColor = ApplyDisplayProfile(MainBuffer[(int2)position.xy], DISPLAY_PLANE_FORMAT);
     float3 MainColor = ApplyDisplayProfile(MainBuffer[(int2)position.xy], LDR_COLOR_FORMAT);
     float4 OverlayColor = OverlayBuffer[(int2)position.xy];
     return float4(OverlayColor.rgb + MainColor.rgb * (1.0 - OverlayColor.a), 0.0);

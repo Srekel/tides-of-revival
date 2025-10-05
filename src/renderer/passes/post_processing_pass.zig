@@ -261,7 +261,7 @@ pub const PostProcessingPass = struct {
                 };
                 graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), 0, null);
 
-                const pipeline_id = IdLocal.init("blur");
+                const pipeline_id = IdLocal.init("blur_gaussian");
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
                 graphics.cmdBindDescriptorSet(cmd_list, 0, self.bloom_blur_descriptor_set);
@@ -407,7 +407,7 @@ pub const PostProcessingPass = struct {
         desc.pRootSignature = root_signature;
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.downsample_bloom_descriptor_set));
 
-        root_signature = self.renderer.getRootSignature(IdLocal.init("blur"));
+        root_signature = self.renderer.getRootSignature(IdLocal.init("blur_gaussian"));
         desc.pRootSignature = root_signature;
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.bloom_blur_descriptor_set));
 

@@ -15,7 +15,7 @@
 //
 // The CS for extracting bright pixels and downsampling them to an unblurred bloom buffer.
 
-#include "../ShaderUtility.hlsli"
+#include "../shader_utility.hlsli"
 
 SamplerState g_linear_clamp_edge_sampler : register(s0);
 Texture2D<float3> SourceTex : register(t0, UPDATE_FREQ_PER_FRAME);

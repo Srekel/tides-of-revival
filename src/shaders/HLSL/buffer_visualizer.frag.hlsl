@@ -1,5 +1,5 @@
 #include "../FSL/d3d.h"
-#include "ColorSpaceUtility.hlsli"
+#include "color_space_utility.hlsli"
 
 // Buffer visualization modes
 #define BUFFER_VISUALIZATION_ALBEDO 0

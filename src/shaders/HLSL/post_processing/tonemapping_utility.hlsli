@@ -8,17 +8,17 @@
 //
 // Developed by Minigraph
 //
-// Author:  James Stanard 
+// Author:  James Stanard
 //
 
 #ifndef __TONE_MAPPING_UTILITY_HLSLI__
 #define __TONE_MAPPING_UTILITY_HLSLI__
 
-#include "ShaderUtility.hlsli"
+#include "../shader_utility.hlsli"
 
 //
 // Reinhard
-// 
+//
 
 // The Reinhard tone operator.  Typically, the value of k is 1.0, but you can adjust exposure by 1/k.
 // I.e. TM_Reinhard(x, 0.5) == TM_Reinhard(x * 2.0, 1.0)
@@ -89,7 +89,7 @@ float3 ITM_Stanard(float3 sdr)
 // agree with the idea of trying to remap brightness to displayable values while preserving hue.  But you
 // run into problems where one or more color channels end up brighter than 1.0 and get clipped.
 
-float3 ToneMap( float3 hdr )
+float3 ToneMap(float3 hdr)
 {
     return 1 - exp2(-hdr);
 }
@@ -99,7 +99,7 @@ float3 InverseToneMap(float3 sdr)
     return -log2(max(1e-6, 1 - sdr));
 }
 
-float ToneMapLuma( float luma )
+float ToneMapLuma(float luma)
 {
     return 1 - exp2(-luma);
 }
@@ -115,16 +115,16 @@ float InverseToneMapLuma(float luma)
 
 // The next generation of filmic tone operators.
 
-float3 ToneMapACES( float3 hdr )
+float3 ToneMapACES(float3 hdr)
 {
     const float A = 2.51, B = 0.03, C = 2.43, D = 0.59, E = 0.14;
     return saturate((hdr * (A * hdr + B)) / (hdr * (C * hdr + D) + E));
 }
 
-float3 InverseToneMapACES( float3 sdr )
+float3 InverseToneMapACES(float3 sdr)
 {
     const float A = 2.51, B = 0.03, C = 2.43, D = 0.59, E = 0.14;
-    return 0.5 * (D * sdr - sqrt(((D*D - 4*C*E) * sdr + 4*A*E-2*B*D) * sdr + B*B) - B) / (A - C * sdr);
+    return 0.5 * (D * sdr - sqrt(((D * D - 4 * C * E) * sdr + 4 * A * E - 2 * B * D) * sdr + B * B) - B) / (A - C * sdr);
 }
 
 #endif // __TONE_MAPPING_UTILITY_HLSLI__

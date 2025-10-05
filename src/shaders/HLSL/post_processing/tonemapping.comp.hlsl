@@ -15,8 +15,7 @@
 // Author:  James Stanard
 //
 
-#include "../ToneMappingUtility.hlsli"
-#include "../PixelPacking.hlsli"
+#include "tonemapping_utility.hlsli"
 
 Texture2D<float3> Bloom : register(t0, UPDATE_FREQ_PER_FRAME);
 RWTexture2D<float3> ColorRW : register(u0, UPDATE_FREQ_PER_FRAME);
