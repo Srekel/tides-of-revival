@@ -19,14 +19,14 @@
 
 SamplerState g_linear_clamp_edge_sampler : register(s0);
 Texture2D<float3> SourceTex : register(t0, UPDATE_FREQ_PER_FRAME);
-StructuredBuffer<float> Exposure : register(t1, UPDATE_FREQ_PER_FRAME);
 RWTexture2D<float3> BloomResult : register(u0, UPDATE_FREQ_PER_FRAME);
-RWTexture2D<uint> LumaResult : register(u1, UPDATE_FREQ_PER_FRAME);
 
 cbuffer cb0 : register(b0, UPDATE_FREQ_PER_FRAME)
 {
     float2 g_inverseOutputSize;
     float g_bloomThreshold;
+    float g_exposure;
+    float g_inverseExposure;
 }
 
 [numthreads(8, 8, 1)] void main(uint3 DTid : SV_DispatchThreadID)
@@ -49,7 +49,7 @@ cbuffer cb0 : register(b0, UPDATE_FREQ_PER_FRAME)
 
     const float kSmallEpsilon = 0.0001;
 
-    float ScaledThreshold = g_bloomThreshold * Exposure[1]; // Bloom Threshold / Exposure
+    float ScaledThreshold = g_bloomThreshold * g_inverseExposure; // Bloom Threshold / Exposure
 
     // We perform a brightness filter pass, where lone bright pixels will contribute less.
     color1 *= max(kSmallEpsilon, luma1 - ScaledThreshold) / (luma1 + kSmallEpsilon);
@@ -69,19 +69,4 @@ cbuffer cb0 : register(b0, UPDATE_FREQ_PER_FRAME)
     float weight_sum = weight1 + weight2 + weight3 + weight4;
 
     BloomResult[DTid.xy] = (color1 * weight1 + color2 * weight2 + color3 * weight3 + color4 * weight4) / weight_sum;
-
-    float luma = (luma1 + luma2 + luma3 + luma4) * 0.25;
-
-    // Prevent log(0) and put only pure black pixels in Histogram[0]
-    if (luma == 0.0)
-    {
-        LumaResult[DTid.xy] = 0;
-    }
-    else
-    {
-        const float MinLog = Exposure[4];
-        const float RcpLogRange = Exposure[7];
-        float logLuma = saturate((log2(luma) - MinLog) * RcpLogRange); // Rescale to [0.0, 1.0]
-        LumaResult[DTid.xy] = logLuma * 254.0 + 1.0;                   // Rescale to [1, 255]
-    }
 }

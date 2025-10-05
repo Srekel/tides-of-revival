@@ -18,8 +18,7 @@
 #include "../ToneMappingUtility.hlsli"
 #include "../PixelPacking.hlsli"
 
-StructuredBuffer<float> Exposure : register(t0, UPDATE_FREQ_PER_FRAME);
-Texture2D<float3> Bloom : register(t1, UPDATE_FREQ_PER_FRAME);
+Texture2D<float3> Bloom : register(t0, UPDATE_FREQ_PER_FRAME);
 RWTexture2D<float3> ColorRW : register(u0, UPDATE_FREQ_PER_FRAME);
 RWTexture2D<float> OutLuma : register(u1, UPDATE_FREQ_PER_FRAME);
 SamplerState g_linear_clamp_edge_sampler : register(s0);
@@ -30,6 +29,7 @@ cbuffer CB0 : register(b0, UPDATE_FREQ_PER_FRAME)
     float g_BloomStrength;
     float PaperWhiteRatio; // PaperWhite / MaxBrightness
     float MaxBrightness;
+    float g_Exposure;
 };
 
 [numthreads(8, 8, 1)] void
@@ -41,7 +41,7 @@ main(uint3 DTid : SV_DispatchThreadID)
     float3 hdrColor = ColorRW[DTid.xy];
 
     hdrColor += g_BloomStrength * Bloom.SampleLevel(g_linear_clamp_edge_sampler, TexCoord, 0);
-    hdrColor *= Exposure[0];
+    hdrColor *= g_Exposure;
 
     // Tone map to SDR
     float3 sdrColor = TM_Stanard(hdrColor);

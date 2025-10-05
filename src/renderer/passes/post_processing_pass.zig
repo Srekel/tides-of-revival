@@ -33,15 +33,6 @@ const BloomSettings = struct {
 // Exposure Settings
 // =================
 const ExposureSettings = struct {
-    enable_adaptation: bool = false,
-    // range[-8.0, 0.0]
-    min_exposure: f32 = 1.0 / 64.0,
-    // range[-8.0, 0.0]
-    max_exposure: f32 = 64.0,
-    // range[0.01, 0.99]
-    target_luminance: f32 = 0.08,
-    // range[0.01, 1.0]
-    adapation_rate: f32 = 0.05,
     // range[-8.0, 8.0]
     exposure: f32 = 2.0,
 };
@@ -51,6 +42,8 @@ const ExposureSettings = struct {
 const BloomExtractConstantBuffer = struct {
     inverse_output_size: [2]f32,
     bloom_threshold: f32,
+    exposure: f32,
+    inverse_exposure: f32,
 };
 
 const DownsampleBloomConstantBuffer = struct {
@@ -67,20 +60,6 @@ const TonemapSettings = struct {
     enabled: bool = true,
 };
 
-// Histogram
-// =========
-const GenerateHistogramConstantBuffer = struct {
-    buffer_height: u32,
-};
-
-const AdaptExposureConstantBuffer = struct {
-    target_luminance: f32,
-    adaptation_rate: f32,
-    min_exposure: f32,
-    max_exposure: f32,
-    pixel_count: u32,
-};
-
 // Tonemap Constant Buffer
 // =======================
 const TonemapConstantBuffer = struct {
@@ -88,6 +67,7 @@ const TonemapConstantBuffer = struct {
     bloom_strength: f32,
     paper_white_ratio: f32,
     max_brightness: f32,
+    exposure: f32,
 };
 
 pub const PostProcessingPass = struct {
@@ -96,19 +76,10 @@ pub const PostProcessingPass = struct {
 
     hdr_tonemap_profile_token: profiler.ProfileToken = undefined,
     bloom_profile_token: profiler.ProfileToken = undefined,
-    update_exposure_profile_token: profiler.ProfileToken = undefined,
 
     // Exposure
     // ========
-    clear_uav_descriptor_set: [*c]graphics.DescriptorSet,
     exposure_settings: ExposureSettings,
-    exposure_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    histogram_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    generate_histogram_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    generate_histogram_descriptor_set: [*c]graphics.DescriptorSet,
-    draw_debug_histogram_descriptor_set: [*c]graphics.DescriptorSet,
-    adapt_exposure_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    adapt_exposure_descriptor_set: [*c]graphics.DescriptorSet,
 
     // Bloom
     // =====
@@ -136,46 +107,7 @@ pub const PostProcessingPass = struct {
         self.renderer = rctx;
 
         self.bloom_settings = BloomSettings{};
-        self.exposure_settings = ExposureSettings{};
-
-        self.exposure_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-
-            const exposure_initial_data = [_]f32 {
-                self.exposure_settings.exposure,
-                1.0 / self.exposure_settings.exposure,
-                self.exposure_settings.exposure,
-                0.0,
-                k_initial_min_log,
-                k_initial_max_log,
-                k_initial_max_log - k_initial_min_log,
-                1.0 / (k_initial_max_log - k_initial_min_log),
-            };
-
-            const exposure_data = OpaqueSlice{
-                .data = @ptrCast(&exposure_initial_data),
-                .size = exposure_initial_data.len * @sizeOf(f32),
-            };
-
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createStructuredBuffer(exposure_data, "Exposure");
-            }
-            break :blk buffers;
-        };
-
-        self.histogram_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-
-            const histogram_data = OpaqueSlice{
-                .data = null,
-                .size = 256 * @sizeOf(u32),
-            };
-
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createStructuredBuffer(histogram_data, "Hisogram");
-            }
-            break :blk buffers;
-        };
+        self.exposure_settings = ExposureSettings{ .exposure = 2.0 };
 
         self.bloom_extract_constant_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
@@ -214,24 +146,6 @@ pub const PostProcessingPass = struct {
 
             break :blk buffers;
         };
-
-        self.generate_histogram_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(GenerateHistogramConstantBuffer);
-            }
-
-            break :blk buffers;
-        };
-
-        self.adapt_exposure_buffers = blk: {
-            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
-            for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = rctx.createUniformBuffer(AdaptExposureConstantBuffer);
-            }
-
-            break :blk buffers;
-        };
     }
 
     pub fn destroy(_: *PostProcessingPass) void {
@@ -259,17 +173,11 @@ pub const PostProcessingPass = struct {
             // Bloom Extract
             {
                 const bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
-                const luma = self.renderer.getTexture(self.renderer.luma_lr);
-                const exposure_buffer = self.renderer.getBuffer(self.exposure_buffers[frame_index]);
 
                 var t_barriers = [_]graphics.TextureBarrier{
                     graphics.TextureBarrier.init(bloom_uav1a, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
-                    graphics.TextureBarrier.init(luma, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
                 };
-                var buffer_barriers = [_]graphics.BufferBarrier{
-                    graphics.BufferBarrier.init(exposure_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                };
-                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), t_barriers.len, @constCast(&t_barriers), 0, null);
+                graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), 0, null);
 
                 // Update constant buffer
                 {
@@ -277,6 +185,8 @@ pub const PostProcessingPass = struct {
                     constant_buffer_data.bloom_threshold = self.bloom_settings.bloom_threshold;
                     constant_buffer_data.inverse_output_size[0] = 1.0 / @as(f32, @floatFromInt(self.renderer.bloom_width));
                     constant_buffer_data.inverse_output_size[1] = 1.0 / @as(f32, @floatFromInt(self.renderer.bloom_height));
+                    constant_buffer_data.exposure = self.exposure_settings.exposure;
+                    constant_buffer_data.exposure = 1.0 / self.exposure_settings.exposure;
 
                     const data = OpaqueSlice{
                         .data = @ptrCast(&constant_buffer_data),
@@ -376,8 +286,9 @@ pub const PostProcessingPass = struct {
 
         // Tonemap
         {
+            const scene_color_src_state: graphics.ResourceState = if (self.bloom_settings.enabled) .RESOURCE_STATE_SHADER_RESOURCE else .RESOURCE_STATE_RENDER_TARGET;
             var rt_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                graphics.RenderTargetBarrier.init(self.renderer.scene_color, scene_color_src_state, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
 
@@ -395,6 +306,7 @@ pub const PostProcessingPass = struct {
                 constant_buffer_data.bloom_strength = self.bloom_settings.bloom_strength;
                 constant_buffer_data.paper_white_ratio = 0.2;
                 constant_buffer_data.max_brightness = 1000.0;
+                constant_buffer_data.exposure = self.exposure_settings.exposure;
 
                 const data = OpaqueSlice{
                     .data = @ptrCast(&constant_buffer_data),
@@ -418,117 +330,6 @@ pub const PostProcessingPass = struct {
                 graphics.TextureBarrier.init(luminance, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), 0, null);
-        }
-
-        // Adapt exposure
-        {
-            // self.update_exposure_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.renderer.gpu_profile_token, "Update Exposure", .{ .bUseMarker = true});
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.update_exposure_profile_token);
-
-            const luma = self.renderer.getTexture(self.renderer.luma_lr);
-            const luma_width: u32 = @intCast(luma[0].bitfield_1.mWidth);
-            const luma_height: u32 = @intCast(luma[0].bitfield_1.mHeight);
-            const histogram_buffer = self.renderer.getBuffer(self.histogram_buffers[frame_index]);
-            const exposure_buffer = self.renderer.getBuffer(self.exposure_buffers[frame_index]);
-            var texture_barriers = [_]graphics.TextureBarrier{
-                graphics.TextureBarrier.init(luma, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-            };
-            var input_buffer_barriers = [_]graphics.BufferBarrier{
-                graphics.BufferBarrier.init(histogram_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
-            };
-            graphics.cmdResourceBarrier(cmd_list, input_buffer_barriers.len, @constCast(&input_buffer_barriers), texture_barriers.len, @constCast(&texture_barriers), 0, null);
-
-            // Update constant buffer
-            {
-                var constant_buffer_data = std.mem.zeroes(GenerateHistogramConstantBuffer);
-                constant_buffer_data.buffer_height = luma_height;
-
-                const data = OpaqueSlice{
-                    .data = @ptrCast(&constant_buffer_data),
-                    .size = @sizeOf(GenerateHistogramConstantBuffer),
-                };
-                self.renderer.updateBuffer(data, 0, GenerateHistogramConstantBuffer, self.generate_histogram_buffers[frame_index]);
-            }
-
-            // Clear histogram
-            {
-                const pipeline_id = IdLocal.init("clear_uav");
-                const pipeline = self.renderer.getPSO(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                graphics.cmdBindDescriptorSet(cmd_list, 0, self.clear_uav_descriptor_set);
-                graphics.cmdDispatch(cmd_list, 256 / 32, 1, 1);
-            }
-
-            // Generate histogram
-            {
-                const pipeline_id = IdLocal.init("generate_histogram");
-                const pipeline = self.renderer.getPSO(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                graphics.cmdBindDescriptorSet(cmd_list, 0, self.generate_histogram_descriptor_set);
-                graphics.cmdDispatch(cmd_list, (luma_width + 16 - 1) / 16, 1, 1);
-            }
-
-            const draw_histogram = false;
-
-            // Debug Draw histogram
-            if (draw_histogram) {
-                var debug_draw_histogram_barriers = [_]graphics.BufferBarrier{
-                    graphics.BufferBarrier.init(histogram_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                };
-
-                var debug_draw_histogram_rt_barriers = [_]graphics.RenderTargetBarrier{
-                    graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
-                };
-                graphics.cmdResourceBarrier(cmd_list, debug_draw_histogram_barriers.len, @constCast(&debug_draw_histogram_barriers), 0, null, debug_draw_histogram_rt_barriers.len, @ptrCast(&debug_draw_histogram_rt_barriers));
-
-                const pipeline_id = IdLocal.init("debug_draw_histogram");
-                const pipeline = self.renderer.getPSO(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                graphics.cmdBindDescriptorSet(cmd_list, 0, self.draw_debug_histogram_descriptor_set);
-                graphics.cmdDispatch(cmd_list, 1, 32, 1);
-
-                debug_draw_histogram_rt_barriers = [_]graphics.RenderTargetBarrier{
-                    graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                };
-                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, debug_draw_histogram_rt_barriers.len, @ptrCast(&debug_draw_histogram_rt_barriers));
-            }
-
-            var num_output_buffer_barriers: u32 = 1;
-            var output_buffer_barriers: [2]graphics.BufferBarrier = undefined;
-            output_buffer_barriers[0] = graphics.BufferBarrier.init(exposure_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS);
-
-            if (!draw_histogram) {
-                num_output_buffer_barriers = 2;
-                output_buffer_barriers[1] = graphics.BufferBarrier.init(histogram_buffer, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE);
-            }
-
-            graphics.cmdResourceBarrier(cmd_list, num_output_buffer_barriers, @constCast(&output_buffer_barriers), 0, null, 0, null);
-
-            // Adapt Exposure
-            if (self.exposure_settings.enable_adaptation) {
-
-                // Update constant buffer
-                {
-                    var constant_buffer_data = std.mem.zeroes(AdaptExposureConstantBuffer);
-                    constant_buffer_data.target_luminance = self.exposure_settings.target_luminance;
-                    constant_buffer_data.adaptation_rate = self.exposure_settings.adapation_rate;
-                    constant_buffer_data.min_exposure = self.exposure_settings.min_exposure;
-                    constant_buffer_data.max_exposure = self.exposure_settings.max_exposure;
-                    constant_buffer_data.pixel_count = luma_width * luma_height;
-
-                    const data = OpaqueSlice{
-                        .data = @ptrCast(&constant_buffer_data),
-                        .size = @sizeOf(AdaptExposureConstantBuffer),
-                    };
-                    self.renderer.updateBuffer(data, 0, AdaptExposureConstantBuffer, self.adapt_exposure_buffers[frame_index]);
-                }
-
-                const pipeline_id = IdLocal.init("adapt_exposure");
-                const pipeline = self.renderer.getPSO(pipeline_id);
-                graphics.cmdBindPipeline(cmd_list, pipeline);
-                graphics.cmdBindDescriptorSet(cmd_list, 0, self.adapt_exposure_descriptor_set);
-                graphics.cmdDispatch(cmd_list, 1, 1, 1);
-            }
         }
     }
 
@@ -580,14 +381,16 @@ pub const PostProcessingPass = struct {
     }
 
     pub fn renderImGui(self: *@This()) void {
-        if (zgui.collapsingHeader("Bloom", .{})) {
-            // _ = zgui.checkbox("Bloom Enabled", .{ .v = &self.bloom_settings.enabled });
-            _ = zgui.dragFloat("Threshold", .{ .v = &self.bloom_settings.bloom_threshold, .cfmt = "%.2f", .min = 0.05, .max = 1.0, .speed = 0.01 });
-            _ = zgui.dragFloat("Strength", .{ .v = &self.bloom_settings.bloom_strength, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
-        }
+        if (zgui.collapsingHeader("Post Processing", .{})) {
+            if (zgui.collapsingHeader("Bloom", .{ .frame_padding = true })) {
+                _ = zgui.checkbox("Bloom Enabled", .{ .v = &self.bloom_settings.enabled });
+                _ = zgui.dragFloat("Threshold", .{ .v = &self.bloom_settings.bloom_threshold, .cfmt = "%.2f", .min = 0.05, .max = 1.0, .speed = 0.01 });
+                _ = zgui.dragFloat("Strength", .{ .v = &self.bloom_settings.bloom_strength, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
+            }
 
-        if (zgui.collapsingHeader("Exposure", .{})) {
-            _ = zgui.checkbox("Adaptive Exposure", .{ .v = &self.exposure_settings.enable_adaptation });
+            if (zgui.collapsingHeader("Exposure Settings", .{ .frame_padding = true })) {
+                _ = zgui.dragFloat("Exposure", .{ .v = &self.exposure_settings.exposure, .cfmt = "%.2f", .min = 0.01, .max = 8.0, .speed = 0.01 });
+            }
         }
     }
 
@@ -620,35 +423,13 @@ pub const PostProcessingPass = struct {
         desc.pRootSignature = root_signature;
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.tonemap_descriptor_set));
-
-        root_signature = self.renderer.getRootSignature(IdLocal.init("generate_histogram"));
-        desc.pRootSignature = root_signature;
-        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.generate_histogram_descriptor_set));
-
-        root_signature = self.renderer.getRootSignature(IdLocal.init("debug_draw_histogram"));
-        desc.pRootSignature = root_signature;
-        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.draw_debug_histogram_descriptor_set));
-
-        root_signature = self.renderer.getRootSignature(IdLocal.init("adapt_exposure"));
-        desc.pRootSignature = root_signature;
-        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.adapt_exposure_descriptor_set));
-
-        root_signature = self.renderer.getRootSignature(IdLocal.init("clear_uav"));
-        desc.pRootSignature = root_signature;
-        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.clear_uav_descriptor_set));
     }
 
     pub fn prepareDescriptorSets(self: *@This()) void {
         // Bloom Extract
         for (0..renderer.Renderer.data_buffer_count) |i| {
             var bloom_uav1a = self.renderer.getTexture(self.renderer.bloom_uav1[0]);
-            var luma = self.renderer.getTexture(self.renderer.luma_lr);
-            var params: [5]graphics.DescriptorData = undefined;
-            var exposure_buffer = self.renderer.getBuffer(self.exposure_buffers[i]);
+            var params: [3]graphics.DescriptorData = undefined;
             var bloom_extract_constant_buffer = self.renderer.getBuffer(self.bloom_extract_constant_buffers[i]);
 
             params[0] = std.mem.zeroes(graphics.DescriptorData);
@@ -658,14 +439,8 @@ pub const PostProcessingPass = struct {
             params[1].pName = "SourceTex";
             params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
             params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "Exposure";
-            params[2].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
-            params[3] = std.mem.zeroes(graphics.DescriptorData);
-            params[3].pName = "BloomResult";
-            params[3].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
-            params[4] = std.mem.zeroes(graphics.DescriptorData);
-            params[4].pName = "LumaResult";
-            params[4].__union_field3.ppTextures = @ptrCast(&luma);
+            params[2].pName = "BloomResult";
+            params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav1a);
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.bloom_extract_descriptor_set, params.len, @ptrCast(&params));
         }
@@ -769,81 +544,25 @@ pub const PostProcessingPass = struct {
 
         // Tonemap
         for (0..renderer.Renderer.data_buffer_count) |frame_index| {
-            var params: [5]graphics.DescriptorData = undefined;
+            var params: [4]graphics.DescriptorData = undefined;
             var tonemap_constant_buffer = self.renderer.getBuffer(self.tonemap_constant_buffers[frame_index]);
             var bloom_uav1b = self.renderer.getTexture(self.renderer.bloom_uav1[1]);
-            var exposure_buffer = self.renderer.getBuffer(self.exposure_buffers[frame_index]);
             var luminance = self.renderer.getTexture(self.renderer.luminance);
 
             params[0] = std.mem.zeroes(graphics.DescriptorData);
             params[0].pName = "CB0";
             params[0].__union_field3.ppBuffers = @ptrCast(&tonemap_constant_buffer);
             params[1] = std.mem.zeroes(graphics.DescriptorData);
-            params[1].pName = "Exposure";
-            params[1].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
+            params[1].pName = "Bloom";
+            params[1].__union_field3.ppTextures = @ptrCast(&bloom_uav1b);
             params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "Bloom";
-            params[2].__union_field3.ppTextures = @ptrCast(&bloom_uav1b);
+            params[2].pName = "ColorRW";
+            params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
             params[3] = std.mem.zeroes(graphics.DescriptorData);
-            params[3].pName = "ColorRW";
-            params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
-            params[4] = std.mem.zeroes(graphics.DescriptorData);
-            params[4].pName = "OutLuma";
-            params[4].__union_field3.ppTextures = @ptrCast(&luminance);
+            params[3].pName = "OutLuma";
+            params[3].__union_field3.ppTextures = @ptrCast(&luminance);
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.tonemap_descriptor_set, params.len, @ptrCast(&params));
-        }
-
-        // Exposure
-        for (0..renderer.Renderer.data_buffer_count) |frame_index| {
-            var params: [3]graphics.DescriptorData = undefined;
-            var generate_histogram_constant_buffer = self.renderer.getBuffer(self.generate_histogram_buffers[frame_index]);
-            var adapt_exposure_constant_buffer = self.renderer.getBuffer(self.adapt_exposure_buffers[frame_index]);
-            var histogram_buffer = self.renderer.getBuffer(self.histogram_buffers[frame_index]);
-            var exposure_buffer = self.renderer.getBuffer(self.exposure_buffers[frame_index]);
-            var luma = self.renderer.getTexture(self.renderer.luma_lr);
-
-            params[0] = std.mem.zeroes(graphics.DescriptorData);
-            params[0].pName = "CB0";
-            params[0].__union_field3.ppBuffers = @ptrCast(&generate_histogram_constant_buffer);
-            params[1] = std.mem.zeroes(graphics.DescriptorData);
-            params[1].pName = "LumaBuf";
-            params[1].__union_field3.ppTextures = @ptrCast(&luma);
-            params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "Histogram";
-            params[2].__union_field3.ppBuffers = @ptrCast(&histogram_buffer);
-
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.generate_histogram_descriptor_set, params.len, @ptrCast(&params));
-
-            params[0] = std.mem.zeroes(graphics.DescriptorData);
-            params[0].pName = "cb0";
-            params[0].__union_field3.ppBuffers = @ptrCast(&adapt_exposure_constant_buffer);
-            params[1] = std.mem.zeroes(graphics.DescriptorData);
-            params[1].pName = "Histogram";
-            params[1].__union_field3.ppBuffers = @ptrCast(&histogram_buffer);
-            params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "Exposure";
-            params[2].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
-
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.adapt_exposure_descriptor_set, params.len, @ptrCast(&params));
-
-            params[0] = std.mem.zeroes(graphics.DescriptorData);
-            params[0].pName = "OutputBuffer";
-            params[0].__union_field3.ppBuffers = @ptrCast(&histogram_buffer);
-
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.clear_uav_descriptor_set, 1, @ptrCast(&params));
-
-            params[0] = std.mem.zeroes(graphics.DescriptorData);
-            params[0].pName = "Histogram";
-            params[0].__union_field3.ppBuffers = @ptrCast(&histogram_buffer);
-            params[1] = std.mem.zeroes(graphics.DescriptorData);
-            params[1].pName = "Exposure";
-            params[1].__union_field3.ppBuffers = @ptrCast(&exposure_buffer);
-            params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "ColorBuffer";
-            params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
-
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.draw_debug_histogram_descriptor_set, params.len, @ptrCast(&params));
         }
     }
 
@@ -856,9 +575,5 @@ pub const PostProcessingPass = struct {
         graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_3_descriptor_set);
         graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_4_descriptor_set);
         graphics.removeDescriptorSet(self.renderer.renderer, self.tonemap_descriptor_set);
-        graphics.removeDescriptorSet(self.renderer.renderer, self.generate_histogram_descriptor_set);
-        graphics.removeDescriptorSet(self.renderer.renderer, self.draw_debug_histogram_descriptor_set);
-        graphics.removeDescriptorSet(self.renderer.renderer, self.adapt_exposure_descriptor_set);
-        graphics.removeDescriptorSet(self.renderer.renderer, self.clear_uav_descriptor_set);
     }
 };
