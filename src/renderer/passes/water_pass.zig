@@ -94,8 +94,7 @@ pub const WaterPass = struct {
         self.instance_data.deinit();
     }
 
-    pub fn renderImGui(self: *@This()) void {
-        _ = self;
+    pub fn renderImGui(_: *@This()) void {
         if (zgui.collapsingHeader("Water", .{})) {
         }
     }

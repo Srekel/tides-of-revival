@@ -25,6 +25,7 @@ const ztracy = @import("ztracy");
 const DeferredShadingPass = @import("passes/deferred_shading_pass.zig").DeferredShadingPass;
 const ProceduralSkyboxPass = @import("passes/procedural_skybox_pass.zig").ProceduralSkyboxPass;
 const WaterPass = @import("passes/water_pass.zig").WaterPass;
+const PostProcessingPass = @import("passes/post_processing_pass.zig").PostProcessingPass;
 
 pub const ReloadDesc = graphics.ReloadDesc;
 pub const renderPassUpdateFn = ?*const fn (user_data: *anyopaque) void;
@@ -41,9 +42,7 @@ pub const RenderPass = struct {
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
 
-    render_post_processing_pass_fn: renderPassRenderFn = null,
     render_ui_pass_fn: renderPassRenderFn = null,
-
     render_imgui_fn: renderPassImGuiFn = null,
 
     create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
@@ -151,6 +150,7 @@ pub const Renderer = struct {
     deferred_shading_pass: DeferredShadingPass = undefined,
     procedural_skybox_pass: ProceduralSkyboxPass = undefined,
     water_pass: WaterPass = undefined,
+    post_processing_pass: PostProcessingPass = undefined,
 
     // Render Targets
     // ==============
@@ -421,6 +421,7 @@ pub const Renderer = struct {
         self.deferred_shading_pass.init(self, self.allocator);
         self.procedural_skybox_pass.init(self, self.allocator);
         self.water_pass.init(self, self.allocator);
+        self.post_processing_pass.init(self, self.allocator);
 
         // Scene Data
         self.ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(self.allocator);
@@ -430,6 +431,7 @@ pub const Renderer = struct {
         // Scene Data
         self.ocean_tiles.deinit();
 
+        self.post_processing_pass.destroy();
         self.water_pass.destroy();
         self.procedural_skybox_pass.destroy();
         self.deferred_shading_pass.destroy();
@@ -573,6 +575,7 @@ pub const Renderer = struct {
             self.deferred_shading_pass.createDescriptorSets();
             self.procedural_skybox_pass.createDescriptorSets();
             self.water_pass.createDescriptorSets();
+            self.post_processing_pass.createDescriptorSets();
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.create_descriptor_sets_fn) |create_descriptor_sets_fn| {
@@ -587,6 +590,7 @@ pub const Renderer = struct {
         self.deferred_shading_pass.prepareDescriptorSets();
         self.procedural_skybox_pass.prepareDescriptorSets();
         self.water_pass.prepareDescriptorSets();
+        self.post_processing_pass.prepareDescriptorSets();
 
         for (self.render_passes.items) |render_pass| {
             if (render_pass.prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -623,6 +627,7 @@ pub const Renderer = struct {
             self.deferred_shading_pass.unloadDescriptorSets();
             self.procedural_skybox_pass.unloadDescriptorSets();
             self.water_pass.unloadDescriptorSets();
+            self.post_processing_pass.unloadDescriptorSets();
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
@@ -870,11 +875,7 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_post_processing_pass_fn) |render_post_processing_pass_fn| {
-                    render_post_processing_pass_fn(cmd_list, render_view, render_pass.user_data);
-                }
-            }
+            self.post_processing_pass.render(cmd_list, render_view);
         }
 
         // UI Overlay
@@ -1121,6 +1122,9 @@ pub const Renderer = struct {
             }
 
             self.deferred_shading_pass.renderImGui();
+            self.procedural_skybox_pass.renderImGui();
+            self.water_pass.renderImGui();
+            self.post_processing_pass.renderImGui();
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_imgui_fn) |render_imgui_fn| {

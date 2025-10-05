@@ -22,7 +22,6 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
 const GpuDrivenRenderPass = @import("renderer_system/gpu_driven_render_pass.zig").GpuDrivenRenderPass;
-const PostProcessingRenderPass = @import("renderer_system/post_processing_render_pass.zig").PostProcessingRenderPass;
 const UIRenderPass = @import("renderer_system/ui_render_pass.zig").UIRenderPass;
 const Im3dRenderPass = @import("renderer_system/im3d_render_pass.zig").Im3dRenderPass;
 
@@ -52,7 +51,6 @@ pub const SystemUpdateContext = struct {
         terrain_render_pass: *TerrainRenderPass,
         geometry_render_pass: *GeometryRenderPass,
         gpu_driven_render_pass: *GpuDrivenRenderPass,
-        post_processing_pass: *PostProcessingRenderPass,
         ui_render_pass: *UIRenderPass,
         im3d_render_pass: *Im3dRenderPass,
         render_imgui: bool,
@@ -81,9 +79,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
     const gpu_driven_render_pass = arena_system_lifetime.create(GpuDrivenRenderPass) catch unreachable;
     gpu_driven_render_pass.init(ctx_renderer, ecsu_world, prefab_mgr, pso_mgr, pass_allocator);
-
-    const post_processing_render_pass = arena_system_lifetime.create(PostProcessingRenderPass) catch unreachable;
-    post_processing_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const ui_render_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
     ui_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
@@ -114,7 +109,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
         .gpu_driven_render_pass = gpu_driven_render_pass,
-        .post_processing_pass = post_processing_render_pass,
         .ui_render_pass = ui_render_pass,
         .im3d_render_pass = im3d_render_pass,
         .render_imgui = false,
@@ -155,7 +149,6 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     system.state.terrain_render_pass.destroy();
     system.state.geometry_render_pass.destroy();
     system.state.gpu_driven_render_pass.destroy();
-    system.state.post_processing_pass.destroy();
     system.state.ui_render_pass.destroy();
     system.state.im3d_render_pass.destroy();
 

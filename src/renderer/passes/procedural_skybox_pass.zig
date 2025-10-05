@@ -225,6 +225,11 @@ pub const ProceduralSkyboxPass = struct {
         }
     }
 
+    pub fn renderImGui(_: *@This()) void {
+        if (zgui.collapsingHeader("Procedural Skybox", .{})) {
+        }
+    }
+
     pub fn createDescriptorSets(self: *@This()) void {
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
