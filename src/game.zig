@@ -161,14 +161,6 @@ pub fn run() void {
     const audio = zaudio.Engine.create(null) catch unreachable;
     defer audio.destroy();
 
-    const music = audio.createSoundFromFile(
-        "content/audio/music/the_first_forayst.mp3",
-        .{ .flags = .{ .stream = true } },
-    ) catch unreachable;
-    defer music.destroy();
-    music.setVolume(5);
-    music.start() catch unreachable;
-
     _ = ecs.struct_init(ecsu_world.world, .{
         .entity = ecs.id(fd.Position), // Make sure to use existing id
         .members = ([_]ecs.member_t{
@@ -277,8 +269,9 @@ pub fn run() void {
         break :blk null;
     };
 
-    const player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    config.entity.init(player_pos, &prefab_mgr, ecsu_world, gameloop_context.physics_world);
+    var player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
+    player_pos.x -= 5;
+    config.entity.init(player_pos, &prefab_mgr, ecsu_world, &gameloop_context);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝
@@ -373,6 +366,12 @@ pub fn run() void {
         ztracy.FrameMark();
 
         if (done) {
+            const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+            const music_opt = environment_info.player.?.get(fd.Player).?.music;
+            if (music_opt) |music| {
+                music.destroy();
+            }
+
             // Clear out systems. Needed to clear up memory.
             // NOTE: I'm not sure why this need to be done explicitly, I think
             //       systems should get destroyed when world is deleted.

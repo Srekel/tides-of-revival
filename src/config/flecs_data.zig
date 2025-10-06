@@ -1,5 +1,6 @@
 const std = @import("std");
 const zphy = @import("zphysics");
+const zaudio = @import("zaudio");
 const zm = @import("zmath");
 const ecs = @import("zflecs");
 const config = @import("../config/config.zig");
@@ -766,5 +767,7 @@ pub const Enemy = struct {
 
 pub const Player = struct {
     amount_moved: f32 = 0,
+    amount_moved_total: f32 = 0,
     sfx_footstep_index: u32 = 0,
+    music: ?*zaudio.Sound = null,
 };
