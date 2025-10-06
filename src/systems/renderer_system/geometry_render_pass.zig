@@ -394,7 +394,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView,
     }
 
     // Render Cutout Shadow Casters
-    {
+    if (false) {
         const trazy_zone1 = ztracy.ZoneNC(@src(), "Cutout Objects", 0x00_ff_ff_00);
         defer trazy_zone1.End();
 
@@ -452,7 +452,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView,
     }
 
     // Render Opaque Shadow Casters
-    {
+    if (false) {
         const trazy_zone1 = ztracy.ZoneNC(@src(), "Opaque Objects", 0x00_ff_ff_00);
         defer trazy_zone1.End();
 

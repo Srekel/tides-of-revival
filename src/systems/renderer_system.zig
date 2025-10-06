@@ -36,7 +36,6 @@ pub const SystemCreateCtx = struct {
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
     prefab_mgr: *PrefabManager,
-    pso_mgr: *PSOManager,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 

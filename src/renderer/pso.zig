@@ -446,8 +446,14 @@ pub const PSOManager = struct {
 
             // Meshlets Rasterization
             {
+                const gbuffer_opaque_id = IdLocal.init("meshlet_gbuffer_opaque");
+                const gbuffer_masked_id = IdLocal.init("meshlet_gbuffer_masked");
+                const depth_only_opaque_id = IdLocal.init("meshlet_depth_only_opaque");
+                const depth_only_masked_id = IdLocal.init("meshlet_depth_only_masked");
+
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-                const render_targets = [_]graphics.TinyImageFormat{
+
+                const gbuffer_render_targets = [_]graphics.TinyImageFormat{
                     self.renderer.gbuffer_0.*.mFormat,
                     self.renderer.gbuffer_1.*.mFormat,
                     self.renderer.gbuffer_2.*.mFormat,
@@ -456,23 +462,38 @@ pub const PSOManager = struct {
                 const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
                 var desc = MeshPipelineDesc{
-                    .id = IdLocal.init("meshlet_gbuffer_opaque"),
+                    .id = gbuffer_opaque_id,
                     .mesh_shader_name = "meshlet_rasterizer.mesh",
                     .frag_shader_name = "meshlet_rasterizer_opaque.frag",
-                    .render_targets = @constCast(&render_targets),
+                    .render_targets = @constCast(&gbuffer_render_targets),
                     .rasterizer_state = rasterizer_cull_back,
                     .depth_state = depth_state,
                     .depth_format = self.renderer.depth_buffer.*.mFormat,
                     .sampler_ids = &sampler_ids,
                 };
                 self.createMeshPipeline(desc);
-                self.pso_bins.append(.{ .gbuffer_id = desc.id }) catch unreachable;
 
-                desc.id = IdLocal.init("meshlet_gbuffer_masked");
+                desc.id = gbuffer_masked_id;
                 desc.rasterizer_state = rasterizer_cull_none;
                 desc.frag_shader_name = "meshlet_rasterizer_masked.frag";
                 self.createMeshPipeline(desc);
-                self.pso_bins.append(.{ .gbuffer_id = desc.id }) catch unreachable;
+
+                var rasterizer_shadow = rasterizer_cull_back;
+                rasterizer_shadow.mDepthBias = -10.0;
+                rasterizer_shadow.mSlopeScaledDepthBias = -4.0;
+
+                desc.id = depth_only_opaque_id;
+                desc.rasterizer_state = rasterizer_shadow;
+                desc.frag_shader_name = null;
+                desc.depth_format = self.renderer.shadow_depth_buffers[0].*.mFormat;
+                self.createMeshPipeline(desc);
+
+                desc.id = depth_only_masked_id;
+                desc.frag_shader_name = "meshlet_rasterizer_masked_depth_only.frag";
+                self.createMeshPipeline(desc);
+
+                self.pso_bins.append(.{ .gbuffer_id = gbuffer_opaque_id, .shadow_caster_id = depth_only_opaque_id }) catch unreachable;
+                self.pso_bins.append(.{ .gbuffer_id = gbuffer_masked_id, .shadow_caster_id = depth_only_masked_id }) catch unreachable;
             }
         }
 
