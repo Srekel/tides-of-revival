@@ -1208,17 +1208,17 @@ pub const Renderer = struct {
             cascade_splits[i] = (d - near_plane) / clip_range;
         }
 
-        const main_view = zm.loadMat(&camera_comps.camera.view);
-        const main_view_inverse = zm.inverse(main_view);
+        const view_projection = zm.loadMat(&camera_comps.camera.view_projection);
+        const view_projection_inverse = zm.inverse(view_projection);
         const frustum_corners_ws = [_]zm.Vec{
-            transformVec3Coord(zm.Vec{ -1, -1, 1, 0 }, main_view_inverse),
-            transformVec3Coord(zm.Vec{ -1, -1, 0, 0 }, main_view_inverse),
-            transformVec3Coord(zm.Vec{ -1, 1, 1, 0 }, main_view_inverse),
-            transformVec3Coord(zm.Vec{ -1, 1, 0, 0 }, main_view_inverse),
-            transformVec3Coord(zm.Vec{ 1, 1, 1, 0 }, main_view_inverse),
-            transformVec3Coord(zm.Vec{ 1, 1, 0, 0 }, main_view_inverse),
-            transformVec3Coord(zm.Vec{ 1, -1, 1, 0 }, main_view_inverse),
-            transformVec3Coord(zm.Vec{ 1, -1, 0, 0 }, main_view_inverse),
+            transformVec3Coord(zm.Vec{ -1, -1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ -1, -1, 0, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ -1, 1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ -1, 1, 0, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, 1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, 1, 0, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, -1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, -1, 0, 0 }, view_projection_inverse),
         };
 
         const light_view = zm.inverse(zm.matFromQuat(sun_comps.rotation.asZM()));
@@ -1247,7 +1247,7 @@ pub const Renderer = struct {
             // Create a bounding sphere to maintain aspect in projection to avoid flickering when rotating
             var radius: f32 = 0;
             for (frustum_corners_vs) |corner| {
-                const dist = zm.length3(center - corner)[0];
+                const dist = zm.length3(corner - center)[0];
                 radius = @max(dist, radius);
             }
             var extents_min = center - zm.splat(zm.Vec, radius);
@@ -1258,7 +1258,7 @@ pub const Renderer = struct {
             const texel_size = extents / zm.splat(zm.Vec, @floatFromInt(cascaded_shadow_resolution));
             extents_min = zm.floor(extents_min / texel_size) * texel_size;
             extents_max = zm.floor(extents_max / texel_size) * texel_size;
-            center = (extents + extents) * zm.splat(zm.Vec, 0.5);
+            center = (extents_min + extents_max) * zm.splat(zm.Vec, 0.5);
 
             // Z-bounds extents
             var extents_z = @abs(center[2] - extents_min[2]);
@@ -1266,8 +1266,8 @@ pub const Renderer = struct {
             extents_min[2] = center[2] - extents_z;
             extents_max[2] = center[2] + extents_z;
 
-            const proj = zm.orthographicOffCenterLh(extents_min[0], extents_max[0], extents_max[1], extents_min[1], extents_min[0], extents_max[1]);
-            const proj_view = zm.transpose(zm.mul(light_view, proj));
+            const proj = zm.orthographicOffCenterLh(extents_min[0], extents_max[0], extents_max[1], extents_min[1], extents_max[2], extents_min[2]);
+            const proj_view = zm.mul(light_view, proj);
 
             self.shadow_views[i] = std.mem.zeroes(RenderView);
             self.shadow_views[i].view = light_view;
@@ -1276,6 +1276,7 @@ pub const Renderer = struct {
             self.shadow_views[i].projection_inverse = zm.inverse(self.shadow_views[i].projection);
             self.shadow_views[i].view_projection = proj_view;
             self.shadow_views[i].view_projection_inverse = zm.inverse(self.shadow_views[i].view_projection);
+            self.shadow_views[i].viewport = [2]f32{ @floatFromInt(cascaded_shadow_resolution), @floatFromInt(cascaded_shadow_resolution) };
 
             self.shadow_cascade_depths[i] = near_plane + current_cascade_split * (far_plane - near_plane);
         }
@@ -1905,8 +1906,15 @@ pub const Renderer = struct {
 
         // Shadow Buffers
         for (0..cascades_max_count) |i| {
+            var rt_name_buffer: [256]u8 = undefined;
+            const rt_name = std.fmt.bufPrintZ(
+                rt_name_buffer[0..rt_name_buffer.len],
+                "Shadow Depth Buffer {d}",
+                .{i},
+            ) catch unreachable;
+
             var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Shadow Depth Buffer";
+            rt_desc.pName = rt_name;
             rt_desc.mArraySize = 1;
             rt_desc.mClearValue.__struct_field3.depth = 0.0;
             rt_desc.mClearValue.__struct_field3.stencil = 0;
