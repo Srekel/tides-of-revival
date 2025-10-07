@@ -841,4 +841,21 @@ pub const Player = struct {
     amount_moved_total: f32 = 0,
     sfx_footstep_index: u32 = 0,
     music: ?*zaudio.Sound = null,
+    vo_intro: *zaudio.Sound = undefined,
+    vo_exited_village: *zaudio.Sound = undefined,
+    vo_200m: *zaudio.Sound = undefined,
+    vo_500m: *zaudio.Sound = undefined,
+    vo_reached_hill: *zaudio.Sound = undefined,
+    vo_evening: *zaudio.Sound = undefined,
+    vo_first_dawn: *zaudio.Sound = undefined,
+    played_intro: bool = false,
+    played_exited_village: bool = false,
+    played_200m: bool = false,
+    played_500m: bool = false,
+    played_reached_hill: bool = false,
+    played_evening: bool = false,
+    played_first_dawn: bool = false,
 };
+
+// script
+// intro: There's a beast out there, somewhere. They wanted me to slay it. Fine.

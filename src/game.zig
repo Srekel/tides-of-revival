@@ -362,10 +362,9 @@ pub fn run() void {
 
         if (done) {
             const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-            const music_opt = environment_info.player.?.get(fd.Player).?.music;
-            if (music_opt) |music| {
-                music.destroy();
-            }
+            const player_comp = environment_info.player.?.get(fd.Player).?;
+            player_comp.music.?.destroy();
+            player_comp.vo_intro.destroy();
 
             // Clear out systems. Needed to clear up memory.
             // NOTE: I'm not sure why this need to be done explicitly, I think

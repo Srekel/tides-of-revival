@@ -91,13 +91,13 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_ent.set(fd.Interactor{ .active = true, .wielded_item_ent_id = bow_ent.id });
     player_ent.set(fd.Journey{});
 
-    const music = ctx.audio.createSoundFromFile(
-        "content/audio/music/the_first_forayst.mp3",
-        .{ .flags = .{ .stream = true } },
-    ) catch unreachable;
-    music.setVolume(3);
+    var player_comp = fd.Player{};
+    player_comp.music = ctx.audio.createSoundFromFile("content/audio/music/the_first_forayst.mp3", .{ .flags = .{ .stream = true } }) catch unreachable;
+    player_comp.music.?.setVolume(3);
+    player_comp.vo_intro = ctx.audio.createSoundFromFile("content/audio/hill3/intro.wav", .{}) catch unreachable;
+    player_comp.vo_intro.setVolume(4);
 
-    player_ent.set(fd.Player{ .music = music });
+    player_ent.set(player_comp);
 
     const debug_camera_ent = ecsu_world.newEntity();
     debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });

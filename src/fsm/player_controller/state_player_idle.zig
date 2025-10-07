@@ -138,6 +138,28 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
     }
 }
 
+fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: f32, player: *fd.Player) void {
+    _ = pos; // autofix
+    _ = rot; // autofix
+    _ = fwd; // autofix
+    _ = dt; // autofix
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+
+    if (!player.played_intro and environment_info.world_time > 10) {
+        player.played_intro = true;
+        player.vo_intro.start() catch unreachable;
+        // const sound_path = "content/audio/hill3/intro.wav";
+        // ctx.audio.playSound(sound_path, null) catch unreachable;
+    }
+
+    // if (!player.played_intro and environment_info.world_time > 20) {
+    //     player.played_intro = true;
+
+    //     const sound_path = "content/audio/hill3/intro.wav";
+    //     ctx.audio.playSound(sound_path, null) catch unreachable;
+    // }
+}
+
 fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
@@ -156,6 +178,7 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         const pos_before = pos.asZM();
         updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
         updateSnapToTerrain(ctx.physics_world, pos);
+        playVoiceOver(ctx, pos, rot, fwd, it.delta_time, player);
 
         const pos_after = pos.asZM();
         player.*.amount_moved += zm.length3(pos_after - pos_before)[0];
