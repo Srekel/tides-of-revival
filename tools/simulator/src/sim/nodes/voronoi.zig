@@ -20,8 +20,8 @@ const jcv_diagram_generate = c_cpp_nodes.jcv_diagram_generate;
 pub const VoronoiCellType = enum(u32) {
     NONE = 0,
     WATER = 1,
-    LAND = 2,
-    SHORE = 3,
+    SHORE = 2,
+    LAND = 3,
     MOUNTAIN = 4,
 };
 

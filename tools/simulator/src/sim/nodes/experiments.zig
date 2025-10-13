@@ -42,7 +42,7 @@ pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *
 
     writeLine(writer, "using flecs.meta", .{});
 
-    for (0..20) |settlement_level| {
+    for (0..200) |settlement_level| {
         writeEmptyLine(writer);
         writeLine(writer, "if $settlement_level == {d} {{    ", .{settlement_level});
         for (props.items, 0..) |prop, prop_i| {
@@ -123,23 +123,26 @@ fn pathCostHeuristic(pos: [2]f32, target: [2]f32) f32 {
     return @sqrt(x * x + z * z);
 }
 
+var lol: i32 = 0;
+var avg_dist: f32 = 0;
+
 fn doAStar(start: PathNode, target: PathNode, ctx: AStarContext) void {
-    var all_nodes = std.ArrayListUnmanaged(PathNode).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
-    var came_from = std.ArrayListUnmanaged(u32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    var all_nodes = std.ArrayListUnmanaged(PathNode).initCapacity(ctx.allocator, 1024 * 1024 * 64) catch unreachable;
+    var came_from = std.ArrayListUnmanaged(u32).initCapacity(ctx.allocator, 1024 * 1024 * 64) catch unreachable;
     came_from.appendNTimesAssumeCapacity(math.maxInt(u32), came_from.capacity);
 
     var hash_to_index: std.AutoHashMapUnmanaged(u64, u32) = .empty;
     defer hash_to_index.deinit(ctx.allocator);
-    hash_to_index.ensureTotalCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    hash_to_index.ensureTotalCapacity(ctx.allocator, 1024 * 1024 * 64) catch unreachable;
 
     // gScore
-    var known_costs = std.ArrayListUnmanaged(f32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    var known_costs = std.ArrayListUnmanaged(f32).initCapacity(ctx.allocator, 1024 * 1024 * 64) catch unreachable;
     known_costs.appendNTimesAssumeCapacity(math.floatMax(f32), known_costs.capacity);
     // fScore
-    var open_costs = std.ArrayListUnmanaged(f32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    var open_costs = std.ArrayListUnmanaged(f32).initCapacity(ctx.allocator, 1024 * 1024 * 64) catch unreachable;
     open_costs.appendNTimesAssumeCapacity(math.floatMax(f32), open_costs.capacity);
 
-    var open_set = std.ArrayListUnmanaged(u32).initCapacity(ctx.allocator, 1024 * 1024 * 16) catch unreachable;
+    var open_set = std.ArrayListUnmanaged(u32).initCapacity(ctx.allocator, 1024 * 1024 * 64) catch unreachable;
 
     all_nodes.appendAssumeCapacity(start);
     hash_to_index.putAssumeCapacity(start.hash(), 0);
@@ -173,7 +176,14 @@ fn doAStar(start: PathNode, target: PathNode, ctx: AStarContext) void {
             return;
         }
 
-        std.log.info("Pathfinding {d}/{d} cost:{d} pos:{d},{d} dist:{d}", .{ best_index, all_nodes.items.len, best_cost, node.pos[0], node.pos[1], dist });
+        lol += 1;
+        avg_dist += dist;
+        if (lol > 10000) {
+            avg_dist /= 10000;
+            lol = 0;
+            std.log.info("Pathfinding {d}/{d} cost:{d} pos:{d},{d} dist:{d} avg_dist:{d}", .{ best_index, all_nodes.items.len, best_cost, node.pos[0], node.pos[1], dist, avg_dist });
+            avg_dist = 0;
+        }
         const cost_current = known_costs.items[best_index];
 
         const dist_points = 50;
@@ -186,14 +196,19 @@ fn doAStar(start: PathNode, target: PathNode, ctx: AStarContext) void {
             const dir_next = .{ math.cos(angle_next), math.sin(angle_next) };
             const pos_next = .{ pos_curr[0] + dir_next[0] * dist_points, pos_curr[1] + dir_next[1] * dist_points };
             const height_next = ctx.heightmap.getFromFloat(pos_next[0], pos_next[1]);
-            const cost_height = 1 + @abs(height - height_next) * 0.1;
 
-            const cost = dist_points * cost_height;
-            const tentative_cost = cost_current + cost;
-
-            if (height_next < 20) {
+            if (height_next < 50) {
                 continue;
             }
+            if (height_next > 250) {
+                continue;
+            }
+
+            const cost_altitude = (height_next - 50) / (250 - 50);
+            const cost_height_diff = @min(1.0, @abs(height - height_next) * 0.1);
+
+            const cost = dist_points * (1 + 3 * cost_height_diff * cost_height_diff + 3 * cost_altitude * cost_altitude);
+            const tentative_cost = cost_current + cost;
 
             const node_next: PathNode = .{
                 .pos = pos_next,

@@ -120,6 +120,11 @@
       size: "world_settings.size",
     },
     {
+      name: "weight_shore",
+      kind: "ImageF32",
+      size: "world_settings.size",
+    },
+    {
       name: "weight_hills",
       kind: "ImageF32",
       size: "world_settings.size",
@@ -174,11 +179,11 @@
       kind: "PatchDataPts2d",
     },
     // Village
-    {
-      name: "village_hills",
-      kind: "ImageF32",
-      size: "world_settings.size",
-    },
+    // {
+    //   name: "village_hills",
+    //   kind: "ImageF32",
+    //   size: "world_settings.size",
+    // },
     {
       name: "village_gradient",
       kind: "ImageF32",
@@ -234,7 +239,7 @@
         "generate_poisson_for_voronoi",
         "generate_voronoi_map",
         "generate_landscape_from_image",
-        "generate_contours",
+        // "generate_contours",
         "generate_image_from_voronoi",
       ],
     },
@@ -244,6 +249,7 @@
       next: [
         "generate_heightmap_water",
         "generate_heightmap_plains",
+        "generate_voronoi_weight_shore",
         "generate_heightmap_hills",
         "generate_heightmap_mountains",
         "merge_heightmaps",
@@ -414,6 +420,61 @@
       new_max: "150",
     },
     // END PLAINS
+
+
+    // SHORE
+    // {
+    //   name: "generate_heightmap_shore",
+    //   kind: "fbm",
+    //   next: "generate_voronoi_weight_shore",
+    //   // vars
+    //   settings: "fbm_settings_shore",
+    //   output: "heightmap_shore",
+    // },
+    {
+      name: "generate_voronoi_weight_shore",
+      kind: "remap_curve",
+      // next: "blur_weight_shore",
+      // vars
+      image_in: "voronoi_image",
+      curve:[
+        0.0, 0.0,
+        1.0, 0.0,
+        2.0, 1.0,
+        3.0, 0.0,
+        4.0, 0.0,
+      ],
+      image_out: "weight_shore",
+    },
+    // {
+    //   name: "blur_weight_shore",
+    //   kind: "blur",
+    //   next: "remap_heightmap_shore",
+    //   // vars
+    //   input: "weight_shore",
+    //   output: "weight_shore",
+    //   iterations: 1,
+    // },
+    // {
+    //   name: "multiply_heightmap_weight_shore",
+    //   kind: "math",
+    //   // next: "remap_heightmap_shore",
+    //   // vars
+    //   op: "multiply",
+    //   inputs: ["heightmap_shore", "weight_shore"],
+    //   output: "heightmap_shore",
+    // },
+    // {
+    //   name: "remap_heightmap_shore",
+    //   kind: "remap",
+    //   next: "multiply_heightmap_weight_shore",
+    //   // vars
+    //   input: "heightmap_shore",
+    //   output: "heightmap_shore",
+    //   new_min: "50",
+    //   new_max: "150",
+    // },
+    // END SHORE
 
 
     // HILLS
@@ -648,10 +709,19 @@
     {
       name: "multiply_village_gradient_plains",
       kind: "math",
-      next: "village_output_points",
+      next: "multiply_village_gradient_shore",
       // vars
       op: "multiply",
       inputs: ["village_gradient", "weight_plains"],
+      output: "village_gradient",
+    },
+    {
+      name: "multiply_village_gradient_shore",
+      kind: "math",
+      next: "village_output_points",
+      // vars
+      op: "multiply",
+      inputs: ["village_gradient", "weight_shore"],
       output: "village_gradient",
     },
     {
@@ -673,7 +743,7 @@
       in_points_counter: "village_points_counter",
       out_points: "village_points",
       out_points_counter: "village_points_counter",
-      min_distance: 9000.0,
+      min_distance: 7000.0,
     },
   ],
 }
