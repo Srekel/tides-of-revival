@@ -728,7 +728,7 @@ pub const Script = struct {
 
 pub const Settlement = struct {
     level: i32 = 1,
-    safety: i32 = 0,
+    safety: f64 = 0,
 };
 
 pub const SettlementEnemy = struct {};

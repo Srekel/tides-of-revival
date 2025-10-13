@@ -47,6 +47,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
 fn settlementGrowth(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
 
     const scripts = ecs.field(it, fd.Script, 0).?;
     const settlements = ecs.field(it, fd.Settlement, 1).?;
@@ -70,14 +71,13 @@ fn settlementGrowth(it: *ecs.iter_t) callconv(.C) void {
         };
 
         if (has_nearby_enemy) {
-            settlement.safety = 0;
+            settlement.safety = environment_info.world_time + 100;
             continue;
         }
 
-        settlement.safety += 1;
-        if (settlement.safety > 1500) {
+        if (settlement.safety < environment_info.world_time) {
             settlement.level += 1;
-            settlement.safety = 0;
+            settlement.safety = environment_info.world_time + 100;
 
             const vars = ecs.script_vars_init(ctx.ecsu_world.world);
             defer ecs.script_vars_fini(vars);
