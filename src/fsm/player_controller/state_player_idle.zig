@@ -83,6 +83,28 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         }
     }
 
+    const query = ctx.physics_world.getNarrowPhaseQuery();
+
+    const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
+    const ray_dir = [_]f32{ 0, -1000, 0, 0 };
+    const ray = zphy.RRayCast{
+        .origin = ray_origin,
+        .direction = ray_dir,
+    };
+    const result = query.castRay(
+        ray,
+        .{
+            .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
+        },
+    );
+
+    if (result.has_hit) {
+        const bodies = ctx.physics_world.getBodiesUnsafe();
+        const body_hit = zphy.tryGetBody(bodies, result.hit.body_id).?;
+        const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
+        speed_scalar *= hit_normal[1] * hit_normal[1];
+    }
+
     const speed = zm.f32x4s(speed_scalar);
     const transform = zm.matFromQuat(rot.asZM());
     const forward = zm.util.getAxisZ(transform);
