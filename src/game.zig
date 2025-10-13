@@ -365,6 +365,7 @@ pub fn run() void {
             const player_comp = environment_info.player.?.get(fd.Player).?;
             player_comp.music.?.destroy();
             player_comp.vo_intro.destroy();
+            player_comp.vo_exited_village.destroy();
 
             // Clear out systems. Needed to clear up memory.
             // NOTE: I'm not sure why this need to be done explicitly, I think

@@ -178,12 +178,10 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
         player.vo_intro.start() catch unreachable;
     }
 
-    // if (!player.played_intro and environment_info.world_time > 20) {
-    //     player.played_intro = true;
-
-    //     const sound_path = "content/audio/hill3/intro.wav";
-    //     ctx.audio.playSound(sound_path, null) catch unreachable;
-    // }
+    if (!player.played_exited_village and player.amount_moved_total > 120) {
+        player.played_exited_village = true;
+        player.vo_exited_village.start() catch unreachable;
+    }
 }
 
 fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {

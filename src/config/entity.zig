@@ -96,6 +96,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_comp.music.?.setVolume(3);
     player_comp.vo_intro = ctx.audio.createSoundFromFile("content/audio/hill3/intro.wav", .{}) catch unreachable;
     player_comp.vo_intro.setVolume(4);
+    player_comp.vo_exited_village = ctx.audio.createSoundFromFile("content/audio/hill3/exited_village.wav", .{}) catch unreachable;
+    player_comp.vo_exited_village.setVolume(4);
 
     player_ent.set(player_comp);
 
