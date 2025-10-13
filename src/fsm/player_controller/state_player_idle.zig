@@ -166,12 +166,16 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     _ = fwd; // autofix
     _ = dt; // autofix
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    _ = environment_info; // autofix
 
-    if (!player.played_intro and environment_info.world_time > 10) {
+    if (player.amount_moved_total > player.music_played_counter) {
+        player.music_played_counter += 2000;
+        player.music.?.start() catch unreachable;
+    }
+
+    if (!player.played_intro and player.amount_moved_total > 20) {
         player.played_intro = true;
         player.vo_intro.start() catch unreachable;
-        // const sound_path = "content/audio/hill3/intro.wav";
-        // ctx.audio.playSound(sound_path, null) catch unreachable;
     }
 
     // if (!player.played_intro and environment_info.world_time > 20) {
@@ -221,11 +225,6 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
                 .{player.sfx_footstep_index},
             ) catch unreachable;
             ctx.audio.playSound(sound_path, null) catch unreachable;
-        }
-
-        if (player.amount_moved_total > 100) {
-            player.amount_moved_total = -2000;
-            player.music.?.start() catch unreachable;
         }
 
         // var fwd_xz_z = comps.fwd.asZM();

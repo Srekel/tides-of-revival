@@ -848,6 +848,7 @@ pub const Player = struct {
     vo_reached_hill: *zaudio.Sound = undefined,
     vo_evening: *zaudio.Sound = undefined,
     vo_first_dawn: *zaudio.Sound = undefined,
+    music_played_counter: f32 = 200,
     played_intro: bool = false,
     played_exited_village: bool = false,
     played_200m: bool = false,
@@ -859,3 +860,9 @@ pub const Player = struct {
 
 // script
 // intro: There's a beast out there, somewhere. They wanted me to slay it. Fine.
+// exited_village: I'd arrived at the village a few weeks ago, boat capsized, hurt badly. They took care of me. Kind people. Hopeful. They too have noticed the change.
+// 200m: Sometimes they sent out scouts, not far, just to the nearest hilltop, and sometimes, they reported seeing something. Something big. Usually far away. Too far away to risk an expedition.
+// 500m: The bay had provided them with a safe fishing spot, keeping them fed, no need to hunt or explore or expand.
+// reached_hill: They said they saw it from here. Somehow it was easier at night. Spot it by night, track it by day, was their instruction. May need to find a better hill.
+// evening: Better make camp. Moving in darkness is too dangerous.
+// first_dawn: The village knows of another village far away, but naturally, travel is dangerous. They want to clear the way, make it safe. But not with monsters around. Not with this monster.
