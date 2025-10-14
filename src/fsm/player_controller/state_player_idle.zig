@@ -193,6 +193,8 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const forwards = ecs.field(it, fd.Forward, 3).?;
     const players = ecs.field(it, fd.Player, 4).?;
 
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+
     for (inputs, positions, rotations, forwards, players, it.entities()) |input_comp, *pos, *rot, *fwd, *player, ent| {
         _ = ent; // autofix
         if (!input_comp.active) {
@@ -200,6 +202,10 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         }
 
         const pos_before = pos.asZM();
+        if (environment_info.journey_time_end != null) {
+            updateSnapToTerrain(ctx.physics_world, pos);
+            continue;
+        }
         updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
         updateSnapToTerrain(ctx.physics_world, pos);
         playVoiceOver(ctx, pos, rot, fwd, it.delta_time, player);
@@ -244,10 +250,5 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         // };
         // AK.SoundEngine.setPosition(config.audio_player_oid, ak_pos, .{}) catch unreachable;
 
-        const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-        if (environment_info.journey_time_multiplier != 1) {
-            // var journey = ecs.get_mut(ctx.ecsu_world.world, ent, fd.Journey).?;
-
-        }
     }
 }

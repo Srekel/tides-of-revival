@@ -771,6 +771,7 @@ pub const EnvironmentInfo = struct {
     active_camera: ?ecsu.Entity,
     time_multiplier: f64 = 1.0,
     journey_time_multiplier: f64 = 1.0,
+    journey_time_end: ?f64 = null,
     world_time: f64,
     time_of_day_percent: f64,
     sun_height: f64,

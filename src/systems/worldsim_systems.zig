@@ -53,6 +53,8 @@ fn settlementGrowth(it: *ecs.iter_t) callconv(.C) void {
     const settlements = ecs.field(it, fd.Settlement, 1).?;
     const positions = ecs.field(it, fd.Position, 2).?;
 
+    const DIST_TO_ENEMY = 5000;
+
     for (scripts, settlements, positions) |script, *settlement, position| {
         const z_position = position.asZM();
         var it_inner = ecs.each(ctx.ecsu_world.world, fd.SettlementEnemy);
@@ -62,7 +64,7 @@ fn settlementGrowth(it: *ecs.iter_t) callconv(.C) void {
                     const position_enemy = ecs.get(ctx.ecsu_world.world, ent_enemy, fd.Position).?;
                     const z_position_enemy = position_enemy.asZM();
 
-                    if (zm.lengthSq3(z_position - z_position_enemy)[0] < 1000 * 1000) {
+                    if (zm.lengthSq3(z_position - z_position_enemy)[0] < DIST_TO_ENEMY * DIST_TO_ENEMY) {
                         break :blk true;
                     }
                 }

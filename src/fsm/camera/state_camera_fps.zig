@@ -68,24 +68,25 @@ pub fn create(create_ctx: StateContext) void {
     //     );
     // }
 
-    // {
-    //     var system_desc = ecs.system_desc_t{};
-    //     system_desc.callback = updateJourney;
-    //     system_desc.ctx = update_ctx;
-    //     system_desc.query.terms = [_]ecs.term_t{
-    //         .{ .id = ecs.id(fd.Input), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Camera), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Transform), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Journey), .inout = .InOut },
-    //     } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
-    //     _ = ecs.SYSTEM(
-    //         create_ctx.ecsu_world.world,
-    //         "updateJourney",
-    //         ecs.OnUpdate,
-    //         &system_desc,
-    //     );
-    // }
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateJourney;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Input), .inout = .InOut },
+            .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.id(fd.Journey), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateJourney",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 }
 
 fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
@@ -190,40 +191,66 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const cameras = ecs.field(it, fd.Camera, 1).?;
     const transforms = ecs.field(it, fd.Transform, 2).?;
     const rotations = ecs.field(it, fd.Rotation, 3).?;
-    const journeys = ecs.field(it, fd.Journey, 4).?;
+    const positions = ecs.field(it, fd.Position, 4).?;
+    const journeys = ecs.field(it, fd.Journey, 5).?;
 
     const input_frame_data = ctx.input_frame_data;
     const physics_world_low = ctx.physics_world_low;
     // TODO: No, interaction shouldn't be in camera.. :)
-    if (!input_frame_data.just_pressed(config.input.interact)) {
-        return;
-    }
-
-    for (inputs, cameras, transforms, rotations, journeys) |input_comp, cam, transform, *rot, *journey| {
+    for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
+        _ = pos; // autofix
+        _ = journey; // autofix
         _ = input_comp; // autofix
         _ = cam; // autofix
         _ = rot; // autofix
+
+        // if (journey.target_position) {
+        //     continue;
+        // }
+        var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+
+        if (environment_info.journey_time_end) |journey_time| {
+            if (journey_time < environment_info.world_time) {
+                environment_info.journey_time_end = null;
+                environment_info.journey_time_multiplier = 1;
+            }
+        }
+
+        if (!input_frame_data.just_pressed(config.input.interact)) {
+            return;
+        }
+
         const z_mat = zm.loadMat43(transform.matrix[0..]);
         const z_pos = zm.util.getTranslationVec(z_mat);
         const z_fwd = zm.util.getAxisZ(z_mat);
 
+        const dist = 5000;
         const query = physics_world_low.getNarrowPhaseQuery();
         const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
-        const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
+        const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
         const result = query.castRay(.{
             .origin = ray_origin,
             .direction = ray_dir,
         }, .{});
 
         if (result.has_hit) {
-            journey.target_position = .{
-                ray_origin[0] + ray_dir[0] * result.hit.fraction,
-                ray_origin[1] + ray_dir[1] * result.hit.fraction,
-                ray_origin[2] + ray_dir[2] * result.hit.fraction,
-            };
 
-            var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-            environment_info.journey_time_multiplier = 5;
+            // journey.target_position = .{
+            //     ray_origin[0] + ray_dir[0] * result.hit.fraction,
+            //     ray_origin[1] + ray_dir[1] * result.hit.fraction,
+            //     ray_origin[2] + ray_dir[2] * result.hit.fraction,
+            // };
+
+            var player_pos = environment_info.player.?.getMut(fd.Position).?;
+            player_pos.x = ray_origin[0] + ray_dir[0] * result.hit.fraction;
+            player_pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+            player_pos.z = ray_origin[2] + ray_dir[2] * result.hit.fraction;
+
+            const walk_meter_per_second = 1;
+            const walk_winding = 1.5;
+            const dist_travel = walk_winding * result.hit.fraction * dist;
+            environment_info.journey_time_multiplier = 500;
+            environment_info.journey_time_end = environment_info.world_time + walk_meter_per_second * dist_travel;
 
             // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
             // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
