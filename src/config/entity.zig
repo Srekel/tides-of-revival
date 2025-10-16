@@ -106,7 +106,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
     debug_camera_ent.set(fd.Dynamic{});
-    debug_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), DEBUG_CAMERA_ACTIVE, 0));
+    debug_camera_ent.set(fd.Camera.create(0.1, 1000, std.math.degreesToRadians(60), DEBUG_CAMERA_ACTIVE, 0));
     debug_camera_ent.set(fd.WorldLoader{
         .range = 2,
         .props = true,
@@ -125,7 +125,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.set(fd.Dynamic{});
     player_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
     player_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Fps);
-    player_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), !DEBUG_CAMERA_ACTIVE, 1));
+    player_camera_ent.set(fd.Camera.create(0.1, 1000, std.math.degreesToRadians(60), !DEBUG_CAMERA_ACTIVE, 1));
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
     player_camera_ent.set(fd.PointLight{
         .color = .{ .r = 1, .g = 0.95, .b = 0.75 },

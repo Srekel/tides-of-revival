@@ -499,7 +499,7 @@ pub const PSOManager = struct {
 
         // Deferred
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge };
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge, StaticSamplers.linear_clamp_cmp_greater };
             const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
             const desc = GraphicsPipelineDesc{
@@ -913,6 +913,7 @@ const StaticSamplers = struct {
 
     pub const linear_repeat = IdLocal.init("linear_repeat");
     pub const linear_clamp_edge = IdLocal.init("linear_clamp_edge");
+    pub const linear_clamp_cmp_greater = IdLocal.init("linear_clamp_cmp_greater");
     pub const linear_clamp_border = IdLocal.init("linear_clamp_border");
     pub const point_repeat = IdLocal.init("point_repeat");
     pub const point_clamp_edge = IdLocal.init("point_clamp_edge");
@@ -937,6 +938,24 @@ const StaticSamplers = struct {
             var sampler: [*c]graphics.Sampler = null;
             graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(linear_repeat, .{ .sampler = sampler, .name = "g_linear_repeat_sampler" }) catch unreachable;
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = .ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressV = .ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressW = .ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mMinFilter = .FILTER_LINEAR;
+            desc.mMagFilter = .FILTER_LINEAR;
+            desc.mMipMapMode = .MIPMAP_MODE_NEAREST;
+            desc.mCompareFunc = .CMP_GREATER;
+            desc.mSetLodRange = true;
+            desc.mMinLod = 0.0;
+            desc.mMaxLod = std.math.floatMax(f32);
+
+            var sampler: [*c]graphics.Sampler = null;
+            graphics.addSampler(renderer, &desc, false, &sampler);
+            static_samplers.samplers_map.put(linear_clamp_cmp_greater, .{ .sampler = sampler, .name = "g_linear_clamp_cmp_greater_sampler" }) catch unreachable;
         }
 
         {

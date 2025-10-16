@@ -85,7 +85,7 @@ float CalculateScreenPercentage(float3 aabb_center, float3 aabb_extents, float4x
     return d;
 #endif
 
-    return 0.1f;
+    return 0.5f;
 }
 
 bool FrustumCull(float3 aabb_center, float3 aabb_extents, float4x4 world, float4x4 view_proj)
@@ -179,6 +179,20 @@ bool FrustumCull(float3 aabb_center, float3 aabb_extents, float4x4 world, float4
     is_visible &= !any(plane_mins > 0.0f);
 
     return is_visible;
+}
+
+// From "NEXT GENERATION POST PROCESSING IN CALL OF DUTY: ADVANCED WARFARE"
+// http://advances.realtimerendering.com/s2014/index.html
+float InterleavedGradientNoise(float2 uv)
+{
+    const float3 magic = float3(0.06711056f, 0.00583715f, 52.9829189f);
+    return frac(magic.z * frac(dot(uv, magic.xy)));
+}
+float InterleavedGradientNoise(float2 uv, float offset)
+{
+    uv += offset * (float2(47, 17) * 0.695f);
+    const float3 magic = float3(0.06711056f, 0.00583715f, 52.9829189f);
+    return frac(magic.z * frac(dot(uv, magic.xy)));
 }
 
 #endif // _MATH_HLSLI_

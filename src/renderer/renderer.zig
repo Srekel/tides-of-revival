@@ -36,7 +36,7 @@ pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) 
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
-pub const cascaded_shadow_resolution: u32 = 2048;
+pub const cascaded_shadow_resolution: u32 = 4096;
 
 pub const RenderPass = struct {
     update_fn: renderPassUpdateFn = null,
@@ -110,6 +110,7 @@ pub const Renderer = struct {
     // ====================
     // These buffers are accessible to all shaders
     light_buffer: ElementBindlessBuffer = undefined,
+    light_matrix_buffer: ElementBindlessBuffer = undefined,
     mesh_buffer: ElementBindlessBuffer = undefined,
     material_buffer: ElementBindlessBuffer = undefined,
 
@@ -392,6 +393,7 @@ pub const Renderer = struct {
         self.renderable_map = RenderableHashMap.init(allocator);
 
         self.light_buffer.init(self, 2048, @sizeOf(renderer_types.GpuLight), false, "GpuLight Buffer");
+        self.light_matrix_buffer.init(self, 4, @sizeOf([16]f32), false, "Light Matrix Buffer");
 
         self.meshes = std.ArrayList(Mesh).init(allocator);
         self.mesh_map = MeshHashMap.init(allocator);
@@ -1190,9 +1192,7 @@ pub const Renderer = struct {
         });
 
         const near_plane = @min(camera_comps.camera.near, camera_comps.camera.far);
-        var far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
-        // Reduce the distance of the last cascade
-        far_plane = @min(1500, far_plane);
+        const far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
 
         const clip_range = far_plane - near_plane;
         const min_z = near_plane + min_point * clip_range;
@@ -1222,6 +1222,7 @@ pub const Renderer = struct {
         };
 
         const light_view = zm.inverse(zm.matFromQuat(sun_comps.rotation.asZM()));
+        // const light_view = zm.inverse(zm.matFromQuat(zm.quatFromRollPitchYaw(std.math.pi * 0.5, 0.0, 0.0)));
         for (0..cascades_count) |i| {
             const previous_cascade_split = if (i == 0) min_point else cascade_splits[i - 1];
             const current_cascade_split = cascade_splits[i];
@@ -1266,7 +1267,8 @@ pub const Renderer = struct {
             extents_min[2] = center[2] - extents_z;
             extents_max[2] = center[2] + extents_z;
 
-            const proj = zm.orthographicOffCenterLh(extents_min[0], extents_max[0], extents_max[1], extents_min[1], extents_max[2], extents_min[2]);
+            // const proj = zm.orthographicOffCenterLh(extents_min[0], extents_max[0], extents_max[1], extents_min[1], extents_max[2], extents_min[2]);
+            const proj = orthographicOffCenterLh(extents_min[0], extents_max[0], extents_min[1], extents_max[1], extents_max[2], extents_min[2]);
             const proj_view = zm.mul(light_view, proj);
 
             self.shadow_views[i] = std.mem.zeroes(RenderView);
@@ -1280,6 +1282,34 @@ pub const Renderer = struct {
 
             self.shadow_cascade_depths[i] = near_plane + current_cascade_split * (far_plane - near_plane);
         }
+
+        var light_view_projections: [cascades_max_count][16]f32 = undefined;
+        for (0..cascades_max_count) |cascade_index| {
+            zm.storeMat(&light_view_projections[cascade_index], self.shadow_views[cascade_index].view_projection);
+        }
+
+        const data_slice = OpaqueSlice{
+            .data = @ptrCast(light_view_projections[0..]),
+            .size = @sizeOf([16]f32) * light_view_projections.len,
+        };
+        self.updateBuffer(data_slice, 0, [16]f32, self.light_matrix_buffer.buffer);
+        self.light_matrix_buffer.element_count = @intCast(light_view_projections.len);
+    }
+
+    fn orthographicOffCenterLh(left: f32, right: f32, bottom: f32, top: f32, near_z: f32, far_z: f32) zm.Mat {
+        const rcp_width = 1.0 / (right - left);
+        const rcp_height = 1.0 / (top - bottom);
+        const rcp_zrange = 1.0 / (far_z - near_z);
+
+        const a = -(left + right) * rcp_width;
+        const b = -(top + bottom) * rcp_height;
+
+        return .{
+            zm.f32x4(2.0 * rcp_width, 0.0, 0.0, 0.0),
+            zm.f32x4(0.0, 2.0 * rcp_height, 0.0, 0.0),
+            zm.f32x4(0.0, 0.0, rcp_zrange, 0.0),
+            zm.f32x4(a, b, -near_z * rcp_zrange, 1.0),
+        };
     }
 
     pub fn registerRenderable(self: *Renderer, id: IdLocal, desc: RenderableDesc) void {

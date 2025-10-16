@@ -13,12 +13,19 @@ const zm = @import("zmath");
 const ztracy = @import("ztracy");
 
 const UniformFrameData = struct {
+    projection: [16]f32,
+    projection_inverted: [16]f32,
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
     camera_position: [4]f32,
+    near_plane: f32,
+    far_plane: f32,
+    shadow_resolution_inverse: [2]f32,
+    cascade_splits: [renderer.Renderer.cascades_max_count]f32,
     lights_buffer_index: u32,
     lights_count: u32,
-    _padding: [2]u32,
+    light_matrix_buffer_index: u32,
+    _padding1: u32,
     fog_color: [3]f32,
     fog_density: f32,
 };
@@ -51,8 +58,7 @@ pub const DeferredShadingPass = struct {
 
     pub fn renderImGui(self: *@This()) void {
         _ = self;
-        if (zgui.collapsingHeader("Deferred Shading", .{})) {
-        }
+        if (zgui.collapsingHeader("Deferred Shading", .{})) {}
     }
 
     pub fn render(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
@@ -63,14 +69,20 @@ pub const DeferredShadingPass = struct {
         const camera_position = render_view.position;
 
         var frame_data = std.mem.zeroes(UniformFrameData);
-        zm.storeMat(&frame_data.projection_view, render_view.view_projection);
-        zm.storeMat(&frame_data.projection_view_inverted, render_view.view_projection_inverse);
+        zm.storeMat(&frame_data.projection, zm.transpose(render_view.projection));
+        zm.storeMat(&frame_data.projection_inverted, zm.transpose(render_view.projection_inverse));
+        zm.storeMat(&frame_data.projection_view, zm.transpose(render_view.view_projection));
+        zm.storeMat(&frame_data.projection_view_inverted, zm.transpose(render_view.view_projection_inverse));
         frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+        frame_data.cascade_splits = self.renderer.shadow_cascade_depths;
         frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
+        frame_data.light_matrix_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_matrix_buffer.buffer);
         frame_data.lights_count = self.renderer.light_buffer.element_count;
         frame_data.fog_color = self.renderer.height_fog_settings.color;
         frame_data.fog_density = self.renderer.height_fog_settings.density;
-        frame_data._padding = [2]u32 { 42, 42 };
+        frame_data.near_plane = render_view.far_plane;
+        frame_data.far_plane = render_view.near_plane;
+        frame_data.shadow_resolution_inverse = [2]f32{ 1.0 / 2048.0, 1.0 / 2048.0 };
 
         const data = OpaqueSlice{
             .data = @ptrCast(&frame_data),
@@ -102,7 +114,7 @@ pub const DeferredShadingPass = struct {
     }
 
     pub fn prepareDescriptorSets(self: *@This()) void {
-        var params: [4]graphics.DescriptorData = undefined;
+        var params: [8]graphics.DescriptorData = undefined;
 
         for (0..renderer.Renderer.data_buffer_count) |i| {
             params[0] = std.mem.zeroes(graphics.DescriptorData);
@@ -117,7 +129,19 @@ pub const DeferredShadingPass = struct {
             params[3] = std.mem.zeroes(graphics.DescriptorData);
             params[3].pName = "depthBuffer";
             params[3].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer.*.pTexture);
-            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 4, @ptrCast(&params));
+            params[4] = std.mem.zeroes(graphics.DescriptorData);
+            params[4].pName = "shadowDepth0";
+            params[4].__union_field3.ppTextures = @ptrCast(&self.renderer.shadow_depth_buffers[0].*.pTexture);
+            params[5] = std.mem.zeroes(graphics.DescriptorData);
+            params[5].pName = "shadowDepth1";
+            params[5].__union_field3.ppTextures = @ptrCast(&self.renderer.shadow_depth_buffers[1].*.pTexture);
+            params[6] = std.mem.zeroes(graphics.DescriptorData);
+            params[6].pName = "shadowDepth2";
+            params[6].__union_field3.ppTextures = @ptrCast(&self.renderer.shadow_depth_buffers[2].*.pTexture);
+            params[7] = std.mem.zeroes(graphics.DescriptorData);
+            params[7].pName = "shadowDepth3";
+            params[7].__union_field3.ppTextures = @ptrCast(&self.renderer.shadow_depth_buffers[3].*.pTexture);
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[0], 8, @ptrCast(&params));
 
             var uniform_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
             params[0] = std.mem.zeroes(graphics.DescriptorData);
