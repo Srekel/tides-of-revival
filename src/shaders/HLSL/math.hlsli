@@ -85,7 +85,7 @@ float CalculateScreenPercentage(float3 aabb_center, float3 aabb_extents, float4x
     return d;
 #endif
 
-    return 0.5f;
+    return 0.1f;
 }
 
 bool FrustumCull(float3 aabb_center, float3 aabb_extents, float4x4 world, float4x4 view_proj)

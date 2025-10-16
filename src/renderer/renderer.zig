@@ -1192,7 +1192,8 @@ pub const Renderer = struct {
         });
 
         const near_plane = @min(camera_comps.camera.near, camera_comps.camera.far);
-        const far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
+        var far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
+        far_plane = @min(1500, far_plane);
 
         const clip_range = far_plane - near_plane;
         const min_z = near_plane + min_point * clip_range;
@@ -1208,7 +1209,25 @@ pub const Renderer = struct {
             cascade_splits[i] = (d - near_plane) / clip_range;
         }
 
-        const view_projection = zm.loadMat(&camera_comps.camera.view_projection);
+        const z_transform = zm.loadMat43(camera_comps.transform.matrix[0..]);
+        const z_forward = zm.util.getAxisZ(z_transform);
+        const z_pos = zm.util.getTranslationVec(z_transform);
+
+        const z_view = zm.lookToLh(
+            z_pos,
+            z_forward,
+            zm.f32x4(0.0, 1.0, 0.0, 0.0),
+        );
+
+        const z_projection =
+            zm.perspectiveFovLh(
+                camera_comps.camera.fov,
+                @as(f32, @floatFromInt(self.window_width)) / @as(f32, @floatFromInt(self.window_height)),
+                far_plane,
+                near_plane,
+            );
+
+        const view_projection = zm.mul(z_view, z_projection);
         const view_projection_inverse = zm.inverse(view_projection);
         const frustum_corners_ws = [_]zm.Vec{
             transformVec3Coord(zm.Vec{ -1, -1, 1, 0 }, view_projection_inverse),
