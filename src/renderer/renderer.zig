@@ -22,6 +22,7 @@ const zgui = @import("zgui");
 const zm = @import("zmath");
 const ztracy = @import("ztracy");
 
+const DynamicGeometryPass = @import("passes/dynamic_geometry_pass.zig").DynamicGeometryPass;
 const StaticGeometryPass = @import("passes/static_geometry_pass.zig").StaticGeometryPass;
 const DeferredShadingPass = @import("passes/deferred_shading_pass.zig").DeferredShadingPass;
 const ProceduralSkyboxPass = @import("passes/procedural_skybox_pass.zig").ProceduralSkyboxPass;
@@ -105,6 +106,7 @@ pub const Renderer = struct {
     sun_light: renderer_types.DirectionalLight = undefined,
     height_fog_settings: renderer_types.HeightFogSettings = undefined,
     ocean_tiles: std.ArrayList(renderer_types.OceanTile) = undefined,
+    dynamic_entities: std.ArrayList(renderer_types.DynamicEntity) = undefined,
     static_entitites: std.ArrayList(renderer_types.RenderableEntity) = undefined,
     ui_images: std.ArrayList(renderer_types.UiImage) = undefined,
 
@@ -130,6 +132,7 @@ pub const Renderer = struct {
 
     // Render Passes
     // =============
+    dynamic_geometry_pass: DynamicGeometryPass = undefined,
     static_geometry_pass: StaticGeometryPass = undefined,
     deferred_shading_pass: DeferredShadingPass = undefined,
     procedural_skybox_pass: ProceduralSkyboxPass = undefined,
@@ -406,6 +409,7 @@ pub const Renderer = struct {
         self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Material Buffer");
         self.material_map = MaterialMap.init(allocator);
 
+        self.dynamic_geometry_pass.init(self, self.allocator);
         self.static_geometry_pass.init(self, self.allocator);
         self.deferred_shading_pass.init(self, self.allocator);
         self.procedural_skybox_pass.init(self, self.allocator);
@@ -416,6 +420,7 @@ pub const Renderer = struct {
 
         // Scene Data
         self.ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(self.allocator);
+        self.dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(self.allocator);
         self.static_entitites = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
         self.ui_images = std.ArrayList(renderer_types.UiImage).init(self.allocator);
     }
@@ -424,6 +429,7 @@ pub const Renderer = struct {
         // Scene Data
         self.ocean_tiles.deinit();
         self.static_entitites.deinit();
+        self.dynamic_entities.deinit();
         self.ui_images.deinit();
 
         self.im3d_pass.destroy();
@@ -433,6 +439,7 @@ pub const Renderer = struct {
         self.procedural_skybox_pass.destroy();
         self.deferred_shading_pass.destroy();
         self.static_geometry_pass.destroy();
+        self.dynamic_geometry_pass.destroy();
 
         self.pso_manager.exit();
 
@@ -570,6 +577,7 @@ pub const Renderer = struct {
             self.createCompositeSDRDescriptorSet();
             self.createBuffersVisualizationDescriptorSet();
 
+            self.dynamic_geometry_pass.createDescriptorSets();
             self.static_geometry_pass.createDescriptorSets();
             self.deferred_shading_pass.createDescriptorSets();
             self.procedural_skybox_pass.createDescriptorSets();
@@ -588,6 +596,7 @@ pub const Renderer = struct {
         self.prepareCompositeSDRDescriptorSet();
         self.prepareBuffersVisualizationDescriptorSet();
 
+        self.dynamic_geometry_pass.prepareDescriptorSets();
         self.static_geometry_pass.prepareDescriptorSets();
         self.deferred_shading_pass.prepareDescriptorSets();
         self.procedural_skybox_pass.prepareDescriptorSets();
@@ -628,6 +637,7 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER) {
+            self.dynamic_geometry_pass.unloadDescriptorSets();
             self.static_geometry_pass.unloadDescriptorSets();
             self.deferred_shading_pass.unloadDescriptorSets();
             self.procedural_skybox_pass.unloadDescriptorSets();
@@ -693,6 +703,9 @@ pub const Renderer = struct {
 
         self.ocean_tiles.clearRetainingCapacity();
         self.ocean_tiles.appendSlice(update_desc.ocean_tiles.items) catch unreachable;
+
+        self.dynamic_entities.clearRetainingCapacity();
+        self.dynamic_entities.appendSlice(update_desc.dynamic_entities.items) catch unreachable;
 
         self.static_entitites.clearRetainingCapacity();
         self.static_entitites.appendSlice(update_desc.static_entities.items) catch unreachable;
@@ -785,6 +798,7 @@ pub const Renderer = struct {
                     }
                 }
 
+                self.dynamic_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
                 self.static_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
 
                 input_barriers[0].mCurrentState = .RESOURCE_STATE_DEPTH_WRITE;
@@ -836,6 +850,7 @@ pub const Renderer = struct {
                 }
             }
 
+            self.dynamic_geometry_pass.renderGBuffer(cmd_list, render_view);
             self.static_geometry_pass.renderGBuffer(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
@@ -1147,6 +1162,8 @@ pub const Renderer = struct {
                 }
             }
 
+            // TODO(gmodarelli)
+            // self.dynamic_geometry_pass.renderImGui();
             self.static_geometry_pass.renderImGui();
             self.deferred_shading_pass.renderImGui();
             self.procedural_skybox_pass.renderImGui();
@@ -1183,6 +1200,7 @@ pub const Renderer = struct {
         render_view.far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
         render_view.viewport = [2]f32{ @floatFromInt(self.window_width), @floatFromInt(self.window_height) };
         render_view.aspect = render_view.viewport[0] / render_view.viewport[1];
+        render_view.frustum.init(render_view.view_projection);
 
         return render_view;
     }
@@ -2327,6 +2345,7 @@ pub const RenderView = struct {
     far_plane: f32,
     viewport: [2]f32,
     aspect: f32,
+    frustum: renderer_types.Frustum,
 };
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗

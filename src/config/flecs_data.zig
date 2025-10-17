@@ -8,6 +8,7 @@ const window = @import("../renderer/window.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const renderer = @import("../renderer/renderer.zig");
+const renderer_types = @import("../renderer/types.zig");
 const geometry = @import("../renderer/geometry.zig");
 const LegacyMeshHandle = renderer.LegacyMeshHandle;
 const TextureHandle = renderer.TextureHandle;
@@ -392,15 +393,9 @@ pub const UIMaterial = struct {
 // ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
 // ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
 
-pub const Lod = struct {
-    mesh_handle: LegacyMeshHandle,
-    materials: [geometry.sub_mesh_max_count]IdLocal,
-    materials_count: u32,
-};
-
 pub const LodGroup = struct {
     lod_count: u32,
-    lods: [geometry.mesh_lod_max_count]Lod,
+    lods: [geometry.mesh_lod_max_count]renderer_types.Lod,
 };
 
 pub const Water = struct {

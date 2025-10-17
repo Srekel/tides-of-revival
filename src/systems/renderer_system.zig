@@ -20,7 +20,6 @@ const zgui = @import("zgui");
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
-const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
 
 const font = zforge.font;
 const graphics = zforge.graphics;
@@ -45,7 +44,6 @@ pub const SystemUpdateContext = struct {
     renderer: *renderer.Renderer,
     state: struct {
         terrain_render_pass: *TerrainRenderPass,
-        geometry_render_pass: *GeometryRenderPass,
         render_imgui: bool,
 
         query_point_lights: *ecs.query_t,
@@ -57,6 +55,9 @@ pub const SystemUpdateContext = struct {
         query_static_entities: *ecs.query_t,
         static_entities: std.ArrayList(renderer_types.RenderableEntity),
 
+        query_dynamic_entities: *ecs.query_t,
+        dynamic_entities: std.ArrayList(renderer_types.DynamicEntity),
+
         query_ui_images: *ecs.query_t,
         ui_images: std.ArrayList(renderer_types.UiImage),
     },
@@ -67,9 +68,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const pass_allocator = create_ctx.heap_allocator;
     const ctx_renderer = create_ctx.renderer;
     const ecsu_world = create_ctx.ecsu_world;
-
-    const geometry_render_pass = arena_system_lifetime.create(GeometryRenderPass) catch unreachable;
-    geometry_render_pass.init(ctx_renderer, ecsu_world, create_ctx.prefab_mgr, pass_allocator);
 
     const terrain_render_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
     terrain_render_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
@@ -99,18 +97,26 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
     }) catch unreachable;
 
+    const query_dynamic_entities = ecs.query_init(ecsu_world.world, &.{
+        .entity = ecs.new_entity(ecsu_world.world, "query_dynamic_entities"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.LodGroup), .inout = .In },
+            .{ .id = ecs.id(fd.Transform), .inout = .In },
+            .{ .id = ecs.id(fd.Scale), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 3),
+    }) catch unreachable;
+
     const query_ui_images = ecs.query_init(ecsu_world.world, &.{
-            .entity = ecs.new_entity(ecsu_world.world, "query_ui_images"),
-            .terms = [_]ecs.term_t{
-                .{ .id = ecs.id(fd.UIImage), .inout = .In },
-            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
-        }) catch unreachable;
+        .entity = ecs.new_entity(ecsu_world.world, "query_ui_images"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.UIImage), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+    }) catch unreachable;
 
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .terrain_render_pass = terrain_render_pass,
-        .geometry_render_pass = geometry_render_pass,
         .render_imgui = false,
         .query_point_lights = query_point_lights,
         .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
@@ -118,6 +124,8 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(pass_allocator),
         .query_static_entities = query_static_entities,
         .static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
+        .query_dynamic_entities = query_dynamic_entities,
+        .dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(pass_allocator),
         .query_ui_images = query_ui_images,
         .ui_images = std.ArrayList(renderer_types.UiImage).init(pass_allocator),
     };
@@ -151,7 +159,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
     system.state.terrain_render_pass.destroy();
-    system.state.geometry_render_pass.destroy();
 
     system.state.point_lights.deinit();
     system.state.ocean_tiles.deinit();
@@ -326,6 +333,35 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         }
 
         update_desc.static_entities = &system.state.static_entities;
+    }
+
+    // Find all dynamic entities
+    {
+        system.state.dynamic_entities.clearRetainingCapacity();
+
+        var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_dynamic_entities);
+        while (ecs.query_next(&iter)) {
+            const lod_groups = ecs.field(&iter, fd.LodGroup, 0).?;
+            const transforms = ecs.field(&iter, fd.Transform, 1).?;
+            const scales = ecs.field(&iter, fd.Scale, 2).?;
+
+            for (lod_groups, transforms, scales) |*lod_group_component, transform, scale| {
+                var world: [16]f32 = undefined;
+                storeMat44(transform.matrix[0..], world[0..]);
+
+                var dynamic_entity = renderer_types.DynamicEntity{
+                    .world = zm.loadMat(world[0..]),
+                    .position = transform.getPos00(),
+                    .lod_count = lod_group_component.lod_count,
+                    .scale = @max(scale.x, @max(scale.y, scale.z)),
+                };
+                @memcpy(&dynamic_entity.lods, &lod_group_component.lods);
+
+                system.state.dynamic_entities.append(dynamic_entity) catch unreachable;
+            }
+        }
+
+        update_desc.dynamic_entities = &system.state.dynamic_entities;
     }
 
     // Find all UI Images

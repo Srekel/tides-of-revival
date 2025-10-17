@@ -1,6 +1,9 @@
 const std = @import("std");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const zm = @import("zmath");
+const fd = @import("../config/flecs_data.zig");
+const renderer = @import("renderer.zig");
+const geometry = @import("geometry.zig");
 
 pub const InvalidResourceIndex = std.math.maxInt(u32);
 
@@ -53,6 +56,7 @@ pub const UpdateDesc = struct {
     // Entities
     ocean_tiles: *std.ArrayList(OceanTile) = undefined,
     static_entities: *std.ArrayList(RenderableEntity) = undefined,
+    dynamic_entities: *std.ArrayList(DynamicEntity) = undefined,
     ui_images: *std.ArrayList(UiImage) = undefined,
 };
 
@@ -92,4 +96,83 @@ pub const RenderableEntity = struct {
     entity_id: u64,
     renderable_id: IdLocal,
     world: zm.Mat,
+};
+
+pub const DynamicEntity = struct {
+    world: zm.Mat = undefined,
+    position: [3]f32 = undefined,
+    scale: f32 = 0,
+    lod_count: u32 = 0,
+    lods: [geometry.mesh_lod_max_count]Lod = undefined,
+};
+
+pub const Lod = struct {
+    mesh_handle: renderer.LegacyMeshHandle,
+    materials: [geometry.sub_mesh_max_count]IdLocal,
+    materials_count: u32,
+};
+
+pub const Frustum = struct {
+    planes: [4][4]f32 = undefined,
+
+    pub fn init(self: *@This(), view_projection: zm.Mat) void {
+        // Left plane
+        self.planes[0][0] = view_projection[0][3] + view_projection[0][0];
+        self.planes[0][1] = view_projection[1][3] + view_projection[1][0];
+        self.planes[0][2] = view_projection[2][3] + view_projection[2][0];
+        self.planes[0][3] = view_projection[3][3] + view_projection[3][0];
+
+        // Right plane
+        self.planes[1][0] = view_projection[0][3] - view_projection[0][0];
+        self.planes[1][1] = view_projection[1][3] - view_projection[1][0];
+        self.planes[1][2] = view_projection[2][3] - view_projection[2][0];
+        self.planes[1][3] = view_projection[3][3] - view_projection[3][0];
+
+        // Top plane
+        self.planes[2][0] = view_projection[0][3] - view_projection[0][1];
+        self.planes[2][1] = view_projection[1][3] - view_projection[1][1];
+        self.planes[2][2] = view_projection[2][3] - view_projection[2][1];
+        self.planes[2][3] = view_projection[3][3] - view_projection[3][1];
+
+        // Bottom plane
+        self.planes[3][0] = view_projection[0][3] + view_projection[0][1];
+        self.planes[3][1] = view_projection[1][3] + view_projection[1][1];
+        self.planes[3][2] = view_projection[2][3] + view_projection[2][1];
+        self.planes[3][3] = view_projection[3][3] + view_projection[3][1];
+
+        // TODO(gmodarelli): Figure out what these become when Z is reversed
+        // // Near plane
+        // self.planes[4][0] = view_projection[0][2];
+        // self.planes[4][1] = view_projection[1][2];
+        // self.planes[4][2] = view_projection[2][2];
+        // self.planes[4][3] = view_projection[3][2];
+
+        // // Far plane
+        // self.planes[5][0] = view_projection[0][3] - view_projection[0][2];
+        // self.planes[5][1] = view_projection[1][3] - view_projection[1][2];
+        // self.planes[5][2] = view_projection[2][3] - view_projection[2][2];
+        // self.planes[5][3] = view_projection[3][3] - view_projection[3][2];
+
+        for (&self.planes) |*plane| {
+            const length = std.math.sqrt(plane[0] * plane[0] + plane[1] * plane[1] + plane[2] * plane[2]);
+            plane[0] = plane[0] / length;
+            plane[1] = plane[1] / length;
+            plane[2] = plane[2] / length;
+            plane[3] = plane[3] / length;
+        }
+    }
+
+    pub fn isVisible(self: *const @This(), center: [3]f32, radius: f32) bool {
+        for (self.planes) |plane| {
+            if (distanceToPoint(plane, center) + radius < 0.0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn distanceToPoint(plane: [4]f32, point: [3]f32) f32 {
+        return plane[0] * point[0] + plane[1] * point[1] + plane[2] * point[2] + plane[3] * plane[3];
+    }
 };
