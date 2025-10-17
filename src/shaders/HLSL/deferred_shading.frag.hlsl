@@ -187,8 +187,11 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     // TODO
     // float dither = InterleavedGradientNoise(positionCS.xy);
     const uint cascadeIndex = GetSunShadowMapIndex(linearDepth /*, dither */);
-
-    float attenuation = Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x);
+    float attenuation = 1.0f;
+    if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
+    {
+        attenuation = Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x);
+    }
 
 #if 0
     {
