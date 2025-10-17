@@ -37,6 +37,13 @@ pub const HeightFogSettings = struct {
     density: f32 = 0,
 };
 
+pub const UiImage = struct {
+    rect: [4]f32,
+    color: [4]f32,
+    texture_index: u32,
+    _padding0: [3]u32,
+};
+
 pub const UpdateDesc = struct {
     time_of_day_01: f32 = 0.0,
     sun_light: DirectionalLight = undefined,
@@ -46,6 +53,7 @@ pub const UpdateDesc = struct {
     // Entities
     ocean_tiles: *std.ArrayList(OceanTile) = undefined,
     static_entities: *std.ArrayList(RenderableEntity) = undefined,
+    ui_images: *std.ArrayList(UiImage) = undefined,
 };
 
 pub const InstanceData = struct {

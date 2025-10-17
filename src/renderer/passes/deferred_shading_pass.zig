@@ -33,7 +33,6 @@ const UniformFrameData = struct {
 pub const DeferredShadingPass = struct {
     allocator: std.mem.Allocator,
     renderer: *renderer.Renderer,
-    render_pass: renderer.RenderPass,
 
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     deferred_descriptor_sets: [2][*c]graphics.DescriptorSet,

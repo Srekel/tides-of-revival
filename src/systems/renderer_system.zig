@@ -21,8 +21,6 @@ const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 
 const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
 const GeometryRenderPass = @import("renderer_system/geometry_render_pass.zig").GeometryRenderPass;
-const UIRenderPass = @import("renderer_system/ui_render_pass.zig").UIRenderPass;
-const Im3dRenderPass = @import("renderer_system/im3d_render_pass.zig").Im3dRenderPass;
 
 const font = zforge.font;
 const graphics = zforge.graphics;
@@ -48,8 +46,6 @@ pub const SystemUpdateContext = struct {
     state: struct {
         terrain_render_pass: *TerrainRenderPass,
         geometry_render_pass: *GeometryRenderPass,
-        ui_render_pass: *UIRenderPass,
-        im3d_render_pass: *Im3dRenderPass,
         render_imgui: bool,
 
         query_point_lights: *ecs.query_t,
@@ -60,6 +56,9 @@ pub const SystemUpdateContext = struct {
 
         query_static_entities: *ecs.query_t,
         static_entities: std.ArrayList(renderer_types.RenderableEntity),
+
+        query_ui_images: *ecs.query_t,
+        ui_images: std.ArrayList(renderer_types.UiImage),
     },
 };
 
@@ -74,12 +73,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
     const terrain_render_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
     terrain_render_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
-
-    const ui_render_pass = arena_system_lifetime.create(UIRenderPass) catch unreachable;
-    ui_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
-
-    const im3d_render_pass = arena_system_lifetime.create(Im3dRenderPass) catch unreachable;
-    im3d_render_pass.init(ctx_renderer, ecsu_world, pass_allocator);
 
     const query_point_lights = ecs.query_init(ecsu_world.world, &.{
         .entity = ecs.new_entity(ecsu_world.world, "query_point_lights"),
@@ -106,13 +99,18 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
     }) catch unreachable;
 
+    const query_ui_images = ecs.query_init(ecsu_world.world, &.{
+            .entity = ecs.new_entity(ecsu_world.world, "query_ui_images"),
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.UIImage), .inout = .In },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+        }) catch unreachable;
+
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .terrain_render_pass = terrain_render_pass,
         .geometry_render_pass = geometry_render_pass,
-        .ui_render_pass = ui_render_pass,
-        .im3d_render_pass = im3d_render_pass,
         .render_imgui = false,
         .query_point_lights = query_point_lights,
         .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
@@ -120,6 +118,8 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(pass_allocator),
         .query_static_entities = query_static_entities,
         .static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
+        .query_ui_images = query_ui_images,
+        .ui_images = std.ArrayList(renderer_types.UiImage).init(pass_allocator),
     };
 
     {
@@ -152,8 +152,6 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
     system.state.terrain_render_pass.destroy();
     system.state.geometry_render_pass.destroy();
-    system.state.ui_render_pass.destroy();
-    system.state.im3d_render_pass.destroy();
 
     system.state.point_lights.deinit();
     system.state.ocean_tiles.deinit();
@@ -328,6 +326,26 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         }
 
         update_desc.static_entities = &system.state.static_entities;
+    }
+
+    // Find all UI Images
+    {
+        system.state.ui_images.clearRetainingCapacity();
+
+        var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_ui_images);
+        while (ecs.query_next(&iter)) {
+            const ui_images = ecs.field(&iter, fd.UIImage, 0).?;
+            for (ui_images) |ui_image| {
+                system.state.ui_images.append(.{
+                    .rect = [4]f32{ ui_image.rect[0], ui_image.rect[1], ui_image.rect[2], ui_image.rect[3] },
+                    .color = [4]f32{ ui_image.material.color[0], ui_image.material.color[1], ui_image.material.color[2], ui_image.material.color[3] },
+                    .texture_index = system.renderer.getTextureBindlessIndex(ui_image.material.texture),
+                    ._padding0 = [3]u32{ 42, 42, 42 },
+                }) catch unreachable;
+            }
+        }
+
+        update_desc.ui_images = &system.state.ui_images;
     }
 
     system.renderer.update(update_desc);
