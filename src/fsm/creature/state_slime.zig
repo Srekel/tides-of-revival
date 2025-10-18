@@ -423,7 +423,7 @@ const SlimeDropTask = struct {
             task_data_die.*.entity = ent.id;
             ctx.task_queue.enqueue(
                 DieTask.id,
-                .{ .time = ctx.time.now + 1000, .loop_type = .once },
+                .{ .time = ctx.time.now + 3600, .loop_type = .once },
                 std.mem.asBytes(task_data_die),
             );
         }
