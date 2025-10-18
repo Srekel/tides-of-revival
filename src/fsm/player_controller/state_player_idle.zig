@@ -78,10 +78,10 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         const rot_new = zm.qmul(rot_in, rot_yaw);
         rot.fromZM(rot_new);
 
-        if (input_state.just_pressed(config.input.interact) and boost_next_cooldown < environment_info.world_time) {
-            boost_next_cooldown = environment_info.world_time + 0.2;
-            boost_active_time = environment_info.world_time + 1;
-        }
+        // if (input_state.just_pressed(config.input.interact) and boost_next_cooldown < environment_info.world_time) {
+        //     boost_next_cooldown = environment_info.world_time + 0.2;
+        //     boost_active_time = environment_info.world_time + 1;
+        // }
     }
 
     if (environment_info.journey_time_multiplier != 1) {
@@ -184,13 +184,22 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
     }
 }
 
-fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: f32, player: *fd.Player) void {
+fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: f32, player: *fd.Player, input_frame_data: *input.FrameData) void {
     _ = pos; // autofix
     _ = rot; // autofix
     _ = fwd; // autofix
     _ = dt; // autofix
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     _ = environment_info; // autofix
+
+    if (input_frame_data.just_pressed(config.input.reload_shaders)) {
+        player.music_played_counter = 10000;
+        player.played_intro = true;
+        player.played_exited_village = true;
+        player.music.?.stop() catch unreachable;
+        player.vo_intro.stop() catch unreachable;
+        player.vo_exited_village.stop() catch unreachable;
+    }
 
     if (player.amount_moved_total > player.music_played_counter) {
         player.music_played_counter += 2000;
@@ -231,7 +240,7 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         if (environment_info.journey_time_end != null) {
             continue;
         }
-        playVoiceOver(ctx, pos, rot, fwd, it.delta_time, player);
+        playVoiceOver(ctx, pos, rot, fwd, it.delta_time, player, ctx.input_frame_data);
 
         const pos_after = pos.asZM();
         player.*.amount_moved += zm.length3(pos_after - pos_before)[0];

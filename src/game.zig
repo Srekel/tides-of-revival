@@ -458,7 +458,7 @@ fn update_full(gameloop_context: GameloopContext) bool {
     }
 
     // TODO: Move this to system
-    const ticks: u32 = if (has_initial_sim) 100 else 1;
+    const ticks: u32 = if (has_initial_sim) 100 else 4;
     for (0..ticks) |_| {
         world_patch_mgr.tickOne();
     }

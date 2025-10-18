@@ -253,7 +253,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
             const height_factor = height_term;
             const dist_as_the_crow_flies = result.hit.fraction * dist;
             const dist_travel = walk_winding * dist_as_the_crow_flies;
-            const time_fudge = 0.1;
+            const time_fudge = 4.0 / 24.0;
             const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
             environment_info.journey_time_multiplier = 1000;
             environment_info.journey_time_end = environment_info.world_time + duration;

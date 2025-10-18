@@ -53,7 +53,7 @@ fn settlementGrowth(it: *ecs.iter_t) callconv(.C) void {
     const settlements = ecs.field(it, fd.Settlement, 1).?;
     const positions = ecs.field(it, fd.Position, 2).?;
 
-    const DIST_TO_ENEMY = 5000;
+    const DIST_TO_ENEMY = 15000;
 
     for (scripts, settlements, positions) |script, *settlement, position| {
         const z_position = position.asZM();
