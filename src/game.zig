@@ -407,6 +407,8 @@ const debug_times = [_]struct { mult: f64, str: [:0]const u8 }{
     .{ .mult = @as(f64, 5), .str = "5x" },
     .{ .mult = @as(f64, 60), .str = "minute" },
     .{ .mult = @as(f64, 200), .str = "200x" },
+    .{ .mult = @as(f64, 1000), .str = "1000x" },
+    .{ .mult = @as(f64, 2000), .str = "2000x" },
     // .{ .mult = @as(f64, 60 * 60), .str = "hour" },
     // .{ .mult = @as(f64, 60 * 60 * 24), .str = "day" }, // 1 day per realtime second
     // .{ .mult = @as(f64, 30 * 60 * 60 * 24), .str = "month" }, // 1 month per realtime second
@@ -554,8 +556,9 @@ fn updateDebugUI(it: *ecs.iter_t) callconv(.C) void {
         const flecs_stats = ecs.get_world_info(it.world);
         const world_time = flecs_stats.*.world_time_total;
         const environment_info = ecs.singleton_get(it.world, fd.EnvironmentInfo).?;
-        zgui.text("Time (flecs): {d}", .{world_time});
-        zgui.text("Time (env): {d}", .{environment_info.world_time});
+        zgui.text("Time (flecs): {d:.2}", .{world_time});
+        zgui.text("Time (env):   {d:.2}", .{environment_info.world_time});
+        zgui.text("Time (%):     {d:.2}%", .{std.math.modf(environment_info.world_time / (4 * 60 * 60)).fpart * 100});
         zgui.text("Time x: {str}", .{debug_times[debug_time_index].str});
     }
     zgui.end();

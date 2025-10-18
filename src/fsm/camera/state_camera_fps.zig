@@ -14,6 +14,7 @@ const zphy = @import("zphysics");
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const util = @import("../../util.zig");
 const context = @import("../../core/context.zig");
+const im3d = @import("im3d");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
@@ -217,54 +218,114 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 environment_info.journey_time_multiplier = 1;
             }
         }
+        const z_mat = zm.loadMat43(transform.matrix[0..]);
+        const z_pos = zm.util.getTranslationVec(z_mat);
+        const z_fwd = zm.util.getAxisZ(z_mat);
+
+        const dist = 5000;
+        const query = physics_world_low.getNarrowPhaseQuery();
+        const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+        const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
+        const ray = zphy.RRayCast{
+            .origin = ray_origin,
+            .direction = ray_dir,
+        };
+        const result = query.castRay(ray, .{});
+
+        if (!result.has_hit) {
+            continue;
+        }
+
+        const bodies = ctx.physics_world_low.getBodiesUnsafe();
+        const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
+        if (body_hit_opt == null) {
+            continue;
+        }
+
+        const body_hit = body_hit_opt.?;
+        const hit_pos = ray.getPointOnRay(result.hit.fraction);
+        const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, hit_pos);
+
+        var color = im3d.Im3d.Color.init5b(1, 1, 1, 1);
+        defer im3d.Im3d.DrawLine(
+            &.{
+                .x = hit_pos[0],
+                .y = hit_pos[1],
+                .z = hit_pos[2],
+            },
+            &.{
+                .x = hit_pos[0] + hit_normal[0] * 250,
+                .y = hit_pos[1] + hit_normal[1] * 250,
+                .z = hit_pos[2] + hit_normal[2] * 250,
+            },
+            1,
+            color,
+        );
+
+        if (hit_normal[1] < 0.4) {
+            // TODO trigger sound
+            std.log.info("can't journey due to slope {d}", .{hit_normal[1]});
+            color.setG(0);
+            color.setB(0);
+            continue;
+        }
+
+        const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+        if (!(config.ocean_level + 5 < height_next and height_next < 700)) {
+            std.log.info("can't journey due to height {d}", .{height_next});
+            color.setG(0);
+            color.setB(0);
+            return;
+        }
+
+        var player_pos = environment_info.player.?.getMut(fd.Position).?;
+        const height_prev = player_pos.y;
+
+        const walk_meter_per_second = 1.35;
+        const height_term = @max(1.0, height_prev * 0.01 + height_next * 0.01);
+        const walk_winding = 1.2;
+        const height_factor = height_term;
+        const dist_as_the_crow_flies = result.hit.fraction * dist;
+        const dist_travel = walk_winding * dist_as_the_crow_flies;
+        const time_fudge = 4.0 / 24.0;
+        const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
+
+        const next_time_of_day = environment_info.world_time + duration;
+        const time_of_day_percent = std.math.modf(next_time_of_day / (4 * 60 * 60)).fpart;
+        const is_day = time_of_day_percent > 0.95 or time_of_day_percent < 0.45;
+        if (!is_day) {
+            // TODO trigger sound
+            color.setG(0);
+            color.setB(0);
+            std.log.info("can't journey due to time {d} duration {d} percent {d}", .{ environment_info.world_time, duration, time_of_day_percent });
+            continue;
+        }
+
+        if (dist_as_the_crow_flies > 4000) {
+            // TODO trigger sound
+            std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
+            color.setG(0);
+            color.setB(0);
+            continue;
+        }
 
         if (!input_frame_data.just_pressed(config.input.interact)) {
             return;
         }
 
-        const z_mat = zm.loadMat43(transform.matrix[0..]);
-        const z_pos = zm.util.getTranslationVec(z_mat);
-        const z_fwd = zm.util.getAxisZ(z_mat);
+        player_pos.x = ray_origin[0] + ray_dir[0] * result.hit.fraction;
+        player_pos.y = height_next;
+        player_pos.z = ray_origin[2] + ray_dir[2] * result.hit.fraction;
 
-        const dist = 4000;
-        const query = physics_world_low.getNarrowPhaseQuery();
-        const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
-        const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
-        const result = query.castRay(.{
-            .origin = ray_origin,
-            .direction = ray_dir,
-        }, .{});
-
-        if (result.has_hit) {
-            const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
-            if (!(config.ocean_level + 5 < height_next and height_next < 500)) {
-                return;
-            }
-
-            var player_pos = environment_info.player.?.getMut(fd.Position).?;
-            const height_prev = player_pos.y;
-            player_pos.x = ray_origin[0] + ray_dir[0] * result.hit.fraction;
-            player_pos.y = height_next;
-            player_pos.z = ray_origin[2] + ray_dir[2] * result.hit.fraction;
-
-            const walk_meter_per_second = 1.35;
-            const height_term = @max(1.0, height_prev * 0.01 + height_next * 0.01);
-            const walk_winding = 1.2;
-            const height_factor = height_term;
-            const dist_as_the_crow_flies = result.hit.fraction * dist;
-            const dist_travel = walk_winding * dist_as_the_crow_flies;
-            const time_fudge = 4.0 / 24.0;
-            const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
-            environment_info.journey_time_multiplier = 1000;
-            environment_info.journey_time_end = environment_info.world_time + duration;
-            std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
-                environment_info.world_time,
-                dist_as_the_crow_flies,
-                dist_travel,
-                duration / 3600.0,
-                height_factor,
-                environment_info.journey_time_end.?,
-            });
-        }
+        environment_info.journey_time_multiplier = 50 + dist * 0.25;
+        environment_info.journey_time_end = environment_info.world_time + duration;
+        std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
+            environment_info.world_time,
+            dist_as_the_crow_flies,
+            dist_travel,
+            duration / 3600.0,
+            height_factor,
+            environment_info.journey_time_end.?,
+        });
     }
 }
