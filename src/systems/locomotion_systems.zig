@@ -130,8 +130,14 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
         if (result.has_hit) {
             pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction + 0.1;
 
-            const body_hit = zphy.tryGetBody(ray_bodies_all, result.hit.body_id).?;
+            const body_hit_opt = zphy.tryGetBody(ray_bodies_all, result.hit.body_id);
+
             const rot_slope_z = blk: {
+                if (body_hit_opt == null) {
+                    break :blk zm.quatFromAxisAngle(up_z, 0);
+                }
+
+                const body_hit = body_hit_opt.?;
                 const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
                 const hit_normal_z = zm.loadArr3(hit_normal);
                 if (hit_normal[1] < 0.99) { // TODO: Find a good value, this was just arbitrarily picked :)

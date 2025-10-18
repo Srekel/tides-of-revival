@@ -270,7 +270,7 @@ pub fn run() void {
     };
 
     var player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    player_pos.x -= 5;
+    player_pos.x += 20;
     config.entity.init(player_pos, &prefab_mgr, ecsu_world, &gameloop_context);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
@@ -367,10 +367,10 @@ pub fn run() void {
 
         if (done) {
             const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-            const music_opt = environment_info.player.?.get(fd.Player).?.music;
-            if (music_opt) |music| {
-                music.destroy();
-            }
+            const player_comp = environment_info.player.?.get(fd.Player).?;
+            player_comp.music.?.destroy();
+            player_comp.vo_intro.destroy();
+            player_comp.vo_exited_village.destroy();
 
             // Clear out systems. Needed to clear up memory.
             // NOTE: I'm not sure why this need to be done explicitly, I think
@@ -413,6 +413,7 @@ const debug_times = [_]struct { mult: f64, str: [:0]const u8 }{
 };
 
 var debug_time_index: usize = 4;
+var has_initial_sim = false;
 
 fn update_full(gameloop_context: GameloopContext) bool {
     var input_frame_data = gameloop_context.input_frame_data;
@@ -462,9 +463,11 @@ fn update_full(gameloop_context: GameloopContext) bool {
     }
 
     // TODO: Move this to system
-    for (0..100) |_| {
+    const ticks: u32 = if (has_initial_sim) 100 else 4;
+    for (0..ticks) |_| {
         world_patch_mgr.tickOne();
     }
+    stats.delta_time = @min(0.1, stats.delta_time); // anti hitch
     update(gameloop_context, stats.delta_time);
 
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
@@ -480,18 +483,23 @@ fn update_full(gameloop_context: GameloopContext) bool {
 
 fn update(gameloop_context: GameloopContext, dt: f32) void {
     var ecsu_world = gameloop_context.ecsu_world;
+    const flecs_stats = ecs.get_world_info(ecsu_world.world);
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const debug_multiplier = debug_times[debug_time_index].mult;
+    if (flecs_stats.world_time_total < 0.1 * 60 * 60) {
+        environment_info.journey_time_multiplier = 100;
+    } else if (!has_initial_sim) {
+        has_initial_sim = true;
+        environment_info.journey_time_multiplier = 1;
+    }
     const dt_game = dt * environment_info.time_multiplier * environment_info.journey_time_multiplier * debug_multiplier;
     environment_info.time_multiplier = 1;
-
-    const flecs_stats = ecs.get_world_info(ecsu_world.world);
 
     // Advance day
     {
         const world_time = flecs_stats.*.world_time_total;
         // const time_of_day_percent = std.math.modf(world_time / (60 * 60 * 24));
-        const time_of_day_percent = std.math.modf(world_time * 2 / (60 * 60));
+        const time_of_day_percent = std.math.modf(world_time / (4 * 60 * 60));
         environment_info.time_of_day_percent = time_of_day_percent.fpart;
         environment_info.sun_height = @sin(0.5 * environment_info.time_of_day_percent * std.math.pi);
         environment_info.world_time = world_time;
@@ -542,10 +550,13 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
 }
 
 fn updateDebugUI(it: *ecs.iter_t) callconv(.C) void {
-    _ = it; // autofix
-
     if (zgui.begin("Time", .{})) {
-        zgui.text("Time: {str}", .{debug_times[debug_time_index].str});
+        const flecs_stats = ecs.get_world_info(it.world);
+        const world_time = flecs_stats.*.world_time_total;
+        const environment_info = ecs.singleton_get(it.world, fd.EnvironmentInfo).?;
+        zgui.text("Time (flecs): {d}", .{world_time});
+        zgui.text("Time (env): {d}", .{environment_info.world_time});
+        zgui.text("Time x: {str}", .{debug_times[debug_time_index].str});
     }
     zgui.end();
 }

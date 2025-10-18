@@ -169,7 +169,7 @@ def main():
     sync_lib(
         "zflecs",
         "https://github.com/zig-gamedev/zflecs",
-        "45dbf2cf193855f063406a49de5e3d6679615ee7",
+        "b4abf9601f51ed14da05352be8f14c86ccbfaf32",
     )
     sync_lib(
         "zgltf",
@@ -198,8 +198,8 @@ def main():
     )
     sync_lib(
         "zphysics",
-        "https://github.com/zig-gamedev/zphysics",
-        "e390932a4fc9bbc61cafcd96ead1d7cc8c290065",
+        "https://github.com/Srekel/zphysics",
+        "895a173e63822d5895a5dd127810365c4e269b2e",
     )
     sync_lib(
         "zpix",

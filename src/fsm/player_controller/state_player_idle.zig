@@ -17,6 +17,7 @@ const egl_math = @import("../../core/math.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const context = @import("../../core/context.zig");
+const im3d = @import("im3d");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
@@ -77,17 +78,62 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         const rot_new = zm.qmul(rot_in, rot_yaw);
         rot.fromZM(rot_new);
 
-        if (input_state.just_pressed(config.input.interact) and boost_next_cooldown < environment_info.world_time) {
-            boost_next_cooldown = environment_info.world_time + 0.2;
-            boost_active_time = environment_info.world_time + 1;
-        }
+        // if (input_state.just_pressed(config.input.interact) and boost_next_cooldown < environment_info.world_time) {
+        //     boost_next_cooldown = environment_info.world_time + 0.2;
+        //     boost_active_time = environment_info.world_time + 1;
+        // }
     }
 
-    const speed = zm.f32x4s(speed_scalar);
+    if (environment_info.journey_time_multiplier != 1) {
+        return;
+    }
+
+    var speed = zm.f32x4s(speed_scalar);
     const transform = zm.matFromQuat(rot.asZM());
     const forward = zm.util.getAxisZ(transform);
-
     zm.store(fwd.elems()[0..], forward, 3);
+
+    const query = ctx.physics_world.getNarrowPhaseQuery();
+
+    const ray_origin = [_]f32{
+        pos.x + fwd.x * 2,
+        pos.y + 200,
+        pos.z + fwd.z * 2,
+        0,
+    };
+    const ray_dir = [_]f32{ 0, -1000, 0, 0 };
+    const ray = zphy.RRayCast{
+        .origin = ray_origin,
+        .direction = ray_dir,
+    };
+    const result = query.castRay(
+        ray,
+        .{
+            .broad_phase_layer_filter = @ptrCast(&config.physics.NonMovingBroadPhaseLayerFilter{}),
+        },
+    );
+
+    if (result.has_hit) {
+        const bodies = ctx.physics_world.getBodiesUnsafe();
+        const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
+        if (body_hit_opt) |body_hit| {
+            const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
+            const steepness = @max(0.0, hit_normal[1] - 0.5) / 0.5;
+            speed *= zm.f32x4s(steepness);
+
+            // im3d.Im3d.DrawCone(
+            //     &.{
+            //         .x = pos.x + fwd.x * 2,
+            //         .y = pos.y,
+            //         .z = pos.z + fwd.z * 2,
+            //     },
+            //     &.{ .x = 0, .y = 1, .z = 0 },
+            //     1 + steepness * steepness,
+            //     0.5,
+            //     3,
+            // );
+        }
+    }
 
     const right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
     // const movement = speed * dt * forward;
@@ -138,6 +184,39 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
     }
 }
 
+fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: f32, player: *fd.Player, input_frame_data: *input.FrameData) void {
+    _ = pos; // autofix
+    _ = rot; // autofix
+    _ = fwd; // autofix
+    _ = dt; // autofix
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    _ = environment_info; // autofix
+
+    if (input_frame_data.just_pressed(config.input.reload_shaders)) {
+        player.music_played_counter = 10000;
+        player.played_intro = true;
+        player.played_exited_village = true;
+        player.music.?.stop() catch unreachable;
+        player.vo_intro.stop() catch unreachable;
+        player.vo_exited_village.stop() catch unreachable;
+    }
+
+    if (player.amount_moved_total > player.music_played_counter) {
+        player.music_played_counter += 2000;
+        player.music.?.start() catch unreachable;
+    }
+
+    if (!player.played_intro and player.amount_moved_total > 20) {
+        player.played_intro = true;
+        player.vo_intro.start() catch unreachable;
+    }
+
+    if (!player.played_exited_village and player.amount_moved_total > 120) {
+        player.played_exited_village = true;
+        player.vo_exited_village.start() catch unreachable;
+    }
+}
+
 fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
@@ -146,6 +225,8 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
     const rotations = ecs.field(it, fd.Rotation, 2).?;
     const forwards = ecs.field(it, fd.Forward, 3).?;
     const players = ecs.field(it, fd.Player, 4).?;
+
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
 
     for (inputs, positions, rotations, forwards, players, it.entities()) |input_comp, *pos, *rot, *fwd, *player, ent| {
         _ = ent; // autofix
@@ -156,6 +237,10 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         const pos_before = pos.asZM();
         updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
         updateSnapToTerrain(ctx.physics_world, pos);
+        if (environment_info.journey_time_end != null) {
+            continue;
+        }
+        playVoiceOver(ctx, pos, rot, fwd, it.delta_time, player, ctx.input_frame_data);
 
         const pos_after = pos.asZM();
         player.*.amount_moved += zm.length3(pos_after - pos_before)[0];
@@ -178,11 +263,6 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
             ctx.audio.playSound(sound_path, null) catch unreachable;
         }
 
-        if (player.amount_moved_total > 100) {
-            player.amount_moved_total = -2000;
-            player.music.?.start() catch unreachable;
-        }
-
         // var fwd_xz_z = comps.fwd.asZM();
         // fwd_xz_z[1] = 0;
         // fwd_xz_z = zm.normalize3(fwd_xz_z);
@@ -202,10 +282,5 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         // };
         // AK.SoundEngine.setPosition(config.audio_player_oid, ak_pos, .{}) catch unreachable;
 
-        const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-        if (environment_info.journey_time_multiplier != 1) {
-            // var journey = ecs.get_mut(ctx.ecsu_world.world, ent, fd.Journey).?;
-
-        }
     }
 }

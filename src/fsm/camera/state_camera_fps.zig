@@ -68,24 +68,25 @@ pub fn create(create_ctx: StateContext) void {
     //     );
     // }
 
-    // {
-    //     var system_desc = ecs.system_desc_t{};
-    //     system_desc.callback = updateJourney;
-    //     system_desc.ctx = update_ctx;
-    //     system_desc.query.terms = [_]ecs.term_t{
-    //         .{ .id = ecs.id(fd.Input), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Camera), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Transform), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
-    //         .{ .id = ecs.id(fd.Journey), .inout = .InOut },
-    //     } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 5);
-    //     _ = ecs.SYSTEM(
-    //         create_ctx.ecsu_world.world,
-    //         "updateJourney",
-    //         ecs.OnUpdate,
-    //         &system_desc,
-    //     );
-    // }
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateJourney;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Input), .inout = .InOut },
+            .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.id(fd.Journey), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateJourney",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 }
 
 fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
@@ -98,7 +99,7 @@ fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
 
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     if (environment_info.journey_time_multiplier != 1) {
-        return; // HACK?!
+        // return; // HACK?!
     }
 
     const movement_pitch = ctx.input_frame_data.get(config.input.look_pitch).number;
@@ -190,48 +191,80 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const cameras = ecs.field(it, fd.Camera, 1).?;
     const transforms = ecs.field(it, fd.Transform, 2).?;
     const rotations = ecs.field(it, fd.Rotation, 3).?;
-    const journeys = ecs.field(it, fd.Journey, 4).?;
+    const positions = ecs.field(it, fd.Position, 4).?;
+    const journeys = ecs.field(it, fd.Journey, 5).?;
 
     const input_frame_data = ctx.input_frame_data;
     const physics_world_low = ctx.physics_world_low;
     // TODO: No, interaction shouldn't be in camera.. :)
-    if (!input_frame_data.just_pressed(config.input.interact)) {
-        return;
-    }
-
-    for (inputs, cameras, transforms, rotations, journeys) |input_comp, cam, transform, *rot, *journey| {
+    for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
+        _ = pos; // autofix
+        _ = journey; // autofix
         _ = input_comp; // autofix
         _ = cam; // autofix
         _ = rot; // autofix
+
+        // if (journey.target_position) {
+        //     continue;
+        // }
+        var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+
+        if (environment_info.journey_time_end) |journey_time| {
+            // std.log.info("time:{d}", .{environment_info.world_time});
+            if (journey_time < environment_info.world_time) {
+                std.log.info("done time:{d}", .{environment_info.world_time});
+                environment_info.journey_time_end = null;
+                environment_info.journey_time_multiplier = 1;
+            }
+        }
+
+        if (!input_frame_data.just_pressed(config.input.interact)) {
+            return;
+        }
+
         const z_mat = zm.loadMat43(transform.matrix[0..]);
         const z_pos = zm.util.getTranslationVec(z_mat);
         const z_fwd = zm.util.getAxisZ(z_mat);
 
+        const dist = 4000;
         const query = physics_world_low.getNarrowPhaseQuery();
         const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
-        const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
+        const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
         const result = query.castRay(.{
             .origin = ray_origin,
             .direction = ray_dir,
         }, .{});
 
         if (result.has_hit) {
-            journey.target_position = .{
-                ray_origin[0] + ray_dir[0] * result.hit.fraction,
-                ray_origin[1] + ray_dir[1] * result.hit.fraction,
-                ray_origin[2] + ray_dir[2] * result.hit.fraction,
-            };
+            const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+            if (!(config.ocean_level + 5 < height_next and height_next < 500)) {
+                return;
+            }
 
-            var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-            environment_info.journey_time_multiplier = 5;
+            var player_pos = environment_info.player.?.getMut(fd.Position).?;
+            const height_prev = player_pos.y;
+            player_pos.x = ray_origin[0] + ray_dir[0] * result.hit.fraction;
+            player_pos.y = height_next;
+            player_pos.z = ray_origin[2] + ray_dir[2] * result.hit.fraction;
 
-            // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
-            // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
-            // const light_ent = ecsu_world.newEntity();
-            // light_ent.childOf(post_ent);
-            // light_ent.set(light_pos);
-            // light_ent.set(light_transform);
-            // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
+            const walk_meter_per_second = 1.35;
+            const height_term = @max(1.0, height_prev * 0.01 + height_next * 0.01);
+            const walk_winding = 1.2;
+            const height_factor = height_term;
+            const dist_as_the_crow_flies = result.hit.fraction * dist;
+            const dist_travel = walk_winding * dist_as_the_crow_flies;
+            const time_fudge = 4.0 / 24.0;
+            const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
+            environment_info.journey_time_multiplier = 1000;
+            environment_info.journey_time_end = environment_info.world_time + duration;
+            std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
+                environment_info.world_time,
+                dist_as_the_crow_flies,
+                dist_travel,
+                duration / 3600.0,
+                height_factor,
+                environment_info.journey_time_end.?,
+            });
         }
     }
 }
