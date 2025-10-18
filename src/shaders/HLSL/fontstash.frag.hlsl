@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#include "fontstash_resources.hlsl"
+#include "fontstash_resources.hlsli"
 
 STRUCT(PsIn)
 {
@@ -9,7 +9,7 @@ STRUCT(PsIn)
 	DATA(float2, texCoord, TEXCOORD0);
 };
 
-float4 PS_MAIN( PsIn In ) : SV_TARGET
+float4 PS_MAIN(PsIn In) : SV_TARGET
 {
 	INIT_MAIN;
 	float4 Out;

@@ -22,3 +22,6 @@ Logs/*
 prefs.toml
 *.flecs
 content/systems
+content/PathStatement.txt
+content/ludodb
+content/content.sqlite

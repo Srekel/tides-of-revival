@@ -7,22 +7,16 @@ const zforge = @import("zforge");
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
 
-const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
-
 const Pool = @import("zpool").Pool;
 
 pub const opaque_pipelines = [_]IdLocal{
     IdLocal.init("lit_gbuffer_opaque"),
     IdLocal.init("lit_shadow_caster_opaque"),
-    IdLocal.init("tree_gbuffer_opaque"),
-    IdLocal.init("tree_shadow_caster_opaque"),
 };
 
 pub const cutout_pipelines = [_]IdLocal{
     IdLocal.init("lit_gbuffer_cutout"),
     IdLocal.init("lit_shadow_caster_cutout"),
-    IdLocal.init("tree_gbuffer_cutout"),
-    IdLocal.init("tree_shadow_caster_cutout"),
 };
 
 const PSOPool = Pool(16, 16, graphics.Shader, struct { shader: [*c]graphics.Shader, root_signature: [*c]graphics.RootSignature, pipeline: [*c]graphics.Pipeline });
@@ -45,12 +39,33 @@ const GraphicsPipelineDesc = struct {
     sampler_ids: []IdLocal = undefined,
 };
 
+const MeshPipelineDesc = struct {
+    id: IdLocal = undefined,
+    mesh_shader_name: []const u8 = undefined,
+    ampl_shader_name: ?[]const u8 = null,
+    frag_shader_name: ?[]const u8 = null,
+    render_targets: []graphics.TinyImageFormat = undefined,
+    rasterizer_state: ?graphics.RasterizerStateDesc = null,
+    depth_state: ?graphics.DepthStateDesc = null,
+    depth_format: ?graphics.TinyImageFormat = null,
+    blend_state: ?graphics.BlendStateDesc = null,
+    sampler_ids: []IdLocal = undefined,
+};
+
+pub const PsoBin = struct {
+    gbuffer_id: IdLocal,
+    shadow_caster_id: IdLocal = undefined,
+};
+
+pub const pso_bins_max_count: u32 = 8;
+
 pub const PSOManager = struct {
     allocator: std.mem.Allocator = undefined,
     renderer: *Renderer = undefined,
 
     pso_pool: PSOPool = undefined,
     pso_map: PSOMap = undefined,
+    pso_bins: std.ArrayList(PsoBin) = undefined,
     blend_states: BlendStates = undefined,
     samplers: StaticSamplers = undefined,
 
@@ -61,6 +76,7 @@ pub const PSOManager = struct {
         self.renderer = renderer;
         self.pso_pool = PSOPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_map = PSOMap.init(allocator);
+        self.pso_bins = std.ArrayList(PsoBin).init(self.allocator);
         self.blend_states = BlendStates.init(allocator);
         self.samplers = StaticSamplers.create(renderer.renderer, allocator);
 
@@ -81,6 +97,7 @@ pub const PSOManager = struct {
         }
         self.pso_pool.deinit();
         self.pso_map.deinit();
+        self.pso_bins.deinit();
         self.blend_states.deinit();
 
         self.samplers.exit(self.renderer.renderer);
@@ -185,6 +202,20 @@ pub const PSOManager = struct {
         }
     }
 
+    pub fn getPsoBinsCount(self: *PSOManager) usize {
+        return self.pso_bins.items.len;
+    }
+
+    pub fn getPsoBinId(self: *PSOManager, id: IdLocal) ?u32 {
+        for (self.pso_bins.items, 0..) |pso_bin, pso_bin_id| {
+            if (id.hash == pso_bin.gbuffer_id.hash or id.hash == pso_bin.shadow_caster_id.hash) {
+                return @intCast(pso_bin_id);
+            }
+        }
+
+        return null;
+    }
+
     pub fn getPipeline(self: *PSOManager, id: IdLocal) [*c]graphics.Pipeline {
         const handle = self.pso_map.get(id).?;
         const pso = self.pso_pool.getColumn(handle, .pipeline) catch unreachable;
@@ -198,6 +229,8 @@ pub const PSOManager = struct {
     }
 
     pub fn createPipelines(self: *PSOManager) void {
+        self.pso_bins.clearRetainingCapacity();
+
         var rasterizer_cull_back = std.mem.zeroes(graphics.RasterizerStateDesc);
         rasterizer_cull_back.mCullMode = graphics.CullMode.CULL_MODE_BACK;
 
@@ -223,7 +256,7 @@ pub const PSOManager = struct {
 
             // Draw Sky
             {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat };
+                var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
                 const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
                 const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_GREATER);
@@ -241,12 +274,6 @@ pub const PSOManager = struct {
                 };
                 self.createGraphicsPipeline(desc);
             }
-        }
-
-        // SSAO
-        {
-            var sampler_ids = [_]IdLocal{};
-            self.createComputePipeline(IdLocal.init("linearize_depth"), "linearize_depth.comp", &sampler_ids);
         }
 
         // Terrain
@@ -366,13 +393,67 @@ pub const PSOManager = struct {
             }
         }
 
-        // Trees
-        // =====
+        // GPU-Driven Rendering PSOs
+        // =========================
         {
-            // GBuffer
+            // Culling: Clear UAV
             {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_clear_counters"), "meshlet_clear_counters.comp", &sampler_ids);
+            }
+
+            // Culling: Cull Instances
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_cull_instances"), "meshlet_cull_instances.comp", &sampler_ids);
+            }
+
+            // Culling: Build Meshlets Cull Args
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_build_meshlets_cull_args"), "meshlet_build_cull_meshlets_args.comp", &sampler_ids);
+            }
+
+            // Culling: Cull Meshlets
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_cull_meshlets"), "meshlet_cull_meshlets.comp", &sampler_ids);
+            }
+
+            // Binning: Prepare Args
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_prepare_args"), "meshlet_binning_prepare_args.comp", &sampler_ids);
+            }
+
+            // Binning: Classify Meshlets
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_classify_meshlets"), "meshlet_binning_classify_meshlets.comp", &sampler_ids);
+            }
+
+            // Binning: Allocate Bin Ranges
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_allocate_bin_ranges"), "meshlet_binning_allocate_bin.comp", &sampler_ids);
+            }
+
+            // Binning: Write Bin Ranges
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("meshlet_binning_write_bin_ranges"), "meshlet_binning_write_bins.comp", &sampler_ids);
+            }
+
+            // Meshlets Rasterization
+            {
+                const gbuffer_opaque_id = IdLocal.init("meshlet_gbuffer_opaque");
+                const gbuffer_masked_id = IdLocal.init("meshlet_gbuffer_masked");
+                const depth_only_opaque_id = IdLocal.init("meshlet_depth_only_opaque");
+                const depth_only_masked_id = IdLocal.init("meshlet_depth_only_masked");
+
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-                const render_targets = [_]graphics.TinyImageFormat{
+
+                const gbuffer_render_targets = [_]graphics.TinyImageFormat{
                     self.renderer.gbuffer_0.*.mFormat,
                     self.renderer.gbuffer_1.*.mFormat,
                     self.renderer.gbuffer_2.*.mFormat,
@@ -380,60 +461,45 @@ pub const PSOManager = struct {
 
                 const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GEQUAL);
 
-                var desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("tree_gbuffer_opaque"),
-                    .vert_shader_name = "tree_gbuffer.vert",
-                    .frag_shader_name = "tree_gbuffer_opaque.frag",
-                    .render_targets = @constCast(&render_targets),
+                var desc = MeshPipelineDesc{
+                    .id = gbuffer_opaque_id,
+                    .mesh_shader_name = "meshlet_rasterizer.mesh",
+                    .frag_shader_name = "meshlet_rasterizer_opaque.frag",
+                    .render_targets = @constCast(&gbuffer_render_targets),
                     .rasterizer_state = rasterizer_cull_back,
                     .depth_state = depth_state,
                     .depth_format = self.renderer.depth_buffer.*.mFormat,
-                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
                     .sampler_ids = &sampler_ids,
                 };
-                self.createGraphicsPipeline(desc);
+                self.createMeshPipeline(desc);
 
-                desc.id = IdLocal.init("tree_gbuffer_cutout");
-                desc.frag_shader_name = "tree_gbuffer_cutout.frag";
+                desc.id = gbuffer_masked_id;
                 desc.rasterizer_state = rasterizer_cull_none;
-                self.createGraphicsPipeline(desc);
-            }
+                desc.frag_shader_name = "meshlet_rasterizer_masked.frag";
+                self.createMeshPipeline(desc);
 
-            // Shadows Caster
-            {
-                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
-                const render_targets = [_]graphics.TinyImageFormat{};
-                const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GREATER);
-                var rasterizer = rasterizer_cull_back;
-                rasterizer.mDepthBias = -1.0;
-                rasterizer.mSlopeScaledDepthBias = -4.0;
+                var rasterizer_shadow = rasterizer_cull_back;
+                rasterizer_shadow.mDepthBias = -10.0;
+                rasterizer_shadow.mSlopeScaledDepthBias = -4.0;
 
-                var desc = GraphicsPipelineDesc{
-                    .id = IdLocal.init("tree_shadow_caster_opaque"),
-                    .vert_shader_name = "tree_shadow_caster.vert",
-                    .frag_shader_name = "tree_shadow_caster_opaque.frag",
-                    .render_targets = @constCast(&render_targets),
-                    .rasterizer_state = rasterizer,
-                    .depth_state = depth_state,
-                    .depth_format = self.renderer.depth_buffer.*.mFormat,
-                    .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col_uv1"),
-                    .sampler_ids = &sampler_ids,
-                };
-                self.createGraphicsPipeline(desc);
+                desc.id = depth_only_opaque_id;
+                desc.rasterizer_state = rasterizer_shadow;
+                desc.frag_shader_name = null;
+                desc.depth_format = self.renderer.shadow_depth_buffers[0].*.mFormat;
+                self.createMeshPipeline(desc);
 
-                rasterizer = rasterizer_cull_none;
-                rasterizer.mDepthBias = -1.0;
-                rasterizer.mSlopeScaledDepthBias = -4.0;
-                desc.id = IdLocal.init("tree_shadow_caster_cutout");
-                desc.frag_shader_name = "tree_shadow_caster_cutout.frag";
-                desc.rasterizer_state = rasterizer;
-                self.createGraphicsPipeline(desc);
+                desc.id = depth_only_masked_id;
+                desc.frag_shader_name = "meshlet_rasterizer_masked_depth_only.frag";
+                self.createMeshPipeline(desc);
+
+                self.pso_bins.append(.{ .gbuffer_id = gbuffer_opaque_id, .shadow_caster_id = depth_only_opaque_id }) catch unreachable;
+                self.pso_bins.append(.{ .gbuffer_id = gbuffer_masked_id, .shadow_caster_id = depth_only_masked_id }) catch unreachable;
             }
         }
 
         // Deferred
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge };
+            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge, StaticSamplers.linear_clamp_cmp_greater };
             const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
             const desc = GraphicsPipelineDesc{
@@ -549,28 +615,20 @@ pub const PSOManager = struct {
             {
                 {
                     var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
-                    self.createComputePipeline(IdLocal.init("bloom_extract"), "BloomExtractAndDownsampleHdr.comp", &sampler_ids);
-                    self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "DownsampleBloomAll.comp", &sampler_ids);
-                    self.createComputePipeline(IdLocal.init("tonemap"), "Tonemap.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("bloom_extract"), "bloom_extract_downsample_hdr.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "downsample_bloom_all.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("tonemap"), "tonemapping.comp", &sampler_ids);
                 }
 
                 {
                     var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_border};
-                    self.createComputePipeline(IdLocal.init("upsample_and_blur"), "UpsampleAndBlur.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("upsample_and_blur"), "upsample_blur.comp", &sampler_ids);
                 }
 
                 {
                     var sampler_ids = [_]IdLocal{};
-                    self.createComputePipeline(IdLocal.init("blur"), "Blur.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("blur_gaussian"), "blur_gaussian.comp", &sampler_ids);
                 }
-            }
-
-            // Adapt exposure
-            {
-                var sampler_ids = [_]IdLocal{};
-                self.createComputePipeline(IdLocal.init("generate_histogram"), "GenerateHistogram.comp", &sampler_ids);
-                self.createComputePipeline(IdLocal.init("adapt_exposure"), "AdaptExposure.comp", &sampler_ids);
-                self.createComputePipeline(IdLocal.init("debug_draw_histogram"), "DebugDrawHistogram.comp", &sampler_ids);
             }
         }
 
@@ -611,7 +669,7 @@ pub const PSOManager = struct {
             const desc = GraphicsPipelineDesc{
                 .id = IdLocal.init("composite_sdr"),
                 .vert_shader_name = "fullscreen.vert",
-                .frag_shader_name = "CompositeSDR.frag",
+                .frag_shader_name = "composite_sdr.frag",
                 .render_targets = @constCast(&render_targets),
                 .rasterizer_state = rasterizer_cull_none,
                 .sampler_ids = &sampler_ids,
@@ -766,6 +824,75 @@ pub const PSOManager = struct {
         self.pso_map.put(id, handle) catch unreachable;
     }
 
+    fn createMeshPipeline(self: *PSOManager, desc: MeshPipelineDesc) void {
+        var shader: [*c]graphics.Shader = null;
+        var root_signature: [*c]graphics.RootSignature = null;
+        var pipeline: [*c]graphics.Pipeline = null;
+
+        var shader_load_desc = std.mem.zeroes(resource_loader.ShaderLoadDesc);
+        shader_load_desc.mMesh.pFileName = @ptrCast(desc.mesh_shader_name);
+        if (desc.ampl_shader_name) |shader_name| {
+            shader_load_desc.mAmplification.pFileName = @ptrCast(shader_name);
+        }
+        if (desc.frag_shader_name) |shader_name| {
+            shader_load_desc.mFrag.pFileName = @ptrCast(shader_name);
+        }
+        resource_loader.addShader(self.renderer.renderer, &shader_load_desc, &shader);
+
+        var root_signature_desc = std.mem.zeroes(graphics.RootSignatureDesc);
+        root_signature_desc.mShaderCount = 1;
+        root_signature_desc.ppShaders = @ptrCast(&shader);
+
+        if (desc.sampler_ids.len > 0) {
+            var static_sampler_names = std.mem.zeroes([8][*c]const u8);
+            var static_samplers = std.mem.zeroes([8][*c]graphics.Sampler);
+
+            for (0..desc.sampler_ids.len) |i| {
+                const sampler = self.samplers.getSampler(desc.sampler_ids[i]);
+                static_sampler_names[i] = @ptrCast(sampler.name);
+                static_samplers[i] = sampler.sampler;
+            }
+
+            root_signature_desc.mStaticSamplerCount = @intCast(desc.sampler_ids.len);
+            root_signature_desc.ppStaticSamplerNames = @ptrCast(&static_sampler_names);
+            root_signature_desc.ppStaticSamplers = @ptrCast(&static_samplers);
+        }
+
+        graphics.addRootSignature(self.renderer.renderer, &root_signature_desc, @ptrCast(&root_signature));
+
+        var pipeline_desc = std.mem.zeroes(graphics.PipelineDesc);
+        pipeline_desc.mType = graphics.PipelineType.PIPELINE_TYPE_MESH;
+        pipeline_desc.__union_field1.mMeshDesc = std.mem.zeroes(graphics.MeshPipelineDesc);
+        pipeline_desc.__union_field1.mMeshDesc.mRenderTargetCount = @intCast(desc.render_targets.len);
+        pipeline_desc.__union_field1.mMeshDesc.pColorFormats = @ptrCast(desc.render_targets.ptr);
+
+        if (desc.depth_state) |state| {
+            pipeline_desc.__union_field1.mMeshDesc.pDepthState = @constCast(&state);
+            if (desc.depth_format) |format| {
+                pipeline_desc.__union_field1.mMeshDesc.mDepthStencilFormat = format;
+            }
+        }
+
+        pipeline_desc.__union_field1.mMeshDesc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+        pipeline_desc.__union_field1.mMeshDesc.mSampleQuality = 0;
+
+        pipeline_desc.__union_field1.mMeshDesc.pRootSignature = root_signature;
+        pipeline_desc.__union_field1.mMeshDesc.pShaderProgram = shader;
+
+        if (desc.rasterizer_state) |state| {
+            pipeline_desc.__union_field1.mMeshDesc.pRasterizerState = @constCast(&state);
+        }
+
+        if (desc.blend_state) |state| {
+            pipeline_desc.__union_field1.mMeshDesc.pBlendState = @constCast(&state);
+        }
+
+        graphics.addPipeline(self.renderer.renderer, &pipeline_desc, @ptrCast(&pipeline));
+
+        const handle: PSOHandle = self.pso_pool.add(.{ .shader = shader, .root_signature = root_signature, .pipeline = pipeline }) catch unreachable;
+        self.pso_map.put(desc.id, handle) catch unreachable;
+    }
+
     fn getDepthStateDesc(depth_write: bool, depth_test: bool, depth_func: graphics.CompareMode) graphics.DepthStateDesc {
         var desc = std.mem.zeroes(graphics.DepthStateDesc);
         desc.mDepthWrite = depth_write;
@@ -786,6 +913,7 @@ const StaticSamplers = struct {
 
     pub const linear_repeat = IdLocal.init("linear_repeat");
     pub const linear_clamp_edge = IdLocal.init("linear_clamp_edge");
+    pub const linear_clamp_cmp_greater = IdLocal.init("linear_clamp_cmp_greater");
     pub const linear_clamp_border = IdLocal.init("linear_clamp_border");
     pub const point_repeat = IdLocal.init("point_repeat");
     pub const point_clamp_edge = IdLocal.init("point_clamp_edge");
@@ -808,8 +936,26 @@ const StaticSamplers = struct {
             desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
 
             var sampler: [*c]graphics.Sampler = null;
-            graphics.addSampler(renderer, &desc, &sampler);
+            graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(linear_repeat, .{ .sampler = sampler, .name = "g_linear_repeat_sampler" }) catch unreachable;
+        }
+
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = .ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressV = .ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mAddressW = .ADDRESS_MODE_CLAMP_TO_EDGE;
+            desc.mMinFilter = .FILTER_LINEAR;
+            desc.mMagFilter = .FILTER_LINEAR;
+            desc.mMipMapMode = .MIPMAP_MODE_NEAREST;
+            desc.mCompareFunc = .CMP_GREATER;
+            desc.mSetLodRange = true;
+            desc.mMinLod = 0.0;
+            desc.mMaxLod = std.math.floatMax(f32);
+
+            var sampler: [*c]graphics.Sampler = null;
+            graphics.addSampler(renderer, &desc, false, &sampler);
+            static_samplers.samplers_map.put(linear_clamp_cmp_greater, .{ .sampler = sampler, .name = "g_linear_clamp_cmp_greater_sampler" }) catch unreachable;
         }
 
         {
@@ -822,7 +968,7 @@ const StaticSamplers = struct {
             desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
 
             var sampler: [*c]graphics.Sampler = null;
-            graphics.addSampler(renderer, &desc, &sampler);
+            graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(linear_clamp_edge, .{ .sampler = sampler, .name = "g_linear_clamp_edge_sampler" }) catch unreachable;
         }
 
@@ -836,7 +982,7 @@ const StaticSamplers = struct {
             desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
 
             var sampler: [*c]graphics.Sampler = null;
-            graphics.addSampler(renderer, &desc, &sampler);
+            graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(linear_clamp_border, .{ .sampler = sampler, .name = "g_linear_clamp_border_sampler" }) catch unreachable;
         }
 
@@ -850,7 +996,7 @@ const StaticSamplers = struct {
             desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
 
             var sampler: [*c]graphics.Sampler = null;
-            graphics.addSampler(renderer, &desc, &sampler);
+            graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(point_repeat, .{ .sampler = sampler, .name = "g_point_repeat_sampler" }) catch unreachable;
         }
 
@@ -864,7 +1010,7 @@ const StaticSamplers = struct {
             desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
 
             var sampler: [*c]graphics.Sampler = null;
-            graphics.addSampler(renderer, &desc, &sampler);
+            graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(point_clamp_edge, .{ .sampler = sampler, .name = "g_point_clamp_edge_sampler" }) catch unreachable;
         }
 
@@ -878,7 +1024,7 @@ const StaticSamplers = struct {
             desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_NEAREST;
 
             var sampler: [*c]graphics.Sampler = null;
-            graphics.addSampler(renderer, &desc, &sampler);
+            graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(point_clamp_border, .{ .sampler = sampler, .name = "g_point_clamp_border_sampler" }) catch unreachable;
         }
 
@@ -893,7 +1039,7 @@ const StaticSamplers = struct {
             desc.mMaxAnisotropy = 16.0;
 
             var sampler: [*c]graphics.Sampler = null;
-            graphics.addSampler(renderer, &desc, &sampler);
+            graphics.addSampler(renderer, &desc, false, &sampler);
             static_samplers.samplers_map.put(skybox, .{ .sampler = sampler, .name = "g_skybox_sampler" }) catch unreachable;
         }
 

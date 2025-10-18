@@ -1,8 +1,8 @@
 #define DIRECT3D12
 #define STAGE_FRAG
 
-#include "ui_resources.hlsl"
-#include "utils.hlsl"
+#include "ui_resources.hlsli"
+#include "utils.hlsli"
 
 float4 PS_MAIN(VSOutput input) : SV_Target
 {

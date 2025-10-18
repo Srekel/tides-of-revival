@@ -23,7 +23,9 @@ const task_queue = @import("core/task_queue.zig");
 const input = @import("input.zig");
 const prefab_manager = @import("prefab_manager.zig");
 const physics_manager = @import("managers/physics_manager.zig");
+const pso = @import("renderer/pso.zig");
 
+const FrameStats = @import("frame_stats.zig").FrameStats;
 const renderer = @import("renderer/renderer.zig");
 const util = @import("util.zig");
 const Variant = @import("core/core.zig").Variant;
@@ -47,8 +49,9 @@ const GameloopContext = struct {
     physics_world: *zphy.PhysicsSystem,
     physics_world_low: *zphy.PhysicsSystem,
     prefab_mgr: *prefab_manager.PrefabManager,
+    pso_mgr: *pso.PSOManager,
     renderer: *renderer.Renderer,
-    stats: *renderer.FrameStats,
+    stats: *FrameStats,
     task_queue: *task_queue.TaskQueue,
     time: *util.GameTime,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
@@ -67,7 +70,7 @@ pub fn run() void {
     fr.registerRelations(ecsu_world);
 
     // Frame Stats
-    var stats = renderer.FrameStats.init();
+    var stats = FrameStats.init();
 
     // Window
     window.init(std.heap.page_allocator) catch unreachable;
@@ -77,7 +80,7 @@ pub fn run() void {
 
     // Initialize Renderer
     var renderer_ctx = renderer.Renderer{};
-    renderer_ctx.init(main_window, std.heap.page_allocator) catch unreachable;
+    renderer_ctx.init(main_window, ecsu_world, std.heap.page_allocator) catch unreachable;
     defer renderer_ctx.exit();
     const reload_desc = renderer.ReloadDesc{ .mType = .{ .SHADER = true, .RESIZE = true, .RENDERTARGET = true } };
     renderer_ctx.onLoad(reload_desc) catch unreachable;
@@ -201,6 +204,7 @@ pub fn run() void {
         .physics_world = physics_mgr.physics_world,
         .physics_world_low = physics_mgr.physics_world_low,
         .prefab_mgr = &prefab_mgr,
+        .pso_mgr = &renderer_ctx.pso_manager,
         .renderer = &renderer_ctx,
         .stats = &stats,
         .task_queue = &task_queue1,
@@ -219,8 +223,9 @@ pub fn run() void {
         .sun_height = 0,
         .world_time = 0,
         .active_camera = null,
+        .player_camera = null,
         .sun = null,
-        .sky_light = null,
+        .height_fog = null,
         .player = null,
     });
 
@@ -266,7 +271,7 @@ pub fn run() void {
 
     var player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
     player_pos.x += 20;
-    config.entity.init(player_pos, &prefab_mgr, ecsu_world, &renderer_ctx, &gameloop_context);
+    config.entity.init(player_pos, &prefab_mgr, ecsu_world, &gameloop_context);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗
     // ╚══██╔══╝██║████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝██╔════╝

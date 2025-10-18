@@ -203,31 +203,6 @@ pub fn build(b: *std.Build) void {
     });
     exe.step.dependOn(&install_systems_step.step);
 
-    // zwindows
-    const zwindows = b.dependency("zwindows", .{
-        .zxaudio2_debug_layer = (builtin.mode == .Debug),
-        .zd3d12_debug_layer = (builtin.mode == .Debug),
-        .zd3d12_gbv = b.option(bool, "zd3d12_gbv", "Enable GPU-Based Validation") orelse false,
-    });
-
-    // Activate the sdk. This does things like ensure executables are executable by the system user.
-    // const activate_zwindows = @import("zwindows").activateSdk(b, zwindows);
-    // exe.step.dependOn(activate_zwindows);
-
-    // Import the Windows API bindings
-    exe.root_module.addImport("zwindows", zwindows.module("zwindows"));
-
-    // Import the optional zd3d12 helper library
-    exe.root_module.addImport("zd3d12", zwindows.module("zd3d12"));
-
-    // Import the optional zxaudio2 helper library
-    exe.root_module.addImport("zxaudio2", zwindows.module("zxaudio2"));
-
-    // Install vendored binaries
-    @import("zwindows").install_xaudio2(&exe.step, zwindows, .bin);
-    @import("zwindows").install_d3d12(&exe.step, zwindows, .bin);
-    @import("zwindows").install_directml(&exe.step, zwindows, .bin);
-
     // WWise
     // const wwise_dependency = b.dependency("wwise-zig", .{
     //     .target = target,

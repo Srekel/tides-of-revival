@@ -2,39 +2,43 @@
 #define STAGE_FRAG
 
 #include "../FSL/d3d.h"
-#include "utils.hlsl"
+#include "utils.hlsli"
+#include "math.hlsli"
 
 RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
 RES(SamplerState, g_point_repeat_sampler, UPDATE_FREQ_NONE, s2, binding = 3);
+RES(SamplerComparisonState, g_linear_clamp_cmp_greater_sampler, UPDATE_FREQ_NONE, s3, binding = 4);
 
-RES(Tex2D(float2), g_brdf_integration_map, UPDATE_FREQ_NONE, t0, binding = 4);
-RES(TexCube(float4), g_irradiance_map, UPDATE_FREQ_NONE, t1, binding = 5);
-RES(TexCube(float4), g_specular_map, UPDATE_FREQ_NONE, t2, binding = 6);
-
-RES(Tex2D(float4), gBuffer0, UPDATE_FREQ_NONE, t3, binding = 7);
-RES(Tex2D(float4), gBuffer1, UPDATE_FREQ_NONE, t4, binding = 8);
-RES(Tex2D(float4), gBuffer2, UPDATE_FREQ_NONE, t5, binding = 9);
-RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t6, binding = 10);
-RES(Tex2D(float), shadowDepthBuffer, UPDATE_FREQ_NONE, t7, binding = 11);
+RES(Tex2D(float4), gBuffer0, UPDATE_FREQ_NONE, t0, binding = 5);
+RES(Tex2D(float4), gBuffer1, UPDATE_FREQ_NONE, t1, binding = 6);
+RES(Tex2D(float4), gBuffer2, UPDATE_FREQ_NONE, t2, binding = 7);
+RES(Tex2D(float), depthBuffer, UPDATE_FREQ_NONE, t3, binding = 8);
+RES(Tex2D(float), shadowDepth0, UPDATE_FREQ_NONE, t4, binding = 9);
+RES(Tex2D(float), shadowDepth1, UPDATE_FREQ_NONE, t5, binding = 10);
+RES(Tex2D(float), shadowDepth2, UPDATE_FREQ_NONE, t6, binding = 11);
+RES(Tex2D(float), shadowDepth3, UPDATE_FREQ_NONE, t7, binding = 12);
 
 #define BRDF_FUNCTION FILAMENT_BRDF
-#include "pbr.hlsl"
+#include "pbr.hlsli"
+
+#define CASCADES_MAX_COUNT 4
 
 cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
 {
+    float4x4 g_proj_mat;
+    float4x4 g_inv_proj_mat;
     float4x4 g_proj_view_mat;
     float4x4 g_inv_proj_view_mat;
-    float4x4 g_light_proj_view;
-    float4x4 g_inv_light_proj_view_mat;
     float4 g_cam_pos;
-    uint g_directional_lights_buffer_index;
-    uint g_point_lights_buffer_index;
-    uint g_directional_lights_count;
-    uint g_point_lights_count;
-    float g_apply_shadows;
-    float g_environment_light_intensity;
-    float2 _padding;
+    float g_near_plane;
+    float g_far_plane;
+    float2 g_shadow_resolution_inverse;
+    float4 g_cascade_depths;
+    uint g_lights_buffer_index;
+    uint g_lights_count;
+    uint g_light_matrix_buffer_index;
+    uint _padding1;
     float3 g_fog_color;
     float g_fog_density;
 };
@@ -45,84 +49,121 @@ STRUCT(VsOut)
     DATA(float2, UV, TEXCOORD0);
 };
 
-float4 getClipPositionFromDepth(float depth, float2 uv)
+float LinearizeDepth01(float z)
 {
-    float x = uv.x * 2.0f - 1.0f;
-    float y = (1.0f - uv.y) * 2.0f - 1.0f;
-    float4 positionCS = float4(x, y, depth, 1.0f);
-    return mul(g_inv_proj_view_mat, positionCS);
+    return g_far_plane / (g_far_plane + z * (g_near_plane - g_far_plane));
 }
 
-float3 getWorldPositionFromDepth(float depth, float2 uv)
+float3 ViewPositionFromDepth(float2 uv, float depth, float4x4 projectionInverse)
 {
-    float4 positionCS = getClipPositionFromDepth(depth, uv);
-    return positionCS.xyz / positionCS.w;
+    float4 clip = float4(float2(uv.x, 1.0f - uv.y) * 2.0f - 1.0f, 0.0f, 1.0f) * g_near_plane;
+    float3 viewRay = mul(clip, projectionInverse).xyz;
+    return viewRay * LinearizeDepth01(depth);
 }
 
-float ShadowFetch(Texture2D<float> shadowMap, float2 uv, int2 offset, float depth)
+float3 WorldPositionFromDepth(float2 uv, float depth, float4x4 viewProjectionInverse)
 {
-    return step(depth, SampleLvlOffsetTex2D(shadowMap, Get(g_point_repeat_sampler), uv, 0, offset).r);
+    float4 clip = float4(float2(uv.x, 1.0f - uv.y) * 2.0f - 1.0f, depth, 1.0f);
+    float4 world = mul(clip, viewProjectionInverse);
+    return world.xyz / world.w;
 }
 
-float ShadowFetchBilinear(Texture2D<float> shadowMap, float2 uv, float2 uvFrac, int2 offset, float depth)
+uint GetSunShadowMapIndex(float viewDepth /*, float dither */)
 {
-    float4 s = float4(
-        ShadowFetch(shadowMap, uv, offset + int2(0, 0), depth),
-        ShadowFetch(shadowMap, uv, offset + int2(1, 0), depth),
-        ShadowFetch(shadowMap, uv, offset + int2(0, 1), depth),
-        ShadowFetch(shadowMap, uv, offset + int2(1, 1), depth));
+    float4 splits = viewDepth > g_cascade_depths;
+    float4 cascades = g_cascade_depths > 0;
+    int cascadeIndex = min(dot(splits, cascades), CASCADES_MAX_COUNT - 1);
 
-    float a = lerp(s.x, s.y, uvFrac.x);
-    float b = lerp(s.z, s.w, uvFrac.x);
-    return lerp(a, b, uvFrac.y);
+    // const float cascadeFadeTheshold = 0.1f;
+    // float nextSplit = g_cascade_depths[cascadeIndex];
+    // float splitRange = cascadeIndex == 0 ? nextSplit : nextSplit - g_cascade_depths[cascadeIndex - 1];
+    // float fadeFactor = (nextSplit - viewDepth) / splitRange;
+    // if (fadeFactor <= cascadeFadeTheshold && cascadeIndex < CASCADES_MAX_COUNT - 1)
+    // {
+    //     float lerpAmount = smoothstep(0.0f, cascadeFadeTheshold, fadeFactor);
+    //     if (lerpAmount < dither)
+    //     {
+    //         cascadeIndex++;
+    //     }
+    // }
+
+    return cascadeIndex;
 }
 
-float ShadowTest(float4 Pl, float2 shadowMapDimensions)
+float2 ClipToUV(float2 clip)
 {
-    // homogenous position after perspective divide
-    const float3 projLSpaceCoords = Pl.xyz / Pl.w;
+    return clip * float2(0.5f, -0.5f) + 0.5f;
+}
 
-    // light frustum check
-    if (projLSpaceCoords.x < -1.0f || projLSpaceCoords.x > 1.0f ||
-        projLSpaceCoords.y < -1.0f || projLSpaceCoords.y > 1.0f ||
-        projLSpaceCoords.z < 0.0f || projLSpaceCoords.z > 1.0f)
+float Shadow3x3PCF(float3 P, const int cascadeIndex, float invShadowSize)
+{
+    ByteAddressBuffer lightMatrixBuffer = ResourceDescriptorHeap[g_light_matrix_buffer_index];
+    float4x4 lightViewProjection = lightMatrixBuffer.Load<float4x4>(cascadeIndex * sizeof(float4x4));
+    float4 lightPos = mul(float4(P, 1), lightViewProjection);
+    lightPos.xyz /= lightPos.w;
+    float2 uv = ClipToUV(lightPos.xy);
+
+    const float dilation = 2.0f;
+    float d1 = dilation * invShadowSize * 0.125f;
+    float d2 = dilation * invShadowSize * 0.875f;
+    float d3 = dilation * invShadowSize * 0.625f;
+    float d4 = dilation * invShadowSize * 0.375f;
+    float result = 1.0f;
+
+    if (NonUniformResourceIndex(cascadeIndex) == 0)
     {
-        return 1.0f;
+        result = (2.0f * shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
+    }
+    else if (NonUniformResourceIndex(cascadeIndex) == 1)
+    {
+        result = (2.0f * shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
+    }
+    else if (NonUniformResourceIndex(cascadeIndex) == 2)
+    {
+        result = (2.0f * shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
+    }
+    else if (NonUniformResourceIndex(cascadeIndex) == 3)
+    {
+        result = (2.0f * shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
     }
 
-    const float2 texelSize = 1.0f / (shadowMapDimensions);
-
-    // clip space [-1, 1] --> texture space [0, 1]
-    const float2 shadowTexCoords = float2(0.5f, 0.5f) + projLSpaceCoords.xy * float2(0.5f, -0.5f); // invert Y
-
-    // const float BIAS = pcfTestLightData.depthBias * tan(acos(pcfTestLightData.NdotL));
-    const float BIAS = 0.0001f;
-    const float pxDepthInLSpace = projLSpaceCoords.z;
-
-    float shadow = 0.0f;
-    float2 shadowUVFrac = frac(shadowTexCoords * shadowMapDimensions);
-
-#define USE_PCF
-#ifdef USE_PCF
-
-    // PCF
-    const int rowHalfSize = 2;
-    [[unroll]] for (int x = -rowHalfSize; x <= rowHalfSize; ++x)
-    {
-        [[unroll]] for (int y = -rowHalfSize; y <= rowHalfSize; ++y)
-        {
-            shadow += ShadowFetchBilinear(Get(shadowDepthBuffer), shadowTexCoords, shadowUVFrac, int2(x, y), pxDepthInLSpace);
-        }
-    }
-    shadow /= (rowHalfSize * 2 + 1) * (rowHalfSize * 2 + 1);
-
-#else
-
-    shadow += ShadowFetchBilinear(Get(shadowDepthBuffer), shadowTexCoords, shadowUVFrac, int2(0, 0), pxDepthInLSpace);
-
-#endif
-
-    return 1.0 - shadow;
+    return result * result;
 }
 
 float4 PS_MAIN(VsOut Input) : SV_TARGET0
@@ -139,76 +180,46 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     float4 pbrSample = SampleLvlTex2D(Get(gBuffer2), Get(g_linear_clamp_edge_sampler), Input.UV, 0);
     float depth = SampleLvlTex2D(Get(depthBuffer), Get(g_linear_clamp_edge_sampler), Input.UV, 0).r;
 
-    const float3 P = getWorldPositionFromDepth(depth, Input.UV);
+    const float3 P = WorldPositionFromDepth(Input.UV, depth, g_inv_proj_view_mat);
     const float3 V = normalize(g_cam_pos.xyz - P);
-
-    float4 positionLightSpace = mul(g_light_proj_view, float4(P, 1.0f));
-    float shadowAttenuation = 1.0f;
-    if (g_apply_shadows)
+    float3 viewPos = ViewPositionFromDepth(Input.UV, depth, g_inv_proj_mat);
+    float linearDepth = viewPos.z;
+    // TODO
+    // float dither = InterleavedGradientNoise(positionCS.xy);
+    const uint cascadeIndex = GetSunShadowMapIndex(linearDepth /*, dither */);
+    float attenuation = 1.0f;
+    if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
     {
-        shadowAttenuation = ShadowTest(positionLightSpace, 2048.0f);
+        attenuation = Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x);
     }
 
-    float reflectance = pbrSample.a;
-    float metalness = pbrSample.b;
-    float roughness = pbrSample.g;
-    if (roughness < 0.04)
-        roughness = 0.04;
+#if 0
+    {
+        const float4 cascadeColors[4] = {
+            float4(0.0, 1.0, 0.0, 1.0),
+            float4(0.0, 1.0, 1.0, 1.0),
+            float4(0.0, 0.0, 1.0, 1.0),
+            float4(1.0, 0.0, 0.0, 1.0)};
+        return cascadeColors[cascadeIndex];
+    }
+#endif
+
+    SurfaceInfo surfaceInfo;
+    surfaceInfo.position = P;
+    surfaceInfo.normal = N;
+    surfaceInfo.view = V;
+    surfaceInfo.albedo = baseColor.rgb;
+    surfaceInfo.perceptual_roughness = max(0.04f, pbrSample.g);
+    surfaceInfo.metallic = pbrSample.b;
+    surfaceInfo.reflectance = pbrSample.a;
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
-    // Point Lights
-    ByteAddressBuffer pointLightsBuffer = ResourceDescriptorHeap[g_point_lights_buffer_index];
-    for (uint i = 0; i < g_point_lights_count; ++i)
+    ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
+    for (uint i = 0; i < g_lights_count; ++i)
     {
-        const PointLight pointLight = pointLightsBuffer.Load<PointLight>(i * sizeof(PointLight));
-        const float3 Pl = pointLight.positionAndRadius.xyz;
-        const float radius = pointLight.positionAndRadius.w;
-        const float3 L = normalize(Pl - P);
-        const float NdotL = max(dot(N, L), 0.0f);
-        const float distance = length(Pl - P);
-        const float distanceByRadius = 1.0f - pow((distance / radius), 2);
-        const float clamped = pow(saturate(distanceByRadius), 2.0f);
-        const float attenuation = pow( saturate(1 - distance / radius),2); //distanceByRadius / (distance * distance + 1.0f);
-        // const float attenuation = distanceByRadius; //distanceByRadius / (distance * distance + 1.0f);
-        // const float attenuation = clamped / (distance * distance + 1.0f);
-
-        const float3 color = sRGBToLinear_Float3(pointLight.colorAndIntensity.rgb);
-        const float intensity = pointLight.colorAndIntensity.a;
-        const float3 radiance = color * intensity * attenuation*1;
-
-#if BRDF_FUNCTION == FILAMENT_BRDF
-        const float3 brdf = FilamentBRDF(N, V, L, baseColor.rgb, roughness, metalness, reflectance);
-#else
-        const float3 brdf = BRDF(N, V, L, baseColor.rgb, roughness, metalness);
-#endif
-        Lo += brdf * radiance * NdotL * shadowAttenuation;
-    }
-
-    // Directional Lights
-    ByteAddressBuffer directionalLightsBuffer = ResourceDescriptorHeap[g_directional_lights_buffer_index];
-    for (uint i = 0; i < g_directional_lights_count; ++i)
-    {
-        const DirectionalLight directionalLight = directionalLightsBuffer.Load<DirectionalLight>(i * sizeof(DirectionalLight));
-        const float3 L = directionalLight.directionAndShadowMap.xyz;
-        const float NdotL = max(dot(N, L), 0.0f);
-        const float3 color = sRGBToLinear_Float3(directionalLight.colorAndIntensity.rgb);
-        const float intensity = directionalLight.colorAndIntensity.a;
-        const float3 radiance = color * intensity;
-
-#if BRDF_FUNCTION == FILAMENT_BRDF
-        // TODO: Specify reflectance per material
-        const float3 brdf = FilamentBRDF(N, V, L, baseColor.rgb, roughness, metalness, reflectance);
-#else
-        const float3 brdf = BRDF(N, V, L, baseColor.rgb, roughness, metalness);
-#endif
-        Lo += brdf * radiance * NdotL * shadowAttenuation;
-    }
-
-    // IBL (Environment Light)
-    if (g_environment_light_intensity >= 0.0f)
-    {
-        Lo += EnvironmentBRDF(N, V, baseColor.rgb, roughness, metalness) * g_environment_light_intensity;
+        GpuLight light = lightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
+        Lo += ShadeLight(light, surfaceInfo, attenuation);
     }
 
     // Simple depth-based fog

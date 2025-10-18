@@ -57,7 +57,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)external\meshoptimizer-0.24\src;$(SolutionDir)external\meshoptimizer-0.24\extern;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\meshoptimizer-0.24\src;$(SolutionDir)external\meshoptimizer-0.24\extern;$(SolutionDir)external\MikkTSpace;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -72,7 +72,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)external\meshoptimizer-0.24\src;$(SolutionDir)external\meshoptimizer-0.24\extern;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\meshoptimizer-0.24\src;$(SolutionDir)external\meshoptimizer-0.24\extern;$(SolutionDir)external\MikkTSpace;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -96,6 +96,7 @@
     <ClCompile Include="external\meshoptimizer-0.24\src\vertexcodec.cpp" />
     <ClCompile Include="external\meshoptimizer-0.24\src\vertexfilter.cpp" />
     <ClCompile Include="external\meshoptimizer-0.24\src\vfetchoptimizer.cpp" />
+    <ClCompile Include="external\MikkTSpace\mikktspace.c" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>

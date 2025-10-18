@@ -1,51 +1,50 @@
 const std = @import("std");
 
+const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
+const file_system = zforge.file_system;
+const font = zforge.font;
+const geometry = @import("geometry.zig");
+const graphics = zforge.graphics;
 const IdLocal = @import("../core/core.zig").IdLocal;
+const memory = zforge.memory;
+const OpaqueSlice = util.OpaqueSlice;
+const Pool = @import("zpool").Pool;
+const profiler = @import("profiler.zig");
+const pso = @import("pso.zig");
 const renderer_types = @import("types.zig");
+const resource_loader = zforge.resource_loader;
+const util = @import("../util.zig");
+const window = @import("window.zig");
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
 const zgui = @import("zgui");
-
-const file_system = zforge.file_system;
-const font = zforge.font;
-const graphics = zforge.graphics;
-const log = zforge.log;
-const memory = zforge.memory;
-const pso = @import("pso.zig");
-const profiler = zforge.profiler;
-const resource_loader = zforge.resource_loader;
-const util = @import("../util.zig");
+const zm = @import("zmath");
 const ztracy = @import("ztracy");
 
-const atmosphere_render_pass = @import("../systems/renderer_system/atmosphere_render_pass.zig");
-
-const Pool = @import("zpool").Pool;
-
-const window = @import("window.zig");
+const DynamicGeometryPass = @import("passes/dynamic_geometry_pass.zig").DynamicGeometryPass;
+const StaticGeometryPass = @import("passes/static_geometry_pass.zig").StaticGeometryPass;
+const DeferredShadingPass = @import("passes/deferred_shading_pass.zig").DeferredShadingPass;
+const ProceduralSkyboxPass = @import("passes/procedural_skybox_pass.zig").ProceduralSkyboxPass;
+const WaterPass = @import("passes/water_pass.zig").WaterPass;
+const PostProcessingPass = @import("passes/post_processing_pass.zig").PostProcessingPass;
+const UIPass = @import("passes/ui_pass.zig").UIPass;
+const Im3dPass = @import("passes/im3d_pass.zig").Im3dPass;
 
 pub const ReloadDesc = graphics.ReloadDesc;
-
-pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void;
+pub const renderPassUpdateFn = ?*const fn (user_data: *anyopaque) void;
+pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, render_view: RenderView, user_data: *anyopaque) void;
 pub const renderPassImGuiFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
-pub const brdf_lut_texture_size: u32 = 512;
-pub const irradiance_texture_size: u32 = 32;
-pub const specular_texture_size: u32 = 128;
-pub const specular_texture_mips: u32 = std.math.log2(specular_texture_size) + 1;
+pub const cascaded_shadow_resolution: u32 = 4096;
 
 pub const RenderPass = struct {
-    render_ssao_pass_fn: renderPassRenderFn = null,
+    update_fn: renderPassUpdateFn = null,
     render_shadow_pass_fn: renderPassRenderFn = null,
     render_gbuffer_pass_fn: renderPassRenderFn = null,
-    render_deferred_pass_fn: renderPassRenderFn = null,
-    render_atmosphere_pass_fn: renderPassRenderFn = null,
-    render_water_pass_fn: renderPassRenderFn = null,
-    render_post_processing_pass_fn: renderPassRenderFn = null,
-    render_ui_pass_fn: renderPassRenderFn = null,
 
     render_imgui_fn: renderPassImGuiFn = null,
 
@@ -77,15 +76,16 @@ const visualization_modes = [_][:0]const u8{
 
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
+    pub const cascades_max_count: u32 = 4;
 
     allocator: std.mem.Allocator = undefined,
+    ecsu_world: ecsu.World = undefined,
     renderer: [*c]graphics.Renderer = null,
     window: *window.Window = undefined,
     window_width: i32 = 0,
     window_height: i32 = 0,
     time: f64 = 0.0,
     vsync_enabled: bool = true,
-    ibl_enabled: bool = true,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -93,19 +93,53 @@ pub const Renderer = struct {
     swap_chain_image_index: u32 = 0,
     graphics_queue: [*c]graphics.Queue = null,
     frame_index: u32 = 0,
+    profiler: profiler.Profiler = undefined,
+    gpu_frame_profile_index: usize = 0,
+    gpu_terrain_pass_profile_index: usize = 0,
+    gpu_geometry_pass_profile_index: usize = 0,
+    gpu_gpu_driven_pass_profile_index: usize = 0,
 
-    gpu_profile_token: profiler.ProfileToken = undefined,
-    ssao_pass_profile_token: profiler.ProfileToken = undefined,
-    z_prepass_pass_profile_token: profiler.ProfileToken = undefined,
-    shadow_pass_profile_token: profiler.ProfileToken = undefined,
-    gbuffer_pass_profile_token: profiler.ProfileToken = undefined,
-    deferred_pass_profile_token: profiler.ProfileToken = undefined,
-    atmosphere_pass_profile_token: profiler.ProfileToken = undefined,
-    water_pass_profile_token: profiler.ProfileToken = undefined,
-    post_processing_pass_profile_token: profiler.ProfileToken = undefined,
-    ui_pass_profile_token: profiler.ProfileToken = undefined,
-    imgui_pass_profile_token: profiler.ProfileToken = undefined,
-    composite_sdr_profile_token: profiler.ProfileToken = undefined,
+    // TODO: Create a scene structs
+    // Scene Data
+    // ==========
+    time_of_day_01: f32 = 0.0,
+    sun_light: renderer_types.DirectionalLight = undefined,
+    height_fog_settings: renderer_types.HeightFogSettings = undefined,
+    ocean_tiles: std.ArrayList(renderer_types.OceanTile) = undefined,
+    dynamic_entities: std.ArrayList(renderer_types.DynamicEntity) = undefined,
+    static_entitites: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+    ui_images: std.ArrayList(renderer_types.UiImage) = undefined,
+
+    // GPU Bindless Buffers
+    // ====================
+    // These buffers are accessible to all shaders
+    light_buffer: ElementBindlessBuffer = undefined,
+    light_matrix_buffer: ElementBindlessBuffer = undefined,
+    mesh_buffer: ElementBindlessBuffer = undefined,
+    material_buffer: ElementBindlessBuffer = undefined,
+
+    // Resources
+    // =========
+    renderable_map: RenderableHashMap = undefined,
+    // TODO: Figure out if we need to store this data on the CPU
+    meshes: std.ArrayList(Mesh) = undefined,
+    mesh_map: MeshHashMap = undefined,
+    // materials: std.ArrayList(GpuMaterial) = undefined,
+    material_map: MaterialMap = undefined,
+
+    // Bindless Sampler
+    linear_repeat_sampler: [*c]graphics.Sampler = null,
+
+    // Render Passes
+    // =============
+    dynamic_geometry_pass: DynamicGeometryPass = undefined,
+    static_geometry_pass: StaticGeometryPass = undefined,
+    deferred_shading_pass: DeferredShadingPass = undefined,
+    procedural_skybox_pass: ProceduralSkyboxPass = undefined,
+    water_pass: WaterPass = undefined,
+    post_processing_pass: PostProcessingPass = undefined,
+    ui_pass: UIPass = undefined,
+    im3d_pass: Im3dPass = undefined,
 
     // Render Targets
     // ==============
@@ -115,7 +149,9 @@ pub const Renderer = struct {
     linear_depth_buffers: [2]TextureHandle = .{ undefined, undefined },
 
     // Shadows
-    shadow_depth_buffer: [*c]graphics.RenderTarget = null,
+    shadow_cascade_depths: [cascades_max_count]f32 = undefined,
+    shadow_views: [cascades_max_count]RenderView = undefined,
+    shadow_depth_buffers: [cascades_max_count][*c]graphics.RenderTarget = undefined,
 
     // GBuffer
     gbuffer_0: [*c]graphics.RenderTarget = null,
@@ -128,11 +164,6 @@ pub const Renderer = struct {
 
     // UI
     ui_overlay: [*c]graphics.RenderTarget = null,
-
-    // IBL Textures
-    brdf_lut_texture: TextureHandle = undefined,
-    irradiance_texture: TextureHandle = undefined,
-    specular_texture: TextureHandle = undefined,
 
     // Bloom Render Targets
     bloom_width: u32 = 0,
@@ -148,11 +179,7 @@ pub const Renderer = struct {
     vertex_layouts_map: VertexLayoutHashMap = undefined,
     roboto_font_id: u32 = 0,
 
-    material_pool: MaterialPool = undefined,
-    materials: std.ArrayList(Material) = undefined,
-    materials_buffer: BufferHandle = undefined,
-
-    mesh_pool: MeshPool = undefined,
+    legacy_mesh_pool: LegacyMeshPool = undefined,
     texture_pool: TexturePool = undefined,
     buffer_pool: BufferPool = undefined,
     pso_manager: pso.PSOManager = undefined,
@@ -177,15 +204,14 @@ pub const Renderer = struct {
         FileSystemNotInitialized,
     };
 
-    pub fn init(self: *Renderer, wnd: *window.Window, allocator: std.mem.Allocator) Error!void {
+    pub fn init(self: *Renderer, wnd: *window.Window, ecsu_world: ecsu.World, allocator: std.mem.Allocator) Error!void {
         self.allocator = allocator;
-
+        self.ecsu_world = ecsu_world;
         self.window = wnd;
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
         self.vsync_enabled = true;
-        self.ibl_enabled = true;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -205,9 +231,10 @@ pub const Renderer = struct {
             return Error.FontSystemNotInitialized;
         }
 
-        log.initLog("Tides Renderer", log.LogLevel.eALL);
+        zforge.log.initLog("Tides Renderer", zforge.log.LogLevel.eALL);
 
         var renderer_desc = std.mem.zeroes(graphics.RendererDesc);
+        renderer_desc.mShaderTarget = .SHADER_TARGET_6_8;
         graphics.initGPUConfiguration(null);
         graphics.initRenderer("Tides Renderer", &renderer_desc, &self.renderer);
         if (self.renderer == null) {
@@ -252,10 +279,7 @@ pub const Renderer = struct {
             return Error.FontSystemNotInitialized;
         }
 
-        // var profiler_desc = profiler.ProfilerDesc{};
-        // profiler_desc.pRenderer = self.renderer;
-        // profiler.initProfiler(&profiler_desc);
-        // self.gpu_profile_token = profiler.initGpuProfiler(self.renderer, self.graphics_queue, "Graphics");
+        self.profiler.init(self, self.allocator);
 
         self.vertex_layouts_map = VertexLayoutHashMap.init(allocator);
 
@@ -316,8 +340,8 @@ pub const Renderer = struct {
             vertex_layout.mAttribs[2].mOffset = 0;
             self.vertex_layouts_map.put(IdLocal.init("pos_uv0_col"), vertex_layout) catch unreachable;
 
-            vertex_layout.mBindingCount = 4;
-            vertex_layout.mAttribCount = 4;
+            vertex_layout.mBindingCount = 5;
+            vertex_layout.mAttribCount = 5;
             vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.SEMANTIC_POSITION;
             vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
             vertex_layout.mAttribs[0].mBinding = 0;
@@ -339,52 +363,84 @@ pub const Renderer = struct {
             vertex_layout.mAttribs[3].mBinding = 3;
             vertex_layout.mAttribs[3].mLocation = 3;
             vertex_layout.mAttribs[3].mOffset = 0;
-            self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan"), vertex_layout) catch unreachable;
-
-            vertex_layout.mBindingCount = 5;
-            vertex_layout.mAttribCount = 5;
             vertex_layout.mAttribs[4].mSemantic = graphics.ShaderSemantic.SEMANTIC_COLOR;
             vertex_layout.mAttribs[4].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
             vertex_layout.mAttribs[4].mBinding = 4;
             vertex_layout.mAttribs[4].mLocation = 4;
             vertex_layout.mAttribs[4].mOffset = 0;
             self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan_col"), vertex_layout) catch unreachable;
+        }
 
-            vertex_layout.mBindingCount = 6;
-            vertex_layout.mAttribCount = 6;
-            vertex_layout.mAttribs[5].mSemantic = graphics.ShaderSemantic.SEMANTIC_TEXCOORD1;
-            vertex_layout.mAttribs[5].mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
-            vertex_layout.mAttribs[5].mBinding = 5;
-            vertex_layout.mAttribs[5].mLocation = 5;
-            vertex_layout.mAttribs[5].mOffset = 0;
-            self.vertex_layouts_map.put(IdLocal.init("pos_uv0_nor_tan_col_uv1"), vertex_layout) catch unreachable;
+        // Bindless Samplers
+        {
+            var desc = std.mem.zeroes(graphics.SamplerDesc);
+            desc.mAddressU = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressV = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mAddressW = graphics.AddressMode.ADDRESS_MODE_REPEAT;
+            desc.mMinFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMagFilter = graphics.FilterType.FILTER_LINEAR;
+            desc.mMipMapMode = graphics.MipMapMode.MIPMAP_MODE_LINEAR;
+
+            graphics.addSampler(self.renderer, &desc, true, &self.linear_repeat_sampler);
         }
 
         self.frame_index = 0;
 
-        self.mesh_pool = MeshPool.initMaxCapacity(allocator) catch unreachable;
+        self.legacy_mesh_pool = LegacyMeshPool.initMaxCapacity(allocator) catch unreachable;
         self.texture_pool = TexturePool.initMaxCapacity(allocator) catch unreachable;
         self.buffer_pool = BufferPool.initMaxCapacity(allocator) catch unreachable;
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
 
-        self.material_pool = MaterialPool.initMaxCapacity(allocator) catch unreachable;
-        self.materials = std.ArrayList(Material).init(allocator);
-        const buffer_data = Slice{
-            .data = null,
-            .size = 1000 * @sizeOf(Material),
-        };
-        self.materials_buffer = self.createBindlessBuffer(buffer_data, "Materials Buffer");
-
-        self.createIBLTextures();
-
         self.render_passes = std.ArrayList(*RenderPass).init(allocator);
 
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
+
+        self.renderable_map = RenderableHashMap.init(allocator);
+
+        self.light_buffer.init(self, 2048, @sizeOf(renderer_types.GpuLight), false, "GpuLight Buffer");
+        self.light_matrix_buffer.init(self, 4, @sizeOf([16]f32), false, "Light Matrix Buffer");
+
+        self.meshes = std.ArrayList(Mesh).init(allocator);
+        self.mesh_map = MeshHashMap.init(allocator);
+        self.mesh_buffer.init(self, 1024, @sizeOf(GPUMesh), false, "GpuMesh Buffer");
+
+        self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Material Buffer");
+        self.material_map = MaterialMap.init(allocator);
+
+        self.dynamic_geometry_pass.init(self, self.allocator);
+        self.static_geometry_pass.init(self, self.allocator);
+        self.deferred_shading_pass.init(self, self.allocator);
+        self.procedural_skybox_pass.init(self, self.allocator);
+        self.water_pass.init(self, self.allocator);
+        self.post_processing_pass.init(self, self.allocator);
+        self.ui_pass.init(self, self.allocator);
+        self.im3d_pass.init(self, self.allocator);
+
+        // Scene Data
+        self.ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(self.allocator);
+        self.dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(self.allocator);
+        self.static_entitites = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
+        self.ui_images = std.ArrayList(renderer_types.UiImage).init(self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
+        // Scene Data
+        self.ocean_tiles.deinit();
+        self.static_entitites.deinit();
+        self.dynamic_entities.deinit();
+        self.ui_images.deinit();
+
+        self.im3d_pass.destroy();
+        self.ui_pass.destroy();
+        self.post_processing_pass.destroy();
+        self.water_pass.destroy();
+        self.procedural_skybox_pass.destroy();
+        self.deferred_shading_pass.destroy();
+        self.static_geometry_pass.destroy();
+        self.dynamic_geometry_pass.destroy();
+
         self.pso_manager.exit();
 
         graphics.removeDescriptorSet(self.renderer, self.composite_sdr_pass_descriptor_set);
@@ -404,28 +460,30 @@ pub const Renderer = struct {
         }
         self.texture_pool.deinit();
 
-        var mesh_handles = self.mesh_pool.liveHandles();
-        while (mesh_handles.next()) |handle| {
-            const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+        self.renderable_map.deinit();
+        self.mesh_map.deinit();
+        self.meshes.deinit();
+        self.material_map.deinit();
+
+        var legacy_mesh_handles = self.legacy_mesh_pool.liveHandles();
+        while (legacy_mesh_handles.next()) |handle| {
+            const mesh = self.legacy_mesh_pool.getColumn(handle, .mesh) catch unreachable;
             resource_loader.removeResource__Overload3(mesh.geometry);
             resource_loader.removeResource__Overload4(mesh.data);
         }
-        self.mesh_pool.deinit();
-
-        // TODO(juice): Clean gpu resources
-        self.material_pool.deinit();
-        self.materials.deinit();
+        self.legacy_mesh_pool.deinit();
 
         self.render_passes.deinit();
 
         self.vertex_layouts_map.deinit();
 
+        graphics.removeSampler(self.renderer, self.linear_repeat_sampler);
+
         graphics.exitQueue(self.renderer, self.graphics_queue);
         self.gpu_cmd_ring.destroy(self.renderer);
         graphics.exitSemaphore(self.renderer, self.image_acquired_semaphore);
 
-        // profiler.exitGpuProfiler(self.gpu_profile_token);
-        // profiler.exitProfiler();
+        self.profiler.shutdown();
 
         self.destroyResolutionIndependentRenderTargets();
 
@@ -434,8 +492,31 @@ pub const Renderer = struct {
         graphics.exitRenderer(self.renderer);
 
         font.platformExitFontSystem();
-        log.exitLog();
+        zforge.log.exitLog();
         file_system.exitFileSystem();
+    }
+
+    pub fn startGpuProfile(self: *Renderer, cmd_list: [*c]graphics.Cmd, name: []const u8) usize {
+        return self.profiler.startProfile(cmd_list, name);
+    }
+
+    pub fn endGpuProfile(self: *Renderer, cmd_list: [*c]graphics.Cmd, profile_index: usize) void {
+        self.profiler.endProfile(cmd_list, profile_index);
+    }
+
+    pub fn getFrameAvgTimeMs(self: *Renderer) f32 {
+        return getProfilerAvgTimeMs(self.frame_profiler_index);
+    }
+
+    pub fn getProfilerAvgTimeMs(self: *Renderer, profiler_index: usize) f32 {
+        const profile_data = self.profiler.profiles.items[profiler_index];
+        var sum: f64 = 0;
+
+        for (0..profiler.ProfileData.filter_size) |i| {
+            sum += profile_data.time_samples[i];
+        }
+        sum /= 64.0;
+        return @floatCast(sum);
     }
 
     pub fn registerRenderPass(self: *Renderer, render_pass: *RenderPass) void {
@@ -496,6 +577,15 @@ pub const Renderer = struct {
             self.createCompositeSDRDescriptorSet();
             self.createBuffersVisualizationDescriptorSet();
 
+            self.dynamic_geometry_pass.createDescriptorSets();
+            self.static_geometry_pass.createDescriptorSets();
+            self.deferred_shading_pass.createDescriptorSets();
+            self.procedural_skybox_pass.createDescriptorSets();
+            self.water_pass.createDescriptorSets();
+            self.post_processing_pass.createDescriptorSets();
+            self.ui_pass.createDescriptorSets();
+            self.im3d_pass.createDescriptorSets();
+
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.create_descriptor_sets_fn) |create_descriptor_sets_fn| {
                     create_descriptor_sets_fn(render_pass.user_data);
@@ -505,6 +595,15 @@ pub const Renderer = struct {
 
         self.prepareCompositeSDRDescriptorSet();
         self.prepareBuffersVisualizationDescriptorSet();
+
+        self.dynamic_geometry_pass.prepareDescriptorSets();
+        self.static_geometry_pass.prepareDescriptorSets();
+        self.deferred_shading_pass.prepareDescriptorSets();
+        self.procedural_skybox_pass.prepareDescriptorSets();
+        self.water_pass.prepareDescriptorSets();
+        self.post_processing_pass.prepareDescriptorSets();
+        self.ui_pass.prepareDescriptorSets();
+        self.im3d_pass.prepareDescriptorSets();
 
         for (self.render_passes.items) |render_pass| {
             if (render_pass.prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
@@ -538,6 +637,15 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER) {
+            self.dynamic_geometry_pass.unloadDescriptorSets();
+            self.static_geometry_pass.unloadDescriptorSets();
+            self.deferred_shading_pass.unloadDescriptorSets();
+            self.procedural_skybox_pass.unloadDescriptorSets();
+            self.water_pass.unloadDescriptorSets();
+            self.post_processing_pass.unloadDescriptorSets();
+            self.ui_pass.unloadDescriptorSets();
+            self.im3d_pass.unloadDescriptorSets();
+
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
                     unload_descriptor_sets_fn(render_pass.user_data);
@@ -562,68 +670,60 @@ pub const Renderer = struct {
         self.requestReload(reload_desc);
     }
 
-    pub fn draw(self: *Renderer) void {
-        if (self.render_imgui) {
-            zgui.setNextWindowSize(.{ .w = 600, .h = 1000, .cond = .first_use_ever });
-            if (!zgui.begin("Renderer Settings", .{})) {
-                zgui.end();
-            } else {
-                // GPU Profiler
-                {
-                    if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
-                        // zgui.text("GPU Average time: {d}", .{profiler.getGpuProfileAvgTime(self.gpu_profile_token)});
+    pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc) void {
+        self.sun_light = update_desc.sun_light;
 
-                        // zgui.text("\tZ PrePass: {d}", .{profiler.getGpuProfileAvgTime(self.z_prepass_pass_profile_token)});
-                        // zgui.text("\tShadow Map Pass: {d}", .{profiler.getGpuProfileAvgTime(self.shadow_pass_profile_token)});
-                        // zgui.text("\tGBuffer Pass: {d}", .{profiler.getGpuProfileAvgTime(self.gbuffer_pass_profile_token)});
-                        // zgui.text("\tDeferred Shading Pass: {d}", .{profiler.getGpuProfileAvgTime(self.deferred_pass_profile_token)});
-                        // zgui.text("\tAtmosphere Pass: {d}", .{profiler.getGpuProfileAvgTime(self.atmosphere_pass_profile_token)});
-                        // zgui.text("\tWater Pass: {d}", .{profiler.getGpuProfileAvgTime(self.water_pass_profile_token)});
-                        // zgui.text("\tPost Processing Pass: {d}", .{profiler.getGpuProfileAvgTime(self.post_processing_pass_profile_token)});
-                        // zgui.text("\tUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.ui_pass_profile_token)});
-                        // zgui.text("\tImGUI Pass: {d}", .{profiler.getGpuProfileAvgTime(self.imgui_pass_profile_token)});
-                        // zgui.text("\tComposite SDR Pass: {d}", .{profiler.getGpuProfileAvgTime(self.composite_sdr_profile_token)});
-                    }
-                }
+        var lights = std.ArrayList(renderer_types.GpuLight).init(self.allocator);
+        lights.append(.{
+            .light_type = 0,
+            .position = update_desc.sun_light.direction,
+            .color = update_desc.sun_light.color,
+            .intensity = update_desc.sun_light.intensity,
+            .cast_shadows = 1,
+        }) catch unreachable;
 
-                // Renderer Settings
-                {
-                    if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
-                        _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
-                        _ = zgui.checkbox("IBL", .{ .v = &self.ibl_enabled });
-
-                        if (zgui.button("Visualization Mode", .{})) {
-                            zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
-                        }
-                        zgui.sameLine(.{});
-                        zgui.textUnformatted(if (self.selected_visualization_mode == -1) "<None>" else visualization_modes[@intCast(self.selected_visualization_mode)]);
-                        if (zgui.beginPopup("viz_mode_popup", .{})) {
-                            if (zgui.selectable("None", .{})) {
-                                self.selected_visualization_mode = -1;
-                            }
-                            for (visualization_modes, 0..) |mode, index| {
-                                if (zgui.selectable(mode, .{})) {
-                                    self.selected_visualization_mode = @intCast(index);
-                                }
-                            }
-                            zgui.endPopup();
-                        }
-                        // _ = zgui.checkbox("Post Processing", .{ .v = &self.pp_enabled });
-                    }
-                }
-
-                for (self.render_passes.items) |render_pass| {
-                    if (render_pass.render_imgui_fn) |render_imgui_fn| {
-                        render_imgui_fn(render_pass.user_data);
-                    }
-                }
-
-                zgui.end();
-            }
+        for (update_desc.point_lights.items) |point_light| {
+            lights.append(.{
+                .light_type = 1,
+                .position = point_light.position,
+                .radius = point_light.radius,
+                .color = point_light.color,
+                .intensity = point_light.intensity,
+            }) catch unreachable;
         }
 
+        const data_slice = OpaqueSlice{
+            .data = @ptrCast(lights.items),
+            .size = @sizeOf(renderer_types.GpuLight) * lights.items.len,
+        };
+        self.updateBuffer(data_slice, self.light_buffer.offset, renderer_types.GpuLight, self.light_buffer.buffer);
+        self.light_buffer.element_count = @intCast(lights.items.len);
+        self.height_fog_settings.color = update_desc.height_fog.color;
+        self.height_fog_settings.density = update_desc.height_fog.density;
+
+        self.ocean_tiles.clearRetainingCapacity();
+        self.ocean_tiles.appendSlice(update_desc.ocean_tiles.items) catch unreachable;
+
+        self.dynamic_entities.clearRetainingCapacity();
+        self.dynamic_entities.appendSlice(update_desc.dynamic_entities.items) catch unreachable;
+
+        self.static_entitites.clearRetainingCapacity();
+        self.static_entitites.appendSlice(update_desc.static_entities.items) catch unreachable;
+
+        self.ui_images.clearRetainingCapacity();
+        self.ui_images.appendSlice(update_desc.ui_images.items) catch unreachable;
+    }
+
+    pub fn draw(self: *Renderer) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
         defer trazy_zone.End();
+
+        self.drawRenderSettings();
+        self.generateShadowViews();
+
+        self.updateStep();
+
+        const render_view = self.generateRenderView();
 
         if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
             graphics.waitQueueIdle(self.graphics_queue);
@@ -655,71 +755,73 @@ pub const Renderer = struct {
         var cmd_list = elem.cmds[0];
         graphics.beginCmd(cmd_list);
 
-        // profiler.cmdBeginGpuFrameProfile(cmd_list, self.gpu_profile_token, .{ .bUseMarker = true });
-
-        // SSAO
-        if (false) {
-            // self.ssao_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "SSAO", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
-
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "SSAO", 0x00_ff_00_00);
-            defer trazy_zone1.End();
-
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_ssao_pass_fn) |render_ssao_pass_fn| {
-                    render_ssao_pass_fn(cmd_list, render_pass.user_data);
-                    // NOTE: There musto be only one render_pass that renders SSAO. This abstraction
-                    // has already reached its breaking point :D
-                    break;
-                }
-            }
-        }
+        self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
 
         // Shadow Map Pass
         {
-            // self.shadow_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Shadow Map Pass", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
-
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.shadow_depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
-            };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+            const shadow_profile_index = self.startGpuProfile(cmd_list, "Shadow Maps");
+            defer self.endGpuProfile(cmd_list, shadow_profile_index);
 
-            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
-            bind_render_targets_desc.mRenderTargetCount = 0;
-            bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
-            bind_render_targets_desc.mDepthStencil.pDepthStencil = self.shadow_depth_buffer;
-            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+            for (0..cascades_max_count) |cascade_index| {
+                var profile_name_buffer: [256]u8 = undefined;
+                const profile_name = std.fmt.bufPrintZ(
+                    profile_name_buffer[0..profile_name_buffer.len],
+                    "Shadow View {d}",
+                    .{cascade_index},
+                ) catch unreachable;
 
-            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, 2048.0, 2048.0, 0.0, 1.0);
-            graphics.cmdSetScissor(cmd_list, 0, 0, 2048, 2048);
+                const shadow_view_profile_index = self.startGpuProfile(cmd_list, profile_name);
+                defer self.endGpuProfile(cmd_list, shadow_view_profile_index);
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_shadow_pass_fn) |render_shadow_pass_fn| {
-                    render_shadow_pass_fn(cmd_list, render_pass.user_data);
+                var input_barriers = [_]graphics.RenderTargetBarrier{
+                    graphics.RenderTargetBarrier.init(self.shadow_depth_buffers[cascade_index], .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_DEPTH_WRITE),
+                };
+                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
+                var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+                bind_render_targets_desc.mRenderTargetCount = 0;
+                bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
+                bind_render_targets_desc.mDepthStencil.pDepthStencil = self.shadow_depth_buffers[cascade_index];
+                bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+                graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+                const shadow_map_resolution: f32 = @floatFromInt(cascaded_shadow_resolution);
+                graphics.cmdSetViewport(cmd_list, 0.0, 0.0, shadow_map_resolution, shadow_map_resolution, 0.0, 1.0);
+                graphics.cmdSetScissor(cmd_list, 0, 0, cascaded_shadow_resolution, cascaded_shadow_resolution);
+
+                for (self.render_passes.items) |render_pass| {
+                    if (render_pass.render_shadow_pass_fn) |render_shadow_pass_fn| {
+                        render_shadow_pass_fn(cmd_list, render_view, render_pass.user_data);
+                    }
                 }
-            }
 
-            graphics.cmdBindRenderTargets(cmd_list, null);
+                self.dynamic_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                self.static_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+
+                input_barriers[0].mCurrentState = .RESOURCE_STATE_DEPTH_WRITE;
+                input_barriers[0].mNewState = .RESOURCE_STATE_SHADER_RESOURCE;
+                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+
+                graphics.cmdBindRenderTargets(cmd_list, null);
+            }
         }
 
         // GBuffer Pass
         {
-            // self.gbuffer_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "GBuffer Pass", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "GBuffer");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "GBuffer Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
             var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE),
+                graphics.RenderTargetBarrier.init(self.gbuffer_0, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(self.gbuffer_1, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(self.gbuffer_2, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_DEPTH_WRITE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -744,28 +846,30 @@ pub const Renderer = struct {
 
             for (self.render_passes.items) |render_pass| {
                 if (render_pass.render_gbuffer_pass_fn) |render_gbuffer_pass_fn| {
-                    render_gbuffer_pass_fn(cmd_list, render_pass.user_data);
+                    render_gbuffer_pass_fn(cmd_list, render_view, render_pass.user_data);
                 }
             }
+
+            self.dynamic_geometry_pass.renderGBuffer(cmd_list, render_view);
+            self.static_geometry_pass.renderGBuffer(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
         // Deferred Shading
         {
-            // self.deferred_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Deferred Shading", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Deferred Shading");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
             var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.scene_color, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
-                graphics.RenderTargetBarrier.init(self.gbuffer_0, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                graphics.RenderTargetBarrier.init(self.gbuffer_1, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                graphics.RenderTargetBarrier.init(self.gbuffer_2, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                graphics.RenderTargetBarrier.init(self.depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-                graphics.RenderTargetBarrier.init(self.shadow_depth_buffer, graphics.ResourceState.RESOURCE_STATE_DEPTH_WRITE, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.scene_color, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(self.gbuffer_0, .RESOURCE_STATE_RENDER_TARGET, .RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.gbuffer_1, .RESOURCE_STATE_RENDER_TARGET, .RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.gbuffer_2, .RESOURCE_STATE_RENDER_TARGET, .RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, .RESOURCE_STATE_DEPTH_WRITE, .RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -780,68 +884,52 @@ pub const Renderer = struct {
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_deferred_pass_fn) |render_deferred_pass_fn| {
-                    render_deferred_pass_fn(cmd_list, render_pass.user_data);
-                }
-            }
+            self.deferred_shading_pass.render(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // Atmospheric Scattering Pass
+        // Procedural Skybox
         {
-            // self.atmosphere_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Atmosphere", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Procedural Skybox");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Atmosphere", 0x00_ff_00_00);
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Procedural Skybox", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_atmosphere_pass_fn) |render_atmosphere_pass_fn| {
-                    render_atmosphere_pass_fn(cmd_list, render_pass.user_data);
-                }
-            }
+            self.procedural_skybox_pass.render(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
         // Water Pass
         {
-            // self.water_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Water", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Water");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Water", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_water_pass_fn) |render_water_pass_fn| {
-                    render_water_pass_fn(cmd_list, render_pass.user_data);
-                }
-            }
+            self.water_pass.render(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
         // Post Processing
         {
-            // self.post_processing_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Post Processing", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Post");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_post_processing_pass_fn) |render_post_processing_pass_fn| {
-                    render_post_processing_pass_fn(cmd_list, render_pass.user_data);
-                }
-            }
+            self.post_processing_pass.render(cmd_list, render_view);
         }
 
         // UI Overlay
         {
             var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.ui_overlay, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(self.ui_overlay, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_RENDER_TARGET),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
 
@@ -857,23 +945,20 @@ pub const Renderer = struct {
 
             // UI Pass
             {
-                // self.ui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "UI Pass", .{ .bUseMarker = true });
-                // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+                const profile_index = self.startGpuProfile(cmd_list, "UI");
+                defer self.endGpuProfile(cmd_list, profile_index);
 
                 const trazy_zone1 = ztracy.ZoneNC(@src(), "UI Pass", 0x00_ff_00_00);
                 defer trazy_zone1.End();
 
-                for (self.render_passes.items) |render_pass| {
-                    if (render_pass.render_ui_pass_fn) |render_ui_pass_fn| {
-                        render_ui_pass_fn(cmd_list, render_pass.user_data);
-                    }
-                }
+                self.ui_pass.render(cmd_list, render_view);
+                self.im3d_pass.render(cmd_list, render_view);
             }
 
             // ImGUI Pass
             if (self.render_imgui) {
-                // self.imgui_pass_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "ImGUI Pass", .{ .bUseMarker = true });
-                // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+                const profile_index = self.startGpuProfile(cmd_list, "ImGui");
+                defer self.endGpuProfile(cmd_list, profile_index);
 
                 const trazy_zone1 = ztracy.ZoneNC(@src(), "ImGUI Pass", 0x00_ff_00_00);
                 defer trazy_zone1.End();
@@ -884,7 +969,7 @@ pub const Renderer = struct {
             }
 
             var output_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.ui_overlay, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.ui_overlay, .RESOURCE_STATE_RENDER_TARGET, .RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, output_barriers.len, @ptrCast(&output_barriers));
 
@@ -896,13 +981,13 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Composite SDR", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            // self.composite_sdr_profile_token = profiler.cmdBeginGpuTimestampQuery(cmd_list, self.gpu_profile_token, "Composite SDR", .{ .bUseMarker = true });
-            // defer profiler.cmdEndGpuTimestampQuery(cmd_list, self.gpu_profile_token);
+            const profile_index = self.startGpuProfile(cmd_list, "Composite SDR");
+            defer self.endGpuProfile(cmd_list, profile_index);
 
             const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
 
             var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(render_target, graphics.ResourceState.RESOURCE_STATE_PRESENT, graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(render_target, .RESOURCE_STATE_PRESENT, .RESOURCE_STATE_RENDER_TARGET),
             };
 
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
@@ -966,12 +1051,13 @@ pub const Renderer = struct {
             {
                 var barrier = std.mem.zeroes(graphics.RenderTargetBarrier);
                 barrier.pRenderTarget = render_target;
-                barrier.mCurrentState = graphics.ResourceState.RESOURCE_STATE_RENDER_TARGET;
-                barrier.mNewState = graphics.ResourceState.RESOURCE_STATE_PRESENT;
+                barrier.mCurrentState = .RESOURCE_STATE_RENDER_TARGET;
+                barrier.mNewState = .RESOURCE_STATE_PRESENT;
                 graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, 1, &barrier);
             }
 
-            // profiler.cmdEndGpuFrameProfile(cmd_list, self.gpu_profile_token);
+            self.endGpuProfile(cmd_list, self.gpu_frame_profile_index);
+            self.profiler.endFrame();
             graphics.endCmd(cmd_list);
 
             var flush_update_desc = std.mem.zeroes(resource_loader.FlushResourceUpdateDesc);
@@ -1012,81 +1098,540 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    pub fn uploadMaterial(self: *Renderer, material_data: fd.UberShader) !MaterialHandle {
-        const offset = self.materials.items.len * @sizeOf(Material);
+    fn updateStep(self: *Renderer) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
+        defer trazy_zone.End();
 
-        const material = Material{
-            .albedo_color = [4]f32{ material_data.base_color.r, material_data.base_color.g, material_data.base_color.b, 1.0 },
-            .uv_tiling_offset = [4]f32{ material_data.uv_tiling_offset[0], material_data.uv_tiling_offset[1], material_data.uv_tiling_offset[2], material_data.uv_tiling_offset[3] },
-            .roughness = material_data.roughness,
-            .metallic = material_data.metallic,
-            .normal_intensity = material_data.normal_intensity,
-            .emissive_strength = material_data.emissive_strength,
-            .albedo_texture_index = self.getTextureBindlessIndex(material_data.albedo),
-            .emissive_texture_index = self.getTextureBindlessIndex(material_data.emissive),
-            .normal_texture_index = self.getTextureBindlessIndex(material_data.normal),
-            .arm_texture_index = self.getTextureBindlessIndex(material_data.arm),
-            .detail_feature = if (material_data.detail_feature) 1 else 0,
-            .detail_mask_texture_index = self.getTextureBindlessIndex(material_data.detail_mask),
-            .detail_baseColor_texture_index = self.getTextureBindlessIndex(material_data.detail_base_color),
-            .detail_normal_texture_index = self.getTextureBindlessIndex(material_data.detail_normal),
-            .detail_arm_texture_index = self.getTextureBindlessIndex(material_data.detail_arm),
-            .detail_use_uv2 = if (material_data.detail_use_uv2) 1 else 0,
-            .wind_feature = if (material_data.wind_feature) 1 else 0,
-            .wind_initial_bend = material_data.wind_initial_bend,
-            .wind_stifness = material_data.wind_stifness,
-            .wind_drag = material_data.wind_drag,
-            .wind_shiver_feature = if (material_data.wind_shiver_feature) 1 else 0,
-            .wind_shiver_drag = material_data.wind_shiver_drag,
-            .wind_normal_influence = material_data.wind_normal_influence,
-            .wind_shiver_directionality = material_data.wind_shiver_directionality,
+        self.static_geometry_pass.update();
+        self.ui_pass.update();
+    }
+
+    fn drawRenderSettings(self: *Renderer) void {
+        if (!self.render_imgui) {
+            return;
+        }
+
+        zgui.setNextWindowSize(.{ .w = 600, .h = 1000, .cond = .first_use_ever });
+        if (!zgui.begin("Renderer Settings", .{})) {
+            zgui.end();
+        } else {
+            // GPU Profiler
+            {
+                if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
+                    zgui.text("GPU Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_frame_profile_index)});
+                    zgui.text("Terrain Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_terrain_pass_profile_index)});
+                    zgui.text("Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_geometry_pass_profile_index)});
+                    zgui.text("GPU-Driven Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_gpu_driven_pass_profile_index)});
+                }
+            }
+
+            // Player Camera Settings
+            {
+                var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+                var camera = camera_entity.getMut(fd.Camera).?;
+
+                var camera_fov = std.math.radiansToDegrees(camera.fov);
+
+                if (zgui.collapsingHeader("Camera", .{ .default_open = true })) {
+                    if (zgui.dragFloat("FOV (deg)", .{ .v = &camera_fov, .speed = 1.0, .min = 10.0, .max = 100.0 })) {
+                        camera.fov = std.math.degreesToRadians(camera_fov);
+                    }
+                }
+            }
+
+            // Renderer Settings
+            {
+                if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
+                    _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
+
+                    if (zgui.button("Visualization Mode", .{})) {
+                        zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
+                    }
+                    zgui.sameLine(.{});
+                    zgui.textUnformatted(if (self.selected_visualization_mode == -1) "<None>" else visualization_modes[@intCast(self.selected_visualization_mode)]);
+                    if (zgui.beginPopup("viz_mode_popup", .{})) {
+                        if (zgui.selectable("None", .{})) {
+                            self.selected_visualization_mode = -1;
+                        }
+                        for (visualization_modes, 0..) |mode, index| {
+                            if (zgui.selectable(mode, .{})) {
+                                self.selected_visualization_mode = @intCast(index);
+                            }
+                        }
+                        zgui.endPopup();
+                    }
+                }
+            }
+
+            // TODO(gmodarelli)
+            // self.dynamic_geometry_pass.renderImGui();
+            self.static_geometry_pass.renderImGui();
+            self.deferred_shading_pass.renderImGui();
+            self.procedural_skybox_pass.renderImGui();
+            self.water_pass.renderImGui();
+            self.post_processing_pass.renderImGui();
+
+            for (self.render_passes.items) |render_pass| {
+                if (render_pass.render_imgui_fn) |render_imgui_fn| {
+                    render_imgui_fn(render_pass.user_data);
+                }
+            }
+
+            zgui.end();
+        }
+    }
+
+    fn generateRenderView(self: *Renderer) RenderView {
+        var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+        const camera_comps = camera_entity.getComps(struct {
+            camera: *const fd.Camera,
+            transform: *const fd.Transform,
+        });
+
+        var render_view = std.mem.zeroes(RenderView);
+        render_view.view = zm.loadMat(camera_comps.camera.view[0..]);
+        render_view.view_inverse = zm.inverse(render_view.view);
+        render_view.projection = zm.loadMat(camera_comps.camera.projection[0..]);
+        render_view.projection_inverse = zm.inverse(render_view.projection);
+        render_view.view_projection = zm.loadMat(camera_comps.camera.view_projection[0..]);
+        render_view.view_projection_inverse = zm.inverse(render_view.view_projection);
+        render_view.position = camera_comps.transform.getPos00();
+        render_view.fov = camera_comps.camera.fov;
+        render_view.near_plane = @min(camera_comps.camera.near, camera_comps.camera.far);
+        render_view.far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
+        render_view.viewport = [2]f32{ @floatFromInt(self.window_width), @floatFromInt(self.window_height) };
+        render_view.aspect = render_view.viewport[0] / render_view.viewport[1];
+        render_view.frustum.init(render_view.view_projection);
+
+        return render_view;
+    }
+
+    fn generateShadowViews(self: *Renderer) void {
+        const min_point: f32 = 0;
+        const max_point: f32 = 1;
+
+        const sun_entity = util.getSun(self.ecsu_world);
+        const sun_comps = sun_entity.?.getComps(struct {
+            rotation: *const fd.Rotation,
+            light: *const fd.DirectionalLight,
+        });
+
+        const cascades_count = sun_comps.light.shadow_cascades;
+        std.debug.assert(cascades_count <= cascades_max_count);
+        const pssm_factor = sun_comps.light.pssm_factor;
+
+        var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+        const camera_comps = camera_entity.getComps(struct {
+            camera: *const fd.Camera,
+            transform: *const fd.Transform,
+        });
+
+        const near_plane = @min(camera_comps.camera.near, camera_comps.camera.far);
+        var far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
+        far_plane = @min(1500, far_plane);
+
+        const clip_range = far_plane - near_plane;
+        const min_z = near_plane + min_point * clip_range;
+        const max_z = near_plane + max_point * clip_range;
+
+        var cascade_splits = std.mem.zeroes([cascades_max_count]f32);
+
+        for (0..cascades_count) |i| {
+            const p: f32 = @as(f32, @floatFromInt(i + 1)) / @as(f32, @floatFromInt(cascades_count));
+            const log: f32 = min_z * std.math.pow(f32, max_z / min_z, p);
+            const uniform: f32 = min_z + (max_z - min_z) * p;
+            const d: f32 = pssm_factor * (log - uniform) + uniform;
+            cascade_splits[i] = (d - near_plane) / clip_range;
+        }
+
+        const z_transform = zm.loadMat43(camera_comps.transform.matrix[0..]);
+        const z_forward = zm.util.getAxisZ(z_transform);
+        const z_pos = zm.util.getTranslationVec(z_transform);
+
+        const z_view = zm.lookToLh(
+            z_pos,
+            z_forward,
+            zm.f32x4(0.0, 1.0, 0.0, 0.0),
+        );
+
+        const z_projection =
+            zm.perspectiveFovLh(
+                camera_comps.camera.fov,
+                @as(f32, @floatFromInt(self.window_width)) / @as(f32, @floatFromInt(self.window_height)),
+                far_plane,
+                near_plane,
+            );
+
+        const view_projection = zm.mul(z_view, z_projection);
+        const view_projection_inverse = zm.inverse(view_projection);
+        const frustum_corners_ws = [_]zm.Vec{
+            transformVec3Coord(zm.Vec{ -1, -1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ -1, -1, 0, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ -1, 1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ -1, 1, 0, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, 1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, 1, 0, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, -1, 1, 0 }, view_projection_inverse),
+            transformVec3Coord(zm.Vec{ 1, -1, 0, 0 }, view_projection_inverse),
         };
+
+        const light_view = zm.inverse(zm.matFromQuat(sun_comps.rotation.asZM()));
+        // const light_view = zm.inverse(zm.matFromQuat(zm.quatFromRollPitchYaw(std.math.pi * 0.5, 0.0, 0.0)));
+        for (0..cascades_count) |i| {
+            const previous_cascade_split = if (i == 0) min_point else cascade_splits[i - 1];
+            const current_cascade_split = cascade_splits[i];
+
+            // Compute the frustum corners for the cascade in view space
+            const frustum_corners_vs = [_]zm.Vec{
+                transformVec3Coord(zm.lerp(frustum_corners_ws[0], frustum_corners_ws[1], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[0], frustum_corners_ws[1], current_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[2], frustum_corners_ws[3], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[2], frustum_corners_ws[3], current_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[4], frustum_corners_ws[5], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[4], frustum_corners_ws[5], current_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[6], frustum_corners_ws[7], previous_cascade_split), light_view),
+                transformVec3Coord(zm.lerp(frustum_corners_ws[6], frustum_corners_ws[7], current_cascade_split), light_view),
+            };
+
+            var center = zm.Vec{ 0, 0, 0, 0 };
+            for (frustum_corners_vs) |corner| {
+                center = center + corner;
+            }
+            center = center / zm.splat(zm.Vec, @as(f32, @floatFromInt(frustum_corners_vs.len)));
+
+            // Create a bounding sphere to maintain aspect in projection to avoid flickering when rotating
+            var radius: f32 = 0;
+            for (frustum_corners_vs) |corner| {
+                const dist = zm.length3(corner - center)[0];
+                radius = @max(dist, radius);
+            }
+            var extents_min = center - zm.splat(zm.Vec, radius);
+            var extents_max = center + zm.splat(zm.Vec, radius);
+
+            // Snap the cascade to the resolution of the shadowmap
+            const extents = extents_max - extents_min;
+            const texel_size = extents / zm.splat(zm.Vec, @floatFromInt(cascaded_shadow_resolution));
+            extents_min = zm.floor(extents_min / texel_size) * texel_size;
+            extents_max = zm.floor(extents_max / texel_size) * texel_size;
+            center = (extents_min + extents_max) * zm.splat(zm.Vec, 0.5);
+
+            // Z-bounds extents
+            var extents_z = @abs(center[2] - extents_min[2]);
+            extents_z = @max(extents_z, far_plane * 0.5);
+            extents_min[2] = center[2] - extents_z;
+            extents_max[2] = center[2] + extents_z;
+
+            // const proj = zm.orthographicOffCenterLh(extents_min[0], extents_max[0], extents_max[1], extents_min[1], extents_max[2], extents_min[2]);
+            const proj = orthographicOffCenterLh(extents_min[0], extents_max[0], extents_min[1], extents_max[1], extents_max[2], extents_min[2]);
+            const proj_view = zm.mul(light_view, proj);
+
+            self.shadow_views[i] = std.mem.zeroes(RenderView);
+            self.shadow_views[i].view = light_view;
+            self.shadow_views[i].view_inverse = zm.inverse(self.shadow_views[i].view);
+            self.shadow_views[i].projection = proj;
+            self.shadow_views[i].projection_inverse = zm.inverse(self.shadow_views[i].projection);
+            self.shadow_views[i].view_projection = proj_view;
+            self.shadow_views[i].view_projection_inverse = zm.inverse(self.shadow_views[i].view_projection);
+            self.shadow_views[i].viewport = [2]f32{ @floatFromInt(cascaded_shadow_resolution), @floatFromInt(cascaded_shadow_resolution) };
+
+            self.shadow_cascade_depths[i] = near_plane + current_cascade_split * (far_plane - near_plane);
+        }
+
+        var light_view_projections: [cascades_max_count][16]f32 = undefined;
+        for (0..cascades_max_count) |cascade_index| {
+            zm.storeMat(&light_view_projections[cascade_index], self.shadow_views[cascade_index].view_projection);
+        }
+
+        const data_slice = OpaqueSlice{
+            .data = @ptrCast(light_view_projections[0..]),
+            .size = @sizeOf([16]f32) * light_view_projections.len,
+        };
+        self.updateBuffer(data_slice, 0, [16]f32, self.light_matrix_buffer.buffer);
+        self.light_matrix_buffer.element_count = @intCast(light_view_projections.len);
+    }
+
+    fn orthographicOffCenterLh(left: f32, right: f32, bottom: f32, top: f32, near_z: f32, far_z: f32) zm.Mat {
+        const rcp_width = 1.0 / (right - left);
+        const rcp_height = 1.0 / (top - bottom);
+        const rcp_zrange = 1.0 / (far_z - near_z);
+
+        const a = -(left + right) * rcp_width;
+        const b = -(top + bottom) * rcp_height;
+
+        return .{
+            zm.f32x4(2.0 * rcp_width, 0.0, 0.0, 0.0),
+            zm.f32x4(0.0, 2.0 * rcp_height, 0.0, 0.0),
+            zm.f32x4(0.0, 0.0, rcp_zrange, 0.0),
+            zm.f32x4(a, b, -near_z * rcp_zrange, 1.0),
+        };
+    }
+
+    pub fn registerRenderable(self: *Renderer, id: IdLocal, desc: RenderableDesc) void {
+        var renderable: Renderable = undefined;
+        renderable.lods_count = desc.lods_count;
+
+        for (0..desc.lods_count) |lod_index| {
+            const lod = &desc.lods[lod_index];
+            const mesh = self.mesh_map.get(lod.mesh_id.hash).?;
+            std.debug.assert(mesh.count == @as(u32, @intCast(lod.materials_count)));
+            renderable.lods[lod_index].mesh_id = lod.mesh_id;
+            renderable.lods[lod_index].screen_percentage_range[0] = lod.screen_percentage_range[0];
+            renderable.lods[lod_index].screen_percentage_range[1] = lod.screen_percentage_range[1];
+            renderable.lods[lod_index].materials_count = lod.materials_count;
+            for (0..lod.materials_count) |material_index| {
+                renderable.lods[lod_index].materials[material_index] = lod.materials[material_index];
+            }
+        }
+
+        self.renderable_map.put(id.hash, renderable) catch unreachable;
+    }
+
+    pub fn getRenderable(self: *Renderer, id: IdLocal) Renderable {
+        return self.renderable_map.get(id.hash).?;
+    }
+
+    pub fn loadMaterial(self: *Renderer, material_id: IdLocal, material_data: UberShaderMaterialData) !void {
+        var gpu_material: GpuMaterial = undefined;
+        gpu_material.albedo_color[0] = material_data.base_color.r;
+        gpu_material.albedo_color[1] = material_data.base_color.g;
+        gpu_material.albedo_color[2] = material_data.base_color.b;
+        gpu_material.albedo_color[3] = 1.0;
+        gpu_material.uv_tiling_offset[0] = material_data.uv_tiling_offset[0];
+        gpu_material.uv_tiling_offset[1] = material_data.uv_tiling_offset[1];
+        gpu_material.uv_tiling_offset[2] = material_data.uv_tiling_offset[2];
+        gpu_material.uv_tiling_offset[3] = material_data.uv_tiling_offset[3];
+        gpu_material.roughness = material_data.roughness;
+        gpu_material.metallic = material_data.metallic;
+        gpu_material.normal_intensity = material_data.normal_intensity;
+        gpu_material.emissive_strength = material_data.emissive_strength;
+        gpu_material.albedo_texture_index = self.getTextureBindlessIndex(material_data.albedo);
+        gpu_material.albedo_sampler_index = renderer_types.InvalidResourceIndex;
+        gpu_material.emissive_texture_index = self.getTextureBindlessIndex(material_data.emissive);
+        gpu_material.emissive_sampler_index = renderer_types.InvalidResourceIndex;
+        gpu_material.normal_texture_index = self.getTextureBindlessIndex(material_data.normal);
+        gpu_material.normal_sampler_index = renderer_types.InvalidResourceIndex;
+        gpu_material.arm_texture_index = self.getTextureBindlessIndex(material_data.arm);
+        gpu_material.arm_sampler_index = renderer_types.InvalidResourceIndex;
+        if (self.pso_manager.getPsoBinId(material_data.gbuffer_pipeline_id.?)) |rasterizer_bin| {
+            gpu_material.rasterizer_bin = rasterizer_bin;
+        }
+
+        const gpu_material_data_slice = OpaqueSlice{
+            .data = @ptrCast(&gpu_material),
+            .size = @sizeOf(GpuMaterial),
+        };
+        self.updateBuffer(gpu_material_data_slice, self.material_buffer.offset, GpuMaterial, self.material_buffer.buffer);
+        self.material_buffer.offset += gpu_material_data_slice.size;
 
         const pipeline_ids = PassPipelineIds{
             .shadow_caster_pipeline_id = material_data.shadow_caster_pipeline_id,
             .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
         };
 
-        self.materials.append(material) catch unreachable;
-
-        const buffer = self.buffer_pool.getColumn(self.materials_buffer, .buffer) catch unreachable;
-
-        var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
-        update_desc.pBuffer = @ptrCast(buffer);
-        update_desc.mDstOffset = offset;
-        update_desc.mSize = @sizeOf(Material);
-        resource_loader.beginUpdateResource(&update_desc);
-        util.memcpy(update_desc.pMappedData.?, &material, @sizeOf(Material));
-        resource_loader.endUpdateResource(&update_desc);
-
-        const handle: MaterialHandle = try self.material_pool.add(.{
-            .material = material,
-            .buffer_offset = @intCast(offset),
-            .pipeline_ids = pipeline_ids,
-            .alpha_test = material_data.alpha_test,
-        });
-        return handle;
+        self.material_map.put(material_id.hash, .{ .index = self.material_buffer.element_count, .pipeline_ids = pipeline_ids, .alpha_test = material_data.alpha_test }) catch unreachable;
+        self.material_buffer.element_count += 1;
     }
 
-    pub fn getMaterialAlphaTest(self: *Renderer, handle: MaterialHandle) bool {
-        const alpha_test = self.material_pool.getColumn(handle, .alpha_test) catch unreachable;
-        return alpha_test;
+    pub fn getMaterialIndex(self: *Renderer, material_id: IdLocal) usize {
+        const material_info = self.material_map.get(material_id.hash).?;
+        return material_info.index;
     }
 
-    pub fn getMaterialPipelineIds(self: *Renderer, handle: MaterialHandle) PassPipelineIds {
-        const pipeline_ids = self.material_pool.getColumn(handle, .pipeline_ids) catch unreachable;
-        return pipeline_ids;
+    pub fn getMaterialAlphaTest(self: *Renderer, material_id: IdLocal) bool {
+        const material_data = self.material_map.get(material_id.hash);
+        return material_data.?.alpha_test;
     }
 
-    pub fn getMaterialBufferOffset(self: *Renderer, handle: MaterialHandle) u32 {
-        const offset = self.material_pool.getColumn(handle, .buffer_offset) catch unreachable;
-        return offset;
+    pub fn getMaterialPipelineIds(self: *Renderer, material_id: IdLocal) PassPipelineIds {
+        const material_data = self.material_map.get(material_id.hash);
+        return material_data.?.pipeline_ids;
     }
 
-    pub fn loadMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !MeshHandle {
+    pub fn loadMesh(self: *Renderer, path: []const u8, mesh_id: IdLocal) !void {
+        var meshes_data = std.ArrayList(geometry.MeshData).init(self.allocator);
+        defer meshes_data.deinit();
+
+        var load_desc: geometry.MeshLoadDesc = undefined;
+        load_desc.mesh_path = path;
+        load_desc.allocator = self.allocator;
+        load_desc.mesh_data = &meshes_data;
+        geometry.loadMesh(&load_desc);
+
+        const mesh_index: u32 = @intCast(self.meshes.items.len);
+        const mesh_count: u32 = @intCast(meshes_data.items.len);
+        self.mesh_map.put(mesh_id.hash, .{ .index = mesh_index, .count = mesh_count }) catch unreachable;
+
+        // Upload the mesh
+        var gpu_mesh_data = std.ArrayList(GPUMesh).init(self.allocator);
+        defer gpu_mesh_data.deinit();
+
+        for (meshes_data.items) |mesh_data| {
+            var mesh = std.mem.zeroes(Mesh);
+            const alignment: u64 = 16;
+
+            var data_size: usize = 0;
+            data_size += alignUp(mesh_data.indices.items.len * @sizeOf(u32), alignment);
+            data_size += alignUp(mesh_data.positions_stream.items.len * @sizeOf([3]f32), alignment);
+            data_size += alignUp(mesh_data.texcoords_stream.items.len * @sizeOf([2]f32), alignment);
+            data_size += alignUp(mesh_data.normals_stream.items.len * @sizeOf([3]f32), alignment);
+            data_size += alignUp(mesh_data.tangents_stream.items.len * @sizeOf([4]f32), alignment);
+            data_size += alignUp(mesh_data.meshlets.items.len * @sizeOf(geometry.Meshlet), alignment);
+            data_size += alignUp(mesh_data.meshlet_bounds.items.len * @sizeOf(geometry.MeshletBounds), alignment);
+            data_size += alignUp(mesh_data.meshlet_triangles.items.len * @sizeOf(geometry.MeshletTriangle), alignment);
+            data_size += alignUp(mesh_data.meshlet_vertices.items.len * @sizeOf(u32), alignment);
+
+            const geometry_buffer_slice = OpaqueSlice{ .data = null, .size = data_size };
+            mesh.data_buffer = self.createBindlessBuffer(geometry_buffer_slice, false, "Geometry Buffer");
+
+            const buffer_data = self.allocator.alloc(u8, data_size) catch unreachable;
+            defer self.allocator.free(buffer_data);
+
+            var buffer_data_offset: usize = 0;
+            const buffer_gpu_address = self.getBufferGPUAddress(mesh.data_buffer);
+            // Positions
+            {
+                const stride = @sizeOf([3]f32);
+                mesh.position_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.position_stream_location.elements = @intCast(mesh_data.positions_stream.items.len);
+                mesh.position_stream_location.stride = @intCast(stride);
+                mesh.position_stream_location.offset_from_start = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.positions_stream.items.ptr), mesh_data.positions_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.positions_stream.items.len * stride, alignment);
+            }
+            // Texcoords
+            {
+                const stride = @sizeOf([2]f32);
+                mesh.texcoord_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.texcoord_stream_location.elements = @intCast(mesh_data.texcoords_stream.items.len);
+                mesh.texcoord_stream_location.stride = @intCast(stride);
+                mesh.texcoord_stream_location.offset_from_start = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.texcoords_stream.items.ptr), mesh_data.texcoords_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.texcoords_stream.items.len * stride, alignment);
+            }
+            // Normals
+            {
+                const stride = @sizeOf([3]f32);
+                mesh.normal_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.normal_stream_location.elements = @intCast(mesh_data.normals_stream.items.len);
+                mesh.normal_stream_location.stride = @intCast(stride);
+                mesh.normal_stream_location.offset_from_start = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.normals_stream.items.ptr), mesh_data.normals_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.normals_stream.items.len * stride, alignment);
+            }
+            // Tangents
+            {
+                const stride = @sizeOf([4]f32);
+                mesh.tangent_stream_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.tangent_stream_location.elements = @intCast(mesh_data.tangents_stream.items.len);
+                mesh.tangent_stream_location.stride = @intCast(stride);
+                mesh.tangent_stream_location.offset_from_start = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.tangents_stream.items.ptr), mesh_data.tangents_stream.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.tangents_stream.items.len * stride, alignment);
+            }
+            // Indices
+            {
+                // TODO
+                // const small_indices = mesh_data.positions_stream.items.len < std.math.maxInt(u16);
+                // const index_size = if (small_indices) @sizeOf(u16) else @sizeOf(u32);
+                const stride = @sizeOf(u32);
+                mesh.indices_location.location = buffer_gpu_address + buffer_data_offset;
+                mesh.indices_location.elements = @intCast(mesh_data.indices.items.len);
+                mesh.indices_location.offset_from_start = @intCast(buffer_data_offset);
+                mesh.indices_location.index_type = .INDEX_TYPE_UINT32;
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.indices.items.ptr), mesh_data.indices.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.indices.items.len * stride, alignment);
+            }
+
+            // Meshlets
+            {
+                const stride = @sizeOf(geometry.Meshlet);
+                mesh.meshlets_location = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlets.items.ptr), mesh_data.meshlets.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.meshlets.items.len * stride, alignment);
+                mesh.meshlet_count = @intCast(mesh_data.meshlets.items.len);
+            }
+
+            // Meshlet Vertices
+            {
+                const stride = @sizeOf(u32);
+                mesh.meshlet_vertices_location = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_vertices.items.ptr), mesh_data.meshlet_vertices.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.meshlet_vertices.items.len * stride, alignment);
+            }
+
+            // Meshlet Triangles
+            {
+                const stride = @sizeOf(geometry.MeshletTriangle);
+                mesh.meshlet_triangles_location = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_triangles.items.ptr), mesh_data.meshlet_triangles.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.meshlet_triangles.items.len * stride, alignment);
+            }
+
+            // Meshlet Bounds
+            {
+                const stride = @sizeOf(geometry.MeshletBounds);
+                mesh.meshlet_bounds_location = @intCast(buffer_data_offset);
+
+                util.memcpy(@ptrCast(buffer_data), @ptrCast(mesh_data.meshlet_bounds.items.ptr), mesh_data.meshlet_bounds.items.len * stride, .{ .dst_offset = buffer_data_offset });
+                buffer_data_offset += alignUp(mesh_data.meshlet_bounds.items.len * stride, alignment);
+            }
+
+            mesh.bounds.center = mesh_data.bounds.center;
+            mesh.bounds.extents = mesh_data.bounds.extents;
+
+            const data_slice = OpaqueSlice{
+                .data = @ptrCast(buffer_data),
+                .size = data_size,
+            };
+            self.updateBuffer(data_slice, 0, u8, mesh.data_buffer);
+            self.meshes.append(mesh) catch unreachable;
+
+            const gpu_mesh = GPUMesh{
+                .data_buffer = self.getBufferBindlessIndex(mesh.data_buffer),
+                .index_byte_size = 4, // TODO
+                .indices_offset = @intCast(mesh.indices_location.offset_from_start),
+                .positions_offset = @intCast(mesh.position_stream_location.offset_from_start),
+                .texcoords_offset = @intCast(mesh.texcoord_stream_location.offset_from_start),
+                .tangents_offset = @intCast(mesh.tangent_stream_location.offset_from_start),
+                .normals_offset = @intCast(mesh.normal_stream_location.offset_from_start),
+                .meshlet_offset = mesh.meshlets_location,
+                .meshlet_bounds_offset = mesh.meshlet_bounds_location,
+                .meshlet_triangle_offset = mesh.meshlet_triangles_location,
+                .meshlet_vertex_offset = mesh.meshlet_vertices_location,
+                .meshlet_count = mesh.meshlet_count,
+            };
+
+            gpu_mesh_data.append(gpu_mesh) catch unreachable;
+        }
+
+        const gpu_mesh_data_slice = OpaqueSlice{
+            .data = @ptrCast(gpu_mesh_data.items),
+            .size = @sizeOf(GPUMesh) * gpu_mesh_data.items.len,
+        };
+        self.updateBuffer(gpu_mesh_data_slice, self.mesh_buffer.offset, GPUMesh, self.mesh_buffer.buffer);
+        self.mesh_buffer.offset += gpu_mesh_data_slice.size;
+    }
+
+    pub fn getMeshInfo(self: *Renderer, mesh_id: IdLocal) MeshInfo {
+        return self.mesh_map.get(mesh_id.hash).?;
+    }
+
+    fn alignUp(value: u64, alignment: u64) u64 {
+        return (value + (alignment - 1)) & ~(alignment - 1);
+    }
+
+    pub fn loadLegacyMesh(self: *Renderer, path: [:0]const u8, vertex_layout_id: IdLocal) !LegacyMeshHandle {
         const vertex_layout = self.vertex_layouts_map.get(vertex_layout_id).?;
 
-        var mesh: Mesh = undefined;
+        var mesh: LegacyMesh = undefined;
         mesh.geometry = null;
         mesh.data = null;
         mesh.vertex_layout_id = vertex_layout_id;
@@ -1111,12 +1656,12 @@ pub const Renderer = struct {
 
         mesh.loaded = true;
 
-        const handle: MeshHandle = try self.mesh_pool.add(.{ .mesh = mesh });
+        const handle: LegacyMeshHandle = try self.legacy_mesh_pool.add(.{ .mesh = mesh });
         return handle;
     }
 
-    pub fn getMesh(self: *Renderer, handle: MeshHandle) Mesh {
-        const mesh = self.mesh_pool.getColumn(handle, .mesh) catch unreachable;
+    pub fn getLegacyMesh(self: *Renderer, handle: LegacyMeshHandle) LegacyMesh {
+        const mesh = self.legacy_mesh_pool.getColumn(handle, .mesh) catch unreachable;
         return mesh;
     }
 
@@ -1161,7 +1706,7 @@ pub const Renderer = struct {
         return self.loadTextureWithDesc(desc, path);
     }
 
-    pub fn loadTextureFromMemory(self: *Renderer, width: u32, height: u32, format: graphics.TinyImageFormat, data_slice: Slice, debug_name: [*:0]const u8) TextureHandle {
+    pub fn loadTextureFromMemory(self: *Renderer, width: u32, height: u32, format: graphics.TinyImageFormat, data_slice: OpaqueSlice, debug_name: [*:0]const u8) TextureHandle {
         var texture: [*c]graphics.Texture = null;
 
         var desc = std.mem.zeroes(graphics.TextureDesc);
@@ -1209,18 +1754,21 @@ pub const Renderer = struct {
         return @intCast(bindless_index);
     }
 
-    pub fn createBindlessBuffer(self: *Renderer, initial_data: Slice, debug_name: [:0]const u8) BufferHandle {
+    pub fn createBindlessBuffer(self: *Renderer, initial_data: OpaqueSlice, writable: bool, debug_name: []const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
-        load_desc.mDesc.pName = debug_name;
+        load_desc.mDesc.pName = @constCast(debug_name.ptr);
         load_desc.mDesc.bBindless = true;
         load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW;
+        if (writable) {
+            load_desc.mDesc.mDescriptors.bits |= graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits;
+        }
         load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_SHADER_DEVICE_ADDRESS;
         load_desc.mDesc.mMemoryUsage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
         // NOTE(gmodarelli): The persistent SRV uses a R32_TYPELESS representation, so we need to provide an element count in terms of 32bit data
         load_desc.mDesc.mElementCount = @intCast(initial_data.size / @sizeOf(u32));
-        load_desc.mDesc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+        load_desc.mDesc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
         load_desc.mDesc.mSize = initial_data.size;
         if (initial_data.data) |data| {
             load_desc.pData = data;
@@ -1235,7 +1783,7 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createIndexBuffer(self: *Renderer, initial_data: Slice, index_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
+    pub fn createIndexBuffer(self: *Renderer, initial_data: OpaqueSlice, index_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -1262,7 +1810,7 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createVertexBuffer(self: *Renderer, initial_data: Slice, vertex_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
+    pub fn createVertexBuffer(self: *Renderer, initial_data: OpaqueSlice, vertex_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -1304,7 +1852,7 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createStructuredBuffer(self: *Renderer, initial_data: Slice, debug_name: [:0]const u8) BufferHandle {
+    pub fn createStructuredBuffer(self: *Renderer, initial_data: OpaqueSlice, debug_name: [:0]const u8) BufferHandle {
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
@@ -1315,7 +1863,7 @@ pub const Renderer = struct {
         load_desc.mDesc.mMemoryUsage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
         // NOTE(gmodarelli): The persistent SRV uses a R32_TYPELESS representation, so we need to provide an element count in terms of 32bit data
         load_desc.mDesc.mElementCount = @intCast(initial_data.size / @sizeOf(u32));
-        load_desc.mDesc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+        load_desc.mDesc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
         load_desc.mDesc.mSize = initial_data.size;
         if (initial_data.data) |data| {
             load_desc.pData = data;
@@ -1330,14 +1878,15 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn updateBuffer(self: *Renderer, data: Slice, comptime T: type, handle: BufferHandle) void {
+    pub fn updateBuffer(self: *Renderer, data: OpaqueSlice, dest_offset: u64, comptime T: type, handle: BufferHandle) void {
         const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
         _ = T;
 
         var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
         update_desc.pBuffer = @ptrCast(buffer);
+        update_desc.mDstOffset = dest_offset;
         resource_loader.beginUpdateResource(&update_desc);
-        util.memcpy(update_desc.pMappedData.?, data.data.?, data.size);
+        util.memcpy(update_desc.pMappedData.?, data.data.?, data.size, .{});
         resource_loader.endUpdateResource(&update_desc);
     }
 
@@ -1350,6 +1899,11 @@ pub const Renderer = struct {
         const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
         const bindless_index = buffer.*.mDx.mDescriptors;
         return @intCast(bindless_index);
+    }
+
+    pub fn getBufferGPUAddress(self: *Renderer, handle: BufferHandle) u64 {
+        const buffer = self.buffer_pool.getColumn(handle, .buffer) catch unreachable;
+        return @intCast(buffer.*.mDx.mGpuAddress);
     }
 
     pub fn getPSO(self: *Renderer, id: IdLocal) [*c]graphics.Pipeline {
@@ -1404,7 +1958,7 @@ pub const Renderer = struct {
             rt_desc.mClearValue.__struct_field3.stencil = 0;
             rt_desc.mDepth = 1;
             rt_desc.mFormat = graphics.TinyImageFormat.D32_SFLOAT;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
             rt_desc.mWidth = buffer_width;
             rt_desc.mHeight = buffer_height;
             rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
@@ -1422,7 +1976,7 @@ pub const Renderer = struct {
             texture_desc.mArraySize = 1;
             texture_desc.mMipLevels = 1;
             texture_desc.mFormat = graphics.TinyImageFormat.R16_UNORM;
-            texture_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            texture_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
             texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
             texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             texture_desc.bBindless = false;
@@ -1435,21 +1989,28 @@ pub const Renderer = struct {
         }
 
         // Shadow Buffers
-        {
+        for (0..cascades_max_count) |i| {
+            var rt_name_buffer: [256]u8 = undefined;
+            const rt_name = std.fmt.bufPrintZ(
+                rt_name_buffer[0..rt_name_buffer.len],
+                "Shadow Depth Buffer {d}",
+                .{i},
+            ) catch unreachable;
+
             var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "Shadow Depth Buffer";
+            rt_desc.pName = rt_name;
             rt_desc.mArraySize = 1;
             rt_desc.mClearValue.__struct_field3.depth = 0.0;
             rt_desc.mClearValue.__struct_field3.stencil = 0;
             rt_desc.mDepth = 1;
             rt_desc.mFormat = graphics.TinyImageFormat.D32_SFLOAT;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = 2048;
-            rt_desc.mHeight = 2048;
+            rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mWidth = cascaded_shadow_resolution;
+            rt_desc.mHeight = cascaded_shadow_resolution;
             rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             rt_desc.mSampleQuality = 0;
             rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            graphics.addRenderTarget(self.renderer, &rt_desc, &self.shadow_depth_buffer);
+            graphics.addRenderTarget(self.renderer, &rt_desc, &self.shadow_depth_buffers[i]);
         }
 
         // GBuffer
@@ -1461,7 +2022,7 @@ pub const Renderer = struct {
                 rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
                 rt_desc.mDepth = 1;
                 rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_SRGB;
-                rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+                rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
                 rt_desc.mWidth = buffer_width;
                 rt_desc.mHeight = buffer_height;
                 rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
@@ -1477,7 +2038,7 @@ pub const Renderer = struct {
                 rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
                 rt_desc.mDepth = 1;
                 rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_SNORM;
-                rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+                rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
                 rt_desc.mWidth = buffer_width;
                 rt_desc.mHeight = buffer_height;
                 rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
@@ -1493,7 +2054,7 @@ pub const Renderer = struct {
                 rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0 };
                 rt_desc.mDepth = 1;
                 rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
-                rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+                rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
                 rt_desc.mWidth = buffer_width;
                 rt_desc.mHeight = buffer_height;
                 rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
@@ -1511,7 +2072,7 @@ pub const Renderer = struct {
             rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
             rt_desc.mDepth = 1;
             rt_desc.mFormat = hdr_format;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
             rt_desc.mWidth = buffer_width;
             rt_desc.mHeight = buffer_height;
             rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
@@ -1531,7 +2092,7 @@ pub const Renderer = struct {
             rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
             rt_desc.mDepth = 1;
             rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
-            rt_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+            rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
             rt_desc.mWidth = buffer_width;
             rt_desc.mHeight = buffer_height;
             rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
@@ -1554,7 +2115,9 @@ pub const Renderer = struct {
         resource_loader.removeResource__Overload2(texture);
         self.texture_pool.removeAssumeLive(self.linear_depth_buffers[1]);
 
-        graphics.removeRenderTarget(self.renderer, self.shadow_depth_buffer);
+        for (0..cascades_max_count) |i| {
+            graphics.removeRenderTarget(self.renderer, self.shadow_depth_buffers[i]);
+        }
 
         graphics.removeRenderTarget(self.renderer, self.gbuffer_0);
         graphics.removeRenderTarget(self.renderer, self.gbuffer_1);
@@ -1574,7 +2137,7 @@ pub const Renderer = struct {
         texture_desc.mDepth = 1;
         texture_desc.mArraySize = 1;
         texture_desc.mMipLevels = 1;
-        texture_desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
+        texture_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
         texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
         texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
         texture_desc.bBindless = false;
@@ -1676,59 +2239,6 @@ pub const Renderer = struct {
         self.texture_pool.removeAssumeLive(self.bloom_uav5[1]);
     }
 
-    fn createIBLTextures(self: *Renderer) void {
-        // Create empty texture for BRDF integration map
-        {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = brdf_lut_texture_size;
-            desc.mHeight = brdf_lut_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 1;
-            desc.mMipLevels = 1;
-            desc.mFormat = graphics.TinyImageFormat.R32G32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "BRDF LUT";
-            self.brdf_lut_texture = self.createTexture(desc);
-        }
-
-        // Create empty texture for Irradiance map
-        {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = irradiance_texture_size;
-            desc.mHeight = irradiance_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 6;
-            desc.mMipLevels = 1;
-            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "Irradiance Map";
-            self.irradiance_texture = self.createTexture(desc);
-        }
-
-        // Create empty texture for Specular map
-        {
-            var desc = std.mem.zeroes(graphics.TextureDesc);
-            desc.mWidth = specular_texture_size;
-            desc.mHeight = specular_texture_size;
-            desc.mDepth = 1;
-            desc.mArraySize = 6;
-            desc.mMipLevels = specular_texture_mips;
-            desc.mFormat = graphics.TinyImageFormat.R32G32B32A32_SFLOAT;
-            desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
-            desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            desc.bBindless = false;
-            desc.pName = "Specular Map";
-            self.specular_texture = self.createTexture(desc);
-        }
-    }
-
     fn createResolutionIndependentRenderTargets(self: *Renderer) void {
         _ = self;
     }
@@ -1792,15 +2302,149 @@ pub const Renderer = struct {
     }
 };
 
-pub const Mesh = struct {
-    geometry: [*c]resource_loader.Geometry,
-    data: [*c]resource_loader.GeometryData,
-    buffer_layout_desc: resource_loader.GeometryBufferLayoutDesc,
-    vertex_layout_id: IdLocal,
-    loaded: bool,
+pub const ElementBindlessBuffer = struct {
+    mutex: std.Thread.Mutex = undefined,
+    buffer: BufferHandle = undefined,
+    stride: u64 = 0,
+    size: u64 = 0,
+    offset: u64 = 0,
+    element_count: u32 = 0,
+
+    pub fn init(self: *@This(), renderer: *Renderer, elements_count_limit: u64, stride: usize, uav: bool, debug_name: []const u8) void {
+        self.mutex = std.Thread.Mutex{};
+        self.size = elements_count_limit * stride;
+        self.stride = stride;
+        self.offset = 0;
+        self.element_count = 0;
+
+        const buffer_data = OpaqueSlice{
+            .data = null,
+            .size = self.size,
+        };
+        self.buffer = renderer.createBindlessBuffer(buffer_data, uav, debug_name);
+    }
 };
 
-pub const Material = struct {
+// ██╗   ██╗██╗███████╗██╗    ██╗███████╗
+// ██║   ██║██║██╔════╝██║    ██║██╔════╝
+// ██║   ██║██║█████╗  ██║ █╗ ██║███████╗
+// ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║╚════██║
+//  ╚████╔╝ ██║███████╗╚███╔███╔╝███████║
+//   ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚══════╝
+
+pub const RenderView = struct {
+    view: zm.Mat,
+    view_inverse: zm.Mat,
+    projection: zm.Mat,
+    projection_inverse: zm.Mat,
+    view_projection: zm.Mat,
+    view_projection_inverse: zm.Mat,
+
+    position: [3]f32,
+    fov: f32,
+    near_plane: f32,
+    far_plane: f32,
+    viewport: [2]f32,
+    aspect: f32,
+    frustum: renderer_types.Frustum,
+};
+
+// ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗
+// ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
+// ██████╔╝█████╗  ██╔██╗ ██║██║  ██║█████╗  ██████╔╝███████║██████╔╝██║     █████╗  ███████╗
+// ██╔══██╗██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗██╔══██║██╔══██╗██║     ██╔══╝  ╚════██║
+// ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
+// ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
+
+const materials_per_renderable_max_count: u32 = 16;
+const lods_per_renderable_max_count: u32 = 4;
+
+pub const RenderableDesc = struct {
+    lods: [lods_per_renderable_max_count]RenderableLod,
+    lods_count: u32,
+};
+
+pub const RenderableLod = struct {
+    mesh_id: IdLocal,
+    materials: [materials_per_renderable_max_count]IdLocal,
+    materials_count: u32,
+    screen_percentage_range: [2]f32,
+};
+
+const Renderable = struct {
+    lods: [lods_per_renderable_max_count]RenderableLod,
+    lods_count: u32,
+};
+
+const RenderableHashMap = std.AutoHashMap(u64, Renderable);
+
+// ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
+// ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝
+// ██╔████╔██║█████╗  ███████╗███████║█████╗  ███████╗
+// ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║██╔══╝  ╚════██║
+// ██║ ╚═╝ ██║███████╗███████║██║  ██║███████╗███████║
+// ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+const VertexBufferView = struct {
+    location: u64,
+    elements: u32,
+    stride: u32,
+    offset_from_start: u32,
+};
+
+const IndexBufferView = struct {
+    location: u64,
+    elements: u32,
+    offset_from_start: u32,
+    index_type: graphics.IndexType,
+};
+
+pub const Mesh = struct {
+    data_buffer: BufferHandle = undefined,
+
+    position_stream_location: VertexBufferView = undefined,
+    texcoord_stream_location: VertexBufferView = undefined,
+    normal_stream_location: VertexBufferView = undefined,
+    tangent_stream_location: VertexBufferView = undefined,
+    indices_location: IndexBufferView = undefined,
+    bounds: geometry.BoundingBox = undefined,
+
+    meshlets_location: u32 = std.math.maxInt(u32),
+    meshlet_vertices_location: u32 = std.math.maxInt(u32),
+    meshlet_triangles_location: u32 = std.math.maxInt(u32),
+    meshlet_bounds_location: u32 = std.math.maxInt(u32),
+    meshlet_count: u32 = 0,
+};
+
+const GPUMesh = struct {
+    data_buffer: u32,
+    positions_offset: u32,
+    normals_offset: u32,
+    texcoords_offset: u32,
+    tangents_offset: u32,
+    indices_offset: u32,
+    index_byte_size: u32,
+    meshlet_offset: u32,
+    meshlet_vertex_offset: u32,
+    meshlet_triangle_offset: u32,
+    meshlet_bounds_offset: u32,
+    meshlet_count: u32,
+};
+
+pub const MeshInfo = struct {
+    index: u32,
+    count: u32,
+};
+const MeshHashMap = std.AutoHashMap(u64, MeshInfo);
+
+// ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗     ███████╗
+// ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║     ██╔════╝
+// ██╔████╔██║███████║   ██║   █████╗  ██████╔╝██║███████║██║     ███████╗
+// ██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║██╔══██║██║     ╚════██║
+// ██║ ╚═╝ ██║██║  ██║   ██║   ███████╗██║  ██║██║██║  ██║███████╗███████║
+// ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+const GpuMaterial = struct {
     albedo_color: [4]f32,
     uv_tiling_offset: [4]f32,
     roughness: f32,
@@ -1808,23 +2452,70 @@ pub const Material = struct {
     normal_intensity: f32,
     emissive_strength: f32,
     albedo_texture_index: u32,
+    albedo_sampler_index: u32,
     emissive_texture_index: u32,
+    emissive_sampler_index: u32,
     normal_texture_index: u32,
+    normal_sampler_index: u32,
     arm_texture_index: u32,
-    detail_feature: u32,
-    detail_mask_texture_index: u32,
-    detail_baseColor_texture_index: u32,
-    detail_normal_texture_index: u32,
-    detail_arm_texture_index: u32,
-    detail_use_uv2: u32,
-    wind_feature: u32,
-    wind_initial_bend: f32,
-    wind_stifness: f32,
-    wind_drag: f32,
-    wind_shiver_feature: u32,
-    wind_shiver_drag: f32,
-    wind_normal_influence: f32,
-    wind_shiver_directionality: f32,
+    arm_sampler_index: u32,
+    rasterizer_bin: u32,
+    _padding: [3]u32 = .{ 42, 42, 42 },
+};
+
+const MaterialMap = std.AutoHashMap(u64, struct { index: usize, pipeline_ids: PassPipelineIds, alpha_test: bool });
+
+pub const SurfaceType = enum {
+    @"opaque",
+    cutout,
+};
+
+pub const ShadingTechnique = enum {
+    gbuffer,
+    shadow_caster,
+};
+
+pub const UberShaderMaterialData = struct {
+    // Techniques
+    gbuffer_pipeline_id: ?IdLocal,
+    shadow_caster_pipeline_id: ?IdLocal,
+
+    // Surface Type
+    alpha_test: bool,
+
+    // Basic PBR Surface Data
+    base_color: fd.ColorRGB,
+    uv_tiling_offset: [4]f32,
+    metallic: f32,
+    roughness: f32,
+    normal_intensity: f32,
+    emissive_strength: f32,
+    albedo: TextureHandle,
+    normal: TextureHandle,
+    arm: TextureHandle,
+    emissive: TextureHandle,
+
+    pub fn init() UberShaderMaterialData {
+        return initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.5, 0.0);
+    }
+
+    pub fn initNoTexture(base_color: fd.ColorRGB, roughness: f32, metallic: f32) UberShaderMaterialData {
+        return .{
+            .gbuffer_pipeline_id = null,
+            .shadow_caster_pipeline_id = null,
+            .alpha_test = false,
+            .base_color = base_color,
+            .uv_tiling_offset = .{ 1.0, 1.0, 0.0, 0.0 },
+            .roughness = roughness,
+            .metallic = metallic,
+            .normal_intensity = 1.0,
+            .emissive_strength = 1.0,
+            .albedo = TextureHandle.nil,
+            .normal = TextureHandle.nil,
+            .arm = TextureHandle.nil,
+            .emissive = TextureHandle.nil,
+        };
+    }
 };
 
 pub const PassPipelineIds = struct {
@@ -1832,11 +2523,28 @@ pub const PassPipelineIds = struct {
     gbuffer_pipeline_id: ?IdLocal,
 };
 
-const MaterialPool = Pool(16, 16, Material, struct { material: Material, buffer_offset: u32, pipeline_ids: PassPipelineIds, alpha_test: bool });
-pub const MaterialHandle = MaterialPool.Handle;
+// ██╗     ███████╗ ██████╗  █████╗  ██████╗██╗   ██╗    ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
+// ██║     ██╔════╝██╔════╝ ██╔══██╗██╔════╝╚██╗ ██╔╝    ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝
+// ██║     █████╗  ██║  ███╗███████║██║      ╚████╔╝     ██╔████╔██║█████╗  ███████╗███████║█████╗  ███████╗
+// ██║     ██╔══╝  ██║   ██║██╔══██║██║       ╚██╔╝      ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║██╔══╝  ╚════██║
+// ███████╗███████╗╚██████╔╝██║  ██║╚██████╗   ██║       ██║ ╚═╝ ██║███████╗███████║██║  ██║███████╗███████║
+// ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝   ╚═╝       ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
 
-const MeshPool = Pool(16, 16, Mesh, struct { mesh: Mesh });
-pub const MeshHandle = MeshPool.Handle;
+pub const GpuMeshIndices = struct {
+    count: u32,
+    indices: [geometry.sub_mesh_max_count]u32,
+};
+
+pub const LegacyMesh = struct {
+    geometry: [*c]resource_loader.Geometry,
+    data: [*c]resource_loader.GeometryData,
+    buffer_layout_desc: resource_loader.GeometryBufferLayoutDesc,
+    vertex_layout_id: IdLocal,
+    loaded: bool,
+};
+
+const LegacyMeshPool = Pool(16, 16, LegacyMesh, struct { mesh: LegacyMesh });
+pub const LegacyMeshHandle = LegacyMeshPool.Handle;
 
 const TexturePool = Pool(16, 16, graphics.Texture, struct { texture: [*c]graphics.Texture });
 pub const TextureHandle = TexturePool.Handle;
@@ -1844,53 +2552,18 @@ pub const TextureHandle = TexturePool.Handle;
 const BufferPool = Pool(16, 16, graphics.Buffer, struct { buffer: [*c]graphics.Buffer });
 pub const BufferHandle = BufferPool.Handle;
 
-pub const Slice = extern struct {
-    data: ?*const anyopaque,
-    size: u64,
-};
+pub inline fn transformVec3Coord(v: zm.Vec, m: zm.Mat) zm.Vec {
+    const z = zm.splat(zm.F32x4, v[2]);
+    const y = zm.splat(zm.F32x4, v[1]);
+    const x = zm.splat(zm.F32x4, v[0]);
 
-pub const mesh_lod_max_count: u32 = 4;
-pub const sub_mesh_max_count: u32 = 32;
+    var result = zm.mulAdd(z, m[2], m[3]);
+    result = zm.mulAdd(y, m[1], result);
+    result = zm.mulAdd(x, m[0], result);
 
-pub const FrameStats = struct {
-    time: f64,
-    delta_time: f32,
-    fps: f32,
-    average_cpu_time: f32,
-    timer: std.time.Timer,
-    previous_time_ns: u64,
-    fps_refresh_time_ns: u64,
-    frame_counter: u64,
-
-    pub fn init() FrameStats {
-        return .{
-            .time = 0.0,
-            .delta_time = 0.0,
-            .fps = 0.0,
-            .average_cpu_time = 0.0,
-            .timer = std.time.Timer.start() catch unreachable,
-            .previous_time_ns = 0,
-            .fps_refresh_time_ns = 0,
-            .frame_counter = 0,
-        };
-    }
-
-    pub fn update(self: *FrameStats) void {
-        const now_ns = self.timer.read();
-        self.time = @as(f64, @floatFromInt(now_ns)) / std.time.ns_per_s;
-        self.delta_time = @as(f32, @floatFromInt(now_ns - self.previous_time_ns)) / std.time.ns_per_s;
-        self.previous_time_ns = now_ns;
-
-        if ((now_ns - self.fps_refresh_time_ns) >= std.time.ns_per_s) {
-            const t = @as(f64, @floatFromInt(now_ns - self.fps_refresh_time_ns)) / std.time.ns_per_s;
-            const fps = @as(f64, @floatFromInt(self.frame_counter)) / t;
-            const ms = (1.0 / fps) * 1000.0;
-
-            self.fps = @as(f32, @floatCast(fps));
-            self.average_cpu_time = @as(f32, @floatCast(ms));
-            self.fps_refresh_time_ns = now_ns;
-            self.frame_counter = 0;
-        }
-        self.frame_counter += 1;
-    }
-};
+    result[0] /= result[3];
+    result[1] /= result[3];
+    result[2] /= result[3];
+    result[3] = 1.0;
+    return result;
+}

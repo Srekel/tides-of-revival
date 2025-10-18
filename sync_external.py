@@ -79,7 +79,7 @@ def main():
     sync_lib(
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "a93a68edc3b49c9ecf1af4c7b436a8a1ae13b030",
+        "6ff6f099e0cc12935517a66e33a002dbbb2366f4",
     )
     sync_lib(
         "ze-forge",
@@ -220,11 +220,6 @@ def main():
         "ztracy",
         "https://github.com/zig-gamedev/ztracy",
         "be3d003f29d59d72e68e493ab531374ab474a795",
-    )
-    sync_lib(
-        "zwindows",
-        "https://github.com/zig-gamedev/zwindows",
-        "c29e0fec072c282a8c6234c5837db071af42a11f",
     )
 
     sync_zig_exe("0.14.1")

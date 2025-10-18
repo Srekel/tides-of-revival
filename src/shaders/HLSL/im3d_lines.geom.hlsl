@@ -2,7 +2,7 @@
 #define DIRECT3D12
 #define STAGE_GEOM
 
-#include "im3d.hlsl"
+#include "im3d.hlsli"
 
 cbuffer cbContextData : register(b0, UPDATE_FREQ_PER_FRAME)
 {
@@ -10,8 +10,7 @@ cbuffer cbContextData : register(b0, UPDATE_FREQ_PER_FRAME)
     float2 g_viewport;
 }
 
-[maxvertexcount(4)]
-void main(line VS_OUTPUT input[2], inout TriangleStream<VS_OUTPUT> output)
+[maxvertexcount(4)] void main(line VS_OUTPUT input[2], inout TriangleStream<VS_OUTPUT> output)
 {
     float2 pos0 = input[0].m_position.xy / input[0].m_position.w;
     float2 pos1 = input[1].m_position.xy / input[1].m_position.w;

@@ -2,7 +2,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "im3d.hlsl"
+#include "im3d.hlsli"
 
 cbuffer cbContextData : register(b0, UPDATE_FREQ_PER_FRAME)
 {
@@ -13,7 +13,7 @@ cbuffer cbContextData : register(b0, UPDATE_FREQ_PER_FRAME)
 struct VS_INPUT
 {
     float4 m_positionSize : POSITION; // POSITION_SIZE
-    float4 m_color        : COLOR;
+    float4 m_color : COLOR;
 };
 
 VS_OUTPUT VS_MAIN(VS_INPUT input)

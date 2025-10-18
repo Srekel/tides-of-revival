@@ -8,13 +8,17 @@ const zwin32 = @import("zwin32");
 
 const fd = @import("config/flecs_data.zig");
 const renderer = @import("renderer/renderer.zig");
+const geometry = @import("renderer/geometry.zig");
 const util = @import("util.zig");
 const IdLocal = @import("core/core.zig").IdLocal;
+const ID = @import("core/core.zig").ID;
 
 const assert = std.debug.assert;
 
 const PrefabHashMap = std.AutoHashMap(IdLocal, ecsu.Entity);
-const MaterialHashmap = std.AutoHashMap(IdLocal, fd.UberShader);
+const MaterialHashmap = std.AutoHashMap(IdLocal, renderer.UberShaderMaterialData);
+
+const InvalidID = ID("_invalid_id_");
 
 pub const PrefabManager = struct {
     prefab_hash_map: PrefabHashMap,
@@ -36,6 +40,68 @@ pub const PrefabManager = struct {
     pub fn deinit(self: *@This()) void {
         self.prefab_hash_map.deinit();
         self.material_hash_map.deinit();
+    }
+
+    pub fn createRenderablePrefab(self: *@This(), id: IdLocal, world: ecsu.World) ecsu.Entity {
+        const existing_prefab = self.prefab_hash_map.get(id);
+        if (existing_prefab) |prefab| {
+            return prefab;
+        }
+
+        var entity = world.newPrefab(id.toCString());
+        entity.set(fd.Forward{});
+
+        // Set position, rotation and scale
+        var position = fd.Position.init(0, 0, 0);
+        var rotation = fd.Rotation{};
+        var scale = fd.Scale.createScalar(1);
+        entity.set(position);
+        entity.set(rotation);
+        entity.set(scale);
+
+        // Set transform
+        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
+        transform.setPos(position.elems().*);
+        transform.setScale(scale.elems().*);
+        entity.set(transform);
+
+        entity.set(std.mem.zeroes(fd.Renderable));
+
+        self.prefab_hash_map.put(id, entity) catch unreachable;
+        return entity;
+    }
+
+    pub fn createGpuDrivenMeshPrefab(self: *@This(), path: []const u8, id: IdLocal, world: ecsu.World) ecsu.Entity {
+        const existing_prefab = self.prefab_hash_map.get(id);
+        if (existing_prefab) |prefab| {
+            return prefab;
+        }
+
+        var entity = world.newPrefab(id.toCString());
+        entity.set(fd.Forward{});
+
+        // Set position, rotation and scale
+        var position = fd.Position.init(0, 0, 0);
+        var rotation = fd.Rotation{};
+        var scale = fd.Scale.createScalar(1);
+        entity.set(position);
+        entity.set(rotation);
+        entity.set(scale);
+
+        // Set transform
+        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
+        transform.setPos(position.elems().*);
+        transform.setScale(scale.elems().*);
+        entity.set(transform);
+
+        self.rctx.loadMesh(path, id) catch unreachable;
+        const gpu_driven_mesh = fd.GpuDrivenMesh{
+            .mesh_id = id,
+        };
+        entity.set(gpu_driven_mesh);
+
+        self.prefab_hash_map.put(id, entity) catch unreachable;
+        return entity;
     }
 
     pub fn createHierarchicalStaticMeshPrefab(self: *@This(), path: [:0]const u8, id: IdLocal, vertex_layout_id: IdLocal, world: ecsu.World) ecsu.Entity {
@@ -74,7 +140,7 @@ pub const PrefabManager = struct {
             return prefab;
         }
 
-        const mesh_handle = self.rctx.loadMesh(path, vertex_layout_id) catch unreachable;
+        const mesh_handle = self.rctx.loadLegacyMesh(path, vertex_layout_id) catch unreachable;
         var entity = world.newPrefab(id.toCString());
         entity.set(fd.Forward{});
 
@@ -92,7 +158,7 @@ pub const PrefabManager = struct {
         transform.setScale(scale.elems().*);
         entity.set(transform);
 
-        var static_mesh_component: fd.StaticMesh = undefined;
+        var static_mesh_component: fd.Lod = undefined;
         static_mesh_component.mesh_handle = mesh_handle;
         entity.set(static_mesh_component);
 
@@ -115,11 +181,11 @@ pub const PrefabManager = struct {
         return null;
     }
 
-    pub fn storeMaterial(self: *@This(), id: IdLocal, material: fd.UberShader) void {
+    pub fn storeMaterial(self: *@This(), id: IdLocal, material: renderer.UberShaderMaterialData) void {
         self.material_hash_map.put(id, material) catch unreachable;
     }
 
-    pub fn getMaterial(self: *@This(), id: IdLocal) ?fd.UberShader {
+    pub fn getMaterial(self: *@This(), id: IdLocal) ?renderer.UberShaderMaterialData {
         const trazy_zone = ztracy.ZoneNC(@src(), "Get Material", 0x00_ff_ff_00);
         defer trazy_zone.End();
 
@@ -138,7 +204,7 @@ pub const PrefabManager = struct {
         };
 
         // Try to load LODs
-        for (0..renderer.mesh_lod_max_count) |lod| {
+        for (0..geometry.mesh_lod_max_count) |lod| {
             var content_lod_path_buffer: [256]u8 = undefined;
             const content_lod_path = std.fmt.bufPrintZ(
                 content_lod_path_buffer[0..content_lod_path_buffer.len],
@@ -157,13 +223,13 @@ pub const PrefabManager = struct {
                 .{ path, lod },
             ) catch unreachable;
 
-            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadLegacyMesh(lod_path, vertex_layout_id) catch unreachable;
 
-            const mesh = self.rctx.getMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
+            const mesh = self.rctx.getLegacyMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
-            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
-            for (0..num_materials) |_| {
-                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(renderer.MaterialHandle.nil);
+            lod_group.lods[lod_group.lod_count].materials_count = @intCast(num_materials);
+            for (0..num_materials) |material_index| {
+                lod_group.lods[lod_group.lod_count].materials[material_index] = InvalidID;
             }
 
             lod_group.lod_count += 1;
@@ -178,13 +244,13 @@ pub const PrefabManager = struct {
                 .{path},
             ) catch unreachable;
 
-            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadMesh(lod_path, vertex_layout_id) catch unreachable;
+            lod_group.lods[lod_group.lod_count].mesh_handle = self.rctx.loadLegacyMesh(lod_path, vertex_layout_id) catch unreachable;
 
-            const mesh = self.rctx.getMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
+            const mesh = self.rctx.getLegacyMesh(lod_group.lods[lod_group.lod_count].mesh_handle);
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
-            lod_group.lods[lod_group.lod_count].materials = std.ArrayList(renderer.MaterialHandle).initCapacity(self.allocator, num_materials) catch unreachable;
-            for (0..num_materials) |_| {
-                lod_group.lods[lod_group.lod_count].materials.appendAssumeCapacity(renderer.MaterialHandle.nil);
+            lod_group.lods[lod_group.lod_count].materials_count = @intCast(num_materials);
+            for (0..num_materials) |material_index| {
+                lod_group.lods[lod_group.lod_count].materials[material_index] = InvalidID;
             }
 
             lod_group.lod_count += 1;

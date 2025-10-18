@@ -13,6 +13,9 @@
     <Filter Include="src">
       <UniqueIdentifier>{02d7d200-ee55-43c9-9fb4-a149179f5dae}</UniqueIdentifier>
     </Filter>
+    <Filter Include="extern\MikkTSpace">
+      <UniqueIdentifier>{2f8993ba-2db0-4f87-8264-52c4bf33416f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="external\meshoptimizer-0.24\src\allocator.cpp">
@@ -65,6 +68,9 @@
     </ClCompile>
     <ClCompile Include="src\main.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\MikkTSpace\mikktspace.c">
+      <Filter>extern\MikkTSpace</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

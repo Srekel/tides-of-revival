@@ -8,8 +8,9 @@ const window = @import("../renderer/window.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const IdLocal = @import("../core/core.zig").IdLocal;
 const renderer = @import("../renderer/renderer.zig");
-const MaterialHandle = renderer.MaterialHandle;
-const MeshHandle = renderer.MeshHandle;
+const renderer_types = @import("../renderer/types.zig");
+const geometry = @import("../renderer/geometry.zig");
+const LegacyMeshHandle = renderer.LegacyMeshHandle;
 const TextureHandle = renderer.TextureHandle;
 
 pub fn registerComponents(ecsu_world: ecsu.World) void {
@@ -30,9 +31,9 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Dynamic);
     ecs.COMPONENT(ecs_world, Velocity);
     ecs.COMPONENT(ecs_world, LodGroup);
-    ecs.COMPONENT(ecs_world, StaticMesh);
+    ecs.COMPONENT(ecs_world, Renderable);
     ecs.COMPONENT(ecs_world, Water);
-    ecs.COMPONENT(ecs_world, SkyLight);
+    ecs.COMPONENT(ecs_world, HeightFog);
     ecs.COMPONENT(ecs_world, UIImage);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
@@ -368,99 +369,12 @@ pub const Velocity = struct {
     }
 };
 
-// ███╗   ███╗███████╗███████╗██╗  ██╗
-// ████╗ ████║██╔════╝██╔════╝██║  ██║
-// ██╔████╔██║█████╗  ███████╗███████║
-// ██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║
-// ██║ ╚═╝ ██║███████╗███████║██║  ██║
-// ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
-
-pub const SurfaceType = enum {
-    @"opaque",
-    cutout,
-};
-
-pub const ShadingTechnique = enum {
-    gbuffer,
-    shadow_caster,
-};
-
-pub const UberShader = struct {
-    // Techniques
-    gbuffer_pipeline_id: ?IdLocal,
-    shadow_caster_pipeline_id: ?IdLocal,
-
-    // Surface Type
-    alpha_test: bool,
-
-    // Basic PBR Surface Data
-    base_color: ColorRGB,
-    uv_tiling_offset: [4]f32,
-    metallic: f32,
-    roughness: f32,
-    normal_intensity: f32,
-    emissive_strength: f32,
-    albedo: TextureHandle,
-    normal: TextureHandle,
-    arm: TextureHandle,
-    emissive: TextureHandle,
-
-    // Detail Feature
-    detail_feature: bool,
-    detail_mask: TextureHandle,
-    detail_base_color: TextureHandle,
-    detail_normal: TextureHandle,
-    detail_arm: TextureHandle,
-    detail_use_uv2: bool,
-
-    // Wind Feature
-    wind_feature: bool,
-    wind_initial_bend: f32,
-    wind_stifness: f32,
-    wind_drag: f32,
-
-    // Wind Shiver Feature
-    wind_shiver_feature: bool,
-    wind_shiver_drag: f32,
-    wind_shiver_directionality: f32,
-    wind_normal_influence: f32,
-
-    pub fn init() UberShader {
-        return initNoTexture(ColorRGB.init(1, 1, 1), 0.5, 0.0);
-    }
-
-    pub fn initNoTexture(base_color: ColorRGB, roughness: f32, metallic: f32) UberShader {
-        return .{
-            .gbuffer_pipeline_id = null,
-            .shadow_caster_pipeline_id = null,
-            .alpha_test = false,
-            .base_color = base_color,
-            .uv_tiling_offset = .{ 1.0, 1.0, 0.0, 0.0 },
-            .roughness = roughness,
-            .metallic = metallic,
-            .normal_intensity = 1.0,
-            .emissive_strength = 1.0,
-            .albedo = TextureHandle.nil,
-            .normal = TextureHandle.nil,
-            .arm = TextureHandle.nil,
-            .emissive = TextureHandle.nil,
-            .detail_feature = false,
-            .detail_mask = TextureHandle.nil,
-            .detail_base_color = TextureHandle.nil,
-            .detail_normal = TextureHandle.nil,
-            .detail_arm = TextureHandle.nil,
-            .detail_use_uv2 = false,
-            .wind_feature = false,
-            .wind_initial_bend = 1.0,
-            .wind_stifness = 1.0,
-            .wind_drag = 0.1,
-            .wind_shiver_feature = false,
-            .wind_shiver_drag = 0.1,
-            .wind_normal_influence = 0,
-            .wind_shiver_directionality = 0.4,
-        };
-    }
-};
+// ██╗   ██╗██╗
+// ██║   ██║██║
+// ██║   ██║██║
+// ██║   ██║██║
+// ╚██████╔╝██║
+//  ╚═════╝ ╚═╝
 
 pub const UIImage = struct {
     rect: [4]f32,
@@ -472,30 +386,36 @@ pub const UIMaterial = struct {
     texture: TextureHandle,
 };
 
-pub const StaticMesh = struct {
-    mesh_handle: MeshHandle,
-    materials: std.ArrayList(MaterialHandle),
-};
+// ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗
+// ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
+// ██████╔╝█████╗  ██╔██╗ ██║██║  ██║█████╗  ██████╔╝███████║██████╔╝██║     █████╗  ███████╗
+// ██╔══██╗██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗██╔══██║██╔══██╗██║     ██╔══╝  ╚════██║
+// ██║  ██║███████╗██║ ╚████║██████╔╝███████╗██║  ██║██║  ██║██████╔╝███████╗███████╗███████║
+// ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
 
 pub const LodGroup = struct {
     lod_count: u32,
-    lods: [renderer.mesh_lod_max_count]StaticMesh,
+    lods: [geometry.mesh_lod_max_count]renderer_types.Lod,
 };
 
 pub const Water = struct {
-    mesh_handle: MeshHandle,
+    tag: bool = true,
 };
 
-// ███████╗██╗  ██╗██╗   ██╗██████╗  ██████╗ ██╗  ██╗
-// ██╔════╝██║ ██╔╝╚██╗ ██╔╝██╔══██╗██╔═══██╗╚██╗██╔╝
-// ███████╗█████╔╝  ╚████╔╝ ██████╔╝██║   ██║ ╚███╔╝
-// ╚════██║██╔═██╗   ╚██╔╝  ██╔══██╗██║   ██║ ██╔██╗
-// ███████║██║  ██╗   ██║   ██████╔╝╚██████╔╝██╔╝ ██╗
-// ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+pub const Renderable = struct {
+    id: IdLocal,
+};
 
-pub const SkyLight = struct {
-    hdri: TextureHandle,
-    intensity: f32,
+// ███████╗ ██████╗  ██████╗
+// ██╔════╝██╔═══██╗██╔════╝
+// █████╗  ██║   ██║██║  ███╗
+// ██╔══╝  ██║   ██║██║   ██║
+// ██║     ╚██████╔╝╚██████╔╝
+// ╚═╝      ╚═════╝  ╚═════╝
+
+pub const HeightFog = struct {
+    color: ColorRGB,
+    density: f32,
 };
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
@@ -649,6 +569,9 @@ pub const DirectionalLight = struct {
     color: ColorRGB,
     intensity: f32,
     shadow_range: f32,
+    cast_shadows: bool,
+    shadow_cascades: u32,
+    pssm_factor: f32,
 };
 
 pub const PointLight = struct {
@@ -769,13 +692,14 @@ pub const SettlementEnemy = struct {};
 pub const EnvironmentInfo = struct {
     paused: bool,
     active_camera: ?ecsu.Entity,
+    player_camera: ?ecsu.Entity,
     time_multiplier: f64 = 1.0,
     journey_time_multiplier: f64 = 1.0,
     journey_time_end: ?f64 = null,
     world_time: f64,
     time_of_day_percent: f64,
     sun_height: f64,
-    sky_light: ?ecsu.Entity,
+    height_fog: ?ecsu.Entity,
     sun: ?ecsu.Entity,
     player: ?ecsu.Entity,
     // time_of_day_hour: f32,

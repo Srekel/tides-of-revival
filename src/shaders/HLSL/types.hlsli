@@ -1,12 +1,35 @@
 #ifndef _TYPES_HLSLI
 #define _TYPES_HLSLI
 
+struct BoundingBox
+{
+	float3 center;
+	float3 extents;
+};
+
+struct GpuMeshData
+{
+	uint index_count;
+	uint index_offset;
+	uint vertex_count;
+	uint vertex_offset;
+	BoundingBox bounds;
+};
+
 struct InstanceData
 {
 	float4x4 worldMat;
 	float4x4 worldMatInverted;
-	uint materialBufferOffset;
+	uint materialIndex;
 	float3 _padding;
+};
+
+struct InstanceIndirectionData
+{
+	uint instanceIndex;
+	uint gpuMeshIndex;
+	uint materialIndex;
+	uint _padding;
 };
 
 struct InstanceRootConstants
@@ -29,6 +52,17 @@ struct GBufferOutput
 	float4 GBuffer0 : SV_TARGET0;
 	float4 GBuffer1 : SV_TARGET1;
 	float4 GBuffer2 : SV_TARGET2;
+};
+
+struct GpuLight
+{
+	float3 position; // Direction for directional light
+	uint light_type; // 0 - Directional, 1 - Point
+	float3 color;
+	float intensity;
+	uint cast_shadows; // 0 - No, 1 - Yes
+	float radius;	   // Unused for directional light
+	float2 _padding;
 };
 
 struct PointLight

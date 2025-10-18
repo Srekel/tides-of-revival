@@ -13,6 +13,7 @@ const zforge = @import("zforge");
 const zgui = @import("zgui");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
 const world_patch_manager = @import("../../worldpatch/world_patch_manager.zig");
 const zm = @import("zmath");
 const patch_types = @import("../../worldpatch/patch_types.zig");
@@ -85,7 +86,7 @@ pub const TerrainRenderPass = struct {
     instance_data: *[max_instances]TerrainInstanceData,
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
-    terrain_lod_meshes: std.ArrayList(renderer.MeshHandle),
+    terrain_lod_meshes: std.ArrayList(renderer.LegacyMeshHandle),
     quads_to_render: std.ArrayList(u32),
     quads_to_load: std.ArrayList(u32),
 
@@ -151,11 +152,11 @@ pub const TerrainRenderPass = struct {
         self.instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = renderer.Slice{
+                const buffer_data = OpaqueSlice{
                     .data = null,
                     .size = max_instances * @sizeOf(TerrainInstanceData),
                 };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, "Terrain Quad Tree Instance Data Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Terrain Quad Tree Instance Data Buffer");
             }
 
             break :blk buffers;
@@ -253,7 +254,7 @@ pub const TerrainRenderPass = struct {
     }
 
     fn loadTerrainMeshes(self: *TerrainRenderPass) !void {
-        self.terrain_lod_meshes = std.ArrayList(renderer.MeshHandle).init(self.allocator);
+        self.terrain_lod_meshes = std.ArrayList(renderer.LegacyMeshHandle).init(self.allocator);
         self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_0.bin") catch unreachable;
         self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_1.bin") catch unreachable;
         self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_2.bin") catch unreachable;
@@ -261,7 +262,7 @@ pub const TerrainRenderPass = struct {
     }
 
     fn loadTerrainMesh(self: *TerrainRenderPass, path: [:0]const u8) !void {
-        const mesh_handle = self.renderer.loadMesh(path, IdLocal.init("pos_uv0_col")) catch unreachable;
+        const mesh_handle = self.renderer.loadLegacyMesh(path, IdLocal.init("pos_uv0_col")) catch unreachable;
         self.terrain_lod_meshes.append(mesh_handle) catch unreachable;
     }
 
@@ -354,7 +355,7 @@ pub const TerrainRenderPass = struct {
                 node.bounding_sphere_radius = @max(node_diagonal, (data.max - data.min));
             }
 
-            const data_slice = renderer.Slice{
+            const data_slice = OpaqueSlice{
                 .data = @as(*anyopaque, @ptrCast(data.heightmap[0..].ptr)),
                 .size = data.heightmap.len * @sizeOf(f32), // f32 -> u8
             };
@@ -387,23 +388,16 @@ fn renderImGui(user_data: *anyopaque) void {
     }
 }
 
-fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
     const trazy_zone = ztracy.ZoneNC(@src(), "Gbuffer: Terrain Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
     const self: *TerrainRenderPass = @ptrCast(@alignCast(user_data));
 
-    const frame_index = self.renderer.frame_index;
+    self.renderer.gpu_terrain_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "Terrain");
+    defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_terrain_pass_profile_index);
 
-    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
-    const camera_comps = camera_entity.getComps(struct {
-        camera: *const fd.Camera,
-        transform: *const fd.Transform,
-    });
-    const camera_position = camera_comps.transform.getPos00();
-    const z_view = zm.loadMat(camera_comps.camera.view[0..]);
-    const z_proj = zm.loadMat(camera_comps.camera.projection[0..]);
-    const z_proj_view = zm.mul(z_view, z_proj);
+    const frame_index = self.renderer.frame_index;
 
     // Update frame buffer
     {
@@ -411,17 +405,17 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone_2.End();
 
         var uniform_frame_data = std.mem.zeroes(UniformFrameData);
-        zm.storeMat(&uniform_frame_data.projection_view, z_proj_view);
-        zm.storeMat(&uniform_frame_data.projection_view_inverted, zm.inverse(z_proj_view));
-        uniform_frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
+        zm.storeMat(&uniform_frame_data.projection_view, render_view.view_projection);
+        zm.storeMat(&uniform_frame_data.projection_view_inverted, render_view.view_projection_inverse);
+        uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
         uniform_frame_data.black_point = self.terrain_render_settings.black_point;
         uniform_frame_data.white_point = self.terrain_render_settings.white_point;
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&uniform_frame_data),
             .size = @sizeOf(UniformFrameData),
         };
-        self.renderer.updateBuffer(data, UniformFrameData, self.uniform_frame_buffers[frame_index]);
+        self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
     }
 
     // Update material buffer
@@ -438,11 +432,11 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             };
         }
 
-        const data = renderer.Slice{
+        const data = OpaqueSlice{
             .data = @ptrCast(&terrain_material_data),
             .size = @sizeOf(TerrainMaterial),
         };
-        self.renderer.updateBuffer(data, TerrainMaterial, self.terrain_material_buffers[frame_index]);
+        self.renderer.updateBuffer(data, 0, TerrainMaterial, self.terrain_material_buffers[frame_index]);
     }
 
     var arena_state = std.heap.ArenaAllocator.init(self.allocator);
@@ -456,7 +450,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     {
         const trazy_zone_2 = ztracy.ZoneNC(@src(), "collectQuadsToRenderForSector", 0x00_ff_ff_00);
         defer trazy_zone_2.End();
-        const camera_point = [2]f32{ camera_position[0], camera_position[2] };
+        const camera_point = [2]f32{ render_view.position[0], render_view.position[2] };
 
         var sector_index: u32 = 0;
         while (sector_index < lod_3_patches_total) : (sector_index += 1) {
@@ -472,6 +466,9 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             ) catch unreachable;
         }
     }
+
+    var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+    const camera_comps = camera_entity.getComps(struct { camera: *const fd.Camera });
 
     self.frame_instance_count = 0;
     {
@@ -516,11 +513,11 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
         defer trazy_zone_2.End();
 
         std.debug.assert(self.frame_instance_count <= max_instances);
-        const data_slice = renderer.Slice{
+        const data_slice = OpaqueSlice{
             .data = @ptrCast(self.instance_data),
             .size = self.frame_instance_count * @sizeOf(TerrainInstanceData),
         };
-        self.renderer.updateBuffer(data_slice, TerrainInstanceData, self.instance_data_buffers[frame_index]);
+        self.renderer.updateBuffer(data_slice, 0, TerrainInstanceData, self.instance_data_buffers[frame_index]);
 
         const pipeline_id = IdLocal.init("terrain_gbuffer");
         const pipeline = self.renderer.getPSO(pipeline_id);
@@ -538,7 +535,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const quad = &self.terrain_quad_tree_nodes.items[quad_index];
 
             const mesh_handle = self.terrain_lod_meshes.items[quad.mesh_lod];
-            const mesh = self.renderer.getMesh(mesh_handle);
+            const mesh = self.renderer.getLegacyMesh(mesh_handle);
 
             if (mesh.loaded) {
                 const push_constants = InstanceRootConstants{
@@ -578,7 +575,7 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     trazy_zone_loadNodeHeightmap.End();
 
     // Load high-lod patches near camera
-    if (tides_math.dist3_xz(self.cam_pos_old, camera_position) > 32) {
+    if (tides_math.dist3_xz(self.cam_pos_old, render_view.position) > 32) {
         const trazy_zone_2 = ztracy.ZoneNC(@src(), "refresh patches", 0x00_ff_ff_00);
         defer trazy_zone_2.End();
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
@@ -597,8 +594,8 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             };
 
             const area_new = world_patch_manager.RequestRectangle{
-                .x = camera_position[0] - area_width,
-                .z = camera_position[2] - area_width,
+                .x = render_view.position[0] - area_width,
+                .z = render_view.position[2] - area_width,
                 .width = area_width * 2,
                 .height = area_width * 2,
             };
@@ -630,11 +627,13 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             self.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
         }
 
-        self.cam_pos_old = camera_position;
+        self.cam_pos_old = render_view.position;
     }
 }
 
-fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
+fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, user_data: *anyopaque) void {
+    _ = render_view;
+
     const trazy_zone = ztracy.ZoneNC(@src(), "Shadow Map: Terrain Render Pass", 0x00_ff_ff_00);
     defer trazy_zone.End();
 
@@ -667,11 +666,11 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
     const z_proj_view = zm.mul(z_view, z_proj);
     zm.storeMat(&self.shadows_uniform_frame_data.projection_view, z_proj_view);
 
-    const data = renderer.Slice{
+    const data = OpaqueSlice{
         .data = @ptrCast(&self.shadows_uniform_frame_data),
         .size = @sizeOf(ShadowsUniformFrameData),
     };
-    self.renderer.updateBuffer(data, ShadowsUniformFrameData, self.shadows_uniform_frame_buffers[frame_index]);
+    self.renderer.updateBuffer(data, 0, ShadowsUniformFrameData, self.shadows_uniform_frame_buffers[frame_index]);
 
     if (self.frame_instance_count > 0) {
         const pipeline_id = IdLocal.init("terrain_shadow_caster");
@@ -690,7 +689,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, user_data: *anyopaque) void {
             const quad = &self.terrain_quad_tree_nodes.items[quad_index];
 
             const mesh_handle = self.terrain_lod_meshes.items[quad.mesh_lod];
-            const mesh = self.renderer.getMesh(mesh_handle);
+            const mesh = self.renderer.getLegacyMesh(mesh_handle);
 
             if (mesh.loaded) {
                 const push_constants = InstanceRootConstants{

@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "ui_resources.hlsl"
+#include "ui_resources.hlsli"
 
 VSOutput VS_MAIN(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 {

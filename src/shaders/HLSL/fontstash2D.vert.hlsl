@@ -1,7 +1,7 @@
 #define DIRECT3D12
 #define STAGE_VERT
 
-#include "fontstash_resources.hlsl"
+#include "fontstash_resources.hlsli"
 
 STRUCT(VsIn)
 {
@@ -15,11 +15,11 @@ STRUCT(PsIn)
 	DATA(float2, texCoord, TEXCOORD0);
 };
 
-PsIn VS_MAIN( VsIn In )
+PsIn VS_MAIN(VsIn In)
 {
 	INIT_MAIN;
 	PsIn Out;
-	Out.position = float4 (In.position, 0.0f, 1.0f);
+	Out.position = float4(In.position, 0.0f, 1.0f);
 	Out.position.xy = Out.position.xy * Get(scaleBias).xy + float2(-1.0f, 1.0f);
 	Out.texCoord = In.texCoord;
 	RETURN(Out);
