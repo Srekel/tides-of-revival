@@ -71,9 +71,28 @@ pub const UIPass = struct {
         self.instances.deinit();
     }
 
+    pub fn update(self: *@This()) void {
+        const frame_index = self.renderer.frame_index;
+
+        self.instances.clearRetainingCapacity();
+        self.instances.appendSlice(self.renderer.ui_images.items) catch unreachable;
+
+        if (self.instances.items.len > 0) {
+            const instance_data_slice = OpaqueSlice{
+                .data = @ptrCast(self.instances.items),
+                .size = self.instances.items.len * @sizeOf(renderer_types.UiImage),
+            };
+            self.renderer.updateBuffer(instance_data_slice, 0, renderer_types.UiImage, self.instance_buffers[frame_index]);
+        }
+    }
+
     pub fn render(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "UI Render Pass", 0x00_ff_ff_00);
         defer trazy_zone.End();
+
+        if (self.instances.items.len == 0) {
+            return;
+        }
 
         const frame_index = self.renderer.frame_index;
 
@@ -93,13 +112,6 @@ pub const UIPass = struct {
             .size = @sizeOf(UniformFrameData),
         };
         self.renderer.updateBuffer(data, 0, UniformFrameData, self.uniform_frame_buffers[frame_index]);
-
-        self.instances.clearRetainingCapacity();
-        const instance_data_slice = OpaqueSlice{
-            .data = @ptrCast(self.instances.items),
-            .size = self.instances.items.len * @sizeOf(renderer_types.UiImage),
-        };
-        self.renderer.updateBuffer(instance_data_slice, 0, renderer_types.UiImage, self.instance_buffers[frame_index]);
 
         const pipeline_id = IdLocal.init("ui");
         const pipeline = self.renderer.getPSO(pipeline_id);

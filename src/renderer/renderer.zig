@@ -1103,6 +1103,7 @@ pub const Renderer = struct {
         defer trazy_zone.End();
 
         self.static_geometry_pass.update();
+        self.ui_pass.update();
     }
 
     fn drawRenderSettings(self: *Renderer) void {
