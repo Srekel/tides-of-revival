@@ -460,6 +460,7 @@ fn update_full(gameloop_context: GameloopContext) bool {
     for (0..100) |_| {
         world_patch_mgr.tickOne();
     }
+    stats.delta_time = @min(0.1, stats.delta_time); // anti hitch
     update(gameloop_context, stats.delta_time);
 
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
