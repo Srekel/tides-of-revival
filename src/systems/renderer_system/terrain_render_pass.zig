@@ -83,7 +83,8 @@ pub const TerrainRenderPass = struct {
 
     frame_instance_count: u32,
     instance_data_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    instance_data: *[max_instances]TerrainInstanceData,
+    instance_data: std.ArrayList(TerrainInstanceData),
+    instance_data_by_lod: [4]std.ArrayList(TerrainInstanceData),
 
     terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
     terrain_lod_meshes: std.ArrayList(renderer.LegacyMeshHandle),
@@ -148,7 +149,10 @@ pub const TerrainRenderPass = struct {
         self.loadTerrainResources() catch unreachable;
 
         // Create instance buffers.
-        self.instance_data = allocator.create([max_instances]TerrainInstanceData) catch unreachable;
+        for (0..4) |lod_index| {
+            self.instance_data_by_lod[lod_index] = std.ArrayList(TerrainInstanceData).init(allocator);
+        }
+        self.instance_data = std.ArrayList(TerrainInstanceData).initCapacity(allocator, max_instances) catch unreachable;
         self.instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
@@ -214,7 +218,10 @@ pub const TerrainRenderPass = struct {
         self.terrain_quad_tree_nodes.deinit();
         self.quads_to_render.deinit();
         self.quads_to_load.deinit();
-        self.allocator.destroy(self.instance_data);
+        self.instance_data.deinit();
+        for (0..4) |lod_index| {
+            self.instance_data_by_lod[lod_index].deinit();
+        }
     }
 
     fn loadTerrainResources(self: *TerrainRenderPass) !void {
@@ -488,36 +495,50 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, u
             }
         }
 
+        self.instance_data.clearRetainingCapacity();
+        for (0..4) |lod_index| {
+            self.instance_data_by_lod[lod_index].clearRetainingCapacity();
+        }
+
         // TODO: Batch quads together by mesh lod
-        for (self.quads_to_render.items, 0..) |quad_index, instance_index| {
+        for (self.quads_to_render.items) |quad_index| {
             const quad = &self.terrain_quad_tree_nodes.items[quad_index];
 
             // Add instance data
             {
+                var terrain_instance_data: TerrainInstanceData = undefined;
+
                 const z_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
-                zm.storeMat(&self.instance_data[instance_index].object_to_world, z_world);
+                zm.storeMat(&terrain_instance_data.object_to_world, z_world);
 
                 // TODO: Generate from quad.patch_index
-                self.instance_data[instance_index].heightmap_index = self.renderer.getTextureBindlessIndex(quad.heightmap_handle);
+                terrain_instance_data.heightmap_index = self.renderer.getTextureBindlessIndex(quad.heightmap_handle);
+                terrain_instance_data.lod = quad.mesh_lod;
+                terrain_instance_data.padding1 = [2]u32{ 42, 42 };
 
-                self.instance_data[instance_index].lod = quad.mesh_lod;
-                self.instance_data[instance_index].padding1 = [2]u32{ 42, 42 };
+                self.instance_data_by_lod[quad.mesh_lod].append(terrain_instance_data) catch unreachable;
             }
+        }
 
-            self.frame_instance_count += 1;
+        self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[0].items);
+        self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[1].items);
+        self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[2].items);
+        self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[3].items);
+
+        std.debug.assert(self.instance_data.items.len < max_instances);
+
+        if (self.instance_data.items.len > 0) {
+            const data_slice = OpaqueSlice{
+                .data = @ptrCast(self.instance_data.items),
+                .size = self.instance_data.items.len * @sizeOf(TerrainInstanceData),
+            };
+            self.renderer.updateBuffer(data_slice, 0, TerrainInstanceData, self.instance_data_buffers[frame_index]);
         }
     }
 
-    if (self.frame_instance_count > 0) {
+    if (self.instance_data.items.len > 0) {
         const trazy_zone_2 = ztracy.ZoneNC(@src(), "Drawing", 0x00_ff_ff_00);
         defer trazy_zone_2.End();
-
-        std.debug.assert(self.frame_instance_count <= max_instances);
-        const data_slice = OpaqueSlice{
-            .data = @ptrCast(self.instance_data),
-            .size = self.frame_instance_count * @sizeOf(TerrainInstanceData),
-        };
-        self.renderer.updateBuffer(data_slice, 0, TerrainInstanceData, self.instance_data_buffers[frame_index]);
 
         const pipeline_id = IdLocal.init("terrain_gbuffer");
         const pipeline = self.renderer.getPSO(pipeline_id);
@@ -531,10 +552,12 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, u
         const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]);
 
         var start_instance_location: u32 = 0;
-        for (self.quads_to_render.items) |quad_index| {
-            const quad = &self.terrain_quad_tree_nodes.items[quad_index];
+        for (0..4) |lod_index| {
+            if (self.instance_data_by_lod[lod_index].items.len == 0) {
+                continue;
+            }
 
-            const mesh_handle = self.terrain_lod_meshes.items[quad.mesh_lod];
+            const mesh_handle = self.terrain_lod_meshes.items[lod_index];
             const mesh = self.renderer.getLegacyMesh(mesh_handle);
 
             if (mesh.loaded) {
@@ -557,13 +580,13 @@ fn renderGBuffer(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, u
                     cmd_list,
                     mesh.geometry.*.pDrawArgs[0].mIndexCount,
                     mesh.geometry.*.pDrawArgs[0].mStartIndex,
-                    mesh.geometry.*.pDrawArgs[0].mInstanceCount,
+                    mesh.geometry.*.pDrawArgs[0].mInstanceCount * @as(u32, @intCast(self.instance_data_by_lod[lod_index].items.len)),
                     mesh.geometry.*.pDrawArgs[0].mVertexOffset,
                     mesh.geometry.*.pDrawArgs[0].mStartInstance + start_instance_location,
                 );
             }
 
-            start_instance_location += 1;
+            start_instance_location += @as(u32, @intCast(self.instance_data_by_lod[lod_index].items.len));
         }
     }
 
