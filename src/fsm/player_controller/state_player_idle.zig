@@ -17,6 +17,7 @@ const egl_math = @import("../../core/math.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const context = @import("../../core/context.zig");
+const im3d = @import("im3d");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
@@ -87,9 +88,19 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         return;
     }
 
+    var speed = zm.f32x4s(speed_scalar);
+    const transform = zm.matFromQuat(rot.asZM());
+    const forward = zm.util.getAxisZ(transform);
+    zm.store(fwd.elems()[0..], forward, 3);
+
     const query = ctx.physics_world.getNarrowPhaseQuery();
 
-    const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
+    const ray_origin = [_]f32{
+        pos.x + fwd.x * 2,
+        pos.y + 200,
+        pos.z + fwd.z * 2,
+        0,
+    };
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
     const ray = zphy.RRayCast{
         .origin = ray_origin,
@@ -107,15 +118,22 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
         if (body_hit_opt) |body_hit| {
             const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
-            speed_scalar *= hit_normal[1] * hit_normal[1];
+            const steepness = @max(0.0, hit_normal[1] - 0.5) / 0.5;
+            speed *= zm.f32x4s(steepness);
+
+            // im3d.Im3d.DrawCone(
+            //     &.{
+            //         .x = pos.x + fwd.x * 2,
+            //         .y = pos.y,
+            //         .z = pos.z + fwd.z * 2,
+            //     },
+            //     &.{ .x = 0, .y = 1, .z = 0 },
+            //     1 + steepness * steepness,
+            //     0.5,
+            //     3,
+            // );
         }
     }
-
-    const speed = zm.f32x4s(speed_scalar);
-    const transform = zm.matFromQuat(rot.asZM());
-    const forward = zm.util.getAxisZ(transform);
-
-    zm.store(fwd.elems()[0..], forward, 3);
 
     const right = zm.normalize3(zm.cross3(zm.f32x4(0.0, 1.0, 0.0, 0.0), forward));
     // const movement = speed * dt * forward;
