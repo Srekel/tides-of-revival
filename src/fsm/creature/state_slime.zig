@@ -376,12 +376,17 @@ const SlimeDropTask = struct {
             const result = query.castRay(ray, cast_ray_args);
             if (result.has_hit) {
                 const bodies = ctx.physics_world_low.getBodiesUnsafe();
-                const body_hit = zphy.tryGetBody(bodies, result.hit.body_id).?;
+                const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
+                const up_z = zm.f32x4(0, 1, 0, 0);
 
                 const rot_slope_z = blk: {
+                    if (body_hit_opt == null) {
+                        break :blk zm.quatFromAxisAngle(up_z, 0);
+                    }
+
+                    const body_hit = body_hit_opt.?;
                     const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
                     const hit_normal_z = zm.loadArr3(hit_normal);
-                    const up_z = zm.f32x4(0, 1, 0, 0);
                     if (hit_normal[1] < 0.99) { // TODO: Find a good value, this was just arbitrarily picked :)
                         const rot_axis_z = zm.cross3(up_z, hit_normal_z);
                         const dot = zm.dot3(up_z, hit_normal_z)[0];
