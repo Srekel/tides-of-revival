@@ -210,7 +210,9 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
 
         if (environment_info.journey_time_end) |journey_time| {
+            // std.log.info("time:{d}", .{environment_info.world_time});
             if (journey_time < environment_info.world_time) {
+                std.log.info("done time:{d}", .{environment_info.world_time});
                 environment_info.journey_time_end = null;
                 environment_info.journey_time_multiplier = 1;
             }
@@ -224,7 +226,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         const z_pos = zm.util.getTranslationVec(z_mat);
         const z_fwd = zm.util.getAxisZ(z_mat);
 
-        const dist = 5000;
+        const dist = 4000;
         const query = physics_world_low.getNarrowPhaseQuery();
         const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
         const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
@@ -234,31 +236,35 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         }, .{});
 
         if (result.has_hit) {
-
-            // journey.target_position = .{
-            //     ray_origin[0] + ray_dir[0] * result.hit.fraction,
-            //     ray_origin[1] + ray_dir[1] * result.hit.fraction,
-            //     ray_origin[2] + ray_dir[2] * result.hit.fraction,
-            // };
+            const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+            if (!(config.ocean_level + 5 < height_next and height_next < 500)) {
+                return;
+            }
 
             var player_pos = environment_info.player.?.getMut(fd.Position).?;
+            const height_prev = player_pos.y;
             player_pos.x = ray_origin[0] + ray_dir[0] * result.hit.fraction;
-            player_pos.y = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+            player_pos.y = height_next;
             player_pos.z = ray_origin[2] + ray_dir[2] * result.hit.fraction;
 
-            const walk_meter_per_second = 1;
-            const walk_winding = 1.5;
-            const dist_travel = walk_winding * result.hit.fraction * dist;
-            environment_info.journey_time_multiplier = 500;
-            environment_info.journey_time_end = environment_info.world_time + walk_meter_per_second * dist_travel;
-
-            // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
-            // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
-            // const light_ent = ecsu_world.newEntity();
-            // light_ent.childOf(post_ent);
-            // light_ent.set(light_pos);
-            // light_ent.set(light_transform);
-            // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
+            const walk_meter_per_second = 1.35;
+            const height_term = @max(1.0, height_prev * 0.01 + height_next * 0.01);
+            const walk_winding = 1.2;
+            const height_factor = height_term;
+            const dist_as_the_crow_flies = result.hit.fraction * dist;
+            const dist_travel = walk_winding * dist_as_the_crow_flies;
+            const time_fudge = 0.1;
+            const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
+            environment_info.journey_time_multiplier = 1000;
+            environment_info.journey_time_end = environment_info.world_time + duration;
+            std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
+                environment_info.world_time,
+                dist_as_the_crow_flies,
+                dist_travel,
+                duration / 3600.0,
+                height_factor,
+                environment_info.journey_time_end.?,
+            });
         }
     }
 }

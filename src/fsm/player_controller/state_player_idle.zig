@@ -208,12 +208,11 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
         }
 
         const pos_before = pos.asZM();
-        if (environment_info.journey_time_end != null) {
-            updateSnapToTerrain(ctx.physics_world, pos);
-            continue;
-        }
         updateMovement(ctx, pos, rot, fwd, it.delta_time, ctx.input_frame_data);
         updateSnapToTerrain(ctx.physics_world, pos);
+        if (environment_info.journey_time_end != null) {
+            continue;
+        }
         playVoiceOver(ctx, pos, rot, fwd, it.delta_time, player);
 
         const pos_after = pos.asZM();
