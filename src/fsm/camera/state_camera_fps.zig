@@ -99,7 +99,7 @@ fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
 
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     if (environment_info.journey_time_multiplier != 1) {
-        return; // HACK?!
+        // return; // HACK?!
     }
 
     const movement_pitch = ctx.input_frame_data.get(config.input.look_pitch).number;

@@ -83,6 +83,10 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         }
     }
 
+    if (environment_info.journey_time_multiplier != 1) {
+        return;
+    }
+
     const query = ctx.physics_world.getNarrowPhaseQuery();
 
     const ray_origin = [_]f32{ pos.x, pos.y + 200, pos.z, 0 };
