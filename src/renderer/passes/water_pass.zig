@@ -275,7 +275,7 @@ pub const WaterPass = struct {
     }
 
     pub fn prepareDescriptorSets(self: *@This()) void {
-        var params: [3]graphics.DescriptorData = undefined;
+        var params: [2]graphics.DescriptorData = undefined;
 
         for (0..renderer.Renderer.data_buffer_count) |i| {
             var uniform_frame_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
@@ -286,9 +286,10 @@ pub const WaterPass = struct {
             params[1] = std.mem.zeroes(graphics.DescriptorData);
             params[1].pName = "g_scene_color";
             params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color_copy.*.pTexture);
-            params[2] = std.mem.zeroes(graphics.DescriptorData);
-            params[2].pName = "g_depth_buffer";
-            params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer_copy.*.pTexture);
+            // TODO(gmodarelli): Restore
+            // params[2] = std.mem.zeroes(graphics.DescriptorData);
+            // params[2].pName = "g_depth_buffer";
+            // params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer_copy.*.pTexture);
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.water_descriptor_sets, params.len, @ptrCast(&params));
 

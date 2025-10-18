@@ -28,10 +28,11 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     float4 screen_position = CalculateScreenPosition(clip_position);
     float2 screen_uv = screen_position.xy / screen_position.w;
 
-    // Calculate water depth
-    float scene_depth = g_depth_buffer.Sample(g_linear_clamp_edge_sampler, screen_uv).r;
-    float eye_depth = max(0.000001f, LinearEyeDepth(scene_depth));
-    float water_depth = max(0.000001f, eye_depth - screen_position.w);
+    // TODO(gmodarelli): Restore depth
+    // // Calculate water depth
+    // float scene_depth = g_depth_buffer.Sample(g_linear_clamp_edge_sampler, screen_uv).r;
+    // float eye_depth = max(0.000001f, LinearEyeDepth(scene_depth));
+    // float water_depth = max(0.000001f, eye_depth - screen_position.w);
 
     float3 scene_color = g_scene_color.Sample(g_linear_clamp_edge_sampler, screen_uv).rgb;
 

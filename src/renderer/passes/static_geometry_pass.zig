@@ -492,15 +492,11 @@ pub const StaticGeometryPass = struct {
                     }
                     {
                         var uniform_buffer = self.renderer.getBuffer(uniform_buffer_handle);
-                        var params: [2]graphics.DescriptorData = undefined;
 
+                        var params: [1]graphics.DescriptorData = undefined;
                         params[0] = std.mem.zeroes(graphics.DescriptorData);
-                        params[0].pName = "g_Frame";
-                        params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
-
-                        params[1] = std.mem.zeroes(graphics.DescriptorData);
-                        params[1].pName = "g_ClearUAVParams";
-                        params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+                        params[0].pName = "g_ClearUAVParams";
+                        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
 
                         graphics.updateDescriptorSet(self.renderer.renderer, frame_index, descriptor_set, @intCast(params.len), @ptrCast(&params));
                     }
@@ -552,7 +548,6 @@ pub const StaticGeometryPass = struct {
                         params[0] = std.mem.zeroes(graphics.DescriptorData);
                         params[0].pName = "g_Frame";
                         params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
-
                         params[1] = std.mem.zeroes(graphics.DescriptorData);
                         params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
                         params[1].pName = "g_CullInstancesParams";
@@ -614,14 +609,10 @@ pub const StaticGeometryPass = struct {
                     {
                         var uniform_buffer = self.renderer.getBuffer(uniform_buffer_handle);
 
-                        var params: [2]graphics.DescriptorData = undefined;
+                        var params: [1]graphics.DescriptorData = undefined;
                         params[0] = std.mem.zeroes(graphics.DescriptorData);
-                        params[0].pName = "g_Frame";
-                        params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
-
-                        params[1] = std.mem.zeroes(graphics.DescriptorData);
-                        params[1].pName = "g_MeshletsCullArgsParams";
-                        params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+                        params[0].pName = "g_MeshletsCullArgsParams";
+                        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
 
                         graphics.updateDescriptorSet(self.renderer.renderer, frame_index, descriptor_set, @intCast(params.len), @ptrCast(&params));
                     }
@@ -684,7 +675,6 @@ pub const StaticGeometryPass = struct {
                         params[0] = std.mem.zeroes(graphics.DescriptorData);
                         params[0].pName = "g_Frame";
                         params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
-
                         params[1] = std.mem.zeroes(graphics.DescriptorData);
                         params[1].pName = "g_CullMeshletsParams";
                         params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
@@ -749,16 +739,17 @@ pub const StaticGeometryPass = struct {
 
                 var params: [2]graphics.DescriptorData = undefined;
                 params[0] = std.mem.zeroes(graphics.DescriptorData);
-                params[0].pName = "g_Frame";
-                params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
-
+                params[0].pName = "g_BinningParams";
+                params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
                 params[1] = std.mem.zeroes(graphics.DescriptorData);
-                params[1].pName = "g_BinningParams";
-                params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+                params[1].pName = "g_Frame";
+                params[1].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
 
-                graphics.updateDescriptorSet(self.renderer.renderer, frame_index, binning_prepare_args_descriptor_set, @intCast(params.len), @ptrCast(&params));
+                // These descriptor sets do not have g_Frame
+                graphics.updateDescriptorSet(self.renderer.renderer, frame_index, binning_prepare_args_descriptor_set, 1, @ptrCast(&params));
+                graphics.updateDescriptorSet(self.renderer.renderer, frame_index, binning_allocate_bin_ranges_descriptor_set, 1, @ptrCast(&params));
+
                 graphics.updateDescriptorSet(self.renderer.renderer, frame_index, binning_classify_meshlets_descriptor_set, @intCast(params.len), @ptrCast(&params));
-                graphics.updateDescriptorSet(self.renderer.renderer, frame_index, binning_allocate_bin_ranges_descriptor_set, @intCast(params.len), @ptrCast(&params));
                 graphics.updateDescriptorSet(self.renderer.renderer, frame_index, binning_write_bin_ranges_descriptor_set, @intCast(params.len), @ptrCast(&params));
             }
 
@@ -896,7 +887,6 @@ pub const StaticGeometryPass = struct {
                     params[0] = std.mem.zeroes(graphics.DescriptorData);
                     params[0].pName = "g_Frame";
                     params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
-
                     params[1] = std.mem.zeroes(graphics.DescriptorData);
                     params[1].pName = "g_RasterizerParams";
                     params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
