@@ -471,7 +471,7 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
         var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
         var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
 
-        const area_width: f32 = if (ctx.state.is_low) (16 * 1024) else 512;
+        const area_width: f32 = if (ctx.state.is_low) (16 * 1024) else 1024;
         const area_old = world_patch_manager.RequestRectangle{
             .x = loader.pos_old[0] - area_width / 2,
             .z = loader.pos_old[2] - area_width / 2,

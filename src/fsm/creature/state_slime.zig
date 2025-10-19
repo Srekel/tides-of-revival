@@ -138,20 +138,26 @@ fn updateTargetPosition(
 
     var best_target = [3]f32{
         0,
-        if (is_day) -1000 else 1000,
+        if (is_day) 1000 else -1000,
         0,
     };
 
+    const angle_increment: f32 = if (is_day) 6 else 3;
+    const lookahead: f32 = blk: {
+        if (is_day and self_pos_z[1] > 300) break :blk 300;
+        if (!is_day and self_pos_z[1] < 200) break :blk 300;
+        break :blk 200;
+    };
     const angles = 5;
     for (0..angles) |i_angle| {
         const i_angle_f: f32 = @as(f32, @floatFromInt(i_angle)) - @as(f32, angles / 2);
-        const angle_offset = i_angle_f * math.degreesToRadians(4);
+        const angle_offset = i_angle_f * math.degreesToRadians(angle_increment);
         const angle = angle_curr + angle_offset;
 
         const pos_offset = [_]f32{
-            std.math.cos(angle) * 200,
+            std.math.cos(angle) * lookahead,
             0,
-            std.math.sin(angle) * 200,
+            std.math.sin(angle) * lookahead,
         };
 
         const sample_pos = [_]f32{
@@ -176,21 +182,27 @@ fn updateTargetPosition(
         if (!result.has_hit) {
             continue;
         }
-        const height = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+        const height_at = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+        const random_score = -5 + 10 * std.crypto.random.float(f32);
+        const height = height_at + random_score;
 
         // im3d.Im3d.DrawCone(
         //     &.{
         //         .x = sample_pos[0],
-        //         .y = height,
+        //         .y = height_at,
         //         .z = sample_pos[2],
         //     },
         //     &.{ .x = 0, .y = 1, .z = 0 },
-        //     20,
+        //     50,
         //     3,
         //     3,
         // );
 
-        if ((is_day and height > best_target[1]) or (!is_day and height < best_target[1])) {
+        if (height > 500 or height < config.ocean_level + 10) {
+            continue;
+        }
+
+        if ((is_day and height < best_target[1]) or (!is_day and height > best_target[1])) {
             best_target = .{
                 ray_origin[0],
                 height,
@@ -199,8 +211,19 @@ fn updateTargetPosition(
         }
     }
 
-    if (best_target[1] > config.ocean_level and best_target[1] < 450) {
+    if (best_target[1] > config.ocean_level and best_target[1] < 500) {
         locomotion.target_position = best_target;
+        // im3d.Im3d.DrawCone(
+        //     &.{
+        //         .x = locomotion.target_position.?[0],
+        //         .y = locomotion.target_position.?[1],
+        //         .z = locomotion.target_position.?[2],
+        //     },
+        //     &.{ .x = 0, .y = 1, .z = 0 },
+        //     100,
+        //     10,
+        //     3,
+        // );
     } else {
         const dir_to_center = .{
             config.world_center3[0] - pos.x,
@@ -213,11 +236,18 @@ fn updateTargetPosition(
             pos.y,
             pos.z + dir_to_center[2] * 0.3,
         };
-        // locomotion.target_position = .{
-        //     pos.x - fwd.x * 200,
-        //     pos.y,
-        //     pos.z - fwd.z * 200,
-        // };
+
+        // im3d.Im3d.DrawCone(
+        //     &.{
+        //         .x = locomotion.target_position.?[0],
+        //         .y = locomotion.target_position.?[1],
+        //         .z = locomotion.target_position.?[2],
+        //     },
+        //     &.{ .x = 0, .y = 1, .z = 0 },
+        //     300,
+        //     10,
+        //     3,
+        // );
     }
 }
 
