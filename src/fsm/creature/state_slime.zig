@@ -61,6 +61,7 @@ fn rotateTowardsTarget(
     locomotion: *fd.Locomotion,
     enemy: *const fd.Enemy,
     target_pos: [3]f32,
+    is_day: bool,
 ) void {
     const player_pos_z = zm.loadArr3(target_pos);
     const self_pos_z = zm.loadArr3(pos.elems().*);
@@ -81,7 +82,9 @@ fn rotateTowardsTarget(
         zm.storeArr4(rot.elems(), rot_new_normalized_z);
 
         if (!locomotion.affected_by_gravity and enemy.aggressive) {
-            locomotion.speed = if (skitter) 20 / enemy.base_scale else 8 / enemy.base_scale;
+            locomotion.speed = if (skitter) 15 / enemy.base_scale else 5 / enemy.base_scale;
+        } else if (!enemy.aggressive) {
+            locomotion.speed = if (is_day) 2 else 4;
         }
     }
 }
@@ -142,7 +145,7 @@ fn updateTargetPosition(
     const angles = 5;
     for (0..angles) |i_angle| {
         const i_angle_f: f32 = @as(f32, @floatFromInt(i_angle)) - @as(f32, angles / 2);
-        const angle_offset = i_angle_f * math.degreesToRadians(5);
+        const angle_offset = i_angle_f * math.degreesToRadians(4);
         const angle = angle_curr + angle_offset;
 
         const pos_offset = [_]f32{
@@ -296,7 +299,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
             }
 
             if (!locomotion.affected_by_gravity) {
-                rotateTowardsTarget(pos, rot, locomotion, &enemy, locomotion.target_position.?);
+                rotateTowardsTarget(pos, rot, locomotion, &enemy, locomotion.target_position.?, is_day);
             }
             // rotateTowardsTarget(pos, rot, player_pos.elemsConst().*);
         }
@@ -332,10 +335,13 @@ const SlimeDropTask = struct {
     }
 
     fn validate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) task_queue.TaskValidity {
-        _ = ctx; // autofix
         _ = allocator; // autofix
         const self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
         if (self.pos == null) {
+            return .remove;
+        }
+        const health = ecs.get(ctx.ecsu_world.world, self.entity, fd.Health).?;
+        if (health.value <= 0) {
             return .remove;
         }
         return .valid;
@@ -500,7 +506,7 @@ const SplitIfNearPlayer = struct {
 
         const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
         const self_pos_z = zm.loadArr3(self_pos.elemsConst().*);
-        if (zm.length3(player_pos_z - self_pos_z)[0] > 200) {
+        if (zm.length3(player_pos_z - self_pos_z)[0] > 150) {
             return .reschedule;
         }
 
@@ -538,7 +544,7 @@ const SplitIfNearPlayer = struct {
 
         const self: *SplitIfNearPlayer = @alignCast(@ptrCast(data));
         var enemy = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Enemy).?;
-        enemy.base_scale *= 0.9;
+        enemy.base_scale *= 0.8;
         enemy.aggressive = true;
         enemy.idling = false;
 
@@ -551,7 +557,7 @@ const SplitIfNearPlayer = struct {
         var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
         ent.set(pos);
 
-        const base_scale = enemy.base_scale * 0.7;
+        const base_scale = enemy.base_scale * 0.65;
         const rot = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
         ent.set(fd.Scale.create(1, 1, 1));
         ent.set(rot);
@@ -568,6 +574,7 @@ const SplitIfNearPlayer = struct {
             .idling = false,
             .left_bias = std.crypto.random.float(f32) > 0.5,
         });
+        ent.add(fd.SettlementEnemy);
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
         ent.set(fd.Health{ .value = 10 * base_scale * base_scale });
 
