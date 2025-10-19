@@ -450,7 +450,7 @@ const DieTask = struct {
     fn apply(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
         _ = allocator; // autofix
 
-        const self: *SlimeDropTask = @alignCast(@ptrCast(data));
+        const self: *DieTask = @alignCast(@ptrCast(data));
         ecs.delete(ctx.ecsu_world.world, self.entity);
     }
 };
@@ -474,7 +474,7 @@ const SplitIfNearPlayer = struct {
 
     fn validate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) task_queue.TaskValidity {
         _ = allocator; // autofix
-        const self: *SlimeDropTask = @alignCast(@ptrCast(task_data));
+        const self: *SplitIfNearPlayer = @alignCast(@ptrCast(task_data));
         const enemy_opt = ecs.get(ctx.ecsu_world.world, self.entity, fd.Enemy);
         if (enemy_opt == null) {
             return .remove;
@@ -536,7 +536,7 @@ const SplitIfNearPlayer = struct {
     fn apply(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
         _ = allocator; // autofix
 
-        const self: *SlimeDropTask = @alignCast(@ptrCast(data));
+        const self: *SplitIfNearPlayer = @alignCast(@ptrCast(data));
         var enemy = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Enemy).?;
         enemy.base_scale *= 0.9;
         enemy.aggressive = true;
@@ -599,7 +599,7 @@ const SplitIfNearPlayer = struct {
         ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
 
         {
-            const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
+            const task_data = ctx.task_queue.allocateTaskData(5, SplitIfNearPlayer);
             task_data.*.entity = ent.id;
             ctx.task_queue.enqueue(
                 SplitIfNearPlayer.id,
