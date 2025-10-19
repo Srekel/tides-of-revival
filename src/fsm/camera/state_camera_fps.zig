@@ -228,6 +228,8 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         //     continue;
         // }
         var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+        var player_pos = environment_info.player.?.getMut(fd.Position).?;
+        const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
 
         if (environment_info.journey_time_end) |journey_time| {
             // std.log.info("time:{d}", .{environment_info.world_time});
@@ -235,6 +237,20 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 std.log.info("done time:{d}", .{environment_info.world_time});
                 environment_info.journey_time_end = null;
                 environment_info.journey_time_multiplier = 1;
+            }
+
+            const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
+            if (ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+                const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
+                const slime_pos_z = slime_pos.asZM();
+                const self_pos_z = player_pos.asZM();
+                const vec_to_slime = (slime_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
+                const dist_to_slime_sq = zm.lengthSq3(vec_to_slime)[0];
+                if (dist_to_slime_sq < MIN_DIST_TO_ENEMY_SQ) {
+                    environment_info.journey_time_end = null;
+                    environment_info.journey_time_multiplier = 1;
+                    return;
+                }
             }
         }
         const z_mat = zm.loadMat43(transform.matrix[0..]);
@@ -281,7 +297,10 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
             color,
         );
 
-        if (hit_normal[1] < 0.4) {
+        const hit_normal_z = zm.loadArr3(hit_normal);
+        const up_z = zm.f32x4(0, 1, 0, 0);
+        const dot = zm.dot3(up_z, hit_normal_z)[0];
+        if (dot < 0.5) {
             // TODO trigger sound
             std.log.info("can't journey due to slope {d}", .{hit_normal[1]});
             color.setG(0);
@@ -297,7 +316,6 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
             return;
         }
 
-        var player_pos = environment_info.player.?.getMut(fd.Position).?;
         const height_prev = player_pos.y;
 
         const walk_meter_per_second = 1.35;
@@ -332,17 +350,32 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
             return;
         }
 
-        const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
         const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
         if (ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
             const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
-            const self_pos_z = player_pos.asZM();
-            const target_pos_z = slime_pos.asZM();
-            const vec_to_target = (target_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
-            const dist_to_target_sq = zm.lengthSq3(vec_to_target)[0];
-            if (dist_to_target_sq < MIN_DIST_TO_ENEMY_SQ) {
-                std.log.info("can't journey due to near {d:.2}", .{dist_to_target_sq});
-                return;
+            const slime_pos_z = slime_pos.asZM();
+            {
+                const self_pos_z = player_pos.asZM();
+                const vec_to_slime = (slime_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
+                const dist_to_slime_sq = zm.lengthSq3(vec_to_slime)[0];
+                if (dist_to_slime_sq < MIN_DIST_TO_ENEMY_SQ) {
+                    std.log.info("can't journey due to near1 {d:.2}", .{dist_to_slime_sq});
+                    return;
+                }
+            }
+            {
+                const self_pos_z = zm.Vec{
+                    ray_origin[0] + ray_dir[0] * result.hit.fraction,
+                    height_next,
+                    ray_origin[2] + ray_dir[0] * result.hit.fraction,
+                    0,
+                };
+                const vec_to_slime = (slime_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
+                const dist_to_slime_sq = zm.lengthSq3(vec_to_slime)[0];
+                if (dist_to_slime_sq < MIN_DIST_TO_ENEMY_SQ) {
+                    std.log.info("can't journey due to near2 {d:.2}", .{dist_to_slime_sq});
+                    return;
+                }
             }
         }
 
@@ -385,6 +418,21 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
         _ = input_comp; // autofix
         _ = cam; // autofix
         _ = rot; // autofix
+
+        const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
+        if (ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+            const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
+            const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
+            const target_pos_z = slime_pos.asZM();
+            const player_pos = environment_info.player.?.get(fd.Position).?;
+            const self_pos_z = player_pos.asZM();
+            const vec_to_target = (target_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
+            const dist_to_target_sq = zm.lengthSq3(vec_to_target)[0];
+            if (dist_to_target_sq < MIN_DIST_TO_ENEMY_SQ) {
+                std.log.info("can't journey due to near {d:.2}", .{dist_to_target_sq});
+                return;
+            }
+        }
 
         if (environment_info.journey_time_end != null) {
             continue;
