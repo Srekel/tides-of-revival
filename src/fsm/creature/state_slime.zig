@@ -266,17 +266,25 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 .validate = SplitIfNearPlayer.validate,
                 .apply = &SplitIfNearPlayer.apply,
             });
+            ctx.task_queue.registerTaskType(.{
+                .id = EmsmallenTask.id,
+                .setup = &EmsmallenTask.setup,
+                .calculate = &EmsmallenTask.calculate,
+                .validate = EmsmallenTask.validate,
+                .apply = &EmsmallenTask.apply,
+            });
+
             {
                 const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
                 task_data.*.entity = ent;
                 ctx.task_queue.enqueue(
                     SlimeDropTask.id,
-                    .{ .time = 5, .loop_type = .{ .loop = 60 } },
+                    .{ .time = 5, .loop_type = .{ .loop = 20 } },
                     std.mem.asBytes(task_data),
                 );
             }
             {
-                const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
+                const task_data = ctx.task_queue.allocateTaskData(5, SplitIfNearPlayer);
                 task_data.*.entity = ent;
                 ctx.task_queue.enqueue(
                     SplitIfNearPlayer.id,
@@ -344,6 +352,11 @@ const SlimeDropTask = struct {
         if (health.value <= 0) {
             return .remove;
         }
+
+        if (std.crypto.random.float(f64) > 0.3) {
+            return .reschedule;
+        }
+
         return .valid;
     }
 
@@ -421,8 +434,8 @@ const SlimeDropTask = struct {
 
             light_ent.set(fd.PointLight{
                 .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
-                .range = 30,
-                .intensity = 7,
+                .range = 40,
+                .intensity = 8,
             });
 
             const task_data_die = ctx.task_queue.allocateTaskData(3600, DieTask);
@@ -431,6 +444,17 @@ const SlimeDropTask = struct {
                 DieTask.id,
                 .{ .time = ctx.time.now + 3600, .loop_type = .once },
                 std.mem.asBytes(task_data_die),
+            );
+
+            const task_data_emsmallen = ctx.task_queue.allocateTaskData(3600, EmsmallenTask);
+            task_data_emsmallen.*.entity = light_ent.id;
+            ctx.task_queue.enqueue(
+                EmsmallenTask.id,
+                .{
+                    .time = ctx.time.now + 400,
+                    .loop_type = .{ .loop = 50 + 5 * std.crypto.random.float(f64) },
+                },
+                std.mem.asBytes(task_data_emsmallen),
             );
         }
     }
@@ -631,5 +655,50 @@ const SplitIfNearPlayer = struct {
             .range = 20,
             .intensity = 4,
         });
+    }
+};
+
+const EmsmallenTask = struct {
+    const id = IdLocal.init("EmsmallenTask");
+
+    entity: ecs.entity_t,
+
+    fn setup(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = ctx; // autofix
+        _ = data; // autofix
+        _ = allocator; // autofix
+    }
+
+    fn calculate(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = ctx; // autofix
+        _ = data; // autofix
+        _ = allocator; // autofix
+    }
+
+    fn validate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) task_queue.TaskValidity {
+        _ = allocator; // autofix
+        const self: *EmsmallenTask = @alignCast(@ptrCast(task_data));
+
+        if (!ecs.is_alive(ctx.ecsu_world.world, self.entity)) {
+            return .remove;
+        }
+
+        const light = ecs.get(ctx.ecsu_world.world, self.entity, fd.PointLight).?;
+        if (light.intensity < 0.5) {
+            return .remove;
+        }
+
+        return .valid;
+    }
+
+    fn apply(ctx: task_queue.TaskContext, data: []u8, allocator: std.mem.Allocator) void {
+        _ = allocator; // autofix
+
+        const self: *EmsmallenTask = @alignCast(@ptrCast(data));
+        var light = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.PointLight).?;
+        light.intensity *= 0.96;
+        var scale = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Scale).?;
+        scale.x *= 0.96;
+        scale.z *= 0.96;
     }
 };
