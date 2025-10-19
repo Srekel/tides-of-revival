@@ -88,6 +88,25 @@ pub fn create(create_ctx: StateContext) void {
             &system_desc,
         );
     }
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateRest;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Input), .inout = .InOut },
+            .{ .id = ecs.id(fd.Camera), .inout = .InOut },
+            .{ .id = ecs.id(fd.Transform), .inout = .InOut },
+            .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
+            .{ .id = ecs.id(fd.Position), .inout = .InOut },
+            .{ .id = ecs.id(fd.Journey), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateRest",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
 }
 
 fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
@@ -313,11 +332,25 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
             return;
         }
 
+        const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
+        const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
+        if (ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+            const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
+            const self_pos_z = player_pos.asZM();
+            const target_pos_z = slime_pos.asZM();
+            const vec_to_target = (target_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
+            const dist_to_target_sq = zm.lengthSq3(vec_to_target)[0];
+            if (dist_to_target_sq < MIN_DIST_TO_ENEMY_SQ) {
+                std.log.info("can't journey due to near {d:.2}", .{dist_to_target_sq});
+                return;
+            }
+        }
+
         player_pos.x = ray_origin[0] + ray_dir[0] * result.hit.fraction;
         player_pos.y = height_next;
         player_pos.z = ray_origin[2] + ray_dir[2] * result.hit.fraction;
 
-        environment_info.journey_time_multiplier = 50 + dist * 0.25;
+        environment_info.journey_time_multiplier = 10 + dist_as_the_crow_flies * 0.25;
         environment_info.journey_time_end = environment_info.world_time + duration;
         std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
             environment_info.world_time,
@@ -327,5 +360,55 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
             height_factor,
             environment_info.journey_time_end.?,
         });
+    }
+}
+
+fn updateRest(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
+
+    const inputs = ecs.field(it, fd.Input, 0).?;
+    const cameras = ecs.field(it, fd.Camera, 1).?;
+    const transforms = ecs.field(it, fd.Transform, 2).?;
+    const rotations = ecs.field(it, fd.Rotation, 3).?;
+    const positions = ecs.field(it, fd.Position, 4).?;
+    const journeys = ecs.field(it, fd.Journey, 5).?;
+
+    const input_frame_data = ctx.input_frame_data;
+    const physics_world_low = ctx.physics_world_low;
+    _ = physics_world_low; // autofix
+    var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    // TODO: No, interaction shouldn't be in camera.. :)
+    for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
+        _ = transform; // autofix
+        _ = journey; // autofix
+        _ = pos; // autofix
+        _ = input_comp; // autofix
+        _ = cam; // autofix
+        _ = rot; // autofix
+
+        if (environment_info.journey_time_end != null) {
+            continue;
+        }
+
+        const time_of_day_percent = std.math.modf(environment_info.world_time / (4 * 60 * 60)).fpart;
+        const is_morning = time_of_day_percent < 0.1;
+
+        if (is_morning and environment_info.journey_time_multiplier == 350) {
+            environment_info.journey_time_multiplier = 1;
+        }
+
+        const is_evening = time_of_day_percent > 0.2;
+        if (is_evening and input_frame_data.just_pressed(config.input.rest)) {
+            environment_info.journey_time_multiplier = 350;
+        }
+
+        // std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
+        //     environment_info.world_time,
+        //     dist_as_the_crow_flies,
+        //     dist_travel,
+        //     duration / 3600.0,
+        //     height_factor,
+        //     environment_info.journey_time_end.?,
+        // });
     }
 }
