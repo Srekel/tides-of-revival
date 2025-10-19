@@ -86,8 +86,7 @@ pub const Im3dPass = struct {
         };
     }
 
-    pub fn destroy(_: *@This()) void {
-    }
+    pub fn destroy(_: *@This()) void {}
 
     pub fn render(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Im3D", 0x00_ff_ff_00);
@@ -159,26 +158,26 @@ pub const Im3dPass = struct {
         //     im3d.Im3d.PopDrawState();
         // }
 
-        {
-            im3d.Im3d.DrawLine(
-                &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
-                &.{ .x = 10.0, .y = 0.0, .z = 0.0 },
-                3.0,
-                im3d.Im3d.Color.init5b(1, 0, 0, 1),
-            );
-            im3d.Im3d.DrawLine(
-                &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
-                &.{ .x = 0.0, .y = 10.0, .z = 0.0 },
-                3.0,
-                im3d.Im3d.Color.init5b(0, 1, 0, 1),
-            );
-            im3d.Im3d.DrawLine(
-                &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
-                &.{ .x = 0.0, .y = 0.0, .z = 1.0 },
-                3.0,
-                im3d.Im3d.Color.init5b(0, 0, 1, 1),
-            );
-        }
+        // {
+        //     im3d.Im3d.DrawLine(
+        //         &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
+        //         &.{ .x = 10.0, .y = 0.0, .z = 0.0 },
+        //         3.0,
+        //         im3d.Im3d.Color.init5b(1, 0, 0, 1),
+        //     );
+        //     im3d.Im3d.DrawLine(
+        //         &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
+        //         &.{ .x = 0.0, .y = 10.0, .z = 0.0 },
+        //         3.0,
+        //         im3d.Im3d.Color.init5b(0, 1, 0, 1),
+        //     );
+        //     im3d.Im3d.DrawLine(
+        //         &.{ .x = 0.0, .y = 0.0, .z = 0.0 },
+        //         &.{ .x = 0.0, .y = 0.0, .z = 1.0 },
+        //         3.0,
+        //         im3d.Im3d.Color.init5b(0, 0, 1, 1),
+        //     );
+        // }
 
         im3d.Im3d.EndFrame();
         const draw_list_count = im3d.Im3d.GetDrawListCount();
