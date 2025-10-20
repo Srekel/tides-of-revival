@@ -198,7 +198,6 @@ const SystemUpdateContext = struct {
 
 pub fn create(create_ctx: SystemCreateCtx) void {
     const arena_system_lifetime = create_ctx.arena_system_lifetime;
-    const heap_allocator = create_ctx.heap_allocator;
     const world_patch_mgr = create_ctx.world_patch_mgr;
 
     const broad_phase_layer_interface = arena_system_lifetime.create(BroadPhaseLayerInterface) catch unreachable;
@@ -300,7 +299,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     update_ctx_low.* = SystemUpdateContext.view(create_ctx);
     update_ctx_low.*.state = .{
         .requester_id = world_patch_mgr.registerRequester(IdLocal.init("physics_low")),
-        .patches = std.ArrayList(Patch).initCapacity(heap_allocator, 64 * 64) catch unreachable,
+        .patches = std.ArrayList(Patch).initCapacity(arena_system_lifetime, 64 * 64) catch unreachable,
         .is_low = true,
     };
 

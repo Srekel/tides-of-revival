@@ -99,6 +99,36 @@ pub const TaskQueue = struct {
         self.task_types = std.AutoArrayHashMapUnmanaged(IdLocal.HashType, TaskType).init(allocator, &.{}, &.{}) catch unreachable; // low for now
     }
 
+    pub fn destroy(self: *TaskQueue) void {
+        for (self.queued_chunks.items) |chunk| {
+            for (chunk.tasks[0..chunk.count]) |task| {
+                self.allocator.free(@as([]align(8) u8, @alignCast(task.data)));
+            }
+            self.allocator.destroy(chunk);
+        }
+        for (self.free_chunks.items) |chunk| {
+            for (chunk.tasks[0..chunk.count]) |task| {
+                self.allocator.free(@as([]align(8) u8, @alignCast(task.data)));
+            }
+            self.allocator.destroy(chunk);
+        }
+        for (self.tasks_to_setup.items) |task| {
+            self.allocator.free(@as([]align(8) u8, @alignCast(task.data)));
+        }
+        for (self.tasks_to_calculate.items) |task| {
+            self.allocator.free(@as([]align(8) u8, @alignCast(task.data)));
+        }
+        for (self.tasks_to_apply.items) |task| {
+            self.allocator.free(@as([]align(8) u8, @alignCast(task.data)));
+        }
+        self.queued_chunks.deinit(self.allocator);
+        self.free_chunks.deinit(self.allocator);
+        self.tasks_to_setup.deinit(self.allocator);
+        self.tasks_to_calculate.deinit(self.allocator);
+        self.tasks_to_apply.deinit(self.allocator);
+        self.task_types.deinit(self.allocator);
+    }
+
     pub fn registerTaskType(self: *TaskQueue, task_type: TaskType) void {
         self.task_types.put(self.allocator, task_type.id.hash, task_type) catch unreachable;
     }
@@ -233,6 +263,7 @@ pub const TaskQueue = struct {
             switch (task.time_info.loop_type) {
                 .once => {
                     // _ = self.tasks_to_setup.swapRemove(i_task);
+                    self.allocator.free(@as([]align(8) u8, @alignCast(task.data)));
                 },
                 .loop => {
                     const next_time = task.time_info.time + task.time_info.loop_type.loop;

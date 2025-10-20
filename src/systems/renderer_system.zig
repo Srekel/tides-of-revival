@@ -65,7 +65,7 @@ pub const SystemUpdateContext = struct {
 
 pub fn create(create_ctx: SystemCreateCtx) void {
     const arena_system_lifetime = create_ctx.arena_system_lifetime;
-    const pass_allocator = create_ctx.heap_allocator;
+    const pass_allocator = create_ctx.arena_system_lifetime;
     const ctx_renderer = create_ctx.renderer;
     const ecsu_world = create_ctx.ecsu_world;
 

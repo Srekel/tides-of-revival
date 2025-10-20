@@ -58,7 +58,8 @@ const GameloopContext = struct {
 };
 
 pub fn run() void {
-    zstbi.init(std.heap.page_allocator);
+    const root_allocator = std.heap.page_allocator;
+    zstbi.init(root_allocator);
     defer zstbi.deinit();
 
     // Flecs
@@ -73,31 +74,31 @@ pub fn run() void {
     var stats = FrameStats.init();
 
     // Window
-    window.init(std.heap.page_allocator) catch unreachable;
+    window.init(root_allocator) catch unreachable;
     defer window.deinit();
     const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
     main_window.window.setInputMode(.cursor, .disabled) catch unreachable;
 
     // Initialize Renderer
     var renderer_ctx = renderer.Renderer{};
-    renderer_ctx.init(main_window, ecsu_world, std.heap.page_allocator) catch unreachable;
+    renderer_ctx.init(main_window, ecsu_world, root_allocator) catch unreachable;
     defer renderer_ctx.exit();
     const reload_desc = renderer.ReloadDesc{ .mType = .{ .SHADER = true, .RESIZE = true, .RENDERTARGET = true } };
     renderer_ctx.onLoad(reload_desc) catch unreachable;
     defer renderer_ctx.onUnload(reload_desc);
 
-    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena_state = std.heap.ArenaAllocator.init(root_allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
     zmesh.init(arena);
     defer zmesh.deinit();
 
     // Misc
-    var prefab_mgr = prefab_manager.PrefabManager.init(&renderer_ctx, ecsu_world, std.heap.page_allocator);
+    var prefab_mgr = prefab_manager.PrefabManager.init(&renderer_ctx, ecsu_world, root_allocator);
     defer prefab_mgr.deinit();
     config.prefab.initPrefabs(&prefab_mgr, ecsu_world);
 
-    var event_mgr = EventManager.create(std.heap.page_allocator);
+    var event_mgr = EventManager.create(root_allocator);
     defer event_mgr.destroy();
 
     // Watermark Logo
@@ -118,15 +119,15 @@ pub fn run() void {
 
     // Input
     // Run it once to make sure we don't get huge diff values for cursor etc. the first frame.
-    const input_target_defaults = config.input.createDefaultTargetDefaults(std.heap.page_allocator);
-    const input_keymap = config.input.createKeyMap(std.heap.page_allocator);
-    var input_frame_data = input.FrameData.create(std.heap.page_allocator, input_keymap, input_target_defaults, main_window.window);
-    input.doTheThing(std.heap.page_allocator, &input_frame_data);
+    const input_target_defaults = config.input.createDefaultTargetDefaults(root_allocator);
+    const input_keymap = config.input.createKeyMap(root_allocator);
+    var input_frame_data = input.FrameData.create(root_allocator, input_keymap, input_target_defaults, main_window.window);
+    input.doTheThing(root_allocator, &input_frame_data);
 
-    var asset_mgr = AssetManager.create(std.heap.page_allocator);
+    var asset_mgr = AssetManager.create(root_allocator);
     defer asset_mgr.destroy();
 
-    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(std.heap.page_allocator, &asset_mgr);
+    var world_patch_mgr = world_patch_manager.WorldPatchManager.create(root_allocator, &asset_mgr);
     world_patch_mgr.debug_server.run();
     defer world_patch_mgr.destroy();
     patch_types.registerPatchTypes(world_patch_mgr);
@@ -138,12 +139,12 @@ pub fn run() void {
     // ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║███████║
     // ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝
 
-    var root_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-    var arena_system_lifetime = std.heap.ArenaAllocator.init(root_allocator.allocator());
-    var arena_system_update = std.heap.ArenaAllocator.init(root_allocator.allocator());
-    var arena_frame = std.heap.ArenaAllocator.init(root_allocator.allocator());
+    var root_system_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+    var arena_system_lifetime = std.heap.ArenaAllocator.init(root_system_allocator.allocator());
+    var arena_system_update = std.heap.ArenaAllocator.init(root_system_allocator.allocator());
+    var arena_frame = std.heap.ArenaAllocator.init(root_system_allocator.allocator());
     defer {
-        const check = root_allocator.deinit();
+        const check = root_system_allocator.deinit();
         _ = check; // autofix
         // std.debug.assert(check == .ok);
     }
@@ -151,7 +152,7 @@ pub fn run() void {
     defer arena_system_update.deinit();
     defer arena_frame.deinit();
 
-    var physics_mgr = physics_manager.create(arena_system_lifetime.allocator(), root_allocator.allocator());
+    var physics_mgr = physics_manager.create(arena_system_lifetime.allocator(), root_system_allocator.allocator());
     defer physics_manager.destroy(&physics_mgr);
 
     // Audio
@@ -195,7 +196,7 @@ pub fn run() void {
         .arena_system_update = arena_system_update.allocator(),
         .arena_frame = arena_frame.allocator(),
         .audio = audio,
-        .heap_allocator = root_allocator.allocator(),
+        .heap_allocator = root_system_allocator.allocator(),
         .asset_mgr = &asset_mgr,
         .ecsu_world = ecsu_world,
         .event_mgr = &event_mgr,
@@ -212,7 +213,8 @@ pub fn run() void {
         .world_patch_mgr = world_patch_mgr,
     };
 
-    task_queue1.init(root_allocator.allocator(), gameloop_context);
+    task_queue1.init(root_system_allocator.allocator(), gameloop_context);
+    defer task_queue1.destroy();
 
     config.system.createSystems(&gameloop_context);
     config.system.setupSystems(&gameloop_context);
@@ -367,10 +369,12 @@ pub fn run() void {
 
         if (done) {
             const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-            const player_comp = environment_info.player.?.get(fd.Player).?;
-            player_comp.music.?.destroy();
-            player_comp.vo_intro.destroy();
-            player_comp.vo_exited_village.destroy();
+            const player_comp_opt = environment_info.player.?.get(fd.Player);
+            if (player_comp_opt) |player_comp| {
+                player_comp.music.?.destroy();
+                player_comp.vo_intro.destroy();
+                player_comp.vo_exited_village.destroy();
+            }
 
             // Clear out systems. Needed to clear up memory.
             // NOTE: I'm not sure why this need to be done explicitly, I think
