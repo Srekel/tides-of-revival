@@ -69,6 +69,23 @@ const TonemapConstantBuffer = struct {
     exposure: f32,
 };
 
+// Vignette
+// ========
+const VignetteSettings = struct {
+    enabled: bool,
+    color: [3]f32,
+    radius: f32,
+    feather: f32,
+};
+
+const VignetteConstantBuffer = struct {
+    rpc_buffer_dimensions: [2]f32,
+    radius: f32,
+    feather: f32,
+    color: [3]f32,
+    _padding0: f32,
+};
+
 pub const PostProcessingPass = struct {
     allocator: std.mem.Allocator,
     renderer: *renderer.Renderer,
@@ -100,6 +117,12 @@ pub const PostProcessingPass = struct {
     // =======
     tonemap_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     tonemap_descriptor_set: [*c]graphics.DescriptorSet,
+
+    // Vignette
+    // ========
+    vignette_settings: VignetteSettings,
+    vignette_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    vignette_descriptor_set: [*c]graphics.DescriptorSet,
 
     pub fn init(self: *PostProcessingPass, rctx: *renderer.Renderer, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
@@ -141,6 +164,16 @@ pub const PostProcessingPass = struct {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 buffers[buffer_index] = rctx.createUniformBuffer(TonemapConstantBuffer);
+            }
+
+            break :blk buffers;
+        };
+
+        self.vignette_settings = .{ .enabled = false, .radius = 0.4, .feather = 1.0, .color = .{ 0.0, 0.0, 0.0 } };
+        self.vignette_constant_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(VignetteConstantBuffer);
             }
 
             break :blk buffers;
@@ -317,15 +350,49 @@ pub const PostProcessingPass = struct {
             graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemap_descriptor_set);
             graphics.cmdDispatch(cmd_list, (@as(u32, @intFromFloat(render_view.viewport[0])) + 8 - 1) / 8, (@as(u32, @intFromFloat(render_view.viewport[1])) + 8 - 1) / 8, 1);
 
-            rt_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
-            };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
-
             t_barriers = [_]graphics.TextureBarrier{
                 graphics.TextureBarrier.init(luminance, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
             };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), 0, null);
+
+            if (!self.vignette_settings.enabled) {
+                rt_barriers = [_]graphics.RenderTargetBarrier{
+                    graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                };
+                graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), rt_barriers.len, @ptrCast(&rt_barriers));
+            } else {
+                graphics.cmdResourceBarrier(cmd_list, 0, null, t_barriers.len, @constCast(&t_barriers), 0, null);
+            }
+        }
+
+        // Vignette
+        if (self.vignette_settings.enabled) {
+            // Update constant buffer
+            {
+                var constant_buffer_data = std.mem.zeroes(VignetteConstantBuffer);
+                constant_buffer_data.rpc_buffer_dimensions[0] = 1.0 / render_view.viewport[0];
+                constant_buffer_data.rpc_buffer_dimensions[1] = 1.0 / render_view.viewport[1];
+                constant_buffer_data.color = self.vignette_settings.color;
+                constant_buffer_data.radius = self.vignette_settings.radius;
+                constant_buffer_data.feather = self.vignette_settings.feather;
+                constant_buffer_data._padding0 = 42;
+
+                const data = OpaqueSlice{
+                    .data = @ptrCast(&constant_buffer_data),
+                    .size = @sizeOf(VignetteConstantBuffer),
+                };
+                self.renderer.updateBuffer(data, 0, VignetteConstantBuffer, self.vignette_constant_buffers[frame_index]);
+            }
+
+            const pipeline_id = IdLocal.init("vignette");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, 0, self.vignette_descriptor_set);
+            graphics.cmdDispatch(cmd_list, (@as(u32, @intFromFloat(render_view.viewport[0])) + 8 - 1) / 8, (@as(u32, @intFromFloat(render_view.viewport[1])) + 8 - 1) / 8, 1);
+
+            const rt_barriers = [_]graphics.RenderTargetBarrier{
+                graphics.RenderTargetBarrier.init(self.renderer.scene_color, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+            };
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @constCast(&rt_barriers));
         }
     }
 
@@ -387,6 +454,13 @@ pub const PostProcessingPass = struct {
             if (zgui.collapsingHeader("Exposure Settings", .{ .frame_padding = true })) {
                 _ = zgui.dragFloat("Exposure", .{ .v = &self.exposure_settings.exposure, .cfmt = "%.2f", .min = 0.01, .max = 8.0, .speed = 0.01 });
             }
+
+            if (zgui.collapsingHeader("Vignette Settings", .{ .frame_padding = true })) {
+                _ = zgui.checkbox("Vignette Enabled", .{ .v = &self.vignette_settings.enabled });
+                _ = zgui.colorEdit3("Vignette Color", .{ .col = &self.vignette_settings.color });
+                _ = zgui.dragFloat("Radius", .{ .v = &self.vignette_settings.radius, .cfmt = "%.2f", .min = 0.0, .max = 1.0, .speed = 0.01 });
+                _ = zgui.dragFloat("Feather", .{ .v = &self.vignette_settings.feather, .cfmt = "%.2f", .min = 0.0, .max = 10.0, .speed = 0.01 });
+            }
         }
     }
 
@@ -419,6 +493,11 @@ pub const PostProcessingPass = struct {
         desc.pRootSignature = root_signature;
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.tonemap_descriptor_set));
+
+        root_signature = self.renderer.getRootSignature(IdLocal.init("vignette"));
+        desc.pRootSignature = root_signature;
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.vignette_descriptor_set));
     }
 
     pub fn prepareDescriptorSets(self: *@This()) void {
@@ -560,6 +639,21 @@ pub const PostProcessingPass = struct {
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.tonemap_descriptor_set, params.len, @ptrCast(&params));
         }
+
+        // Vignette
+        for (0..renderer.Renderer.data_buffer_count) |frame_index| {
+            var vignette_constant_buffer = self.renderer.getBuffer(self.vignette_constant_buffers[frame_index]);
+
+            var params: [2]graphics.DescriptorData = undefined;
+            params[0] = std.mem.zeroes(graphics.DescriptorData);
+            params[0].pName = "CB0";
+            params[0].__union_field3.ppBuffers = @ptrCast(&vignette_constant_buffer);
+            params[1] = std.mem.zeroes(graphics.DescriptorData);
+            params[1].pName = "ColorRW";
+            params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color.*.pTexture);
+
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.vignette_descriptor_set, params.len, @ptrCast(&params));
+        }
     }
 
     pub fn unloadDescriptorSets(self: *@This()) void {
@@ -571,5 +665,6 @@ pub const PostProcessingPass = struct {
         graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_3_descriptor_set);
         graphics.removeDescriptorSet(self.renderer.renderer, self.upsample_and_blur_4_descriptor_set);
         graphics.removeDescriptorSet(self.renderer.renderer, self.tonemap_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.vignette_descriptor_set);
     }
 };

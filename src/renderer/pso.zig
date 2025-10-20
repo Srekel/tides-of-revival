@@ -618,6 +618,7 @@ pub const PSOManager = struct {
                     self.createComputePipeline(IdLocal.init("bloom_extract"), "bloom_extract_downsample_hdr.comp", &sampler_ids);
                     self.createComputePipeline(IdLocal.init("downsample_bloom_all"), "downsample_bloom_all.comp", &sampler_ids);
                     self.createComputePipeline(IdLocal.init("tonemap"), "tonemapping.comp", &sampler_ids);
+                    self.createComputePipeline(IdLocal.init("vignette"), "vignette.comp", &sampler_ids);
                 }
 
                 {
