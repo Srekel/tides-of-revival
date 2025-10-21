@@ -14,6 +14,7 @@ const zphy = @import("zphysics");
 const PrefabManager = @import("../../prefab_manager.zig").PrefabManager;
 const util = @import("../../util.zig");
 const context = @import("../../core/context.zig");
+const renderer = @import("../../renderer/renderer.zig");
 const im3d = @import("im3d");
 
 pub const StateContext = struct {
@@ -25,6 +26,7 @@ pub const StateContext = struct {
     physics_world: *zphy.PhysicsSystem,
     physics_world_low: *zphy.PhysicsSystem,
     prefab_mgr: *PrefabManager,
+    renderer: *renderer.Renderer,
 };
 
 pub fn create(create_ctx: StateContext) void {
@@ -440,23 +442,46 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
         const time_of_day_percent = std.math.modf(environment_info.world_time / (4 * 60 * 60)).fpart;
         const is_morning = time_of_day_percent < 0.1;
+        _ = is_morning; // autofix
 
-        if (is_morning and environment_info.journey_time_multiplier == 350) {
-            environment_info.journey_time_multiplier = 1;
+        switch (environment_info.rest_state) {
+            .not => {
+                if (input_frame_data.just_pressed(config.input.rest)) {
+                    std.log.info("rest time:{d:.2} mult:{d:.2}", .{ environment_info.world_time, environment_info.journey_time_multiplier });
+                    environment_info.rest_state = .transition_in;
+                    environment_info.player_state_time = 0;
+                    ctx.renderer.post_processing_pass.vignette_settings.feather = 1;
+                    ctx.renderer.post_processing_pass.vignette_settings.radius = 1;
+                    ctx.renderer.post_processing_pass.vignette_settings.enabled = true;
+                }
+            },
+            .transition_in => {
+                environment_info.player_state_time += it.delta_time * 2;
+                if (environment_info.player_state_time >= 1) {
+                    environment_info.journey_time_multiplier = 350;
+                    environment_info.player_state_time = 1;
+                    environment_info.rest_state = .resting;
+                }
+                ctx.renderer.post_processing_pass.vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
+                ctx.renderer.post_processing_pass.vignette_settings.radius = (1 - environment_info.player_state_time * 0.3);
+            },
+            .resting => {
+                const exit_rest = input_frame_data.just_pressed(config.input.rest);
+                if (exit_rest) {
+                    std.log.info("rest time:{d:.2} mult:{d:.2}", .{ environment_info.world_time, environment_info.journey_time_multiplier });
+                    environment_info.rest_state = .transition_out;
+                    environment_info.journey_time_multiplier = 1;
+                }
+            },
+            .transition_out => {
+                environment_info.player_state_time -= it.delta_time * 2;
+                if (environment_info.player_state_time <= 0) {
+                    environment_info.player_state_time = 0;
+                    environment_info.rest_state = .not;
+                }
+                ctx.renderer.post_processing_pass.vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
+                ctx.renderer.post_processing_pass.vignette_settings.radius = (1 - environment_info.player_state_time * 0.3);
+            },
         }
-
-        const is_evening = time_of_day_percent > 0.2;
-        if (is_evening and input_frame_data.just_pressed(config.input.rest)) {
-            environment_info.journey_time_multiplier = 350;
-        }
-
-        // std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
-        //     environment_info.world_time,
-        //     dist_as_the_crow_flies,
-        //     dist_travel,
-        //     duration / 3600.0,
-        //     height_factor,
-        //     environment_info.journey_time_end.?,
-        // });
     }
 }

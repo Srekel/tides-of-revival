@@ -169,7 +169,12 @@ pub const PostProcessingPass = struct {
             break :blk buffers;
         };
 
-        self.vignette_settings = .{ .enabled = false, .radius = 0.4, .feather = 1.0, .color = .{ 0.0, 0.0, 0.0 } };
+        self.vignette_settings = .{
+            .enabled = true,
+            .radius = 1.0,
+            .feather = 1.0,
+            .color = .{ 0.0, 0.0, 0.0 },
+        };
         self.vignette_constant_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
