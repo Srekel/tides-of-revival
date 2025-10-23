@@ -671,6 +671,7 @@ pub const Renderer = struct {
     }
 
     pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc) void {
+        self.time_of_day_01 = update_desc.time_of_day_01;
         self.sun_light = update_desc.sun_light;
 
         var lights = std.ArrayList(renderer_types.GpuLight).init(self.allocator);
