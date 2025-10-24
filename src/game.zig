@@ -474,7 +474,7 @@ fn update_full(gameloop_context: GameloopContext) bool {
     for (0..ticks) |_| {
         world_patch_mgr.tickOne();
     }
-    stats.delta_time = @min(0.1, stats.delta_time); // anti hitch
+    stats.delta_time = @min(1.0 / 30.0, stats.delta_time); // anti hitch
     update(gameloop_context, stats.delta_time);
 
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
@@ -493,11 +493,8 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     const flecs_stats = ecs.get_world_info(ecsu_world.world);
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const debug_multiplier = debug_times[debug_time_index].mult;
-    if (flecs_stats.world_time_total < 0.1 * 60 * 60) {
-        environment_info.journey_time_multiplier = 100;
-    } else if (!has_initial_sim) {
+    if (flecs_stats.world_time_total > 0.1 * 60 * 60) {
         has_initial_sim = true;
-        environment_info.journey_time_multiplier = 1;
     }
 
     const time_scale = environment_info.time_multiplier * environment_info.journey_time_multiplier * debug_multiplier;

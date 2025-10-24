@@ -233,6 +233,10 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         var player_pos = environment_info.player.?.getMut(fd.Position).?;
         const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
 
+        if (environment_info.rest_state != .not) {
+            continue;
+        }
+
         if (environment_info.journey_time_end) |journey_time| {
             // std.log.info("time:{d}", .{environment_info.world_time});
             if (journey_time < environment_info.world_time) {
@@ -442,7 +446,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
         const time_of_day_percent = std.math.modf(environment_info.world_time / (4 * 60 * 60)).fpart;
         const is_morning = time_of_day_percent < 0.1;
-        _ = is_morning; // autofix
+        const ui_dt = ecs.get_world_info(it.world).delta_time_raw;
 
         switch (environment_info.rest_state) {
             .not => {
@@ -452,21 +456,39 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.player_state_time = 0;
                     ctx.renderer.post_processing_pass.vignette_settings.feather = 1;
                     ctx.renderer.post_processing_pass.vignette_settings.radius = 1;
-                    ctx.renderer.post_processing_pass.vignette_settings.enabled = true;
                 }
             },
+            .initial_rest => {
+                environment_info.player_state_time += ui_dt * 0.2;
+                environment_info.journey_time_multiplier = 500;
+                if (environment_info.player_state_time >= 1) {
+                    environment_info.player_state_time = 1;
+                    if (!is_morning) {
+                        environment_info.journey_time_multiplier = 1;
+                        environment_info.rest_state = .transition_out;
+                    }
+                }
+                ctx.renderer.post_processing_pass.vignette_settings.feather = environment_info.player_state_time * 0.9;
+                ctx.renderer.post_processing_pass.vignette_settings.radius = environment_info.player_state_time * 0.9;
+            },
             .transition_in => {
-                environment_info.player_state_time += it.delta_time * 2;
+                environment_info.player_state_time += ui_dt * 2;
                 if (environment_info.player_state_time >= 1) {
                     environment_info.journey_time_multiplier = 350;
                     environment_info.player_state_time = 1;
-                    environment_info.rest_state = .resting;
+                    environment_info.rest_state = if (is_morning) .resting_during_morning else .resting_until_morning;
                 }
                 ctx.renderer.post_processing_pass.vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
-                ctx.renderer.post_processing_pass.vignette_settings.radius = (1 - environment_info.player_state_time * 0.3);
+                ctx.renderer.post_processing_pass.vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },
-            .resting => {
-                const exit_rest = input_frame_data.just_pressed(config.input.rest);
+            .resting_during_morning => {
+                const exit_rest = !is_morning or input_frame_data.just_pressed(config.input.rest);
+                if (exit_rest) {
+                    environment_info.rest_state = .resting_until_morning;
+                }
+            },
+            .resting_until_morning => {
+                const exit_rest = is_morning or input_frame_data.just_pressed(config.input.rest);
                 if (exit_rest) {
                     std.log.info("rest time:{d:.2} mult:{d:.2}", .{ environment_info.world_time, environment_info.journey_time_multiplier });
                     environment_info.rest_state = .transition_out;
@@ -474,13 +496,13 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 }
             },
             .transition_out => {
-                environment_info.player_state_time -= it.delta_time * 2;
+                environment_info.player_state_time -= ui_dt * 2;
                 if (environment_info.player_state_time <= 0) {
                     environment_info.player_state_time = 0;
                     environment_info.rest_state = .not;
                 }
                 ctx.renderer.post_processing_pass.vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
-                ctx.renderer.post_processing_pass.vignette_settings.radius = (1 - environment_info.player_state_time * 0.3);
+                ctx.renderer.post_processing_pass.vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },
         }
     }
