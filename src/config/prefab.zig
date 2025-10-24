@@ -247,6 +247,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         }
     }
 
+    const slime_material_id = ID("slime");
+    var slime_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(0.1, 0.6, 0.2), 0.3, 0.0);
+    slime_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+    slime_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+    prefab_mgr.rctx.loadMaterial(slime_material_id, slime_material) catch unreachable;
+
     {
         slime = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/slime/slime", slime_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         slime.setOverride(fd.Dynamic{});
@@ -255,7 +261,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_material_id;
+                lod_group.lods[i].materials[0] = slime_material_id;
             }
         }
     }
@@ -268,7 +274,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = default_material_id;
+                lod_group.lods[i].materials[0] = slime_material_id;
             }
         }
     }
