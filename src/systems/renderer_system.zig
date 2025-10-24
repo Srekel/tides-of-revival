@@ -266,6 +266,26 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         };
     }
 
+    // Find moon light
+    {
+        const moon_entity = util.getMoon(system.ecsu_world);
+        const moon_comps = moon_entity.?.getComps(struct {
+            light: *const fd.DirectionalLight,
+            rotation: *const fd.Rotation,
+        });
+        const z_forward = zm.rotate(moon_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
+        update_desc.moon_light = renderer_types.DirectionalLight{
+            .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
+            .shadow_map = 0,
+            .color = [3]f32{ moon_comps.light.color.r, moon_comps.light.color.g, moon_comps.light.color.b },
+            .intensity = moon_comps.light.intensity,
+            .shadow_range = moon_comps.light.shadow_range,
+            ._pad = [2]f32{ 42, 42 },
+            .shadow_map_dimensions = 0,
+            .view_proj = [16]f32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        };
+    }
+
     // Find all point lights
     {
         system.state.point_lights.clearRetainingCapacity();

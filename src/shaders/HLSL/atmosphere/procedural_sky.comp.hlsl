@@ -216,13 +216,13 @@ cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 [numthreads(16, 16, 1)] void main(uint3 threadId : SV_DispatchThreadID)
 {
     static const float3x3 CUBEMAP_ROTATIONS[] =
-        {
-            float3x3(0, 0, -1, 0, -1, 0, -1, 0, 0), // right
-            float3x3(0, 0, 1, 0, -1, 0, 1, 0, 0),   // left
-            float3x3(1, 0, 0, 0, 0, -1, 0, 1, 0),   // top
-            float3x3(1, 0, 0, 0, 0, 1, 0, -1, 0),   // bottom
-            float3x3(1, 0, 0, 0, -1, 0, 0, 0, -1),  // back
-            float3x3(-1, 0, 0, 0, -1, 0, 0, 0, 1),  // front
+    {
+        float3x3(0, 0, -1, 0, -1, 0, -1, 0, 0), // right
+        float3x3(0, 0, 1, 0, -1, 0, 1, 0, 0),   // left
+        float3x3(1, 0, 0, 0, 0, -1, 0, 1, 0),   // top
+        float3x3(1, 0, 0, 0, 0, 1, 0, -1, 0),   // bottom
+        float3x3(1, 0, 0, 0, -1, 0, 0, 0, -1),  // back
+        float3x3(-1, 0, 0, 0, -1, 0, 0, 0, 1),  // front
     };
 
     float2 uv = ((float2)threadId.xy + 0.5f) * inv_dimensions;

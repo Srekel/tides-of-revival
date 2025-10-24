@@ -34,6 +34,17 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .pssm_factor = 0.85,
     });
 
+    const moon_ent = ecsu_world.newEntity();
+    moon_ent.set(fd.Rotation.initFromEulerDegrees(45.0, 0.0, 45.0));
+    moon_ent.set(fd.DirectionalLight{
+        .color = .{ .r = 0.79, .g = 0.93, .b = 1.0 },
+        .intensity = 5.0,
+        .shadow_range = 0.0,
+        .cast_shadows = false,
+        .shadow_cascades = 0,
+        .pssm_factor = 0.0,
+    });
+
     const height_fog_ent = ecsu_world.newEntity();
     {
         const height_fog_component = fd.HeightFog{
@@ -217,6 +228,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     environment_info.active_camera = player_camera_ent;
     environment_info.player_camera = player_camera_ent;
     environment_info.sun = sun_ent;
+    environment_info.moon = moon_ent;
     environment_info.height_fog = height_fog_ent;
     environment_info.player = player_ent;
 

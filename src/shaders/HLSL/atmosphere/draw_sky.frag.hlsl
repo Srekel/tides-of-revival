@@ -46,12 +46,9 @@ float4 PS_MAIN(VSOutput Input) : SV_Target
     float3 skybox = skybox_cubemap.Sample(g_linear_repeat_sampler, uv).rgb;
 
     // Moon
-    float moon_opacity = smoothstep(0.1f, 0.0f, g_time_of_day_01);
-    moon_opacity += smoothstep(0.4f, 0.5f, g_time_of_day_01);
-    moon_opacity = max(0.2, moon_opacity);
     float3 moon_normal = 0;
-    float3 moon = RayTraceSphere(0, uv, normalize(float3(-1, .5, 0)), 0.035, moon_normal).rrr;
-    moon = lerp(skybox, moon, moon_opacity);
+    float3 moon = RayTraceSphere(0, uv, normalize(moon_direction), 0.035, moon_normal);
+    moon = lerp(skybox, moon, moon_intensity);
 
     // Composite
     return float4(skybox + starfield + moon, 1.0f);

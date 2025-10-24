@@ -701,6 +701,7 @@ pub const EnvironmentInfo = struct {
     sun_height: f64,
     height_fog: ?ecsu.Entity,
     sun: ?ecsu.Entity,
+    moon: ?ecsu.Entity,
     player: ?ecsu.Entity,
     rest_state: enum { not, transition_in, resting, transition_out } = .not,
     journey_state: enum { not, transition_in, journeying, transition_out } = .not,

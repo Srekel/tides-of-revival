@@ -227,6 +227,7 @@ pub fn run() void {
         .active_camera = null,
         .player_camera = null,
         .sun = null,
+        .moon = null,
         .height_fog = null,
         .player = null,
     });
@@ -541,6 +542,21 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             const gb_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
             sun_light.?.color.g = gb_multiplier;
             sun_light.?.color.b = gb_multiplier;
+        }
+    }
+
+    // Moon intensity over time
+    {
+        const moon_entity = util.getMoon(ecsu_world);
+        var moon_light = moon_entity.?.getMut(fd.DirectionalLight);
+        {
+            const curve = utility_scoring.Curve{
+                0.1, 0.0, 0.0, 0.4,
+                0.9, 1.0, 1.0, 0.5,
+                0.1,
+            };
+            const intensity_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
+            moon_light.?.intensity = intensity_multiplier;
         }
     }
 

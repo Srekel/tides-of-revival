@@ -120,6 +120,15 @@ pub fn getSun(ecsu_world: ecsu.World) ?ecsu.Entity {
     return null;
 }
 
+pub fn getMoon(ecsu_world: ecsu.World) ?ecsu.Entity {
+    const environment_info = ecsu_world.getSingleton(fd.EnvironmentInfo);
+    if (environment_info) |info| {
+        return info.moon;
+    }
+
+    return null;
+}
+
 pub fn getPlayer(ecsu_world: ecsu.World) ?ecsu.Entity {
     const environment_info = ecsu_world.getSingleton(fd.EnvironmentInfo);
     if (environment_info) |info| {

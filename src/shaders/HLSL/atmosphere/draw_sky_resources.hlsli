@@ -22,6 +22,8 @@ cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
     float4x4 g_proj_mat;
     float4x4 g_view_mat;
+    float3 moon_direction;
+    float moon_intensity;
     float g_time_of_day_01;
     float3 _pad0;
 };

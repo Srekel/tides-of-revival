@@ -31,6 +31,8 @@ const ProceduralSkyParams = struct {
 const DrawSkyParams = struct {
     projection: [16]f32,
     view: [16]f32,
+    moon_direction: [3]f32,
+    moon_intensity: f32,
     time_of_day_percent: f32,
     _pad0: [3]f32,
 };
@@ -164,6 +166,8 @@ pub const ProceduralSkyboxPass = struct {
         {
             var draw_sky_data: DrawSkyParams = std.mem.zeroes(DrawSkyParams);
             draw_sky_data.time_of_day_percent = self.renderer.time_of_day_01;
+            draw_sky_data.moon_direction = self.renderer.moon_light.direction;
+            draw_sky_data.moon_intensity = self.renderer.moon_light.intensity;
             zm.storeMat(&draw_sky_data.projection, render_view.projection);
             zm.storeMat(&draw_sky_data.view, render_view.view);
 

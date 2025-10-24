@@ -104,6 +104,7 @@ pub const Renderer = struct {
     // ==========
     time_of_day_01: f32 = 0.0,
     sun_light: renderer_types.DirectionalLight = undefined,
+    moon_light: renderer_types.DirectionalLight = undefined,
     height_fog_settings: renderer_types.HeightFogSettings = undefined,
     ocean_tiles: std.ArrayList(renderer_types.OceanTile) = undefined,
     dynamic_entities: std.ArrayList(renderer_types.DynamicEntity) = undefined,
@@ -673,6 +674,7 @@ pub const Renderer = struct {
     pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc) void {
         self.time_of_day_01 = update_desc.time_of_day_01;
         self.sun_light = update_desc.sun_light;
+        self.moon_light = update_desc.moon_light;
 
         var lights = std.ArrayList(renderer_types.GpuLight).init(self.allocator);
         lights.append(.{
@@ -681,6 +683,14 @@ pub const Renderer = struct {
             .color = update_desc.sun_light.color,
             .intensity = update_desc.sun_light.intensity,
             .cast_shadows = 1,
+        }) catch unreachable;
+
+        lights.append(.{
+            .light_type = 0,
+            .position = update_desc.moon_light.direction,
+            .color = update_desc.moon_light.color,
+            .intensity = update_desc.moon_light.intensity,
+            .cast_shadows = 0,
         }) catch unreachable;
 
         for (update_desc.point_lights.items) |point_light| {
