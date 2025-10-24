@@ -499,7 +499,9 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         has_initial_sim = true;
         environment_info.journey_time_multiplier = 1;
     }
-    const dt_game = dt * environment_info.time_multiplier * environment_info.journey_time_multiplier * debug_multiplier;
+
+    const time_scale = environment_info.time_multiplier * environment_info.journey_time_multiplier * debug_multiplier;
+    const dt_game = dt * time_scale;
     environment_info.time_multiplier = 1;
 
     // Advance day
@@ -568,7 +570,8 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     }
 
     // AK.SoundEngine.renderAudio(false) catch unreachable;
-    ecsu_world.progress(@floatCast(dt_game));
+    ecs.set_time_scale(gameloop_context.ecsu_world.world, @floatCast(time_scale));
+    ecsu_world.progress(@floatCast(dt));
 }
 
 fn updateDebugUI(it: *ecs.iter_t) callconv(.C) void {
