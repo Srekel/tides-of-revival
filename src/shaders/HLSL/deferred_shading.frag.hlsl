@@ -169,6 +169,8 @@ float Shadow3x3PCF(float3 P, const int cascadeIndex, float invShadowSize)
 float4 PS_MAIN(VsOut Input) : SV_TARGET0
 {
     INIT_MAIN;
+    ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
+    GpuLight sun = lightsBuffer.Load<GpuLight>(0);
 
     float4 baseColor = SampleLvlTex2D(Get(gBuffer0), Get(g_linear_clamp_edge_sampler), Input.UV, 0);
     if (baseColor.a <= 0)
@@ -190,7 +192,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     float attenuation = 1.0f;
     if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
     {
-        attenuation = Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x);
+        attenuation = lerp(1.0, Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x), saturate(sun.intensity));
     }
 
 #if 0
@@ -215,7 +217,6 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
-    ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
     for (uint i = 0; i < g_lights_count; ++i)
     {
         GpuLight light = lightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
