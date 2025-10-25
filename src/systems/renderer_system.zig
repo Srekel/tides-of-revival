@@ -255,9 +255,9 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         });
         const z_quat = sun_comps.rotation.asZM();
         const z_mat = zm.matFromQuat(z_quat);
-        const z_forward = zm.rotate(z_quat, zm.Vec{ 0, 0, 1, 0 });
+        const z_forward = zm.normalize3(zm.rotate(z_quat, zm.Vec{ 0, 0, -1, 0 }));
         update_desc.sun_light = renderer_types.DirectionalLight{
-            .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
+            .direction = [3]f32{ z_forward[0], z_forward[1], z_forward[2] },
             .shadow_map = 0,
             .color = [3]f32{ sun_comps.light.color.r, sun_comps.light.color.g, sun_comps.light.color.b },
             .intensity = sun_comps.light.intensity,
@@ -278,9 +278,9 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         });
         const z_quat = moon_comps.rotation.asZM();
         const z_mat = zm.matFromQuat(z_quat);
-        const z_forward = zm.rotate(z_quat, zm.Vec{ 0, 0, 1, 0 });
+        const z_forward = zm.rotate(z_quat, zm.Vec{ 0, 0, -1, 0 });
         update_desc.moon_light = renderer_types.DirectionalLight{
-            .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
+            .direction = [3]f32{ z_forward[0], z_forward[1], z_forward[2] },
             .shadow_map = 0,
             .color = [3]f32{ moon_comps.light.color.r, moon_comps.light.color.g, moon_comps.light.color.b },
             .intensity = moon_comps.light.intensity,

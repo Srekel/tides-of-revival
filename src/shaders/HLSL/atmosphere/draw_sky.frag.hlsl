@@ -49,7 +49,7 @@ float4 PS_MAIN(VSOutput Input) : SV_Target
     float3 sun_normal = 0;
     if (RayTraceSphere(float3(0, 0, 0), uv, normalize(sun_direction), 0.075, sun_normal).r > 0)
     {
-        sun = sun_color;
+        sun = sun_color * sun_intensity;
         starfield = 0;
     }
 

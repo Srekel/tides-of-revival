@@ -516,11 +516,12 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     {
         const sun_entity = util.getSun(ecsu_world);
         const sun_rotation = sun_entity.?.getMut(fd.Rotation).?;
-        sun_rotation.fromZM(zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau), 0.0, 0.0));
 
-        const z_sun_delta_rotation = zm.quatFromRollPitchYaw(0.01 * @as(f32, @floatCast(dt_game)), 0, 0);
-        sun_rotation.fromZM(zm.qmul(zm.quatFromRollPitchYaw(0.0, 0.9, 0.9), sun_rotation.asZM()));
-        sun_rotation.fromZM(zm.qmul(sun_rotation.asZM(), z_sun_delta_rotation));
+        // Planet tilt 45 deg (on Z axis)
+        const tilt = zm.quatFromRollPitchYaw(0.0, 0.0, std.math.pi * 0.25);
+        // Sun Orientation (on X axis)
+        const orietation = zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau), 0.0, 0.0);
+        sun_rotation.fromZM(zm.qmul(orietation, tilt));
 
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
         {
