@@ -31,8 +31,14 @@ const ProceduralSkyParams = struct {
 const DrawSkyParams = struct {
     projection: [16]f32,
     view: [16]f32,
+    sun_matrix: [16]f32,
+    moon_matrix: [16]f32,
+    sun_direction: [3]f32,
+    sun_intensity: f32,
     moon_direction: [3]f32,
     moon_intensity: f32,
+    sun_color: [3]f32,
+    moon_texture_index: u32,
     time_of_day_percent: f32,
     _pad0: [3]f32,
 };
@@ -47,6 +53,7 @@ pub const ProceduralSkyboxPass = struct {
     starfield_cubemap: renderer.TextureHandle,
     skybox_mesh_handle: renderer.LegacyMeshHandle,
     skybox_mesh: renderer.LegacyMesh,
+    moon_texture: renderer.TextureHandle,
 
     procedural_sky_descriptor_set: [*c]graphics.DescriptorSet = undefined,
     draw_sky_descriptor_set: [*c]graphics.DescriptorSet = undefined,
@@ -73,6 +80,9 @@ pub const ProceduralSkyboxPass = struct {
             break :blk buffers;
         };
 
+        // Load moon texture
+        self.moon_texture = rctx.loadTexture("textures/skybox/moon.dds");
+
         // Load starfield cubemap
         {
             var desc = std.mem.zeroes(graphics.TextureDesc);
@@ -90,8 +100,7 @@ pub const ProceduralSkyboxPass = struct {
             desc.mMipLevels = 1;
             desc.mFormat = graphics.TinyImageFormat.R16G16B16A16_SFLOAT;
             desc.mStartState = graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE;
-            desc.mDescriptors = .{
-                .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
+            desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE_CUBE.bits };
             desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
             desc.bBindless = false;
             desc.pName = "Skybox Cubemap";
@@ -166,8 +175,14 @@ pub const ProceduralSkyboxPass = struct {
         {
             var draw_sky_data: DrawSkyParams = std.mem.zeroes(DrawSkyParams);
             draw_sky_data.time_of_day_percent = self.renderer.time_of_day_01;
+            draw_sky_data.sun_direction = self.renderer.sun_light.direction;
+            draw_sky_data.sun_color = self.renderer.sun_light.color;
+            draw_sky_data.sun_intensity = self.renderer.sun_light.intensity;
             draw_sky_data.moon_direction = self.renderer.moon_light.direction;
             draw_sky_data.moon_intensity = self.renderer.moon_light.intensity;
+            draw_sky_data.sun_matrix = self.renderer.sun_light.world_inv;
+            draw_sky_data.moon_matrix = self.renderer.moon_light.world_inv;
+            draw_sky_data.moon_texture_index = self.renderer.getTextureBindlessIndex(self.moon_texture);
             zm.storeMat(&draw_sky_data.projection, render_view.projection);
             zm.storeMat(&draw_sky_data.view, render_view.view);
 
@@ -230,8 +245,7 @@ pub const ProceduralSkyboxPass = struct {
     }
 
     pub fn renderImGui(_: *@This()) void {
-        if (zgui.collapsingHeader("Procedural Skybox", .{})) {
-        }
+        if (zgui.collapsingHeader("Procedural Skybox", .{})) {}
     }
 
     pub fn createDescriptorSets(self: *@This()) void {

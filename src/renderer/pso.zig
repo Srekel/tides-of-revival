@@ -256,7 +256,7 @@ pub const PSOManager = struct {
 
             // Draw Sky
             {
-                var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
+                var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge};
                 const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
                 const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_GREATER);

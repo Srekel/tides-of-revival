@@ -14,16 +14,25 @@ struct VSOutput
 {
     float4 Position : SV_Position;
     float3 UV : TEXCOORD0;
+    float3 SunPosition : TEXCOORD1;
+    float3 MoonPosition : TEXCOORD2;
 };
 
 SamplerState g_linear_repeat_sampler : register(s0);
+SamplerState g_linear_clamp_edge_sampler : register(s1);
 
 cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
     float4x4 g_proj_mat;
     float4x4 g_view_mat;
+    float4x4 g_sun_mat;
+    float4x4 g_moon_mat;
+    float3 sun_direction;
+    float sun_intensity;
     float3 moon_direction;
     float moon_intensity;
+    float3 sun_color;
+    uint g_moon_texture_index;
     float g_time_of_day_01;
     float3 _pad0;
 };

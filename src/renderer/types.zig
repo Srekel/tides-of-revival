@@ -32,7 +32,7 @@ pub const DirectionalLight = extern struct {
     shadow_range: f32,
     _pad: [2]f32,
     shadow_map_dimensions: i32,
-    view_proj: [16]f32,
+    world_inv: [16]f32,
 };
 
 pub const HeightFogSettings = struct {

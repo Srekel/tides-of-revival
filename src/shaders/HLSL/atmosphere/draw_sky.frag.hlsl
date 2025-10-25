@@ -45,11 +45,26 @@ float4 PS_MAIN(VSOutput Input) : SV_Target
     // Skybox
     float3 skybox = skybox_cubemap.Sample(g_linear_repeat_sampler, uv).rgb;
 
+    float3 sun = 0;
+    float3 sun_normal = 0;
+    if (RayTraceSphere(float3(0, 0, 0), uv, normalize(sun_direction), 0.075, sun_normal).r > 0)
+    {
+        sun = sun_color;
+        starfield = 0;
+    }
+
     // Moon
+    Texture2D moon_texture = ResourceDescriptorHeap[g_moon_texture_index];
+
+    float3 moon = 0;
     float3 moon_normal = 0;
-    float3 moon = RayTraceSphere(0, uv, normalize(moon_direction), 0.035, moon_normal);
-    moon = lerp(skybox, moon, moon_intensity);
+    if (RayTraceSphere(float3(0, 0, 0), uv, normalize(moon_direction), 0.1, moon_normal).r > 0)
+    {
+        float4 moon_sample = moon_texture.Sample(g_linear_clamp_edge_sampler, (Input.MoonPosition.xy * 4) + float2(0.5, 0.5));
+        moon = moon_sample.rgb * moon_sample.a * moon_intensity;
+        starfield = 0;
+    }
 
     // Composite
-    return float4(skybox + starfield + moon, 1.0f);
+    return float4(skybox + sun + moon + starfield, 1.0f);
 }

@@ -253,7 +253,9 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
             light: *const fd.DirectionalLight,
             rotation: *const fd.Rotation,
         });
-        const z_forward = zm.rotate(sun_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
+        const z_quat = sun_comps.rotation.asZM();
+        const z_mat = zm.matFromQuat(z_quat);
+        const z_forward = zm.rotate(z_quat, zm.Vec{ 0, 0, 1, 0 });
         update_desc.sun_light = renderer_types.DirectionalLight{
             .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
             .shadow_map = 0,
@@ -262,8 +264,9 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
             .shadow_range = sun_comps.light.shadow_range,
             ._pad = [2]f32{ 42, 42 },
             .shadow_map_dimensions = 0,
-            .view_proj = [16]f32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+            .world_inv = undefined,
         };
+        zm.storeMat(&update_desc.sun_light.world_inv, zm.inverse(z_mat));
     }
 
     // Find moon light
@@ -273,7 +276,9 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
             light: *const fd.DirectionalLight,
             rotation: *const fd.Rotation,
         });
-        const z_forward = zm.rotate(moon_comps.rotation.asZM(), zm.Vec{ 0, 0, 1, 0 });
+        const z_quat = moon_comps.rotation.asZM();
+        const z_mat = zm.matFromQuat(z_quat);
+        const z_forward = zm.rotate(z_quat, zm.Vec{ 0, 0, 1, 0 });
         update_desc.moon_light = renderer_types.DirectionalLight{
             .direction = [3]f32{ -z_forward[0], -z_forward[1], -z_forward[2] },
             .shadow_map = 0,
@@ -282,8 +287,9 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
             .shadow_range = moon_comps.light.shadow_range,
             ._pad = [2]f32{ 42, 42 },
             .shadow_map_dimensions = 0,
-            .view_proj = [16]f32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+            .world_inv = undefined,
         };
+        zm.storeMat(&update_desc.moon_light.world_inv, zm.inverse(z_mat));
     }
 
     // Find all point lights
