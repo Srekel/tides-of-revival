@@ -603,7 +603,7 @@ const SplitIfNearPlayer = struct {
         enemy.idling = false;
 
         var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
-        health.value = enemy.base_scale * enemy.base_scale * enemy.base_scale;
+        health.value = enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale;
 
         var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
         pos.y += 5;

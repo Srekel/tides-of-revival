@@ -262,7 +262,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
         const scale: f32 = 1;
         ent.set(fd.Scale.createScalar(scale));
-        ent.set(fd.Health{ .value = 10000 });
+        ent.set(fd.Health{ .value = 100000 });
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
 
         ent.set(fd.Enemy{ .base_scale = 10 });
