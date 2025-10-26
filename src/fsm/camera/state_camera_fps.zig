@@ -377,7 +377,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     ray_origin[2] + ray_dir[2] * result.hit.fraction,
                 };
 
-                environment_info.journey_time_multiplier = 20 + dist_as_the_crow_flies * 0.25;
+                environment_info.journey_time_multiplier = 100 + dist_as_the_crow_flies * 0.5;
                 environment_info.journey_time_end = environment_info.world_time + duration;
                 std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
                     environment_info.world_time,
