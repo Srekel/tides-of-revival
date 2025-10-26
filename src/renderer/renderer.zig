@@ -683,6 +683,7 @@ pub const Renderer = struct {
             .color = update_desc.sun_light.color,
             .intensity = update_desc.sun_light.intensity,
             .cast_shadows = 1,
+            .shadow_intensity = update_desc.sun_light.shadow_intensity,
         }) catch unreachable;
 
         lights.append(.{
@@ -691,6 +692,7 @@ pub const Renderer = struct {
             .color = update_desc.moon_light.color,
             .intensity = update_desc.moon_light.intensity,
             .cast_shadows = 0,
+            .shadow_intensity = update_desc.moon_light.shadow_intensity,
         }) catch unreachable;
 
         for (update_desc.point_lights.items) |point_light| {
@@ -700,6 +702,7 @@ pub const Renderer = struct {
                 .radius = point_light.radius,
                 .color = point_light.color,
                 .intensity = point_light.intensity,
+                .shadow_intensity = 0,
             }) catch unreachable;
         }
 

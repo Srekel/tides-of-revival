@@ -684,7 +684,7 @@ fn renderShadowMap(cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView,
         zm.f32x4(0.0, 1.0, 0.0, 0.0),
     );
 
-    const shadow_range = sun_comps.light.shadow_range;
+    const shadow_range = 100;
     const z_proj = zm.orthographicLh(shadow_range, shadow_range, -500.0, 500.0);
     const z_proj_view = zm.mul(z_view, z_proj);
     zm.storeMat(&self.shadows_uniform_frame_data.projection_view, z_proj_view);

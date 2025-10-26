@@ -524,24 +524,37 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         sun_rotation.fromZM(zm.qmul(orietation, tilt));
 
         var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
+        // Intensity curve
         {
             const curve = utility_scoring.Curve{
-                0.9, 1.0, 1.0, 0.6,
-                0.1, 0.0, 0.0, 0.5,
-                0.9,
+                1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+                1.0,
             };
             const intensity_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
             sun_light.?.intensity = 5 * intensity_multiplier;
         }
+        // Color curve
+        // TODO(gmodarelli): Replace with gradient
         {
             const curve = utility_scoring.Curve{
-                0.5, 1.0, 1.0, 1.0,
-                0.6, 0.2, 0.0, 0.25,
+                0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                0.6, 0.6, 0.6, 0.2, 0.2, 0.2, 0.0, 0.0, 0.0, 0.25, 0.25, 0.25,
                 0.5,
             };
             const gb_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
             sun_light.?.color.g = gb_multiplier;
             sun_light.?.color.b = gb_multiplier;
+        }
+        // Shadow intensity curve
+        {
+            const curve = utility_scoring.Curve{
+                0.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0,
+            };
+            const shadow_intensity: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
+            sun_light.?.shadow_intensity = shadow_intensity;
         }
     }
 
@@ -551,9 +564,9 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         var moon_light = moon_entity.?.getMut(fd.DirectionalLight);
         {
             const curve = utility_scoring.Curve{
-                0.1, 0.0, 0.0, 0.4,
-                0.9, 1.0, 1.0, 0.5,
-                0.1,
+                0.2, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                0.2,
             };
             const intensity_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
             moon_light.?.intensity = intensity_multiplier;

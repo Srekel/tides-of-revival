@@ -61,8 +61,9 @@ struct GpuLight
 	float3 color;
 	float intensity;
 	uint cast_shadows; // 0 - No, 1 - Yes
-	float radius;	   // Unused for directional light
-	float2 _padding;
+	float shadow_intensity;
+	float radius; // Unused for directional light
+	float _padding;
 };
 
 struct PointLight

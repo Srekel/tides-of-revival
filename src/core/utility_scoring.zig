@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Curve = [9]f32;
+pub const Curve = [25]f32;
 
 pub const Utility = struct {
     xs: []f32,
@@ -8,15 +8,15 @@ pub const Utility = struct {
 };
 
 pub fn eval_linear_curve(x_value_0_1: f32, curve_ys: Curve) f32 {
-    const value = x_value_0_1 * 8;
-    return eval_linear_curve_8(value, curve_ys);
+    const value = x_value_0_1 * 24;
+    return eval_linear_curve_24(value, curve_ys);
 }
 
-pub fn eval_linear_curve_8(x_value_0_8: f32, curve_ys: Curve) f32 {
-    const x_before = @floor(x_value_0_8);
+pub fn eval_linear_curve_24(x_value_0_24: f32, curve_ys: Curve) f32 {
+    const x_before = @floor(x_value_0_24);
     const index1: u8 = @intFromFloat(x_before);
     const index2 = index1 + 1;
-    const lerp_t: f32 = (x_value_0_8 - x_before);
+    const lerp_t: f32 = (x_value_0_24 - x_before);
     const y_before = curve_ys[index1];
     const y_after = curve_ys[index2];
     const y_value = std.math.lerp(y_before, y_after, lerp_t);
@@ -26,7 +26,7 @@ pub fn eval_linear_curve_8(x_value_0_8: f32, curve_ys: Curve) f32 {
 pub fn calc_utility(utility: Utility) f32 {
     var score: f32 = 1;
     for (utility.xs, utility.curves) |x, curve| {
-        score *= eval_linear_curve_8(x, curve);
+        score *= eval_linear_curve_24(x, curve);
     }
     return score;
 }

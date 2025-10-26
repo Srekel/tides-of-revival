@@ -192,7 +192,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     float attenuation = 1.0f;
     if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
     {
-        attenuation = lerp(1.0, Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x), saturate(sun.intensity));
+        attenuation = lerp(1.0, Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x), saturate(sun.shadow_intensity));
     }
 
 #if 0

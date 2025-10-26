@@ -27,8 +27,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     sun_ent.set(fd.Rotation.initFromEulerDegrees(0.0, 0.0, 0.0));
     sun_ent.set(fd.DirectionalLight{
         .color = .{ .r = 1.0, .g = 1.0, .b = 1.0 },
-        .intensity = 10.0,
-        .shadow_range = 100.0,
+        .intensity = 5.0,
+        .shadow_intensity = 1.0,
         .cast_shadows = true,
         .shadow_cascades = 4,
         .pssm_factor = 0.85,
@@ -38,8 +38,8 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     moon_ent.set(fd.Rotation.initFromEulerDegrees(45.0, 0.0, 45.0));
     moon_ent.set(fd.DirectionalLight{
         .color = .{ .r = 0.79, .g = 0.93, .b = 1.0 },
-        .intensity = 5.0,
-        .shadow_range = 0.0,
+        .intensity = 1.0,
+        .shadow_intensity = 0.0,
         .cast_shadows = false,
         .shadow_cascades = 0,
         .pssm_factor = 0.0,
