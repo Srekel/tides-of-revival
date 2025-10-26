@@ -170,8 +170,8 @@ float3 ApplyFog(float3 color, float viewDistance, float3 rayDirection, float3 su
 {
     float fogAmount = 1.0 - exp(-viewDistance * g_fog_density);
     float sunAmount = max(0.0, dot(rayDirection, sunDirection)) * saturate(sunIntensity);
-    float3 fogColor = lerp(g_fog_color,             // fog color
-                           float3(1.0, 0.95, 0.83), // sun color
+    float3 fogColor = lerp(sRGBToLinear_Float3(g_fog_color), // fog color
+                           float3(1.0, 0.95, 0.83),          // sun color
                            pow(sunAmount, 8.0));
 
     return lerp(color, fogColor, fogAmount);

@@ -40,7 +40,8 @@ const DrawSkyParams = struct {
     sun_color: [3]f32,
     moon_texture_index: u32,
     time_of_day_percent: f32,
-    _pad0: [3]f32,
+    time: f32,
+    _pad0: [2]f32,
 };
 
 pub const ProceduralSkyboxPass = struct {
@@ -81,7 +82,7 @@ pub const ProceduralSkyboxPass = struct {
         };
 
         // Load moon texture
-        self.moon_texture = rctx.loadTexture("textures/skybox/moon.dds");
+        self.moon_texture = rctx.loadTexture("textures/skybox/icy_moon.dds");
 
         // Load starfield cubemap
         {
@@ -175,6 +176,7 @@ pub const ProceduralSkyboxPass = struct {
         {
             var draw_sky_data: DrawSkyParams = std.mem.zeroes(DrawSkyParams);
             draw_sky_data.time_of_day_percent = self.renderer.time_of_day_01;
+            draw_sky_data.time = @floatCast(self.renderer.time);
             draw_sky_data.sun_direction = self.renderer.sun_light.direction;
             draw_sky_data.sun_color = self.renderer.sun_light.color;
             draw_sky_data.sun_intensity = self.renderer.sun_light.intensity;

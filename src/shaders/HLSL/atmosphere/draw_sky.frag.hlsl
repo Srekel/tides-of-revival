@@ -3,6 +3,7 @@
 
 #define PI 3.14159265359
 #include "draw_sky_resources.hlsli"
+#include "../utils.hlsli"
 
 float RayTraceSphere(float3 origin, float3 direction, float3 position, float radius, out float3 normal)
 {
@@ -31,6 +32,15 @@ float3 RotateAroundY(float3 direction, float radians)
     return float3(mul(m, direction.xz), direction.y).xzy;
 }
 
+float2 SampleSphericalMap(float3 v)
+{
+    const float2 invAtan = float2(0.1591, 0.3183);
+    float2 uv = float2(atan2(v.z, v.x), asin(v.y));
+    uv *= invAtan;
+    uv += 0.5;
+    return uv;
+}
+
 float4 PS_MAIN(VSOutput Input) : SV_Target
 {
     float3 uv = normalize(Input.UV);
@@ -49,7 +59,7 @@ float4 PS_MAIN(VSOutput Input) : SV_Target
     float3 sun_normal = 0;
     if (RayTraceSphere(float3(0, 0, 0), uv, normalize(sun_direction), 0.075, sun_normal).r > 0)
     {
-        sun = sun_color * sun_intensity;
+        sun = sRGBToLinear_Float3(sun_color) * sun_intensity;
         starfield = 0;
     }
 
@@ -60,8 +70,11 @@ float4 PS_MAIN(VSOutput Input) : SV_Target
     float3 moon_normal = 0;
     if (RayTraceSphere(float3(0, 0, 0), uv, normalize(moon_direction), 0.1, moon_normal).r > 0)
     {
-        float4 moon_sample = moon_texture.Sample(g_linear_clamp_edge_sampler, (Input.MoonPosition.xy * 4) + float2(0.5, 0.5));
-        moon = moon_sample.rgb * moon_sample.a * moon_intensity;
+        moon_normal = RotateAroundY(moon_normal, frac(g_time * 0.0025) * PI * 2.0f);
+        float2 moon_uv = SampleSphericalMap(moon_normal);
+        // float4 moon_sample = moon_texture.Sample(g_linear_clamp_edge_sampler, (Input.MoonPosition.xy * 4) + float2(0.5, 0.5));
+        float4 moon_sample = moon_texture.Sample(g_linear_clamp_edge_sampler, moon_uv);
+        moon = moon_sample.rgb * 2.0 * moon_intensity;
         starfield = 0;
     }
 

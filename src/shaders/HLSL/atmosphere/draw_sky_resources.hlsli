@@ -34,7 +34,8 @@ cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
     float3 sun_color;
     uint g_moon_texture_index;
     float g_time_of_day_01;
-    float3 _pad0;
+    float g_time;
+    float2 g_pad0;
 };
 
 TextureCube<float4> skybox_cubemap : register(t0, UPDATE_FREQ_PER_FRAME);
