@@ -540,16 +540,19 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         }
 
         // Sun color curve
-        // TODO(gmodarelli): Replace with gradient
         {
-            const curve = utility_scoring.Curve{
-                0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-                0.6, 0.6, 0.6, 0.2, 0.2, 0.2, 0.0, 0.0, 0.0, 0.25, 0.25, 0.25,
-                0.5,
-            };
-            const gb_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
-            sun_light.?.color.g = gb_multiplier;
-            sun_light.?.color.b = gb_multiplier;
+            var gradient = utility_scoring.Gradient{};
+            gradient.colors_count = 4;
+            gradient.colors[0] = fd.ColorRGB.init(1.0, 0.6041559, 0.2471698);
+            gradient.positions[0] = 0.0;
+            gradient.colors[1] = fd.ColorRGB.init(1.0, 0.9568627, 0.8392157);
+            gradient.positions[1] = 2.0 * (1.0 / 24.0);
+            gradient.colors[2] = fd.ColorRGB.init(1.0, 0.9568627, 0.8392157);
+            gradient.positions[2] = gradient.positions[1] + 7.0 * (1.0 / 24.0);
+            gradient.colors[3] = fd.ColorRGB.init(1.0, 0.6041559, 0.2471698);
+            gradient.positions[3] = gradient.positions[2] + 2.0 * (1.0 / 24.0);
+
+            sun_light.?.color = gradient.sample(@floatCast(environment_info.time_of_day_percent));
         }
 
         // Sun shadow intensity curve

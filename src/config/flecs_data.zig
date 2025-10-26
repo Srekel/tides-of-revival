@@ -98,6 +98,14 @@ pub const ColorRGB = struct {
     pub fn elemsConst(self: *const ColorRGB) *const [3]f32 {
         return @as(*const [3]f32, @ptrCast(&self.r));
     }
+
+    pub fn lerp(a: ColorRGB, b: ColorRGB, t: f32) ColorRGB {
+        return ColorRGB.init(
+            std.math.lerp(a.r, b.r, t),
+            std.math.lerp(a.g, b.g, t),
+            std.math.lerp(a.b, b.b, t)
+        );
+    }
 };
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
 
