@@ -68,6 +68,7 @@ const SystemUpdateContext = struct {
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
     state: struct {
         crosshair_ent: ecsu.Entity,
+        boot_ent: ecsu.Entity,
     },
 };
 
@@ -79,10 +80,18 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .texture = crosshair_texture,
     } });
 
+    const boot_texture = create_ctx.renderer.loadTexture("textures/ui/boot.dds");
+    var boot_ent = create_ctx.ecsu_world.newEntity();
+    boot_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+        .color = [4]f32{ 1, 1, 1, 1 },
+        .texture = boot_texture,
+    } });
+
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .crosshair_ent = crosshair_ent,
+        .boot_ent = boot_ent,
     };
 
     {
@@ -349,9 +358,25 @@ fn updateArrows(it: *ecs.iter_t) callconv(.C) void {
     }
 }
 
+var boot_color = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
+var boot_color_target = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
 fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
+
+    const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    boot_color_target = switch (environment_info.can_journey) {
+        .aiming_sky => [4]f32{ 0.0, 0.0, 0.0, 0.0 },
+        .no => [4]f32{ 1.0, 0.0, 0.0, 1.0 },
+        .yes => [4]f32{ 0.8, 0.8, 0.8, 0.75 },
+    };
+    if (environment_info.journey_state != .not or environment_info.rest_state != .not) {
+        boot_color_target = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
+    }
+    boot_color[0] = std.math.lerp(boot_color[0], boot_color_target[0], 0.05);
+    boot_color[1] = std.math.lerp(boot_color[1], boot_color_target[1], 0.05);
+    boot_color[2] = std.math.lerp(boot_color[2], boot_color_target[2], 0.05);
+    boot_color[3] = std.math.lerp(boot_color[3], boot_color_target[3], 0.05);
 
     var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
     const cam_comps = cam_ent.getComps(struct {
@@ -401,6 +426,10 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const ui_image = system.state.crosshair_ent.getMut(fd.UIImage).?;
     ui_image.*.rect = [4]f32{ top, bottom, left, right };
     ui_image.*.material.color = crosshair_color;
+
+    const boot_image = system.state.boot_ent.getMut(fd.UIImage).?;
+    boot_image.*.rect = [4]f32{ top + 20 + 8, bottom + 20 - 8, left + 8, right - 8 };
+    boot_image.*.material.color = boot_color;
 }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
