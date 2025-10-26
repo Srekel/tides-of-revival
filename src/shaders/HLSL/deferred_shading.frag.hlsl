@@ -166,6 +166,17 @@ float Shadow3x3PCF(float3 P, const int cascadeIndex, float invShadowSize)
     return result * result;
 }
 
+float3 ApplyFog(float3 color, float viewDistance, float3 rayDirection, float3 sunDirection, float sunIntensity)
+{
+    float fogAmount = 1.0 - exp(-viewDistance * g_fog_density);
+    float sunAmount = max(0.0, dot(rayDirection, sunDirection)) * saturate(sunIntensity);
+    float3 fogColor = lerp(g_fog_color,             // fog color
+                           float3(1.0, 0.95, 0.83), // sun color
+                           pow(sunAmount, 8.0));
+
+    return lerp(color, fogColor, fogAmount);
+}
+
 float4 PS_MAIN(VsOut Input) : SV_TARGET0
 {
     INIT_MAIN;
@@ -225,10 +236,9 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
         Lo += ShadeLight(light, surfaceInfo, attenuation);
     }
 
-    // Simple depth-based fog
-    float view_distance = length(g_cam_pos.xyz - P.xyz);
-    float fog_factor = exp(-g_fog_density * view_distance);
-    Lo = lerp(g_fog_color, Lo, saturate(fog_factor));
+    float3 rayDirection = normalize(P.xyz - g_cam_pos.xyz);
+    float viewDistance = length(g_cam_pos.xyz - P.xyz);
+    Lo = ApplyFog(Lo, viewDistance, rayDirection, sun.position, sun.intensity);
 
     RETURN(float4(Lo, 1.0f));
 }

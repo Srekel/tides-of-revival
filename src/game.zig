@@ -597,6 +597,25 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
                 moon_light.?.cast_shadows = false;
             }
         }
+
+        // Fog color curve
+        {
+            const fog_entity = util.getHeightFog(ecsu_world);
+            var depth_fog = fog_entity.?.getMut(fd.HeightFog);
+
+            var gradient = utility_scoring.Gradient{};
+            gradient.colors_count = 4;
+            gradient.colors[0] = fd.ColorRGB.init(0.25, 0.3, 0.35);
+            gradient.positions[0] = 0.0;
+            gradient.colors[1] = fd.ColorRGB.init(0.5, 0.6, 0.7);
+            gradient.positions[1] = 2.0 * (1.0 / 24.0);
+            gradient.colors[2] = fd.ColorRGB.init(0.5, 0.6, 0.7);
+            gradient.positions[2] = gradient.positions[1] + 7.0 * (1.0 / 24.0);
+            gradient.colors[3] = fd.ColorRGB.init(0.25, 0.3, 0.35);
+            gradient.positions[3] = gradient.positions[2] + 2.0 * (1.0 / 24.0);
+
+            depth_fog.?.color = gradient.sample(@floatCast(environment_info.time_of_day_percent));
+        }
     }
 
     once_per_duration_test += dt_game;
