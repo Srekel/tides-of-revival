@@ -512,19 +512,23 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         gameloop_context.time.now = world_time;
     }
 
-    // Sun orientation
+    const sun_entity = util.getSun(ecsu_world);
+    var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
+    const moon_entity = util.getMoon(ecsu_world);
+    var moon_light = moon_entity.?.getMut(fd.DirectionalLight);
+
     {
-        const sun_entity = util.getSun(ecsu_world);
-        const sun_rotation = sun_entity.?.getMut(fd.Rotation).?;
+        // Sun orientation
+        {
+            const sun_rotation = sun_entity.?.getMut(fd.Rotation).?;
+            // Planet tilt 45 deg (on Z axis)
+            const tilt = zm.quatFromRollPitchYaw(0.0, 0.0, std.math.pi * 0.25);
+            // Sun Orientation (on X axis)
+            const orietation = zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau), 0.0, 0.0);
+            sun_rotation.fromZM(zm.qmul(orietation, tilt));
+        }
 
-        // Planet tilt 45 deg (on Z axis)
-        const tilt = zm.quatFromRollPitchYaw(0.0, 0.0, std.math.pi * 0.25);
-        // Sun Orientation (on X axis)
-        const orietation = zm.quatFromRollPitchYaw(@floatCast(environment_info.time_of_day_percent * std.math.tau), 0.0, 0.0);
-        sun_rotation.fromZM(zm.qmul(orietation, tilt));
-
-        var sun_light = sun_entity.?.getMut(fd.DirectionalLight);
-        // Intensity curve
+        // Sun intensity curve
         {
             const curve = utility_scoring.Curve{
                 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
@@ -534,7 +538,8 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             const intensity_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
             sun_light.?.intensity = 5 * intensity_multiplier;
         }
-        // Color curve
+
+        // Sun color curve
         // TODO(gmodarelli): Replace with gradient
         {
             const curve = utility_scoring.Curve{
@@ -546,7 +551,8 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             sun_light.?.color.g = gb_multiplier;
             sun_light.?.color.b = gb_multiplier;
         }
-        // Shadow intensity curve
+
+        // Sun shadow intensity curve
         {
             const curve = utility_scoring.Curve{
                 0.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.0,
@@ -555,13 +561,14 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             };
             const shadow_intensity: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
             sun_light.?.shadow_intensity = shadow_intensity;
+            if (sun_light.?.shadow_intensity > 0) {
+                sun_light.?.cast_shadows = true;
+            } else {
+                sun_light.?.cast_shadows = false;
+            }
         }
-    }
 
-    // Moon intensity over time
-    {
-        const moon_entity = util.getMoon(ecsu_world);
-        var moon_light = moon_entity.?.getMut(fd.DirectionalLight);
+        // Moon Intensity curve
         {
             const curve = utility_scoring.Curve{
                 0.2, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -570,6 +577,22 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             };
             const intensity_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
             moon_light.?.intensity = intensity_multiplier;
+        }
+
+        // Moon shadow intensity curve
+        {
+            const curve = utility_scoring.Curve{
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.0,
+                0.0,
+            };
+            const shadow_intensity: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
+            moon_light.?.shadow_intensity = shadow_intensity;
+            if (moon_light.?.shadow_intensity > 0 and !sun_light.?.cast_shadows) {
+                moon_light.?.cast_shadows = true;
+            } else {
+                moon_light.?.cast_shadows = false;
+            }
         }
     }
 

@@ -258,13 +258,11 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         const z_forward = zm.normalize3(zm.rotate(z_quat, zm.Vec{ 0, 0, -1, 0 }));
         update_desc.sun_light = renderer_types.DirectionalLight{
             .direction = [3]f32{ z_forward[0], z_forward[1], z_forward[2] },
-            .shadow_map = 0,
             .color = [3]f32{ sun_comps.light.color.r, sun_comps.light.color.g, sun_comps.light.color.b },
             .intensity = sun_comps.light.intensity,
-            .shadow_intensity = sun_comps.light.shadow_intensity,
-            ._pad = [2]f32{ 42, 42 },
-            .shadow_map_dimensions = 0,
             .world_inv = undefined,
+            .cast_shadows = sun_comps.light.cast_shadows,
+            .shadow_intensity = sun_comps.light.shadow_intensity,
         };
         zm.storeMat(&update_desc.sun_light.world_inv, zm.inverse(z_mat));
     }
@@ -281,13 +279,11 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         const z_forward = zm.rotate(z_quat, zm.Vec{ 0, 0, -1, 0 });
         update_desc.moon_light = renderer_types.DirectionalLight{
             .direction = [3]f32{ z_forward[0], z_forward[1], z_forward[2] },
-            .shadow_map = 0,
             .color = [3]f32{ moon_comps.light.color.r, moon_comps.light.color.g, moon_comps.light.color.b },
             .intensity = moon_comps.light.intensity,
-            .shadow_intensity = moon_comps.light.shadow_intensity,
-            ._pad = [2]f32{ 42, 42 },
-            .shadow_map_dimensions = 0,
             .world_inv = undefined,
+            .cast_shadows = moon_comps.light.cast_shadows,
+            .shadow_intensity = moon_comps.light.shadow_intensity,
         };
         zm.storeMat(&update_desc.moon_light.world_inv, zm.inverse(z_mat));
     }

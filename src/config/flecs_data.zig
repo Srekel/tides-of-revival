@@ -570,8 +570,6 @@ pub const DirectionalLight = struct {
     intensity: f32,
     shadow_intensity: f32,
     cast_shadows: bool,
-    shadow_cascades: u32,
-    pssm_factor: f32,
 };
 
 pub const PointLight = struct {

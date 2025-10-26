@@ -68,7 +68,7 @@ float3 WorldPositionFromDepth(float2 uv, float depth, float4x4 viewProjectionInv
     return world.xyz / world.w;
 }
 
-uint GetSunShadowMapIndex(float viewDepth /*, float dither */)
+uint GetShadowMapIndex(float viewDepth /*, float dither */)
 {
     float4 splits = viewDepth > g_cascade_depths;
     float4 cascades = g_cascade_depths > 0;
@@ -171,6 +171,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     INIT_MAIN;
     ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
     GpuLight sun = lightsBuffer.Load<GpuLight>(0);
+    GpuLight moon = lightsBuffer.Load<GpuLight>(1 * sizeof(GpuLight));
 
     float4 baseColor = SampleLvlTex2D(Get(gBuffer0), Get(g_linear_clamp_edge_sampler), Input.UV, 0);
     if (baseColor.a <= 0)
@@ -188,11 +189,12 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     float linearDepth = viewPos.z;
     // TODO
     // float dither = InterleavedGradientNoise(positionCS.xy);
-    const uint cascadeIndex = GetSunShadowMapIndex(linearDepth /*, dither */);
+    const uint cascadeIndex = GetShadowMapIndex(linearDepth /*, dither */);
     float attenuation = 1.0f;
     if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
     {
-        attenuation = lerp(1.0, Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x), saturate(sun.shadow_intensity));
+        float shadow_intensity = max(sun.shadow_intensity, moon.shadow_intensity);
+        attenuation = lerp(1.0, Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x), shadow_intensity);
     }
 
 #if 0

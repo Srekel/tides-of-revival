@@ -60,27 +60,9 @@ struct GpuLight
 	uint light_type; // 0 - Directional, 1 - Point
 	float3 color;
 	float intensity;
-	uint cast_shadows; // 0 - No, 1 - Yes
-	float shadow_intensity;
 	float radius; // Unused for directional light
-	float _padding;
-};
-
-struct PointLight
-{
-	float4 positionAndRadius;
-	float4 colorAndIntensity;
-};
-
-struct DirectionalLight
-{
-	float4 directionAndShadowMap;
-	float4 colorAndIntensity;
-	float shadowRange;
-	float _pad0;
-	float _pad1;
-	int shadowMapDimensions;
-	float4x4 viewProj;
+	float shadow_intensity;
+	float2 _padding;
 };
 
 // NOTE: We will get rid of these once we stop using InputLayouts for our PSOs.

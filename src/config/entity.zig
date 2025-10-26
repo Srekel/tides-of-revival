@@ -30,8 +30,6 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .intensity = 5.0,
         .shadow_intensity = 1.0,
         .cast_shadows = true,
-        .shadow_cascades = 4,
-        .pssm_factor = 0.85,
     });
 
     const moon_ent = ecsu_world.newEntity();
@@ -41,8 +39,6 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .intensity = 1.0,
         .shadow_intensity = 0.0,
         .cast_shadows = false,
-        .shadow_cascades = 0,
-        .pssm_factor = 0.0,
     });
 
     const height_fog_ent = ecsu_world.newEntity();

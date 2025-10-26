@@ -150,6 +150,7 @@ pub const Renderer = struct {
     linear_depth_buffers: [2]TextureHandle = .{ undefined, undefined },
 
     // Shadows
+    shadow_pssm_factor: f32 = 0.85,
     shadow_cascade_depths: [cascades_max_count]f32 = undefined,
     shadow_views: [cascades_max_count]RenderView = undefined,
     shadow_depth_buffers: [cascades_max_count][*c]graphics.RenderTarget = undefined,
@@ -682,7 +683,6 @@ pub const Renderer = struct {
             .position = update_desc.sun_light.direction,
             .color = update_desc.sun_light.color,
             .intensity = update_desc.sun_light.intensity,
-            .cast_shadows = 1,
             .shadow_intensity = update_desc.sun_light.shadow_intensity,
         }) catch unreachable;
 
@@ -691,7 +691,6 @@ pub const Renderer = struct {
             .position = update_desc.moon_light.direction,
             .color = update_desc.moon_light.color,
             .intensity = update_desc.moon_light.intensity,
-            .cast_shadows = 0,
             .shadow_intensity = update_desc.moon_light.shadow_intensity,
         }) catch unreachable;
 
@@ -702,7 +701,6 @@ pub const Renderer = struct {
                 .radius = point_light.radius,
                 .color = point_light.color,
                 .intensity = point_light.intensity,
-                .shadow_intensity = 0,
             }) catch unreachable;
         }
 
@@ -1224,15 +1222,7 @@ pub const Renderer = struct {
         const min_point: f32 = 0;
         const max_point: f32 = 1;
 
-        const sun_entity = util.getSun(self.ecsu_world);
-        const sun_comps = sun_entity.?.getComps(struct {
-            rotation: *const fd.Rotation,
-            light: *const fd.DirectionalLight,
-        });
-
-        const cascades_count = sun_comps.light.shadow_cascades;
-        std.debug.assert(cascades_count <= cascades_max_count);
-        const pssm_factor = sun_comps.light.pssm_factor;
+        const shadow_caster_comps = self.getShadowCastingLight();
 
         var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
         const camera_comps = camera_entity.getComps(struct {
@@ -1250,11 +1240,11 @@ pub const Renderer = struct {
 
         var cascade_splits = std.mem.zeroes([cascades_max_count]f32);
 
-        for (0..cascades_count) |i| {
-            const p: f32 = @as(f32, @floatFromInt(i + 1)) / @as(f32, @floatFromInt(cascades_count));
+        for (0..cascades_max_count) |i| {
+            const p: f32 = @as(f32, @floatFromInt(i + 1)) / @as(f32, @floatFromInt(cascades_max_count));
             const log: f32 = min_z * std.math.pow(f32, max_z / min_z, p);
             const uniform: f32 = min_z + (max_z - min_z) * p;
-            const d: f32 = pssm_factor * (log - uniform) + uniform;
+            const d: f32 = self.shadow_pssm_factor * (log - uniform) + uniform;
             cascade_splits[i] = (d - near_plane) / clip_range;
         }
 
@@ -1289,9 +1279,9 @@ pub const Renderer = struct {
             transformVec3Coord(zm.Vec{ 1, -1, 0, 0 }, view_projection_inverse),
         };
 
-        const light_view = zm.inverse(zm.matFromQuat(sun_comps.rotation.asZM()));
+        const light_view = zm.inverse(zm.matFromQuat(shadow_caster_comps.rotation.asZM()));
         // const light_view = zm.inverse(zm.matFromQuat(zm.quatFromRollPitchYaw(std.math.pi * 0.5, 0.0, 0.0)));
-        for (0..cascades_count) |i| {
+        for (0..cascades_max_count) |i| {
             const previous_cascade_split = if (i == 0) min_point else cascade_splits[i - 1];
             const current_cascade_split = cascade_splits[i];
 
@@ -1363,6 +1353,26 @@ pub const Renderer = struct {
         self.updateBuffer(data_slice, 0, [16]f32, self.light_matrix_buffer.buffer);
         self.light_matrix_buffer.element_count = @intCast(light_view_projections.len);
     }
+
+    fn getShadowCastingLight(self: *Renderer) struct { rotation: *const fd.Rotation, light: *const fd.DirectionalLight } {
+        const sun_entity = util.getSun(self.ecsu_world);
+        const sun_comps = sun_entity.?.getComps(struct {
+            rotation: *const fd.Rotation,
+            light: *const fd.DirectionalLight,
+        });
+
+        const moon_entity = util.getMoon(self.ecsu_world);
+        const moon_comps = moon_entity.?.getComps(struct {
+            rotation: *const fd.Rotation,
+            light: *const fd.DirectionalLight,
+        });
+
+        return .{
+            .rotation = if (moon_comps.light.cast_shadows) moon_comps.rotation else sun_comps.rotation,
+            .light = if (moon_comps.light.cast_shadows) moon_comps.light else sun_comps.light,
+        };
+    }
+
 
     fn orthographicOffCenterLh(left: f32, right: f32, bottom: f32, top: f32, near_z: f32, far_z: f32) zm.Mat {
         const rcp_width = 1.0 / (right - left);

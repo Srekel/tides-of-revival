@@ -12,10 +12,9 @@ pub const GpuLight = struct {
     light_type: u32, // 0 - Directional, 1 - Point
     color: [3]f32,
     intensity: f32,
-    cast_shadows: u32 = 0, // 0 - No, 1 - Yes
-    shadow_intensity: f32,
     radius: f32 = 0, // Unused for directional light
-    _padding: f32 = 42,
+    shadow_intensity: f32 = 0,
+    _padding: [2]f32 = [2]f32{ 42, 42 },
 };
 
 pub const PointLight = extern struct {
@@ -27,13 +26,11 @@ pub const PointLight = extern struct {
 
 pub const DirectionalLight = extern struct {
     direction: [3]f32,
-    shadow_map: i32,
     color: [3]f32,
     intensity: f32,
-    shadow_intensity: f32,
-    _pad: [2]f32,
-    shadow_map_dimensions: i32,
     world_inv: [16]f32,
+    cast_shadows: bool,
+    shadow_intensity: f32,
 };
 
 pub const HeightFogSettings = struct {
