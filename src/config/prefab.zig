@@ -15,6 +15,7 @@ pub var matball: ecsu.Entity = undefined;
 pub var player: ecsu.Entity = undefined;
 pub var slime: ecsu.Entity = undefined;
 pub var slime_trail: ecsu.Entity = undefined;
+pub var campfire: ecsu.Entity = undefined;
 
 pub const arrow_id = ID("prefab_arrow");
 pub const beech_tree_04_id = ID("beech_tree_04");
@@ -647,13 +648,13 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         prefab_mgr.rctx.registerRenderable(brazier_1_id, renderable_desc);
 
-        const entity = prefab_mgr.createRenderablePrefab(brazier_1_id, ecsu_world);
-        var renderable = entity.getMut(fd.Renderable).?;
+        campfire = prefab_mgr.createRenderablePrefab(brazier_1_id, ecsu_world);
+        var renderable = campfire.getMut(fd.Renderable).?;
         renderable.id = brazier_1_id;
 
         // TEMP: Lantern light
         const light_ent = ecsu_world.newEntity();
-        light_ent.childOf(entity);
+        light_ent.childOf(campfire);
         light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
         light_ent.set(fd.Rotation{});
         light_ent.set(fd.Scale.createScalar(1));

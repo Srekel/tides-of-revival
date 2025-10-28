@@ -107,7 +107,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_ent.set(player_comp);
 
     const debug_camera_ent = ecsu_world.newEntity();
-    debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y, .z = player_pos.z });
+    debug_camera_ent.set(fd.Position{ .x = player_pos.x, .y = player_pos.y + 20, .z = player_pos.z });
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
@@ -122,6 +122,11 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     });
     debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
     debug_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Freefly);
+    debug_camera_ent.set(fd.PointLight{
+        .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
+        .range = 20.0,
+        .intensity = 10.0,
+    });
 
     const sphere_prefab = prefab_mgr.getPrefab(config.prefab.sphere_id).?;
     const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
@@ -136,11 +141,11 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Fps);
     player_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), !DEBUG_CAMERA_ACTIVE, 1));
     player_camera_ent.set(fd.Input{ .active = false, .index = 0 });
-    player_camera_ent.set(fd.PointLight{
-        .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
-        .range = 10.0,
-        .intensity = 10.0,
-    });
+    // player_camera_ent.set(fd.PointLight{
+    //     .color = .{ .r = 1, .g = 0.95, .b = 0.75 },
+    //     .range = 10.0,
+    //     .intensity = 10.0,
+    // });
     player_camera_ent.set(fd.Journey{});
     bow_ent.childOf(player_camera_ent);
 

@@ -468,7 +468,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
     // TODO: No, interaction shouldn't be in camera.. :)
     for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
-        _ = transform; // autofix
         _ = journey; // autofix
         _ = pos; // autofix
         _ = input_comp; // autofix
@@ -510,6 +509,29 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.player_state_time = 0;
                     vignette_settings.feather = 1;
                     vignette_settings.radius = 1;
+
+                    // Campfire
+                    const z_mat = zm.loadMat43(transform.matrix[0..]);
+                    const z_pos = zm.util.getTranslationVec(z_mat);
+                    const z_fwd = zm.util.getAxisZ(z_mat);
+
+                    var campfire_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.campfire);
+                    campfire_ent.set(fd.Position{
+                        .x = z_pos[0] + z_fwd[0] * 3,
+                        .y = z_pos[1] - 1.25,
+                        .z = z_pos[2] + z_fwd[2] * 3,
+                    });
+                    campfire_ent.set(fd.Rotation{});
+                    campfire_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+                    campfire_ent.set(fd.Rotation{});
+                    campfire_ent.set(fd.Scale{});
+                    campfire_ent.set(fd.Transform{});
+                    campfire_ent.set(fd.Dynamic{});
+                    campfire_ent.set(fd.PointLight{
+                        .color = .{ .r = 1, .g = 0.8, .b = 0.2 },
+                        .range = 10.0,
+                        .intensity = 10.0,
+                    });
                 }
             },
             .initial_rest => {
