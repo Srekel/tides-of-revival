@@ -462,7 +462,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
     const input_frame_data = ctx.input_frame_data;
     const physics_world_low = ctx.physics_world_low;
-    _ = physics_world_low; // autofix
     var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
 
@@ -503,35 +502,90 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
         switch (environment_info.rest_state) {
             .not => {
+
+                // Campfire
+                const z_mat = zm.loadMat43(transform.matrix[0..]);
+                const z_pos = zm.util.getTranslationVec(z_mat);
+                const z_fwd = zm.util.getAxisZ(z_mat);
+
+                const query = physics_world_low.getNarrowPhaseQuery();
+                const ray_origin = [_]f32{
+                    z_pos[0] + z_fwd[0] * 2,
+                    z_pos[1] - 0.5,
+                    z_pos[2] + z_fwd[2] * 2,
+                    0,
+                };
+                const ray_dir = [_]f32{ 0, -3, 0, 0 };
+                const ray = zphy.RRayCast{
+                    .origin = ray_origin,
+                    .direction = ray_dir,
+                };
+                const result = query.castRay(ray, .{});
+
+                // const color = if (result.has_hit) im3d.Im3d.Color.init5b(1, 1, 1, 1) else im3d.Im3d.Color.init5b(1, 0, 0, 1);
+                // defer im3d.Im3d.DrawLine(
+                //     &.{
+                //         .x = ray_origin[0],
+                //         .y = ray_origin[1],
+                //         .z = ray_origin[2],
+                //     },
+                //     &.{
+                //         .x = ray_origin[0] + ray_dir[0],
+                //         .y = ray_origin[1] + ray_dir[1],
+                //         .z = ray_origin[2] + ray_dir[2],
+                //     },
+                //     1,
+                //     color,
+                // );
+
                 if (input_frame_data.just_pressed(config.input.rest)) {
+                    if (!result.has_hit) {
+                        break;
+                    }
+
                     std.log.info("rest time:{d:.2} mult:{d:.2}", .{ environment_info.world_time, environment_info.journey_time_multiplier });
                     environment_info.rest_state = .transition_in;
                     environment_info.player_state_time = 0;
                     vignette_settings.feather = 1;
                     vignette_settings.radius = 1;
 
-                    // Campfire
-                    const z_mat = zm.loadMat43(transform.matrix[0..]);
-                    const z_pos = zm.util.getTranslationVec(z_mat);
-                    const z_fwd = zm.util.getAxisZ(z_mat);
+                    const DIST_TO_LIGHT = 50;
+                    var it_inner = ecs.each(ctx.ecsu_world.world, fd.PointLight);
+                    const has_nearby_light: bool = blk: {
+                        while (ecs.each_next(&it_inner)) {
+                            for (it_inner.entities()) |ent_light| {
+                                const position_light_opt = ecs.get(ctx.ecsu_world.world, ent_light, fd.Position);
+                                if (position_light_opt) |position_light| {
+                                    const z_position_light = position_light.asZM();
+                                    if (zm.lengthSq3(z_pos - z_position_light)[0] < DIST_TO_LIGHT * DIST_TO_LIGHT) {
+                                        break :blk true;
+                                    }
+                                }
+                            }
+                        }
+                        break :blk false;
+                    };
 
-                    var campfire_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.campfire);
-                    campfire_ent.set(fd.Position{
-                        .x = z_pos[0] + z_fwd[0] * 3,
-                        .y = z_pos[1] - 1.25,
-                        .z = z_pos[2] + z_fwd[2] * 3,
-                    });
-                    campfire_ent.set(fd.Rotation{});
-                    campfire_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
-                    campfire_ent.set(fd.Rotation{});
-                    campfire_ent.set(fd.Scale{});
-                    campfire_ent.set(fd.Transform{});
-                    campfire_ent.set(fd.Dynamic{});
-                    campfire_ent.set(fd.PointLight{
-                        .color = .{ .r = 1, .g = 0.8, .b = 0.2 },
-                        .range = 10.0,
-                        .intensity = 10.0,
-                    });
+                    if (!has_nearby_light) {
+                        const hit_pos = ray.getPointOnRay(result.hit.fraction);
+
+                        var campfire_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.campfire);
+                        campfire_ent.set(fd.Position{
+                            .x = hit_pos[0],
+                            .y = hit_pos[1] - 0.1,
+                            .z = hit_pos[2],
+                        });
+                        campfire_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+                        campfire_ent.set(fd.Rotation{});
+                        campfire_ent.set(fd.Scale{});
+                        campfire_ent.set(fd.Transform{});
+                        campfire_ent.set(fd.Dynamic{});
+                        campfire_ent.set(fd.PointLight{
+                            .color = .{ .r = 1, .g = 0.8, .b = 0.2 },
+                            .range = 10.0,
+                            .intensity = 10.0,
+                        });
+                    }
                 }
             },
             .initial_rest => {

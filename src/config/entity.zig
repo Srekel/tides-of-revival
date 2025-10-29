@@ -111,7 +111,6 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // debug_camera_ent.setPair(fd.Position, fd.LocalSpace, .{ .x = player_pos.x + 100, .y = player_pos.y + 100, .z = player_pos.z + 100 });
     debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
-    debug_camera_ent.set(fd.Rotation{});
     debug_camera_ent.set(fd.Scale{});
     debug_camera_ent.set(fd.Transform{});
     debug_camera_ent.set(fd.Dynamic{});
