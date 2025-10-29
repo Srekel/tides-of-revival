@@ -541,7 +541,7 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
 
         // Sun color curve
         {
-            var gradient = utility_scoring.Gradient{};
+            var gradient = fd.Gradient{};
             gradient.colors_count = 4;
             gradient.colors[0] = fd.ColorRGB.init(1.0, 0.6041559, 0.2471698);
             gradient.positions[0] = 0.0;
@@ -603,7 +603,7 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             const fog_entity = util.getHeightFog(ecsu_world);
             var depth_fog = fog_entity.?.getMut(fd.HeightFog);
 
-            var gradient = utility_scoring.Gradient{};
+            var gradient = fd.Gradient{};
             gradient.colors_count = 4;
             gradient.colors[0] = fd.ColorRGB.init(0.25, 0.3, 0.35);
             gradient.positions[0] = 0.0;

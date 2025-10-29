@@ -109,6 +109,36 @@ pub const ColorRGB = struct {
 };
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
 
+pub const GradientType = enum {
+    blend,
+    fixed,
+};
+
+pub const Gradient = struct {
+    // Arbitrary limit for now
+    pub const colors_count_max: u32 = 8;
+
+    kind: GradientType = .blend,
+
+    colors: [colors_count_max]ColorRGB = undefined,
+    positions: [colors_count_max]f32 = undefined,
+    colors_count: u32 = 0,
+
+    pub fn sample(self: *Gradient, t: f32) ColorRGB {
+        var color= self.colors[0];
+        for (1..colors_count_max) |color_index| {
+            var color_position = (t - self.positions[color_index - 1]) / (self.positions[color_index] - self.positions[color_index - 1]);
+            color_position = std.math.clamp(color_position, 0.0, 1.0);
+            color_position *= if (self.colors_count > color_index) 1.0 else 0.0;
+
+            color_position = std.math.lerp(color_position, @as(f32, if (color_position > 0.01) 1.0 else 0.0), @as(f32, if (self.kind == .blend) 0.0 else 1.0));
+            color = ColorRGB.lerp(color, self.colors[color_index], color_position);
+        }
+
+        return color;
+    }
+};
+
 pub const LocalSpace = struct {};
 pub const WorldSpace = struct {};
 
