@@ -4,6 +4,8 @@ struct CullInstancesParams
 {
     uint candidateMeshletsCountersBufferIndex;
     uint candidateMeshletsBufferIndex;
+    uint shadowPass;
+    float _padding;
 };
 
 cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
@@ -28,8 +30,14 @@ cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
     ByteAddressBuffer mesh_buffer = ResourceDescriptorHeap[g_Frame.meshesBufferIndex];
     Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
 
-    float screenPercentage = CalculateScreenPercentage(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj);
-    bool isVisible = screenPercentage >= instance.screenPercentageMin && screenPercentage < instance.screenPercentageMax;
+    // Screen-size LOD selection
+    // float screenPercentage = CalculateScreenPercentage(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj);
+    // bool isVisible = screenPercentage >= instance.screenPercentageMin && screenPercentage <= instance.screenPercentageMax;
+
+    // Distance-based LOD selection
+    float3 center = mul(float4(instance.localBoundsOrigin, 1.0), instance.world).xyz;
+    float distanceToCamera = max(0.01, length(center - g_Frame.cameraPosition.xyz));
+    bool isVisible = distanceToCamera >= instance.screenPercentageMin && distanceToCamera <= instance.screenPercentageMax;
 
     isVisible &= FrustumCull(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj);
 

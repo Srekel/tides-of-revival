@@ -15,7 +15,7 @@ struct Frame
     float cameraNearPlane;
     float cameraFarPlane;
     float time;
-    uint _padding0;
+    float _pad0;
 
     // Default samplers
     // TODO: Add more default samplers

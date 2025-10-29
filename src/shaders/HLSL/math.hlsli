@@ -1,6 +1,24 @@
 #ifndef _MATH_HLSLI_
 #define _MATH_HLSLI_
 
+#define MATH_PI 3.141592653589f
+#define MATH_TAU MATH_PI * 2.0f
+
+float3 RotateAboutAxis(float3 vector, float3 axis, float rotation)
+{
+    float s = sin(rotation);
+    float c = cos(rotation);
+    float oneMinusC = 1.0 - c;
+
+    axis = normalize(axis);
+    float3x3 rotationMatrix =
+        {oneMinusC * axis.x * axis.x + c, oneMinusC * axis.x * axis.y - axis.z * s, oneMinusC * axis.z * axis.x + axis.y * s,
+         oneMinusC * axis.x * axis.y + axis.z * s, oneMinusC * axis.y * axis.y + c, oneMinusC * axis.y * axis.z - axis.x * s,
+         oneMinusC * axis.z * axis.x - axis.y * s, oneMinusC * axis.y * axis.z + axis.x * s, oneMinusC * axis.z * axis.z + c};
+
+    return mul(rotationMatrix, vector);
+}
+
 void ClipSpaceAabbMinMax(float3 aabb_center, float3 aabb_extents, float4x4 world, float4x4 view_proj, out float3 rect_min, out float3 rect_max)
 {
     float3 ext = aabb_extents * 2.0f;
@@ -51,40 +69,6 @@ void ClipSpaceAabbMinMax(float3 aabb_center, float3 aabb_extents, float4x4 world
 
 float CalculateScreenPercentage(float3 aabb_center, float3 aabb_extents, float4x4 world, float4x4 view_proj)
 {
-#if 0
-    float3 rect_min;
-    float3 rect_max;
-    ClipSpaceAabbMinMax(aabb_center, aabb_extents, world, view_proj, rect_min, rect_max);
-    return distance(rect_min, rect_max) * 0.5f;
-#endif
-
-#if 0
-    // Bounding Sphere test, to improve
-    float radius = max(aabb_extents.x, max(aabb_extents.y, aabb_extents.z));
-
-    float4 x_axis = float4(aabb_center + float3(1, 0, 0) * radius, 1.0f);
-    x_axis = mul(mul(x_axis, world), view_proj);
-    x_axis.xyz /= x_axis.w;
-
-    float4 y_axis = float4(aabb_center + float3(0, 1, 0) * radius, 1.0f);
-    y_axis = mul(mul(y_axis, world), view_proj);
-    y_axis.xyz /= y_axis.w;
-
-    float4 z_axis = float4(aabb_center + float3(0, 0, 1) * radius, 1.0f);
-    z_axis = mul(mul(z_axis, world), view_proj);
-    z_axis.xyz /= z_axis.w;
-
-    float4 center = float4(aabb_center, 1.0f);
-    center = mul(mul(center, world), view_proj);
-    center.xyz /= center.w;
-
-    float d = max(distance(center.xy, x_axis.xy) * 0.5, max(
-                                                            distance(center.xy, y_axis.xy) * 0.5,
-                                                            distance(center.xy, z_axis.xy)));
-
-    return d;
-#endif
-
     return 0.1f;
 }
 

@@ -1373,7 +1373,6 @@ pub const Renderer = struct {
         };
     }
 
-
     fn orthographicOffCenterLh(left: f32, right: f32, bottom: f32, top: f32, near_z: f32, far_z: f32) zm.Mat {
         const rcp_width = 1.0 / (right - left);
         const rcp_height = 1.0 / (top - bottom);

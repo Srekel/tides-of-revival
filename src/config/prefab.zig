@@ -374,32 +374,40 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         prefab_mgr.rctx.loadMaterial(beech_04_impostor_material_id, beech_04_impostor_material) catch unreachable;
 
         var renderable_desc = renderer.RenderableDesc{
-            .lods_count = 4,
+            .lods_count = 3,
             .lods = undefined,
         };
         renderable_desc.lods[0].mesh_id = beech_04_LOD0_id;
         renderable_desc.lods[0].materials_count = 2;
         renderable_desc.lods[0].materials[0] = beech_trunk_04_material_id;
         renderable_desc.lods[0].materials[1] = beech_atlas_v2_material_id;
-        renderable_desc.lods[0].screen_percentage_range[0] = 0.8;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
-        renderable_desc.lods[1].mesh_id = beech_04_LOD1_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.8;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[0] = 0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 60;
+        // renderable_desc.lods[1].mesh_id = beech_04_LOD1_id;
+        // renderable_desc.lods[1].materials_count = 2;
+        // renderable_desc.lods[1].materials[0] = beech_trunk_04_material_id;
+        // renderable_desc.lods[1].materials[1] = beech_atlas_v2_material_id;
+        // // renderable_desc.lods[1].screen_percentage_range[0] = 0.6;
+        // // renderable_desc.lods[1].screen_percentage_range[1] = 0.8;
+        // renderable_desc.lods[1].screen_percentage_range[0] = 19.5;
+        // renderable_desc.lods[1].screen_percentage_range[1] = 40;
+        renderable_desc.lods[1].mesh_id = beech_04_LOD2_id;
         renderable_desc.lods[1].materials_count = 2;
         renderable_desc.lods[1].materials[0] = beech_trunk_04_material_id;
         renderable_desc.lods[1].materials[1] = beech_atlas_v2_material_id;
-        renderable_desc.lods[1].screen_percentage_range[0] = 0.6;
-        renderable_desc.lods[1].screen_percentage_range[1] = 0.8;
-        renderable_desc.lods[2].mesh_id = beech_04_LOD2_id;
-        renderable_desc.lods[2].materials_count = 2;
-        renderable_desc.lods[2].materials[0] = beech_trunk_04_material_id;
-        renderable_desc.lods[2].materials[1] = beech_atlas_v2_material_id;
-        renderable_desc.lods[2].screen_percentage_range[0] = 0.4;
-        renderable_desc.lods[2].screen_percentage_range[1] = 0.6;
-        renderable_desc.lods[3].mesh_id = beech_04_LOD3_id;
-        renderable_desc.lods[3].materials_count = 1;
-        renderable_desc.lods[3].materials[0] = beech_04_impostor_material_id;
-        renderable_desc.lods[3].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[3].screen_percentage_range[1] = 0.4;
+        // renderable_desc.lods[1].screen_percentage_range[0] = 0.4;
+        // renderable_desc.lods[1].screen_percentage_range[1] = 0.6;
+        renderable_desc.lods[1].screen_percentage_range[0] = 59.5;
+        renderable_desc.lods[1].screen_percentage_range[1] = 120;
+        renderable_desc.lods[2].mesh_id = beech_04_LOD3_id;
+        renderable_desc.lods[2].materials_count = 1;
+        renderable_desc.lods[2].materials[0] = beech_04_impostor_material_id;
+        // renderable_desc.lods[2].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[2].screen_percentage_range[1] = 0.4;
+        renderable_desc.lods[2].screen_percentage_range[0] = 119.5;
+        renderable_desc.lods[2].screen_percentage_range[1] = 30000;
 
         prefab_mgr.rctx.registerRenderable(beech_tree_04_id, renderable_desc);
 
@@ -426,8 +434,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].mesh_id = stacked_stones_id;
         renderable_desc.lods[0].materials_count = 1;
         renderable_desc.lods[0].materials[0] = stacked_stone_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(stacked_stones_id, renderable_desc);
 
         const stacked_stones = prefab_mgr.createRenderablePrefab(stacked_stones_id, ecsu_world);
@@ -548,8 +558,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].materials[6] = wood_trim_material_id;
         renderable_desc.lods[0].materials[7] = metal_ornaments_material_id;
         renderable_desc.lods[0].materials[8] = uneven_brick_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(house_3x5_id, renderable_desc);
 
         const entity = prefab_mgr.createRenderablePrefab(house_3x5_id, ecsu_world);
@@ -567,8 +579,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].mesh_id = palisade_400x300_a_id;
         renderable_desc.lods[0].materials_count = 1;
         renderable_desc.lods[0].materials[0] = wood_trim_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(palisade_400x300_a_id, renderable_desc);
 
         const entity = prefab_mgr.createRenderablePrefab(palisade_400x300_a_id, ecsu_world);
@@ -586,8 +600,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].mesh_id = palisade_400x300_b_id;
         renderable_desc.lods[0].materials_count = 1;
         renderable_desc.lods[0].materials[0] = wood_trim_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(palisade_400x300_b_id, renderable_desc);
 
         const entity = prefab_mgr.createRenderablePrefab(palisade_400x300_b_id, ecsu_world);
@@ -605,8 +621,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].mesh_id = palisade_sloped_400x300_a_id;
         renderable_desc.lods[0].materials_count = 1;
         renderable_desc.lods[0].materials[0] = wood_trim_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(palisade_sloped_400x300_a_id, renderable_desc);
 
         const entity = prefab_mgr.createRenderablePrefab(palisade_sloped_400x300_a_id, ecsu_world);
@@ -624,8 +642,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].mesh_id = palisade_sloped_400x300_b_id;
         renderable_desc.lods[0].materials_count = 1;
         renderable_desc.lods[0].materials[0] = wood_trim_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(palisade_sloped_400x300_b_id, renderable_desc);
 
         const entity = prefab_mgr.createRenderablePrefab(palisade_sloped_400x300_b_id, ecsu_world);
@@ -644,8 +664,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].materials_count = 2;
         renderable_desc.lods[0].materials[0] = wood_trim_material_id;
         renderable_desc.lods[0].materials[1] = metal_ornaments_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(brazier_1_id, renderable_desc);
 
         campfire = prefab_mgr.createRenderablePrefab(brazier_1_id, ecsu_world);
@@ -679,8 +701,10 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].materials_count = 2;
         renderable_desc.lods[0].materials[0] = wood_trim_material_id;
         renderable_desc.lods[0].materials[1] = metal_ornaments_material_id;
+        // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+        // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
         renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-        renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+        renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(brazier_2_id, renderable_desc);
 
         const entity = prefab_mgr.createRenderablePrefab(brazier_2_id, ecsu_world);

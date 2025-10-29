@@ -57,7 +57,7 @@ const Frame = struct {
     camera_near_plane: f32,
     camera_far_plane: f32,
     time: f32,
-    _padding0: u32,
+    _padding0: f32,
     linear_repeat_sampler_index: u32,
     linear_clamp_sampler_index: u32,
     shadow_sampler_index: u32,
@@ -76,6 +76,8 @@ const ClearUavParams = struct {
 const CullInstancesParams = struct {
     candidate_meshlets_counter_buffer_index: u32,
     candidate_meshlets_buffer_index: u32,
+    shadow_pass: u32,
+    _padding: u32,
 };
 
 const BuildMeshletsCullArgsParams = struct {
@@ -419,7 +421,6 @@ pub const StaticGeometryPass = struct {
         var frame_uniform_buffer_handle = self.gbuffer_bindings.frame_uniform_buffers[frame_index];
         var frame_uniform_buffer = self.renderer.getBuffer(frame_uniform_buffer_handle);
         {
-
             var frame_culling_uniform_data: *Frame = &self.gbuffer_bindings.frame_culling_uniform_data[frame_index];
 
             if (shadow_view) {
@@ -528,6 +529,8 @@ pub const StaticGeometryPass = struct {
                     const cull_instances_params = CullInstancesParams{
                         .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
                         .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+                        .shadow_pass = if (shadow_view) 1 else 0,
+                        ._padding = 42.0,
                     };
 
                     const cull_instances_params_data = OpaqueSlice{
@@ -917,8 +920,7 @@ pub const StaticGeometryPass = struct {
         }
     }
 
-    pub fn prepareDescriptorSets(_: *@This()) void {
-    }
+    pub fn prepareDescriptorSets(_: *@This()) void {}
 
     pub fn unloadDescriptorSets(self: *@This()) void {
         self.gbuffer_bindings.unloadDescriptorSets();
