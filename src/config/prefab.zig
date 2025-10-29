@@ -358,6 +358,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_atlas_v2_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_v2_albedo.dds");
         beech_atlas_v2_material.arm = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_arm.dds");
         beech_atlas_v2_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_atlas_normal.dds");
+        beech_atlas_v2_material.random_color_feature_enabled = true;
+        beech_atlas_v2_material.random_color_noise_scale = 0.01;
+        beech_atlas_v2_material.random_color_gradient = prefab_mgr.rctx.loadTexture("textures/debug/grass_gradient.dds");
 
         const beech_atlas_v2_material_id = ID("beech_atlas_v2");
         prefab_mgr.rctx.loadMaterial(beech_atlas_v2_material_id, beech_atlas_v2_material) catch unreachable;
@@ -369,6 +372,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         beech_04_impostor_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_04_impostor_albedo.dds");
         beech_04_impostor_material.normal = prefab_mgr.rctx.loadTexture("prefabs/environment/beech/beech_04_impostor_normal.dds");
         beech_04_impostor_material.roughness = 0.95;
+        beech_04_impostor_material.random_color_feature_enabled = true;
+        beech_04_impostor_material.random_color_noise_scale = 0.01;
+        beech_04_impostor_material.random_color_gradient = beech_atlas_v2_material.random_color_gradient;
 
         const beech_04_impostor_material_id = ID("beech_04_impostor");
         prefab_mgr.rctx.loadMaterial(beech_04_impostor_material_id, beech_04_impostor_material) catch unreachable;

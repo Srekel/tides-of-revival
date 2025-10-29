@@ -1,5 +1,6 @@
 #include "../../FSL/d3d.h"
 #include "defines.hlsli"
+#include "../FastNoiseLite.hlsli"
 #include "meshlet_rasterizer_resources.hlsli"
 
 GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
@@ -23,11 +24,26 @@ GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
         {
             discard;
         }
+
         baseColor *= baseColorSample.rgb;
     }
     else
     {
         baseColor *= sRGBToLinear_Float3(vertex.color.rgb);
+    }
+
+    if (material.randomColorFeatureEnabled)
+    {
+        if (hasValidTexture(material.randomColorGradientTextureIndex))
+        {
+            // TODO(gmodarelli): Use custom seed, default 1337
+            fnl_state randomState = fnlCreateState();
+            randomState.frequency = material.randomColorNoiseScale;
+            float noise = fnlGetNoise3D(randomState, vertex.pivotWS.x, vertex.pivotWS.y, vertex.pivotWS.z) * 0.5 + 0.5;
+            Texture2D gradientTexture = ResourceDescriptorHeap[NonUniformResourceIndex(material.randomColorGradientTextureIndex)];
+            float4 gradientSample = gradientTexture.Sample(sampler, float2(noise, 0.5));
+            baseColor = BlendDodge(float4(baseColor, 1.0), gradientSample, 1.0).rgb;
+        }
     }
 
     float3 N = normalize(vertex.normal);

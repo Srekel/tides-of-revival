@@ -195,4 +195,20 @@ bool hasValidTexture(uint textureIndex)
 	return textureIndex != INVALID_TEXTURE_INDEX;
 }
 
+float4 BlendOverlay(float4 base, float4 blend, float opacity)
+{
+	float4 result;
+	float4 result1 = 1.0 - 2.0 * (1.0 - base) * (1.0 - blend);
+	float4 result2 = 2.0 * base * blend;
+	float4 zeroOrOne = step(base, 0.5);
+	result = result2 * zeroOrOne + (1 - zeroOrOne) * result1;
+	return lerp(base, result, opacity);
+}
+
+float4 BlendDodge(float4 base, float4 blend, float opacity)
+{
+	float4 result = base / (1.0 - blend);
+	return lerp(base, result, opacity);
+}
+
 #endif // _UTILS_H

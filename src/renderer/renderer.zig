@@ -1435,6 +1435,16 @@ pub const Renderer = struct {
         gpu_material.normal_sampler_index = renderer_types.InvalidResourceIndex;
         gpu_material.arm_texture_index = self.getTextureBindlessIndex(material_data.arm);
         gpu_material.arm_sampler_index = renderer_types.InvalidResourceIndex;
+        if (material_data.random_color_feature_enabled) {
+            gpu_material.random_color_feature_enabled = 1.0;
+            gpu_material.random_color_noise_scale = material_data.random_color_noise_scale;
+            gpu_material.random_color_gradient_texture_index = self.getTextureBindlessIndex(material_data.random_color_gradient);
+        } else {
+            gpu_material.random_color_feature_enabled = 0.0;
+            gpu_material.random_color_noise_scale = 0.0;
+            gpu_material.random_color_gradient_texture_index = renderer_types.InvalidResourceIndex;
+        }
+
         if (self.pso_manager.getPsoBinId(material_data.gbuffer_pipeline_id.?)) |rasterizer_bin| {
             gpu_material.rasterizer_bin = rasterizer_bin;
         }
@@ -2482,8 +2492,14 @@ const GpuMaterial = struct {
     normal_sampler_index: u32,
     arm_texture_index: u32,
     arm_sampler_index: u32,
+
+    random_color_feature_enabled: f32 = 0,
+    random_color_noise_scale: f32 = 0,
+    random_color_gradient_texture_index: u32 = std.math.maxInt(u32),
+    _pad0: u32,
+
     rasterizer_bin: u32,
-    _padding: [3]u32 = .{ 42, 42, 42 },
+    _pad1: [3]u32 = .{ 42, 42, 42 },
 };
 
 const MaterialMap = std.AutoHashMap(u64, struct { index: usize, pipeline_ids: PassPipelineIds, alpha_test: bool });
@@ -2518,6 +2534,11 @@ pub const UberShaderMaterialData = struct {
     arm: TextureHandle,
     emissive: TextureHandle,
 
+    // Random color variation
+    random_color_feature_enabled: bool = false,
+    random_color_noise_scale: f32 = 0,
+    random_color_gradient: TextureHandle = TextureHandle.nil,
+
     pub fn init() UberShaderMaterialData {
         return initNoTexture(fd.ColorRGB.init(1, 1, 1), 0.5, 0.0);
     }
@@ -2537,6 +2558,7 @@ pub const UberShaderMaterialData = struct {
             .normal = TextureHandle.nil,
             .arm = TextureHandle.nil,
             .emissive = TextureHandle.nil,
+            .random_color_feature_enabled = false,
         };
     }
 };

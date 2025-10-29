@@ -27,6 +27,7 @@ struct VertexAttribute
     float4 tangent : TEXCOORD2;
     float3 normal : TEXCOORD3;
     float4 color : TEXCOORD4;
+    float4 pivotWS : TEXCOORD5;
 };
 
 struct RasterizerParams
@@ -75,6 +76,7 @@ VertexAttribute FetchVertexAttribute(Mesh mesh, float4x4 world, uint vertex_id)
     attribute.tangent = data_buffer.Load<float4>(vertex_id * sizeof(float4) + mesh.tangentsOffset);
     attribute.tangent.xyz = mul(attribute.tangent.xyz, (float3x3)world);
     attribute.color = float4(1, 1, 1, 1);
+    attribute.pivotWS = mul(float4(0, 0, 0, 1), world);
     return attribute;
 }
 
