@@ -338,10 +338,11 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 }
 
                 const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
-                if (ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
-                    const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
-                    const slime_pos_z = slime_pos.asZM();
-                    {
+                if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+                    const slime_transform_opt = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Transform);
+                    if (slime_transform_opt) |slime_transform| {
+                        const slime_pos = slime_transform.getPos();
+                        const slime_pos_z = zm.loadArr3(slime_pos[0..3].*);
                         const self_pos_z = player_pos.asZM();
                         const vec_to_slime = (slime_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
                         const dist_to_slime_sq = zm.lengthSq3(vec_to_slime)[0];
@@ -450,6 +451,9 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     }
 }
 
+var slime_cooldown: f64 = 1;
+var slime_burst = false;
+
 fn updateRest(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
@@ -467,15 +471,19 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
     // TODO: No, interaction shouldn't be in camera.. :)
     for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
-        _ = journey; // autofix
+        _ = rot; // autofix
         _ = pos; // autofix
+        _ = journey; // autofix
         _ = input_comp; // autofix
         _ = cam; // autofix
-        _ = rot; // autofix
+
+        const z_mat = zm.loadMat43(transform.matrix[0..]);
+        const z_pos = zm.util.getTranslationVec(z_mat);
+        const z_fwd = zm.util.getAxisZ(z_mat);
 
         const near_mama = blk: {
             const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
-            if (ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+            if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
                 const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
                 const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
                 const target_pos_z = slime_pos.asZM();
@@ -497,17 +505,150 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
         }
 
         const time_of_day_percent = std.math.modf(environment_info.world_time / (4 * 60 * 60)).fpart;
+        const is_day = time_of_day_percent > 0.95 or time_of_day_percent < 0.45;
         const is_morning = time_of_day_percent < 0.1;
         const ui_dt = ecs.get_world_info(it.world).delta_time_raw;
+
+        const DIST_TO_LIGHT = 30;
+        var it_inner = ecs.each(ctx.ecsu_world.world, fd.PointLight);
+        const has_nearby_light: bool = blk: {
+            while (ecs.each_next(&it_inner)) {
+                for (it_inner.entities()) |ent_light| {
+                    const transform_light_opt = ecs.get(ctx.ecsu_world.world, ent_light, fd.Transform);
+                    if (transform_light_opt) |transform_light| {
+                        const light_pos = transform_light.getPos();
+                        const light_pos_z = zm.loadArr3(light_pos[0..3].*);
+                        if (zm.lengthSq3(z_pos - light_pos_z)[0] < DIST_TO_LIGHT * DIST_TO_LIGHT) {
+                            break :blk true;
+                        }
+                    }
+                }
+            }
+            break :blk false;
+        };
+
+        slime_cooldown -= it.delta_time;
+        const can_burst = slime_burst or (!has_nearby_light and !is_day);
+        // if (!is_day and !has_nearby_light and slime_cooldown < 0) {
+        if (can_burst and slime_cooldown < 0) {
+            var it_slimes = ecs.each(ctx.ecsu_world.world, fd.SettlementEnemy);
+            var slime_count: usize = 0;
+            while (ecs.each_next(&it_slimes)) {
+                slime_count += it_slimes.entities().len;
+            }
+
+            if (slime_count > 15) {
+                slime_burst = false;
+                slime_cooldown = 60;
+            } else {
+                slime_burst = true;
+                slime_cooldown = 1;
+            }
+            std.log.info("slimes {d} cooldown {d}", .{ slime_count, slime_cooldown });
+            const offset = .{
+                std.crypto.random.float(f32) * 15,
+                0,
+                std.crypto.random.float(f32) * 15,
+            };
+            for (0..3) |i| {
+                // spawn slime
+                const i_f: f32 = @floatFromInt(i);
+                var pos_slime = fd.Position.init(
+                    z_pos[0] + z_fwd[0] * (15 + 3 * i_f + std.crypto.random.float(f32) * 3 + offset[0]),
+                    z_pos[1],
+                    z_pos[2] + z_fwd[2] * (15 + 3 * i_f + std.crypto.random.float(f32) * 3 + offset[0]),
+                );
+
+                const query = physics_world_low.getNarrowPhaseQuery();
+                const ray_origin = [_]f32{
+                    pos_slime.x,
+                    pos_slime.y + 300,
+                    pos_slime.z,
+                    0,
+                };
+                const ray_dir = [_]f32{ 0, -500, 0, 0 };
+                const ray = zphy.RRayCast{
+                    .origin = ray_origin,
+                    .direction = ray_dir,
+                };
+                const result = query.castRay(ray, .{});
+                if (result.has_hit) {
+                    const hit_pos = ray.getPointOnRay(result.hit.fraction);
+                    pos_slime.y = hit_pos[1] - (3 + 1 * i_f);
+                }
+
+                var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
+                ent.set(pos_slime);
+
+                const base_scale = 1; // + std.crypto.random.float(f32) * 2;
+                const rot_slime = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
+                ent.set(fd.Scale.create(1, 1, 1));
+                ent.set(rot_slime);
+                ent.set(fd.Transform{});
+                ent.set(fd.Dynamic{});
+                ent.set(fd.Locomotion{
+                    .affected_by_gravity = true,
+                    .snap_to_terrain = true,
+                    .speed = 5 + std.crypto.random.float(f32) * 10,
+                    .speed_y = 15 + std.crypto.random.float(f32) * 10,
+                });
+                ent.set(fd.Enemy{
+                    .base_scale = base_scale,
+                    .aggressive = true,
+                    .idling = false,
+                    .left_bias = std.crypto.random.float(f32) > 0.5,
+                });
+                ent.add(fd.SettlementEnemy);
+                ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
+                ent.set(fd.Health{ .value = 10 * base_scale * base_scale });
+
+                const body_interface = ctx.physics_world.getBodyInterfaceMut();
+
+                const shape_settings = zphy.SphereShapeSettings.create(1.5 * 1) catch unreachable;
+                defer shape_settings.release();
+
+                const root_shape_settings = zphy.DecoratedShapeSettings.createRotatedTranslated(
+                    &shape_settings.asShapeSettings().*,
+                    rot_slime.elemsConst().*,
+                    .{ 0, 0, 0 },
+                ) catch unreachable;
+                defer root_shape_settings.release();
+                const root_shape = root_shape_settings.createShape() catch unreachable;
+
+                const body_id = body_interface.createAndAddBody(.{
+                    .position = .{ pos_slime.x, pos_slime.y, pos_slime.z, 0 },
+                    .rotation = rot_slime.elemsConst().*,
+                    .shape = root_shape,
+                    .motion_type = .kinematic,
+                    .object_layer = config.physics.object_layers.moving,
+                    .motion_quality = .discrete,
+                    .user_data = ent.id,
+                    .angular_damping = 0.975,
+                    .inertia_multiplier = 10,
+                    .friction = 0.5,
+                }, .activate) catch unreachable;
+                ent.set(fd.PhysicsBody{ .body_id = body_id, .shape_opt = root_shape });
+
+                const light_ent = ctx.ecsu_world.newEntity();
+                light_ent.childOf(ent);
+                light_ent.set(fd.Position{ .x = 0, .y = 15, .z = 0 });
+                light_ent.set(fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32), 0));
+                light_ent.set(fd.Scale.createScalar(1));
+                light_ent.set(fd.Transform{});
+                light_ent.set(fd.Dynamic{});
+
+                light_ent.set(fd.PointLight{
+                    .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
+                    .range = 20,
+                    .intensity = 4,
+                });
+            }
+        }
 
         switch (environment_info.rest_state) {
             .not => {
 
                 // Campfire
-                const z_mat = zm.loadMat43(transform.matrix[0..]);
-                const z_pos = zm.util.getTranslationVec(z_mat);
-                const z_fwd = zm.util.getAxisZ(z_mat);
-
                 const query = physics_world_low.getNarrowPhaseQuery();
                 const ray_origin = [_]f32{
                     z_pos[0] + z_fwd[0] * 2,
@@ -548,23 +689,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.player_state_time = 0;
                     vignette_settings.feather = 1;
                     vignette_settings.radius = 1;
-
-                    const DIST_TO_LIGHT = 50;
-                    var it_inner = ecs.each(ctx.ecsu_world.world, fd.PointLight);
-                    const has_nearby_light: bool = blk: {
-                        while (ecs.each_next(&it_inner)) {
-                            for (it_inner.entities()) |ent_light| {
-                                const position_light_opt = ecs.get(ctx.ecsu_world.world, ent_light, fd.Position);
-                                if (position_light_opt) |position_light| {
-                                    const z_position_light = position_light.asZM();
-                                    if (zm.lengthSq3(z_pos - z_position_light)[0] < DIST_TO_LIGHT * DIST_TO_LIGHT) {
-                                        break :blk true;
-                                    }
-                                }
-                            }
-                        }
-                        break :blk false;
-                    };
 
                     if (!has_nearby_light) {
                         const hit_pos = ray.getPointOnRay(result.hit.fraction);

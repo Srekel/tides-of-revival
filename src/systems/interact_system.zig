@@ -151,6 +151,10 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
     var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
 
+    if (environment_info.journey_state != .not or environment_info.rest_state != .not) {
+        return;
+    }
+
     const wielded_use_primary_held = system.input_frame_data.held(config.input.wielded_use_primary);
     const wielded_use_secondary_held = system.input_frame_data.held(config.input.wielded_use_secondary);
     const wielded_use_held = wielded_use_primary_held or wielded_use_secondary_held;
@@ -576,6 +580,11 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     ecs.remove(ecs_world, hit_ent, fd.Enemy);
                     ecs.remove(ecs_world, hit_ent, fd.PointLight);
                     ecs.remove(ecs_world, hit_ent, fd.SettlementEnemy);
+                    ecs.delete_children(ecs_world, hit_ent);
+                    // const light_ent = ecs.lookup_child(ecs_world, hit_ent, "light");
+                    // if (light_ent != 0) {
+                    //     ecs.delete(ecs_world, light_ent);
+                    // }
 
                     var locomotion = ecs.get_mut(ecs_world, hit_ent, fd.Locomotion).?;
                     locomotion.speed = 0;

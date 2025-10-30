@@ -120,7 +120,7 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
 
         if (result.has_hit and locomotion.affected_by_gravity) {
             const dist = result.hit.fraction * ray_dir[1] * -1;
-            if (dist > 200.1) {
+            if (dist > 200.1 or locomotion.speed_y > 0) {
                 result.has_hit = false;
             } else {
                 locomotion.affected_by_gravity = false;

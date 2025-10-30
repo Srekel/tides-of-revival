@@ -82,7 +82,7 @@ fn rotateTowardsTarget(
         zm.storeArr4(rot.elems(), rot_new_normalized_z);
 
         if (!locomotion.affected_by_gravity and enemy.aggressive) {
-            locomotion.speed = if (skitter) 15 / enemy.base_scale else 5 / enemy.base_scale;
+            locomotion.speed = if (skitter) 12 / enemy.base_scale else 3 / enemy.base_scale;
         } else if (!enemy.aggressive) {
             locomotion.speed = if (is_day) 2 else 4;
         }
@@ -272,6 +272,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
     const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
 
     for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, enemy, ent| {
+        _ = ent; // autofix
         if (!lol) {
             lol = true;
             ctx.task_queue.registerTaskType(.{
@@ -304,23 +305,26 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 .apply = &EmsmallenTask.apply,
             });
 
-            {
-                const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
-                task_data.*.entity = ent;
-                ctx.task_queue.enqueue(
-                    SlimeDropTask.id,
-                    .{ .time = 5, .loop_type = .{ .loop = 20 } },
-                    std.mem.asBytes(task_data),
-                );
-            }
-            {
-                const task_data = ctx.task_queue.allocateTaskData(5, SplitIfNearPlayer);
-                task_data.*.entity = ent;
-                ctx.task_queue.enqueue(
-                    SplitIfNearPlayer.id,
-                    .{ .time = 1, .loop_type = .{ .loop = 5 } },
-                    std.mem.asBytes(task_data),
-                );
+            const mama_slime = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
+            if (mama_slime != 0) {
+                {
+                    const task_data = ctx.task_queue.allocateTaskData(5, SlimeDropTask);
+                    task_data.*.entity = mama_slime;
+                    ctx.task_queue.enqueue(
+                        SlimeDropTask.id,
+                        .{ .time = 5, .loop_type = .{ .loop = 20 } },
+                        std.mem.asBytes(task_data),
+                    );
+                }
+                {
+                    const task_data = ctx.task_queue.allocateTaskData(5, SplitIfNearPlayer);
+                    task_data.*.entity = mama_slime;
+                    ctx.task_queue.enqueue(
+                        SplitIfNearPlayer.id,
+                        .{ .time = 1, .loop_type = .{ .loop = 5 } },
+                        std.mem.asBytes(task_data),
+                    );
+                }
             }
         }
 
