@@ -16,11 +16,13 @@ const util = @import("../../util.zig");
 const context = @import("../../core/context.zig");
 const renderer = @import("../../renderer/renderer.zig");
 const im3d = @import("im3d");
+const zaudio = @import("zaudio");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
     heap_allocator: std.mem.Allocator,
+    audio: *zaudio.Engine,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
@@ -469,6 +471,9 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
     var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
 
+    const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
+    const player_comp = ecs.get(ctx.ecsu_world.world, player_ent, fd.Player).?;
+
     // TODO: No, interaction shouldn't be in camera.. :)
     for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
         _ = rot; // autofix
@@ -709,6 +714,9 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                             .range = 10.0,
                             .intensity = 10.0,
                         });
+
+                        player_comp.fx_fire.start() catch unreachable;
+                        player_comp.fx_fire.setVolume(0);
                     }
                 }
             },
@@ -732,6 +740,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.player_state_time = 1;
                     environment_info.rest_state = if (is_morning) .resting_during_morning else .resting_until_morning;
                 }
+                player_comp.fx_fire.setVolume(environment_info.player_state_time);
                 vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
                 vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },
@@ -754,7 +763,9 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 if (environment_info.player_state_time <= 0) {
                     environment_info.player_state_time = 0;
                     environment_info.rest_state = .not;
+                    player_comp.fx_fire.stop() catch unreachable;
                 }
+                player_comp.fx_fire.setVolume(environment_info.player_state_time);
                 vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
                 vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },

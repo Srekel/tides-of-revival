@@ -375,6 +375,7 @@ pub fn run() void {
                 player_comp.music.?.destroy();
                 player_comp.vo_intro.destroy();
                 player_comp.vo_exited_village.destroy();
+                player_comp.fx_fire.destroy();
             }
 
             // Clear out systems. Needed to clear up memory.

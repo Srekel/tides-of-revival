@@ -100,11 +100,7 @@ pub const ColorRGB = struct {
     }
 
     pub fn lerp(a: ColorRGB, b: ColorRGB, t: f32) ColorRGB {
-        return ColorRGB.init(
-            std.math.lerp(a.r, b.r, t),
-            std.math.lerp(a.g, b.g, t),
-            std.math.lerp(a.b, b.b, t)
-        );
+        return ColorRGB.init(std.math.lerp(a.r, b.r, t), std.math.lerp(a.g, b.g, t), std.math.lerp(a.b, b.b, t));
     }
 };
 pub const ColorRGBRoughness = struct { r: f32, g: f32, b: f32, roughness: f32 };
@@ -125,7 +121,7 @@ pub const Gradient = struct {
     colors_count: u32 = 0,
 
     pub fn sample(self: *Gradient, t: f32) ColorRGB {
-        var color= self.colors[0];
+        var color = self.colors[0];
         for (1..colors_count_max) |color_index| {
             var color_position = (t - self.positions[color_index - 1]) / (self.positions[color_index] - self.positions[color_index - 1]);
             color_position = std.math.clamp(color_position, 0.0, 1.0);
@@ -835,6 +831,7 @@ pub const Player = struct {
     played_reached_hill: bool = false,
     played_evening: bool = false,
     played_first_dawn: bool = false,
+    fx_fire: *zaudio.Sound = undefined,
 };
 
 // script
