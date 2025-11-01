@@ -104,6 +104,10 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_comp.vo_exited_village = ctx.audio.createSoundFromFile("content/audio/hill3/exited_village.wav", .{}) catch unreachable;
     player_comp.vo_exited_village.setVolume(4);
     player_comp.fx_fire = ctx.audio.createSoundFromFile("content/audio/ambience/Fireplace SFX 1.wav", .{}) catch unreachable;
+    player_comp.ambience_wind = ctx.audio.createSoundFromFile("content/audio/ambience/Global Wind Ambience 1.wav", .{}) catch unreachable;
+    player_comp.ambience_wind.setVolume(0);
+    player_comp.ambience_wind.setLooping(true);
+    player_comp.ambience_wind.start() catch unreachable;
 
     player_ent.set(player_comp);
 

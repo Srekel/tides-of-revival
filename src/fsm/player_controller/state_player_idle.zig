@@ -185,12 +185,10 @@ fn updateSnapToTerrain(physics_world: *zphy.PhysicsSystem, pos: *fd.Position) vo
 }
 
 fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: *fd.Forward, dt: f32, player: *fd.Player, input_frame_data: *input.FrameData) void {
-    _ = pos; // autofix
     _ = rot; // autofix
     _ = fwd; // autofix
     _ = dt; // autofix
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-    _ = environment_info; // autofix
 
     if (input_frame_data.just_pressed(config.input.reload_shaders)) {
         player.music_played_counter = 10000;
@@ -214,6 +212,16 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     if (!player.played_exited_village and player.amount_moved_total > 120) {
         player.played_exited_village = true;
         player.vo_exited_village.start() catch unreachable;
+    }
+
+    if (environment_info.journey_state == .not and environment_info.rest_state == .not) {
+        const time_f: f32 = @floatCast(environment_info.world_time);
+        const wind_from_time = 0.25 * (2 + @min(2, @max(-2, (1.5 * (math.sin(time_f * 0.12) + math.cos(time_f * 0.23))))));
+        const height = pos.y;
+        var wind_from_height = @min(1, @max(0, (height - 200) / 500));
+        wind_from_height *= wind_from_height;
+        const wind = 2 * wind_from_height * (0.15 + 0.85 * wind_from_time);
+        player.ambience_wind.setVolume(std.math.lerp(player.ambience_wind.getVolume(), wind, 0.05));
     }
 }
 
