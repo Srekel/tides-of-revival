@@ -510,7 +510,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
         }
 
         const time_of_day_percent = std.math.modf(environment_info.world_time / (4 * 60 * 60)).fpart;
-        const is_day = time_of_day_percent > 0.95 or time_of_day_percent < 0.45;
+        const is_night = time_of_day_percent < 0.8 and time_of_day_percent > 0.5;
         const is_morning = time_of_day_percent < 0.1;
         const ui_dt = ecs.get_world_info(it.world).delta_time_raw;
 
@@ -533,7 +533,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
         };
 
         slime_cooldown -= it.delta_time;
-        const can_burst = slime_burst or (!has_nearby_light and !is_day);
+        const can_burst = slime_burst or (!has_nearby_light and is_night);
         // if (!is_day and !has_nearby_light and slime_cooldown < 0) {
         if (can_burst and slime_cooldown < 0) {
             var it_slimes = ecs.each(ctx.ecsu_world.world, fd.SettlementEnemy);

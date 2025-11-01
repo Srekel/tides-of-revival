@@ -62,6 +62,7 @@ fn rotateTowardsTarget(
     enemy: *const fd.Enemy,
     target_pos: [3]f32,
     is_day: bool,
+    is_journeying: bool,
 ) void {
     const player_pos_z = zm.loadArr3(target_pos);
     const self_pos_z = zm.loadArr3(pos.elems().*);
@@ -85,6 +86,7 @@ fn rotateTowardsTarget(
             locomotion.speed = if (skitter) 12 / enemy.base_scale else 3 / enemy.base_scale;
         } else if (!enemy.aggressive) {
             locomotion.speed = if (is_day) 2 else 4;
+            locomotion.speed *= if (is_journeying) 0.25 else 1;
         }
     }
 }
@@ -341,7 +343,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
             }
 
             if (!locomotion.affected_by_gravity) {
-                rotateTowardsTarget(pos, rot, locomotion, &enemy, locomotion.target_position.?, is_day);
+                rotateTowardsTarget(pos, rot, locomotion, &enemy, locomotion.target_position.?, is_day, environment_info.journey_state != .not);
             }
             // rotateTowardsTarget(pos, rot, player_pos.elemsConst().*);
         }
