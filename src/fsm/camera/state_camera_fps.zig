@@ -468,6 +468,8 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
     const input_frame_data = ctx.input_frame_data;
     const physics_world_low = ctx.physics_world_low;
+    _ = physics_world_low; // autofix
+    const physics_world = ctx.physics_world;
     var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
 
@@ -564,7 +566,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     z_pos[2] + z_fwd[2] * (15 + 3 * i_f + std.crypto.random.float(f32) * 3 + offset[0]),
                 );
 
-                const query = physics_world_low.getNarrowPhaseQuery();
+                const query = physics_world.getNarrowPhaseQuery();
                 const ray_origin = [_]f32{
                     pos_slime.x,
                     pos_slime.y + 300,
@@ -654,14 +656,14 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
             .not => {
 
                 // Campfire
-                const query = physics_world_low.getNarrowPhaseQuery();
+                const query = physics_world.getNarrowPhaseQuery();
                 const ray_origin = [_]f32{
                     z_pos[0] + z_fwd[0] * 2,
-                    z_pos[1] - 0.5,
+                    z_pos[1] - 1,
                     z_pos[2] + z_fwd[2] * 2,
                     0,
                 };
-                const ray_dir = [_]f32{ 0, -3, 0, 0 };
+                const ray_dir = [_]f32{ 0, -2, 0, 0 };
                 const ray = zphy.RRayCast{
                     .origin = ray_origin,
                     .direction = ray_dir,
