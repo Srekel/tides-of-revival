@@ -580,8 +580,8 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             if (hit_health.value > 0) {
                 volume *= 3;
                 const speed = ecs.get(ecs_world, proj_ent, fd.Speed).?.value;
-                const damage = (speed - 30) * (speed - 30);
-                std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
+                const damage = speed;
+                std.log.info("speed {d:5.2} damage {d:5.2} health {d:5.2}\n", .{ speed, damage, hit_health.value });
                 hit_health.value -= damage;
 
                 const enemy_opt = ecs.get_mut(system.ecsu_world.world, hit_ent, fd.Enemy);

@@ -609,7 +609,7 @@ const SplitIfNearPlayer = struct {
         enemy.idling = false;
 
         var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
-        health.value = 1000 + 10 * enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale;
+        health.value = 20 + 60 * enemy.base_scale * enemy.base_scale;
 
         var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
         pos.y += 5;
@@ -636,7 +636,7 @@ const SplitIfNearPlayer = struct {
         });
         ent.add(fd.SettlementEnemy);
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
-        ent.set(fd.Health{ .value = 10 * base_scale * base_scale });
+        ent.set(fd.Health{ .value = 20 + 60 * base_scale * base_scale });
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
