@@ -188,14 +188,7 @@ fn updateCameraMatrices(it: *ecs.iter_t) callconv(.C) void {
         }
 
         const z_transform = zm.loadMat43(transform.matrix[0..]);
-        const z_forward = zm.util.getAxisZ(z_transform);
-        const z_pos = zm.util.getTranslationVec(z_transform);
-
-        const z_view = zm.lookToLh(
-            z_pos,
-            z_forward,
-            zm.f32x4(0.0, 1.0, 0.0, 0.0),
-        );
+        const z_view = zm.inverse(z_transform);
 
         const z_projection =
             zm.perspectiveFovLh(

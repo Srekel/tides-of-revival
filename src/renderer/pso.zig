@@ -510,7 +510,8 @@ pub const PSOManager = struct {
                 desc.frag_shader_name = "meshlet_rasterizer_masked.frag";
                 self.createMeshPipeline(desc);
 
-                var rasterizer_shadow = rasterizer_cull_back;
+                var rasterizer_shadow = std.mem.zeroes(graphics.RasterizerStateDesc);
+                rasterizer_shadow.mCullMode = graphics.CullMode.CULL_MODE_NONE;
                 rasterizer_shadow.mDepthBias = -50.0;
                 rasterizer_shadow.mSlopeScaledDepthBias = -20.0;
 
@@ -520,8 +521,8 @@ pub const PSOManager = struct {
                 desc.depth_format = self.renderer.shadow_depth_buffers[0].*.mFormat;
                 self.createMeshPipeline(desc);
 
-                rasterizer_shadow.mCullMode = .CULL_MODE_NONE;
                 desc.id = depth_only_masked_id;
+                desc.rasterizer_state = rasterizer_shadow;
                 desc.frag_shader_name = "meshlet_rasterizer_masked_depth_only.frag";
                 self.createMeshPipeline(desc);
 

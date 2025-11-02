@@ -39,7 +39,7 @@ pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) 
 pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
 
-pub const cascaded_shadow_resolution: u32 = 4096;
+pub const cascaded_shadow_resolution: u32 = 2048;
 
 pub const RenderPass = struct {
     update_fn: renderPassUpdateFn = null,
@@ -1419,8 +1419,6 @@ pub const Renderer = struct {
         const min_point: f32 = 0;
         const max_point: f32 = 1;
 
-        const shadow_caster_comps = self.getShadowCastingLight();
-
         var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
         const camera_comps = camera_entity.getComps(struct {
             camera: *const fd.Camera,
@@ -1446,14 +1444,7 @@ pub const Renderer = struct {
         }
 
         const z_transform = zm.loadMat43(camera_comps.transform.matrix[0..]);
-        const z_forward = zm.util.getAxisZ(z_transform);
-        const z_pos = zm.util.getTranslationVec(z_transform);
-
-        const z_view = zm.lookToLh(
-            z_pos,
-            z_forward,
-            zm.f32x4(0.0, 1.0, 0.0, 0.0),
-        );
+        const z_view = zm.inverse(z_transform);
 
         const z_projection =
             zm.perspectiveFovLh(
@@ -1476,8 +1467,9 @@ pub const Renderer = struct {
             transformVec3Coord(zm.Vec{ 1, -1, 0, 0 }, view_projection_inverse),
         };
 
+        const shadow_caster_comps = self.getShadowCastingLight();
         const light_view = zm.inverse(zm.matFromQuat(shadow_caster_comps.rotation.asZM()));
-        // const light_view = zm.inverse(zm.matFromQuat(zm.quatFromRollPitchYaw(std.math.pi * 0.5, 0.0, 0.0)));
+        // const light_view = zm.inverse(zm.matFromQuat(zm.quatFromRollPitchYaw(std.math.pi * 0.25, 0.0, 0.0)));
         for (0..cascades_max_count) |i| {
             const previous_cascade_split = if (i == 0) min_point else cascade_splits[i - 1];
             const current_cascade_split = cascade_splits[i];
