@@ -175,5 +175,11 @@ fn fsm_cam_freefly_move(it: *ecs.iter_t) callconv(.C) void {
         }
 
         zm.store(pos.elems()[0..], cpos, 3);
+
+        if (ctx.input_frame_data.just_pressed(config.input.interact)) {
+            const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
+            const pos_comp = ecs.get_mut(ctx.ecsu_world.world, player_ent, fd.Position).?;
+            pos_comp.* = pos.*;
+        }
     }
 }
