@@ -83,7 +83,7 @@ fn rotateTowardsTarget(
         zm.storeArr4(rot.elems(), rot_new_normalized_z);
 
         if (!locomotion.affected_by_gravity and enemy.aggressive) {
-            locomotion.speed = if (skitter) 12 / enemy.base_scale else 3 / enemy.base_scale;
+            locomotion.speed = if (skitter) 15 / enemy.base_scale else 5 / enemy.base_scale;
         } else if (!enemy.aggressive) {
             locomotion.speed = if (is_day) 2 else 4;
             locomotion.speed *= if (is_journeying) 0.25 else 1;
@@ -609,7 +609,7 @@ const SplitIfNearPlayer = struct {
         enemy.idling = false;
 
         var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
-        health.value = enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale;
+        health.value = 1000 + 10 * enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale * enemy.base_scale;
 
         var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
         pos.y += 5;

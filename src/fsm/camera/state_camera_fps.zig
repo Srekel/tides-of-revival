@@ -608,7 +608,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
                 ent.set(pos_slime);
 
-                const base_scale = 1; // + std.crypto.random.float(f32) * 2;
+                const base_scale = 1 + std.crypto.random.float(f32) * 2;
                 const rot_slime = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
                 ent.set(fd.Scale.create(1, 1, 1));
                 ent.set(rot_slime);
