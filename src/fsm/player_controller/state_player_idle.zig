@@ -17,6 +17,7 @@ const egl_math = @import("../../core/math.zig");
 const AK = @import("wwise-zig");
 const AK_ID = @import("wwise-ids");
 const context = @import("../../core/context.zig");
+const utility_scoring = @import("../../core/utility_scoring.zig");
 const im3d = @import("im3d");
 
 pub const StateContext = struct {
@@ -216,12 +217,54 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
 
     if (environment_info.journey_state == .not and environment_info.rest_state == .not) {
         const time_f: f32 = @floatCast(environment_info.world_time);
-        const wind_from_time = 0.25 * (2 + @min(2, @max(-2, (1.5 * (math.sin(time_f * 0.12) + math.cos(time_f * 0.23))))));
         const height = pos.y;
-        var wind_from_height = @min(1, @max(0, (height - 200) / 500));
-        wind_from_height *= wind_from_height;
+
+        // WIND AMBIENCE
+        const wind_height = @min(1, @max(0, (height - 200) / 500));
+        const wind_from_time = 0.25 * (2 + @min(2, @max(-2, (1.5 * (math.sin(time_f * 0.12) + math.cos(time_f * 0.23))))));
+        const wind_from_height = wind_height * wind_height;
         const wind = 2 * wind_from_height * (0.15 + 0.85 * wind_from_time);
         player.ambience_wind.setVolume(std.math.lerp(player.ambience_wind.getVolume(), wind, 0.05));
+
+        // BIRD AMBIENCE
+        var bird_intensity: f32 = 1;
+        {
+            // Time curve
+            const curve = utility_scoring.Curve{
+                0.8, 1.0, 1.0, 1.0, 0.8, 0.8, 0.6, 0.5, 0.5, 0.5, 0.4, 0.4,
+                0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6, 0.6,
+                0.8,
+            };
+            const hour_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
+            bird_intensity *= hour_multiplier;
+        }
+        {
+            // Height curve
+            const curve = utility_scoring.Curve{
+                0.5, 1.0, 1.0, 1.0, 1.0,
+                1.0, 1.0, 1.0, 1.0, 1.0,
+                1.0, 1.0, 1.0, 0.6, 0.6,
+                0.4, 0.4, 0.4, 0.2, 0.2,
+                0.1, 0.1, 0.0, 0.0, 0.0,
+            };
+
+            const bird_height = @min(0.999, @max(0, height / 600));
+            const height_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(bird_height), curve);
+            bird_intensity *= height_multiplier;
+        }
+
+        const bird_from_time = 0.25 * (2 + @min(2, @max(-2, (1.5 * (math.sin(time_f * 0.17) + math.cos(time_f * 0.27))))));
+        const bird = 2 * bird_intensity * bird_from_time;
+        player.ambience_birds.setVolume(std.math.lerp(player.ambience_birds.getVolume(), bird, 0.05));
+        // std.log.info("bird {d:.2} time {d:.2} intensity {d:.2} | wind {d:.2} time {d:.2} height {d:.2}", .{
+        //     bird,
+        //     bird_from_time,
+        //     bird_intensity,
+        //     wind,
+        //     wind_from_time,
+        //     wind_from_height,
+        // });
+        // std.log.info("wind {d:.2} wind_from_time {d:.2} wind_from_heig {d:.2}", .{ wind, wind_from_time, wind_from_height });
     }
 }
 

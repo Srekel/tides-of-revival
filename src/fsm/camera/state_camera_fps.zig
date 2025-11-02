@@ -221,6 +221,9 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const input_frame_data = ctx.input_frame_data;
     const physics_world_low = ctx.physics_world_low;
     const ui_dt = ecs.get_world_info(it.world).delta_time_raw;
+
+    const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
+    const player_comp = ecs.get(ctx.ecsu_world.world, player_ent, fd.Player).?;
     // TODO: No, interaction shouldn't be in camera.. :)
     for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
         _ = pos; // autofix
@@ -408,6 +411,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 }
                 vignette_settings.feather = 1 - environment_info.player_state_time * 1.0;
                 vignette_settings.radius = 1 - environment_info.player_state_time * 1.0;
+                player_comp.ambience_birds.setVolume(std.math.lerp(player_comp.ambience_birds.getVolume(), 1 - environment_info.player_state_time, environment_info.player_state_time));
             },
             .journeying => {
                 if (environment_info.journey_time_end.? < environment_info.world_time) {
@@ -742,6 +746,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.player_state_time = 1;
                     environment_info.rest_state = if (is_morning) .resting_during_morning else .resting_until_morning;
                 }
+                player_comp.ambience_birds.setVolume(std.math.lerp(player_comp.ambience_birds.getVolume(), 1 - environment_info.player_state_time, environment_info.player_state_time));
                 player_comp.fx_fire.setVolume(environment_info.player_state_time);
                 vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
                 vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;

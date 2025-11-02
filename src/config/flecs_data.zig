@@ -832,6 +832,7 @@ pub const Player = struct {
     played_evening: bool = false,
     played_first_dawn: bool = false,
     fx_fire: *zaudio.Sound = undefined,
+    ambience_birds: *zaudio.Sound = undefined,
     ambience_wind: *zaudio.Sound = undefined,
 };
 
