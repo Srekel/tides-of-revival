@@ -30,6 +30,7 @@ cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
     float4x4 g_inv_proj_mat;
     float4x4 g_proj_view_mat;
     float4x4 g_inv_proj_view_mat;
+    float4 g_screen_params;
     float4 g_cam_pos;
     float g_near_plane;
     float g_far_plane;
@@ -68,24 +69,24 @@ float3 WorldPositionFromDepth(float2 uv, float depth, float4x4 viewProjectionInv
     return world.xyz / world.w;
 }
 
-uint GetShadowMapIndex(float viewDepth /*, float dither */)
+uint GetShadowMapIndex(float viewDepth, float dither)
 {
     float4 splits = viewDepth > g_cascade_depths;
     float4 cascades = g_cascade_depths > 0;
     int cascadeIndex = min(dot(splits, cascades), CASCADES_MAX_COUNT - 1);
 
-    // const float cascadeFadeTheshold = 0.1f;
-    // float nextSplit = g_cascade_depths[cascadeIndex];
-    // float splitRange = cascadeIndex == 0 ? nextSplit : nextSplit - g_cascade_depths[cascadeIndex - 1];
-    // float fadeFactor = (nextSplit - viewDepth) / splitRange;
-    // if (fadeFactor <= cascadeFadeTheshold && cascadeIndex < CASCADES_MAX_COUNT - 1)
-    // {
-    //     float lerpAmount = smoothstep(0.0f, cascadeFadeTheshold, fadeFactor);
-    //     if (lerpAmount < dither)
-    //     {
-    //         cascadeIndex++;
-    //     }
-    // }
+    const float cascadeFadeTheshold = 0.1f;
+    float nextSplit = g_cascade_depths[cascadeIndex];
+    float splitRange = cascadeIndex == 0 ? nextSplit : nextSplit - g_cascade_depths[cascadeIndex - 1];
+    float fadeFactor = (nextSplit - viewDepth) / splitRange;
+    if (fadeFactor <= cascadeFadeTheshold && cascadeIndex < CASCADES_MAX_COUNT - 1)
+    {
+        float lerpAmount = smoothstep(0.0f, cascadeFadeTheshold, fadeFactor);
+        if (lerpAmount < dither)
+        {
+            cascadeIndex++;
+        }
+    }
 
     return cascadeIndex;
 }
@@ -199,8 +200,8 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     float3 viewPos = ViewPositionFromDepth(Input.UV, depth, g_inv_proj_mat);
     float linearDepth = viewPos.z;
     // TODO
-    // float dither = InterleavedGradientNoise(positionCS.xy);
-    const uint cascadeIndex = GetShadowMapIndex(linearDepth /*, dither */);
+    float dither = InterleavedGradientNoise(Input.UV * g_screen_params.xy);
+    const uint cascadeIndex = GetShadowMapIndex(linearDepth, dither);
     float attenuation = 1.0f;
     if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
     {

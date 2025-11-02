@@ -85,7 +85,7 @@ pub const Renderer = struct {
     window_width: i32 = 0,
     window_height: i32 = 0,
     time: f64 = 0.0,
-    vsync_enabled: bool = true,
+    vsync_enabled: bool = false,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -151,6 +151,7 @@ pub const Renderer = struct {
 
     // Shadows
     shadow_pssm_factor: f32 = 0.85,
+    shadow_cascade_max_distance: f32 = 250,
     shadow_cascade_depths: [cascades_max_count]f32 = undefined,
     shadow_views: [cascades_max_count]RenderView = undefined,
     shadow_depth_buffers: [cascades_max_count][*c]graphics.RenderTarget = undefined,
@@ -213,7 +214,7 @@ pub const Renderer = struct {
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
         self.time = 0.0;
-        self.vsync_enabled = true;
+        self.vsync_enabled = false;
 
         // Initialize The-Forge systems
         if (!memory.initMemAlloc("Tides Renderer")) {
@@ -661,8 +662,10 @@ pub const Renderer = struct {
         self.onLoad(reload_desc) catch unreachable;
     }
 
+    // NOTE: Disable VSync for now. Shadows flicker when it is enabled
     pub fn toggleVSync(self: *Renderer) void {
-        self.vsync_enabled = !self.vsync_enabled;
+        _ = self;
+        // self.vsync_enabled = !self.vsync_enabled;
     }
 
     pub fn reloadShaders(self: *Renderer) void {
@@ -1154,7 +1157,7 @@ pub const Renderer = struct {
             // Renderer Settings
             {
                 if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
-                    _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
+                    // _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
 
                     if (zgui.button("Visualization Mode", .{})) {
                         zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
@@ -1232,7 +1235,7 @@ pub const Renderer = struct {
 
         const near_plane = @min(camera_comps.camera.near, camera_comps.camera.far);
         var far_plane = @max(camera_comps.camera.near, camera_comps.camera.far);
-        far_plane = @min(1500, far_plane);
+        far_plane = @min(self.shadow_cascade_max_distance, far_plane);
 
         const clip_range = far_plane - near_plane;
         const min_z = near_plane + min_point * clip_range;
@@ -1969,7 +1972,7 @@ pub const Renderer = struct {
         // graphics.getSupportedSwapchainFormat(self.renderer, &desc, graphics.ColorSpace.COLOR_SPACE_SDR_SRGB);
         desc.mColorFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
         desc.mColorSpace = graphics.ColorSpace.COLOR_SPACE_SDR_SRGB;
-        desc.mEnableVsync = self.vsync_enabled;
+        desc.mEnableVsync = false;// self.vsync_enabled;
         desc.mFlags = graphics.SwapChainCreationFlags.SWAP_CHAIN_CREATION_FLAG_ENABLE_FOVEATED_RENDERING_VR;
         graphics.addSwapChain(self.renderer, &desc, &self.swap_chain);
 

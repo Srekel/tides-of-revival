@@ -17,6 +17,7 @@ const UniformFrameData = struct {
     projection_inverted: [16]f32,
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
+    screen_params: [4]f32,
     camera_position: [4]f32,
     near_plane: f32,
     far_plane: f32,
@@ -72,6 +73,7 @@ pub const DeferredShadingPass = struct {
         zm.storeMat(&frame_data.projection_inverted, zm.transpose(render_view.projection_inverse));
         zm.storeMat(&frame_data.projection_view, zm.transpose(render_view.view_projection));
         zm.storeMat(&frame_data.projection_view_inverted, zm.transpose(render_view.view_projection_inverse));
+        frame_data.screen_params = [4]f32{ render_view.viewport[0], render_view.viewport[1], 1.0 / render_view.viewport[0], 1.0 / render_view.viewport[1] };
         frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
         frame_data.cascade_splits = self.renderer.shadow_cascade_depths;
         frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);

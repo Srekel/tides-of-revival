@@ -23,7 +23,5 @@
         .zpool = .{ .path = "external/zpool" },
         .zstbi = .{ .path = "external/zstbi" },
         .ztracy = .{ .path = "external/ztracy" },
-        // .zwin32 = .{ .path = "external/zwin32" },
-        .zwindows = .{ .path = "external/zwindows" },
     },
 }
