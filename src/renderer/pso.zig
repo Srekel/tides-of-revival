@@ -256,7 +256,7 @@ pub const PSOManager = struct {
 
             // Draw Sky
             {
-                var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge};
+                var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
                 const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
                 const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_GREATER);
@@ -393,9 +393,41 @@ pub const PSOManager = struct {
             }
         }
 
+        // GPU Debug Line Rendering PSOs
+        // =============================
+        {
+            // Clear counters
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("debug_line_rendering_clear"), "debug_line_rendering_clear.comp", &sampler_ids);
+            }
+
+            {
+                var sampler_ids = [_]IdLocal{};
+                var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
+
+                const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_GEQUAL);
+                const desc = GraphicsPipelineDesc{
+                    .id = IdLocal.init("debug_line_rendering_draw"),
+                    .topology = graphics.PrimitiveTopology.PRIMITIVE_TOPO_LINE_LIST,
+                    .vert_shader_name = "debug_line_rendering.vert",
+                    .frag_shader_name = "debug_line_rendering.frag",
+                    .depth_state = depth_state,
+                    .depth_format = self.renderer.depth_buffer.*.mFormat,
+                    .render_targets = @constCast(&render_targets),
+                    .rasterizer_state = rasterizer_cull_none,
+                    .blend_state = self.blend_states.get(IdLocal.init("bs_im3d")).?,
+                    .vertex_layout_id = IdLocal.init("debug_line"),
+                    .sampler_ids = &sampler_ids,
+                };
+                self.createGraphicsPipeline(desc);
+            }
+        }
+
         // GPU-Driven Rendering PSOs
         // =========================
         {
+
             // Culling: Clear UAV
             {
                 var sampler_ids = [_]IdLocal{};

@@ -27,7 +27,8 @@ const EntityMap = std.AutoHashMap(u64, struct { index: usize, count: u32 });
 
 const GpuInstanceFlags = packed struct(u32) {
     destroyed: u1,
-    _padding: u31,
+    draw_bounds: u1,
+    _padding: u30,
 };
 
 const GpuInstance = struct {
@@ -155,60 +156,40 @@ pub const StaticGeometryPass = struct {
         {
             self.candidate_meshlets_counters_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = 8 * @sizeOf(u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Counters Buffer");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Candidate Meshlets Counters Buffer");
                 }
                 break :blk buffers;
             };
 
             self.candidate_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Candidate Meshlets Buffer");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Candidate Meshlets Buffer");
                 }
                 break :blk buffers;
             };
 
             self.visible_meshlets_counters_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = 8 * @sizeOf(u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Counters Buffer");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Visible Meshlets Counters Buffer");
                 }
                 break :blk buffers;
             };
 
             self.visible_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = meshlets_max_count * @sizeOf(GpuMeshletCandidate),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Visible Meshlets Buffer");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Visible Meshlets Buffer");
                 }
                 break :blk buffers;
             };
 
             self.meshlet_cull_args_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = 8 * @sizeOf(u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlets Cull Dispatch Args Buffer");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Meshlets Cull Dispatch Args Buffer");
                 }
                 break :blk buffers;
             };
@@ -218,60 +199,40 @@ pub const StaticGeometryPass = struct {
         {
             self.meshlet_count_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = 16 * @sizeOf(u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Meshlets Count");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(16 * @sizeOf(u32), "Meshlet Binning: Meshlets Count");
                 }
                 break :blk buffers;
             };
 
             self.meshlet_offset_and_count_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = pso.pso_bins_max_count * @sizeOf([4]u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Meshlets Offset and Count");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(pso.pso_bins_max_count * @sizeOf([4]u32), "Meshlet Binning: Meshlets Offset and Count");
                 }
                 break :blk buffers;
             };
 
             self.meshlet_global_count_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = 16 * @sizeOf(u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Meshlets Global Count");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(16 * @sizeOf(u32), "Meshlet Binning: Meshlets Global Count");
                 }
                 break :blk buffers;
             };
 
             self.binned_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = meshlets_max_count * @sizeOf(u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Binned Meshlets");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(u32), "Meshlet Binning: Binned Meshlets");
                 }
                 break :blk buffers;
             };
 
             self.classify_meshes_dispatch_args_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = @sizeOf([4]u32),
-                };
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, true, "Meshlet Binning: Classify Meshlets Dispatch Args");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(@sizeOf([4]u32), "Meshlet Binning: Classify Meshlets Dispatch Args");
                 }
                 break :blk buffers;
             };
@@ -333,6 +294,9 @@ pub const StaticGeometryPass = struct {
                     gpu_instance.screen_percentage_min = renderable_data.lods[lod_index].screen_percentage_range[0];
                     gpu_instance.screen_percentage_max = renderable_data.lods[lod_index].screen_percentage_range[1];
                     gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
+                    if (static_entity.draw_bounds) {
+                        gpu_instance.flags.draw_bounds = 1;
+                    }
 
                     self.instances.append(gpu_instance) catch unreachable;
                     instances_count += 1;
@@ -378,6 +342,20 @@ pub const StaticGeometryPass = struct {
         defer trazy_zone.End();
 
         self.cullAndRender(cmd_list, render_view, true, cascade_index);
+    }
+
+    fn createWritableBindlessBuffer(self: *@This(), size: u64, debug_name: []const u8) renderer.BufferHandle {
+        const buffer_creation_desc = renderer.BufferCreationDesc{
+            .bindless = true,
+            .descriptors = .{
+                .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits
+            },
+            .start_state = .RESOURCE_STATE_COMMON,
+            .size = size,
+            .debug_name = debug_name,
+        };
+
+        return self.renderer.createBuffer(buffer_creation_desc);
     }
 
     fn cullAndRender(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, shadow_view: bool, cascade_index: u32) void {
@@ -546,14 +524,18 @@ pub const StaticGeometryPass = struct {
                     }
                     {
                         var uniform_buffer = self.renderer.getBuffer(uniform_buffer_handle);
+                        var debug_uniform_buffer = self.renderer.getBuffer(self.renderer.debug_frame_uniform_buffers[frame_index]);
 
-                        var params: [2]graphics.DescriptorData = undefined;
+                        var params: [3]graphics.DescriptorData = undefined;
                         params[0] = std.mem.zeroes(graphics.DescriptorData);
                         params[0].pName = "g_Frame";
                         params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
                         params[1] = std.mem.zeroes(graphics.DescriptorData);
                         params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
                         params[1].pName = "g_CullInstancesParams";
+                        params[2] = std.mem.zeroes(graphics.DescriptorData);
+                        params[2].pName = "g_DebugFrame";
+                        params[2].__union_field3.ppBuffers = @ptrCast(&debug_uniform_buffer);
 
                         graphics.updateDescriptorSet(self.renderer.renderer, frame_index, descriptor_set, @intCast(params.len), @ptrCast(&params));
                     }

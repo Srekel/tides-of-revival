@@ -350,6 +350,7 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
                     .entity_id = iter.entities()[entity_index],
                     .renderable_id = renderable.id,
                     .world = zm.loadMat(&world),
+                    .draw_bounds = renderable.draw_bounds,
                 }) catch unreachable;
             }
         }

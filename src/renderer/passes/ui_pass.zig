@@ -56,11 +56,7 @@ pub const UIPass = struct {
         self.instance_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(renderer_types.UiImage),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "UI Instance Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(renderer_types.UiImage), "UI Instance Buffer");
             }
 
             break :blk buffers;

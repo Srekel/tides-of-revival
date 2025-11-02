@@ -73,11 +73,7 @@ pub const WaterPass = struct {
         self.instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Water Instance Data");
+                buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(InstanceData), "Water Instance Data");
             }
 
             break :blk buffers;
@@ -95,8 +91,7 @@ pub const WaterPass = struct {
     }
 
     pub fn renderImGui(_: *@This()) void {
-        if (zgui.collapsingHeader("Water", .{})) {
-        }
+        if (zgui.collapsingHeader("Water", .{})) {}
     }
 
     pub fn render(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {

@@ -77,6 +77,7 @@ const visualization_modes = [_][:0]const u8{
 pub const Renderer = struct {
     pub const data_buffer_count: u32 = 2;
     pub const cascades_max_count: u32 = 4;
+    pub const debug_line_point_count_max = 200000;
 
     allocator: std.mem.Allocator = undefined,
     ecsu_world: ecsu.World = undefined,
@@ -86,6 +87,7 @@ pub const Renderer = struct {
     window_height: i32 = 0,
     time: f64 = 0.0,
     vsync_enabled: bool = false,
+    draw_debug_lines: bool = false,
 
     swap_chain: [*c]graphics.SwapChain = null,
     gpu_cmd_ring: graphics.GpuCmdRing = undefined,
@@ -98,6 +100,13 @@ pub const Renderer = struct {
     gpu_terrain_pass_profile_index: usize = 0,
     gpu_geometry_pass_profile_index: usize = 0,
     gpu_gpu_driven_pass_profile_index: usize = 0,
+
+    // Debug Line Buffers
+    debug_frame_uniform_buffers: [data_buffer_count]BufferHandle = undefined,
+    debug_line_vertex_buffers: [data_buffer_count]BufferHandle = undefined,
+    debug_line_args_buffers: [data_buffer_count]BufferHandle = undefined,
+    debug_line_renderer_clear_uav_descriptor_set: [*c]graphics.DescriptorSet = undefined,
+    debug_line_renderer_draw_descriptor_set: [*c]graphics.DescriptorSet = undefined,
 
     // TODO: Create a scene structs
     // Scene Data
@@ -321,6 +330,21 @@ pub const Renderer = struct {
         im3d_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 4;
         self.vertex_layouts_map.put(IdLocal.init("im3d"), im3d_vertex_layout) catch unreachable;
 
+        var debug_line_vertex_layout = std.mem.zeroes(graphics.VertexLayout);
+        debug_line_vertex_layout.mBindingCount = 1;
+        debug_line_vertex_layout.mAttribCount = 2;
+        debug_line_vertex_layout.mAttribs[0].mSemantic = graphics.ShaderSemantic.SEMANTIC_POSITION;
+        debug_line_vertex_layout.mAttribs[0].mFormat = graphics.TinyImageFormat.R32G32B32_SFLOAT;
+        debug_line_vertex_layout.mAttribs[0].mBinding = 0;
+        debug_line_vertex_layout.mAttribs[0].mLocation = 0;
+        debug_line_vertex_layout.mAttribs[0].mOffset = 0;
+        debug_line_vertex_layout.mAttribs[1].mSemantic = graphics.ShaderSemantic.SEMANTIC_COLOR;
+        debug_line_vertex_layout.mAttribs[1].mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
+        debug_line_vertex_layout.mAttribs[1].mBinding = 0;
+        debug_line_vertex_layout.mAttribs[1].mLocation = 1;
+        debug_line_vertex_layout.mAttribs[1].mOffset = @sizeOf(f32) * 3;
+        self.vertex_layouts_map.put(IdLocal.init("debug_line"), debug_line_vertex_layout) catch unreachable;
+
         {
             var vertex_layout = std.mem.zeroes(graphics.VertexLayout);
 
@@ -412,6 +436,51 @@ pub const Renderer = struct {
         self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Material Buffer");
         self.material_map = MaterialMap.init(allocator);
 
+        // Debug Line Rendering Resources
+        {
+            self.debug_frame_uniform_buffers = blk: {
+                var buffers: [data_buffer_count]BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = self.createUniformBuffer(renderer_types.DebugFrame);
+                }
+
+                break :blk buffers;
+            };
+
+            self.debug_line_vertex_buffers = blk: {
+                const buffer_creation_desc = BufferCreationDesc{
+                    .bindless = true,
+                    .descriptors = .{ .bits = (graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_VERTEX_BUFFER.bits) },
+                    .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
+                    .size = debug_line_point_count_max * 16,
+                    .debug_name = "Debug Lines",
+                };
+                var buffers: [data_buffer_count]BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = self.createBuffer(buffer_creation_desc);
+                }
+
+                break :blk buffers;
+            };
+
+            self.debug_line_args_buffers = blk: {
+                const buffer_creation_desc = BufferCreationDesc{
+                    .bindless = true,
+                    .descriptors = .{ .bits = (graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits) },
+                    .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
+                    .size = 16 * @sizeOf(u32),
+                    .debug_name = "Debug Line Args",
+                };
+
+                var buffers: [data_buffer_count]BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = self.createBuffer(buffer_creation_desc);
+                }
+
+                break :blk buffers;
+            };
+        }
+
         self.dynamic_geometry_pass.init(self, self.allocator);
         self.static_geometry_pass.init(self, self.allocator);
         self.deferred_shading_pass.init(self, self.allocator);
@@ -446,6 +515,8 @@ pub const Renderer = struct {
 
         self.pso_manager.exit();
 
+        graphics.removeDescriptorSet(self.renderer, self.debug_line_renderer_draw_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer, self.debug_line_renderer_clear_uav_descriptor_set);
         graphics.removeDescriptorSet(self.renderer, self.composite_sdr_pass_descriptor_set);
         graphics.removeDescriptorSet(self.renderer, self.buffers_visualization_descriptor_set);
 
@@ -576,6 +647,19 @@ pub const Renderer = struct {
             };
 
             zgui.backend.init(self.window.window, zgui_init_data);
+
+            // Debug Line Rendering Descriptor Sets
+            {
+                var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+                desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+                desc.pRootSignature = self.getRootSignature(IdLocal.init("debug_line_rendering_clear"));
+                desc.mMaxSets = data_buffer_count;
+
+                graphics.addDescriptorSet(self.renderer, &desc, @ptrCast(&self.debug_line_renderer_clear_uav_descriptor_set));
+
+                desc.pRootSignature = self.getRootSignature(IdLocal.init("debug_line_rendering_draw"));
+                graphics.addDescriptorSet(self.renderer, &desc, @ptrCast(&self.debug_line_renderer_draw_descriptor_set));
+            }
 
             self.createCompositeSDRDescriptorSet();
             self.createBuffersVisualizationDescriptorSet();
@@ -772,6 +856,59 @@ pub const Renderer = struct {
 
         self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
 
+        // Debug Line Rendering: Clear UAVs
+        {
+            // Update Uniform Buffer
+            var debug_frame = std.mem.zeroes(renderer_types.DebugFrame);
+            zm.storeMat(&debug_frame.view, zm.transpose(render_view.view));
+            zm.storeMat(&debug_frame.proj, zm.transpose(render_view.projection));
+            zm.storeMat(&debug_frame.view_proj, zm.transpose(render_view.view_projection));
+            zm.storeMat(&debug_frame.view_proj_inv, zm.transpose(render_view.view_projection_inverse));
+            debug_frame.debug_line_point_count_max = debug_line_point_count_max;
+            debug_frame.debug_line_point_args_buffer_index = self.getBufferBindlessIndex(self.debug_line_args_buffers[self.frame_index]);
+            debug_frame.debug_line_vertex_buffer_index = self.getBufferBindlessIndex(self.debug_line_vertex_buffers[self.frame_index]);
+            debug_frame._padding1 = 42;
+
+            const uniform_buffer_handle = self.debug_frame_uniform_buffers[self.frame_index];
+            const frame_data = OpaqueSlice{
+                .data = @ptrCast(&debug_frame),
+                .size = @sizeOf(renderer_types.DebugFrame),
+            };
+            self.updateBuffer(frame_data, 0, renderer_types.DebugFrame, uniform_buffer_handle);
+
+            // Resource Barriers
+            const debug_line_args_buffer = self.getBuffer(self.debug_line_args_buffers[self.frame_index]);
+            const line_vertex_buffer = self.getBuffer(self.debug_line_vertex_buffers[self.frame_index]);
+            {
+                const buffer_barriers = [_]graphics.BufferBarrier{
+                    graphics.BufferBarrier.init(debug_line_args_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
+                    graphics.BufferBarrier.init(line_vertex_buffer, .RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, .RESOURCE_STATE_UNORDERED_ACCESS),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+            }
+
+            // Update Descriptor Set
+            const descriptor_set = self.debug_line_renderer_clear_uav_descriptor_set;
+
+            {
+                var uniform_buffer = self.getBuffer(uniform_buffer_handle);
+
+                var params: [1]graphics.DescriptorData = undefined;
+                params[0] = std.mem.zeroes(graphics.DescriptorData);
+                params[0].pName = "g_DebugFrame";
+                params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+                graphics.updateDescriptorSet(self.renderer, self.frame_index, descriptor_set, @intCast(params.len), @ptrCast(&params));
+            }
+
+            // Dispatch
+            const pipeline_id = IdLocal.init("debug_line_rendering_clear");
+            const pipeline = self.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, self.frame_index, descriptor_set);
+            graphics.cmdDispatch(cmd_list, 1, 1, 1);
+        }
+
         // Shadow Map Pass
         {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
@@ -943,16 +1080,20 @@ pub const Renderer = struct {
 
         // UI Overlay
         {
-            var input_barriers = [_]graphics.RenderTargetBarrier{
+            var rt_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.ui_overlay, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_DEPTH_READ),
             };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
 
             var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
             bind_render_targets_desc.mRenderTargetCount = 1;
             bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
             bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.ui_overlay;
             bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+            bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
+            bind_render_targets_desc.mDepthStencil.pDepthStencil = self.depth_buffer;
+            bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_LOAD;
             graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
 
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
@@ -970,6 +1111,52 @@ pub const Renderer = struct {
                 self.im3d_pass.render(cmd_list, render_view);
             }
 
+            // Debug Line Rendering: Draw Pass
+            {
+                const debug_line_args_buffer = self.getBuffer(self.debug_line_args_buffers[self.frame_index]);
+                const line_vertex_buffer = self.getBuffer(self.debug_line_vertex_buffers[self.frame_index]);
+                {
+                    const buffer_barriers = [_]graphics.BufferBarrier{
+                        graphics.BufferBarrier.init(line_vertex_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
+                        graphics.BufferBarrier.init(debug_line_args_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_INDIRECT_ARGUMENT),
+                    };
+                    graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+                }
+
+                if (self.draw_debug_lines) {
+                    const descriptor_set = self.debug_line_renderer_draw_descriptor_set;
+
+                    {
+                        var uniform_buffer = self.getBuffer(self.debug_frame_uniform_buffers[self.frame_index]);
+
+                        var params: [1]graphics.DescriptorData = undefined;
+                        params[0] = std.mem.zeroes(graphics.DescriptorData);
+                        params[0].pName = "g_DebugFrame";
+                        params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+                        graphics.updateDescriptorSet(self.renderer, self.frame_index, descriptor_set, @intCast(params.len), @ptrCast(&params));
+                    }
+
+                    const pipeline_id = IdLocal.init("debug_line_rendering_draw");
+                    const pipeline = self.getPSO(pipeline_id);
+
+                    const vertex_buffers = [_][*c]graphics.Buffer{line_vertex_buffer};
+                    const vertex_buffer_strides = [_]u32{16};
+
+                    graphics.cmdBindPipeline(cmd_list, pipeline);
+                    graphics.cmdBindDescriptorSet(cmd_list, self.frame_index, descriptor_set);
+                    graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&vertex_buffer_strides), null);
+                    graphics.cmdExecuteIndirect(cmd_list, .INDIRECT_DRAW, 1, debug_line_args_buffer, 0, null, 0);
+                }
+
+                {
+                    const buffer_barriers = [_]graphics.BufferBarrier{
+                        graphics.BufferBarrier.init(debug_line_args_buffer, .RESOURCE_STATE_INDIRECT_ARGUMENT, .RESOURCE_STATE_COMMON),
+                    };
+                    graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+                }
+            }
+
             // ImGUI Pass
             if (self.render_imgui) {
                 const profile_index = self.startGpuProfile(cmd_list, "ImGui");
@@ -985,6 +1172,7 @@ pub const Renderer = struct {
 
             var output_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(self.ui_overlay, .RESOURCE_STATE_RENDER_TARGET, .RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.RenderTargetBarrier.init(self.depth_buffer, .RESOURCE_STATE_DEPTH_READ, .RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, output_barriers.len, @ptrCast(&output_barriers));
 
@@ -1158,6 +1346,12 @@ pub const Renderer = struct {
             {
                 if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
                     // _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
+                    _ = zgui.checkbox("Draw Debug Lines", .{ .v = &self.draw_debug_lines });
+                    _ = zgui.dragFloat("Shadow Distance", .{ .v = &self.shadow_cascade_max_distance, .speed = 1.0, .min = 100.0, .max = 1500.0 });
+                    zgui.text("Cascade 1: {d:.2}", .{self.shadow_cascade_depths[0]});
+                    zgui.text("Cascade 2: {d:.2}", .{self.shadow_cascade_depths[1]});
+                    zgui.text("Cascade 3: {d:.2}", .{self.shadow_cascade_depths[2]});
+                    zgui.text("Cascade 4: {d:.2}", .{self.shadow_cascade_depths[3]});
 
                     if (zgui.button("Visualization Mode", .{})) {
                         zgui.openPopup("viz_mode_popup", zgui.PopupFlags.any_popup);
@@ -1516,8 +1710,14 @@ pub const Renderer = struct {
             data_size += alignUp(mesh_data.meshlet_triangles.items.len * @sizeOf(geometry.MeshletTriangle), alignment);
             data_size += alignUp(mesh_data.meshlet_vertices.items.len * @sizeOf(u32), alignment);
 
-            const geometry_buffer_slice = OpaqueSlice{ .data = null, .size = data_size };
-            mesh.data_buffer = self.createBindlessBuffer(geometry_buffer_slice, false, "Geometry Buffer");
+            const buffer_creation_desc = BufferCreationDesc{
+                .bindless = true,
+                .descriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW,
+                .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
+                .size = data_size,
+                .debug_name = "Geometry Buffer",
+            };
+            mesh.data_buffer = self.createBuffer(buffer_creation_desc);
 
             const buffer_data = self.allocator.alloc(u8, data_size) catch unreachable;
             defer self.allocator.free(buffer_data);
@@ -1790,25 +1990,35 @@ pub const Renderer = struct {
         return @intCast(bindless_index);
     }
 
-    pub fn createBindlessBuffer(self: *Renderer, initial_data: OpaqueSlice, writable: bool, debug_name: []const u8) BufferHandle {
+    pub fn createBuffer(self: *Renderer, desc: BufferCreationDesc) BufferHandle {
+        std.debug.assert(desc.size > 0);
+
         var buffer: [*c]graphics.Buffer = null;
 
         var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
-        load_desc.mDesc.pName = @constCast(debug_name.ptr);
-        load_desc.mDesc.bBindless = true;
-        load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW;
-        if (writable) {
-            load_desc.mDesc.mDescriptors.bits |= graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits;
+        load_desc.mDesc.mSize = desc.size;
+        load_desc.mDesc.pName = @constCast(desc.debug_name.ptr);
+        load_desc.mDesc.mDescriptors = desc.descriptors;
+
+        if (desc.bindless) {
+            std.debug.assert(!desc.cpu_accessible);
+            load_desc.mDesc.bBindless = true;
+            load_desc.mDesc.mFlags = .BUFFER_CREATION_FLAG_SHADER_DEVICE_ADDRESS;
+            load_desc.mDesc.mElementCount = @intCast(desc.size / @sizeOf(u32));
+        } else {
+            std.debug.assert(desc.element_size > 0);
+            load_desc.mDesc.mElementCount = @intCast(desc.size / desc.element_size);
         }
-        load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_SHADER_DEVICE_ADDRESS;
-        load_desc.mDesc.mMemoryUsage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
-        // NOTE(gmodarelli): The persistent SRV uses a R32_TYPELESS representation, so we need to provide an element count in terms of 32bit data
-        load_desc.mDesc.mElementCount = @intCast(initial_data.size / @sizeOf(u32));
-        load_desc.mDesc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
-        load_desc.mDesc.mSize = initial_data.size;
-        if (initial_data.data) |data| {
+
+        load_desc.mDesc.mMemoryUsage = .RESOURCE_MEMORY_USAGE_GPU_ONLY;
+        if (desc.cpu_accessible) {
+            load_desc.mDesc.mMemoryUsage = .RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+        }
+
+        if (desc.data) |data| {
             load_desc.pData = data;
         }
+
         load_desc.ppBuffer = &buffer;
 
         var token: resource_loader.SyncToken = 0;
@@ -1819,58 +2029,61 @@ pub const Renderer = struct {
         return handle;
     }
 
-    pub fn createIndexBuffer(self: *Renderer, initial_data: OpaqueSlice, index_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
-        var buffer: [*c]graphics.Buffer = null;
+    // Helper buffer creation functions
+    pub fn createBindlessBuffer(self: *Renderer, size: u64, debug_name: []const u8) BufferHandle {
+        const buffer_creation_desc = BufferCreationDesc{
+            .bindless = true,
+            .descriptors = .DESCRIPTOR_TYPE_BUFFER_RAW,
+            .start_state = .RESOURCE_STATE_COMMON,
+            .size = size,
+            .debug_name = debug_name,
+        };
 
-        var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
-        if (cpu_accessible) {
-            memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
-        }
-        var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
-        load_desc.mDesc.pName = debug_name;
-        load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_INDEX_BUFFER;
-        load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_NONE;
-        load_desc.mDesc.mMemoryUsage = memory_usage;
-        load_desc.mDesc.mElementCount = @intCast(initial_data.size / index_size);
-        load_desc.mDesc.mSize = initial_data.size;
-        if (initial_data.data) |data| {
-            load_desc.pData = data;
-        }
-        load_desc.ppBuffer = &buffer;
-
-        var token: resource_loader.SyncToken = 0;
-        resource_loader.addResource(@ptrCast(&load_desc), &token);
-        resource_loader.waitForToken(&token);
-
-        const handle: BufferHandle = self.buffer_pool.add(.{ .buffer = buffer }) catch unreachable;
-        return handle;
+        return self.createBuffer(buffer_creation_desc);
     }
 
-    pub fn createVertexBuffer(self: *Renderer, initial_data: OpaqueSlice, vertex_size: u32, cpu_accessible: bool, debug_name: [:0]const u8) BufferHandle {
-        var buffer: [*c]graphics.Buffer = null;
+    pub fn createReadWriteBindlessBuffer(self: *Renderer, size: u64, debug_name: []const u8) BufferHandle {
+        const buffer_creation_desc = BufferCreationDesc{
+            .bindless = true,
+            .descriptors = .{
+                .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits
+            },
+            .start_state = .RESOURCE_STATE_COMMON,
+            .size = size,
+            .debug_name = debug_name,
+        };
 
-        var memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_GPU_ONLY;
-        if (cpu_accessible) {
-            memory_usage = graphics.ResourceMemoryUsage.RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
-        }
-        var load_desc = std.mem.zeroes(resource_loader.BufferLoadDesc);
-        load_desc.mDesc.pName = debug_name;
-        load_desc.mDesc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_VERTEX_BUFFER;
-        load_desc.mDesc.mFlags = graphics.BufferCreationFlags.BUFFER_CREATION_FLAG_NONE;
-        load_desc.mDesc.mMemoryUsage = memory_usage;
-        load_desc.mDesc.mElementCount = @intCast(initial_data.size / vertex_size);
-        load_desc.mDesc.mSize = initial_data.size;
-        if (initial_data.data) |data| {
-            load_desc.pData = data;
-        }
-        load_desc.ppBuffer = &buffer;
+        return self.createBuffer(buffer_creation_desc);
+    }
 
-        var token: resource_loader.SyncToken = 0;
-        resource_loader.addResource(@ptrCast(&load_desc), &token);
-        resource_loader.waitForToken(&token);
+    pub fn createIndexBuffer(self: *Renderer, initial_data: OpaqueSlice, index_size: u32, cpu_accessible: bool, debug_name: []const u8) BufferHandle {
+        const buffer_creation_desc = BufferCreationDesc{
+            .bindless = false,
+            .cpu_accessible = cpu_accessible,
+            .descriptors = .DESCRIPTOR_TYPE_INDEX_BUFFER,
+            .start_state = .RESOURCE_STATE_COMMON,
+            .size = initial_data.size,
+            .element_size = @intCast(index_size),
+            .data = initial_data.data,
+            .debug_name = debug_name,
+        };
 
-        const handle: BufferHandle = self.buffer_pool.add(.{ .buffer = buffer }) catch unreachable;
-        return handle;
+        return self.createBuffer(buffer_creation_desc);
+    }
+
+    pub fn createVertexBuffer(self: *Renderer, initial_data: OpaqueSlice, vertex_size: u32, cpu_accessible: bool, debug_name: []const u8) BufferHandle {
+        const buffer_creation_desc = BufferCreationDesc{
+            .bindless = false,
+            .cpu_accessible = cpu_accessible,
+            .descriptors = .DESCRIPTOR_TYPE_VERTEX_BUFFER,
+            .start_state = .RESOURCE_STATE_COMMON,
+            .size = initial_data.size,
+            .element_size = @intCast(vertex_size),
+            .data = initial_data.data,
+            .debug_name = debug_name,
+        };
+
+        return self.createBuffer(buffer_creation_desc);
     }
 
     pub fn createUniformBuffer(self: *Renderer, comptime T: type) BufferHandle {
@@ -2338,6 +2551,25 @@ pub const Renderer = struct {
     }
 };
 
+// ██████╗ ██╗   ██╗███████╗███████╗███████╗██████╗ ███████╗
+// ██╔══██╗██║   ██║██╔════╝██╔════╝██╔════╝██╔══██╗██╔════╝
+// ██████╔╝██║   ██║█████╗  █████╗  █████╗  ██████╔╝███████╗
+// ██╔══██╗██║   ██║██╔══╝  ██╔══╝  ██╔══╝  ██╔══██╗╚════██║
+// ██████╔╝╚██████╔╝██║     ██║     ███████╗██║  ██║███████║
+// ╚═════╝  ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝
+//
+
+pub const BufferCreationDesc = struct {
+    bindless: bool = false,
+    cpu_accessible: bool = false,
+    descriptors: graphics.DescriptorType = undefined,
+    start_state: graphics.ResourceState = .RESOURCE_STATE_UNDEFINED,
+    size: u64 = 0,
+    element_size: u64 = 0,
+    data: ?*const anyopaque = null,
+    debug_name: []const u8,
+};
+
 pub const ElementBindlessBuffer = struct {
     mutex: std.Thread.Mutex = undefined,
     buffer: BufferHandle = undefined,
@@ -2353,11 +2585,19 @@ pub const ElementBindlessBuffer = struct {
         self.offset = 0;
         self.element_count = 0;
 
-        const buffer_data = OpaqueSlice{
-            .data = null,
+        var buffer_creation_desc = BufferCreationDesc{
+            .bindless = true,
+            .descriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW,
+            .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
             .size = self.size,
+            .debug_name = debug_name,
         };
-        self.buffer = renderer.createBindlessBuffer(buffer_data, uav, debug_name);
+
+        if (uav) {
+            buffer_creation_desc.descriptors.bits |= graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits;
+        }
+
+        self.buffer = renderer.createBuffer(buffer_creation_desc);
     }
 };
 

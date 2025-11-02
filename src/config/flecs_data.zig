@@ -438,6 +438,8 @@ pub const Water = struct {
 
 pub const Renderable = struct {
     id: IdLocal,
+    // Debug
+    draw_bounds: bool = false,
 };
 
 // ███████╗ ██████╗  ██████╗

@@ -156,11 +156,7 @@ pub const TerrainRenderPass = struct {
         self.instance_data_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(TerrainInstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Terrain Quad Tree Instance Data Buffer");
+                buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(TerrainInstanceData), "Terrain Quad Tree Instance Data Buffer");
             }
 
             break :blk buffers;

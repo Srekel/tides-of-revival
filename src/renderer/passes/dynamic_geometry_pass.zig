@@ -98,11 +98,7 @@ pub const DynamicGeometryPass = struct {
         self.gbuffer_instance_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                const buffer_data = OpaqueSlice{
-                    .data = null,
-                    .size = max_instances * @sizeOf(InstanceData),
-                };
-                buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "GBuffer Dynamic Instances");
+                buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(InstanceData), "GBuffer Dynamic Instances");
             }
 
             break :blk buffers;
@@ -113,11 +109,7 @@ pub const DynamicGeometryPass = struct {
             self.shadow_map_instance_buffers[i] = blk: {
                 var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
                 for (buffers, 0..) |_, buffer_index| {
-                    const buffer_data = OpaqueSlice{
-                        .data = null,
-                        .size = max_instances * @sizeOf(InstanceData),
-                    };
-                    buffers[buffer_index] = rctx.createBindlessBuffer(buffer_data, false, "Shadow Map Dynamic Instances");
+                    buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(InstanceData), "Shadow Map Dynamic Instances");
                 }
 
                 break :blk buffers;

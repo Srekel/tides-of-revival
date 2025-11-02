@@ -7,6 +7,18 @@ const geometry = @import("geometry.zig");
 
 pub const InvalidResourceIndex = std.math.maxInt(u32);
 
+pub const DebugFrame = struct {
+    view: [16]f32,
+    proj: [16]f32,
+    view_proj: [16]f32,
+    view_proj_inv: [16]f32,
+
+    debug_line_point_count_max: u32,
+    debug_line_point_args_buffer_index: u32,
+    debug_line_vertex_buffer_index: u32,
+    _padding1: u32,
+};
+
 pub const GpuLight = struct {
     position: [3]f32, // Direction for directional light
     light_type: u32, // 0 - Directional, 1 - Point
@@ -95,6 +107,8 @@ pub const RenderableEntity = struct {
     entity_id: u64,
     renderable_id: IdLocal,
     world: zm.Mat,
+    // Debug
+    draw_bounds: bool = false,
 };
 
 pub const DynamicEntity = struct {

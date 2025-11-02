@@ -1,4 +1,5 @@
 #include "meshlet_culling_common.hlsli"
+#include "../debug_line_rendering.hlsli"
 
 struct CullInstancesParams
 {
@@ -43,6 +44,16 @@ cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
 
     if (isVisible)
     {
+        if (g_CullInstancesParams.shadowPass == 0)
+        {
+            if (instance.flags & (1 << 1))
+            {
+                // DrawOBB(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world);
+                // DrawAABB(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, float4(1, 1, 1, 0.1));
+                DrawBoundingSphere(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world);
+            }
+        }
+
         // Limit meshlet count to the buffer size
         // TODO: Set an out-of-memory flag to let the CPU know to grow the meshlet buffer
         uint globalMeshIndex;
