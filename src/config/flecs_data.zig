@@ -750,7 +750,7 @@ pub const EnvironmentInfo = struct {
         journeying,
         transition_out,
     } = .not,
-    can_journey: enum { aiming_sky, no, yes } = .no,
+    can_journey: enum { invalid, no, yes } = .no,
     player_state_time: f32 = 0,
     // time_of_day_hour: f32,
     // days_in_year: f32,

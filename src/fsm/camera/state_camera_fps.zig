@@ -241,7 +241,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
 
         if (environment_info.rest_state != .not) {
-            environment_info.can_journey = .aiming_sky;
+            environment_info.can_journey = .invalid;
             continue;
         }
 
@@ -263,7 +263,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 const result = query.castRay(ray, .{});
 
                 if (!result.has_hit) {
-                    environment_info.can_journey = .aiming_sky;
+                    environment_info.can_journey = .invalid;
                     continue;
                 }
 
@@ -293,6 +293,15 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 //     color,
                 // );
 
+                const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+                if (config.ocean_level + 10 > height_next) {
+                    // std.log.info("can't journey due to height {d}", .{height_next});
+                    color.setG(0);
+                    color.setB(0);
+                    environment_info.can_journey = .invalid;
+                    return;
+                }
+
                 const hit_normal_z = zm.loadArr3(hit_normal);
                 const up_z = zm.f32x4(0, 1, 0, 0);
                 const dot = zm.dot3(up_z, hit_normal_z)[0];
@@ -304,8 +313,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     continue;
                 }
 
-                const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
-                if (!(config.ocean_level + 5 < height_next and height_next < 700)) {
+                if (height_next > 700) {
                     // std.log.info("can't journey due to height {d}", .{height_next});
                     color.setG(0);
                     color.setB(0);
@@ -331,6 +339,15 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     color.setG(0);
                     color.setB(0);
                     // std.log.info("can't journey due to time {d} duration {d} percent {d}", .{ environment_info.world_time, duration, time_of_day_percent });
+                    continue;
+                }
+
+                if (dist_as_the_crow_flies < 100) {
+                    // TODO trigger sound
+                    // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
+                    color.setG(0);
+                    color.setB(0);
+                    environment_info.can_journey = .invalid;
                     continue;
                 }
 

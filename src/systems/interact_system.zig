@@ -370,7 +370,7 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
 
     const environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     boot_color_target = switch (environment_info.can_journey) {
-        .aiming_sky => [4]f32{ 0.0, 0.0, 0.0, 0.0 },
+        .invalid => [4]f32{ 0.0, 0.0, 0.0, 0.0 },
         .no => [4]f32{ 1.0, 0.0, 0.0, 1.0 },
         .yes => [4]f32{ 0.8, 0.8, 0.8, 0.75 },
     };
