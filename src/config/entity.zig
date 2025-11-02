@@ -103,6 +103,9 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_comp.vo_intro.setVolume(4);
     player_comp.vo_exited_village = ctx.audio.createSoundFromFile("content/audio/hill3/exited_village.wav", .{}) catch unreachable;
     player_comp.vo_exited_village.setVolume(4);
+    player_comp.fx_bow_draw = ctx.audio.createSoundFromFile("content/audio/weapons/bow_draw.wav", .{}) catch unreachable;
+    player_comp.fx_bow_fire = ctx.audio.createSoundFromFile("content/audio/weapons/Whoosh_Cloth_Leather_Fight_174.wav", .{}) catch unreachable;
+    player_comp.fx_bow_hit = ctx.audio.createSoundFromFile("content/audio/weapons/FGHTImpt_Punch Crunchy Crack 27_PMSFX_LB.wav", .{}) catch unreachable;
     player_comp.fx_fire = ctx.audio.createSoundFromFile("content/audio/ambience/Fireplace SFX 1.wav", .{}) catch unreachable;
     player_comp.ambience_birds = ctx.audio.createSoundFromFile("content/audio/ambience/bunch of birds Background ambience.wav", .{}) catch unreachable;
     player_comp.ambience_birds.setVolume(0);

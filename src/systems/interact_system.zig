@@ -155,11 +155,15 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
         return;
     }
 
+    const player_ent = ecs.lookup(system.ecsu_world.world, "main_player");
+    const player_comp = ecs.get(system.ecsu_world.world, player_ent, fd.Player).?;
+
     const wielded_use_primary_held = system.input_frame_data.held(config.input.wielded_use_primary);
     const wielded_use_secondary_held = system.input_frame_data.held(config.input.wielded_use_secondary);
     const wielded_use_held = wielded_use_primary_held or wielded_use_secondary_held;
     _ = wielded_use_held;
     const wielded_use_primary_pressed = system.input_frame_data.just_pressed(config.input.wielded_use_primary);
+    _ = wielded_use_primary_pressed; // autofix
     const wielded_use_primary_released = system.input_frame_data.just_released(config.input.wielded_use_primary);
     const arrow_prefab = system.prefab_mgr.getPrefab(config.prefab.arrow_id).?;
 
@@ -277,9 +281,12 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
             body_interface.setLinearVelocity(proj_body_id, velocity);
 
             // _ = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWFIRE, config.audio_player_oid, .{}) catch unreachable;
+            player_comp.fx_bow_fire.start() catch unreachable;
         } else if (wielded_use_primary_held) {
             // Pull string
-            if (wielded_use_primary_pressed) {
+            if (!player_comp.fx_bow_draw.isPlaying()) {
+                player_comp.fx_bow_draw.start() catch unreachable;
+
                 // playingID = AK.SoundEngine.postEventID(AK_ID.EVENTS.BOWPULL, config.audio_player_oid, .{}) catch unreachable;
             }
 
@@ -298,6 +305,9 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
             //     );
             //     playingID = 0;
             // }
+            if (player_comp.fx_bow_draw.isPlaying()) {
+                player_comp.fx_bow_draw.stop() catch unreachable;
+            }
             var proj_pos = ecs.get_mut(ecs_world, proj_ent.id, fd.Position).?;
             proj_pos.z = zm.lerpV(proj_pos.z, -0.4, 0.1);
         }
@@ -451,6 +461,11 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
     const ecs_world = system.ecsu_world.world;
     const ecs_proj_id = ecs.id(fd.Projectile);
 
+    const player_ent = ecs.lookup(system.ecsu_world.world, "main_player");
+    const player_comp = ecs.get(system.ecsu_world.world, player_ent, fd.Player).?;
+    const player_pos_comp = ecs.get(system.ecsu_world.world, player_ent, fd.Position).?;
+    const player_pos_z = player_pos_comp.asZM();
+
     var arena_state = std.heap.ArenaAllocator.init(system.heap_allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -531,6 +546,15 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
         // AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
         // AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
 
+        const proj_pos_comp = ecs.get(system.ecsu_world.world, proj_ent, fd.Position).?;
+        const proj_pos_z = proj_pos_comp.asZM();
+        const player_to_proj_dist = zm.length3(proj_pos_z - player_pos_z)[0];
+
+        player_comp.fx_bow_hit.stop() catch unreachable;
+        player_comp.fx_bow_hit.start() catch unreachable;
+        var volume: f32 = 0.1 + 1 * (1 / player_to_proj_dist);
+        defer player_comp.fx_bow_hit.setVolume(volume);
+
         if (hit_alive and ecs.has_id(ecs_world, hit_ent, ecs.id(fd.Health))) {
             const transform_target = ecs.get(ecs_world, hit_ent, fd.Transform).?;
             const transform_proj = ecs.get(ecs_world, proj_ent, fd.Transform).?;
@@ -554,6 +578,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
             var hit_health = ecs.get_mut(ecs_world, hit_ent, fd.Health).?;
             if (hit_health.value > 0) {
+                volume *= 3;
                 const speed = ecs.get(ecs_world, proj_ent, fd.Speed).?.value;
                 const damage = (speed - 30) * (speed - 30);
                 std.log.info("speed {d:5.2} damage {d:5.2}\n", .{ speed, damage });
@@ -566,6 +591,7 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 }
 
                 if (hit_health.value <= 0) {
+                    volume *= 3;
                     body_interface.setMotionType(hit_body, .dynamic, .activate);
                     body_interface.addImpulseAtPosition(
                         hit_body,

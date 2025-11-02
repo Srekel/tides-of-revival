@@ -375,6 +375,9 @@ pub fn run() void {
                 player_comp.music.?.destroy();
                 player_comp.vo_intro.destroy();
                 player_comp.vo_exited_village.destroy();
+                player_comp.fx_bow_draw.destroy();
+                player_comp.fx_bow_fire.destroy();
+                player_comp.fx_bow_hit.destroy();
                 player_comp.fx_fire.destroy();
                 player_comp.ambience_birds.destroy();
                 player_comp.ambience_wind.destroy();
