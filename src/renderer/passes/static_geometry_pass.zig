@@ -63,10 +63,12 @@ const Frame = struct {
     linear_clamp_sampler_index: u32,
     shadow_sampler_index: u32,
     shadow_pcf_sampler_index: u32,
+    instance_count: u32,
     instance_buffer_index: u32,
     material_buffer_index: u32,
     meshes_buffer_index: u32,
-    instance_count: u32,
+    renderable_mesh_buffer_index: u32,
+    _padding1: [3]u32,
 };
 
 const ClearUavParams = struct {

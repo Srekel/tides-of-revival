@@ -24,10 +24,13 @@ struct Frame
     uint shadowSamplerIndex;
     uint shadowPcfSamplerIndex;
 
+    uint instancesCount;
     uint instanceBufferIndex;
     uint materialBufferIndex;
     uint meshesBufferIndex;
-    uint instancesCount;
+
+    uint renderableMeshBufferIndex;
+    uint3 _pad1;
 };
 
 struct Mesh
@@ -85,6 +88,47 @@ struct Instance
     uint meshIndex;
     uint materialIndex;
     uint flags;
+};
+
+struct RenderableMeshLodSubMesh
+{
+    // TODO: Packe meshIndex and materialIndex into a single u32
+    uint meshIndex;
+    uint materialIndex;
+    uint2 _pad0;
+};
+
+struct RenderableMeshLod
+{
+    RenderableMeshLodSubMesh subMeshes[32];
+    uint subMeshesCount;
+    float screenPercentageMin;
+    float screenPercentageMax;
+    uint flags;
+};
+
+struct RenderableMesh
+{
+    RenderableMeshLod lods[4];
+    uint lodsCount;
+    uint3 _pad;
+};
+
+struct Instance2
+{
+    float4x4 world;
+    float3 localBoundsOrigin;
+    uint entityId;
+    float3 localBoundsExtents;
+    uint renderableMeshId;
+};
+
+struct MeshletCandidate2
+{
+    uint instanceId;
+    uint meshletIndex;
+    uint materialIndex;
+    uint _padding;
 };
 
 #endif // _MESH_SHADING_TYPES_HLSLI_

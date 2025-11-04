@@ -127,6 +127,7 @@ pub const Renderer = struct {
     light_matrix_buffer: ElementBindlessBuffer = undefined,
     mesh_buffer: ElementBindlessBuffer = undefined,
     material_buffer: ElementBindlessBuffer = undefined,
+    gpu_renderable_mesh_buffer: ElementBindlessBuffer = undefined,
 
     // Resources
     // =========
@@ -425,6 +426,7 @@ pub const Renderer = struct {
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
 
         self.renderable_map = RenderableHashMap.init(allocator);
+        self.gpu_renderable_mesh_buffer.init(self, 256, @sizeOf(GpuRenderableMesh), false, "GPU Renderable Meshes");
 
         self.light_buffer.init(self, 2048, @sizeOf(renderer_types.GpuLight), false, "GpuLight Buffer");
         self.light_matrix_buffer.init(self, 4, @sizeOf([16]f32), false, "Light Matrix Buffer");
@@ -1582,6 +1584,9 @@ pub const Renderer = struct {
         var renderable: Renderable = undefined;
         renderable.lods_count = desc.lods_count;
 
+        var gpu_renderable_mesh = std.mem.zeroes(GpuRenderableMesh);
+        gpu_renderable_mesh.lods_count = desc.lods_count;
+
         for (0..desc.lods_count) |lod_index| {
             const lod = &desc.lods[lod_index];
             const mesh = self.mesh_map.get(lod.mesh_id.hash).?;
@@ -1593,9 +1598,25 @@ pub const Renderer = struct {
             for (0..lod.materials_count) |material_index| {
                 renderable.lods[lod_index].materials[material_index] = lod.materials[material_index];
             }
+
+            gpu_renderable_mesh.lods[lod_index].screen_percentage_min = lod.screen_percentage_range[0];
+            gpu_renderable_mesh.lods[lod_index].screen_percentage_max = lod.screen_percentage_range[1];
+            gpu_renderable_mesh.lods[lod_index].sub_meshes_count = mesh.count;
+            for (0..lod.materials_count) |material_index| {
+                gpu_renderable_mesh.lods[lod_index].sub_meshes[material_index].material_index = @intCast(self.getMaterialIndex(lod.materials[material_index]));
+                gpu_renderable_mesh.lods[lod_index].sub_meshes[material_index].mesh_index = mesh.index + @as(u32, @intCast(material_index));
+            }
         }
 
         self.renderable_map.put(id.hash, renderable) catch unreachable;
+
+        const gpu_renderable_data_slice = OpaqueSlice{
+            .data = @ptrCast(&gpu_renderable_mesh),
+            .size = @sizeOf(GpuRenderableMesh),
+        };
+        self.updateBuffer(gpu_renderable_data_slice, self.gpu_renderable_mesh_buffer.offset, GpuRenderableMesh, self.gpu_renderable_mesh_buffer.buffer);
+        self.gpu_renderable_mesh_buffer.offset += gpu_renderable_data_slice.size;
+        self.gpu_renderable_mesh_buffer.element_count += 1;
     }
 
     pub fn getRenderable(self: *Renderer, id: IdLocal) Renderable {
@@ -2645,6 +2666,27 @@ const Renderable = struct {
 };
 
 const RenderableHashMap = std.AutoHashMap(u64, Renderable);
+
+const GpuRenderableMeshLodSubMesh = struct {
+    mesh_index: u32,
+    material_index: u32,
+    _pad0: [2]u32,
+};
+
+const GpuRenderableMeshLod = struct {
+    sub_meshes: [geometry.sub_mesh_max_count]GpuRenderableMeshLodSubMesh,
+    sub_meshes_count: u32,
+    screen_percentage_min: f32,
+    screen_percentage_max: f32,
+    flags: u32,
+};
+
+const GpuRenderableMesh = struct {
+    lods: [geometry.mesh_lod_max_count]GpuRenderableMeshLod,
+    lods_count: u32,
+    _pad: [3]u32,
+};
+
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
 // ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝
