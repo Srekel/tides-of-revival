@@ -24,11 +24,11 @@ cbuffer g_CullMeshletsParams : register(b1, UPDATE_FREQ_PER_FRAME)
     if (DTid < candidateMeshletsCountersBuffer.Load<uint>(COUNTER_PHASE1_CANDIDATE_MESHLETS * sizeof(uint)))
     {
         uint candidate_index = DTid;
-        MeshletCandidate candidate = candidateMeshletsBuffer.Load<MeshletCandidate>(candidate_index * sizeof(MeshletCandidate));
+        MeshletCandidate2 candidate = candidateMeshletsBuffer.Load<MeshletCandidate2>(candidate_index * sizeof(MeshletCandidate2));
         Instance instance = getInstance(candidate.instanceId);
 
-        ByteAddressBuffer mesh_buffer = ResourceDescriptorHeap[g_Frame.meshesBufferIndex];
-        Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
+        ByteAddressBuffer meshBuffer = ResourceDescriptorHeap[g_Frame.meshesBufferIndex];
+        Mesh mesh = meshBuffer.Load<Mesh>(candidate.meshIndex * sizeof(Mesh));
 
         ByteAddressBuffer data_buffer = ResourceDescriptorHeap[NonUniformResourceIndex(mesh.dataBufferIndex)];
         MeshletBounds bounds = data_buffer.Load<MeshletBounds>(candidate.meshletIndex * sizeof(MeshletBounds) + mesh.meshletBoundsOffset);
@@ -38,7 +38,7 @@ cbuffer g_CullMeshletsParams : register(b1, UPDATE_FREQ_PER_FRAME)
         {
             uint elementOffset;
             InterlockedAdd_WaveOps_ByteAddressBuffer(visibleMeshletsCountersBuffer, COUNTER_PHASE1_VISIBLE_MESHLETS * sizeof(uint), 1, elementOffset);
-            visibleMeshletsBuffer.Store<MeshletCandidate>(elementOffset * sizeof(MeshletCandidate), candidate);
+            visibleMeshletsBuffer.Store<MeshletCandidate2>(elementOffset * sizeof(MeshletCandidate2), candidate);
         }
     }
 }

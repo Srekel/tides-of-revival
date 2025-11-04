@@ -48,6 +48,21 @@ const GpuMeshletCandidate = struct {
     meshlet_index: u32,
 };
 
+const GpuInstance2 = struct {
+    world: [16]f32,
+    local_bounds_origin: [3]f32,
+    entity_id: u32,
+    local_bounds_extents: [3]f32,
+    renderable_mesh_index: u32,
+};
+
+const GpuMeshletCandidate2 = struct {
+    instance_id: u32,
+    meshlet_index: u32,
+    material_index: u32,
+    mesh_index: u32,
+};
+
 const Frame = struct {
     view: [16]f32,
     proj: [16]f32,
@@ -123,7 +138,7 @@ pub const StaticGeometryPass = struct {
     pso_mgr: *pso.PSOManager,
     render_settings: RenderSettings,
 
-    instances: std.ArrayList(GpuInstance),
+    instances: std.ArrayList(GpuInstance2),
     entity_maps: [frames_count]EntityMap,
 
     // Global Buffers
@@ -151,7 +166,7 @@ pub const StaticGeometryPass = struct {
 
         // Global Buffers
         for (self.instance_buffers, 0..) |_, buffer_index| {
-            self.instance_buffers[buffer_index].init(rctx, instancens_max_count, @sizeOf(GpuInstance), false, "GPU Instances");
+            self.instance_buffers[buffer_index].init(rctx, instancens_max_count, @sizeOf(GpuInstance2), false, "GPU Instances");
         }
 
         // Meshlet Culling Buffers
@@ -167,7 +182,7 @@ pub const StaticGeometryPass = struct {
             self.candidate_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Candidate Meshlets Buffer");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate2), "Candidate Meshlets Buffer");
                 }
                 break :blk buffers;
             };
@@ -183,7 +198,7 @@ pub const StaticGeometryPass = struct {
             self.visible_meshlets_buffers = blk: {
                 var buffers: [frames_count]renderer.BufferHandle = undefined;
                 for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Visible Meshlets Buffer");
+                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate2), "Visible Meshlets Buffer");
                 }
                 break :blk buffers;
             };
@@ -248,7 +263,7 @@ pub const StaticGeometryPass = struct {
             }
         }
 
-        self.instances = std.ArrayList(GpuInstance).init(self.allocator);
+        self.instances = std.ArrayList(GpuInstance2).init(self.allocator);
         self.entity_maps = blk: {
             var entity_maps: [frames_count]EntityMap = undefined;
             for (entity_maps, 0..) |_, index| {
@@ -276,36 +291,48 @@ pub const StaticGeometryPass = struct {
             }
 
             const instance_buffer_index: usize = self.instance_buffers[frame_index].element_count + self.instances.items.len;
-            var instances_count: u32 = 0;
+            // var instances_count: u32 = 0;
 
             const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
-            for (0..renderable_data.lods_count) |lod_index| {
-                const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[lod_index].mesh_id);
+            // Use the bounding box of LOD0
+            const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[0].mesh_id);
 
-                for (0..mesh_info.count) |mesh_index_offset| {
-                    const mesh = &self.renderer.meshes.items[mesh_info.index + mesh_index_offset];
+            var gpu_instance = std.mem.zeroes(GpuInstance2);
+            zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
+            gpu_instance.local_bounds_origin = mesh_info.bounds.center;
+            gpu_instance.local_bounds_extents = mesh_info.bounds.extents;
+            gpu_instance.entity_id = @intCast(self.instance_buffers[frame_index].element_count + self.instances.items.len);
+            gpu_instance.renderable_mesh_index = renderable_data.gpu_index;
+            self.instances.append(gpu_instance) catch unreachable;
 
-                    const material_index = self.renderer.getMaterialIndex(renderable_data.lods[lod_index].materials[mesh_index_offset]);
-                    var gpu_instance = std.mem.zeroes(GpuInstance);
-                    zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
-                    gpu_instance.id = @intCast(self.instance_buffers[frame_index].element_count + self.instances.items.len);
-                    gpu_instance.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
-                    gpu_instance.material_index = @intCast(material_index);
-                    gpu_instance.local_bounds_origin = mesh.bounds.center;
-                    gpu_instance.local_bounds_extents = mesh.bounds.extents;
-                    gpu_instance.screen_percentage_min = renderable_data.lods[lod_index].screen_percentage_range[0];
-                    gpu_instance.screen_percentage_max = renderable_data.lods[lod_index].screen_percentage_range[1];
-                    gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
-                    if (static_entity.draw_bounds) {
-                        gpu_instance.flags.draw_bounds = 1;
-                    }
+            // for (0..renderable_data.lods_count) |lod_index| {
+            //     const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[lod_index].mesh_id);
 
-                    self.instances.append(gpu_instance) catch unreachable;
-                    instances_count += 1;
-                }
-            }
+            //     for (0..mesh_info.count) |mesh_index_offset| {
+            //         const mesh = &self.renderer.meshes.items[mesh_info.index + mesh_index_offset];
 
-            self.entity_maps[frame_index].put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = instances_count }) catch unreachable;
+            //         const material_index = self.renderer.getMaterialIndex(renderable_data.lods[lod_index].materials[mesh_index_offset]);
+            //         var gpu_instance = std.mem.zeroes(GpuInstance2);
+            //         zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
+            //         gpu_instance.id = @intCast(self.instance_buffers[frame_index].element_count + self.instances.items.len);
+            //         gpu_instance.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
+            //         gpu_instance.material_index = @intCast(material_index);
+            //         gpu_instance.local_bounds_origin = mesh.bounds.center;
+            //         gpu_instance.local_bounds_extents = mesh.bounds.extents;
+            //         gpu_instance.screen_percentage_min = renderable_data.lods[lod_index].screen_percentage_range[0];
+            //         gpu_instance.screen_percentage_max = renderable_data.lods[lod_index].screen_percentage_range[1];
+            //         gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
+            //         if (static_entity.draw_bounds) {
+            //             gpu_instance.flags.draw_bounds = 1;
+            //         }
+
+            //         self.instances.append(gpu_instance) catch unreachable;
+            //         instances_count += 1;
+            //     }
+            // }
+
+            // NOTE: .count is no longer needed
+            self.entity_maps[frame_index].put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = 1 }) catch unreachable;
         }
 
         if (self.instances.items.len > 0) {
@@ -313,11 +340,11 @@ pub const StaticGeometryPass = struct {
 
             const instance_data = OpaqueSlice{
                 .data = @ptrCast(self.instances.items),
-                .size = self.instances.items.len * @sizeOf(GpuInstance),
+                .size = self.instances.items.len * @sizeOf(GpuInstance2),
             };
 
             std.debug.assert(self.instance_buffers[frame_index].size > instance_data.size + self.instance_buffers[frame_index].offset);
-            self.renderer.updateBuffer(instance_data, self.instance_buffers[frame_index].offset, GpuInstance, self.instance_buffers[frame_index].buffer);
+            self.renderer.updateBuffer(instance_data, self.instance_buffers[frame_index].offset, GpuInstance2, self.instance_buffers[frame_index].buffer);
             self.instance_buffers[frame_index].offset += instance_data.size;
         }
     }
@@ -383,10 +410,11 @@ pub const StaticGeometryPass = struct {
             frame.camera_far_plane = render_view.far_plane;
             frame.time = @floatCast(self.renderer.time);
             frame._padding0 = 42;
+            frame.instance_count = self.instance_buffers[frame_index].element_count;
             frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
             frame.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
             frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
-            frame.instance_count = self.instance_buffers[frame_index].element_count;
+            frame.renderable_mesh_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.gpu_renderable_mesh_buffer.buffer);
             // TODO: Create a getSamplerBindlessIndex in renderer.zig
             frame.linear_repeat_sampler_index = @intCast(self.renderer.linear_repeat_sampler.*.mDx.mDescriptor);
 

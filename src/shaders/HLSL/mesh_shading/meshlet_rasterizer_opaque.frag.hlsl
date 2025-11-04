@@ -7,9 +7,8 @@
 GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
 {
     ByteAddressBuffer visibleMeshletBuffer = ResourceDescriptorHeap[g_RasterizerParams.visibleMeshletsBufferIndex];
-    MeshletCandidate candidate = visibleMeshletBuffer.Load<MeshletCandidate>(primitive.candidateIndex * sizeof(MeshletCandidate));
-    Instance instance = getInstance(candidate.instanceId);
-    MaterialData material = getMaterial(instance.materialIndex);
+    MeshletCandidate2 candidate = visibleMeshletBuffer.Load<MeshletCandidate2>(primitive.candidateIndex * sizeof(MeshletCandidate));
+    MaterialData material = getMaterial(candidate.materialIndex);
     SamplerState sampler = SamplerDescriptorHeap[g_Frame.linearRepeatSamplerIndex];
 
     const float3 P = vertex.positionWS;
@@ -41,17 +40,6 @@ GBufferOutput main(VertexAttribute vertex, PrimitiveAttribute primitive)
             baseColor = BlendDodge(float4(baseColor, 1.0), gradientSample, 1.0).rgb;
         }
     }
-
-#if 0
-    // Testing Screen-Size Percentage
-    {
-        float3 rect_min;
-        float3 rect_max;
-        ClipSpaceAabbMinMax(instance.localBoundsOrigin, instance.localBoundsExtents, instance.world, g_Frame.viewProj, rect_min, rect_max);
-        float d = distance(rect_min, rect_max) * 0.5f;
-        baseColor = float3(d, 0, 0);
-    }
-#endif
 
     float3 N = normalize(vertex.normal);
 

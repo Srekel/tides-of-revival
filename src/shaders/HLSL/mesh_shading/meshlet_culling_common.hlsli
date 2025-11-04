@@ -25,4 +25,11 @@ MaterialData getMaterial(uint materialIndex)
     return material;
 }
 
+Instance2 getInstance2(uint instanceIndex)
+{
+    ByteAddressBuffer instanceBuffer = ResourceDescriptorHeap[g_Frame.instanceBufferIndex];
+    Instance2 instance = instanceBuffer.Load<Instance2>(instanceIndex * sizeof(Instance2));
+    return instance;
+}
+
 #endif // _MESHLET_CULLING_COMMON_HLSLI_

@@ -3,7 +3,7 @@
 [numthreads(64, 1, 1)] void main(uint DTid : SV_DispatchThreadID)
 {
     uint meshletIndex = DTid;
-    RWByteAddressBuffer meshlet_counts_buffer = ResourceDescriptorHeap[g_BinningParams.meshletCountsBufferIndex];
+    RWByteAddressBuffer meshletCountsBuffer = ResourceDescriptorHeap[g_BinningParams.meshletCountsBufferIndex];
 
     if (meshletIndex >= GetMeshletsCount())
         return;
@@ -22,7 +22,7 @@
             {
                 // Accumulate the meshlet count for all active threads
                 uint originalValue;
-                InterlockedAdd_WaveOps_ByteAddressBuffer(meshlet_counts_buffer, firstBin * sizeof(uint), 1, originalValue);
+                InterlockedAdd_WaveOps_ByteAddressBuffer(meshletCountsBuffer, firstBin * sizeof(uint), 1, originalValue);
                 finished = true;
             }
         }

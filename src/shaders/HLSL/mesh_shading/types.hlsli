@@ -118,7 +118,7 @@ struct Instance2
 {
     float4x4 world;
     float3 localBoundsOrigin;
-    uint entityId;
+    uint id;
     float3 localBoundsExtents;
     uint renderableMeshId;
 };
@@ -128,7 +128,7 @@ struct MeshletCandidate2
     uint instanceId;
     uint meshletIndex;
     uint materialIndex;
-    uint _padding;
+    uint meshIndex;
 };
 
 #endif // _MESH_SHADING_TYPES_HLSLI_

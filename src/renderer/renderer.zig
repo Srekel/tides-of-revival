@@ -1583,6 +1583,7 @@ pub const Renderer = struct {
     pub fn registerRenderable(self: *Renderer, id: IdLocal, desc: RenderableDesc) void {
         var renderable: Renderable = undefined;
         renderable.lods_count = desc.lods_count;
+        renderable.gpu_index = @intCast(self.gpu_renderable_mesh_buffer.element_count);
 
         var gpu_renderable_mesh = std.mem.zeroes(GpuRenderableMesh);
         gpu_renderable_mesh.lods_count = desc.lods_count;
@@ -2671,6 +2672,7 @@ pub const RenderableLod = struct {
 const Renderable = struct {
     lods: [lods_per_renderable_max_count]RenderableLod,
     lods_count: u32,
+    gpu_index: u32,
 };
 
 const RenderableHashMap = std.AutoHashMap(u64, Renderable);

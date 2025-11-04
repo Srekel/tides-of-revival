@@ -29,10 +29,9 @@ uint GetMeshletsCount()
 uint GetBin(uint meshletIndex)
 {
     ByteAddressBuffer visibleMeshletBuffer = ResourceDescriptorHeap[g_BinningParams.visibleMeshletsBufferIndex];
-    MeshletCandidate candidate = visibleMeshletBuffer.Load<MeshletCandidate>(meshletIndex * sizeof(MeshletCandidate));
+    MeshletCandidate2 candidate = visibleMeshletBuffer.Load<MeshletCandidate2>(meshletIndex * sizeof(MeshletCandidate2));
 
-    Instance instance = getInstance(candidate.instanceId);
-    MaterialData material = getMaterial(instance.materialIndex);
+    MaterialData material = getMaterial(candidate.materialIndex);
     return material.rasterizerBin;
 }
 

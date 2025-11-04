@@ -20,9 +20,9 @@
     meshletIndex += meshletBinDataBuffer.Load<uint4>(g_RasterizerParams.binIndex * sizeof(uint4)).w; // Offset
     meshletIndex = binnedMeshletsBuffer.Load<uint>(meshletIndex * sizeof(uint));
 
-    MeshletCandidate candidate = visibleMeshletBuffer.Load<MeshletCandidate>(meshletIndex * sizeof(MeshletCandidate));
+    MeshletCandidate2 candidate = visibleMeshletBuffer.Load<MeshletCandidate2>(meshletIndex * sizeof(MeshletCandidate));
     Instance instance = getInstance(candidate.instanceId);
-    Mesh mesh = meshesBuffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
+    Mesh mesh = meshesBuffer.Load<Mesh>(candidate.meshIndex * sizeof(Mesh));
     ByteAddressBuffer dataBuffer = ResourceDescriptorHeap[NonUniformResourceIndex(mesh.dataBufferIndex)];
     Meshlet meshlet = dataBuffer.Load<Meshlet>(candidate.meshletIndex * sizeof(Meshlet) + mesh.meshletOffset);
 
