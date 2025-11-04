@@ -832,6 +832,7 @@ pub const Journey = struct {
 // ╚═╝  ╚═╝╚═╝
 
 pub const Enemy = struct {
+    birth_time: f64,
     base_scale: f32 = 1,
     idling: bool = true,
     aggressive: bool = false,

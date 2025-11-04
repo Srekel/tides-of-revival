@@ -207,12 +207,12 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
 
     if (!player.played_intro and player.amount_moved_total > 20) {
         player.played_intro = true;
-        player.vo_intro.start() catch unreachable;
+        // player.vo_intro.start() catch unreachable;
     }
 
     if (!player.played_exited_village and player.amount_moved_total > 120) {
         player.played_exited_village = true;
-        player.vo_exited_village.start() catch unreachable;
+        // player.vo_exited_village.start() catch unreachable;
     }
 
     if (environment_info.journey_state == .not and environment_info.rest_state == .not) {

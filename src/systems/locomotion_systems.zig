@@ -66,7 +66,7 @@ fn moveForward(it: *ecs.iter_t) callconv(.C) void {
         }
 
         if (locomotion.affected_by_gravity) {
-            locomotion.speed_y -= 20 * it.delta_time;
+            locomotion.speed_y -= 25 * it.delta_time;
             pos.y += locomotion.speed_y * it.delta_time;
         }
 

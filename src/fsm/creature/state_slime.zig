@@ -65,14 +65,17 @@ fn rotateTowardsTarget(
     target_pos: [3]f32,
     is_day: bool,
     is_journeying: bool,
+    world_time: f64,
 ) void {
     const player_pos_z = zm.loadArr3(target_pos);
     const self_pos_z = zm.loadArr3(pos.elems().*);
     const vec_to_player = player_pos_z - self_pos_z;
     const dist_to_player_sq = zm.lengthSq3(vec_to_player)[0];
     if (dist_to_player_sq > 1) {
+        const age = world_time - enemy.birth_time;
+        const skitter_time = 0.1 + age * 0.005;
         const up_z = zm.f32x4(0, 1, 0, 0);
-        const skitter = !enemy.idling and dist_to_player_sq > (40 * 40) and std.math.modf(target_pos[1] + pos.y * 0.125).fpart > 0.25;
+        const skitter = !enemy.idling and dist_to_player_sq > (40 * 40) and std.math.modf(target_pos[1] + pos.y * 0.125).fpart > skitter_time;
         const dir_to_player = zm.normalize3(vec_to_player);
         const skitter_angle_offset: f32 = if (skitter) if (enemy.left_bias) -1.5 else 1.5 else 0;
         const angle_to_player = std.math.atan2(dir_to_player[0], dir_to_player[2]) + skitter_angle_offset;
@@ -85,7 +88,7 @@ fn rotateTowardsTarget(
         zm.storeArr4(rot.elems(), rot_new_normalized_z);
 
         if (!locomotion.affected_by_gravity and enemy.aggressive) {
-            locomotion.speed = if (skitter) 15 / enemy.base_scale else 5 / enemy.base_scale;
+            locomotion.speed = if (skitter) 20 / enemy.base_scale else 5 / enemy.base_scale;
         } else if (!enemy.aggressive) {
             locomotion.speed = if (is_day) 2 else 4;
             locomotion.speed *= if (is_journeying) 0.25 else 1;
@@ -349,7 +352,17 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
             }
 
             if (!locomotion.affected_by_gravity) {
-                rotateTowardsTarget(pos, rot, locomotion, &enemy, locomotion.target_position.?, is_day, environment_info.journey_state != .not);
+                rotateTowardsTarget(
+                    pos,
+                    rot,
+                    locomotion,
+                    &enemy,
+                    locomotion.target_position.?,
+                    is_day,
+                    environment_info.journey_state != .not,
+                    environment_info.world_time,
+                );
+            }
 
             if (locomotion.sfx_footstep_next_time < environment_info.world_time) {
                 const footstep_pos_z = pos.asZM();
@@ -625,7 +638,7 @@ const SplitIfNearPlayer = struct {
         enemy.idling = false;
 
         var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
-        health.value = 20 + 60 * enemy.base_scale * enemy.base_scale;
+        health.value = 10 + 30 * enemy.base_scale * enemy.base_scale;
 
         var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
         pos.y += 5;
@@ -649,10 +662,11 @@ const SplitIfNearPlayer = struct {
             .aggressive = true,
             .idling = false,
             .left_bias = std.crypto.random.float(f32) > 0.5,
+            .birth_time = ctx.time.now,
         });
         ent.add(fd.SettlementEnemy);
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
-        ent.set(fd.Health{ .value = 20 + 60 * base_scale * base_scale });
+        ent.set(fd.Health{ .value = 10 + 30 * base_scale * base_scale });
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 

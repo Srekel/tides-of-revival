@@ -625,6 +625,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     .aggressive = true,
                     .idling = false,
                     .left_bias = std.crypto.random.float(f32) > 0.5,
+                    .birth_time = environment_info.world_time,
                 });
                 ent.add(fd.SettlementEnemy);
                 ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
