@@ -1702,7 +1702,15 @@ pub const Renderer = struct {
 
         const mesh_index: u32 = @intCast(self.meshes.items.len);
         const mesh_count: u32 = @intCast(meshes_data.items.len);
-        self.mesh_map.put(mesh_id.hash, .{ .index = mesh_index, .count = mesh_count }) catch unreachable;
+        var mesh_info = MeshInfo{
+            .index = mesh_index,
+            .count = mesh_count,
+            .bounds = undefined,
+        };
+        @memcpy(&mesh_info.bounds.center, &load_desc.bounds.center);
+        @memcpy(&mesh_info.bounds.extents, &load_desc.bounds.extents);
+
+        self.mesh_map.put(mesh_id.hash, mesh_info) catch unreachable;
 
         // Upload the mesh
         var gpu_mesh_data = std.ArrayList(GPUMesh).init(self.allocator);
@@ -2744,6 +2752,7 @@ const GPUMesh = struct {
 pub const MeshInfo = struct {
     index: u32,
     count: u32,
+    bounds: geometry.BoundingBox,
 };
 const MeshHashMap = std.AutoHashMap(u64, MeshInfo);
 

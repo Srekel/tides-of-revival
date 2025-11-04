@@ -45,6 +45,7 @@ pub const MeshLoadDesc = struct {
     mesh_path: []const u8,
     allocator: std.mem.Allocator,
     mesh_data: *std.ArrayList(MeshData),
+    bounds: BoundingBox,
 };
 
 pub fn loadMesh(load_desc: *MeshLoadDesc) void {
@@ -58,6 +59,9 @@ pub fn loadMesh(load_desc: *MeshLoadDesc) void {
     std.debug.assert(std.mem.eql(u8, &magic, "TidesMesh"));
 
     const mesh_count = reader.readInt(usize, .little) catch unreachable;
+
+    var mesh_position_min = [3]f32{ std.math.floatMax(f32), std.math.floatMax(f32), std.math.floatMax(f32) };
+    var mesh_position_max = [3]f32{ std.math.floatMin(f32), std.math.floatMin(f32), std.math.floatMin(f32) };
 
     for (0..mesh_count) |_| {
         var mesh_data: MeshData = undefined;
@@ -162,6 +166,21 @@ pub fn loadMesh(load_desc: *MeshLoadDesc) void {
         mesh_data.bounds.extents[1] = (position_max[1] - position_min[1]) * 0.5;
         mesh_data.bounds.extents[2] = (position_max[2] - position_min[2]) * 0.5;
 
+        mesh_position_min[0] = @min(mesh_position_min[0], position_min[0]);
+        mesh_position_min[1] = @min(mesh_position_min[1], position_min[1]);
+        mesh_position_min[2] = @min(mesh_position_min[2], position_min[2]);
+        mesh_position_max[0] = @max(mesh_position_max[0], position_max[0]);
+        mesh_position_max[1] = @max(mesh_position_max[1], position_max[1]);
+        mesh_position_max[2] = @max(mesh_position_max[2], position_max[2]);
+
         load_desc.mesh_data.append(mesh_data) catch unreachable;
     }
+
+    load_desc.bounds.center[0] = (mesh_position_min[0] + mesh_position_max[0]) * 0.5;
+    load_desc.bounds.center[1] = (mesh_position_min[1] + mesh_position_max[1]) * 0.5;
+    load_desc.bounds.center[2] = (mesh_position_min[2] + mesh_position_max[2]) * 0.5;
+
+    load_desc.bounds.extents[0] = (mesh_position_max[0] - mesh_position_min[0]) * 0.5;
+    load_desc.bounds.extents[1] = (mesh_position_max[1] - mesh_position_min[1]) * 0.5;
+    load_desc.bounds.extents[2] = (mesh_position_max[2] - mesh_position_min[2]) * 0.5;
 }
