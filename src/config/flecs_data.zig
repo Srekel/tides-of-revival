@@ -724,6 +724,10 @@ pub const SettlementEnemy = struct {};
 // ╚══════╝╚═╝  ╚═══╝  ╚═══╝
 
 pub const EnvironmentInfo = struct {
+    pub const Footstep = struct {
+        fx: *zaudio.Sound,
+        time_played: f64 = 0,
+    };
     paused: bool,
     active_camera: ?ecsu.Entity,
     player_camera: ?ecsu.Entity,
@@ -754,6 +758,25 @@ pub const EnvironmentInfo = struct {
     } = .not,
     can_journey: enum { invalid, no, yes } = .no,
     player_state_time: f32 = 0,
+
+    slime_footsteps: [6 * 3]Footstep = undefined,
+    pub fn playFootstep(self: *EnvironmentInfo, footstep_pos: [3]f32, base_scale: f32) void {
+        for (&self.slime_footsteps) |*footstep| {
+            if (self.world_time - footstep.time_played > 4) {
+                const camera_entity = self.active_camera.?;
+                const camera_transform = camera_entity.get(Transform).?;
+                const camera_pos = camera_transform.getPos00();
+                const camera_pos_z = zm.loadArr3(camera_pos);
+                const footstep_pos_z = zm.loadArr3(footstep_pos);
+                const dist = zm.length3(camera_pos_z - footstep_pos_z)[0];
+                footstep.fx.setVolume(base_scale * 1 / dist);
+                footstep.fx.setPitch(1 / base_scale);
+                footstep.fx.start() catch unreachable;
+                footstep.time_played = self.world_time;
+                return;
+            }
+        }
+    }
     // time_of_day_hour: f32,
     // days_in_year: f32,
     // day: f32,
@@ -793,6 +816,8 @@ pub const Locomotion = struct {
     snap_to_terrain: bool = true,
     align_to_terrain: bool = true,
     target_position: ?[3]f32 = null,
+    // sfx_footstep: *zaudio.Sound,
+    sfx_footstep_next_time: f64 = 0,
 };
 
 pub const Journey = struct {

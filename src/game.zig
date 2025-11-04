@@ -232,6 +232,17 @@ pub fn run() void {
         .player = null,
     });
 
+    var sound_buffer: [256]u8 = undefined;
+    const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    for (&environment_info.slime_footsteps, 0..) |*footstep, i_f| {
+        const sound_path = std.fmt.bufPrintZ(
+            sound_buffer[0..sound_buffer.len],
+            "content/audio/enemies/SLM MNSTR Body FX PF 1 #{d}.wav",
+            .{(i_f % 6) + 1},
+        ) catch unreachable;
+        footstep.fx = audio.createSoundFromFile(sound_path, .{}) catch unreachable;
+    }
+
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗
     // ██╔════╝████╗  ██║╚══██╔══╝██║╚══██╔══╝██║██╔════╝██╔════╝
     // █████╗  ██╔██╗ ██║   ██║   ██║   ██║   ██║█████╗  ███████╗
@@ -369,7 +380,6 @@ pub fn run() void {
         ztracy.FrameMark();
 
         if (done) {
-            const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
             const player_comp_opt = environment_info.player.?.get(fd.Player);
             if (player_comp_opt) |player_comp| {
                 player_comp.music.?.destroy();
@@ -381,6 +391,9 @@ pub fn run() void {
                 player_comp.fx_fire.destroy();
                 player_comp.ambience_birds.destroy();
                 player_comp.ambience_wind.destroy();
+            }
+            for (&environment_info.slime_footsteps) |*footstep| {
+                footstep.fx.destroy();
             }
 
             // Clear out systems. Needed to clear up memory.

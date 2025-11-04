@@ -16,12 +16,14 @@ const egl_math = @import("../../core/math.zig");
 const context = @import("../../core/context.zig");
 const task_queue = @import("../../core/task_queue.zig");
 const im3d = @import("im3d");
+const zaudio = @import("zaudio");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
     heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    audio: *zaudio.Engine,
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     physics_world_low: *zphy.PhysicsSystem,
@@ -271,6 +273,10 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
 
     const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const world_time = environment_info.world_time;
+    const camera_entity = environment_info.active_camera.?;
+    const camera_transform = camera_entity.get(fd.Transform).?;
+    const camera_pos = camera_transform.getPos00();
+    const camera_pos_z = zm.loadArr3(camera_pos);
     const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
 
     for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, enemy, ent| {
@@ -344,6 +350,16 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
 
             if (!locomotion.affected_by_gravity) {
                 rotateTowardsTarget(pos, rot, locomotion, &enemy, locomotion.target_position.?, is_day, environment_info.journey_state != .not);
+
+            if (locomotion.sfx_footstep_next_time < environment_info.world_time) {
+                const footstep_pos_z = pos.asZM();
+                const dist = zm.length3(camera_pos_z - footstep_pos_z)[0];
+                const footstep_delay = @min(6, @max(60, dist * 0.25));
+
+                locomotion.sfx_footstep_next_time = environment_info.world_time + @as(f64, @floatCast(footstep_delay));
+                if (dist < 100) {
+                    environment_info.playFootstep(pos.elems().*, enemy.base_scale);
+                }
             }
             // rotateTowardsTarget(pos, rot, player_pos.elemsConst().*);
         }

@@ -86,6 +86,7 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
     const up_z = zm.f32x4(0, 1, 0, 0);
     const ray_dir = [_]f32{ 0, -1000, 0, 0 };
 
+    const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const bodies_all_sim = ctx.physics_world.getBodiesUnsafe();
     const bodies_all_low = ctx.physics_world_low.getBodiesUnsafe();
 
@@ -123,6 +124,7 @@ fn snapToTerrain(it: *ecs.iter_t) callconv(.C) void {
             if (dist > 200.1 or locomotion.speed_y > 0) {
                 result.has_hit = false;
             } else {
+                environment_info.playFootstep(pos.elems().*, 3);
                 locomotion.affected_by_gravity = false;
             }
         }
