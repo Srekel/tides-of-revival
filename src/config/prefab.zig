@@ -716,6 +716,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const entity = prefab_mgr.createRenderablePrefab(brazier_2_id, ecsu_world);
         var renderable = entity.getMut(fd.Renderable).?;
         renderable.id = brazier_2_id;
+        renderable.draw_bounds = true;
 
         // TEMP: Lantern light
         const light_ent = ecsu_world.newEntity();

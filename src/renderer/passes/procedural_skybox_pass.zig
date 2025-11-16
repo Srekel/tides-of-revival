@@ -25,7 +25,15 @@ const ProceduralSkyParams = struct {
     sun_direction: [4]f32,
     sun_color_intensity: [4]f32,
     inv_dimensions: [2]f32,
-    _pad0: [2]f32,
+    sh_coefficients_buffer_index: u32,
+    sh_coefficient_weights_buffer_index: u32,
+};
+
+const BakeSkyToSHParams = struct {
+    sh_coefficients_buffer_index: u32,
+    sh_coefficient_weights_buffer_index: u32,
+    sh_coefficients_count: u32,
+    _pad0: u32,
 };
 
 const DrawSkyParams = struct {
@@ -49,7 +57,10 @@ pub const ProceduralSkyboxPass = struct {
     renderer: *renderer.Renderer,
 
     procedural_sky_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    bake_sky_to_sh_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     draw_sky_constant_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    sh_coefficients_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    sh_coefficient_weights_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     skybox_cubemap: renderer.TextureHandle,
     starfield_cubemap: renderer.TextureHandle,
     skybox_mesh_handle: renderer.LegacyMeshHandle,
@@ -57,6 +68,7 @@ pub const ProceduralSkyboxPass = struct {
     moon_texture: renderer.TextureHandle,
 
     procedural_sky_descriptor_set: [*c]graphics.DescriptorSet = undefined,
+    bake_sky_to_sh_descriptor_set: [*c]graphics.DescriptorSet = undefined,
     draw_sky_descriptor_set: [*c]graphics.DescriptorSet = undefined,
 
     pub fn init(self: *@This(), rctx: *renderer.Renderer, allocator: std.mem.Allocator) void {
@@ -72,10 +84,53 @@ pub const ProceduralSkyboxPass = struct {
             break :blk buffers;
         };
 
+        self.bake_sky_to_sh_constant_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(BakeSkyToSHParams);
+            }
+
+            break :blk buffers;
+        };
+
         self.draw_sky_constant_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
                 buffers[buffer_index] = rctx.createUniformBuffer(DrawSkyParams);
+            }
+
+            break :blk buffers;
+        };
+
+        self.sh_coefficients_buffers = blk: {
+            const buffer_creation_desc = renderer.BufferCreationDesc{
+                .bindless = true,
+                .descriptors = .{ .bits = (graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits) },
+                .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
+                .size = 9 * @sizeOf([3]f32) * dispatch_thread_groups[0] * dispatch_thread_groups[1],
+                .debug_name = "SH Coefficients Buffer",
+            };
+
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBuffer(buffer_creation_desc);
+            }
+
+            break :blk buffers;
+        };
+
+        self.sh_coefficient_weights_buffers = blk: {
+            const buffer_creation_desc = renderer.BufferCreationDesc{
+                .bindless = true,
+                .descriptors = .{ .bits = (graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits) },
+                .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
+                .size = @sizeOf(f32) * dispatch_thread_groups[0] * dispatch_thread_groups[1],
+                .debug_name = "SH Coefficients Weights Buffer",
+            };
+
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBuffer(buffer_creation_desc);
             }
 
             break :blk buffers;
@@ -147,7 +202,8 @@ pub const ProceduralSkyboxPass = struct {
 
             procedural_sky_data.inv_dimensions[0] = 1.0 / @as(f32, @floatFromInt(cubemap_width));
             procedural_sky_data.inv_dimensions[1] = 1.0 / @as(f32, @floatFromInt(cubemap_height));
-            procedural_sky_data._pad0 = .{ 42, 42 };
+            procedural_sky_data.sh_coefficients_buffer_index = self.renderer.getBufferBindlessIndex(self.sh_coefficients_buffers[frame_index]);
+            procedural_sky_data.sh_coefficient_weights_buffer_index = self.renderer.getBufferBindlessIndex(self.sh_coefficient_weights_buffers[frame_index]);
 
             const data = OpaqueSlice{
                 .data = @ptrCast(&procedural_sky_data),
@@ -155,10 +211,14 @@ pub const ProceduralSkyboxPass = struct {
             };
             self.renderer.updateBuffer(data, 0, ProceduralSkyParams, self.procedural_sky_constant_buffers[frame_index]);
 
-            const input_barrier = [_]graphics.TextureBarrier{
+            var texture_barriers = [_]graphics.TextureBarrier{
                 graphics.TextureBarrier.init(skybox_cubemap, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
             };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, input_barrier.len, @constCast(&input_barrier), 0, null);
+            var buffer_barriers = [_]graphics.BufferBarrier{
+                graphics.BufferBarrier.init(self.renderer.getBuffer(self.sh_coefficients_buffers[frame_index]), .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_UNORDERED_ACCESS),
+                graphics.BufferBarrier.init(self.renderer.getBuffer(self.sh_coefficient_weights_buffers[frame_index]), .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_UNORDERED_ACCESS),
+            };
+            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @ptrCast(&buffer_barriers), texture_barriers.len, @ptrCast(&texture_barriers), 0, null);
 
             const pipeline_id = IdLocal.init("procedural_sky");
             const pipeline = self.renderer.getPSO(pipeline_id);
@@ -166,10 +226,35 @@ pub const ProceduralSkyboxPass = struct {
             graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.procedural_sky_descriptor_set);
             graphics.cmdDispatch(cmd_list, dispatch_thread_groups[0], dispatch_thread_groups[1], dispatch_thread_groups[2]);
 
-            const output_barrier = [_]graphics.TextureBarrier{
-                graphics.TextureBarrier.init(skybox_cubemap, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+            texture_barriers[0] = graphics.TextureBarrier.init(skybox_cubemap, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_SHADER_RESOURCE);
+            graphics.cmdResourceBarrier(cmd_list, 0, null, texture_barriers.len, @constCast(&texture_barriers), 0, null);
+        }
+
+        // Compute: Bake Sky to SH
+        {
+            var uniform_data: BakeSkyToSHParams = std.mem.zeroes(BakeSkyToSHParams);
+
+            uniform_data.sh_coefficients_buffer_index = self.renderer.getBufferBindlessIndex(self.sh_coefficients_buffers[frame_index]);
+            uniform_data.sh_coefficient_weights_buffer_index = self.renderer.getBufferBindlessIndex(self.sh_coefficient_weights_buffers[frame_index]);
+            uniform_data.sh_coefficients_count = threads_count[0];
+
+            const data = OpaqueSlice{
+                .data = @ptrCast(&uniform_data),
+                .size = @sizeOf(BakeSkyToSHParams),
             };
-            graphics.cmdResourceBarrier(cmd_list, 0, null, output_barrier.len, @constCast(&output_barrier), 0, null);
+            self.renderer.updateBuffer(data, 0, BakeSkyToSHParams, self.bake_sky_to_sh_constant_buffers[frame_index]);
+
+            const pipeline_id = IdLocal.init("bake_sky_to_sh");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.bake_sky_to_sh_descriptor_set);
+            graphics.cmdDispatch(cmd_list, 1, 1, 1);
+
+            const buffer_barriers = [_]graphics.BufferBarrier{
+                graphics.BufferBarrier.init(self.renderer.getBuffer(self.sh_coefficients_buffers[frame_index]), .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_SHADER_RESOURCE),
+                graphics.BufferBarrier.init(self.renderer.getBuffer(self.sh_coefficient_weights_buffers[frame_index]), .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_SHADER_RESOURCE),
+            };
+            graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
         }
 
         // Graphics: Draw Sky
@@ -259,6 +344,10 @@ pub const ProceduralSkyboxPass = struct {
         desc.pRootSignature = root_signature;
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.procedural_sky_descriptor_set));
 
+        root_signature = self.renderer.getRootSignature(IdLocal.init("bake_sky_to_sh"));
+        desc.pRootSignature = root_signature;
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.bake_sky_to_sh_descriptor_set));
+
         root_signature = self.renderer.getRootSignature(IdLocal.init("draw_sky"));
         desc.pRootSignature = root_signature;
         graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.draw_sky_descriptor_set));
@@ -283,6 +372,16 @@ pub const ProceduralSkyboxPass = struct {
             }
 
             {
+                var params: [1]graphics.DescriptorData = undefined;
+                var uniform_buffer = self.renderer.getBuffer(self.bake_sky_to_sh_constant_buffers[frame_index]);
+                params[0] = std.mem.zeroes(graphics.DescriptorData);
+                params[0].pName = "FrameBuffer";
+                params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.bake_sky_to_sh_descriptor_set, @intCast(params.len), @ptrCast(&params));
+            }
+
+            {
                 var params: [3]graphics.DescriptorData = undefined;
                 var draw_sky_constant_buffer = self.renderer.getBuffer(self.draw_sky_constant_buffers[frame_index]);
                 params[0] = std.mem.zeroes(graphics.DescriptorData);
@@ -302,6 +401,7 @@ pub const ProceduralSkyboxPass = struct {
 
     pub fn unloadDescriptorSets(self: *@This()) void {
         graphics.removeDescriptorSet(self.renderer.renderer, self.procedural_sky_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.bake_sky_to_sh_descriptor_set);
         graphics.removeDescriptorSet(self.renderer.renderer, self.draw_sky_descriptor_set);
     }
 };

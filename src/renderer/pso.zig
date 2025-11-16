@@ -254,6 +254,12 @@ pub const PSOManager = struct {
                 self.createComputePipeline(IdLocal.init("procedural_sky"), "procedural_sky.comp", &sampler_ids);
             }
 
+            // Bake Sky to SH
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("bake_sky_to_sh"), "bake_sky_to_sh.comp", &sampler_ids);
+            }
+
             // Draw Sky
             {
                 var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge };
