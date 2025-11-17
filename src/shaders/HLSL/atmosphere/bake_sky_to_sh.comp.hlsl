@@ -1,18 +1,21 @@
 #include "../../FSL/d3d.h"
 #include "../SH.hlsli"
 
+Texture2DArray<float4> skybox_cubemap : register(t0, UPDATE_FREQ_PER_FRAME);
+
 cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
 {
     uint shCoefficientsBufferIndex;
     uint shCoefficientWeightsBufferIndex;
     uint shCoefficientsCount;
-    uint _pad0;
+    uint sh9SkylightBufferIndex;
 };
 
-[numthreads(1, 1, 1)] void main(uint3 threadId : SV_DispatchThreadID)
+[numthreads(1, 1, 1)] void main()
 {
-    RWByteAddressBuffer shCoefficientsBuffer = ResourceDescriptorHeap[shCoefficientsBufferIndex];
-    RWByteAddressBuffer shCoefficientWeightsBuffer = ResourceDescriptorHeap[shCoefficientWeightsBufferIndex];
+    ByteAddressBuffer shCoefficientsBuffer = ResourceDescriptorHeap[shCoefficientsBufferIndex];
+    ByteAddressBuffer shCoefficientWeightsBuffer = ResourceDescriptorHeap[shCoefficientWeightsBufferIndex];
+    RWByteAddressBuffer sh9SkylightBuffer = ResourceDescriptorHeap[sh9SkylightBufferIndex];
 
     SH::L2_RGB radianceSH = SH::L2_RGB::Zero();
     float weightSum = 0.0f;
@@ -24,5 +27,5 @@ cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
     }
 
     radianceSH = radianceSH * (4.0f / 3.14159f) / weightSum;
-    shCoefficientsBuffer.Store<SH::L2_RGB>(0, radianceSH);
+    sh9SkylightBuffer.Store<SH::L2_RGB>(0, radianceSH);
 }

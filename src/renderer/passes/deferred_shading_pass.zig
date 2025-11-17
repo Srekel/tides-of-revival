@@ -26,7 +26,7 @@ const UniformFrameData = struct {
     lights_buffer_index: u32,
     lights_count: u32,
     light_matrix_buffer_index: u32,
-    _padding1: u32,
+    sh9_buffer_index: u32,
     fog_color: [3]f32,
     fog_density: f32,
 };
@@ -78,6 +78,7 @@ pub const DeferredShadingPass = struct {
         frame_data.cascade_splits = self.renderer.shadow_cascade_depths;
         frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
         frame_data.light_matrix_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_matrix_buffer.buffer);
+        frame_data.sh9_buffer_index = self.renderer.getSH9BufferIndex();
         frame_data.lights_count = self.renderer.light_buffer.element_count;
         frame_data.fog_color = self.renderer.height_fog_settings.color;
         frame_data.fog_density = self.renderer.height_fog_settings.density;

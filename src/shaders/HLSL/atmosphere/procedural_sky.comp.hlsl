@@ -211,18 +211,14 @@ cbuffer FrameBuffer : register(b0, UPDATE_FREQ_PER_FRAME)
     float4 camera_position;
     float4 sun_direction;
     float4 sun_color_intensity;
-    float2 inv_dimensions;
-    uint shCoefficientsBufferIndex;
-    uint shCoefficientWeightsBufferIndex;
+    float2 cubemap_resolution_inv;
+    uint2 _pad0;
 };
 
 #define NUM_THREADS_X 16
 #define NUM_THREADS_Y 16
 
-groupshared SH::L2_RGB sh9[NUM_THREADS_X * NUM_THREADS_Y];
-groupshared float weights[NUM_THREADS_X * NUM_THREADS_Y];
-
-[numthreads(NUM_THREADS_X, NUM_THREADS_Y, 1)] void main(uint3 threadId : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
+[numthreads(NUM_THREADS_X, NUM_THREADS_Y, 1)] void main(uint3 threadId : SV_DispatchThreadID)
 {
     static const float3x3 CUBEMAP_ROTATIONS[] =
         {
@@ -234,7 +230,7 @@ groupshared float weights[NUM_THREADS_X * NUM_THREADS_Y];
             float3x3(-1, 0, 0, 0, -1, 0, 0, 0, 1),  // front
     };
 
-    float2 uv = ((float2)threadId.xy + 0.5f) * inv_dimensions;
+    float2 uv = ((float2)threadId.xy + 0.5f) * cubemap_resolution_inv;
     float3 dir = normalize(mul(CUBEMAP_ROTATIONS[threadId.z], float3(uv * 2 - 1, -1)));
 
     float3 rayStart = camera_position.xyz;
@@ -248,34 +244,4 @@ groupshared float weights[NUM_THREADS_X * NUM_THREADS_Y];
     float3 sky = IntegrateScattering(rayStart, dir, rayLength, lightDir, lightColor, transmittance);
 
     skybox_cubemap[threadId] = float4(sky, 1.0f);
-
-    // Project the cubemap to onto SH coefficients
-    uint shIndex = GTid.x + GTid.y * NUM_THREADS_X;
-    // Calculate SH contribution weight
-    uv = uv * 2.0 - 1.0;
-    float temp = 1.0 + uv.x * uv.x + uv.y * uv.y;
-    float weight = 4.0 / (sqrt(temp) * temp);
-    sh9[shIndex] = SH::ProjectOntoL2(dir, sky) * weight;
-    weights[shIndex] = weight;
-
-    GroupMemoryBarrierWithGroupSync();
-
-    RWByteAddressBuffer shCoefficientsBuffer = ResourceDescriptorHeap[shCoefficientsBufferIndex];
-    RWByteAddressBuffer shCoefficientWeightsBuffer = ResourceDescriptorHeap[shCoefficientWeightsBufferIndex];
-    uint groups_x = uint(1.0f / inv_dimensions.x) / NUM_THREADS_X;
-    uint groupCoeffIndex = Gid.x + Gid.y * groups_x;
-
-    if (GTid.x == 0 && GTid.y == 0)
-    {
-        SH::L2_RGB radianceSH = SH::L2_RGB::Zero();
-        float weightSum = 0;
-        for (uint i = 0; i < NUM_THREADS_X * NUM_THREADS_Y; i++)
-        {
-            radianceSH = radianceSH + sh9[i];
-            weightSum += weights[i];
-        }
-
-        shCoefficientsBuffer.Store<SH::L2_RGB>(groupCoeffIndex * sizeof(SH::L2_RGB), radianceSH);
-        shCoefficientWeightsBuffer.Store<float>(groupCoeffIndex * sizeof(float), weightSum);
-    }
 }

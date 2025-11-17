@@ -4,6 +4,7 @@
 #include "../FSL/d3d.h"
 #include "utils.hlsli"
 #include "math.hlsli"
+#include "SH.hlsli"
 
 RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
@@ -39,7 +40,7 @@ cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
     uint g_lights_buffer_index;
     uint g_lights_count;
     uint g_light_matrix_buffer_index;
-    uint _padding1;
+    uint g_sh9_ambient_buffer_index;
     float3 g_fog_color;
     float g_fog_density;
 };
@@ -178,9 +179,17 @@ float3 ApplyFog(float3 color, float viewDistance, float3 rayDirection, float3 su
     return lerp(color, fogColor, fogAmount);
 }
 
+float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo)
+{
+    ByteAddressBuffer sh9Buffer = ResourceDescriptorHeap[g_sh9_ambient_buffer_index];
+    SH::L2_RGB radianceSH = sh9Buffer.Load<SH::L2_RGB>(0);
+    // Dividing albedo by PI makes this effect extremely dark
+    // return SH::CalculateIrradiance(radianceSH, normalWS) * (diffuseAlbedo / PI);
+    return SH::CalculateIrradiance(radianceSH, normalWS) * diffuseAlbedo;
+}
+
 float4 PS_MAIN(VsOut Input) : SV_TARGET0
 {
-    INIT_MAIN;
     ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
     GpuLight sun = lightsBuffer.Load<GpuLight>(0);
     GpuLight moon = lightsBuffer.Load<GpuLight>(1 * sizeof(GpuLight));
@@ -236,6 +245,8 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
         GpuLight light = lightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
         Lo += ShadeLight(light, surfaceInfo, attenuation);
     }
+
+    Lo += CalculateAmbientLight(N, baseColor.rgb);
 
     float3 rayDirection = normalize(P.xyz - g_cam_pos.xyz);
     float viewDistance = length(g_cam_pos.xyz - P.xyz);

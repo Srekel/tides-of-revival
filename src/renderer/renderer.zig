@@ -247,6 +247,7 @@ pub const Renderer = struct {
 
         var renderer_desc = std.mem.zeroes(graphics.RendererDesc);
         renderer_desc.mShaderTarget = .SHADER_TARGET_6_8;
+        renderer_desc.mEnableGpuBasedValidation = false;
         graphics.initGPUConfiguration(null);
         graphics.initRenderer("Tides Renderer", &renderer_desc, &self.renderer);
         if (self.renderer == null) {
@@ -759,6 +760,11 @@ pub const Renderer = struct {
         self.requestReload(reload_desc);
     }
 
+    pub fn getSH9BufferIndex(self: *Renderer) u32 {
+        const handle = self.procedural_skybox_pass.sh9_skylight_buffers[self.frame_index];
+        return self.getBufferBindlessIndex(handle);
+    }
+
     pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc) void {
         self.time_of_day_01 = update_desc.time_of_day_01;
         self.sun_light = update_desc.sun_light;
@@ -1008,6 +1014,19 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
+        // Compute: Generate Procedural Skybox
+        {
+            const profile_index = self.startGpuProfile(cmd_list, "Compute Procedural Skybox");
+            defer self.endGpuProfile(cmd_list, profile_index);
+
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Compute Procedural Skybox", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            self.procedural_skybox_pass.renderProceduralSkybox(cmd_list, render_view);
+
+            graphics.cmdBindRenderTargets(cmd_list, null);
+        }
+
         // Deferred Shading
         {
             const profile_index = self.startGpuProfile(cmd_list, "Deferred Shading");
@@ -1041,15 +1060,15 @@ pub const Renderer = struct {
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
 
-        // Procedural Skybox
+        // Graphics: Draw Procedural Skybox
         {
-            const profile_index = self.startGpuProfile(cmd_list, "Procedural Skybox");
+            const profile_index = self.startGpuProfile(cmd_list, "Draw Procedural Skybox");
             defer self.endGpuProfile(cmd_list, profile_index);
 
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Procedural Skybox", 0x00_ff_00_00);
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Draw Procedural Skybox", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            self.procedural_skybox_pass.render(cmd_list, render_view);
+            self.procedural_skybox_pass.drawSkybox(cmd_list, render_view);
 
             graphics.cmdBindRenderTargets(cmd_list, null);
         }
@@ -2037,9 +2056,7 @@ pub const Renderer = struct {
     pub fn createReadWriteBindlessBuffer(self: *Renderer, size: u64, debug_name: []const u8) BufferHandle {
         const buffer_creation_desc = BufferCreationDesc{
             .bindless = true,
-            .descriptors = .{
-                .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits
-            },
+            .descriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits },
             .start_state = .RESOURCE_STATE_COMMON,
             .size = size,
             .debug_name = debug_name,
@@ -2177,7 +2194,7 @@ pub const Renderer = struct {
         // graphics.getSupportedSwapchainFormat(self.renderer, &desc, graphics.ColorSpace.COLOR_SPACE_SDR_SRGB);
         desc.mColorFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
         desc.mColorSpace = graphics.ColorSpace.COLOR_SPACE_SDR_SRGB;
-        desc.mEnableVsync = false;// self.vsync_enabled;
+        desc.mEnableVsync = false; // self.vsync_enabled;
         desc.mFlags = graphics.SwapChainCreationFlags.SWAP_CHAIN_CREATION_FLAG_ENABLE_FOVEATED_RENDERING_VR;
         graphics.addSwapChain(self.renderer, &desc, &self.swap_chain);
 
