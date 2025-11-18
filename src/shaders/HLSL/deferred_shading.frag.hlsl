@@ -179,13 +179,13 @@ float3 ApplyFog(float3 color, float viewDistance, float3 rayDirection, float3 su
     return lerp(color, fogColor, fogAmount);
 }
 
-float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo)
+float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo, float intensity)
 {
     ByteAddressBuffer sh9Buffer = ResourceDescriptorHeap[g_sh9_ambient_buffer_index];
     SH::L2_RGB radianceSH = sh9Buffer.Load<SH::L2_RGB>(0);
     // Dividing albedo by PI makes this effect extremely dark
     // return SH::CalculateIrradiance(radianceSH, normalWS) * (diffuseAlbedo / PI);
-    return SH::CalculateIrradiance(radianceSH, normalWS) * diffuseAlbedo;
+    return SH::CalculateIrradiance(radianceSH, normalWS) * intensity * diffuseAlbedo;
 }
 
 float4 PS_MAIN(VsOut Input) : SV_TARGET0
@@ -246,7 +246,7 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
         Lo += ShadeLight(light, surfaceInfo, attenuation);
     }
 
-    Lo += CalculateAmbientLight(N, baseColor.rgb);
+    Lo += CalculateAmbientLight(N, baseColor.rgb, 1.5f);
 
     float3 rayDirection = normalize(P.xyz - g_cam_pos.xyz);
     float viewDistance = length(g_cam_pos.xyz - P.xyz);
