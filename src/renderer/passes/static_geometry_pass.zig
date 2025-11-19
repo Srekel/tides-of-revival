@@ -21,7 +21,7 @@ const zgui = @import("zgui");
 const zm = @import("zmath");
 const ztracy = @import("ztracy");
 
-const instancens_max_count = 1000000;
+const instances_max_count = 1000000;
 const meshlets_max_count = 1 << 20;
 const EntityMap = std.AutoHashMap(u64, struct { index: usize, count: u32 });
 
@@ -122,22 +122,22 @@ pub const StaticGeometryPass = struct {
     render_settings: RenderSettings,
 
     instances: std.ArrayList(GpuInstance),
-    entity_maps: [frames_count]EntityMap,
+    entity_map: EntityMap,
 
     // Global Buffers
-    instance_buffers: [frames_count]renderer.ElementBindlessBuffer,
+    instance_buffer: renderer.ElementBindlessBuffer,
     // Meshlet Culling Buffers
-    candidate_meshlets_counters_buffers: [frames_count]BufferHandle,
-    candidate_meshlets_buffers: [frames_count]BufferHandle,
-    visible_meshlets_counters_buffers: [frames_count]BufferHandle,
-    visible_meshlets_buffers: [frames_count]BufferHandle,
-    meshlet_cull_args_buffers: [frames_count]BufferHandle,
+    candidate_meshlets_counters_buffers: BufferHandle,
+    candidate_meshlets_buffers: BufferHandle,
+    visible_meshlets_counters_buffers: BufferHandle,
+    visible_meshlets_buffers: BufferHandle,
+    meshlet_cull_args_buffers: BufferHandle,
     // Meshlet Binning Buffers
-    meshlet_count_buffers: [frames_count]BufferHandle,
-    meshlet_offset_and_count_buffers: [frames_count]BufferHandle,
-    meshlet_global_count_buffers: [frames_count]BufferHandle,
-    binned_meshlets_buffers: [frames_count]BufferHandle,
-    classify_meshes_dispatch_args_buffers: [frames_count]BufferHandle,
+    meshlet_count_buffers: BufferHandle,
+    meshlet_offset_and_count_buffers: BufferHandle,
+    meshlet_global_count_buffers: BufferHandle,
+    binned_meshlets_buffers: BufferHandle,
+    classify_meshes_dispatch_args_buffers: BufferHandle,
 
     gbuffer_bindings: PassBindings = undefined,
     shadows_bindings: [renderer.Renderer.cascades_max_count]PassBindings = undefined,
@@ -148,94 +148,24 @@ pub const StaticGeometryPass = struct {
         self.pso_mgr = &rctx.pso_manager;
 
         // Global Buffers
-        for (self.instance_buffers, 0..) |_, buffer_index| {
-            self.instance_buffers[buffer_index].init(rctx, instancens_max_count, @sizeOf(GpuInstance), false, "GPU Instances");
-        }
+        self.instance_buffer.init(rctx, instances_max_count, @sizeOf(GpuInstance), false, "GPU Instances");
 
         // Meshlet Culling Buffers
         {
-            self.candidate_meshlets_counters_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Candidate Meshlets Counters Buffer");
-                }
-                break :blk buffers;
-            };
-
-            self.candidate_meshlets_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Candidate Meshlets Buffer");
-                }
-                break :blk buffers;
-            };
-
-            self.visible_meshlets_counters_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Visible Meshlets Counters Buffer");
-                }
-                break :blk buffers;
-            };
-
-            self.visible_meshlets_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Visible Meshlets Buffer");
-                }
-                break :blk buffers;
-            };
-
-            self.meshlet_cull_args_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Meshlets Cull Dispatch Args Buffer");
-                }
-                break :blk buffers;
-            };
+            self.candidate_meshlets_counters_buffers = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Candidate Meshlets Counters Buffer");
+            self.candidate_meshlets_buffers = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Candidate Meshlets Buffer");
+            self.visible_meshlets_counters_buffers = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Visible Meshlets Counters Buffer");
+            self.visible_meshlets_buffers = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(GpuMeshletCandidate), "Visible Meshlets Buffer");
+            self.meshlet_cull_args_buffers = rctx.createReadWriteBindlessBuffer(8 * @sizeOf(u32), "Meshlets Cull Dispatch Args Buffer");
         }
 
         // Meshlet Binning Buffers
         {
-            self.meshlet_count_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(16 * @sizeOf(u32), "Meshlet Binning: Meshlets Count");
-                }
-                break :blk buffers;
-            };
-
-            self.meshlet_offset_and_count_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(pso.pso_bins_max_count * @sizeOf([4]u32), "Meshlet Binning: Meshlets Offset and Count");
-                }
-                break :blk buffers;
-            };
-
-            self.meshlet_global_count_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(16 * @sizeOf(u32), "Meshlet Binning: Meshlets Global Count");
-                }
-                break :blk buffers;
-            };
-
-            self.binned_meshlets_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(u32), "Meshlet Binning: Binned Meshlets");
-                }
-                break :blk buffers;
-            };
-
-            self.classify_meshes_dispatch_args_buffers = blk: {
-                var buffers: [frames_count]renderer.BufferHandle = undefined;
-                for (buffers, 0..) |_, buffer_index| {
-                    buffers[buffer_index] = rctx.createReadWriteBindlessBuffer(@sizeOf([4]u32), "Meshlet Binning: Classify Meshlets Dispatch Args");
-                }
-                break :blk buffers;
-            };
+            self.meshlet_count_buffers = rctx.createReadWriteBindlessBuffer(16 * @sizeOf(u32), "Meshlet Binning: Meshlets Count");
+            self.meshlet_offset_and_count_buffers = rctx.createReadWriteBindlessBuffer(pso.pso_bins_max_count * @sizeOf([4]u32), "Meshlet Binning: Meshlets Offset and Count");
+            self.meshlet_global_count_buffers = rctx.createReadWriteBindlessBuffer(16 * @sizeOf(u32), "Meshlet Binning: Meshlets Global Count");
+            self.binned_meshlets_buffers = rctx.createReadWriteBindlessBuffer(meshlets_max_count * @sizeOf(u32), "Meshlet Binning: Binned Meshlets");
+            self.classify_meshes_dispatch_args_buffers = rctx.createReadWriteBindlessBuffer(@sizeOf([4]u32), "Meshlet Binning: Classify Meshlets Dispatch Args");
         }
 
         // Uniform Buffers
@@ -247,33 +177,23 @@ pub const StaticGeometryPass = struct {
         }
 
         self.instances = std.ArrayList(GpuInstance).init(self.allocator);
-        self.entity_maps = blk: {
-            var entity_maps: [frames_count]EntityMap = undefined;
-            for (entity_maps, 0..) |_, index| {
-                entity_maps[index] = EntityMap.init(self.allocator);
-            }
-            break :blk entity_maps;
-        };
+        self.entity_map = EntityMap.init(self.allocator);
     }
 
     pub fn destroy(self: *@This()) void {
         self.instances.deinit();
-        for (self.entity_maps, 0..) |_, index| {
-            self.entity_maps[index].deinit();
-        }
+        self.entity_map.deinit();
     }
 
     pub fn update(self: *@This()) void {
-        const frame_index = self.renderer.frame_index;
-
         self.instances.clearRetainingCapacity();
 
         for (self.renderer.static_entitites.items) |static_entity| {
-            if (self.entity_maps[frame_index].contains(static_entity.entity_id)) {
+            if (self.entity_map.contains(static_entity.entity_id)) {
                 continue;
             }
 
-            const instance_buffer_index: usize = self.instance_buffers[frame_index].element_count + self.instances.items.len;
+            const instance_buffer_index: usize = self.instance_buffer.element_count + self.instances.items.len;
             var instances_count: u32 = 0;
 
             const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
@@ -286,7 +206,7 @@ pub const StaticGeometryPass = struct {
                     const material_index = self.renderer.getMaterialIndex(renderable_data.lods[lod_index].materials[mesh_index_offset]);
                     var gpu_instance = std.mem.zeroes(GpuInstance);
                     zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
-                    gpu_instance.id = @intCast(self.instance_buffers[frame_index].element_count + self.instances.items.len);
+                    gpu_instance.id = @intCast(self.instance_buffer.element_count + self.instances.items.len);
                     gpu_instance.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
                     gpu_instance.material_index = @intCast(material_index);
                     gpu_instance.local_bounds_origin = mesh.bounds.center;
@@ -303,26 +223,26 @@ pub const StaticGeometryPass = struct {
                 }
             }
 
-            self.entity_maps[frame_index].put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = instances_count }) catch unreachable;
+            self.entity_map.put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = instances_count }) catch unreachable;
         }
 
         if (self.instances.items.len > 0) {
-            self.instance_buffers[frame_index].element_count += @intCast(self.instances.items.len);
+            self.instance_buffer.element_count += @intCast(self.instances.items.len);
 
             const instance_data = OpaqueSlice{
                 .data = @ptrCast(self.instances.items),
                 .size = self.instances.items.len * @sizeOf(GpuInstance),
             };
 
-            std.debug.assert(self.instance_buffers[frame_index].size > instance_data.size + self.instance_buffers[frame_index].offset);
-            self.renderer.updateBuffer(instance_data, self.instance_buffers[frame_index].offset, GpuInstance, self.instance_buffers[frame_index].buffer);
-            self.instance_buffers[frame_index].offset += instance_data.size;
+            std.debug.assert(self.instance_buffer.size > instance_data.size + self.instance_buffer.offset);
+            self.renderer.updateBuffer(instance_data, self.instance_buffer.offset, GpuInstance, self.instance_buffer.buffer);
+            self.instance_buffer.offset += instance_data.size;
         }
     }
 
     pub fn renderImGui(self: *@This()) void {
         if (zgui.collapsingHeader("Static Geometry Renderer", .{})) {
-            zgui.text("Total loaded instances: {d}", .{self.instance_buffers[self.renderer.frame_index].element_count});
+            zgui.text("Total loaded instances: {d}", .{self.instance_buffer.element_count});
             _ = zgui.checkbox("Freeze Culling", .{ .v = &self.render_settings.freeze_rendering });
         }
     }
@@ -381,10 +301,10 @@ pub const StaticGeometryPass = struct {
             frame.camera_far_plane = render_view.far_plane;
             frame.time = @floatCast(self.renderer.time);
             frame._padding0 = 42;
-            frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
+            frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer.buffer);
             frame.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
             frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
-            frame.instance_count = self.instance_buffers[frame_index].element_count;
+            frame.instance_count = self.instance_buffer.element_count;
             // TODO: Create a getSamplerBindlessIndex in renderer.zig
             frame.linear_repeat_sampler_index = @intCast(self.renderer.linear_repeat_sampler.*.mDx.mDescriptor);
 
@@ -422,10 +342,10 @@ pub const StaticGeometryPass = struct {
 
             frame_culling_uniform_data.time = @floatCast(self.renderer.time);
             frame_culling_uniform_data._padding0 = 42;
-            frame_culling_uniform_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffers[frame_index].buffer);
+            frame_culling_uniform_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer.buffer);
             frame_culling_uniform_data.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
             frame_culling_uniform_data.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
-            frame_culling_uniform_data.instance_count = self.instance_buffers[frame_index].element_count;
+            frame_culling_uniform_data.instance_count = self.instance_buffer.element_count;
 
             const frame_culling_data = OpaqueSlice{
                 .data = @ptrCast(frame_culling_uniform_data),
@@ -438,8 +358,8 @@ pub const StaticGeometryPass = struct {
         {
             // Clear UAV Counters
             {
-                const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_counters_buffers[frame_index]);
-                const visible_meshlets_counters_buffer = self.renderer.getBuffer(self.visible_meshlets_counters_buffers[frame_index]);
+                const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_counters_buffers);
+                const visible_meshlets_counters_buffer = self.renderer.getBuffer(self.visible_meshlets_counters_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
@@ -455,8 +375,8 @@ pub const StaticGeometryPass = struct {
                     }
 
                     const clear_uav_params = ClearUavParams{
-                        .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
-                        .visible_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
+                        .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers),
+                        .visible_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers),
                     };
                     const clear_uav_params_data = OpaqueSlice{
                         .data = @ptrCast(&clear_uav_params),
@@ -490,7 +410,7 @@ pub const StaticGeometryPass = struct {
 
             // Cull Instances
             {
-                const candidate_meshlets_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers[frame_index]);
+                const candidate_meshlets_buffer = self.renderer.getBuffer(self.candidate_meshlets_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(candidate_meshlets_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
@@ -505,8 +425,8 @@ pub const StaticGeometryPass = struct {
                     }
 
                     const cull_instances_params = CullInstancesParams{
-                        .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
-                        .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
+                        .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers),
+                        .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers),
                         .shadow_pass = if (shadow_view) 1 else 0,
                         ._padding = 42.0,
                     };
@@ -545,13 +465,13 @@ pub const StaticGeometryPass = struct {
                     graphics.cmdBindPipeline(cmd_list, pipeline);
                     graphics.cmdBindDescriptorSet(cmd_list, frame_index, descriptor_set);
                     const cull_instances_threads_count: u32 = 64;
-                    const group_count_x = (self.instance_buffers[frame_index].element_count + cull_instances_threads_count - 1) / cull_instances_threads_count;
+                    const group_count_x = (self.instance_buffer.element_count + cull_instances_threads_count - 1) / cull_instances_threads_count;
                     if (group_count_x > 0) {
                         graphics.cmdDispatch(cmd_list, group_count_x, 1, 1);
                     }
                 }
 
-                const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_counters_buffers[frame_index]);
+                const candidate_meshlets_counters_buffer = self.renderer.getBuffer(self.candidate_meshlets_counters_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(candidate_meshlets_counters_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
@@ -562,7 +482,7 @@ pub const StaticGeometryPass = struct {
 
             // Build Meshlet Cull Dispatch Arguments
             {
-                const meshlets_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers[frame_index]);
+                const meshlets_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(meshlets_cull_args_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
@@ -577,8 +497,8 @@ pub const StaticGeometryPass = struct {
                     }
 
                     const build_meshlets_cull_args_params = BuildMeshletsCullArgsParams{
-                        .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
-                        .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_cull_args_buffers[frame_index]),
+                        .candidate_meshlets_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers),
+                        .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_cull_args_buffers),
                     };
                     const params_data = OpaqueSlice{
                         .data = @ptrCast(&build_meshlets_cull_args_params),
@@ -619,8 +539,8 @@ pub const StaticGeometryPass = struct {
 
             // Cull Meshlets
             {
-                const visible_meshlet_buffer = self.renderer.getBuffer(self.visible_meshlets_buffers[frame_index]);
-                const meshlet_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers[frame_index]);
+                const visible_meshlet_buffer = self.renderer.getBuffer(self.visible_meshlets_buffers);
+                const meshlet_cull_args_buffer = self.renderer.getBuffer(self.meshlet_cull_args_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(visible_meshlet_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
@@ -636,10 +556,10 @@ pub const StaticGeometryPass = struct {
                     }
 
                     const cull_meshlets_params = CullMeshletsParams{
-                        .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers[frame_index]),
-                        .candidate_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers[frame_index]),
-                        .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers[frame_index]),
-                        .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
+                        .candidate_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_buffers),
+                        .candidate_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.candidate_meshlets_counters_buffers),
+                        .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers),
+                        .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers),
                     };
 
                     const cull_meshlets_params_data = OpaqueSlice{
@@ -693,13 +613,13 @@ pub const StaticGeometryPass = struct {
 
             var binning_params = BinningParams{
                 .bins_count = @intCast(self.pso_mgr.getPsoBinsCount()),
-                .meshlet_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_count_buffers[frame_index]),
-                .meshlet_offset_and_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_offset_and_count_buffers[frame_index]),
-                .global_meshlet_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_global_count_buffers[frame_index]),
-                .binned_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.binned_meshlets_buffers[frame_index]),
-                .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.classify_meshes_dispatch_args_buffers[frame_index]),
-                .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers[frame_index]),
-                .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers[frame_index]),
+                .meshlet_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_count_buffers),
+                .meshlet_offset_and_counts_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_offset_and_count_buffers),
+                .global_meshlet_counter_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_global_count_buffers),
+                .binned_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.binned_meshlets_buffers),
+                .dispatch_args_buffer_index = self.renderer.getBufferBindlessIndex(self.classify_meshes_dispatch_args_buffers),
+                .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers),
+                .visible_meshlets_counters_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_counters_buffers),
             };
 
             const data = OpaqueSlice{
@@ -740,9 +660,9 @@ pub const StaticGeometryPass = struct {
 
             // Binning: Prepare Args
             {
-                const meshlet_count_buffer = self.renderer.getBuffer(self.meshlet_count_buffers[frame_index]);
-                const meshlet_global_count_buffer = self.renderer.getBuffer(self.meshlet_global_count_buffers[frame_index]);
-                const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers[frame_index]);
+                const meshlet_count_buffer = self.renderer.getBuffer(self.meshlet_count_buffers);
+                const meshlet_global_count_buffer = self.renderer.getBuffer(self.meshlet_global_count_buffers);
+                const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(meshlet_count_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
@@ -769,7 +689,7 @@ pub const StaticGeometryPass = struct {
 
             // Binning: Classify Meshlets
             {
-                const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers[frame_index]);
+                const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(classify_meshes_dispatch_args_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_INDIRECT_ARGUMENT),
@@ -786,7 +706,7 @@ pub const StaticGeometryPass = struct {
 
             // Binning: Allocate Bin Ranges
             {
-                const meshlet_offset_and_count_buffer = self.renderer.getBuffer(self.meshlet_offset_and_count_buffers[frame_index]);
+                const meshlet_offset_and_count_buffer = self.renderer.getBuffer(self.meshlet_offset_and_count_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(meshlet_offset_and_count_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
@@ -803,8 +723,8 @@ pub const StaticGeometryPass = struct {
 
             // Binning: Write Bin Ranges
             {
-                const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers[frame_index]);
-                const binned_meshlets_buffer = self.renderer.getBuffer(self.binned_meshlets_buffers[frame_index]);
+                const classify_meshes_dispatch_args_buffer = self.renderer.getBuffer(self.classify_meshes_dispatch_args_buffers);
+                const binned_meshlets_buffer = self.renderer.getBuffer(self.binned_meshlets_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(binned_meshlets_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
@@ -818,7 +738,7 @@ pub const StaticGeometryPass = struct {
                 graphics.cmdBindDescriptorSet(cmd_list, frame_index, binning_write_bin_ranges_descriptor_set);
                 graphics.cmdExecuteIndirect(cmd_list, .INDIRECT_DISPATCH, 1, classify_meshes_dispatch_args_buffer, 0, null, 0);
 
-                const visible_meshlets_counters_buffer = self.renderer.getBuffer(self.visible_meshlets_counters_buffers[frame_index]);
+                const visible_meshlets_counters_buffer = self.renderer.getBuffer(self.visible_meshlets_counters_buffers);
                 {
                     const buffer_barriers = [_]graphics.BufferBarrier{
                         graphics.BufferBarrier.init(binned_meshlets_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
@@ -832,7 +752,7 @@ pub const StaticGeometryPass = struct {
 
         // Rasterizer
         {
-            const meshlet_offset_and_count_buffer = self.renderer.getBuffer(self.meshlet_offset_and_count_buffers[frame_index]);
+            const meshlet_offset_and_count_buffer = self.renderer.getBuffer(self.meshlet_offset_and_count_buffers);
             {
                 const buffer_barriers = [_]graphics.BufferBarrier{
                     graphics.BufferBarrier.init(meshlet_offset_and_count_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_INDIRECT_ARGUMENT),
@@ -848,9 +768,9 @@ pub const StaticGeometryPass = struct {
 
                 var rasterizer_params = RasterizerParams{
                     .bin_index = @intCast(bin_id),
-                    .binned_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.binned_meshlets_buffers[frame_index]),
-                    .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers[frame_index]),
-                    .meshlet_bin_data_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_offset_and_count_buffers[frame_index]),
+                    .binned_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.binned_meshlets_buffers),
+                    .visible_meshlets_buffer_index = self.renderer.getBufferBindlessIndex(self.visible_meshlets_buffers),
+                    .meshlet_bin_data_buffer_index = self.renderer.getBufferBindlessIndex(self.meshlet_offset_and_count_buffers),
                 };
 
                 const data_slice = OpaqueSlice{
