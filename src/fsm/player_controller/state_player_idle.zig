@@ -299,7 +299,7 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
 
         const step_length: f32 = if (ctx.input_frame_data.held(config.input.move_fast)) 3 else 0.8;
         if (player.amount_moved > step_length) {
-            if (player.sfx_footstep_index > 1) {
+            if (player.sfx_footstep_index > 5) {
                 player.sfx_footstep_index = 0;
             }
             player.sfx_footstep_index += 1;
@@ -308,7 +308,7 @@ fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
             var sound_buffer: [256]u8 = undefined;
             const sound_path = std.fmt.bufPrintZ(
                 sound_buffer[0..sound_buffer.len],
-                "content/audio/footsteps/grass{d}.wav",
+                "content/audio/footsteps/sfx_player_footsteps_grass_{d}.wav",
                 .{player.sfx_footstep_index},
             ) catch unreachable;
             ctx.audio.playSound(sound_path, null) catch unreachable;
