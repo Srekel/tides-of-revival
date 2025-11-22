@@ -57,6 +57,8 @@ const GameloopContext = struct {
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
+var logo_ent: ecsu.Entity = undefined;
+
 pub fn run() void {
     const root_allocator = std.heap.page_allocator;
     zstbi.init(root_allocator);
@@ -110,7 +112,7 @@ pub fn run() void {
         const left = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0 - logo_size;
         const right = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0;
 
-        var logo_ent = ecsu_world.newEntity();
+        logo_ent = ecsu_world.newEntity();
         logo_ent.set(fd.UIImage{ .rect = [4]f32{ top, bottom, left, right }, .material = .{
             .color = [4]f32{ 1, 1, 1, 1 },
             .texture = logo_texture,
@@ -636,6 +638,17 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             depth_fog.?.color = gradient.sample(@floatCast(environment_info.time_of_day_percent));
         }
     }
+
+    const logo_size: f32 = 100;
+    const size_x: f32 = @floatFromInt(gameloop_context.main_window.frame_buffer_size[0]);
+    const logo_image = logo_ent.getMut(fd.UIImage).?;
+    const logo_offset = 20;
+    logo_image.*.rect = [4]f32{
+        logo_offset,
+        logo_offset + logo_size,
+        size_x - (logo_offset + logo_size),
+        size_x - (logo_offset),
+    };
 
     once_per_duration_test += dt_game;
     if (once_per_duration_test > 1) {
