@@ -411,7 +411,7 @@ pub const Velocity = struct {
 //  ╚═════╝ ╚═╝
 
 pub const UIImage = struct {
-    rect: [4]f32,
+    rect: renderer_types.Rect,
     material: UIMaterial,
 };
 

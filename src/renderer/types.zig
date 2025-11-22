@@ -50,8 +50,15 @@ pub const HeightFogSettings = struct {
     density: f32 = 0,
 };
 
+pub const Rect = struct {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+};
+
 pub const UiImage = struct {
-    rect: [4]f32,
+    rect: [4]f32, // top, right, bottom, left
     color: [4]f32,
     texture_index: u32,
     _padding0: [3]u32,

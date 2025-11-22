@@ -391,12 +391,19 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
     {
         system.state.ui_images.clearRetainingCapacity();
 
+        const screen_height: f32 = @floatFromInt(system.renderer.window_height);
+
         var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_ui_images);
         while (ecs.query_next(&iter)) {
             const ui_images = ecs.field(&iter, fd.UIImage, 0).?;
             for (ui_images) |ui_image| {
                 system.state.ui_images.append(.{
-                    .rect = [4]f32{ ui_image.rect[0], ui_image.rect[1], ui_image.rect[2], ui_image.rect[3] },
+                    .rect = [4]f32{
+                        screen_height - (ui_image.rect.y + ui_image.rect.height),
+                        ui_image.rect.x + ui_image.rect.width,
+                        screen_height - ui_image.rect.y,
+                        ui_image.rect.x,
+                    },
                     .color = [4]f32{ ui_image.material.color[0], ui_image.material.color[1], ui_image.material.color[2], ui_image.material.color[3] },
                     .texture_index = system.renderer.getTextureBindlessIndex(ui_image.material.texture),
                     ._padding0 = [3]u32{ 42, 42, 42 },

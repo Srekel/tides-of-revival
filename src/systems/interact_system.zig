@@ -77,23 +77,23 @@ const SystemUpdateContext = struct {
 pub fn create(create_ctx: SystemCreateCtx) void {
     const crosshair_texture = create_ctx.renderer.loadTexture("textures/ui/crosshair085_ui.dds");
     var crosshair_ent = create_ctx.ecsu_world.newEntity();
-    crosshair_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+    crosshair_ent.set(fd.UIImage{ .rect = undefined, .material = .{
         .color = [4]f32{ 1, 1, 1, 1 },
         .texture = crosshair_texture,
     } });
 
-    const boot_texture = create_ctx.renderer.loadTexture("textures/ui/boot.dds");
-    var boot_ent = create_ctx.ecsu_world.newEntity();
-    boot_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
-        .color = [4]f32{ 1, 1, 1, 1 },
-        .texture = boot_texture,
-    } });
-
     const bar_texture = create_ctx.renderer.loadTexture("textures/ui/bar.dds");
     var bar_ent = create_ctx.ecsu_world.newEntity();
-    bar_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+    bar_ent.set(fd.UIImage{ .rect = undefined, .material = .{
         .color = [4]f32{ 1, 1, 1, 1 },
         .texture = bar_texture,
+    } });
+
+    const boot_texture = create_ctx.renderer.loadTexture("textures/ui/boot.dds");
+    var boot_ent = create_ctx.ecsu_world.newEntity();
+    boot_ent.set(fd.UIImage{ .rect = undefined, .material = .{
+        .color = [4]f32{ 1, 1, 1, 1 },
+        .texture = boot_texture,
     } });
 
     var clock_ents: [9]ecsu.Entity = undefined;
@@ -111,7 +111,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     for (clocks, 0..) |path, i_clock| {
         const clock_texture = create_ctx.renderer.loadTexture(path);
         var clock_ent = create_ctx.ecsu_world.newEntity();
-        clock_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+        clock_ent.set(fd.UIImage{ .rect = undefined, .material = .{
             .color = [4]f32{ 1, 1, 1, 0 },
             .texture = clock_texture,
         } });
@@ -467,49 +467,46 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const screen_center_x: f32 = size_x / 2;
     const screen_center_y: f32 = size_y / 2;
 
-    const top = screen_center_y - crosshair_half_size;
-    const bottom = screen_center_y + crosshair_half_size;
-    const left = screen_center_x - crosshair_half_size;
-    const right = screen_center_x + crosshair_half_size;
-
-    const ui_image = system.state.crosshair_ent.getMut(fd.UIImage).?;
-    ui_image.*.rect = [4]f32{ top, bottom, left, right };
-    ui_image.*.material.color = crosshair_color;
+    const crosshair_image = system.state.crosshair_ent.getMut(fd.UIImage).?;
+    crosshair_image.*.rect = .{
+        .x = screen_center_x - crosshair_half_size,
+        .y = screen_center_y - crosshair_half_size,
+        .width = crosshair_size,
+        .height = crosshair_size,
+    };
+    crosshair_image.*.material.color = crosshair_color;
 
     const boot_image = system.state.boot_ent.getMut(fd.UIImage).?;
-    boot_image.*.rect = [4]f32{ top + 20 + 8, bottom + 20 - 8, left + 8, right - 8 };
+    boot_image.*.rect = .{
+        .x = 200,
+        .y = 150,
+        .width = 32,
+        .height = 32,
+    };
     boot_image.*.material.color = boot_color;
 
     const bar_image = system.state.bar_ent.getMut(fd.UIImage).?;
-    const bar_offset = 120;
-    bar_image.*.rect = [4]f32{
-        size_y - bar_offset - 100,
-        size_y - bar_offset,
-        bar_offset,
-        bar_offset + 190,
+    const bar_margin = 120;
+    bar_image.*.rect = .{
+        .x = bar_margin,
+        .y = bar_margin,
+        .width = 190,
+        .height = 100,
     };
-    // bar_image.*.material.color = boot_color;
 
     const journey_time_percent_index: usize = @intFromFloat(environment_info.journey_time_percent_predict * 8);
     for (system.state.clock_ents, 0..) |clock_ent, i_clock| {
         const clock_image = clock_ent.getMut(fd.UIImage).?;
-        clock_image.*.rect = [4]f32{
-            size_y - (150),
-            size_y - (150 + 32),
-            150,
-            150 + 32,
+        clock_image.*.rect = .{
+            .x = 150,
+            .y = 150,
+            .width = 32,
+            .height = 32,
         };
         var clock_color = &clock_image.material.color;
         if (i_clock == journey_time_percent_index and environment_info.can_journey != .invalid and environment_info.journey_state == .not) {
-            // clock_color[0] = std.math.lerp(clock_color[0], 1, 0.1);
-            // clock_color[1] = std.math.lerp(clock_color[1], 1, 0.1);
-            // clock_color[2] = std.math.lerp(clock_color[2], 1, 0.1);
-            // clock_color[3] = std.math.lerp(clock_color[3], 1, 0.1);
             clock_color[3] = 1;
         } else {
-            // clock_color[0] = std.math.lerp(clock_color[0], 0, 0.05);
-            // clock_color[1] = std.math.lerp(clock_color[1], 0, 0.05);
-            // clock_color[2] = std.math.lerp(clock_color[2], 0, 0.05);
             clock_color[3] = std.math.lerp(clock_color[3], 0, 0.05);
         }
     }

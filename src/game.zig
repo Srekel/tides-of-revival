@@ -58,6 +58,8 @@ const GameloopContext = struct {
 };
 
 var logo_ent: ecsu.Entity = undefined;
+const logo_size: f32 = 100;
+const logo_margin: f32 = 20;
 
 pub fn run() void {
     const root_allocator = std.heap.page_allocator;
@@ -106,17 +108,22 @@ pub fn run() void {
     // Watermark Logo
     {
         const logo_texture = renderer_ctx.loadTexture("textures/ui/tides_logo_ui.dds");
-        const logo_size: f32 = 100;
-        const top = 20.0;
-        const bottom = 20.0 + logo_size;
-        const left = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0 - logo_size;
-        const right = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - 20.0;
+        const bottom = @as(f32, @floatFromInt(main_window.frame_buffer_size[1])) - logo_margin - logo_size;
+        const left = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - logo_margin - logo_size;
 
         logo_ent = ecsu_world.newEntity();
-        logo_ent.set(fd.UIImage{ .rect = [4]f32{ top, bottom, left, right }, .material = .{
-            .color = [4]f32{ 1, 1, 1, 1 },
-            .texture = logo_texture,
-        } });
+        logo_ent.set(fd.UIImage{
+            .rect = .{
+                .x = left,
+                .y = bottom,
+                .width = logo_size,
+                .height = logo_size,
+            },
+            .material = .{
+                .color = [4]f32{ 1, 1, 1, 1 },
+                .texture = logo_texture,
+            },
+        });
     }
 
     // Input
@@ -639,16 +646,9 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         }
     }
 
-    const logo_size: f32 = 100;
-    const size_x: f32 = @floatFromInt(gameloop_context.main_window.frame_buffer_size[0]);
     const logo_image = logo_ent.getMut(fd.UIImage).?;
-    const logo_offset = 20;
-    logo_image.*.rect = [4]f32{
-        logo_offset,
-        logo_offset + logo_size,
-        size_x - (logo_offset + logo_size),
-        size_x - (logo_offset),
-    };
+    const left = @as(f32, @floatFromInt(gameloop_context.main_window.frame_buffer_size[0])) - logo_margin - logo_size;
+    logo_image.*.rect.x = left;
 
     once_per_duration_test += dt_game;
     if (once_per_duration_test > 1) {
