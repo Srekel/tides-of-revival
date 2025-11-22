@@ -139,6 +139,17 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .intensity = 10.0,
     });
 
+    {
+        const cylinder_prefab = prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
+        const arm_ent = prefab_mgr.instantiatePrefab(ecsu_world, cylinder_prefab);
+        arm_ent.childOf(player_ent);
+        arm_ent.set(fd.Position{ .x = 0, .y = 1.0, .z = 0 });
+        arm_ent.set(fd.Rotation{});
+        arm_ent.set(fd.Scale.create(0.6, 0.7, 0.1));
+        arm_ent.set(fd.Transform{});
+        arm_ent.set(fd.Dynamic{});
+        arm_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+    }
     const sphere_prefab = prefab_mgr.getPrefab(config.prefab.sphere_id).?;
     const player_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
     player_camera_ent.childOf(player_ent);
