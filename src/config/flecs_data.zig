@@ -416,8 +416,8 @@ pub const UIImage = struct {
 };
 
 pub const UIMaterial = struct {
-    color: [4]f32,
-    texture: TextureHandle,
+    color: [4]f32 = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+    texture: TextureHandle = TextureHandle.nil,
 };
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗  █████╗ ██████╗ ██╗     ███████╗███████╗
