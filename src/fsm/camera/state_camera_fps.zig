@@ -219,6 +219,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const journeys = ecs.field(it, fd.Journey, 5).?;
 
     const input_frame_data = ctx.input_frame_data;
+    const physics_world = ctx.physics_world;
     const physics_world_low = ctx.physics_world_low;
     const ui_dt = ecs.get_world_info(it.world).delta_time_raw;
 
@@ -253,23 +254,30 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 const z_fwd = zm.util.getAxisZ(z_mat);
 
                 const dist = 5000;
-                const query = physics_world_low.getNarrowPhaseQuery();
+                var bodies = physics_world.getBodiesUnsafe();
+                var query = physics_world.getNarrowPhaseQuery();
                 const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
                 const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
                 const ray = zphy.RRayCast{
                     .origin = ray_origin,
                     .direction = ray_dir,
                 };
-                const result = query.castRay(ray, .{});
 
+                var result = query.castRay(ray, .{});
                 if (!result.has_hit) {
-                    environment_info.can_journey = .invalid;
-                    continue;
+                    bodies = physics_world_low.getBodiesUnsafe();
+                    query = physics_world_low.getNarrowPhaseQuery();
+                    result = query.castRay(ray, .{});
+
+                    if (!result.has_hit) {
+                        environment_info.can_journey = .invalid;
+                        continue;
+                    }
                 }
 
-                const bodies = ctx.physics_world_low.getBodiesUnsafe();
                 const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
                 if (body_hit_opt == null) {
+                    environment_info.can_journey = .invalid;
                     continue;
                 }
 
@@ -302,21 +310,11 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     return;
                 }
 
-                const hit_normal_z = zm.loadArr3(hit_normal);
-                const up_z = zm.f32x4(0, 1, 0, 0);
-                const dot = zm.dot3(up_z, hit_normal_z)[0];
-                if (dot < 0.5) {
-                    // TODO trigger sound
-                    // std.log.info("can't journey due to slope {d}", .{hit_normal[1]});
-                    color.setG(0);
-                    color.setB(0);
-                    continue;
-                }
-
                 if (height_next > 700) {
                     // std.log.info("can't journey due to height {d}", .{height_next});
                     color.setG(0);
                     color.setB(0);
+                    environment_info.can_journey = .no;
                     return;
                 }
 
@@ -331,6 +329,15 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 const time_fudge = 4.0 / 24.0;
                 const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
 
+                if (dist_as_the_crow_flies < 100) {
+                    // TODO trigger sound
+                    // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
+                    color.setG(0);
+                    color.setB(0);
+                    environment_info.can_journey = .invalid;
+                    continue;
+                }
+
                 const next_time_of_day = environment_info.world_time + duration;
                 const time_of_day_percent = std.math.modf(next_time_of_day / (4 * 60 * 60)).fpart;
                 const is_day = time_of_day_percent > 0.95 or time_of_day_percent < 0.45;
@@ -342,20 +349,24 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     continue;
                 }
 
-                if (dist_as_the_crow_flies < 100) {
-                    // TODO trigger sound
-                    // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
-                    color.setG(0);
-                    color.setB(0);
-                    environment_info.can_journey = .invalid;
-                    continue;
-                }
-
                 if (dist_as_the_crow_flies > 40000) {
                     // TODO trigger sound
                     // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
                     color.setG(0);
                     color.setB(0);
+                    environment_info.can_journey = .no;
+                    continue;
+                }
+
+                const hit_normal_z = zm.loadArr3(hit_normal);
+                const up_z = zm.f32x4(0, 1, 0, 0);
+                const dot = zm.dot3(up_z, hit_normal_z)[0];
+                if (dot < 0.5) {
+                    // TODO trigger sound
+                    // std.log.info("can't journey due to slope {d}", .{hit_normal[1]});
+                    color.setG(0);
+                    color.setB(0);
+                    environment_info.can_journey = .no;
                     continue;
                 }
 
@@ -492,7 +503,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
     const input_frame_data = ctx.input_frame_data;
     const physics_world_low = ctx.physics_world_low;
-    _ = physics_world_low; // autofix
     const physics_world = ctx.physics_world;
     var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
@@ -681,19 +691,56 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
             .not => {
 
                 // Campfire
-                const query = physics_world.getNarrowPhaseQuery();
-                const ray_origin = [_]f32{
-                    z_pos[0] + z_fwd[0] * 2,
-                    z_pos[1] - 1,
-                    z_pos[2] + z_fwd[2] * 2,
-                    0,
-                };
-                const ray_dir = [_]f32{ 0, -2, 0, 0 };
+                // const query = physics_world.getNarrowPhaseQuery();
+                // const ray_origin = [_]f32{
+                //     z_pos[0] + z_fwd[0] * 2,
+                //     z_pos[1] - 1,
+                //     z_pos[2] + z_fwd[2] * 2,
+                //     0,
+                // };
+                // const ray_dir = [_]f32{ 0, -2, 0, 0 };
+                // const ray = zphy.RRayCast{
+                //     .origin = ray_origin,
+                //     .direction = ray_dir,
+                // };
+                // const result = query.castRay(ray, .{});
+
+                const dist = 7;
+                const query = physics_world_low.getNarrowPhaseQuery();
+                const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
+                const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
                 const ray = zphy.RRayCast{
                     .origin = ray_origin,
                     .direction = ray_dir,
                 };
                 const result = query.castRay(ray, .{});
+
+                if (!result.has_hit) {
+                    environment_info.can_rest = .invalid;
+                    continue;
+                }
+
+                const bodies = ctx.physics_world_low.getBodiesUnsafe();
+                const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
+                if (body_hit_opt == null) {
+                    environment_info.can_rest = .invalid;
+                    continue;
+                }
+
+                const body_hit = body_hit_opt.?;
+                const hit_pos = ray.getPointOnRay(result.hit.fraction);
+                const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, hit_pos);
+                const hit_normal_z = zm.loadArr3(hit_normal);
+                const up_z = zm.f32x4(0, 1, 0, 0);
+                const dot = zm.dot3(up_z, hit_normal_z)[0];
+                if (dot < 0.8) {
+                    // TODO trigger sound
+                    // std.log.info("can't journey due to slope {d}", .{hit_normal[1]});
+                    // color.setG(0);
+                    // color.setB(0);
+                    environment_info.can_rest = .no;
+                    continue;
+                }
 
                 // const color = if (result.has_hit) im3d.Im3d.Color.init5b(1, 1, 1, 1) else im3d.Im3d.Color.init5b(1, 0, 0, 1);
                 // defer im3d.Im3d.DrawLine(
@@ -711,11 +758,9 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 //     color,
                 // );
 
-                if (input_frame_data.just_pressed(config.input.rest)) {
-                    if (!result.has_hit) {
-                        break;
-                    }
+                environment_info.can_rest = .yes;
 
+                if (input_frame_data.just_pressed(config.input.rest)) {
                     std.log.info("rest time:{d:.2} mult:{d:.2}", .{ environment_info.world_time, environment_info.journey_time_multiplier });
                     environment_info.rest_state = .transition_in;
                     environment_info.player_state_time = 0;
@@ -723,8 +768,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     vignette_settings.radius = 1;
 
                     if (!has_nearby_light) {
-                        const hit_pos = ray.getPointOnRay(result.hit.fraction);
-
                         var campfire_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.campfire);
                         campfire_ent.set(fd.Position{
                             .x = hit_pos[0],

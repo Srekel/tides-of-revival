@@ -757,6 +757,7 @@ pub const EnvironmentInfo = struct {
         journeying,
         transition_out,
     } = .not,
+    can_rest: enum { invalid, no, yes } = .no,
     can_journey: enum { invalid, no, yes } = .no,
     journey_time_percent_predict: f32 = 0,
     player_state_time: f32 = 0,

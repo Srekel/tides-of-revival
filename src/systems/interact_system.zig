@@ -69,6 +69,7 @@ const SystemUpdateContext = struct {
     state: struct {
         crosshair_ent: ecsu.Entity,
         boot_ent: ecsu.Entity,
+        rest_ent: ecsu.Entity,
         bar_ent: ecsu.Entity,
         clock_ents: [9]ecsu.Entity,
     },
@@ -94,6 +95,13 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     boot_ent.set(fd.UIImage{ .rect = undefined, .material = .{
         .color = [4]f32{ 1, 1, 1, 1 },
         .texture = boot_texture,
+    } });
+
+    const rest_texture = create_ctx.renderer.loadTexture("textures/ui/fire.dds");
+    var rest_ent = create_ctx.ecsu_world.newEntity();
+    rest_ent.set(fd.UIImage{ .rect = undefined, .material = .{
+        .color = [4]f32{ 1, 1, 1, 1 },
+        .texture = rest_texture,
     } });
 
     var clock_ents: [9]ecsu.Entity = undefined;
@@ -123,6 +131,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     update_ctx.*.state = .{
         .crosshair_ent = crosshair_ent,
         .boot_ent = boot_ent,
+        .rest_ent = rest_ent,
         .clock_ents = clock_ents,
         .bar_ent = bar_ent,
     };
@@ -407,6 +416,10 @@ fn updateArrows(it: *ecs.iter_t) callconv(.C) void {
 
 var boot_color = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
 var boot_color_target = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
+var rest_color = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
+var rest_color_target = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
+var active_icon_size: f32 = 16;
+var active_icon_size_target: f32 = 16;
 fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     var crosshair_color = [4]f32{ 0.8, 0.8, 0.8, 0.75 };
@@ -415,15 +428,29 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     boot_color_target = switch (environment_info.can_journey) {
         .invalid => [4]f32{ 0.0, 0.0, 0.0, 0.0 },
         .no => [4]f32{ 1.0, 0.0, 0.0, 1.0 },
-        .yes => [4]f32{ 0.8, 0.8, 0.8, 0.75 },
+        .yes => [4]f32{ 1.0, 1.0, 1.0, 0.9 },
+    };
+    rest_color_target = switch (environment_info.can_rest) {
+        .invalid => [4]f32{ 0.0, 0.0, 0.0, 0.0 },
+        .no => [4]f32{ 1.0, 0.0, 0.0, 1.0 },
+        .yes => [4]f32{ 1.0, 1.0, 1.0, 0.9 },
     };
     if (environment_info.journey_state != .not or environment_info.rest_state != .not) {
         boot_color_target = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
+        rest_color_target = [4]f32{ 0.0, 0.0, 0.0, 0.0 };
     }
     boot_color[0] = std.math.lerp(boot_color[0], boot_color_target[0], 0.05);
     boot_color[1] = std.math.lerp(boot_color[1], boot_color_target[1], 0.05);
     boot_color[2] = std.math.lerp(boot_color[2], boot_color_target[2], 0.05);
     boot_color[3] = std.math.lerp(boot_color[3], boot_color_target[3], 0.05);
+    rest_color[0] = std.math.lerp(rest_color[0], rest_color_target[0], 0.05);
+    rest_color[1] = std.math.lerp(rest_color[1], rest_color_target[1], 0.05);
+    rest_color[2] = std.math.lerp(rest_color[2], rest_color_target[2], 0.05);
+    rest_color[3] = std.math.lerp(rest_color[3], rest_color_target[3], 0.05);
+
+    const world_time = environment_info.world_time;
+    active_icon_size_target = if (environment_info.can_journey == .yes or environment_info.can_rest == .yes) 20 + math.sin(@as(f32, @floatCast(world_time * 4))) * 2 else 16;
+    active_icon_size = std.math.lerp(active_icon_size, active_icon_size_target, 0.1);
 
     var cam_ent = util.getActiveCameraEnt(system.ecsu_world);
     const cam_comps = cam_ent.getComps(struct {
@@ -470,7 +497,7 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const crosshair_image = system.state.crosshair_ent.getMut(fd.UIImage).?;
     crosshair_image.*.rect = .{
         .x = screen_center_x - crosshair_half_size,
-        .y = screen_center_y - crosshair_half_size,
+        .y = screen_center_y + crosshair_half_size,
         .width = crosshair_size,
         .height = crosshair_size,
     };
@@ -478,12 +505,21 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
 
     const boot_image = system.state.boot_ent.getMut(fd.UIImage).?;
     boot_image.*.rect = .{
-        .x = 200,
-        .y = 150,
-        .width = 32,
-        .height = 32,
+        .x = screen_center_x - active_icon_size / 2,
+        .y = screen_center_y - active_icon_size / 2,
+        .width = active_icon_size,
+        .height = active_icon_size,
     };
     boot_image.*.material.color = boot_color;
+
+    const rest_image = system.state.rest_ent.getMut(fd.UIImage).?;
+    rest_image.*.rect = .{
+        .x = screen_center_x - active_icon_size / 2,
+        .y = screen_center_y - active_icon_size / 2,
+        .width = active_icon_size,
+        .height = active_icon_size,
+    };
+    rest_image.*.material.color = rest_color;
 
     const bar_image = system.state.bar_ent.getMut(fd.UIImage).?;
     const bar_margin = 120;
