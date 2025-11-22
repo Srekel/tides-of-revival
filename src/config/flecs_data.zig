@@ -413,6 +413,7 @@ pub const Velocity = struct {
 pub const UIImage = struct {
     rect: renderer_types.Rect,
     material: UIMaterial,
+    render_order: i32 = 0,
 };
 
 pub const UIMaterial = struct {

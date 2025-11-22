@@ -406,7 +406,8 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
                     },
                     .color = [4]f32{ ui_image.material.color[0], ui_image.material.color[1], ui_image.material.color[2], ui_image.material.color[3] },
                     .texture_index = system.renderer.getTextureBindlessIndex(ui_image.material.texture),
-                    ._padding0 = [3]u32{ 42, 42, 42 },
+                    .render_order = ui_image.render_order,
+                    ._padding0 = [2]u32{ 42, 42 },
                 }) catch unreachable;
             }
         }

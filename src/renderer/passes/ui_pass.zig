@@ -73,6 +73,8 @@ pub const UIPass = struct {
         self.instances.clearRetainingCapacity();
         self.instances.appendSlice(self.renderer.ui_images.items) catch unreachable;
 
+        std.mem.sort(renderer_types.UiImage, self.instances.items, {}, uiImageSorter);
+
         if (self.instances.items.len > 0) {
             const instance_data_slice = OpaqueSlice{
                 .data = @ptrCast(self.instances.items),
@@ -80,6 +82,10 @@ pub const UIPass = struct {
             };
             self.renderer.updateBuffer(instance_data_slice, 0, renderer_types.UiImage, self.instance_buffers[frame_index]);
         }
+    }
+
+    fn uiImageSorter(_: void, a: renderer_types.UiImage, b: renderer_types.UiImage) bool {
+        return a.render_order < b.render_order;
     }
 
     pub fn render(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {

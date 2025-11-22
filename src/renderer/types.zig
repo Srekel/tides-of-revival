@@ -61,7 +61,8 @@ pub const UiImage = struct {
     rect: [4]f32, // top, right, bottom, left
     color: [4]f32,
     texture_index: u32,
-    _padding0: [3]u32,
+    render_order: i32,
+    _padding0: [2]u32,
 };
 
 pub const UpdateDesc = struct {

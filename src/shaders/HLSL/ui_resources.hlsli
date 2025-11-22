@@ -34,7 +34,8 @@ struct UITransform
     float4 rect;
     float4 color;
     uint textureIndex;
-    float3 _padding;
+    int renderOrder;
+    float2 _padding;
 };
 
 STRUCT(VSOutput)
