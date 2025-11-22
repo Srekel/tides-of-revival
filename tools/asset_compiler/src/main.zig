@@ -7,6 +7,8 @@ const TextureFormat = enum {
     BC3_UNORM,
     BC4_UNORM,
     BC5_UNORM,
+    BC7_UNORM,
+    BC7_UNORM_SRGB,
 };
 
 const TextureInfoV1 = struct {
@@ -85,6 +87,10 @@ pub fn main() !void {
                 texture_info.format = .BC4_UNORM;
             } else if (std.mem.eql(u8, format[1..], "BC5_UNORM")) {
                 texture_info.format = .BC5_UNORM;
+            } if (std.mem.eql(u8, format[1..], "BC7_UNORM")) {
+                texture_info.format = .BC7_UNORM;
+            } else if (std.mem.eql(u8, format[1..], "BC7_UNORM_SRGB")) {
+                texture_info.format = .BC7_UNORM_SRGB;
             } else {
                 std.debug.panic("Unsupported format '{s}'", .{format[1..]});
             }
@@ -184,6 +190,12 @@ fn executeTextureConversionV1(desc: *TextureInfoV1, arena: std.mem.Allocator) !v
         },
         .BC5_UNORM => {
             try argv.append("BC5_UNORM");
+        },
+        .BC7_UNORM => {
+            try argv.append("BC7_UNORM");
+        },
+        .BC7_UNORM_SRGB => {
+            try argv.append("BC7_UNORM_SRGB");
         },
     }
 
@@ -307,6 +319,13 @@ fn generateMetadata(arena: std.mem.Allocator) !void {
                 },
                 .BC5_UNORM => {
                     _ = try metadata.write("BC5_UNORM\n");
+                },
+                .BC7_UNORM => {
+                    _ = try metadata.write("BC7_UNORM\n");
+                },
+                .BC7_UNORM_SRGB => {
+                    _ = try metadata.write("BC7_UNORM_SRGB\n");
+                    _ = try metadata.write("srgb: true\n");
                 },
             }
             _ = try metadata.write("\n");
