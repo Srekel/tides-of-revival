@@ -389,6 +389,9 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     // }
                 }
 
+                const duration_percent = std.math.clamp(duration / 5000, 0, 1);
+                environment_info.journey_time_percent_predict = duration_percent;
+
                 environment_info.can_journey = .yes;
                 if (!input_frame_data.just_pressed(config.input.interact)) {
                     return;

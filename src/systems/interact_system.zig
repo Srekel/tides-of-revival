@@ -69,6 +69,8 @@ const SystemUpdateContext = struct {
     state: struct {
         crosshair_ent: ecsu.Entity,
         boot_ent: ecsu.Entity,
+        bar_ent: ecsu.Entity,
+        clock_ents: [9]ecsu.Entity,
     },
 };
 
@@ -87,11 +89,42 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .texture = boot_texture,
     } });
 
+    const bar_texture = create_ctx.renderer.loadTexture("textures/ui/bar.dds");
+    var bar_ent = create_ctx.ecsu_world.newEntity();
+    bar_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+        .color = [4]f32{ 1, 1, 1, 1 },
+        .texture = bar_texture,
+    } });
+
+    var clock_ents: [9]ecsu.Entity = undefined;
+    const clocks = [_][:0]const u8{
+        "textures/ui/clock_000.dds",
+        "textures/ui/clock_125.dds",
+        "textures/ui/clock_250.dds",
+        "textures/ui/clock_375.dds",
+        "textures/ui/clock_500.dds",
+        "textures/ui/clock_625.dds",
+        "textures/ui/clock_750.dds",
+        "textures/ui/clock_875.dds",
+        "textures/ui/clock_1000.dds",
+    };
+    for (clocks, 0..) |path, i_clock| {
+        const clock_texture = create_ctx.renderer.loadTexture(path);
+        var clock_ent = create_ctx.ecsu_world.newEntity();
+        clock_ent.set(fd.UIImage{ .rect = [4]f32{ 0, 0, 0, 0 }, .material = .{
+            .color = [4]f32{ 1, 1, 1, 0 },
+            .texture = clock_texture,
+        } });
+        clock_ents[i_clock] = clock_ent;
+    }
+
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .crosshair_ent = crosshair_ent,
         .boot_ent = boot_ent,
+        .clock_ents = clock_ents,
+        .bar_ent = bar_ent,
     };
 
     {
@@ -429,8 +462,10 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
 
     const crosshair_size: f32 = 32;
     const crosshair_half_size: f32 = crosshair_size / 2;
-    const screen_center_x: f32 = @as(f32, @floatFromInt(system.main_window.frame_buffer_size[0])) / 2;
-    const screen_center_y: f32 = @as(f32, @floatFromInt(system.main_window.frame_buffer_size[1])) / 2;
+    const size_x: f32 = @floatFromInt(system.main_window.frame_buffer_size[0]);
+    const size_y: f32 = @floatFromInt(system.main_window.frame_buffer_size[1]);
+    const screen_center_x: f32 = size_x / 2;
+    const screen_center_y: f32 = size_y / 2;
 
     const top = screen_center_y - crosshair_half_size;
     const bottom = screen_center_y + crosshair_half_size;
@@ -444,6 +479,40 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const boot_image = system.state.boot_ent.getMut(fd.UIImage).?;
     boot_image.*.rect = [4]f32{ top + 20 + 8, bottom + 20 - 8, left + 8, right - 8 };
     boot_image.*.material.color = boot_color;
+
+    const bar_image = system.state.bar_ent.getMut(fd.UIImage).?;
+    const bar_offset = 120;
+    bar_image.*.rect = [4]f32{
+        size_y - bar_offset - 100,
+        size_y - bar_offset,
+        bar_offset,
+        bar_offset + 190,
+    };
+    // bar_image.*.material.color = boot_color;
+
+    const journey_time_percent_index: usize = @intFromFloat(environment_info.journey_time_percent_predict * 8);
+    for (system.state.clock_ents, 0..) |clock_ent, i_clock| {
+        const clock_image = clock_ent.getMut(fd.UIImage).?;
+        clock_image.*.rect = [4]f32{
+            size_y - (150),
+            size_y - (150 + 32),
+            150,
+            150 + 32,
+        };
+        var clock_color = &clock_image.material.color;
+        if (i_clock == journey_time_percent_index and environment_info.can_journey != .invalid and environment_info.journey_state == .not) {
+            // clock_color[0] = std.math.lerp(clock_color[0], 1, 0.1);
+            // clock_color[1] = std.math.lerp(clock_color[1], 1, 0.1);
+            // clock_color[2] = std.math.lerp(clock_color[2], 1, 0.1);
+            // clock_color[3] = std.math.lerp(clock_color[3], 1, 0.1);
+            clock_color[3] = 1;
+        } else {
+            // clock_color[0] = std.math.lerp(clock_color[0], 0, 0.05);
+            // clock_color[1] = std.math.lerp(clock_color[1], 0, 0.05);
+            // clock_color[2] = std.math.lerp(clock_color[2], 0, 0.05);
+            clock_color[3] = std.math.lerp(clock_color[3], 0, 0.05);
+        }
+    }
 }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
