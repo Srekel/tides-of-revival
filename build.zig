@@ -184,7 +184,10 @@ pub fn build(b: *std.Build) void {
     // exe.linkLibrary(zignav.artifact("zignav_c_cpp"));
 
     // Im3d
-    const im3d = b.dependency("im3d", .{});
+    const im3d = b.dependency("im3d", .{
+        .target = target,
+        .optimize = optimize,
+    });
     exe.root_module.addImport("im3d", im3d.module("im3d"));
     exe.linkLibrary(im3d.artifact("im3d_c_cpp"));
 
