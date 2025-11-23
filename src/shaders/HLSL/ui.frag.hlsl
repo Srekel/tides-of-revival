@@ -17,7 +17,7 @@ float4 PS_MAIN(VSOutput input) : SV_Target
     if (hasValidTexture(NonUniformResourceIndex(instance.textureIndex)))
     {
         Texture2D texture = ResourceDescriptorHeap[NonUniformResourceIndex(instance.textureIndex)];
-        float4 sampleColor = texture.SampleLevel(g_linear_repeat_sampler, input.UV, 0);
+        float4 sampleColor = texture.Sample(g_linear_repeat_sampler, input.UV);
         color *= sampleColor;
     }
     color.rgb *= color.a;

@@ -406,7 +406,7 @@ pub const PSOManager = struct {
 
             {
                 var sampler_ids = [_]IdLocal{};
-                var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
+                var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
 
                 const depth_state = getDepthStateDesc(false, true, graphics.CompareMode.CMP_GEQUAL);
                 const desc = GraphicsPipelineDesc{
@@ -552,7 +552,7 @@ pub const PSOManager = struct {
         // ImGUI Pipeline
         {
             var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
-            var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
             const depth_state = getDepthStateDesc(true, false, graphics.CompareMode.CMP_ALWAYS);
 
             const desc = GraphicsPipelineDesc{
@@ -572,7 +572,7 @@ pub const PSOManager = struct {
         // Im3d Pipelines
         {
             var sampler_ids = [_]IdLocal{};
-            var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
 
             // Points
             var desc = GraphicsPipelineDesc{
@@ -678,7 +678,7 @@ pub const PSOManager = struct {
         // UI
         {
             var sampler_ids = [_]IdLocal{StaticSamplers.linear_repeat};
-            var render_targets = [_]graphics.TinyImageFormat{self.renderer.ui_overlay.*.mFormat};
+            var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
             const desc = GraphicsPipelineDesc{
                 .id = IdLocal.init("ui"),
                 .vert_shader_name = "ui.vert",
@@ -699,14 +699,14 @@ pub const PSOManager = struct {
             self.createComputePipeline(IdLocal.init("compute_specular_map"), "compute_specular_map.comp", &sampler_ids);
         }
 
-        // Composite SDR
+        // Tonemapper
         {
             var sampler_ids = [_]IdLocal{StaticSamplers.linear_clamp_edge};
             var render_targets = [_]graphics.TinyImageFormat{self.renderer.swap_chain.*.ppRenderTargets[0].*.mFormat};
             const desc = GraphicsPipelineDesc{
-                .id = IdLocal.init("composite_sdr"),
+                .id = IdLocal.init("tonemapper"),
                 .vert_shader_name = "fullscreen.vert",
-                .frag_shader_name = "composite_sdr.frag",
+                .frag_shader_name = "tonemapper.frag",
                 .render_targets = @constCast(&render_targets),
                 .rasterizer_state = rasterizer_cull_none,
                 .sampler_ids = &sampler_ids,

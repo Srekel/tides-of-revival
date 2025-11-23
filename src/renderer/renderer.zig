@@ -174,9 +174,6 @@ pub const Renderer = struct {
     scene_color: [*c]graphics.RenderTarget = null,
     scene_color_copy: [*c]graphics.RenderTarget = null,
 
-    // UI
-    ui_overlay: [*c]graphics.RenderTarget = null,
-
     // Bloom Render Targets
     bloom_width: u32 = 0,
     bloom_height: u32 = 0,
@@ -206,7 +203,7 @@ pub const Renderer = struct {
 
     // Composite SDR Pass
     // ==================
-    composite_sdr_pass_descriptor_set: [*c]graphics.DescriptorSet = undefined,
+    tonemapper_pass_descriptor_set: [*c]graphics.DescriptorSet = undefined,
 
     pub const Error = error{
         NotInitialized,
@@ -518,7 +515,7 @@ pub const Renderer = struct {
 
         graphics.removeDescriptorSet(self.renderer, self.debug_line_renderer_draw_descriptor_set);
         graphics.removeDescriptorSet(self.renderer, self.debug_line_renderer_clear_uav_descriptor_set);
-        graphics.removeDescriptorSet(self.renderer, self.composite_sdr_pass_descriptor_set);
+        graphics.removeDescriptorSet(self.renderer, self.tonemapper_pass_descriptor_set);
         graphics.removeDescriptorSet(self.renderer, self.buffers_visualization_descriptor_set);
 
         var buffer_handles = self.buffer_pool.liveHandles();
@@ -1097,10 +1094,44 @@ pub const Renderer = struct {
             self.post_processing_pass.render(cmd_list, render_view);
         }
 
+        // Tonemapper
+        {
+            const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemapper", 0x00_ff_00_00);
+            defer trazy_zone1.End();
+
+            const profile_index = self.startGpuProfile(cmd_list, "Tonemapper");
+            defer self.endGpuProfile(cmd_list, profile_index);
+
+            const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
+
+            var rt_barriers = [_]graphics.RenderTargetBarrier{
+                graphics.RenderTargetBarrier.init(render_target, .RESOURCE_STATE_PRESENT, .RESOURCE_STATE_RENDER_TARGET),
+            };
+
+            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
+
+            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+            bind_render_targets_desc.mRenderTargetCount = 1;
+            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
+            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
+            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+
+            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
+            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+            const pipeline_id = IdLocal.init("tonemapper");
+            const pipeline = self.getPSO(pipeline_id);
+
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemapper_pass_descriptor_set);
+            graphics.cmdDraw(cmd_list, 3, 0);
+        }
+
         // UI Overlay
         {
             var rt_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.ui_overlay, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_RENDER_TARGET),
                 graphics.RenderTargetBarrier.init(self.depth_buffer, .RESOURCE_STATE_SHADER_RESOURCE, .RESOURCE_STATE_DEPTH_READ),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
@@ -1108,8 +1139,8 @@ pub const Renderer = struct {
             var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
             bind_render_targets_desc.mRenderTargetCount = 1;
             bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.ui_overlay;
-            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
+            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_LOAD;
             bind_render_targets_desc.mDepthStencil = std.mem.zeroes(graphics.BindDepthTargetDesc);
             bind_render_targets_desc.mDepthStencil.pDepthStencil = self.depth_buffer;
             bind_render_targets_desc.mDepthStencil.mLoadAction = graphics.LoadActionType.LOAD_ACTION_LOAD;
@@ -1190,47 +1221,11 @@ pub const Renderer = struct {
             }
 
             var output_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(self.ui_overlay, .RESOURCE_STATE_RENDER_TARGET, .RESOURCE_STATE_SHADER_RESOURCE),
                 graphics.RenderTargetBarrier.init(self.depth_buffer, .RESOURCE_STATE_DEPTH_READ, .RESOURCE_STATE_SHADER_RESOURCE),
             };
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, output_barriers.len, @ptrCast(&output_barriers));
 
             graphics.cmdBindRenderTargets(cmd_list, null);
-        }
-
-        // Composite SDR
-        {
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Composite SDR", 0x00_ff_00_00);
-            defer trazy_zone1.End();
-
-            const profile_index = self.startGpuProfile(cmd_list, "Composite SDR");
-            defer self.endGpuProfile(cmd_list, profile_index);
-
-            const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
-
-            var input_barriers = [_]graphics.RenderTargetBarrier{
-                graphics.RenderTargetBarrier.init(render_target, .RESOURCE_STATE_PRESENT, .RESOURCE_STATE_RENDER_TARGET),
-            };
-
-            graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, input_barriers.len, @ptrCast(&input_barriers));
-
-            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
-            bind_render_targets_desc.mRenderTargetCount = 1;
-            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
-            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-
-            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
-
-            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
-            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
-
-            const pipeline_id = IdLocal.init("composite_sdr");
-            const pipeline = self.getPSO(pipeline_id);
-
-            graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, 0, self.composite_sdr_pass_descriptor_set);
-            graphics.cmdDraw(cmd_list, 3, 0);
         }
 
         // Debug Viz
@@ -2342,24 +2337,6 @@ pub const Renderer = struct {
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color_copy);
         }
 
-        // UI
-        {
-            var rt_desc = std.mem.zeroes(graphics.RenderTargetDesc);
-            rt_desc.pName = "UI Overlay";
-            rt_desc.mArraySize = 1;
-            rt_desc.mClearValue.__struct_field1 = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 };
-            rt_desc.mDepth = 1;
-            rt_desc.mFormat = graphics.TinyImageFormat.R8G8B8A8_UNORM;
-            rt_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
-            rt_desc.mWidth = buffer_width;
-            rt_desc.mHeight = buffer_height;
-            rt_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
-            rt_desc.mSampleQuality = 0;
-            rt_desc.mFlags = graphics.TextureCreationFlags.TEXTURE_CREATION_FLAG_ON_TILE;
-            rt_desc.mDescriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE;
-            graphics.addRenderTarget(self.renderer, &rt_desc, &self.ui_overlay);
-        }
-
         createBloomUAVs(self);
     }
 
@@ -2383,8 +2360,6 @@ pub const Renderer = struct {
 
         graphics.removeRenderTarget(self.renderer, self.scene_color);
         graphics.removeRenderTarget(self.renderer, self.scene_color_copy);
-
-        graphics.removeRenderTarget(self.renderer, self.ui_overlay);
 
         self.destroyBloomUAVs();
     }
@@ -2508,24 +2483,21 @@ pub const Renderer = struct {
     fn createCompositeSDRDescriptorSet(self: *Renderer) void {
         var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
         desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
-        desc.pRootSignature = self.getRootSignature(IdLocal.init("composite_sdr"));
+        desc.pRootSignature = self.getRootSignature(IdLocal.init("tonemapper"));
         desc.mMaxSets = data_buffer_count;
 
-        graphics.addDescriptorSet(self.renderer, &desc, @ptrCast(&self.composite_sdr_pass_descriptor_set));
+        graphics.addDescriptorSet(self.renderer, &desc, @ptrCast(&self.tonemapper_pass_descriptor_set));
     }
 
     fn prepareCompositeSDRDescriptorSet(self: *Renderer) void {
         for (0..data_buffer_count) |frame_index| {
-            var params: [2]graphics.DescriptorData = undefined;
+            var params: [1]graphics.DescriptorData = undefined;
 
             params[0] = std.mem.zeroes(graphics.DescriptorData);
-            params[0].pName = "MainBuffer";
+            params[0].pName = "HDRBuffer";
             params[0].__union_field3.ppTextures = @ptrCast(&self.scene_color.*.pTexture);
-            params[1] = std.mem.zeroes(graphics.DescriptorData);
-            params[1].pName = "OverlayBuffer";
-            params[1].__union_field3.ppTextures = @ptrCast(&self.ui_overlay.*.pTexture);
 
-            graphics.updateDescriptorSet(self.renderer, @intCast(frame_index), self.composite_sdr_pass_descriptor_set, params.len, @ptrCast(&params));
+            graphics.updateDescriptorSet(self.renderer, @intCast(frame_index), self.tonemapper_pass_descriptor_set, params.len, @ptrCast(&params));
         }
     }
 
@@ -2540,7 +2512,7 @@ pub const Renderer = struct {
 
     fn prepareBuffersVisualizationDescriptorSet(self: *Renderer) void {
         for (0..data_buffer_count) |frame_index| {
-            var params: [4]graphics.DescriptorData = undefined;
+            var params: [3]graphics.DescriptorData = undefined;
 
             params[0] = std.mem.zeroes(graphics.DescriptorData);
             params[0].pName = "GBuffer0";
@@ -2551,9 +2523,6 @@ pub const Renderer = struct {
             params[2] = std.mem.zeroes(graphics.DescriptorData);
             params[2].pName = "GBuffer2";
             params[2].__union_field3.ppTextures = @ptrCast(&self.gbuffer_2.*.pTexture);
-            params[3] = std.mem.zeroes(graphics.DescriptorData);
-            params[3].pName = "OverlayBuffer";
-            params[3].__union_field3.ppTextures = @ptrCast(&self.ui_overlay.*.pTexture);
 
             graphics.updateDescriptorSet(self.renderer, @intCast(frame_index), self.buffers_visualization_descriptor_set, params.len, @ptrCast(&params));
         }

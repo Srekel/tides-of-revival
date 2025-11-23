@@ -17,7 +17,6 @@ cbuffer RootConstant : register(b0)
 Texture2D<float4> GBuffer0 : register(t0, UPDATE_FREQ_PER_FRAME);
 Texture2D<float4> GBuffer1 : register(t1, UPDATE_FREQ_PER_FRAME);
 Texture2D<float4> GBuffer2 : register(t2, UPDATE_FREQ_PER_FRAME);
-Texture2D<float4> OverlayBuffer : register(t3, UPDATE_FREQ_PER_FRAME);
 
 float4 main(float4 position : SV_Position) : SV_Target0
 {
@@ -49,6 +48,5 @@ float4 main(float4 position : SV_Position) : SV_Target0
         buffer = GBuffer2[(int2)position.xy].aaa;
     }
 
-    float4 overlayColor = OverlayBuffer[(int2)position.xy];
-    return float4(overlayColor.rgb + buffer * (1.0 - overlayColor.a), 1.0);
+    return float4(buffer, 1.0);
 }
