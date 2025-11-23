@@ -107,13 +107,16 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_comp.fx_bow_fire = ctx.audio.createSoundFromFile("content/audio/weapons/Whoosh_Cloth_Leather_Fight_174.wav", .{}) catch unreachable;
     player_comp.fx_bow_hit = ctx.audio.createSoundFromFile("content/audio/weapons/FGHTImpt_Punch Crunchy Crack 27_PMSFX_LB.wav", .{}) catch unreachable;
     player_comp.fx_fire = ctx.audio.createSoundFromFile("content/audio/ambience/sfx_ambient_fire_2.wav", .{}) catch unreachable;
+    player_comp.fx_fire.setLooping(true);
     player_comp.ambience_birds = ctx.audio.createSoundFromFile("content/audio/ambience/bunch of birds Background ambience.wav", .{}) catch unreachable;
     player_comp.ambience_birds.setVolume(0);
     player_comp.ambience_birds.setLooping(true);
+    player_comp.ambience_birds.setSpatializationEnabled(false);
     player_comp.ambience_birds.start() catch unreachable;
     player_comp.ambience_wind = ctx.audio.createSoundFromFile("content/audio/ambience/Global Wind Ambience 1.wav", .{}) catch unreachable;
     player_comp.ambience_wind.setVolume(0);
     player_comp.ambience_wind.setLooping(true);
+    player_comp.ambience_wind.setSpatializationEnabled(false);
     player_comp.ambience_wind.start() catch unreachable;
 
     player_ent.set(player_comp);

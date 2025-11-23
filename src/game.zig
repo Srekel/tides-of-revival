@@ -168,7 +168,8 @@ pub fn run() void {
     zaudio.init(arena_system_lifetime.allocator());
     defer zaudio.deinit();
 
-    const audio = zaudio.Engine.create(null) catch unreachable;
+    const audio_config = zaudio.Engine.Config.init();
+    const audio = zaudio.Engine.create(audio_config) catch unreachable;
     defer audio.destroy();
 
     _ = ecs.struct_init(ecsu_world.world, .{
@@ -250,6 +251,7 @@ pub fn run() void {
             .{(i_f % 6) + 1},
         ) catch unreachable;
         footstep.fx = audio.createSoundFromFile(sound_path, .{}) catch unreachable;
+        footstep.time_played = 0;
     }
 
     // ███████╗███╗   ██╗████████╗██╗████████╗██╗███████╗███████╗

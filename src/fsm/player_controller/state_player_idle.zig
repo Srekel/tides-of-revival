@@ -231,8 +231,8 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
         {
             // Time curve
             const curve = utility_scoring.Curve{
-                0.8, 1.0, 1.0, 1.0, 0.8, 0.8, 0.6, 0.5, 0.5, 0.5, 0.4, 0.4,
-                0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6, 0.6,
+                0.8, 1.0, 1.0, 1.0, 0.8, 0.8, 0.6, 0.5, 0.5, 0.5, 0.2, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6, 0.6,
                 0.8,
             };
             const hour_multiplier: f32 = utility_scoring.eval_linear_curve(@floatCast(environment_info.time_of_day_percent), curve);
@@ -241,11 +241,11 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
         {
             // Height curve
             const curve = utility_scoring.Curve{
-                0.5, 1.0, 1.0, 1.0, 1.0,
-                1.0, 1.0, 1.0, 1.0, 1.0,
-                1.0, 1.0, 1.0, 0.6, 0.6,
-                0.4, 0.4, 0.4, 0.2, 0.2,
-                0.1, 0.1, 0.0, 0.0, 0.0,
+                0.5,  1.0,  1.0,  1.0,  1.0,
+                1.0,  1.0,  1.0,  1.0,  1.0,
+                1.0,  1.0,  1.0,  0.6,  0.4,
+                0.2,  0.1,  0.05, 0.04, 0.03,
+                0.02, 0.01, 0.0,  0.0,  0.0,
             };
 
             const bird_height = @min(0.999, @max(0, height / 600));

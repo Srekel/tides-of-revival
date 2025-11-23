@@ -308,6 +308,13 @@ pub const Transform = struct {
         self.updateInverseMatrix();
     }
 
+    pub fn getFwd(self: Transform) [3]f32 {
+        const z_mat = zm.loadMat43(self.matrix[0..]);
+        const z_fwd = zm.util.getAxisZ(z_mat);
+        const fwd = [_]f32{ z_fwd[0], z_fwd[1], z_fwd[2] };
+        return fwd;
+    }
+
     pub fn getRotPitchRollYaw(self: Transform) [3]f32 {
         const mat = zm.loadMat43(&self.matrix);
         const quat = zm.matToQuat(mat);
@@ -727,7 +734,7 @@ pub const SettlementEnemy = struct {};
 pub const EnvironmentInfo = struct {
     pub const Footstep = struct {
         fx: *zaudio.Sound,
-        time_played: f64 = 0,
+        time_played: f64,
     };
     paused: bool,
     active_camera: ?ecsu.Entity,
@@ -766,14 +773,9 @@ pub const EnvironmentInfo = struct {
     pub fn playFootstep(self: *EnvironmentInfo, footstep_pos: [3]f32, base_scale: f32) void {
         for (&self.slime_footsteps) |*footstep| {
             if (self.world_time - footstep.time_played > 4) {
-                const camera_entity = self.active_camera.?;
-                const camera_transform = camera_entity.get(Transform).?;
-                const camera_pos = camera_transform.getPos00();
-                const camera_pos_z = zm.loadArr3(camera_pos);
-                const footstep_pos_z = zm.loadArr3(footstep_pos);
-                const dist = zm.length3(camera_pos_z - footstep_pos_z)[0];
-                footstep.fx.setVolume(base_scale * 1 / dist);
+                footstep.fx.setVolume(1 + base_scale * 0.1);
                 footstep.fx.setPitch(1 / base_scale);
+                footstep.fx.setPosition(footstep_pos);
                 footstep.fx.start() catch unreachable;
                 footstep.time_played = self.world_time;
                 return;

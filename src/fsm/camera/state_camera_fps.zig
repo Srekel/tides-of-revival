@@ -787,6 +787,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
                         player_comp.fx_fire.start() catch unreachable;
                         player_comp.fx_fire.setVolume(0);
+                        player_comp.fx_fire.setPosition(hit_pos);
                     }
                 }
             },
@@ -811,7 +812,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.rest_state = if (is_morning) .resting_during_morning else .resting_until_morning;
                 }
                 player_comp.ambience_birds.setVolume(std.math.lerp(player_comp.ambience_birds.getVolume(), 1 - environment_info.player_state_time, environment_info.player_state_time));
-                player_comp.fx_fire.setVolume(environment_info.player_state_time);
+                player_comp.fx_fire.setVolume(environment_info.player_state_time * 5);
                 vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
                 vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },
@@ -834,9 +835,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 if (environment_info.player_state_time <= 0) {
                     environment_info.player_state_time = 0;
                     environment_info.rest_state = .not;
-                    player_comp.fx_fire.stop() catch unreachable;
                 }
-                player_comp.fx_fire.setVolume(environment_info.player_state_time);
                 vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
                 vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },

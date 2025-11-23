@@ -15,11 +15,13 @@ const input = @import("../input.zig");
 const config = @import("../config/config.zig");
 const renderer = @import("../renderer/renderer.zig");
 const context = @import("../core/context.zig");
+const zaudio = @import("zaudio");
 
 pub const SystemCreateCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
     ecsu_world: ecsu.World,
+    audio: *zaudio.Engine,
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
 };
@@ -29,6 +31,7 @@ const SystemUpdateContext = struct {
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
+    audio: *zaudio.Engine,
     state: struct {
         switch_pressed: bool = false,
         active_index: u32 = 1,
@@ -118,6 +121,22 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
             "updateGui",
+            ecs.OnUpdate,
+            &system_desc,
+        );
+    }
+
+    {
+        var system_desc = ecs.system_desc_t{};
+        system_desc.callback = updateAudioListener;
+        system_desc.ctx = update_ctx;
+        system_desc.query.terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.Transform), .inout = .In },
+            .{ .id = ecs.id(fd.Camera), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2);
+        _ = ecs.SYSTEM(
+            create_ctx.ecsu_world.world,
+            "updateAudioListener",
             ecs.OnUpdate,
             &system_desc,
         );
@@ -284,4 +303,24 @@ fn updateGui(it: *ecs.iter_t) callconv(.C) void {
         }
     }
     zgui.end();
+}
+
+fn updateAudioListener(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+
+    const transforms = ecs.field(it, fd.Transform, 0).?;
+    const cameras = ecs.field(it, fd.Camera, 1).?;
+    for (cameras, transforms) |*cam, transform| {
+        if (!cam.active) {
+            continue;
+        }
+
+        const pos = transform.getPos00();
+        var fwd = transform.getFwd();
+        fwd[0] *= -1; // fix handedness
+        fwd[2] *= -1; // fix handedness
+        ctx.audio.setListenerPosition(0, pos);
+        ctx.audio.setListenerWorldUp(0, .{ 0, 1, 0 });
+        ctx.audio.setListenerDirection(0, fwd);
+    }
 }

@@ -565,8 +565,6 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
     const player_ent = ecs.lookup(system.ecsu_world.world, "main_player");
     const player_comp = ecs.get(system.ecsu_world.world, player_ent, fd.Player).?;
-    const player_pos_comp = ecs.get(system.ecsu_world.world, player_ent, fd.Position).?;
-    const player_pos_z = player_pos_comp.asZM();
 
     var arena_state = std.heap.ArenaAllocator.init(system.heap_allocator);
     defer arena_state.deinit();
@@ -629,32 +627,10 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
             },
         );
 
-        // const oid = 1000 + proj_ent;
-        // AK.SoundEngine.registerGameObj(oid) catch unreachable;
-        // defer AK.SoundEngine.unregisterGameObj(oid) catch {};
-        // const ak_pos = AK.AkSoundPosition{
-        //     .position = .{
-        //         .x = pos[0],
-        //         .y = pos[1],
-        //         .z = pos[2],
-        //     },
-        //     .orientation_front = .{
-        //         .z = 1.0,
-        //     },
-        //     .orientation_top = .{
-        //         .y = 1.0,
-        //     },
-        // };
-        // AK.SoundEngine.setPosition(oid, ak_pos, .{}) catch unreachable;
-        // AK.SoundEngine.setSwitchID(AK_ID.SWITCHES.HITMATERIAL.GROUP, AK_ID.SWITCHES.HITMATERIAL.SWITCH.GRAVEL, oid) catch unreachable;
-
-        const proj_pos_comp = ecs.get(system.ecsu_world.world, proj_ent, fd.Position).?;
-        const proj_pos_z = proj_pos_comp.asZM();
-        const player_to_proj_dist = zm.length3(proj_pos_z - player_pos_z)[0];
-
         player_comp.fx_bow_hit.stop() catch unreachable;
         player_comp.fx_bow_hit.start() catch unreachable;
-        var volume: f32 = 0.1 + 1 * (1 / player_to_proj_dist);
+        player_comp.fx_bow_hit.setPosition(pos);
+        var volume: f32 = 1;
         defer player_comp.fx_bow_hit.setVolume(volume);
 
         if (hit_alive and ecs.has_id(ecs_world, hit_ent, ecs.id(fd.Health))) {
