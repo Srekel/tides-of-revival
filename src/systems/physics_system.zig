@@ -548,10 +548,10 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
             const world_pos = patch.lookup.getWorldPos();
 
             //  TODO: Use mesh (why though?)
-            const height_field_size = config.patch_size;
+            const height_field_size = config.patch_resolution;
             var samples: [height_field_size * height_field_size]f32 = undefined;
 
-            const width = @as(u32, @intCast(config.patch_size));
+            const width = @as(u32, @intCast(config.patch_resolution));
             for (0..width) |z| {
                 for (0..width) |x| {
                     const index = @as(u32, @intCast(x + z * config.patch_resolution));
@@ -562,7 +562,7 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
             }
 
             const lod_scale: f32 = if (ctx.state.is_low) config.largest_patch_width else config.patch_size;
-            const scale: f32 = (lod_scale + 1) / 64.0;
+            const scale: f32 = (lod_scale) / config.patch_size;
             var shape_settings = zphy.HeightFieldShapeSettings.create(&samples, height_field_size) catch unreachable;
             shape_settings.setScale(.{ scale, 1, scale });
             defer shape_settings.release();
