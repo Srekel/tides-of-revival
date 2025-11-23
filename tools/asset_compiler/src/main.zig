@@ -87,7 +87,7 @@ pub fn main() !void {
                 texture_info.format = .BC4_UNORM;
             } else if (std.mem.eql(u8, format[1..], "BC5_UNORM")) {
                 texture_info.format = .BC5_UNORM;
-            } if (std.mem.eql(u8, format[1..], "BC7_UNORM")) {
+            } else if (std.mem.eql(u8, format[1..], "BC7_UNORM")) {
                 texture_info.format = .BC7_UNORM;
             } else if (std.mem.eql(u8, format[1..], "BC7_UNORM_SRGB")) {
                 texture_info.format = .BC7_UNORM_SRGB;
