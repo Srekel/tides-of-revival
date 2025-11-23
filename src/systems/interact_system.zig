@@ -540,7 +540,7 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
             .height = 32,
         };
         var clock_color = &clock_image.material.color;
-        if (i_clock == journey_time_percent_index and environment_info.can_journey != .invalid and environment_info.journey_state == .not) {
+        if (i_clock == journey_time_percent_index and environment_info.can_journey == .yes and environment_info.journey_state == .not) {
             clock_color[3] = 1;
         } else {
             clock_color[3] = std.math.lerp(clock_color[3], 0, 0.05);

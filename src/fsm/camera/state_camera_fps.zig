@@ -302,7 +302,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 // );
 
                 const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
-                if (config.ocean_level + 10 > height_next) {
+                if (config.ocean_level + 5 > height_next) {
                     // std.log.info("can't journey due to height {d}", .{height_next});
                     color.setG(0);
                     color.setB(0);
