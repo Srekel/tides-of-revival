@@ -502,7 +502,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
     const journeys = ecs.field(it, fd.Journey, 5).?;
 
     const input_frame_data = ctx.input_frame_data;
-    const physics_world_low = ctx.physics_world_low;
     const physics_world = ctx.physics_world;
     var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
@@ -706,7 +705,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 // const result = query.castRay(ray, .{});
 
                 const dist = 7;
-                const query = physics_world_low.getNarrowPhaseQuery();
+                const query = physics_world.getNarrowPhaseQuery();
                 const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
                 const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };
                 const ray = zphy.RRayCast{
@@ -720,7 +719,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     continue;
                 }
 
-                const bodies = ctx.physics_world_low.getBodiesUnsafe();
+                const bodies = ctx.physics_world.getBodiesUnsafe();
                 const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
                 if (body_hit_opt == null) {
                     environment_info.can_rest = .invalid;
