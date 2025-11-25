@@ -76,11 +76,11 @@ def main():
         "https://github.com/Srekel/c2z.git",
         "f44cc6b4780a3302597442b749007fa339f74166",
     )
-    sync_lib(
-        "The-Forge",
-        "https://github.com/gmodarelli/The-Forge.git",
-        "457b192b5b316836db3771f5577555363ee142ae",
-    )
+    # sync_lib(
+    #     "The-Forge",
+    #     "https://github.com/gmodarelli/The-Forge.git",
+    #     "457b192b5b316836db3771f5577555363ee142ae",
+    # )
     sync_lib(
         "websocket.zig",
         "https://github.com/karlseguin/websocket.zig.git",
@@ -211,11 +211,11 @@ def main():
         "https://github.com/zig-gamedev/zstbi",
         "094c4bba5cdbec167d3f6aaa98cccccd5c99145f",
     )
-    sync_lib(
-        "ztracy",
-        "https://github.com/zig-gamedev/ztracy",
-        "be3d003f29d59d72e68e493ab531374ab474a795",
-    )
+    # sync_lib(
+    #     "ztracy",
+    #     "https://github.com/zig-gamedev/ztracy",
+    #     "be3d003f29d59d72e68e493ab531374ab474a795",
+    # )
 
     sync_zig_exe("0.14.1")
 
