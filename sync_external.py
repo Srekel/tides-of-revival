@@ -79,7 +79,7 @@ def main():
     sync_lib(
         "The-Forge",
         "https://github.com/gmodarelli/The-Forge.git",
-        "034ba37987008e05df93cf46f38240e573b974ed",
+        "457b192b5b316836db3771f5577555363ee142ae",
     )
     sync_lib(
         "websocket.zig",
@@ -94,7 +94,7 @@ def main():
     sync_lib(
         "zig-im3d",
         "https://github.com/Srekel/zig-im3d.git",
-        "8cb0eeec8336039d5be2df4b0ecd80f35fe57332",
+        "4c342d6ed4d8d58d5c53fb85e3c6e8aa9114b321",
     )
     sync_lib(
         "zig-json5",
@@ -194,7 +194,7 @@ def main():
     sync_lib(
         "zphysics",
         "https://github.com/Srekel/zphysics",
-        "895a173e63822d5895a5dd127810365c4e269b2e",
+        "eceb7780222c90d01c5d5f433f11da632712df88",
     )
     sync_lib(
         "zpix",

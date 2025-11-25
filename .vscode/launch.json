@@ -20,6 +20,21 @@
             "internalConsoleOptions": "openOnSessionStart"
         },
         {
+            "name": "Tides of Revival Release",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/zig-out/bin/TidesOfRevival.exe",
+            "args": [
+                // "--offlinegen",
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/zig-out/bin",
+            "environment": [],
+            "preLaunchTask": "build_release",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
             "name": "Simulator",
             "type": "cppvsdbg",
             "request": "launch",

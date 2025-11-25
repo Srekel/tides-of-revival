@@ -7,6 +7,21 @@
             "label": "build",
             "type": "shell",
             "command": "${workspaceFolder}/tools/binaries/zigup/zig build -Dztracy-enable=true -Dtarget=native-native-msvc --summary failures",
+            // "command": "${workspaceFolder}/tools/binaries/zigup/zig build -Dztracy-enable=true -Dtarget=native-native-msvc --summary failures -Doptimize=ReleaseSafe -freference-trace",
+            // "command": "zig build -Dztracy-enable=false -Dtarget=native-native-msvc --summary failures -freference-trace --verbose",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "clear": true,
+                // "revealProblems": "onProblem"
+            }
+        },
+        {
+            "label": "build_release",
+            "type": "shell",
+            "command": "${workspaceFolder}/tools/binaries/zigup/zig build -Dztracy-enable=true -Dtarget=native-native-msvc --summary failures -Doptimize=ReleaseSafe -freference-trace",
             // "command": "zig build -Dztracy-enable=false -Dtarget=native-native-msvc --summary failures -freference-trace --verbose",
             "group": "build",
             "problemMatcher": [

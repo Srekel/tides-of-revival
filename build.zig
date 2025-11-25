@@ -15,6 +15,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .linkage = .dynamic,
     });
 
     _ = b.option([]const u8, "build_date", "date of the build");
@@ -133,14 +134,14 @@ pub fn build(b: *std.Build) void {
     exe.linkLibrary(znoise.artifact("FastNoiseLite"));
 
     // zpix
-    const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
-    const zpix = b.dependency("zpix", .{
-        // .target = target,
-        // .optimize = optimize,
-        .path = @as([]const u8, "C:/Program Files/Microsoft PIX/2409.23/WinPixGpuCapturer.dll"),
-        .enable = zpix_enable,
-    });
-    exe.root_module.addImport("zpix", zpix.module("root"));
+    // const zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false;
+    // const zpix = b.dependency("zpix", .{
+    //     // .target = target,
+    //     // .optimize = optimize,
+    //     .path = @as([]const u8, "C:/Program Files/Microsoft PIX/2409.23/WinPixGpuCapturer.dll"),
+    //     .enable = zpix_enable,
+    // });
+    // exe.root_module.addImport("zpix", zpix.module("root"));
 
     // zphysics
     const zphysics = b.dependency("zphysics", .{
@@ -148,6 +149,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .use_double_precision = false,
         .enable_cross_platform_determinism = false,
+        .code_generation_multithreaded_dll = true,
     });
     exe.root_module.addImport("zphysics", zphysics.module("root"));
     exe.linkLibrary(zphysics.artifact("joltc"));
@@ -187,6 +189,7 @@ pub fn build(b: *std.Build) void {
     const im3d = b.dependency("im3d", .{
         .target = target,
         .optimize = optimize,
+        .code_generation_multithreaded_dll = true,
     });
     exe.root_module.addImport("im3d", im3d.module("im3d"));
     exe.linkLibrary(im3d.artifact("im3d_c_cpp"));

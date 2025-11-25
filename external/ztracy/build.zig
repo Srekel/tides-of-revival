@@ -86,8 +86,8 @@ pub fn build(b: *std.Build) void {
             "-fno-sanitize=undefined",
         },
     });
-    // tracy.root_module.addCMacro("_MT", "1");
-    // tracy.root_module.addCMacro("_DLL", "1");
+    tracy.root_module.addCMacro("_MT", "1");
+    tracy.root_module.addCMacro("_DLL", "1");
 
     if (options.on_demand) tracy.root_module.addCMacro("TRACY_ON_DEMAND", "");
 
