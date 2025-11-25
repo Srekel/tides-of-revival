@@ -1,6 +1,8 @@
 ﻿zig-cache/
 zig-out/
 external/
+!external/ztracy
+external/ztracy/.git
 content/imgui.ini
 content/heightmap/*
 content/audio/*
