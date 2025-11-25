@@ -1,0 +1,399 @@
+/*
+ * Copyright (c) 2017-2024 The Forge Interactive Inc.
+ *
+ * This file is part of The-Forge
+ * (see https://github.com/ConfettiFX/The-Forge).
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+*/
+
+#pragma once
+
+// This file contains a collection of functions that are useful in many scenarios
+
+// First we define functions that are also available in C++
+#define FSL_SHADER_LIB
+#include "../Utilities/Math/ShaderUtilities.h"
+
+STATIC const float PI = 3.1415926535897932384626422832795028841971f;
+
+uint pack2Floats(float low, float high)
+{
+#if defined(VULKAN)
+	return packHalf2x16(vec2(low, high));
+#elif defined(METAL)
+	return as_type<uint>(half2(float2(low, high)));
+#else
+	return uint((f32tof16(low) & 0xFFFF) | ((f32tof16(high) & 0xFFFF) << 16));
+#endif
+}
+
+float2 unpack2Floats(uint p)
+{
+#if defined(VULKAN)
+	return unpackHalf2x16(p);
+#elif defined(METAL)
+	return float2(as_type<half2>(p));
+#else
+	return float2(f16tof32(p & 0xFFFF), f16tof32((p >> 16) & 0xFFFF));
+#endif
+}
+
+#if defined(METAL)
+
+#define f32tof16(val) pack2Floats((val), 0.0f) & 0xFFFF
+#define f16tof32(val) unpack2Floats((val)).x
+
+#define packSnorm2x16   pack_float_to_snorm2x16
+#define unpackSnorm2x16 unpack_snorm2x16_to_float
+#define packUnorm2x16   pack_float_to_unorm2x16
+#define unpackUnorm2x16 unpack_unorm2x16_to_float
+#define packUnorm4x8    pack_float_to_unorm4x8
+#define unpackUnorm4x8  unpack_unorm4x8_to_float
+
+#else // #if defined(METAL)
+
+#if defined(VULKAN)
+
+#define f32tof16(val) pack2Floats((val), 0.0f) & 0xFFFF
+#define f16tof32(val) unpack2Floats((val)).x
+
+#else // #if defined(VULKAN)
+
+uint packSnorm2x16(float2 v)
+{
+	uint2 SNorm = uint2(round(clamp(v, -1, 1) * 32767.0));
+	return (0x0000FFFF & SNorm.x) | ((SNorm.y << 16) & 0xFFFF0000);
+}
+
+float2 unpackSnorm2x16(uint p)
+{
+	half2 ret = half2(
+		clamp((0x0000FFFF & p) / 32767.0, -1, 1),
+		clamp(((0xFFFF0000 & p) >> 16) / 32767.0, -1, 1)
+	);
+
+	return ret;
+}
+
+uint packUnorm2x16(float2 v)
+{
+	uint2 UNorm = uint2(round(saturate(v) * 65535.0));
+	return (0x0000FFFF & UNorm.x) | ((UNorm.y << 16) & 0xFFFF0000);
+}
+
+float2 unpackUnorm2x16(uint p)
+{
+	float2 ret;
+	ret.x = saturate((0x0000FFFF & p) / 65535.0);
+	ret.y = saturate(((0xFFFF0000 & p) >> 16) / 65535.0);
+	return ret;
+}
+
+
+uint packUnorm4x8(float4 v)
+{
+	uint4 UNorm = uint4(round(saturate(v) * 255.0));
+	return (0x000000FF & UNorm.x) | ((UNorm.y << 8) & 0x0000FF00) | ((UNorm.z << 16) & 0x00FF0000) | ((UNorm.w << 24) & 0xFF000000);
+}
+
+float4 unpackUnorm4x8(uint p)
+{
+	return float4(float(p & 0x000000FF) / 255.0,
+		float((p & 0x0000FF00) >> 8) / 255.0,
+		float((p & 0x00FF0000) >> 16) / 255.0,
+		float((p & 0xFF000000) >> 24) / 255.0);
+}
+
+#endif // #else // #if defined(VULKAN)
+
+uint pack2Snorms(float low, float high)
+{
+#ifdef VULKAN
+	return packSnorm2x16(vec2(low, high));
+#else
+	return packSnorm2x16(half2(low, high));
+#endif
+}
+
+float2 unpack2Snorms(uint p)
+{
+	return float2(unpackSnorm2x16(p));
+}
+
+uint pack2Unorms(float low, float high)
+{
+#ifdef VULKAN
+	return packUnorm2x16(vec2(low, high));
+#else
+	return packUnorm2x16(half2(low, high));
+#endif
+}
+
+float2 unpack2Unorms(uint p)
+{
+	return float2(unpackUnorm2x16(p));
+}
+
+#endif // #else // #if defined(METAL)
+
+// Functions below are only available on Shaders
+
+float2 sign_not_zero(float2 v)
+{
+	return step(0.0, v) * 2.0 - float2(1, 1);
+}
+
+// 11/11/10f packing
+uint packR11G11B10Float(float3 rgb)
+{
+	// this doesn't have optimal precision, you could do full high quality conversion
+	// or simply an extra round - treat it like an int and add to the last bit dropped, etc.
+	uint r = f32tof16(rgb.r);
+	uint g = f32tof16(rgb.g);
+	uint b = f32tof16(rgb.b);
+
+	return ((r >> 4) & 0x7FF) | (((g >> 4) & 0x7FF) << 11) | (((b >> 5) & 0x3FF) << 22);
+}
+
+float3 unpackR11G11B10Float(uint valIn)
+{
+	float3 rgb;
+	rgb.x = float(f16tof32((valIn & 0x7FF) << 4));
+	rgb.y = float(f16tof32(((valIn >> 11) & 0x7FF) << 4));
+	rgb.z = float(f16tof32(((valIn >> 22) & 0x3FF) << 5));
+
+	return rgb;
+}
+
+// 3 mul
+float Pow5(float x)
+{
+	float xx = x * x;
+	return xx * xx * x;
+}
+
+float random(float3 seed, float3 freq)
+{
+	// project seed on random constant vector
+	float dt = dot(floor(seed * freq), float3(53.1215f, 21.1352f, 9.1322f));
+	// return only the fractional part
+	return frac(sin(dt) * 2105.2354f);
+}
+
+/************************************************************************/
+// Shading / PBR functions...
+/************************************************************************/
+// Produces similar values as F_Schlick but fixes glancing angles issues (For ex. going white for rough surfaces)..
+// -- normal F_Schlick when applied to prefiltered cubemap shows higher specColor at edges even with high roughness values.
+// [Lagarde. 2011, "Adopting a physically based shading model"]
+float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+{
+	// return F0 + (max(float3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+	float3 ret = f3(0.0f);
+	float powTheta = Pow5(1.0f - cosTheta);
+	float oneMinusRough = float(1.0f - roughness);
+
+	ret.x = F0.x + (max(oneMinusRough, F0.x) - F0.x) * powTheta;
+	ret.y = F0.y + (max(oneMinusRough, F0.y) - F0.y) * powTheta;
+	ret.z = F0.z + (max(oneMinusRough, F0.z) - F0.z) * powTheta;
+
+	return ret;
+}
+
+// GGX / Trowbridge-Reitz
+// [Walter et al. 2007, "Microfacet models for refraction through rough surfaces"]
+float D_GGX(float a2, float NoH)
+{
+	float d = (NoH * a2 - NoH) * NoH + 1.0f;	// 2 mad
+	return a2 / (PI*d*d);					// 4 mul, 1 rcp
+}
+
+// Appoximation of joint Smith term for GGX
+// [Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"]
+float Vis_SmithJointApprox(float a2, float NoV, float NoL)
+{
+	float a = sqrt(a2);
+	float Vis_SmithV = NoL * (NoV * (1.0f - a) + a);
+	float Vis_SmithL = NoV * (NoL * (1.0f - a) + a);
+	return 0.5f * rcp(max(Vis_SmithV + Vis_SmithL, 0.01f));
+}
+
+// [Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"]
+float3 F_Schlick(float3 SpecularColor, float VoH)
+{
+	float Fc = Pow5(1.0f - VoH);		// 1 sub, 3 mul
+										//return Fc + (1 - Fc) * SpecularColor;		// 1 add, 3 mad
+
+	// Anything less than 2% is physically impossible and is instead considered to be shadowing
+	return saturate(SpecularColor.g) * Fc + (1.0f - Fc) * SpecularColor;
+}
+
+// Cook-Torrance Specular BRDF term
+float3 SpecularGGX(float Roughness, inout(float3) SpecularColor, float NoL, float Nov, float NoH, float VoH)
+{
+	float a = Roughness * Roughness;
+	float a2 = a * a;
+
+	// Generalized microfacet specular
+	// Calculate normal distribution.. Approx. microfacets..
+	float D = D_GGX(a2, NoH);
+	// Calculate Geometry func.. Self-shadowing for microfacets..
+	float Vis = Vis_SmithJointApprox(a2, Nov, NoL);
+	// Calculate surface reflection..
+	SpecularColor = F_Schlick(SpecularColor, VoH);
+
+	return (D * Vis) * SpecularColor;
+}
+
+float3 PBR_shadowFactor(
+	float NoL, float NoV, 
+	float3 ViewVec, float3 HalfVec, float3 NormalVec,
+	float3 albedo, inout(float3) specColor, float Roughness, float Metallic, float shadowFactor)
+{
+	float NoH = saturate(dot(NormalVec, HalfVec));
+	float VoH = saturate(dot(ViewVec, HalfVec));
+
+	// -- Do not copy outside implementation for this.. 
+	float3 specularTerm = lerp(f3(0.0f), SpecularGGX(Roughness, specColor, NoL, NoV, NoH, VoH), shadowFactor);
+	return (albedo + specularTerm);
+}
+
+float3 PBR(
+	float NoL, float NoV, 
+	float3 ViewVec, float3 HalfVec, float3 NormalVec, 
+	float3 albedo, inout(float3) specColor, float Roughness, float Metallic)
+{
+	float NoH = saturate(dot(NormalVec, HalfVec));
+	float VoH = saturate(dot(ViewVec, HalfVec));
+
+	// -- Do not copy outside implementation for this..
+	float3 specularTerm = SpecularGGX(Roughness, specColor, NoL, NoV, NoH, VoH);
+	return (albedo + specularTerm);
+}
+
+float3 calcPointLightShade(
+	float NoV, 
+	float3 ViewVec, float3 NormalVec, 
+	float3 albedo, inout(float3) specColor, float Roughness, float Metallic,
+	float3 fragWorldPos, float3 lightPos, float3 lightCol, float lightRadius, bool isTwoSided)
+{
+	// Vec pointing to light
+	float3 toLight = lightPos - fragWorldPos;
+	
+	// Calculate attenuation
+	float3 lVec = toLight * (1.0f / lightRadius);
+	float attenuation = saturate(1.0f - dot(lVec, lVec));
+
+	// Direction to light. 
+	toLight = normalize(toLight);
+
+	// Get light strength..
+	float NoL = dot(NormalVec, toLight);	
+	// We need to handle two-sided fragments differently as they can be viewed from any direction...
+	NoL = (isTwoSided ? abs(NoL) : saturate(NoL));
+
+	// halfway vec
+	float3 HalfVec = normalize(ViewVec + toLight);
+
+	float3 shadedColor = PBR(
+				NoL, NoV, 
+				ViewVec, HalfVec, NormalVec,
+				albedo, specColor,
+				Roughness, Metallic);
+
+	return shadedColor * lightCol * attenuation * NoL;
+}
+
+float calcESMShadowFactor(inout(float4) posLS, Tex2D(float) pShadowMap, SamplerState sh, float pEsmControl)
+{
+	float shadowFactor = 0.0;
+
+	// Project light space frag position to NDC...
+	posLS /= posLS.w;
+	posLS.y *= -1;
+	posLS.xy = posLS.xy * 0.5 + f2(0.5);
+
+	if (all(GreaterThan(posLS.xy, 0.0f)) && all(LessThan(posLS.xy, 1.0f)))
+	{
+		if( AllGreaterThan(abs(posLS.xy-f2(0.5)), 0.5) )
+		{
+			return shadowFactor;
+		}
+
+		// 3x3 Gaussian kernel
+		const float GaussianKernel[3][3] =
+		{
+			{ 1.0, 2.0, 1.0 },
+			{ 2.0, 4.0, 2.0 },
+			{ 1.0, 2.0, 1.0 }
+		};
+
+		float avgShadowDepthSample = 0.0;
+
+		// 9-tap Gaussian filtering produces softer appearance than averaging
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2(-1, -1)).r * GaussianKernel[0][0];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2(-1,  0)).r * GaussianKernel[0][1];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2(-1,  1)).r * GaussianKernel[0][2];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2( 0, -1)).r * GaussianKernel[1][0];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2( 0,  0)).r * GaussianKernel[1][1];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2( 0,  1)).r * GaussianKernel[1][2];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2( 1, -1)).r * GaussianKernel[2][0];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2( 1,  0)).r * GaussianKernel[2][1];
+		avgShadowDepthSample += SampleLvlOffsetTex2D(pShadowMap, sh, posLS.xy, 0, int2( 1,  1)).r * GaussianKernel[2][2];
+		// Divide by the sum of Gaussian kernel weights (16.0)
+		avgShadowDepthSample /= 16.0;
+
+		shadowFactor = saturate(exp((posLS.z - avgShadowDepthSample) * pEsmControl));
+	}
+
+	return shadowFactor;
+}
+
+// Calculates the local (barycentric coordinates) position of a ray hitting a triangle (Muller-Trumbore algorithm)
+// Parameters: p0,p1,p2 -> World space coordinates of triangle
+// o -> Origin of ray in world space (Mainly view camera here)
+// d-> Unit vector direction of ray from origin
+float3 rayTriangleIntersection(float3 p0, float3 p1, float3 p2, float3 o, float3 d)
+{
+	float3 v0v1 = p1-p0;
+	float3 v0v2 = p2-p0;
+	float3 pvec = cross(d,v0v2);
+	float det = dot(v0v1,pvec);
+	float invDet = 1/det;
+	float3 tvec = o - p0;
+	float u = dot(tvec,pvec) * invDet;
+	float3 qvec = cross(tvec,v0v1);
+	float v = dot(d,qvec) *invDet;
+	float w = 1.0f - v - u;
+	return float3(w,u,v);
+}
+
+// Calculates the inverse of a reverse z perspective projection matrix
+// This is faster than regular 4x4 matrix inversion since it can be split to two 2x2 submatrix inverses
+float4x4 InverseProjectionMatrixPerspectiveReverseZ(float4x4 proj)
+{
+	float4x4 ret = proj;
+	ret[0][0] = 1.0 / proj[0][0];
+	ret[1][1] = 1.0 / proj[1][1];
+	ret[2][2] = 0;
+	ret[2][3] = 1.0 / proj[3][2];
+	ret[3][2] = 1;
+	ret[3][3] = -proj[3][2] / proj[2][2];
+	return ret;
+}

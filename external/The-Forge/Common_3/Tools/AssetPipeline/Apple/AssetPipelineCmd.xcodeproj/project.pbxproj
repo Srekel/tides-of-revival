@@ -1,0 +1,680 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 50;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		261E72DA2978626700A5A3AD /* libThe-Forge.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 261E72D72978612A00A5A3AD /* libThe-Forge.a */; };
+		261E72DE297862DC00A5A3AD /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 261E72DD297862DC00A5A3AD /* QuartzCore.framework */; };
+		261E72E0297862F000A5A3AD /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 261E72DF297862F000A5A3AD /* AppKit.framework */; };
+		261E72E12978630100A5A3AD /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B231A19923F2E1F8006D7450 /* Metal.framework */; };
+		261E72E32978631A00A5A3AD /* MetalPerformanceShaders.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 261E72E22978631A00A5A3AD /* MetalPerformanceShaders.framework */; };
+		261E72F02978636200A5A3AD /* libBuny.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 261E72E92978632A00A5A3AD /* libBuny.a */; };
+		73CF400E2C138F6B000950F2 /* libispc_texcomp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 7395239B2C13789500DA131F /* libispc_texcomp.a */; };
+		7F2CD95B2A392D4D00933652 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7F2CD9512A392D4D00933652 /* GameController.framework */; };
+		AC2BCDF42B616CDC00DB94BE /* clusterizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDE42B616CDC00DB94BE /* clusterizer.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDF52B616CDC00DB94BE /* vcacheoptimizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDE52B616CDC00DB94BE /* vcacheoptimizer.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDF62B616CDC00DB94BE /* overdrawoptimizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDE62B616CDC00DB94BE /* overdrawoptimizer.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDF72B616CDC00DB94BE /* overdrawanalyzer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDE82B616CDC00DB94BE /* overdrawanalyzer.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDF82B616CDC00DB94BE /* vertexcodec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDE92B616CDC00DB94BE /* vertexcodec.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDF92B616CDC00DB94BE /* stripifier.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDEA2B616CDC00DB94BE /* stripifier.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDFA2B616CDC00DB94BE /* spatialorder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDEB2B616CDC00DB94BE /* spatialorder.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDFB2B616CDC00DB94BE /* indexgenerator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDEC2B616CDC00DB94BE /* indexgenerator.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDFC2B616CDC00DB94BE /* vcacheanalyzer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDED2B616CDC00DB94BE /* vcacheanalyzer.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDFD2B616CDC00DB94BE /* vertexfilter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDEE2B616CDC00DB94BE /* vertexfilter.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDFE2B616CDC00DB94BE /* allocator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDEF2B616CDC00DB94BE /* allocator.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCDFF2B616CDC00DB94BE /* simplifier.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDF02B616CDC00DB94BE /* simplifier.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCE002B616CDC00DB94BE /* vfetchanalyzer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDF12B616CDC00DB94BE /* vfetchanalyzer.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCE012B616CDC00DB94BE /* vfetchoptimizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDF22B616CDC00DB94BE /* vfetchoptimizer.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		AC2BCE022B616CDC00DB94BE /* indexcodec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC2BCDF32B616CDC00DB94BE /* indexcodec.cpp */; settings = {COMPILER_FLAGS = "-w"; }; };
+		B231A10A23F2DBA4006D7450 /* ozz_animation offline.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B231A10723F2DB7E006D7450 /* ozz_animation offline.a */; };
+		B231A10B23F2DBA4006D7450 /* ozz_animation.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B231A0FF23F2DB7E006D7450 /* ozz_animation.a */; };
+		B231A10C23F2DBA4006D7450 /* ozz_base.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B231A10123F2DB7E006D7450 /* ozz_base.a */; };
+		B231A11923F2DBD5006D7450 /* AssetPipeline.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B231A11723F2DBD5006D7450 /* AssetPipeline.cpp */; };
+		B231A11A23F2DBD5006D7450 /* AssetPipelineCmd.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B231A11823F2DBD5006D7450 /* AssetPipelineCmd.cpp */; };
+		B231A11E23F2DBE9006D7450 /* TressFXAsset.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B231A11B23F2DBE9006D7450 /* TressFXAsset.cpp */; };
+		B2B33C2E2980101700A5D377 /* CocoaToolsFileSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = B2B33C232980100800A5D377 /* CocoaToolsFileSystem.mm */; };
+		B2B33C302980101900A5D377 /* ToolFileSystem.c in Sources */ = {isa = PBXBuildFile; fileRef = B2B33C2D2980101400A5D377 /* ToolFileSystem.c */; };
+		E6E31A612C3C79F4001A8714 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E6E31A582C3C79F4001A8714 /* CoreHaptics.framework */; };
+		ED8E564328F404EF00E83F1F /* AssetPipeline_Textures.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED8E563C28F404EF00E83F1F /* AssetPipeline_Textures.cpp */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		261E72D62978612A00A5A3AD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 261E72D02978612A00A5A3AD /* The-Forge.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 5C5582E021413D180019960B;
+			remoteInfo = "The-Forge";
+		};
+		261E72D82978612A00A5A3AD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 261E72D02978612A00A5A3AD /* The-Forge.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 5C172FC821414C490074EE71;
+			remoteInfo = "The-Forge_iOS";
+		};
+		261E72E82978632A00A5A3AD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 261E72E42978632A00A5A3AD /* Buny.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 268344A929784AEE00F4F318;
+			remoteInfo = Buny;
+		};
+		7395239A2C13789500DA131F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED1CAE9C28F45666007987B9 /* ispc_texcomp.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = ED8E566E28F41B9F00E83F1F;
+			remoteInfo = ispc_texcomp;
+		};
+		7395239C2C13798900DA131F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ED1CAE9C28F45666007987B9 /* ispc_texcomp.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = ED8E566D28F41B9F00E83F1F;
+			remoteInfo = ispc_texcomp;
+		};
+		B231A0FE23F2DB7E006D7450 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = AD14F53CA01347BBA91C7F42;
+			remoteInfo = ozz_animation;
+		};
+		B231A10023F2DB7E006D7450 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = A69A1ECFEC9145D3A46BAA96;
+			remoteInfo = ozz_base;
+		};
+		B231A10223F2DB7E006D7450 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = D0796ACD211ED7370028AFFD;
+			remoteInfo = ozz_animation_IOS;
+		};
+		B231A10423F2DB7E006D7450 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = D0796ADE211ED7430028AFFD;
+			remoteInfo = ozz_base_IOS;
+		};
+		B231A10623F2DB7E006D7450 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = B28C6EEE21B209AA00FBA1BF;
+			remoteInfo = "ozz_animation offline";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B231A0E723F2DB2D006D7450 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		261E72D02978612A00A5A3AD /* The-Forge.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "The-Forge.xcodeproj"; path = "../../../../Examples_3/Unit_Tests/macOS Xcode/The-Forge/The-Forge.xcodeproj"; sourceTree = "<group>"; };
+		261E72DD297862DC00A5A3AD /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		261E72DF297862F000A5A3AD /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		261E72E22978631A00A5A3AD /* MetalPerformanceShaders.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalPerformanceShaders.framework; path = System/Library/Frameworks/MetalPerformanceShaders.framework; sourceTree = SDKROOT; };
+		261E72E42978632A00A5A3AD /* Buny.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Buny.xcodeproj; path = ../../BunyArchive/Xcode/Buny.xcodeproj; sourceTree = "<group>"; };
+		7F2CD9512A392D4D00933652 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
+		AC2BCDE42B616CDC00DB94BE /* clusterizer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = clusterizer.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/clusterizer.cpp; sourceTree = "<group>"; };
+		AC2BCDE52B616CDC00DB94BE /* vcacheoptimizer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = vcacheoptimizer.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/vcacheoptimizer.cpp; sourceTree = "<group>"; };
+		AC2BCDE62B616CDC00DB94BE /* overdrawoptimizer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = overdrawoptimizer.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/overdrawoptimizer.cpp; sourceTree = "<group>"; };
+		AC2BCDE72B616CDC00DB94BE /* meshoptimizer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = meshoptimizer.h; path = ../../ThirdParty/OpenSource/meshoptimizer/src/meshoptimizer.h; sourceTree = "<group>"; };
+		AC2BCDE82B616CDC00DB94BE /* overdrawanalyzer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = overdrawanalyzer.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/overdrawanalyzer.cpp; sourceTree = "<group>"; };
+		AC2BCDE92B616CDC00DB94BE /* vertexcodec.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = vertexcodec.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/vertexcodec.cpp; sourceTree = "<group>"; };
+		AC2BCDEA2B616CDC00DB94BE /* stripifier.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = stripifier.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/stripifier.cpp; sourceTree = "<group>"; };
+		AC2BCDEB2B616CDC00DB94BE /* spatialorder.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = spatialorder.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/spatialorder.cpp; sourceTree = "<group>"; };
+		AC2BCDEC2B616CDC00DB94BE /* indexgenerator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = indexgenerator.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/indexgenerator.cpp; sourceTree = "<group>"; };
+		AC2BCDED2B616CDC00DB94BE /* vcacheanalyzer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = vcacheanalyzer.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/vcacheanalyzer.cpp; sourceTree = "<group>"; };
+		AC2BCDEE2B616CDC00DB94BE /* vertexfilter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = vertexfilter.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/vertexfilter.cpp; sourceTree = "<group>"; };
+		AC2BCDEF2B616CDC00DB94BE /* allocator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = allocator.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/allocator.cpp; sourceTree = "<group>"; };
+		AC2BCDF02B616CDC00DB94BE /* simplifier.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = simplifier.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/simplifier.cpp; sourceTree = "<group>"; };
+		AC2BCDF12B616CDC00DB94BE /* vfetchanalyzer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = vfetchanalyzer.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/vfetchanalyzer.cpp; sourceTree = "<group>"; };
+		AC2BCDF22B616CDC00DB94BE /* vfetchoptimizer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = vfetchoptimizer.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/vfetchoptimizer.cpp; sourceTree = "<group>"; };
+		AC2BCDF32B616CDC00DB94BE /* indexcodec.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = indexcodec.cpp; path = ../../ThirdParty/OpenSource/meshoptimizer/src/indexcodec.cpp; sourceTree = "<group>"; };
+		B231A0E923F2DB2D006D7450 /* AssetPipelineCmd */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AssetPipelineCmd; sourceTree = BUILT_PRODUCTS_DIR; };
+		B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = ozz.xcodeproj; path = "../../../Resources/AnimationSystem/ThirdParty/OpenSource/ozz-animation/MacOS/ozz.xcodeproj"; sourceTree = "<group>"; };
+		B231A11623F2DBD5006D7450 /* AssetPipeline.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AssetPipeline.h; path = ../src/AssetPipeline.h; sourceTree = "<group>"; };
+		B231A11723F2DBD5006D7450 /* AssetPipeline.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.objcpp; fileEncoding = 4; name = AssetPipeline.cpp; path = ../src/AssetPipeline.cpp; sourceTree = "<group>"; };
+		B231A11823F2DBD5006D7450 /* AssetPipelineCmd.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.objcpp; fileEncoding = 4; name = AssetPipelineCmd.cpp; path = ../src/AssetPipelineCmd.cpp; sourceTree = "<group>"; };
+		B231A11B23F2DBE9006D7450 /* TressFXAsset.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.objcpp; fileEncoding = 4; name = TressFXAsset.cpp; path = ../../../Resources/AnimationSystem/ThirdParty/OpenSource/TressFX/TressFXAsset.cpp; sourceTree = "<group>"; };
+		B231A11C23F2DBE9006D7450 /* TressFXAsset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TressFXAsset.h; path = ../../../Resources/AnimationSystem/ThirdParty/OpenSource/TressFX/TressFXAsset.h; sourceTree = "<group>"; };
+		B231A11D23F2DBE9006D7450 /* TressFXFileFormat.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TressFXFileFormat.h; path = ../../../Resources/AnimationSystem/ThirdParty/OpenSource/TressFX/TressFXFileFormat.h; sourceTree = "<group>"; };
+		B231A16B23F2E1A8006D7450 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
+		B231A19823F2E1F8006D7450 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		B231A19923F2E1F8006D7450 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		B2B33C232980100800A5D377 /* CocoaToolsFileSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = CocoaToolsFileSystem.mm; path = ../../../OS/Darwin/CocoaToolsFileSystem.mm; sourceTree = "<group>"; };
+		B2B33C2D2980101400A5D377 /* ToolFileSystem.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = ToolFileSystem.c; path = ../../../Utilities/FileSystem/ToolFileSystem.c; sourceTree = "<group>"; };
+		E6E31A582C3C79F4001A8714 /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
+		ED1CAE9C28F45666007987B9 /* ispc_texcomp.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = ispc_texcomp.xcodeproj; path = ../../../../Common_3/Tools/ThirdParty/OpenSource/ISPCTextureCompressor/ispc_texcomp.xcodeproj; sourceTree = "<group>"; };
+		ED8E563C28F404EF00E83F1F /* AssetPipeline_Textures.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.objcpp; fileEncoding = 4; name = AssetPipeline_Textures.cpp; path = ../src/AssetPipeline_Textures.cpp; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B231A0E623F2DB2D006D7450 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E6E31A612C3C79F4001A8714 /* CoreHaptics.framework in Frameworks */,
+				73CF400E2C138F6B000950F2 /* libispc_texcomp.a in Frameworks */,
+				261E72E32978631A00A5A3AD /* MetalPerformanceShaders.framework in Frameworks */,
+				261E72E12978630100A5A3AD /* Metal.framework in Frameworks */,
+				261E72E0297862F000A5A3AD /* AppKit.framework in Frameworks */,
+				261E72DE297862DC00A5A3AD /* QuartzCore.framework in Frameworks */,
+				B231A10A23F2DBA4006D7450 /* ozz_animation offline.a in Frameworks */,
+				7F2CD95B2A392D4D00933652 /* GameController.framework in Frameworks */,
+				B231A10B23F2DBA4006D7450 /* ozz_animation.a in Frameworks */,
+				B231A10C23F2DBA4006D7450 /* ozz_base.a in Frameworks */,
+				261E72DA2978626700A5A3AD /* libThe-Forge.a in Frameworks */,
+				261E72F02978636200A5A3AD /* libBuny.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		261E72D12978612A00A5A3AD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				261E72D72978612A00A5A3AD /* libThe-Forge.a */,
+				261E72D92978612A00A5A3AD /* libThe-Forge_iOS.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		261E72E52978632A00A5A3AD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				261E72E92978632A00A5A3AD /* libBuny.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		739523972C13789500DA131F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7395239B2C13789500DA131F /* libispc_texcomp.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AC2BCDE32B616C7500DB94BE /* meshoptimizer */ = {
+			isa = PBXGroup;
+			children = (
+				AC2BCDEF2B616CDC00DB94BE /* allocator.cpp */,
+				AC2BCDE42B616CDC00DB94BE /* clusterizer.cpp */,
+				AC2BCDF32B616CDC00DB94BE /* indexcodec.cpp */,
+				AC2BCDEC2B616CDC00DB94BE /* indexgenerator.cpp */,
+				AC2BCDE72B616CDC00DB94BE /* meshoptimizer.h */,
+				AC2BCDE82B616CDC00DB94BE /* overdrawanalyzer.cpp */,
+				AC2BCDE62B616CDC00DB94BE /* overdrawoptimizer.cpp */,
+				AC2BCDF02B616CDC00DB94BE /* simplifier.cpp */,
+				AC2BCDEB2B616CDC00DB94BE /* spatialorder.cpp */,
+				AC2BCDEA2B616CDC00DB94BE /* stripifier.cpp */,
+				AC2BCDED2B616CDC00DB94BE /* vcacheanalyzer.cpp */,
+				AC2BCDE52B616CDC00DB94BE /* vcacheoptimizer.cpp */,
+				AC2BCDE92B616CDC00DB94BE /* vertexcodec.cpp */,
+				AC2BCDEE2B616CDC00DB94BE /* vertexfilter.cpp */,
+				AC2BCDF12B616CDC00DB94BE /* vfetchanalyzer.cpp */,
+				AC2BCDF22B616CDC00DB94BE /* vfetchoptimizer.cpp */,
+			);
+			name = meshoptimizer;
+			sourceTree = "<group>";
+		};
+		B231A0E023F2DB2D006D7450 = {
+			isa = PBXGroup;
+			children = (
+				AC2BCDE32B616C7500DB94BE /* meshoptimizer */,
+				261E72E42978632A00A5A3AD /* Buny.xcodeproj */,
+				261E72D02978612A00A5A3AD /* The-Forge.xcodeproj */,
+				ED1CAE9C28F45666007987B9 /* ispc_texcomp.xcodeproj */,
+				B231A11523F2DBC3006D7450 /* Source */,
+				B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */,
+				B231A0EA23F2DB2D006D7450 /* Products */,
+				B231A10823F2DBA4006D7450 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		B231A0EA23F2DB2D006D7450 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B231A0E923F2DB2D006D7450 /* AssetPipelineCmd */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B231A0F423F2DB7E006D7450 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B231A0FF23F2DB7E006D7450 /* ozz_animation.a */,
+				B231A10123F2DB7E006D7450 /* ozz_base.a */,
+				B231A10323F2DB7E006D7450 /* ozz_animation_IOS.a */,
+				B231A10523F2DB7E006D7450 /* ozz_base_IOS.a */,
+				B231A10723F2DB7E006D7450 /* ozz_animation offline.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B231A10823F2DBA4006D7450 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E6E31A582C3C79F4001A8714 /* CoreHaptics.framework */,
+				7F2CD9512A392D4D00933652 /* GameController.framework */,
+				261E72E22978631A00A5A3AD /* MetalPerformanceShaders.framework */,
+				261E72DF297862F000A5A3AD /* AppKit.framework */,
+				261E72DD297862DC00A5A3AD /* QuartzCore.framework */,
+				B231A19923F2E1F8006D7450 /* Metal.framework */,
+				B231A19823F2E1F8006D7450 /* MetalKit.framework */,
+				B231A16B23F2E1A8006D7450 /* EventKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		B231A11523F2DBC3006D7450 /* Source */ = {
+			isa = PBXGroup;
+			children = (
+				B2B33C2D2980101400A5D377 /* ToolFileSystem.c */,
+				B2B33C232980100800A5D377 /* CocoaToolsFileSystem.mm */,
+				ED8E563C28F404EF00E83F1F /* AssetPipeline_Textures.cpp */,
+				B231A11B23F2DBE9006D7450 /* TressFXAsset.cpp */,
+				B231A11C23F2DBE9006D7450 /* TressFXAsset.h */,
+				B231A11D23F2DBE9006D7450 /* TressFXFileFormat.h */,
+				B231A11723F2DBD5006D7450 /* AssetPipeline.cpp */,
+				B231A11623F2DBD5006D7450 /* AssetPipeline.h */,
+				B231A11823F2DBD5006D7450 /* AssetPipelineCmd.cpp */,
+			);
+			name = Source;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B231A0E823F2DB2D006D7450 /* AssetPipelineCmd */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B231A0F023F2DB2D006D7450 /* Build configuration list for PBXNativeTarget "AssetPipelineCmd" */;
+			buildPhases = (
+				B231A0E523F2DB2D006D7450 /* Sources */,
+				B231A0E623F2DB2D006D7450 /* Frameworks */,
+				B231A0E723F2DB2D006D7450 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7395239D2C13798900DA131F /* PBXTargetDependency */,
+			);
+			name = AssetPipelineCmd;
+			productName = AssetPipelineCmd;
+			productReference = B231A0E923F2DB2D006D7450 /* AssetPipelineCmd */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B231A0E123F2DB2D006D7450 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1130;
+				ORGANIZATIONNAME = "Confetti Interactive Inc";
+				TargetAttributes = {
+					B231A0E823F2DB2D006D7450 = {
+						CreatedOnToolsVersion = 11.3.1;
+					};
+				};
+			};
+			buildConfigurationList = B231A0E423F2DB2D006D7450 /* Build configuration list for PBXProject "AssetPipelineCmd" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B231A0E023F2DB2D006D7450;
+			productRefGroup = B231A0EA23F2DB2D006D7450 /* Products */;
+			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 261E72E52978632A00A5A3AD /* Products */;
+					ProjectRef = 261E72E42978632A00A5A3AD /* Buny.xcodeproj */;
+				},
+				{
+					ProductGroup = 739523972C13789500DA131F /* Products */;
+					ProjectRef = ED1CAE9C28F45666007987B9 /* ispc_texcomp.xcodeproj */;
+				},
+				{
+					ProductGroup = B231A0F423F2DB7E006D7450 /* Products */;
+					ProjectRef = B231A0F323F2DB7E006D7450 /* ozz.xcodeproj */;
+				},
+				{
+					ProductGroup = 261E72D12978612A00A5A3AD /* Products */;
+					ProjectRef = 261E72D02978612A00A5A3AD /* The-Forge.xcodeproj */;
+				},
+			);
+			projectRoot = "";
+			targets = (
+				B231A0E823F2DB2D006D7450 /* AssetPipelineCmd */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		261E72D72978612A00A5A3AD /* libThe-Forge.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = "libThe-Forge.a";
+			remoteRef = 261E72D62978612A00A5A3AD /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		261E72D92978612A00A5A3AD /* libThe-Forge_iOS.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = "libThe-Forge_iOS.a";
+			remoteRef = 261E72D82978612A00A5A3AD /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		261E72E92978632A00A5A3AD /* libBuny.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libBuny.a;
+			remoteRef = 261E72E82978632A00A5A3AD /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		7395239B2C13789500DA131F /* libispc_texcomp.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libispc_texcomp.a;
+			remoteRef = 7395239A2C13789500DA131F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		B231A0FF23F2DB7E006D7450 /* ozz_animation.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = ozz_animation.a;
+			remoteRef = B231A0FE23F2DB7E006D7450 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		B231A10123F2DB7E006D7450 /* ozz_base.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = ozz_base.a;
+			remoteRef = B231A10023F2DB7E006D7450 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		B231A10323F2DB7E006D7450 /* ozz_animation_IOS.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = ozz_animation_IOS.a;
+			remoteRef = B231A10223F2DB7E006D7450 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		B231A10523F2DB7E006D7450 /* ozz_base_IOS.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = ozz_base_IOS.a;
+			remoteRef = B231A10423F2DB7E006D7450 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		B231A10723F2DB7E006D7450 /* ozz_animation offline.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = "ozz_animation offline.a";
+			remoteRef = B231A10623F2DB7E006D7450 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B231A0E523F2DB2D006D7450 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC2BCDFB2B616CDC00DB94BE /* indexgenerator.cpp in Sources */,
+				AC2BCDF92B616CDC00DB94BE /* stripifier.cpp in Sources */,
+				AC2BCDF62B616CDC00DB94BE /* overdrawoptimizer.cpp in Sources */,
+				AC2BCE012B616CDC00DB94BE /* vfetchoptimizer.cpp in Sources */,
+				AC2BCDF82B616CDC00DB94BE /* vertexcodec.cpp in Sources */,
+				ED8E564328F404EF00E83F1F /* AssetPipeline_Textures.cpp in Sources */,
+				AC2BCDFD2B616CDC00DB94BE /* vertexfilter.cpp in Sources */,
+				AC2BCDF52B616CDC00DB94BE /* vcacheoptimizer.cpp in Sources */,
+				AC2BCDFA2B616CDC00DB94BE /* spatialorder.cpp in Sources */,
+				B231A11923F2DBD5006D7450 /* AssetPipeline.cpp in Sources */,
+				AC2BCDF42B616CDC00DB94BE /* clusterizer.cpp in Sources */,
+				B2B33C302980101900A5D377 /* ToolFileSystem.c in Sources */,
+				AC2BCE002B616CDC00DB94BE /* vfetchanalyzer.cpp in Sources */,
+				AC2BCDFC2B616CDC00DB94BE /* vcacheanalyzer.cpp in Sources */,
+				B2B33C2E2980101700A5D377 /* CocoaToolsFileSystem.mm in Sources */,
+				AC2BCE022B616CDC00DB94BE /* indexcodec.cpp in Sources */,
+				B231A11A23F2DBD5006D7450 /* AssetPipelineCmd.cpp in Sources */,
+				AC2BCDFE2B616CDC00DB94BE /* allocator.cpp in Sources */,
+				B231A11E23F2DBE9006D7450 /* TressFXAsset.cpp in Sources */,
+				AC2BCDF72B616CDC00DB94BE /* overdrawanalyzer.cpp in Sources */,
+				AC2BCDFF2B616CDC00DB94BE /* simplifier.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7395239D2C13798900DA131F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = ispc_texcomp;
+			targetProxy = 7395239C2C13798900DA131F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		B231A0EE23F2DB2D006D7450 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = "";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = "";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		B231A0EF23F2DB2D006D7450 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = "";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = "";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		B231A0F123F2DB2D006D7450 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CONFIGURATION_BUILD_DIR = "$(PROJECT_DIR)/Bin/$(CONFIGURATION)/";
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = BT67ZY58A8;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					USE_MEMORY_TRACKING,
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_UNUSED_FUNCTION = NO;
+				HEADER_SEARCH_PATHS = "";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				NA = "$(PROJECT_DIR)/../Bin/$(CONFIGURATION)/";
+				OTHER_LDFLAGS = (
+					$OBJROOT/kernel_astc_ispc.a,
+					$OBJROOT/kernel_ispc.a,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.confetti.tools.assetpipelinecmd;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		B231A0F223F2DB2D006D7450 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CONFIGURATION_BUILD_DIR = "$(PROJECT_DIR)/Bin/$(CONFIGURATION)/";
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = BT67ZY58A8;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_UNUSED_FUNCTION = NO;
+				HEADER_SEARCH_PATHS = "";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				NA = "$(PROJECT_DIR)/../Bin/$(CONFIGURATION)/";
+				OTHER_LDFLAGS = (
+					$OBJROOT/kernel_astc_ispc.a,
+					$OBJROOT/kernel_ispc.a,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.confetti.tools.assetpipelinecmd;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B231A0E423F2DB2D006D7450 /* Build configuration list for PBXProject "AssetPipelineCmd" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B231A0EE23F2DB2D006D7450 /* Debug */,
+				B231A0EF23F2DB2D006D7450 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B231A0F023F2DB2D006D7450 /* Build configuration list for PBXNativeTarget "AssetPipelineCmd" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B231A0F123F2DB2D006D7450 /* Debug */,
+				B231A0F223F2DB2D006D7450 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B231A0E123F2DB2D006D7450 /* Project object */;
+}

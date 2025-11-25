@@ -20,7 +20,7 @@ content/settlements
 content/systems
 content/textures
 content/content.csv
-design
+/design
 
 # svn stuff
 tools/binaries/
@@ -45,9 +45,27 @@ external/imgui
 external/poisson-disk-sampling
 external/stb
 external/system_sdk
-external/The-Forge
+external/The-Forge/.git
+external/The-Forge/Common_3/Application/cr
+external/The-Forge/Common_3/Application/gainput
+external/The-Forge/Common_3/Game
+external/The-Forge/Common_3/Graphics/Metal
+external/The-Forge/Common_3/Graphics/ThirdParty/OpenSource/VulkanSDK
+external/The-Forge/Common_3/Graphics/Vulkan
+external/The-Forge/Common_3/OS/Android
+external/The-Forge/Common_3/OS/Darwin
+external/The-Forge/Common_3/OS/Linux
+external/The-Forge/Common_3/OS/Quest
+external/The-Forge/Common_3/OS/ThirdParty/OpenSource/agdk
+external/The-Forge/Common_3/Resources/AnimationSystem
+# external/The-Forge/Common_3/Tools
+external/The-Forge/Examples_3/Unit_Tests
+external/The-Forge/Examples_3/Visibility_Buffer
+external/The-Forge/Examples_3/Visibility_Buffer2
+external/The-Forge/Screenshots
+external/The-Forge/ThirdParty/OpenSource/gainput
+external/The-Forge/Tools
 external/voronoi
-external/voronoi_
 external/websocket.zig
 external/wwise-zig
 external/zaudio
@@ -74,4 +92,6 @@ external/zpool
 external/zstbi
 external/ztracy/.git
 external/zwindows
+external/**/doc/
+external/**/docs/
 
