@@ -1,0 +1,19 @@
+.{
+    .name = .ztracy,
+    .fingerprint = 0xf803f1f7ab5272cc,
+    .version = "0.14.0-dev",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "libs",
+        "src",
+        "README.md",
+    },
+    .dependencies = .{
+        .system_sdk = .{
+            .url = "https://github.com/zig-gamedev/system_sdk/archive/c0dbf11cdc17da5904ea8a17eadc54dee26567ec.tar.gz",
+            .hash = "system_sdk-0.3.0-dev-alwUNnYaaAJAtIdE2fg4NQfDqEKs7QCXy_qYukAOBfmF",
+            .lazy = true,
+        },
+    },
+}
