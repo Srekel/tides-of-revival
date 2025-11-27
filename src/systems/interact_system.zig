@@ -72,8 +72,37 @@ const SystemUpdateContext = struct {
         rest_ent: ecsu.Entity,
         bar_ent: ecsu.Entity,
         clock_ents: [9]ecsu.Entity,
+        // dist_good_ent: ecsu.Entity,
+        // dist_far_ent: ecsu.Entity,
+        terrain_good_ent: ecsu.Entity,
+        terrain_slopey_ent: ecsu.Entity,
+        terrain_high_ent: ecsu.Entity,
+        sun_up_ent: ecsu.Entity,
+        sun_down_ent: ecsu.Entity,
     },
 };
+
+fn createIcon(create_ctx: SystemCreateCtx, path: [:0]const u8, x: f32, y: f32) ecsu.Entity {
+    const texture = create_ctx.renderer.loadTexture(path);
+    var ent = create_ctx.ecsu_world.newEntity();
+    ent.set(fd.UIImage{
+        .rect = .{ .x = x, .y = y, .width = 32, .height = 32 },
+        .material = .{
+            .color = [4]f32{ 1, 1, 1, 0 },
+            .texture = texture,
+        },
+    });
+    return ent;
+}
+
+const clock_icon_x = 140;
+const clock_icon_y = 130;
+const terrain_icon_x = 180;
+const terrain_icon_y = 130;
+// const dist_icon_x = 220;
+// const dist_icon_y = 130;
+const sun_icon_x = 220;
+const sun_icon_y = 130;
 
 pub fn create(create_ctx: SystemCreateCtx) void {
     const crosshair_texture = create_ctx.renderer.loadTexture("textures/ui/crosshair085_ui.dds");
@@ -90,19 +119,15 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .texture = bar_texture,
     } });
 
-    const boot_texture = create_ctx.renderer.loadTexture("textures/ui/boot.dds");
-    var boot_ent = create_ctx.ecsu_world.newEntity();
-    boot_ent.set(fd.UIImage{ .rect = undefined, .material = .{
-        .color = [4]f32{ 1, 1, 1, 1 },
-        .texture = boot_texture,
-    } });
-
-    const rest_texture = create_ctx.renderer.loadTexture("textures/ui/fire.dds");
-    var rest_ent = create_ctx.ecsu_world.newEntity();
-    rest_ent.set(fd.UIImage{ .rect = undefined, .material = .{
-        .color = [4]f32{ 1, 1, 1, 1 },
-        .texture = rest_texture,
-    } });
+    const boot_ent = createIcon(create_ctx, "textures/ui/boot.dds", 0, 0);
+    const rest_ent = createIcon(create_ctx, "textures/ui/fire.dds", 0, 0);
+    const terrain_good_ent = createIcon(create_ctx, "textures/ui/terrain_good.dds", terrain_icon_x, terrain_icon_y);
+    const terrain_high_ent = createIcon(create_ctx, "textures/ui/terrain_high.dds", terrain_icon_x, terrain_icon_y);
+    const terrain_slopey_ent = createIcon(create_ctx, "textures/ui/terrain_slopey.dds", terrain_icon_x, terrain_icon_y);
+    // const dist_good_ent = createIcon(create_ctx, "textures/ui/dist_good.dds", dist_icon_x, dist_icon_y);
+    // const dist_far_ent = createIcon(create_ctx, "textures/ui/dist_far.dds", dist_icon_x, dist_icon_y);
+    const sun_up_ent = createIcon(create_ctx, "textures/ui/sun_up.dds", sun_icon_x, sun_icon_y);
+    const sun_down_ent = createIcon(create_ctx, "textures/ui/sun_down.dds", sun_icon_x, sun_icon_y);
 
     var clock_ents: [9]ecsu.Entity = undefined;
     const clocks = [_][:0]const u8{
@@ -117,14 +142,11 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         "textures/ui/clock_1000.dds",
     };
     for (clocks, 0..) |path, i_clock| {
-        const clock_texture = create_ctx.renderer.loadTexture(path);
-        var clock_ent = create_ctx.ecsu_world.newEntity();
-        clock_ent.set(fd.UIImage{ .rect = undefined, .material = .{
-            .color = [4]f32{ 1, 1, 1, 0 },
-            .texture = clock_texture,
-        } });
+        const clock_ent = createIcon(create_ctx, path, clock_icon_x, clock_icon_y);
         clock_ents[i_clock] = clock_ent;
     }
+    const clock_0_image = clock_ents[0].getMut(fd.UIImage).?;
+    clock_0_image.material.color[3] = 1;
 
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
@@ -134,6 +156,13 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .rest_ent = rest_ent,
         .clock_ents = clock_ents,
         .bar_ent = bar_ent,
+        .terrain_good_ent = terrain_good_ent,
+        .terrain_high_ent = terrain_high_ent,
+        .terrain_slopey_ent = terrain_slopey_ent,
+        // .dist_good_ent = dist_good_ent,
+        // .dist_far_ent = dist_far_ent,
+        .sun_up_ent = sun_up_ent,
+        .sun_down_ent = sun_down_ent,
     };
 
     {
@@ -530,22 +559,37 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
         .height = 100,
     };
 
-    const journey_time_percent_index: usize = @intFromFloat(environment_info.journey_time_percent_predict * 8);
-    for (system.state.clock_ents, 0..) |clock_ent, i_clock| {
+    const journey_time_percent_index: usize = @intFromFloat(environment_info.journey_duration_percent_predict * 8);
+    for (system.state.clock_ents[1..system.state.clock_ents.len], 1..) |clock_ent, i_clock| {
         const clock_image = clock_ent.getMut(fd.UIImage).?;
-        clock_image.*.rect = .{
-            .x = 150,
-            .y = 150,
-            .width = 32,
-            .height = 32,
-        };
-        var clock_color = &clock_image.material.color;
-        if (i_clock == journey_time_percent_index and environment_info.can_journey == .yes and environment_info.journey_state == .not) {
-            clock_color[3] = 1;
-        } else {
-            clock_color[3] = std.math.lerp(clock_color[3], 0, 0.05);
-        }
+        lerpAlpha(clock_image, i_clock == journey_time_percent_index and environment_info.can_journey != .invalid and environment_info.journey_state == .not);
     }
+
+    {
+        const terrain_good_image = system.state.terrain_good_ent.getMut(fd.UIImage).?;
+        const terrain_high_image = system.state.terrain_high_ent.getMut(fd.UIImage).?;
+        const terrain_slopey_image = system.state.terrain_slopey_ent.getMut(fd.UIImage).?;
+        lerpAlpha(terrain_good_image, environment_info.journey_terrain == .good);
+        lerpAlpha(terrain_high_image, environment_info.journey_terrain == .high);
+        lerpAlpha(terrain_slopey_image, environment_info.journey_terrain == .slopey);
+
+        // const dist_good_image = system.state.dist_good_ent.getMut(fd.UIImage).?;
+        // const dist_far_image = system.state.dist_far_ent.getMut(fd.UIImage).?;
+        // lerpAlpha(dist_good_image, environment_info.journey_dist == .good);
+        // lerpAlpha(dist_far_image, environment_info.journey_dist == .far);
+
+        const sun_up_image = system.state.sun_up_ent.getMut(fd.UIImage).?;
+        const sun_down_image = system.state.sun_down_ent.getMut(fd.UIImage).?;
+        lerpAlpha(sun_up_image, environment_info.journey_time_of_day == .day);
+        lerpAlpha(sun_down_image, environment_info.journey_time_of_day == .night);
+    }
+}
+
+fn lerpAlpha(image: *fd.UIImage, visible: bool) void {
+    var color = &image.material.color;
+    const alpha: f32 = if (visible) 1.0 else 0.0;
+    const lerp_t: f32 = if (visible) 0.5 else 0.1;
+    color[3] = std.math.lerp(color[3], alpha, lerp_t);
 }
 
 //  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗

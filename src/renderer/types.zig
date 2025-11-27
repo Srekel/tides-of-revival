@@ -51,10 +51,18 @@ pub const HeightFogSettings = struct {
 };
 
 pub const Rect = struct {
-    x: f32,
-    y: f32,
+    x: f32 = 0,
+    y: f32 = 0,
     width: f32,
     height: f32,
+    pub fn setPos(self: *Rect, x: f32, y: f32) void {
+        self.x = x;
+        self.y = y;
+    }
+    pub fn setSize(self: *Rect, width: f32, height: f32) void {
+        self.width = width;
+        self.height = height;
+    }
 };
 
 pub const UiImage = struct {

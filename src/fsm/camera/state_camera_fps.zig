@@ -248,7 +248,11 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
 
         switch (environment_info.journey_state) {
             .not => {
-                environment_info.can_journey = .no;
+                environment_info.can_journey = .yes;
+                environment_info.journey_terrain = .good;
+                environment_info.journey_dist = .good;
+                environment_info.journey_time_of_day = .day;
+
                 const z_mat = zm.loadMat43(transform.matrix[0..]);
                 const z_pos = zm.util.getTranslationVec(z_mat);
                 const z_fwd = zm.util.getAxisZ(z_mat);
@@ -310,14 +314,6 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     return;
                 }
 
-                if (height_next > 700) {
-                    // std.log.info("can't journey due to height {d}", .{height_next});
-                    color.setG(0);
-                    color.setB(0);
-                    environment_info.can_journey = .no;
-                    return;
-                }
-
                 const height_prev = player_pos.y;
 
                 const walk_meter_per_second = 1.35;
@@ -334,6 +330,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
                     color.setG(0);
                     color.setB(0);
+                    // environment_info.journey_dist = .good;
                     environment_info.can_journey = .invalid;
                     continue;
                 }
@@ -345,18 +342,19 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     // TODO trigger sound
                     color.setG(0);
                     color.setB(0);
+                    environment_info.can_journey = .no;
+                    environment_info.journey_time_of_day = .night;
                     // std.log.info("can't journey due to time {d} duration {d} percent {d}", .{ environment_info.world_time, duration, time_of_day_percent });
-                    continue;
                 }
 
-                if (dist_as_the_crow_flies > 40000) {
-                    // TODO trigger sound
-                    // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
-                    color.setG(0);
-                    color.setB(0);
-                    environment_info.can_journey = .no;
-                    continue;
-                }
+                // if (dist_as_the_crow_flies > 40000) {
+                //     // TODO trigger sound
+                //     // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
+                //     color.setG(0);
+                //     color.setB(0);
+                //     environment_info.journey_dist = .far;
+                //     environment_info.can_journey = .no;
+                // }
 
                 const hit_normal_z = zm.loadArr3(hit_normal);
                 const up_z = zm.f32x4(0, 1, 0, 0);
@@ -366,8 +364,16 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     // std.log.info("can't journey due to slope {d}", .{hit_normal[1]});
                     color.setG(0);
                     color.setB(0);
+                    environment_info.journey_terrain = .slopey;
                     environment_info.can_journey = .no;
-                    continue;
+                }
+
+                if (height_next > 700) {
+                    // std.log.info("can't journey due to height {d}", .{height_next});
+                    color.setG(0);
+                    color.setB(0);
+                    environment_info.journey_terrain = .high;
+                    environment_info.can_journey = .no;
                 }
 
                 const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
@@ -381,7 +387,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                         const dist_to_slime_sq = zm.lengthSq3(vec_to_slime)[0];
                         if (dist_to_slime_sq < MIN_DIST_TO_ENEMY_SQ) {
                             // std.log.info("can't journey due to near1 {d:.2}", .{dist_to_slime_sq});
-                            return;
+                            // return;
                         }
                     }
                     // {
@@ -401,7 +407,11 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 }
 
                 const duration_percent = std.math.clamp(duration / 5000, 0, 1);
-                environment_info.journey_time_percent_predict = duration_percent;
+                environment_info.journey_duration_percent_predict = duration_percent;
+
+                if (environment_info.can_journey == .no) {
+                    continue;
+                }
 
                 environment_info.can_journey = .yes;
                 if (!input_frame_data.just_pressed(config.input.interact)) {
@@ -704,7 +714,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 // };
                 // const result = query.castRay(ray, .{});
 
-                const dist = 7;
+                const dist = 5;
                 const query = physics_world.getNarrowPhaseQuery();
                 const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
                 const ray_dir = [_]f32{ z_fwd[0] * dist, z_fwd[1] * dist, z_fwd[2] * dist, 0 };

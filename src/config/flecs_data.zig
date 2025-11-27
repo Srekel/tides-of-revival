@@ -766,7 +766,10 @@ pub const EnvironmentInfo = struct {
     } = .not,
     can_rest: enum { invalid, no, yes } = .no,
     can_journey: enum { invalid, no, yes } = .no,
-    journey_time_percent_predict: f32 = 0,
+    journey_dist: enum { near, good, far } = .good,
+    journey_terrain: enum { good, slopey, high } = .good,
+    journey_time_of_day: enum { day, night } = .day,
+    journey_duration_percent_predict: f32 = 0,
     player_state_time: f32 = 0,
 
     slime_footsteps: [6 * 3]Footstep = undefined,
