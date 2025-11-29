@@ -51,6 +51,7 @@ external/The-Forge/Common_3/Application/gainput
 external/The-Forge/Common_3/Game/ThirdParty
 external/The-Forge/Common_3/Graphics/Metal
 external/The-Forge/Common_3/Graphics/ThirdParty/OpenSource/VulkanSDK
+!external/The-Forge/Common_3/Graphics/ThirdParty/OpenSource/winpixeventruntime/bin
 external/The-Forge/Common_3/Graphics/Vulkan
 external/The-Forge/Common_3/OS/Android
 external/The-Forge/Common_3/OS/Darwin
