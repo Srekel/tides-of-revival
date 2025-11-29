@@ -171,8 +171,20 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     //     .range = 10.0,
     //     .intensity = 10.0,
     // });
-    player_camera_ent.set(fd.Journey{});
+    player_camera_ent.add(fd.CameraFPS);
     bow_ent.childOf(player_camera_ent);
+
+    const journey_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
+    journey_camera_ent.setName("journeycamera");
+    journey_camera_ent.set(fd.Position{ .x = 0, .y = 0, .z = 0 });
+    journey_camera_ent.set(fd.Rotation{});
+    journey_camera_ent.set(fd.Scale.createScalar(1));
+    journey_camera_ent.set(fd.Transform{});
+    journey_camera_ent.set(fd.Dynamic{});
+    journey_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+    journey_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Journey);
+    journey_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), !DEBUG_CAMERA_ACTIVE, 1));
+    journey_camera_ent.add(fd.CameraJourney);
 
     //  ██████╗  ██████╗███████╗ █████╗ ███╗   ██╗
     // ██╔═══██╗██╔════╝██╔════╝██╔══██╗████╗  ██║
@@ -275,6 +287,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
     environment_info.player_camera = player_camera_ent;
+    environment_info.journey_camera = journey_camera_ent;
     environment_info.sun = sun_ent;
     environment_info.moon = moon_ent;
     environment_info.height_fog = height_fog_ent;

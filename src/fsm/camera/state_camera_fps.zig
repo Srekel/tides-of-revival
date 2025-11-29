@@ -83,7 +83,7 @@ pub fn create(create_ctx: StateContext) void {
             .{ .id = ecs.id(fd.Transform), .inout = .InOut },
             .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
             .{ .id = ecs.id(fd.Position), .inout = .InOut },
-            .{ .id = ecs.id(fd.Journey), .inout = .InOut },
+            .{ .id = ecs.id(fd.CameraFPS), .inout = .In },
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
@@ -102,7 +102,7 @@ pub fn create(create_ctx: StateContext) void {
             .{ .id = ecs.id(fd.Transform), .inout = .InOut },
             .{ .id = ecs.id(fd.Rotation), .inout = .InOut },
             .{ .id = ecs.id(fd.Position), .inout = .InOut },
-            .{ .id = ecs.id(fd.Journey), .inout = .InOut },
+            .{ .id = ecs.id(fd.CameraFPS), .inout = .In },
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 6);
         _ = ecs.SYSTEM(
             create_ctx.ecsu_world.world,
@@ -150,64 +150,6 @@ fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
     }
 }
 
-// fn updateInteract(it: *ecs.iter_t) callconv(.C) void {
-//     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
-
-//     const inputs = ecs.field(it, fd.Input, 0).?;
-//     const cameras = ecs.field(it, fd.Camera, 1).?;
-//     const transforms = ecs.field(it, fd.Transform, 2).?;
-//     const rotations = ecs.field(it, fd.Rotation, 3).?;
-
-//     const input_frame_data = ctx.input_frame_data;
-//     const physics_world_low = ctx.physics_world_low;
-//     // TODO: No, interaction shouldn't be in camera.. :)
-//     if (!input_frame_data.just_pressed(config.input.interact)) {
-//         return;
-//     }
-
-//     for (inputs, cameras, transforms, rotations) |input_comp, cam, transform, *rot| {
-//         _ = input_comp; // autofix
-//         _ = cam; // autofix
-//         _ = rot; // autofix
-//         const z_mat = zm.loadMat43(transform.matrix[0..]);
-//         const z_pos = zm.util.getTranslationVec(z_mat);
-//         const z_fwd = zm.util.getAxisZ(z_mat);
-
-//         const query = physics_world_low.getNarrowPhaseQuery();
-//         const ray_origin = [_]f32{ z_pos[0], z_pos[1], z_pos[2], 0 };
-//         const ray_dir = [_]f32{ z_fwd[0] * 50, z_fwd[1] * 50, z_fwd[2] * 50, 0 };
-//         const result = query.castRay(.{
-//             .origin = ray_origin,
-//             .direction = ray_dir,
-//         }, .{});
-
-//         if (result.has_hit) {
-//             const post_pos = fd.Position.init(
-//                 ray_origin[0] + ray_dir[0] * result.hit.fraction,
-//                 ray_origin[1] + ray_dir[1] * result.hit.fraction,
-//                 ray_origin[2] + ray_dir[2] * result.hit.fraction,
-//             );
-//             var post_transform = fd.Transform.initFromPosition(post_pos);
-//             post_transform.setScale([_]f32{ 0.05, 2, 0.05 });
-
-//             const cylinder_prefab = ctx.prefab_mgr.getPrefab(config.prefab.cylinder_id).?;
-//             const post_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, cylinder_prefab);
-//             post_ent.set(post_pos);
-//             post_ent.set(fd.Rotation{});
-//             post_ent.set(fd.Scale.create(0.05, 2, 0.05));
-//             post_ent.set(post_transform);
-
-//             // const light_pos = fd.Position.init(0.0, 1.0, 0.0);
-//             // const light_transform = fd.Transform.init(post_pos.x, post_pos.y + 2.0, post_pos.z);
-//             // const light_ent = ecsu_world.newEntity();
-//             // light_ent.childOf(post_ent);
-//             // light_ent.set(light_pos);
-//             // light_ent.set(light_transform);
-//             // light_ent.set(fd.Light{ .radiance = .{ .r = 1, .g = 0.4, .b = 0.0 }, .range = 20 });
-//         }
-//     }
-// }
-
 fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
@@ -216,7 +158,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const transforms = ecs.field(it, fd.Transform, 2).?;
     const rotations = ecs.field(it, fd.Rotation, 3).?;
     const positions = ecs.field(it, fd.Position, 4).?;
-    const journeys = ecs.field(it, fd.Journey, 5).?;
+    // const journeys = ecs.field(it, fd.Journey, 5).?;
 
     const input_frame_data = ctx.input_frame_data;
     const physics_world = ctx.physics_world;
@@ -226,16 +168,12 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_comp = ecs.get(ctx.ecsu_world.world, player_ent, fd.Player).?;
     // TODO: No, interaction shouldn't be in camera.. :)
-    for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
+    for (inputs, cameras, transforms, rotations, positions) |input_comp, cam, transform, *rot, *pos| {
         _ = pos; // autofix
-        _ = journey; // autofix
         _ = input_comp; // autofix
         _ = cam; // autofix
         _ = rot; // autofix
 
-        // if (journey.target_position) {
-        //     continue;
-        // }
         var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
         var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
         var player_pos = environment_info.player.?.getMut(fd.Position).?;
@@ -246,16 +184,16 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
             continue;
         }
 
+        const z_mat = zm.loadMat43(transform.matrix[0..]);
+        const z_pos = zm.util.getTranslationVec(z_mat);
+        const z_fwd = zm.util.getAxisZ(z_mat);
+
         switch (environment_info.journey_state) {
             .not => {
                 environment_info.can_journey = .yes;
                 environment_info.journey_terrain = .good;
                 environment_info.journey_dist = .good;
                 environment_info.journey_time_of_day = .day;
-
-                const z_mat = zm.loadMat43(transform.matrix[0..]);
-                const z_pos = zm.util.getTranslationVec(z_mat);
-                const z_fwd = zm.util.getAxisZ(z_mat);
 
                 const dist = 5000;
                 var bodies = physics_world.getBodiesUnsafe();
@@ -435,41 +373,95 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.journey_time_end.?,
                 });
 
-                environment_info.journey_time_multiplier = 10 + dist_as_the_crow_flies * 0.25;
+                environment_info.journey_time_multiplier = 50 + dist_as_the_crow_flies * 0.25;
                 environment_info.player_state_time = 0;
                 environment_info.journey_state = .transition_in;
+                environment_info.active_camera = environment_info.journey_camera;
+                var cam_pos = environment_info.active_camera.?.getMut(fd.Position).?;
+                zm.storeArr3(cam_pos.elems(), z_pos);
+                var cam_rot = environment_info.active_camera.?.getMut(fd.Rotation).?;
+                const cam_rot_z = zm.quatFromMat(z_mat);
+                zm.storeArr4(cam_rot.elems(), cam_rot_z);
             },
             .transition_in => {
                 environment_info.player_state_time += ui_dt * 4;
+
                 if (environment_info.player_state_time >= 1) {
                     environment_info.player_state_time = 1;
 
-                    player_pos.x = environment_info.journey_destination[0];
-                    player_pos.y = environment_info.journey_destination[1];
-                    player_pos.z = environment_info.journey_destination[2];
-
+                    environment_info.journey_time_start = environment_info.world_time;
                     environment_info.journey_state = .journeying;
                 }
-                vignette_settings.feather = 1 - environment_info.player_state_time * 1.0;
-                vignette_settings.radius = 1 - environment_info.player_state_time * 1.0;
+                vignette_settings.feather = 1 - environment_info.player_state_time * 0.6;
+                vignette_settings.radius = 1 - environment_info.player_state_time * 0.6;
                 player_comp.ambience_birds.setVolume(std.math.lerp(player_comp.ambience_birds.getVolume(), 1 - environment_info.player_state_time, environment_info.player_state_time));
+
+                var cam_pos = environment_info.active_camera.?.getMut(fd.Position).?;
+                zm.storeArr3(cam_pos.elems(), z_pos);
+                cam_pos.y += environment_info.player_state_time * environment_info.player_state_time * 5;
             },
             .journeying => {
+                var cam_pos = environment_info.active_camera.?.getMut(fd.Position).?;
+                var z_cam_pos = cam_pos.asZM();
+                var z_dest = zm.loadArr3(environment_info.journey_destination);
+                var z_start = z_pos;
+                z_start[1] += 5;
+                z_dest[1] += 5;
+                const percent = (environment_info.world_time - environment_info.journey_time_start.?) / (environment_info.journey_time_end.? - environment_info.journey_time_start.?);
+                // std.log.info("{}", .{percent});
+                z_cam_pos = zm.lerp(z_start, z_dest, easeInOutSine(@as(f32, @floatCast(percent))));
+                zm.storeArr3(cam_pos.elems(), z_cam_pos);
+
+                const ray_origin = [_]f32{
+                    cam_pos.x,
+                    cam_pos.y + 300,
+                    cam_pos.z,
+                    0,
+                };
+                const ray_dir = [_]f32{ 0, -500, 0, 0 };
+                const ray = zphy.RRayCast{
+                    .origin = ray_origin,
+                    .direction = ray_dir,
+                };
+                const query = physics_world_low.getNarrowPhaseQuery();
+                const result = query.castRay(ray, .{});
+                var target_y = cam_pos.y;
+                if (result.has_hit) {
+                    const hit_pos = ray.getPointOnRay(result.hit.fraction);
+                    target_y = hit_pos[1] + 5;
+                } else {
+                    target_y = cam_pos.y;
+                }
+
+                cam_pos.y = std.math.lerp(cam_pos.y, target_y, 0.6);
+
                 if (environment_info.journey_time_end.? < environment_info.world_time) {
                     std.log.info("done time:{d}", .{environment_info.world_time});
                     environment_info.journey_time_end = null;
                     environment_info.journey_time_multiplier = 1;
                     environment_info.journey_state = .transition_out;
+
+                    player_pos.x = environment_info.journey_destination[0];
+                    player_pos.y = environment_info.journey_destination[1];
+                    player_pos.z = environment_info.journey_destination[2];
                 }
             },
             .transition_out => {
                 environment_info.player_state_time -= ui_dt * 2;
+
+                var cam_pos = environment_info.active_camera.?.getMut(fd.Position).?;
+                var cam_pos_z = zm.loadArr3(cam_pos.elems().*);
+                cam_pos_z = zm.lerp(cam_pos_z, z_pos, 1 - environment_info.player_state_time);
+                zm.storeArr3(cam_pos.elems(), z_pos);
+                // cam_pos.y += environment_info.player_state_time * 5;
+
                 if (environment_info.player_state_time <= 0) {
                     environment_info.player_state_time = 0;
                     environment_info.journey_state = .not;
+                    environment_info.active_camera = environment_info.player_camera;
                 }
-                vignette_settings.feather = 1 - environment_info.player_state_time * 0.9;
-                vignette_settings.radius = 1 - environment_info.player_state_time * 0.9;
+                vignette_settings.feather = 1 - environment_info.player_state_time * 0.6;
+                vignette_settings.radius = 1 - environment_info.player_state_time * 0.6;
             },
         }
 
@@ -498,6 +490,10 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     }
 }
 
+fn easeInOutSine(x: f32) f32 {
+    return -(@cos(std.math.pi * x) - 1) / 2;
+}
+
 var slime_cooldown: f64 = 1;
 var slime_burst = false;
 
@@ -509,7 +505,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
     const transforms = ecs.field(it, fd.Transform, 2).?;
     const rotations = ecs.field(it, fd.Rotation, 3).?;
     const positions = ecs.field(it, fd.Position, 4).?;
-    const journeys = ecs.field(it, fd.Journey, 5).?;
 
     const input_frame_data = ctx.input_frame_data;
     const physics_world = ctx.physics_world;
@@ -520,10 +515,9 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
     const player_comp = ecs.get(ctx.ecsu_world.world, player_ent, fd.Player).?;
 
     // TODO: No, interaction shouldn't be in camera.. :)
-    for (inputs, cameras, transforms, rotations, positions, journeys) |input_comp, cam, transform, *rot, *pos, *journey| {
+    for (inputs, cameras, transforms, rotations, positions) |input_comp, cam, transform, *rot, *pos| {
         _ = rot; // autofix
         _ = pos; // autofix
-        _ = journey; // autofix
         _ = input_comp; // autofix
         _ = cam; // autofix
 

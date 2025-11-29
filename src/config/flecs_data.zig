@@ -19,6 +19,8 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.TAG(ecs_world, LocalSpace);
     ecs.TAG(ecs_world, WorldSpace);
     ecs.TAG(ecs_world, SettlementEnemy);
+    ecs.TAG(ecs_world, CameraFPS);
+    ecs.TAG(ecs_world, CameraJourney);
     ecs.COMPONENT(ecs_world, Locomotion);
     ecs.COMPONENT(ecs_world, ColorRGB);
     ecs.COMPONENT(ecs_world, ColorRGBRoughness);
@@ -64,6 +66,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     FSM_CAM = ecs.new_entity(ecs_world, config.FSM_CAM.toCString());
     FSM_CAM_Fps = ecs.new_entity(ecs_world, config.FSM_CAM_Fps.toCString());
     FSM_CAM_Freefly = ecs.new_entity(ecs_world, config.FSM_CAM_Freefly.toCString());
+    FSM_CAM_Journey = ecs.new_entity(ecs_world, config.FSM_CAM_Journey.toCString());
     FSM_ENEMY = ecs.new_entity(ecs_world, config.FSM_ENEMY.toCString());
     FSM_ENEMY_Idle = ecs.new_entity(ecs_world, config.FSM_ENEMY_Idle.toCString());
     FSM_ENEMY_Slime = ecs.new_entity(ecs_world, config.FSM_ENEMY_Slime.toCString());
@@ -77,6 +80,7 @@ pub var FSM_PC_Idle: ecs.entity_t = undefined;
 pub var FSM_CAM: ecs.entity_t = undefined;
 pub var FSM_CAM_Fps: ecs.entity_t = undefined;
 pub var FSM_CAM_Freefly: ecs.entity_t = undefined;
+pub var FSM_CAM_Journey: ecs.entity_t = undefined;
 pub var FSM_ENEMY: ecs.entity_t = undefined;
 pub var FSM_ENEMY_Idle: ecs.entity_t = undefined;
 pub var FSM_ENEMY_Slime: ecs.entity_t = undefined;
@@ -84,6 +88,9 @@ pub var FSM_ENEMY_Slime: ecs.entity_t = undefined;
 pub const NOCOMP = struct {
     // dummy: u32 = 0,
 };
+
+pub const CameraFPS = struct {}; // not sure necessary
+pub const CameraJourney = struct {}; // not sure necessary
 
 pub const ColorRGB = struct {
     r: f32,
@@ -739,9 +746,11 @@ pub const EnvironmentInfo = struct {
     paused: bool,
     active_camera: ?ecsu.Entity,
     player_camera: ?ecsu.Entity,
+    journey_camera: ?ecsu.Entity,
     time_multiplier: f64 = 1.0,
     journey_destination: [3]f32 = undefined,
     journey_time_multiplier: f64 = 1.0,
+    journey_time_start: ?f64 = null,
     journey_time_end: ?f64 = null,
     world_time: f64,
     time_of_day_percent: f64,
