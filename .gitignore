@@ -57,8 +57,13 @@ external/The-Forge/Common_3/OS/Darwin
 external/The-Forge/Common_3/OS/Linux
 external/The-Forge/Common_3/OS/Quest
 external/The-Forge/Common_3/OS/ThirdParty/OpenSource/agdk
-external/The-Forge/Common_3/Resources/AnimationSystem
-# external/The-Forge/Common_3/Tools
+
+!external/The-Forge/Common_3/Resources/AnimationSystem
+external/The-Forge/Common_3/Resources/AnimationSystem/*
+!external/The-Forge/Common_3/Resources/AnimationSystem/Animation
+external/The-Forge/Common_3/Resources/AnimationSystem/Animation/*
+!external/The-Forge/Common_3/Resources/AnimationSystem/Animation/Shaders
+
 !external/The-Forge/Examples_3/Unit_Tests
 external/The-Forge/Examples_3/Unit_Tests/*
 !external/The-Forge/Examples_3/Unit_Tests/PC Visual Studio 2019
