@@ -45,10 +45,17 @@ external/imgui
 external/poisson-disk-sampling
 external/stb
 external/system_sdk
+external/The-Forgelol
 external/The-Forge/.git
 external/The-Forge/Common_3/Application/cr
 external/The-Forge/Common_3/Application/gainput
-external/The-Forge/Common_3/Game/ThirdParty
+!external/The-Forge/Common_3/Game/ThirdParty
+external/The-Forge/Common_3/Game/ThirdParty/*
+!external/The-Forge/Common_3/Game/ThirdParty/OpenSource
+external/The-Forge/Common_3/Game/ThirdParty/OpenSource/*
+!external/The-Forge/Common_3/Game/ThirdParty/OpenSource/lua-5.3.5/
+# external/The-Forge/Common_3\Game\ThirdParty\OpenSource\lua-5.3.5\*
+external/The-Forge/Common_3\Game\ThirdParty\OpenSource\*
 external/The-Forge/Common_3/Graphics/Metal
 external/The-Forge/Common_3/Graphics/ThirdParty/OpenSource/VulkanSDK
 !external/The-Forge/Common_3/Graphics/ThirdParty/OpenSource/winpixeventruntime/bin
