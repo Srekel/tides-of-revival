@@ -79,7 +79,9 @@ external/The-Forge/Examples_3/Visibility_Buffer
 external/The-Forge/Examples_3/Visibility_Buffer2
 external/The-Forge/Screenshots
 external/The-Forge/ThirdParty/OpenSource/gainput
-external/The-Forge/Tools
+!external/The-Forge/Tools
+external/The-Forge/Tools/*
+!external/The-Forge/Tools/python-3.6.0-embed-amd64
 external/voronoi
 external/websocket.zig
 external/wwise-zig
