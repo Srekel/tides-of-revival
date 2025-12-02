@@ -82,7 +82,8 @@ pub const UpdateDesc = struct {
 
     // Entities
     ocean_tiles: *std.ArrayList(OceanTile) = undefined,
-    static_entities: *std.ArrayList(RenderableEntity) = undefined,
+    added_static_entities: *std.ArrayList(RenderableEntity) = undefined,
+    removed_static_entities: *std.ArrayList(RenderableEntity) = undefined,
     dynamic_entities: *std.ArrayList(DynamicEntity) = undefined,
     ui_images: *std.ArrayList(UiImage) = undefined,
 };
