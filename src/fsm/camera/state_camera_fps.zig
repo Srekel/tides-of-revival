@@ -770,7 +770,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     vignette_settings.feather = 1;
                     vignette_settings.radius = 1;
 
-                    if (!has_nearby_light) {
+                    // if (!has_nearby_light) {
                         var campfire_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.campfire);
                         campfire_ent.set(fd.Position{
                             .x = hit_pos[0],
@@ -791,7 +791,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                         player_comp.fx_fire.start() catch unreachable;
                         player_comp.fx_fire.setVolume(0);
                         player_comp.fx_fire.setPosition(hit_pos);
-                    }
+                    // }
                 }
             },
             .initial_rest => {
@@ -815,7 +815,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.rest_state = if (is_morning) .resting_during_morning else .resting_until_morning;
                 }
                 player_comp.ambience_birds.setVolume(std.math.lerp(player_comp.ambience_birds.getVolume(), 1 - environment_info.player_state_time, environment_info.player_state_time));
-                player_comp.fx_fire.setVolume(environment_info.player_state_time * 5);
+                player_comp.fx_fire.setVolume(environment_info.player_state_time * 25);
                 vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
                 vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },

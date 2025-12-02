@@ -99,6 +99,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     var player_comp = fd.Player{};
     player_comp.music = ctx.audio.createSoundFromFile("content/audio/music/the_first_forayst.mp3", .{ .flags = .{ .stream = true } }) catch unreachable;
     player_comp.music.?.setVolume(3);
+    player_comp.music.?.setSpatializationEnabled(false);
     player_comp.vo_intro = ctx.audio.createSoundFromFile("content/audio/hill3/intro.wav", .{}) catch unreachable;
     player_comp.vo_intro.setVolume(4);
     player_comp.vo_exited_village = ctx.audio.createSoundFromFile("content/audio/hill3/exited_village.wav", .{}) catch unreachable;
@@ -174,7 +175,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     player_camera_ent.add(fd.CameraFPS);
     bow_ent.childOf(player_camera_ent);
 
-    const journey_camera_ent = prefab_mgr.instantiatePrefab(ecsu_world, sphere_prefab);
+    const journey_camera_ent = ecsu_world.newEntity();
     journey_camera_ent.setName("journeycamera");
     journey_camera_ent.set(fd.Position{ .x = 0, .y = 0, .z = 0 });
     journey_camera_ent.set(fd.Rotation{});
@@ -183,7 +184,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     journey_camera_ent.set(fd.Dynamic{});
     journey_camera_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
     journey_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Journey);
-    journey_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), !DEBUG_CAMERA_ACTIVE, 1));
+    journey_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), false, 1));
     journey_camera_ent.add(fd.CameraJourney);
 
     //  ██████╗  ██████╗███████╗ █████╗ ███╗   ██╗
