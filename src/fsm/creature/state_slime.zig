@@ -496,7 +496,7 @@ const SlimeDropTask = struct {
 
             const light_ent = ctx.ecsu_world.newEntity();
             light_ent.childOf(ent);
-            light_ent.set(fd.Position{ .x = 0, .y = 15, .z = 0 });
+            light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
             light_ent.set(fd.Rotation{});
             light_ent.set(fd.Scale.createScalar(1));
             light_ent.set(fd.Transform{});

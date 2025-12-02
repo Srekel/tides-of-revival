@@ -726,7 +726,6 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                     );
 
                     // ecs.remove(ecs_world, hit_ent, fd.Enemy);
-                    ecs.remove(ecs_world, hit_ent, fd.PointLight);
                     ecs.remove(ecs_world, hit_ent, fd.SettlementEnemy);
                     ecs.delete_children(ecs_world, hit_ent);
                     // const light_ent = ecs.lookup_child(ecs_world, hit_ent, "light");
