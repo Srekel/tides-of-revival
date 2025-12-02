@@ -90,8 +90,8 @@ fn rotateTowardsTarget(
         if (!locomotion.affected_by_gravity and enemy.aggressive) {
             locomotion.speed = if (skitter) 20 / enemy.base_scale else 5 / enemy.base_scale;
         } else if (!enemy.aggressive) {
-            locomotion.speed = if (is_day) 2 else 4;
-            locomotion.speed *= if (is_journeying) 0.25 else 1;
+            locomotion.speed = if (is_day) 1 else 2;
+            locomotion.speed *= if (is_journeying) 0.1 else 1;
         }
     }
 }
@@ -375,6 +375,11 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 }
             }
             // rotateTowardsTarget(pos, rot, player_pos.elemsConst().*);
+        } else {
+            if (scale.y > scale.x * 0.5) {
+                scale.y *= 0.99;
+                pos.y -= 0.1 * it.delta_system_time;
+            }
         }
     }
 }
@@ -570,11 +575,19 @@ const SplitIfNearPlayer = struct {
     fn validate(ctx: task_queue.TaskContext, task_data: []u8, allocator: std.mem.Allocator) task_queue.TaskValidity {
         _ = allocator; // autofix
         const self: *SplitIfNearPlayer = @alignCast(@ptrCast(task_data));
+        const health_opt = ecs.get(ctx.ecsu_world.world, self.entity, fd.Health);
+        if (health_opt) |health| {
+            if (health.value <= 0) {
+                return .remove;
+            }
+        }
         const enemy_opt = ecs.get(ctx.ecsu_world.world, self.entity, fd.Enemy);
         if (enemy_opt == null) {
             return .remove;
         }
         const enemy = enemy_opt.?;
+
+        // todo for major slime only after it's been moving towards player for some time
 
         const locomotion = ecs.get(ctx.ecsu_world.world, self.entity, fd.Locomotion).?;
         if (enemy.base_scale <= 1.2) {
