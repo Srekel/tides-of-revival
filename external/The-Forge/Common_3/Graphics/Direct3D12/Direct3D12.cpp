@@ -2852,6 +2852,7 @@ void initRenderer(const char* appName, const RendererDesc* pDesc, Renderer** ppR
         }
 
 #if !defined(XBOX)
+#if !defined(TIDES)
         // anything below LOW preset is not supported and we will exit
         if (pRenderer->pGpu->mGpuVendorPreset.mPresetLevel < GPU_PRESET_VERYLOW)
         {
@@ -2870,6 +2871,7 @@ void initRenderer(const char* appName, const RendererDesc* pDesc, Renderer** ppR
             *ppRenderer = NULL;
             return;
         }
+#endif // TIDES
 
         if (pRenderer->mShaderTarget >= SHADER_TARGET_6_0)
         {

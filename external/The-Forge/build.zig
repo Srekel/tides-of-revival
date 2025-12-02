@@ -79,6 +79,7 @@ pub fn package(
     const tides_renderer_build_step = buildTheForgeRenderer(b);
     const tides_the_forge_base_path = "external/The-Forge";
     const d3d_agility_sdk_path = tides_the_forge_base_path ++ "/Common_3/Graphics/ThirdParty/OpenSource/Direct3d12Agility/bin/x64";
+    const dxc_sdk_path = tides_the_forge_base_path ++ "/Common_3/Graphics/ThirdParty/OpenSource/DirectXShaderCompiler/bin/x64";
     // TODO(gmodarelli): Check if OS is windows and if target is debug
     zforge_cpp.addLibraryPath(b.path(tides_renderer_base_path));
     zforge_cpp.addLibraryPath(b.path(tides_renderer_output_path));
@@ -104,7 +105,7 @@ pub fn package(
     install_file.step.dependOn(tides_renderer_build_step);
     zforge_cpp.step.dependOn(&install_file.step);
 
-    file_path = std.fmt.bufPrintZ(&file_buf, "{s}/{s}", .{ tides_renderer_output_path, "dxcompiler.dll" }) catch unreachable;
+    file_path = std.fmt.bufPrintZ(&file_buf, "{s}/{s}", .{ dxc_sdk_path, "dxcompiler.dll" }) catch unreachable;
     install_file = b.addInstallFile(b.path(file_path), "bin/dxcompiler.dll");
     install_file.step.dependOn(tides_renderer_build_step);
     zforge_cpp.step.dependOn(&install_file.step);
