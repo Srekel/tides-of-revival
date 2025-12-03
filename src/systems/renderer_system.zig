@@ -365,6 +365,8 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
     update_desc.removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).initCapacity(system.arena_system_update, system.state.removed_static_entities.items.len) catch unreachable;
     update_desc.added_static_entities.appendSliceAssumeCapacity(system.state.added_static_entities.items);
     update_desc.removed_static_entities.appendSliceAssumeCapacity(system.state.removed_static_entities.items);
+    system.state.added_static_entities.clearRetainingCapacity();
+    system.state.removed_static_entities.clearRetainingCapacity();
 
     // Find all dynamic entities
     {
