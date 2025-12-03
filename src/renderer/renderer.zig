@@ -809,7 +809,6 @@ pub const Renderer = struct {
         self.dynamic_entities.clearRetainingCapacity();
         self.dynamic_entities.appendSlice(update_desc.dynamic_entities.items) catch unreachable;
 
-        // self.static_entities.clearRetainingCapacity();
         for (update_desc.removed_static_entities.items) |entity_id| {
             for (self.static_entities.items, 0..) |renderable_entity, remove_index| {
                 if (renderable_entity.entity_id == entity_id) {

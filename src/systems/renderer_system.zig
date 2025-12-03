@@ -28,6 +28,7 @@ const resource_loader = zforge.resource_loader;
 pub const SystemCreateCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
+    arena_system_update: std.mem.Allocator,
     heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
@@ -39,6 +40,7 @@ pub const SystemCreateCtx = struct {
 pub const SystemUpdateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     heap_allocator: std.mem.Allocator,
+    arena_system_update: std.mem.Allocator,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
@@ -61,8 +63,8 @@ pub const SystemUpdateContext = struct {
         query_ui_images: *ecs.query_t,
         ui_images: std.ArrayList(renderer_types.UiImage),
 
-        added_static_entities: *std.ArrayList(renderer_types.RenderableEntity) = undefined,
-        removed_static_entities: *std.ArrayList(renderer_types.RenderableEntityId) = undefined,
+        added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+        removed_static_entities: std.ArrayList(renderer_types.RenderableEntityId) = undefined,
     },
 };
 
@@ -131,6 +133,8 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(pass_allocator),
         .query_ui_images = query_ui_images,
         .ui_images = std.ArrayList(renderer_types.UiImage).init(pass_allocator),
+        .added_static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
+        .removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).init(pass_allocator),
     };
 
     // Create observer that is invoked whenever Position is set
@@ -357,8 +361,10 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
     }
 
     // Find all static entity changes
-    update_desc.added_static_entities = system.state.added_static_entities;
-    update_desc.removed_static_entities = system.state.removed_static_entities;
+    update_desc.added_static_entities = std.ArrayList(renderer_types.RenderableEntity).initCapacity(system.arena_system_update, system.state.added_static_entities.items.len) catch unreachable;
+    update_desc.removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).initCapacity(system.arena_system_update, system.state.removed_static_entities.items.len) catch unreachable;
+    update_desc.added_static_entities.appendSliceAssumeCapacity(system.state.added_static_entities.items);
+    update_desc.removed_static_entities.appendSliceAssumeCapacity(system.state.removed_static_entities.items);
 
     // Find all dynamic entities
     {
