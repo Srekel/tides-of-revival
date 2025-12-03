@@ -117,7 +117,7 @@ pub const Renderer = struct {
     height_fog_settings: renderer_types.HeightFogSettings = undefined,
     ocean_tiles: std.ArrayList(renderer_types.OceanTile) = undefined,
     dynamic_entities: std.ArrayList(renderer_types.DynamicEntity) = undefined,
-    static_entitites: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+    static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
     ui_images: std.ArrayList(renderer_types.UiImage) = undefined,
 
     // GPU Bindless Buffers
@@ -491,14 +491,14 @@ pub const Renderer = struct {
         // Scene Data
         self.ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(self.allocator);
         self.dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(self.allocator);
-        self.static_entitites = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
+        self.static_entities = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
         self.ui_images = std.ArrayList(renderer_types.UiImage).init(self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
         // Scene Data
         self.ocean_tiles.deinit();
-        self.static_entitites.deinit();
+        self.static_entities.deinit();
         self.dynamic_entities.deinit();
         self.ui_images.deinit();
 
@@ -809,8 +809,16 @@ pub const Renderer = struct {
         self.dynamic_entities.clearRetainingCapacity();
         self.dynamic_entities.appendSlice(update_desc.dynamic_entities.items) catch unreachable;
 
-        self.static_entitites.clearRetainingCapacity();
-        self.static_entitites.appendSlice(update_desc.static_entities.items) catch unreachable;
+        // self.static_entities.clearRetainingCapacity();
+        for (update_desc.removed_static_entities.items) |entity_id| {
+            for (self.static_entities.items, 0..) |renderable_entity, remove_index| {
+                if (renderable_entity.entity_id == entity_id) {
+                    _ = self.static_entities.swapRemove(remove_index);
+                    break;
+                }
+            }
+        }
+        self.static_entities.appendSlice(update_desc.added_static_entities.items) catch unreachable;
 
         self.ui_images.clearRetainingCapacity();
         self.ui_images.appendSlice(update_desc.ui_images.items) catch unreachable;

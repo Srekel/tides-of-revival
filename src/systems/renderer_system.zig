@@ -53,7 +53,7 @@ pub const SystemUpdateContext = struct {
         ocean_tiles: std.ArrayList(renderer_types.OceanTile),
 
         query_static_entities: *ecs.query_t,
-        static_entities: std.ArrayList(renderer_types.RenderableEntity),
+        // static_entities: std.ArrayList(renderer_types.RenderableEntity),
 
         query_dynamic_entities: *ecs.query_t,
         dynamic_entities: std.ArrayList(renderer_types.DynamicEntity),
@@ -62,7 +62,7 @@ pub const SystemUpdateContext = struct {
         ui_images: std.ArrayList(renderer_types.UiImage),
 
         added_static_entities: *std.ArrayList(renderer_types.RenderableEntity) = undefined,
-        removed_static_entities: *std.ArrayList(renderer_types.RenderableEntity) = undefined,
+        removed_static_entities: *std.ArrayList(renderer_types.RenderableEntityId) = undefined,
     },
 };
 
@@ -126,7 +126,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .query_ocean_tiles = query_ocean_tiles,
         .ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(pass_allocator),
         .query_static_entities = query_static_entities,
-        .static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
+        // .static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
         .query_dynamic_entities = query_dynamic_entities,
         .dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(pass_allocator),
         .query_ui_images = query_ui_images,
@@ -141,8 +141,9 @@ pub fn create(create_ctx: SystemCreateCtx) void {
                 .{ .id = ecs.id(fd.Transform), .inout = .In },
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
         },
-        .events = [_]ecs.entity_t{ecs.OnSet} ++ ecs.array(ecs.entity_t, ecs.FLECS_EVENT_DESC_MAX - 1),
-        .callback = onSetRenderable,
+        .events = [_]ecs.entity_t{ ecs.Monitor, 0, 0, 0, 0, 0, 0, 0 },
+        .callback = onMonitorRenderable,
+        .ctx = update_ctx,
     };
     _ = ecs.observer_init(ecsu_world.world, &observer_desc);
 
@@ -184,7 +185,7 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
 
     system.state.point_lights.deinit();
     system.state.ocean_tiles.deinit();
-    system.state.static_entities.deinit();
+    // system.state.static_entities.deinit();
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -355,31 +356,9 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         update_desc.ocean_tiles = &system.state.ocean_tiles;
     }
 
-    // Find all static entities
-    // {
-    //     system.state.static_entities.clearRetainingCapacity();
-
-    //     var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_static_entities);
-    //     while (ecs.query_next(&iter)) {
-    //         const renderables = ecs.field(&iter, fd.Renderable, 0).?;
-    //         const transforms = ecs.field(&iter, fd.Transform, 1).?;
-
-    //         // for (renderables, transforms, 0..) |renderable, transform, entity_index| {
-    //         for (renderables, transforms, iter.entities()) |renderable, transform, entity| {
-    //             var world: [16]f32 = undefined;
-    //             storeMat44(transform.matrix[0..], world[0..]);
-
-    //             system.state.static_entities.append(.{
-    //                 .entity_id = entity,
-    //                 .renderable_id = renderable.id,
-    //                 .world = zm.loadMat(&world),
-    //                 .draw_bounds = renderable.draw_bounds,
-    //             }) catch unreachable;
-    //         }
-    //     }
-
-    //     update_desc.static_entities = &system.state.static_entities;
-    // }
+    // Find all static entity changes
+    update_desc.added_static_entities = system.state.added_static_entities;
+    update_desc.removed_static_entities = system.state.removed_static_entities;
 
     // Find all dynamic entities
     {
@@ -481,21 +460,27 @@ inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
 //  ╚═════╝ ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝
 
 // Observer callback
-fn onSetRenderable(it: *ecs.iter_t) callconv(.C) void {
+fn onMonitorRenderable(it: *ecs.iter_t) callconv(.C) void {
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const renderables = ecs.field(it, fd.Renderable, 0).?;
     const transforms = ecs.field(it, fd.Transform, 1).?;
-    for (renderables, transforms, it.entities()) |renderable, transform, entity| {
-        var world: [16]f32 = undefined;
-        storeMat44(transform.matrix[0..], world[0..]);
+    if (it.event == ecs.OnAdd) {
+        for (renderables, transforms, it.entities()) |renderable, transform, entity| {
+            var world: [16]f32 = undefined;
+            storeMat44(transform.matrix[0..], world[0..]);
 
-        const renderable_entity: renderer_types.RenderableEntity = .{
-            .entity_id = entity,
-            .renderable_id = renderable.id,
-            .world = zm.loadMat(&world),
-            .draw_bounds = renderable.draw_bounds,
-        };
-        ctx.state.added_static_entities.append(renderable_entity) catch unreachable;
+            const renderable_entity: renderer_types.RenderableEntity = .{
+                .entity_id = entity,
+                .renderable_id = renderable.id,
+                .world = zm.loadMat(&world),
+                .draw_bounds = renderable.draw_bounds,
+            };
+            ctx.state.added_static_entities.append(renderable_entity) catch unreachable;
+        }
+    } else if (it.event == ecs.OnRemove) {
+        for (it.entities()) |entity| {
+            ctx.state.removed_static_entities.append(entity) catch unreachable;
+        }
     }
 }

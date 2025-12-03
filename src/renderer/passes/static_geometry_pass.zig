@@ -188,7 +188,7 @@ pub const StaticGeometryPass = struct {
     pub fn update(self: *@This()) void {
         self.instances.clearRetainingCapacity();
 
-        for (self.renderer.static_entitites.items) |static_entity| {
+        for (self.renderer.static_entities.items) |static_entity| {
             if (self.entity_map.contains(static_entity.entity_id)) {
                 continue;
             }
@@ -267,9 +267,7 @@ pub const StaticGeometryPass = struct {
     fn createWritableBindlessBuffer(self: *@This(), size: u64, debug_name: []const u8) renderer.BufferHandle {
         const buffer_creation_desc = renderer.BufferCreationDesc{
             .bindless = true,
-            .descriptors = .{
-                .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits
-            },
+            .descriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits },
             .start_state = .RESOURCE_STATE_COMMON,
             .size = size,
             .debug_name = debug_name,
