@@ -16,12 +16,14 @@ const renderer_types = @import("types.zig");
 const resource_loader = zforge.resource_loader;
 const util = @import("../util.zig");
 const window = @import("window.zig");
+const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 const zforge = @import("zforge");
 const zglfw = @import("zglfw");
 const zgui = @import("zgui");
 const zm = @import("zmath");
 const ztracy = @import("ztracy");
 
+const TerrainPass = @import("passes/terrain_pass.zig").TerrainPass;
 const DynamicGeometryPass = @import("passes/dynamic_geometry_pass.zig").DynamicGeometryPass;
 const StaticGeometryPass = @import("passes/static_geometry_pass.zig").StaticGeometryPass;
 const DeferredShadingPass = @import("passes/deferred_shading_pass.zig").DeferredShadingPass;
@@ -32,28 +34,7 @@ const UIPass = @import("passes/ui_pass.zig").UIPass;
 const Im3dPass = @import("passes/im3d_pass.zig").Im3dPass;
 
 pub const ReloadDesc = graphics.ReloadDesc;
-pub const renderPassUpdateFn = ?*const fn (user_data: *anyopaque) void;
-pub const renderPassRenderFn = ?*const fn (cmd_list: [*c]graphics.Cmd, render_view: RenderView, user_data: *anyopaque) void;
-pub const renderPassImGuiFn = ?*const fn (user_data: *anyopaque) void;
-pub const renderPassCreateDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
-pub const renderPassPrepareDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
-pub const renderPassUnloadDescriptorSetsFn = ?*const fn (user_data: *anyopaque) void;
-
 pub const cascaded_shadow_resolution: u32 = 2048;
-
-pub const RenderPass = struct {
-    update_fn: renderPassUpdateFn = null,
-    render_shadow_pass_fn: renderPassRenderFn = null,
-    render_gbuffer_pass_fn: renderPassRenderFn = null,
-
-    render_imgui_fn: renderPassImGuiFn = null,
-
-    create_descriptor_sets_fn: renderPassCreateDescriptorSetsFn = null,
-    prepare_descriptor_sets_fn: renderPassPrepareDescriptorSetsFn = null,
-    unload_descriptor_sets_fn: renderPassUnloadDescriptorSetsFn = null,
-
-    user_data: *anyopaque,
-};
 
 pub const opaque_pipelines = pso.opaque_pipelines;
 pub const cutout_pipelines = pso.cutout_pipelines;
@@ -81,6 +62,7 @@ pub const Renderer = struct {
 
     allocator: std.mem.Allocator = undefined,
     ecsu_world: ecsu.World = undefined,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager = undefined,
     renderer: [*c]graphics.Renderer = null,
     window: *window.Window = undefined,
     window_width: i32 = 0,
@@ -142,6 +124,7 @@ pub const Renderer = struct {
 
     // Render Passes
     // =============
+    terrain_pass: TerrainPass = undefined,
     dynamic_geometry_pass: DynamicGeometryPass = undefined,
     static_geometry_pass: StaticGeometryPass = undefined,
     deferred_shading_pass: DeferredShadingPass = undefined,
@@ -193,7 +176,6 @@ pub const Renderer = struct {
     buffer_pool: BufferPool = undefined,
     pso_manager: pso.PSOManager = undefined,
 
-    render_passes: std.ArrayList(*RenderPass) = undefined,
     render_imgui: bool = false,
 
     // Buffers Visualization
@@ -213,9 +195,10 @@ pub const Renderer = struct {
         FileSystemNotInitialized,
     };
 
-    pub fn init(self: *Renderer, wnd: *window.Window, ecsu_world: ecsu.World, allocator: std.mem.Allocator) Error!void {
+    pub fn init(self: *Renderer, wnd: *window.Window, ecsu_world: ecsu.World, world_patch_mgr: *world_patch_manager.WorldPatchManager, allocator: std.mem.Allocator) Error!void {
         self.allocator = allocator;
         self.ecsu_world = ecsu_world;
+        self.world_patch_mgr = world_patch_mgr;
         self.window = wnd;
         self.window_width = wnd.frame_buffer_size[0];
         self.window_height = wnd.frame_buffer_size[1];
@@ -417,7 +400,6 @@ pub const Renderer = struct {
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
 
-        self.render_passes = std.ArrayList(*RenderPass).init(allocator);
 
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
@@ -479,6 +461,7 @@ pub const Renderer = struct {
             };
         }
 
+        self.terrain_pass.init(self, self.ecsu_world, self.world_patch_mgr, self.allocator);
         self.dynamic_geometry_pass.init(self, self.allocator);
         self.static_geometry_pass.init(self, self.allocator);
         self.deferred_shading_pass.init(self, self.allocator);
@@ -510,6 +493,7 @@ pub const Renderer = struct {
         self.deferred_shading_pass.destroy();
         self.static_geometry_pass.destroy();
         self.dynamic_geometry_pass.destroy();
+        self.terrain_pass.destroy();
 
         self.pso_manager.exit();
 
@@ -544,8 +528,6 @@ pub const Renderer = struct {
             resource_loader.removeResource__Overload4(mesh.data);
         }
         self.legacy_mesh_pool.deinit();
-
-        self.render_passes.deinit();
 
         self.vertex_layouts_map.deinit();
 
@@ -589,24 +571,6 @@ pub const Renderer = struct {
         }
         sum /= 64.0;
         return @floatCast(sum);
-    }
-
-    pub fn registerRenderPass(self: *Renderer, render_pass: *RenderPass) void {
-        self.render_passes.append(render_pass) catch unreachable;
-    }
-
-    pub fn unregisterRenderPass(self: *Renderer, render_pass: *RenderPass) void {
-        var render_pass_index: usize = self.render_passes.items.len;
-
-        for (self.render_passes.items, 0..) |rp, i| {
-            if (rp == render_pass) {
-                render_pass_index = i;
-            }
-        }
-
-        if (render_pass_index < self.render_passes.items.len) {
-            _ = self.render_passes.orderedRemove(render_pass_index);
-        }
     }
 
     pub fn onLoad(self: *Renderer, reload_desc: graphics.ReloadDesc) Error!void {
@@ -662,6 +626,7 @@ pub const Renderer = struct {
             self.createCompositeSDRDescriptorSet();
             self.createBuffersVisualizationDescriptorSet();
 
+            self.terrain_pass.createDescriptorSets();
             self.dynamic_geometry_pass.createDescriptorSets();
             self.static_geometry_pass.createDescriptorSets();
             self.deferred_shading_pass.createDescriptorSets();
@@ -670,17 +635,12 @@ pub const Renderer = struct {
             self.post_processing_pass.createDescriptorSets();
             self.ui_pass.createDescriptorSets();
             self.im3d_pass.createDescriptorSets();
-
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.create_descriptor_sets_fn) |create_descriptor_sets_fn| {
-                    create_descriptor_sets_fn(render_pass.user_data);
-                }
-            }
         }
 
         self.prepareCompositeSDRDescriptorSet();
         self.prepareBuffersVisualizationDescriptorSet();
 
+        self.terrain_pass.prepareDescriptorSets();
         self.dynamic_geometry_pass.prepareDescriptorSets();
         self.static_geometry_pass.prepareDescriptorSets();
         self.deferred_shading_pass.prepareDescriptorSets();
@@ -689,12 +649,6 @@ pub const Renderer = struct {
         self.post_processing_pass.prepareDescriptorSets();
         self.ui_pass.prepareDescriptorSets();
         self.im3d_pass.prepareDescriptorSets();
-
-        for (self.render_passes.items) |render_pass| {
-            if (render_pass.prepare_descriptor_sets_fn) |prepare_descriptor_sets_fn| {
-                prepare_descriptor_sets_fn(render_pass.user_data);
-            }
-        }
 
         var font_system_load_desc = std.mem.zeroes(font.FontSystemLoadDesc);
         font_system_load_desc.mLoadType = reload_desc.mType;
@@ -722,6 +676,7 @@ pub const Renderer = struct {
         }
 
         if (reload_desc.mType.SHADER) {
+            self.terrain_pass.unloadDescriptorSets();
             self.dynamic_geometry_pass.unloadDescriptorSets();
             self.static_geometry_pass.unloadDescriptorSets();
             self.deferred_shading_pass.unloadDescriptorSets();
@@ -730,12 +685,6 @@ pub const Renderer = struct {
             self.post_processing_pass.unloadDescriptorSets();
             self.ui_pass.unloadDescriptorSets();
             self.im3d_pass.unloadDescriptorSets();
-
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.unload_descriptor_sets_fn) |unload_descriptor_sets_fn| {
-                    unload_descriptor_sets_fn(render_pass.user_data);
-                }
-            }
         }
     }
 
@@ -823,9 +772,9 @@ pub const Renderer = struct {
         self.drawRenderSettings();
         self.generateShadowViews();
 
-        self.updateStep();
-
         const render_view = self.generateRenderView();
+
+        self.updateStep(render_view);
 
         if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
             graphics.waitQueueIdle(self.graphics_queue);
@@ -947,12 +896,7 @@ pub const Renderer = struct {
                 graphics.cmdSetViewport(cmd_list, 0.0, 0.0, shadow_map_resolution, shadow_map_resolution, 0.0, 1.0);
                 graphics.cmdSetScissor(cmd_list, 0, 0, cascaded_shadow_resolution, cascaded_shadow_resolution);
 
-                for (self.render_passes.items) |render_pass| {
-                    if (render_pass.render_shadow_pass_fn) |render_shadow_pass_fn| {
-                        render_shadow_pass_fn(cmd_list, render_view, render_pass.user_data);
-                    }
-                }
-
+                self.terrain_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
                 self.dynamic_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
                 self.static_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
 
@@ -999,12 +943,7 @@ pub const Renderer = struct {
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_gbuffer_pass_fn) |render_gbuffer_pass_fn| {
-                    render_gbuffer_pass_fn(cmd_list, render_view, render_pass.user_data);
-                }
-            }
-
+            self.terrain_pass.renderGBuffer(cmd_list, render_view);
             self.dynamic_geometry_pass.renderGBuffer(cmd_list, render_view);
             self.static_geometry_pass.renderGBuffer(cmd_list, render_view);
 
@@ -1315,10 +1254,11 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    fn updateStep(self: *Renderer) void {
+    fn updateStep(self: *Renderer, render_view: RenderView) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
         defer trazy_zone.End();
 
+        self.terrain_pass.update(render_view);
         self.static_geometry_pass.update();
         self.ui_pass.update();
     }
@@ -1387,18 +1327,13 @@ pub const Renderer = struct {
             }
 
             // TODO(gmodarelli)
+            // self.terrain_pass.renderImGui();
             // self.dynamic_geometry_pass.renderImGui();
             self.static_geometry_pass.renderImGui();
             self.deferred_shading_pass.renderImGui();
             self.procedural_skybox_pass.renderImGui();
             self.water_pass.renderImGui();
             self.post_processing_pass.renderImGui();
-
-            for (self.render_passes.items) |render_pass| {
-                if (render_pass.render_imgui_fn) |render_imgui_fn| {
-                    render_imgui_fn(render_pass.user_data);
-                }
-            }
 
             zgui.end();
         }

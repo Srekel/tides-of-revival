@@ -1,0 +1,933 @@
+
+const std = @import("std");
+
+const config = @import("../../config/config.zig");
+const context = @import("../../core/context.zig");
+const ecs = @import("zflecs");
+const ecsu = @import("../../flecs_util/flecs_util.zig");
+const fd = @import("../../config/flecs_data.zig");
+const IdLocal = @import("../../core/core.zig").IdLocal;
+const renderer = @import("../../renderer/renderer.zig");
+const renderer_types = @import("../../renderer/types.zig");
+const tides_math = @import("../../core/math.zig");
+const zforge = @import("zforge");
+const zgui = @import("zgui");
+const ztracy = @import("ztracy");
+const util = @import("../../util.zig");
+const OpaqueSlice = util.OpaqueSlice;
+const world_patch_manager = @import("../../worldpatch/world_patch_manager.zig");
+const zm = @import("zmath");
+const patch_types = @import("../../worldpatch/patch_types.zig");
+const frames_count = renderer.Renderer.data_buffer_count;
+
+const graphics = zforge.graphics;
+const resource_loader = zforge.resource_loader;
+const TerrainInstanceData = renderer_types.TerrainInstanceData;
+const InstanceRootConstants = renderer_types.InstanceRootConstants;
+
+const lod_load_range = 4300;
+const max_instances = 16384;
+const invalid_index = renderer_types.InvalidResourceIndex;
+const lod_3_patches_side = config.world_size_x / config.largest_patch_width;
+const lod_3_patches_total = lod_3_patches_side * lod_3_patches_side;
+
+const TerrainRenderSettings = struct {
+    black_point: f32,
+    white_point: f32,
+};
+
+const TerrainLayer = struct {
+    diffuse: renderer.TextureHandle,
+    normal: renderer.TextureHandle,
+    arm: renderer.TextureHandle,
+    height: renderer.TextureHandle,
+};
+
+const TerrainLayerMaterial = extern struct {
+    diffuse_index: u32,
+    normal_index: u32,
+    arm_index: u32,
+    height_index: u32,
+};
+
+const TerrainMaterial = struct {
+    layers: [4]TerrainLayer,
+};
+
+pub const UniformFrameData = struct {
+    projection_view: [16]f32,
+    projection_view_inverted: [16]f32,
+    camera_position: [4]f32,
+    black_point: f32,
+    white_point: f32,
+    _padding: [2]f32,
+};
+
+pub const TerrainPass = struct {
+    allocator: std.mem.Allocator,
+    ecsu_world: ecsu.World = undefined,
+    world_patch_mgr: *world_patch_manager.WorldPatchManager = undefined,
+    renderer: *renderer.Renderer,
+    terrain_render_settings: TerrainRenderSettings,
+    terrain_material: TerrainMaterial,
+    terrain_material_buffers: [frames_count]renderer.BufferHandle,
+
+    frame_instance_count: u32,
+    instance_data_buffer: renderer.BufferHandle,
+    instance_data: std.ArrayList(TerrainInstanceData),
+    instance_data_by_lod: [4]std.ArrayList(TerrainInstanceData),
+
+    gbuffer_bindings: PassBindings = undefined,
+    shadows_bindings: [renderer.Renderer.cascades_max_count]PassBindings = undefined,
+
+    terrain_quad_tree_nodes: std.ArrayList(QuadTreeNode),
+    terrain_lod_meshes: std.ArrayList(renderer.LegacyMeshHandle),
+    quads_to_render: std.ArrayList(u32),
+    quads_to_load: std.ArrayList(u32),
+
+    heightmap_patch_type_id: world_patch_manager.PatchTypeId,
+
+    cam_pos_old: [3]f32 = .{ -100000, 0, -100000 }, // NOTE(Anders): Assumes only one camera
+
+    pub fn init(self: *TerrainPass, rctx: *renderer.Renderer, ecsu_world: ecsu.World, world_patch_mgr: *world_patch_manager.WorldPatchManager, allocator: std.mem.Allocator) void {
+        self.allocator = allocator;
+        self.ecsu_world = ecsu_world;
+        self.renderer = rctx;
+        self.world_patch_mgr = world_patch_mgr;
+        self.terrain_render_settings = .{
+            .black_point = 0.45,
+            .white_point = 1.0,
+        };
+        self.frame_instance_count = 0;
+        self.cam_pos_old = .{ -100000, 0, -100000 }; // NOTE(Anders): Assumes only one camera
+
+        // TODO(gmodarelli): This is just enough for a single sector, but it's good for testing
+        const max_quad_tree_nodes: usize = 85 * lod_3_patches_total;
+        self.terrain_quad_tree_nodes = std.ArrayList(QuadTreeNode).initCapacity(self.allocator, max_quad_tree_nodes) catch unreachable;
+        self.quads_to_render = std.ArrayList(u32).init(self.allocator);
+        self.quads_to_load = std.ArrayList(u32).init(self.allocator);
+
+        // Create initial sectors
+        {
+            const patch_half_size = @as(f32, @floatFromInt(config.largest_patch_width)) / 2.0;
+            var patch_y: u32 = 0;
+            while (patch_y < lod_3_patches_side) : (patch_y += 1) {
+                var patch_x: u32 = 0;
+                while (patch_x < lod_3_patches_side) : (patch_x += 1) {
+                    self.terrain_quad_tree_nodes.appendAssumeCapacity(.{
+                        .center = [2]f32{
+                            @as(f32, @floatFromInt(patch_x * config.largest_patch_width)) + patch_half_size,
+                            @as(f32, @floatFromInt(patch_y * config.largest_patch_width)) + patch_half_size,
+                        },
+                        .size = [2]f32{ patch_half_size, patch_half_size },
+                        .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
+                        .mesh_lod = 3,
+                        .patch_index = [2]u32{ patch_x, patch_y },
+                        .bounding_sphere_center = undefined,
+                        .bounding_sphere_radius = 0.0,
+                        .heightmap_handle = renderer.TextureHandle.nil,
+                    });
+                }
+            }
+
+            std.debug.assert(self.terrain_quad_tree_nodes.items.len == lod_3_patches_total);
+
+            var sector_index: u32 = 0;
+            while (sector_index < lod_3_patches_total) : (sector_index += 1) {
+                const node = &self.terrain_quad_tree_nodes.items[sector_index];
+                divideQuadTreeNode(&self.terrain_quad_tree_nodes, node);
+            }
+        }
+
+        self.heightmap_patch_type_id = world_patch_mgr.getPatchTypeId(config.patch_type_heightmap);
+        self.loadTerrainResources() catch unreachable;
+
+        // Create instance buffers.
+        for (0..4) |lod_index| {
+            self.instance_data_by_lod[lod_index] = std.ArrayList(TerrainInstanceData).init(allocator);
+        }
+        self.instance_data = std.ArrayList(TerrainInstanceData).initCapacity(allocator, max_instances) catch unreachable;
+        self.instance_data_buffer = rctx.createBindlessBuffer(max_instances * @sizeOf(TerrainInstanceData), "Terrain Quad Tree Instance Data Buffer");
+
+        // Uniform Buffers
+        {
+            self.gbuffer_bindings.init(rctx);
+            for (0..renderer.Renderer.cascades_max_count) |cascade_index| {
+                self.shadows_bindings[cascade_index].init(rctx);
+            }
+        }
+
+        self.terrain_material_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = self.renderer.createUniformBuffer(TerrainMaterial);
+            }
+
+            break :blk buffers;
+        };
+    }
+
+    pub fn destroy(self: *TerrainPass) void {
+        self.terrain_lod_meshes.deinit();
+        self.terrain_quad_tree_nodes.deinit();
+        self.quads_to_render.deinit();
+        self.quads_to_load.deinit();
+        self.instance_data.deinit();
+        for (0..4) |lod_index| {
+            self.instance_data_by_lod[lod_index].deinit();
+        }
+    }
+
+    pub fn update(self: *@This(), render_view: renderer.RenderView) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Terrain Pass: Update", 0x00_ff_ff_00);
+        defer trazy_zone.End();
+
+        var arena_state = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena_state.deinit();
+        const arena = arena_state.allocator();
+
+        // Reset transforms, materials and draw calls array list
+        self.quads_to_render.clearRetainingCapacity();
+        self.quads_to_load.clearRetainingCapacity();
+
+        {
+            const trazy_zone_2 = ztracy.ZoneNC(@src(), "collectQuadsToRenderForSector", 0x00_ff_ff_00);
+            defer trazy_zone_2.End();
+            const camera_point = [2]f32{ render_view.position[0], render_view.position[2] };
+
+            var sector_index: u32 = 0;
+            while (sector_index < lod_3_patches_total) : (sector_index += 1) {
+                const lod3_node = &self.terrain_quad_tree_nodes.items[sector_index];
+
+                collectQuadsToRenderForSector(
+                    self,
+                    camera_point,
+                    lod_load_range,
+                    lod3_node,
+                    sector_index,
+                    arena,
+                ) catch unreachable;
+            }
+        }
+
+        // var camera_entity = util.getActiveCameraEnt(self.ecsu_world);
+        // const camera_comps = camera_entity.getComps(struct { camera: *const fd.Camera });
+
+        self.frame_instance_count = 0;
+        {
+            // const trazy_zone_2 = ztracy.ZoneNC(@src(), "Culling", 0x00_ff_ff_00);
+            // defer trazy_zone_2.End();
+            // const nodes_count: i32 = @intCast(self.quads_to_render.items.len);
+            // var node_index: i32 = nodes_count - 1;
+
+            // // CPU Frustum culling
+            // while (node_index >= 0) : (node_index -= 1) {
+            //     const quad_index = self.quads_to_render.items[@intCast(node_index)];
+            //     const quad = &self.terrain_quad_tree_nodes.items[@intCast(quad_index)];
+
+            //     if (!camera_comps.camera.isVisible(quad.bounding_sphere_center, quad.bounding_sphere_radius)) {
+            //         _ = self.quads_to_render.orderedRemove(@intCast(node_index));
+            //         continue;
+            //     }
+            // }
+
+            self.instance_data.clearRetainingCapacity();
+            for (0..4) |lod_index| {
+                self.instance_data_by_lod[lod_index].clearRetainingCapacity();
+            }
+
+            // TODO: Batch quads together by mesh lod
+            for (self.quads_to_render.items) |quad_index| {
+                const quad = &self.terrain_quad_tree_nodes.items[quad_index];
+
+                // Add instance data
+                {
+                    var terrain_instance_data: TerrainInstanceData = undefined;
+
+                    const z_world = zm.translation(quad.center[0], 0.0, quad.center[1]);
+                    zm.storeMat(&terrain_instance_data.object_to_world, z_world);
+
+                    // TODO: Generate from quad.patch_index
+                    terrain_instance_data.heightmap_index = self.renderer.getTextureBindlessIndex(quad.heightmap_handle);
+                    terrain_instance_data.lod = quad.mesh_lod;
+                    terrain_instance_data.padding1 = [2]u32{ 42, 42 };
+
+                    self.instance_data_by_lod[quad.mesh_lod].append(terrain_instance_data) catch unreachable;
+                }
+            }
+
+            self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[0].items);
+            self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[1].items);
+            self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[2].items);
+            self.instance_data.appendSliceAssumeCapacity(self.instance_data_by_lod[3].items);
+
+            std.debug.assert(self.instance_data.items.len < max_instances);
+
+            if (self.instance_data.items.len > 0) {
+                const data_slice = OpaqueSlice{
+                    .data = @ptrCast(self.instance_data.items),
+                    .size = self.instance_data.items.len * @sizeOf(TerrainInstanceData),
+                };
+                self.renderer.updateBuffer(data_slice, 0, TerrainInstanceData, self.instance_data_buffer);
+            }
+        }
+
+        const trazy_zone_loadNodeHeightmap = ztracy.ZoneNC(@src(), "loadNodeHeightmap", 0x00_ff_ff_00);
+        for (self.quads_to_load.items) |quad_index| {
+            const node = &self.terrain_quad_tree_nodes.items[quad_index];
+            self.loadNodeHeightmap(node) catch unreachable;
+        }
+        trazy_zone_loadNodeHeightmap.End();
+
+        // Load high-lod patches near camera
+        if (tides_math.dist3_xz(self.cam_pos_old, render_view.position) > 32) {
+            const trazy_zone_2 = ztracy.ZoneNC(@src(), "refresh patches", 0x00_ff_ff_00);
+            defer trazy_zone_2.End();
+            var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+            var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+            for (0..3) |lod| {
+                lookups_old.clearRetainingCapacity();
+                lookups_new.clearRetainingCapacity();
+
+                const area_width = 4 * config.patch_size * @as(f32, @floatFromInt(std.math.pow(usize, 2, lod)));
+
+                const area_old = world_patch_manager.RequestRectangle{
+                    .x = self.cam_pos_old[0] - area_width,
+                    .z = self.cam_pos_old[2] - area_width,
+                    .width = area_width * 2,
+                    .height = area_width * 2,
+                };
+
+                const area_new = world_patch_manager.RequestRectangle{
+                    .x = render_view.position[0] - area_width,
+                    .z = render_view.position[2] - area_width,
+                    .width = area_width * 2,
+                    .height = area_width * 2,
+                };
+
+                const lod_u4 = @as(u4, @intCast(lod));
+                world_patch_manager.WorldPatchManager.getLookupsFromRectangle(self.heightmap_patch_type_id, area_old, lod_u4, &lookups_old);
+                world_patch_manager.WorldPatchManager.getLookupsFromRectangle(self.heightmap_patch_type_id, area_new, lod_u4, &lookups_new);
+
+                var i_old: u32 = 0;
+                blk: while (i_old < lookups_old.items.len) {
+                    var i_new: u32 = 0;
+                    while (i_new < lookups_new.items.len) {
+                        if (lookups_old.items[i_old].eql(lookups_new.items[i_new])) {
+                            _ = lookups_old.swapRemove(i_old);
+                            _ = lookups_new.swapRemove(i_new);
+                            continue :blk;
+                        }
+                        i_new += 1;
+                    }
+                    i_old += 1;
+                }
+
+                const rid = self.world_patch_mgr.getRequester(IdLocal.init("terrain_quad_tree")); // HACK(Anders)
+                // NOTE(Anders): HACK
+                if (self.cam_pos_old[0] != -100000) {
+                    self.world_patch_mgr.removeLoadRequestFromLookups(rid, lookups_old.items);
+                }
+
+                self.world_patch_mgr.addLoadRequestFromLookups(rid, lookups_new.items, .medium);
+            }
+
+            self.cam_pos_old = render_view.position;
+        }
+    }
+
+    pub fn renderShadowMap(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView, cascade_index: u32) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Shadow Map: Terrain Render Pass", 0x00_ff_ff_00);
+        defer trazy_zone.End();
+
+        // TODO
+        // self.renderer.gpu_terrain_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "Terrain");
+        // defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_terrain_pass_profile_index);
+
+        const frame_index = self.renderer.frame_index;
+
+        // Update frame buffer
+        {
+            const trazy_zone_2 = ztracy.ZoneNC(@src(), "frame buffer", 0x00_ff_ff_00);
+            defer trazy_zone_2.End();
+
+            var uniform_frame_data = std.mem.zeroes(UniformFrameData);
+            zm.storeMat(&uniform_frame_data.projection_view, render_view.view_projection);
+            zm.storeMat(&uniform_frame_data.projection_view_inverted, render_view.view_projection_inverse);
+            uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
+            uniform_frame_data.black_point = self.terrain_render_settings.black_point;
+            uniform_frame_data.white_point = self.terrain_render_settings.white_point;
+
+            const data = OpaqueSlice{
+                .data = @ptrCast(&uniform_frame_data),
+                .size = @sizeOf(UniformFrameData),
+            };
+            const uniform_buffer = self.shadows_bindings[cascade_index].frame_uniform_buffers[frame_index];
+            self.renderer.updateBuffer(data, 0, UniformFrameData, uniform_buffer);
+        }
+
+        // Update Descriptor Sets
+        {
+            var params: [1]graphics.DescriptorData = undefined;
+
+            var uniform_buffer = self.renderer.getBuffer(self.shadows_bindings[cascade_index].frame_uniform_buffers[frame_index]);
+            params[0] = std.mem.zeroes(graphics.DescriptorData);
+            params[0].pName = "cbFrame";
+            params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.shadows_bindings[cascade_index].descriptor_set, params.len, @ptrCast(&params));
+        }
+
+        if (self.instance_data.items.len > 0) {
+            const trazy_zone_2 = ztracy.ZoneNC(@src(), "Drawing", 0x00_ff_ff_00);
+            defer trazy_zone_2.End();
+
+            const pipeline_id = IdLocal.init("terrain_shadow_caster");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            const root_signature = self.renderer.getRootSignature(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.shadows_bindings[cascade_index].descriptor_set);
+
+            const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+            std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffer);
+
+            var start_instance_location: u32 = 0;
+            for (0..4) |lod_index| {
+                if (self.instance_data_by_lod[lod_index].items.len == 0) {
+                    continue;
+                }
+
+                const mesh_handle = self.terrain_lod_meshes.items[lod_index];
+                const mesh = self.renderer.getLegacyMesh(mesh_handle);
+
+                if (mesh.loaded) {
+                    const push_constants = InstanceRootConstants{
+                        .start_instance_location = start_instance_location,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                        .instance_material_buffer_index = renderer_types.InvalidResourceIndex,
+                    };
+
+                    const vertex_buffers = [_][*c]graphics.Buffer{
+                        mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_POSITION.bits)]],
+                        mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_TEXCOORD0.bits)]],
+                        mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_COLOR.bits)]],
+                    };
+
+                    graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
+                    graphics.cmdBindIndexBuffer(cmd_list, mesh.geometry.*.__union_field1.__struct_field1.pIndexBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[0].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[0].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[0].mInstanceCount * @as(u32, @intCast(self.instance_data_by_lod[lod_index].items.len)),
+                        mesh.geometry.*.pDrawArgs[0].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[0].mStartInstance + start_instance_location,
+                    );
+                }
+
+                start_instance_location += @as(u32, @intCast(self.instance_data_by_lod[lod_index].items.len));
+            }
+        }
+    }
+
+    pub fn renderGBuffer(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "Gbuffer: Terrain Render Pass", 0x00_ff_ff_00);
+        defer trazy_zone.End();
+
+        self.renderer.gpu_terrain_pass_profile_index = self.renderer.startGpuProfile(cmd_list, "Terrain");
+        defer self.renderer.endGpuProfile(cmd_list, self.renderer.gpu_terrain_pass_profile_index);
+
+        const frame_index = self.renderer.frame_index;
+
+        // Update frame buffer
+        {
+            const trazy_zone_2 = ztracy.ZoneNC(@src(), "frame buffer", 0x00_ff_ff_00);
+            defer trazy_zone_2.End();
+
+            var uniform_frame_data = std.mem.zeroes(UniformFrameData);
+            zm.storeMat(&uniform_frame_data.projection_view, render_view.view_projection);
+            zm.storeMat(&uniform_frame_data.projection_view_inverted, render_view.view_projection_inverse);
+            uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
+            uniform_frame_data.black_point = self.terrain_render_settings.black_point;
+            uniform_frame_data.white_point = self.terrain_render_settings.white_point;
+
+            const data = OpaqueSlice{
+                .data = @ptrCast(&uniform_frame_data),
+                .size = @sizeOf(UniformFrameData),
+            };
+            const uniform_buffer = self.gbuffer_bindings.frame_uniform_buffers[frame_index];
+            self.renderer.updateBuffer(data, 0, UniformFrameData, uniform_buffer);
+        }
+
+        // Update material buffer
+        {
+            const trazy_zone_2 = ztracy.ZoneNC(@src(), "material buffer", 0x00_ff_ff_00);
+            defer trazy_zone_2.End();
+            var terrain_material_data: [4]TerrainLayerMaterial = undefined;
+            for (self.terrain_material.layers, 0..) |layer, i| {
+                terrain_material_data[i] = .{
+                    .diffuse_index = self.renderer.getTextureBindlessIndex(layer.diffuse),
+                    .normal_index = self.renderer.getTextureBindlessIndex(layer.normal),
+                    .arm_index = self.renderer.getTextureBindlessIndex(layer.arm),
+                    .height_index = self.renderer.getTextureBindlessIndex(layer.height),
+                };
+            }
+
+            const data = OpaqueSlice{
+                .data = @ptrCast(&terrain_material_data),
+                .size = @sizeOf(TerrainMaterial),
+            };
+            self.renderer.updateBuffer(data, 0, TerrainMaterial, self.terrain_material_buffers[frame_index]);
+        }
+
+        // Update Descriptor Sets
+        {
+            var params: [2]graphics.DescriptorData = undefined;
+
+            var uniform_buffer = self.renderer.getBuffer(self.gbuffer_bindings.frame_uniform_buffers[frame_index]);
+            params[0] = std.mem.zeroes(graphics.DescriptorData);
+            params[0].pName = "cbFrame";
+            params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+            var material_buffer = self.renderer.getBuffer(self.terrain_material_buffers[frame_index]);
+            params[1] = std.mem.zeroes(graphics.DescriptorData);
+            params[1].pName = "cbMaterial";
+            params[1].__union_field3.ppBuffers = @ptrCast(&material_buffer);
+
+            graphics.updateDescriptorSet(self.renderer.renderer, @intCast(frame_index), self.gbuffer_bindings.descriptor_set, params.len, @ptrCast(&params));
+        }
+
+        if (self.instance_data.items.len > 0) {
+            const trazy_zone_2 = ztracy.ZoneNC(@src(), "Drawing", 0x00_ff_ff_00);
+            defer trazy_zone_2.End();
+
+            const pipeline_id = IdLocal.init("terrain_gbuffer");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            const root_signature = self.renderer.getRootSignature(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.gbuffer_bindings.descriptor_set);
+
+            const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+            std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffer);
+
+            var start_instance_location: u32 = 0;
+            for (0..4) |lod_index| {
+                if (self.instance_data_by_lod[lod_index].items.len == 0) {
+                    continue;
+                }
+
+                const mesh_handle = self.terrain_lod_meshes.items[lod_index];
+                const mesh = self.renderer.getLegacyMesh(mesh_handle);
+
+                if (mesh.loaded) {
+                    const push_constants = InstanceRootConstants{
+                        .start_instance_location = start_instance_location,
+                        .instance_data_buffer_index = instance_data_buffer_index,
+                        .instance_material_buffer_index = renderer_types.InvalidResourceIndex,
+                    };
+
+                    const vertex_buffers = [_][*c]graphics.Buffer{
+                        mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_POSITION.bits)]],
+                        mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_TEXCOORD0.bits)]],
+                        mesh.geometry.*.__union_field1.__struct_field1.pVertexBuffers[mesh.buffer_layout_desc.mSemanticBindings[@intCast(graphics.ShaderSemantic.SEMANTIC_COLOR.bits)]],
+                    };
+
+                    graphics.cmdBindVertexBuffer(cmd_list, vertex_buffers.len, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
+                    graphics.cmdBindIndexBuffer(cmd_list, mesh.geometry.*.__union_field1.__struct_field1.pIndexBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+                    graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
+                    graphics.cmdDrawIndexedInstanced(
+                        cmd_list,
+                        mesh.geometry.*.pDrawArgs[0].mIndexCount,
+                        mesh.geometry.*.pDrawArgs[0].mStartIndex,
+                        mesh.geometry.*.pDrawArgs[0].mInstanceCount * @as(u32, @intCast(self.instance_data_by_lod[lod_index].items.len)),
+                        mesh.geometry.*.pDrawArgs[0].mVertexOffset,
+                        mesh.geometry.*.pDrawArgs[0].mStartInstance + start_instance_location,
+                    );
+                }
+
+                start_instance_location += @as(u32, @intCast(self.instance_data_by_lod[lod_index].items.len));
+            }
+        }
+    }
+
+    pub fn createDescriptorSets(self: *@This()) void {
+        self.gbuffer_bindings.createDescriptorSets(false);
+        for (0..renderer.Renderer.cascades_max_count) | cascade_index| {
+            self.shadows_bindings[cascade_index].createDescriptorSets(true);
+        }
+    }
+
+    pub fn prepareDescriptorSets(self: *@This()) void {
+        _ = self;
+    }
+
+    pub fn unloadDescriptorSets(self: *@This()) void {
+        self.gbuffer_bindings.unloadDescriptorSets();
+
+        for (0..renderer.Renderer.cascades_max_count) |cascade_index| {
+            self.shadows_bindings[cascade_index].unloadDescriptorSets();
+        }
+    }
+
+    fn loadTerrainResources(self: *@This()) !void {
+        var arena_state = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena_state.deinit();
+        const arena = arena_state.allocator();
+
+        // Load terrain meshes
+        self.loadTerrainMeshes() catch unreachable;
+
+        // Load terrain layers textures
+        self.loadTerrainMaterial() catch unreachable;
+
+        // Ask the World Patch Manager to load all LOD3 for the current world extents
+        const rid = self.world_patch_mgr.registerRequester(IdLocal.init("terrain_quad_tree"));
+        const area = world_patch_manager.RequestRectangle{ .x = 0, .z = 0, .width = config.world_size_x, .height = config.world_size_z };
+        var lookups = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+        world_patch_manager.WorldPatchManager.getLookupsFromRectangle(self.heightmap_patch_type_id, area, 3, &lookups);
+        self.world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .high);
+        // Make sure all LOD3 are resident
+        self.world_patch_mgr.tickAll();
+
+        // Request loading all the other LODs
+        lookups.clearRetainingCapacity();
+        // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 2, &lookups);
+        // world_patch_manager.WorldPatchManager.getLookupsFromRectangle(heightmap_patch_type_id, area, 1 &lookups);
+        // world_patch_mgr.addLoadRequestFromLookups(rid, lookups.items, .medium);
+
+        // Load all LOD's heightmaps
+        {
+            var i: u32 = 0;
+            while (i < self.terrain_quad_tree_nodes.items.len) : (i += 1) {
+                const node = &self.terrain_quad_tree_nodes.items[i];
+                self.loadNodeHeightmap(node) catch unreachable;
+            }
+        }
+    }
+
+    fn loadTerrainMeshes(self: *@This()) !void {
+        self.terrain_lod_meshes = std.ArrayList(renderer.LegacyMeshHandle).init(self.allocator);
+        self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_0.bin") catch unreachable;
+        self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_1.bin") catch unreachable;
+        self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_2.bin") catch unreachable;
+        self.loadTerrainMesh("prefabs/environment/terrain/terrain_patch_3.bin") catch unreachable;
+    }
+
+    fn loadTerrainMesh(self: *@This(), path: [:0]const u8) !void {
+        const mesh_handle = self.renderer.loadLegacyMesh(path, IdLocal.init("pos_uv0_col")) catch unreachable;
+        self.terrain_lod_meshes.append(mesh_handle) catch unreachable;
+    }
+
+    fn loadTerrainMaterial(self: *@This()) !void {
+        self.terrain_material.layers[0] = self.loadTerrainLayer("dry_ground_rocks") catch unreachable;
+        self.terrain_material.layers[1] = self.loadTerrainLayer("forest_ground_01") catch unreachable;
+        self.terrain_material.layers[2] = self.loadTerrainLayer("Layered_Rock_vl0fdhdo_2K") catch unreachable;
+        self.terrain_material.layers[3] = self.loadTerrainLayer("snow_02") catch unreachable;
+    }
+
+    fn loadTerrainLayer(self: *@This(), name: []const u8) !TerrainLayer {
+        const diffuse = blk: {
+            // Generate Path
+            var namebuf: [256]u8 = undefined;
+            const path = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "prefabs/environment/terrain/{s}_albedo.dds",
+                .{name},
+            ) catch unreachable;
+
+            break :blk self.renderer.loadTexture(path);
+        };
+
+        const normal = blk: {
+            // Generate Path
+            var namebuf: [256]u8 = undefined;
+            const path = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "prefabs/environment/terrain/{s}_normal.dds",
+                .{name},
+            ) catch unreachable;
+
+            break :blk self.renderer.loadTexture(path);
+        };
+
+        const arm = blk: {
+            // Generate Path
+            var namebuf: [256]u8 = undefined;
+            const path = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "prefabs/environment/terrain/{s}_arm.dds",
+                .{name},
+            ) catch unreachable;
+
+            break :blk self.renderer.loadTexture(path);
+        };
+
+        const height = blk: {
+            // Generate Path
+            var namebuf: [256]u8 = undefined;
+            const path = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "prefabs/environment/terrain/{s}_height.dds",
+                .{name},
+            ) catch unreachable;
+
+            break :blk self.renderer.loadTexture(path);
+        };
+
+        return .{
+            .diffuse = diffuse,
+            .normal = normal,
+            .arm = arm,
+            .height = height,
+        };
+    }
+
+    fn loadNodeHeightmap(self: *@This(), node: *QuadTreeNode) !void {
+        if (node.heightmap_handle.id != renderer.TextureHandle.nil.id) {
+            return;
+        }
+
+        const lookup = world_patch_manager.PatchLookup{
+            .patch_x = @as(u16, @intCast(node.patch_index[0])),
+            .patch_z = @as(u16, @intCast(node.patch_index[1])),
+            .lod = @as(u4, @intCast(node.mesh_lod)),
+            .patch_type_id = self.heightmap_patch_type_id,
+        };
+
+        const patch_info = self.world_patch_mgr.tryGetPatch(lookup, patch_types.Heightmap);
+        if (patch_info.data_opt) |data| {
+            // Node Bounding Sphere
+            {
+                node.bounding_sphere_center[0] = node.center[0];
+                node.bounding_sphere_center[1] = (data.min + data.max) * 0.5;
+                node.bounding_sphere_center[2] = node.center[1];
+
+                // NOTE: This should be divided by 2, but we leave it like this to have a bit of margin
+                const node_diagonal = node.size[0] * std.math.sqrt2;
+                node.bounding_sphere_radius = @max(node_diagonal, (data.max - data.min));
+            }
+
+            const data_slice = OpaqueSlice{
+                .data = @as(*anyopaque, @ptrCast(data.heightmap[0..].ptr)),
+                .size = data.heightmap.len * @sizeOf(f32), // f32 -> u8
+            };
+
+            var namebuf: [256]u8 = undefined;
+            const debug_name = std.fmt.bufPrintZ(
+                namebuf[0..namebuf.len],
+                "lod{d}/heightmap_x{d}_z{d}",
+                .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
+            ) catch unreachable;
+
+            node.heightmap_handle = self.renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
+        }
+    }
+};
+
+const PassBindings = struct {
+    renderer: *renderer.Renderer,
+
+    frame_uniform_buffers: [frames_count]renderer.BufferHandle,
+    descriptor_set: [*c]graphics.DescriptorSet,
+
+    pub fn init(self: *@This(), rctx: *renderer.Renderer) void {
+        self.renderer = rctx;
+
+        self.frame_uniform_buffers = blk: {
+            var buffers: [frames_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createUniformBuffer(UniformFrameData);
+            }
+
+            break :blk buffers;
+        };
+    }
+
+    pub fn createDescriptorSets(self: *@This(), shadow_caster: bool) void {
+        var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+        desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+        desc.mMaxSets = renderer.Renderer.data_buffer_count;
+        if (shadow_caster) {
+            desc.pRootSignature = self.renderer.getRootSignature(IdLocal.init("terrain_shadow_caster"));
+        } else {
+            desc.pRootSignature = self.renderer.getRootSignature(IdLocal.init("terrain_gbuffer"));
+        }
+        graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.descriptor_set));
+    }
+
+    pub fn unloadDescriptorSets(self: *@This()) void {
+        graphics.removeDescriptorSet(self.renderer.renderer, self.descriptor_set);
+    }
+};
+
+const QuadTreeNode = struct {
+    center: [2]f32,
+    size: [2]f32,
+    child_indices: [4]u32,
+    mesh_lod: u32,
+    patch_index: [2]u32,
+    // Bounding Sphere
+    bounding_sphere_center: [3]f32,
+    bounding_sphere_radius: f32,
+    // TODO(gmodarelli): Do not store this here when we implement streaming
+    heightmap_handle: renderer.TextureHandle,
+
+    pub inline fn containsPoint(self: *QuadTreeNode, point: [2]f32) bool {
+        return (point[0] > (self.center[0] - self.size[0]) and
+            point[0] < (self.center[0] + self.size[0]) and
+            point[1] > (self.center[1] - self.size[1]) and
+            point[1] < (self.center[1] + self.size[1]));
+    }
+
+    pub inline fn nearPoint(self: *QuadTreeNode, point: [2]f32, range: f32) bool {
+        const half_size = self.size[0] / 2;
+        const circle_distance_x = @abs(point[0] - self.center[0]);
+        const circle_distance_y = @abs(point[1] - self.center[1]);
+
+        if (circle_distance_x > (half_size + range)) {
+            return false;
+        }
+        if (circle_distance_y > (half_size + range)) {
+            return false;
+        }
+
+        if (circle_distance_x <= (half_size)) {
+            return true;
+        }
+        if (circle_distance_y <= (half_size)) {
+            return true;
+        }
+
+        const corner_distance_sq = (circle_distance_x - half_size) * (circle_distance_x - half_size) +
+            (circle_distance_y - half_size) * (circle_distance_y - half_size);
+
+        return (corner_distance_sq <= (range * range));
+    }
+
+    pub inline fn isLoaded(self: *QuadTreeNode) bool {
+        return self.heightmap_handle.id != renderer.TextureHandle.nil.id;
+    }
+
+    pub fn containedInsideChildren(self: *QuadTreeNode, point: [2]f32, range: f32, nodes: *std.ArrayList(QuadTreeNode)) bool {
+        if (!self.nearPoint(point, range)) {
+            return false;
+        }
+
+        for (self.child_indices) |child_index| {
+            if (child_index == renderer_types.InvalidResourceIndex) {
+                return false;
+            }
+
+            var node = nodes.items[child_index];
+            if (node.nearPoint(point, range)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    pub fn areChildrenLoaded(self: *QuadTreeNode, nodes: *std.ArrayList(QuadTreeNode)) bool {
+        if (!self.isLoaded()) {
+            return false;
+        }
+
+        for (self.child_indices) |child_index| {
+            if (child_index == renderer_types.InvalidResourceIndex) {
+                return false;
+            }
+
+            var node = nodes.items[child_index];
+            if (!node.isLoaded()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+};
+
+fn divideQuadTreeNode(
+    nodes: *std.ArrayList(QuadTreeNode),
+    node: *QuadTreeNode,
+) void {
+    if (node.mesh_lod == 0) {
+        return;
+    }
+
+    var child_index: u32 = 0;
+    while (child_index < 4) : (child_index += 1) {
+        const center_x = if (child_index % 2 == 0) node.center[0] - node.size[0] * 0.5 else node.center[0] + node.size[0] * 0.5;
+        const center_y = if (child_index < 2) node.center[1] + node.size[1] * 0.5 else node.center[1] - node.size[1] * 0.5;
+        const patch_index_x: u32 = if (child_index % 2 == 0) 0 else 1;
+        const patch_index_y: u32 = if (child_index < 2) 1 else 0;
+
+        const child_node = QuadTreeNode{
+            .center = [2]f32{ center_x, center_y },
+            .size = [2]f32{ node.size[0] * 0.5, node.size[1] * 0.5 },
+            .child_indices = [4]u32{ invalid_index, invalid_index, invalid_index, invalid_index },
+            .mesh_lod = node.mesh_lod - 1,
+            .patch_index = [2]u32{ node.patch_index[0] * 2 + patch_index_x, node.patch_index[1] * 2 + patch_index_y },
+            .bounding_sphere_center = undefined,
+            .bounding_sphere_radius = 0.0,
+            .heightmap_handle = renderer.TextureHandle.nil,
+        };
+
+        node.child_indices[child_index] = @as(u32, @intCast(nodes.items.len));
+        nodes.appendAssumeCapacity(child_node);
+
+        std.debug.assert(node.child_indices[child_index] < nodes.items.len);
+        divideQuadTreeNode(nodes, &nodes.items[node.child_indices[child_index]]);
+    }
+}
+
+// Algorithm that walks a quad tree and generates a list of quad tree nodes to render
+fn collectQuadsToRenderForSector(self: *TerrainPass, position: [2]f32, range: f32, node: *QuadTreeNode, node_index: u32, allocator: std.mem.Allocator) !void {
+    std.debug.assert(node_index != invalid_index);
+
+    if (node.mesh_lod == 0) {
+        return;
+    }
+
+    if (node.containedInsideChildren(position, range, &self.terrain_quad_tree_nodes) and node.areChildrenLoaded(&self.terrain_quad_tree_nodes)) {
+        var higher_lod_node_indices: [4]u32 = .{ invalid_index, invalid_index, invalid_index, invalid_index };
+        for (node.child_indices, 0..) |node_child_index, i| {
+            var child_node = &self.terrain_quad_tree_nodes.items[node_child_index];
+            if (child_node.nearPoint(position, range)) {
+                if (child_node.mesh_lod == 1 and child_node.areChildrenLoaded(&self.terrain_quad_tree_nodes)) {
+                    self.quads_to_render.appendSlice(child_node.child_indices[0..4]) catch unreachable;
+                } else if (child_node.mesh_lod == 1 and !child_node.areChildrenLoaded(&self.terrain_quad_tree_nodes)) {
+                    self.quads_to_render.append(node_child_index) catch unreachable;
+                    self.quads_to_load.appendSlice(child_node.child_indices[0..4]) catch unreachable;
+                } else if (child_node.mesh_lod > 1) {
+                    higher_lod_node_indices[i] = node_child_index;
+                }
+            } else {
+                self.quads_to_render.append(node_child_index) catch unreachable;
+            }
+        }
+
+        for (higher_lod_node_indices) |higher_lod_node_index| {
+            if (higher_lod_node_index != invalid_index) {
+                const child_node = &self.terrain_quad_tree_nodes.items[higher_lod_node_index];
+                collectQuadsToRenderForSector(self, position, range, child_node, higher_lod_node_index, allocator) catch unreachable;
+            } else {
+                // self.quads_to_render.append(node.child_indices[i]) catch unreachable;
+            }
+        }
+    } else if (node.containedInsideChildren(position, range, &self.terrain_quad_tree_nodes) and !node.areChildrenLoaded(&self.terrain_quad_tree_nodes)) {
+        self.quads_to_render.append(node_index) catch unreachable;
+        self.quads_to_load.appendSlice(node.child_indices[0..4]) catch unreachable;
+    } else {
+        if (node.isLoaded()) {
+            self.quads_to_render.append(node_index) catch unreachable;
+        } else {
+            self.quads_to_load.append(node_index) catch unreachable;
+        }
+    }
+}

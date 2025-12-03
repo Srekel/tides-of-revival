@@ -16,6 +16,11 @@ cbuffer RootConstant : register(b0)
 cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 {
 	float4x4 g_proj_view_mat;
+	float4x4 g_inv_proj_view_mat;
+	float4 g_cam_pos;
+	float g_black_point;
+	float g_white_point;
+	float2 _padding;
 };
 
 #endif // _SHADOWS_TERRAIN_RESOURCES_H

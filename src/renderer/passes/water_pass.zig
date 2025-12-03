@@ -45,7 +45,6 @@ const max_instances = 1024;
 pub const WaterPass = struct {
     allocator: std.mem.Allocator,
     renderer: *renderer.Renderer,
-    render_pass: renderer.RenderPass,
 
     ocean_tile_mesh_handle: renderer.LegacyMeshHandle,
     ocean_tile_mesh: renderer.LegacyMesh,
