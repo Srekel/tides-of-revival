@@ -19,8 +19,6 @@ const zm = @import("zmath");
 const zgui = @import("zgui");
 const world_patch_manager = @import("../worldpatch/world_patch_manager.zig");
 
-const TerrainRenderPass = @import("renderer_system/terrain_render_pass.zig").TerrainRenderPass;
-
 const font = zforge.font;
 const graphics = zforge.graphics;
 const resource_loader = zforge.resource_loader;
@@ -45,7 +43,6 @@ pub const SystemUpdateContext = struct {
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
     state: struct {
-        terrain_render_pass: *TerrainRenderPass,
         render_imgui: bool,
 
         query_point_lights: *ecs.query_t,
@@ -69,13 +66,8 @@ pub const SystemUpdateContext = struct {
 };
 
 pub fn create(create_ctx: SystemCreateCtx) void {
-    const arena_system_lifetime = create_ctx.arena_system_lifetime;
     const pass_allocator = create_ctx.arena_system_lifetime;
-    const ctx_renderer = create_ctx.renderer;
     const ecsu_world = create_ctx.ecsu_world;
-
-    const terrain_render_pass = arena_system_lifetime.create(TerrainRenderPass) catch unreachable;
-    terrain_render_pass.init(ctx_renderer, ecsu_world, create_ctx.world_patch_mgr, pass_allocator);
 
     const query_point_lights = ecs.query_init(ecsu_world.world, &.{
         .entity = ecs.new_entity(ecsu_world.world, "query_point_lights"),
@@ -121,7 +113,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
-        .terrain_render_pass = terrain_render_pass,
         .render_imgui = false,
         .query_point_lights = query_point_lights,
         .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
@@ -185,7 +176,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
-    system.state.terrain_render_pass.destroy();
 
     system.state.point_lights.deinit();
     system.state.ocean_tiles.deinit();

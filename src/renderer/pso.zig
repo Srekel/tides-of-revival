@@ -312,8 +312,8 @@ pub const PSOManager = struct {
                 const render_targets = [_]graphics.TinyImageFormat{};
                 const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GREATER);
                 var rasterizer = rasterizer_cull_none;
-                rasterizer.mDepthBias = -1.0;
-                rasterizer.mSlopeScaledDepthBias = -4.0;
+                rasterizer.mDepthBias = -50.0;
+                rasterizer.mSlopeScaledDepthBias = -20.0;
 
                 const desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("terrain_shadow_caster"),
@@ -369,8 +369,8 @@ pub const PSOManager = struct {
                 const render_targets = [_]graphics.TinyImageFormat{};
                 const depth_state = getDepthStateDesc(true, true, graphics.CompareMode.CMP_GREATER);
                 var rasterizer = rasterizer_cull_back;
-                rasterizer.mDepthBias = -1.0;
-                rasterizer.mSlopeScaledDepthBias = -4.0;
+                rasterizer.mDepthBias = -50.0;
+                rasterizer.mSlopeScaledDepthBias = -20.0;
 
                 var desc = GraphicsPipelineDesc{
                     .id = IdLocal.init("lit_shadow_caster_opaque"),
@@ -386,8 +386,8 @@ pub const PSOManager = struct {
                 self.createGraphicsPipeline(desc);
 
                 rasterizer = rasterizer_cull_none;
-                rasterizer.mDepthBias = -1.0;
-                rasterizer.mSlopeScaledDepthBias = -4.0;
+                rasterizer.mDepthBias = -50.0;
+                rasterizer.mSlopeScaledDepthBias = -20.0;
                 desc.id = IdLocal.init("lit_shadow_caster_cutout");
                 desc.frag_shader_name = "lit_shadow_caster_cutout.frag";
                 desc.rasterizer_state = rasterizer;
