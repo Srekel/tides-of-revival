@@ -465,6 +465,11 @@ fn onMonitorRenderable(it: *ecs.iter_t) callconv(.C) void {
     const transforms = ecs.field(it, fd.Transform, 1).?;
     if (it.event == ecs.OnAdd) {
         for (renderables, transforms, it.entities()) |renderable, transform, entity| {
+            // HACK: Some data is wrong
+            if (renderable.id.hash == 14829735431805717965) {
+                continue;
+            }
+
             var world: [16]f32 = undefined;
             storeMat44(transform.matrix[0..], world[0..]);
 

@@ -52,18 +52,18 @@ pub const PrefabManager = struct {
         entity.set(fd.Forward{});
 
         // Set position, rotation and scale
-        var position = fd.Position.init(0, 0, 0);
-        var rotation = fd.Rotation{};
-        var scale = fd.Scale.createScalar(1);
+        const position = fd.Position.init(0, 0, 0);
+        const rotation = fd.Rotation{};
+        const scale = fd.Scale.createScalar(1);
         entity.set(position);
         entity.set(rotation);
         entity.set(scale);
 
-        // Set transform
-        var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
-        transform.setPos(position.elems().*);
-        transform.setScale(scale.elems().*);
-        entity.set(transform);
+        // // Set transform
+        // var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
+        // transform.setPos(position.elems().*);
+        // transform.setScale(scale.elems().*);
+        // entity.set(transform);
 
         entity.set(std.mem.zeroes(fd.Renderable));
 
