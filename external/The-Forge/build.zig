@@ -1,8 +1,10 @@
 const std = @import("std");
 
 const tides_renderer_base_path = "external/The-Forge/Examples_3/TidesRenderer";
-const debug_path = "/PC Visual Studio 2019/x64/DebugNoValidation";
-const debug_config = "/p:Configuration=DebugNoValidation";
+// const debug_path = "/PC Visual Studio 2019/x64/DebugNoValidation";
+// const debug_config = "/p:Configuration=DebugNoValidation";
+const debug_path = "/PC Visual Studio 2019/x64/Debug";
+const debug_config = "/p:Configuration=Debug";
 const release_path = "/PC Visual Studio 2019/x64/Release";
 const release_config = "/p:Configuration=Release";
 var path_buf: [256]u8 = undefined;
