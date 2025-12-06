@@ -99,7 +99,8 @@ pub const Renderer = struct {
     height_fog_settings: renderer_types.HeightFogSettings = undefined,
     ocean_tiles: std.ArrayList(renderer_types.OceanTile) = undefined,
     dynamic_entities: std.ArrayList(renderer_types.DynamicEntity) = undefined,
-    static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+    added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+    removed_static_entities: std.ArrayList(renderer_types.RenderableEntityId) = undefined,
     ui_images: std.ArrayList(renderer_types.UiImage) = undefined,
 
     // GPU Bindless Buffers
@@ -474,14 +475,16 @@ pub const Renderer = struct {
         // Scene Data
         self.ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(self.allocator);
         self.dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(self.allocator);
-        self.static_entities = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
+        self.added_static_entities = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
+        self.removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).init(self.allocator);
         self.ui_images = std.ArrayList(renderer_types.UiImage).init(self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
         // Scene Data
         self.ocean_tiles.deinit();
-        self.static_entities.deinit();
+        self.added_static_entities.deinit();
+        self.removed_static_entities.deinit();
         self.dynamic_entities.deinit();
         self.ui_images.deinit();
 
@@ -758,15 +761,11 @@ pub const Renderer = struct {
         self.dynamic_entities.clearRetainingCapacity();
         self.dynamic_entities.appendSlice(update_desc.dynamic_entities.items) catch unreachable;
 
-        for (update_desc.removed_static_entities.items) |entity_id| {
-            for (self.static_entities.items, 0..) |renderable_entity, remove_index| {
-                if (renderable_entity.entity_id == entity_id) {
-                    _ = self.static_entities.swapRemove(remove_index);
-                    break;
-                }
-            }
-        }
-        self.static_entities.appendSlice(update_desc.added_static_entities.items) catch unreachable;
+        self.added_static_entities.clearRetainingCapacity();
+        self.removed_static_entities.clearRetainingCapacity();
+
+        self.added_static_entities.appendSlice(update_desc.added_static_entities.items) catch unreachable;
+        self.removed_static_entities.appendSlice(update_desc.removed_static_entities.items) catch unreachable;
 
         self.ui_images.clearRetainingCapacity();
         self.ui_images.appendSlice(update_desc.ui_images.items) catch unreachable;
@@ -780,8 +779,6 @@ pub const Renderer = struct {
         self.generateShadowViews();
 
         const render_view = self.generateRenderView();
-
-        self.updateStep(render_view);
 
         if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
             graphics.waitQueueIdle(self.graphics_queue);
@@ -812,6 +809,8 @@ pub const Renderer = struct {
 
         var cmd_list = elem.cmds[0];
         graphics.beginCmd(cmd_list);
+
+        self.updateStep(render_view, cmd_list);
 
         self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
 
@@ -1261,12 +1260,12 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    fn updateStep(self: *Renderer, render_view: RenderView) void {
+    fn updateStep(self: *Renderer, render_view: RenderView, cmd_list: [*c]graphics.Cmd) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
         defer trazy_zone.End();
 
         self.terrain_pass.update(render_view);
-        self.static_geometry_pass.update();
+        self.static_geometry_pass.update(cmd_list);
         self.ui_pass.update();
     }
 

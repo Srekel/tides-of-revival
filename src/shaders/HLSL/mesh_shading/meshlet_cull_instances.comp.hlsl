@@ -28,6 +28,12 @@ cbuffer g_CullInstancesParams : register(b1, UPDATE_FREQ_PER_FRAME)
     uint instanceIndex = DTid;
     Instance instance = getInstance(instanceIndex);
 
+    // Skip if destroyed
+    if (instance.flags & (1 << 0))
+    {
+        return;
+    }
+
     ByteAddressBuffer mesh_buffer = ResourceDescriptorHeap[g_Frame.meshesBufferIndex];
     Mesh mesh = mesh_buffer.Load<Mesh>(instance.meshIndex * sizeof(Mesh));
 
