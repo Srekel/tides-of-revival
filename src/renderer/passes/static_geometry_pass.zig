@@ -135,6 +135,7 @@ pub const StaticGeometryPass = struct {
 
     instances: std.ArrayList(GpuInstance),
     instances_to_destroy: std.ArrayList(GpuDestroyInstance),
+    compacted_instances_to_destroy: std.ArrayList(GpuDestroyInstance),
     entity_map: EntityMap,
 
     // Global Buffers
@@ -211,18 +212,25 @@ pub const StaticGeometryPass = struct {
 
         self.instances = std.ArrayList(GpuInstance).init(self.allocator);
         self.instances_to_destroy = std.ArrayList(GpuDestroyInstance).init(self.allocator);
+        self.compacted_instances_to_destroy = std.ArrayList(GpuDestroyInstance).init(self.allocator);
         self.entity_map = EntityMap.init(self.allocator);
     }
 
     pub fn destroy(self: *@This()) void {
+        self.compacted_instances_to_destroy.deinit();
         self.instances_to_destroy.deinit();
         self.instances.deinit();
         self.entity_map.deinit();
     }
 
+    fn gpuDestroyInstancesSorter(_: void, a: GpuDestroyInstance, b: GpuDestroyInstance) bool {
+        return a.index < b.index;
+    }
+
     pub fn update(self: *@This(), cmd_list: [*c]graphics.Cmd) void {
         self.instances.clearRetainingCapacity();
         self.instances_to_destroy.clearRetainingCapacity();
+        self.compacted_instances_to_destroy.clearRetainingCapacity();
 
         for (self.renderer.removed_static_entities.items) |static_entity_id| {
             if (self.entity_map.get(static_entity_id)) |entity_info| {
@@ -233,9 +241,29 @@ pub const StaticGeometryPass = struct {
 
         if (self.instances_to_destroy.items.len > 0)
         {
+            // Dumb sorting and compaction
+            {
+                // Sort by index
+                std.mem.sort(GpuDestroyInstance, self.instances_to_destroy.items, {}, gpuDestroyInstancesSorter);
+
+                // Compact the prefix sum buffer
+                var current_instance_to_destroy = self.instances_to_destroy.items[0];
+                for (1..self.instances_to_destroy.items.len) |i| {
+                    const instance_to_destroy = self.instances_to_destroy.items[i];
+                    if (current_instance_to_destroy.index + current_instance_to_destroy.count == instance_to_destroy.index) {
+                        current_instance_to_destroy.count += instance_to_destroy.count;
+                    } else {
+                        self.compacted_instances_to_destroy.append(current_instance_to_destroy) catch unreachable;
+                        current_instance_to_destroy.index = instance_to_destroy.index;
+                        current_instance_to_destroy.count = instance_to_destroy.count;
+                    }
+                }
+                self.compacted_instances_to_destroy.append(current_instance_to_destroy) catch unreachable;
+            }
+
             const data = OpaqueSlice{
-                .data = @ptrCast(self.instances_to_destroy.items),
-                .size = self.instances_to_destroy.items.len * @sizeOf(GpuDestroyInstance),
+                .data = @ptrCast(self.compacted_instances_to_destroy.items),
+                .size = self.compacted_instances_to_destroy.items.len * @sizeOf(GpuDestroyInstance),
             };
 
             std.debug.assert(self.instance_to_destroy_buffer.size > data.size);
@@ -246,7 +274,7 @@ pub const StaticGeometryPass = struct {
             const destroy_instances_params = DestroyInstancesParams{
                 .instances_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer.buffer),
                 .instances_to_destroy_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_to_destroy_buffer.buffer),
-                .instances_to_destroy_count = @intCast(self.instances_to_destroy.items.len),
+                .instances_to_destroy_count = @intCast(self.compacted_instances_to_destroy.items.len),
                 ._padding = 42,
             };
             const params_data = OpaqueSlice{
@@ -275,10 +303,10 @@ pub const StaticGeometryPass = struct {
         }
 
         for (self.renderer.added_static_entities.items) |static_entity| {
-            const instance_buffer_index: usize = self.instance_buffer.element_count + self.instances.items.len;
-            var instances_count: u32 = 0;
-
             const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
+            const instances_count = renderable_data.gpu_instance_count;
+            const instance_buffer_index = self.instance_buffer.element_count + self.instances.items.len;
+
             for (0..renderable_data.lods_count) |lod_index| {
                 const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[lod_index].mesh_id);
 
@@ -301,7 +329,6 @@ pub const StaticGeometryPass = struct {
                     }
 
                     self.instances.append(gpu_instance) catch unreachable;
-                    instances_count += 1;
                 }
             }
 

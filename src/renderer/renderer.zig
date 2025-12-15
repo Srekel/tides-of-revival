@@ -1536,6 +1536,7 @@ pub const Renderer = struct {
     pub fn registerRenderable(self: *Renderer, id: IdLocal, desc: RenderableDesc) void {
         var renderable: Renderable = undefined;
         renderable.lods_count = desc.lods_count;
+        renderable.gpu_instance_count = renderable.lods_count;
 
         for (0..desc.lods_count) |lod_index| {
             const lod = &desc.lods[lod_index];
@@ -1548,6 +1549,7 @@ pub const Renderer = struct {
             for (0..lod.materials_count) |material_index| {
                 renderable.lods[lod_index].materials[material_index] = lod.materials[material_index];
             }
+            renderable.gpu_instance_count += lod.materials_count;
         }
 
         self.renderable_map.put(id.hash, renderable) catch unreachable;
@@ -2569,6 +2571,7 @@ pub const RenderableLod = struct {
 const Renderable = struct {
     lods: [lods_per_renderable_max_count]RenderableLod,
     lods_count: u32,
+    gpu_instance_count: u32,
 };
 
 const RenderableHashMap = std.AutoHashMap(u64, Renderable);
