@@ -6,8 +6,7 @@ void main(VertexAttribute vertex, PrimitiveAttribute primitive)
 {
     ByteAddressBuffer visibleMeshletBuffer = ResourceDescriptorHeap[g_RasterizerParams.visibleMeshletsBufferIndex];
     MeshletCandidate candidate = visibleMeshletBuffer.Load<MeshletCandidate>(primitive.candidateIndex * sizeof(MeshletCandidate));
-    Instance instance = getInstance(candidate.instanceId);
-    MaterialData material = getMaterial(instance.materialIndex);
+    MaterialData material = getMaterial(candidate.materialIndex);
     SamplerState sampler = SamplerDescriptorHeap[g_Frame.linearRepeatSamplerIndex];
 
     float2 UV = vertex.uv * material.uvTilingOffset.xy;

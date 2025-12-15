@@ -12,7 +12,6 @@ struct DestroyParams
 struct InstanceToDestroy
 {
     uint index;
-    uint count;
 };
 
 cbuffer g_DestroyParams : register(b0, UPDATE_FREQ_PER_FRAME)
@@ -28,15 +27,9 @@ cbuffer g_DestroyParams : register(b0, UPDATE_FREQ_PER_FRAME)
     for (uint i = 0; i < g_DestroyParams.instancesToDestroyCount; i++)
     {
         InstanceToDestroy instanceToDestroy = instancesToDestroyBuffer.Load<InstanceToDestroy>(i * sizeof(InstanceToDestroy));
-        for (uint c = 0; c < instanceToDestroy.count; c++)
-        {
-            uint instanceOffset = (instanceToDestroy.index + c) * sizeof(Instance);
-            Instance destroyedInstance = (Instance)0;
-            destroyedInstance.flags = 1;
-            // Instance instance = instancesBuffer.Load<Instance>(instanceOffset);
-            // instance.flags |= 1;
-
-            instancesBuffer.Store<Instance>(instanceOffset, destroyedInstance);
-        }
+        uint instanceOffset = instanceToDestroy.index * sizeof(Instance);
+        Instance destroyedInstance = (Instance)0;
+        destroyedInstance.flags = 1;
+        instancesBuffer.Store<Instance>(instanceOffset, destroyedInstance);
     }
 }
