@@ -33,18 +33,6 @@ const GpuInstanceFlags = packed struct(u32) {
 
 const GpuInstance = struct {
     world: [16]f32,
-    local_bounds_origin: [3]f32,
-    screen_percentage_min: f32,
-    local_bounds_extents: [3]f32,
-    screen_percentage_max: f32,
-    id: u32,
-    mesh_index: u32,
-    material_index: u32,
-    flags: GpuInstanceFlags,
-};
-
-const GpuInstance2 = struct {
-    world: [16]f32,
     bounds_origin: [3]f32,
     renderable_item_id: u32,
     bounds_extents: [3]f32,
@@ -61,11 +49,6 @@ const GpuMeshletCandidate = struct {
 };
 
 const GpuDestroyInstance = struct {
-    index: u32,
-    count: u32,
-};
-
-const GpuDestroyInstance2 = struct {
     index: u32,
 };
 
@@ -149,9 +132,8 @@ pub const StaticGeometryPass = struct {
     pso_mgr: *pso.PSOManager,
     render_settings: RenderSettings,
 
-    instances: std.ArrayList(GpuInstance2),
-    instances_to_destroy: std.ArrayList(GpuDestroyInstance2),
-    // compacted_instances_to_destroy: std.ArrayList(GpuDestroyInstance),
+    instances: std.ArrayList(GpuInstance),
+    instances_to_destroy: std.ArrayList(GpuDestroyInstance),
     entity_map: EntityMap,
 
     // Global Buffers
@@ -182,7 +164,7 @@ pub const StaticGeometryPass = struct {
         self.pso_mgr = &rctx.pso_manager;
 
         // Global Buffers
-        self.instance_buffer.init(rctx, instances_max_count, @sizeOf(GpuInstance2), false, "GPU Instances");
+        self.instance_buffer.init(rctx, instances_max_count, @sizeOf(GpuInstance), false, "GPU Instances");
 
         // Meshlet Culling Buffers
         {
@@ -213,7 +195,7 @@ pub const StaticGeometryPass = struct {
         // Destroy Instances GPU resources Data
         {
             // GPU Buffer
-            self.instance_to_destroy_buffer.init(rctx, 8169, @sizeOf(GpuDestroyInstance2), false, "GPU Instances to Destroy");
+            self.instance_to_destroy_buffer.init(rctx, 8169, @sizeOf(GpuDestroyInstance), false, "GPU Instances to Destroy");
 
             // Uniform Buffers
             self.destroy_instances_uniform_buffers = blk: {
@@ -226,27 +208,20 @@ pub const StaticGeometryPass = struct {
             };
         }
 
-        self.instances = std.ArrayList(GpuInstance2).init(self.allocator);
-        self.instances_to_destroy = std.ArrayList(GpuDestroyInstance2).init(self.allocator);
-        // self.compacted_instances_to_destroy = std.ArrayList(GpuDestroyInstance).init(self.allocator);
+        self.instances = std.ArrayList(GpuInstance).init(self.allocator);
+        self.instances_to_destroy = std.ArrayList(GpuDestroyInstance).init(self.allocator);
         self.entity_map = EntityMap.init(self.allocator);
     }
 
     pub fn destroy(self: *@This()) void {
-        // self.compacted_instances_to_destroy.deinit();
         self.instances_to_destroy.deinit();
         self.instances.deinit();
         self.entity_map.deinit();
     }
 
-    fn gpuDestroyInstancesSorter(_: void, a: GpuDestroyInstance, b: GpuDestroyInstance) bool {
-        return a.index < b.index;
-    }
-
     pub fn update(self: *@This(), cmd_list: [*c]graphics.Cmd) void {
         self.instances.clearRetainingCapacity();
         self.instances_to_destroy.clearRetainingCapacity();
-        // self.compacted_instances_to_destroy.clearRetainingCapacity();
 
         for (self.renderer.removed_static_entities.items) |static_entity_id| {
             if (self.entity_map.get(static_entity_id)) |entity_info| {
@@ -257,33 +232,13 @@ pub const StaticGeometryPass = struct {
 
         if (self.instances_to_destroy.items.len > 0)
         {
-            // // Dumb sorting and compaction
-            // {
-            //     // Sort by index
-            //     std.mem.sort(GpuDestroyInstance, self.instances_to_destroy.items, {}, gpuDestroyInstancesSorter);
-
-            //     // Compact the prefix sum buffer
-            //     var current_instance_to_destroy = self.instances_to_destroy.items[0];
-            //     for (1..self.instances_to_destroy.items.len) |i| {
-            //         const instance_to_destroy = self.instances_to_destroy.items[i];
-            //         if (current_instance_to_destroy.index + current_instance_to_destroy.count == instance_to_destroy.index) {
-            //             current_instance_to_destroy.count += instance_to_destroy.count;
-            //         } else {
-            //             self.compacted_instances_to_destroy.append(current_instance_to_destroy) catch unreachable;
-            //             current_instance_to_destroy.index = instance_to_destroy.index;
-            //             current_instance_to_destroy.count = instance_to_destroy.count;
-            //         }
-            //     }
-            //     self.compacted_instances_to_destroy.append(current_instance_to_destroy) catch unreachable;
-            // }
-
             const data = OpaqueSlice{
                 .data = @ptrCast(self.instances_to_destroy.items),
-                .size = self.instances_to_destroy.items.len * @sizeOf(GpuDestroyInstance2),
+                .size = self.instances_to_destroy.items.len * @sizeOf(GpuDestroyInstance),
             };
 
             std.debug.assert(self.instance_to_destroy_buffer.size > data.size);
-            self.renderer.updateBuffer(data, 0, GpuDestroyInstance2, self.instance_to_destroy_buffer.buffer);
+            self.renderer.updateBuffer(data, 0, GpuDestroyInstance, self.instance_to_destroy_buffer.buffer);
 
             const uniform_buffer_handle = self.destroy_instances_uniform_buffers[self.renderer.frame_index];
 
@@ -318,46 +273,13 @@ pub const StaticGeometryPass = struct {
             graphics.cmdDispatch(cmd_list, 1, 1, 1);
         }
 
-        // for (self.renderer.added_static_entities.items) |static_entity| {
-        //     const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
-        //     const instances_count = renderable_data.gpu_instance_count;
-        //     const instance_buffer_index = self.instance_buffer.element_count + self.instances.items.len;
-
-        //     for (0..renderable_data.lods_count) |lod_index| {
-        //         const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[lod_index].mesh_id);
-
-        //         for (0..mesh_info.count) |mesh_index_offset| {
-        //             const mesh = &self.renderer.meshes.items[mesh_info.index + mesh_index_offset];
-
-        //             const material_index = self.renderer.getMaterialIndex(renderable_data.lods[lod_index].materials[mesh_index_offset]);
-        //             var gpu_instance = std.mem.zeroes(GpuInstance);
-        //             zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
-        //             gpu_instance.id = @intCast(self.instance_buffer.element_count + self.instances.items.len);
-        //             gpu_instance.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
-        //             gpu_instance.material_index = @intCast(material_index);
-        //             gpu_instance.local_bounds_origin = mesh.bounds.center;
-        //             gpu_instance.local_bounds_extents = mesh.bounds.extents;
-        //             gpu_instance.screen_percentage_min = renderable_data.lods[lod_index].screen_percentage_range[0];
-        //             gpu_instance.screen_percentage_max = renderable_data.lods[lod_index].screen_percentage_range[1];
-        //             gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
-        //             if (static_entity.draw_bounds) {
-        //                 gpu_instance.flags.draw_bounds = 1;
-        //             }
-
-        //             self.instances.append(gpu_instance) catch unreachable;
-        //         }
-        //     }
-
-        //     self.entity_map.put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = instances_count }) catch unreachable;
-        // }
-
         for (self.renderer.added_static_entities.items) |static_entity| {
             const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
             const instance_buffer_index = self.instances.items.len;
 
             const renderable_item = self.renderer.renderable_item_map.get(static_entity.renderable_id.hash).?;
 
-            var gpu_instance = std.mem.zeroes(GpuInstance2);
+            var gpu_instance = std.mem.zeroes(GpuInstance);
             gpu_instance.renderable_item_id = @intCast(renderable_item.index);
             gpu_instance.renderable_item_count = renderable_item.count;
             zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
@@ -367,6 +289,7 @@ pub const StaticGeometryPass = struct {
             if (static_entity.draw_bounds) {
                 gpu_instance.flags.draw_bounds = 1;
             }
+            gpu_instance._pad = [3]u32{ 73, 73, 73 };
 
             self.instances.append(gpu_instance) catch unreachable;
             self.entity_map.put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = 0 }) catch unreachable;

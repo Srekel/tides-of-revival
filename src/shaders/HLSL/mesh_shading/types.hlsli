@@ -76,19 +76,6 @@ struct MeshletCandidate
     uint meshletIndex;
 };
 
-struct OldInstance
-{
-    float4x4 world;
-    float3 localBoundsOrigin;
-    float screenPercentageMin;
-    float3 localBoundsExtents;
-    float screenPercentageMax;
-    uint id;
-    uint meshIndex;
-    uint materialIndex;
-    uint flags;
-};
-
 struct Instance
 {
     float4x4 world;
@@ -97,6 +84,7 @@ struct Instance
     float3 boundsExtents;
     uint renderableItemCount;
     uint flags;
+    uint3 _pad;
 };
 
 struct RenderableItem

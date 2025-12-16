@@ -403,7 +403,6 @@ pub const Renderer = struct {
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
 
-
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
 
@@ -1545,8 +1544,9 @@ pub const Renderer = struct {
         var renderable: Renderable = undefined;
         renderable.lods_count = desc.lods_count;
         renderable.gpu_instance_count = renderable.lods_count;
-        renderable.bounds_origin = [3]f32{ 0.0, 0.0, 0.0 };
-        renderable.bounds_extents = [3]f32{ 0.0, 0.0, 0.0 };
+
+        var first_mesh = true;
+        var renderable_bounds: geometry.BoundingBox = undefined;
 
         for (0..desc.lods_count) |lod_index| {
             const lod = &desc.lods[lod_index];
@@ -1576,9 +1576,17 @@ pub const Renderer = struct {
 
                 gpu_renderable_items.append(gpu_renderable_item) catch unreachable;
 
-                // TODO(gmodarelli): renderable_bounds.encapsulate(renderable_item.bounds)
+                if (first_mesh) {
+                    first_mesh = false;
+                    renderable_bounds = mesh.bounds;
+                } else {
+                    renderable_bounds = geometry.mergeBoundingBoxes(renderable_bounds, mesh.bounds);
+                }
             }
         }
+
+        renderable.bounds_origin = renderable_bounds.center;
+        renderable.bounds_extents = renderable_bounds.extents;
 
         self.renderable_map.put(id.hash, renderable) catch unreachable;
         self.renderable_item_map.put(id.hash, .{ .index = self.renderable_buffer.element_count, .count = @intCast(gpu_renderable_items.items.len) }) catch unreachable;
