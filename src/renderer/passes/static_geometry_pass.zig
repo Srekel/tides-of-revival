@@ -48,8 +48,9 @@ const GpuMeshletCandidate = struct {
     meshlet_index: u32,
 };
 
-const GpuDestroyInstance = struct {
+const GpuInstanceRange = struct {
     index: u32,
+    count: u32,
 };
 
 const DestroyInstancesParams = struct {
@@ -133,7 +134,8 @@ pub const StaticGeometryPass = struct {
     render_settings: RenderSettings,
 
     instances: std.ArrayList(GpuInstance),
-    instances_to_destroy: std.ArrayList(GpuDestroyInstance),
+    free_ranges: std.ArrayList(GpuInstanceRange),
+    instances_to_destroy: std.ArrayList(GpuInstanceRange),
     entity_map: EntityMap,
 
     // Global Buffers
@@ -195,7 +197,7 @@ pub const StaticGeometryPass = struct {
         // Destroy Instances GPU resources Data
         {
             // GPU Buffer
-            self.instance_to_destroy_buffer.init(rctx, 8169, @sizeOf(GpuDestroyInstance), false, "GPU Instances to Destroy");
+            self.instance_to_destroy_buffer.init(rctx, 8169, @sizeOf(GpuInstanceRange), false, "GPU Instances to Destroy");
 
             // Uniform Buffers
             self.destroy_instances_uniform_buffers = blk: {
@@ -209,43 +211,49 @@ pub const StaticGeometryPass = struct {
         }
 
         self.instances = std.ArrayList(GpuInstance).init(self.allocator);
-        self.instances_to_destroy = std.ArrayList(GpuDestroyInstance).init(self.allocator);
+        self.free_ranges = std.ArrayList(GpuInstanceRange).init(self.allocator);
+        self.instances_to_destroy = std.ArrayList(GpuInstanceRange).init(self.allocator);
         self.entity_map = EntityMap.init(self.allocator);
     }
 
     pub fn destroy(self: *@This()) void {
+        self.free_ranges.deinit();
         self.instances_to_destroy.deinit();
         self.instances.deinit();
         self.entity_map.deinit();
     }
 
     pub fn update(self: *@This(), cmd_list: [*c]graphics.Cmd) void {
-        self.instances.clearRetainingCapacity();
         self.instances_to_destroy.clearRetainingCapacity();
 
         for (self.renderer.removed_static_entities.items) |static_entity_id| {
             if (self.entity_map.get(static_entity_id)) |entity_info| {
-                self.instances_to_destroy.append(.{ .index = @intCast(entity_info.index) }) catch unreachable;
+                self.instances_to_destroy.append(.{ .index = @intCast(entity_info.index), .count = 1 }) catch unreachable;
                 _ = self.entity_map.remove(static_entity_id);
             }
         }
 
         if (self.instances_to_destroy.items.len > 0)
         {
+            var compacted_list = std.ArrayList(GpuInstanceRange).init(self.allocator);
+            defer compacted_list.deinit();
+
+            calculatePrefixSum(&self.instances_to_destroy, &compacted_list);
+
             const data = OpaqueSlice{
-                .data = @ptrCast(self.instances_to_destroy.items),
-                .size = self.instances_to_destroy.items.len * @sizeOf(GpuDestroyInstance),
+                .data = @ptrCast(compacted_list.items),
+                .size = compacted_list.items.len * @sizeOf(GpuInstanceRange),
             };
 
             std.debug.assert(self.instance_to_destroy_buffer.size > data.size);
-            self.renderer.updateBuffer(data, 0, GpuDestroyInstance, self.instance_to_destroy_buffer.buffer);
+            self.renderer.updateBuffer(data, 0, GpuInstanceRange, self.instance_to_destroy_buffer.buffer);
 
             const uniform_buffer_handle = self.destroy_instances_uniform_buffers[self.renderer.frame_index];
 
             const destroy_instances_params = DestroyInstancesParams{
                 .instances_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer.buffer),
                 .instances_to_destroy_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_to_destroy_buffer.buffer),
-                .instances_to_destroy_count = @intCast(self.instances_to_destroy.items.len),
+                .instances_to_destroy_count = @intCast(compacted_list.items.len),
                 ._padding = 42,
             };
             const params_data = OpaqueSlice{
@@ -271,42 +279,122 @@ pub const StaticGeometryPass = struct {
             graphics.cmdBindPipeline(cmd_list, pipeline);
             graphics.cmdBindDescriptorSet(cmd_list, self.renderer.frame_index, self.destroy_instances_descriptor_set);
             graphics.cmdDispatch(cmd_list, 1, 1, 1);
+
+            // Add the newly freed ranges to the free ranges list
+            compacted_list.appendSlice(self.free_ranges.items) catch unreachable;
+            self.free_ranges.clearRetainingCapacity();
+            calculatePrefixSum(&compacted_list, &self.free_ranges);
         }
 
-        for (self.renderer.added_static_entities.items) |static_entity| {
-            const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
-            const instance_buffer_index = self.instances.items.len;
+        if (self.renderer.added_static_entities.items.len > 0) {
+            self.instances.clearRetainingCapacity();
 
-            const renderable_item = self.renderer.renderable_item_map.get(static_entity.renderable_id.hash).?;
+            const total_static_entities = self.renderer.added_static_entities.items.len;
+            var processed_static_entities: usize = 0;
+            var filled_up_ranges: usize = 0;
 
-            var gpu_instance = std.mem.zeroes(GpuInstance);
-            gpu_instance.renderable_item_id = @intCast(renderable_item.index);
-            gpu_instance.renderable_item_count = renderable_item.count;
-            zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
-            gpu_instance.bounds_origin = renderable_data.bounds_origin;
-            gpu_instance.bounds_extents = renderable_data.bounds_extents;
-            gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
-            if (static_entity.draw_bounds) {
-                gpu_instance.flags.draw_bounds = 1;
+            for (self.free_ranges.items) |*free_range| {
+                const count = @min(free_range.count, total_static_entities - processed_static_entities);
+
+                for (0..count) |static_entity_index| {
+                    const static_entity = self.renderer.added_static_entities.items[processed_static_entities];
+                    processed_static_entities += 1;
+                    const gpu_instance = self.convertEntityToGpuInstance(static_entity);
+
+                    self.instances.append(gpu_instance) catch unreachable;
+                    self.entity_map.put(static_entity.entity_id, .{ .index = free_range.index + static_entity_index, .count = 1 }) catch unreachable;
+
+                    if (static_entity_index == free_range.count) {
+                        filled_up_ranges += 1;
+
+                        // Upload to the GPU
+                        {
+                            const instance_data = OpaqueSlice{
+                                .data = @ptrCast(self.instances.items),
+                                .size = self.instances.items.len * @sizeOf(GpuInstance),
+                            };
+
+                            self.renderer.updateBuffer(instance_data, free_range.index * @sizeOf(GpuInstance), GpuInstance, self.instance_buffer.buffer);
+                        }
+
+                        self.instances.clearRetainingCapacity();
+                        break;
+                    }
+                }
+
+                free_range.count -= count;
+                free_range.index += count;
             }
-            gpu_instance._pad = [3]u32{ 73, 73, 73 };
 
-            self.instances.append(gpu_instance) catch unreachable;
-            self.entity_map.put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = 0 }) catch unreachable;
+            for (0..filled_up_ranges) |_| {
+                _ = self.free_ranges.orderedRemove(0);
+            }
+
+            if (processed_static_entities < total_static_entities) {
+                var instance_buffer_index = self.instance_buffer.element_count;
+                for (self.renderer.added_static_entities.items[processed_static_entities..]) |static_entity| {
+                    const gpu_instance = self.convertEntityToGpuInstance(static_entity);
+
+                    self.instances.append(gpu_instance) catch unreachable;
+                    self.entity_map.put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = 1 }) catch unreachable;
+                    instance_buffer_index += 1;
+                }
+
+                self.instance_buffer.element_count += @intCast(self.instances.items.len);
+
+                const instance_data = OpaqueSlice{
+                    .data = @ptrCast(self.instances.items),
+                    .size = self.instances.items.len * @sizeOf(GpuInstance),
+                };
+
+                std.debug.assert(self.instance_buffer.size > instance_data.size + self.instance_buffer.offset);
+                self.renderer.updateBuffer(instance_data, self.instance_buffer.offset, GpuInstance, self.instance_buffer.buffer);
+                self.instance_buffer.offset += instance_data.size;
+            }
         }
+    }
 
-        if (self.instances.items.len > 0) {
-            self.instance_buffer.element_count += @intCast(self.instances.items.len);
+    fn convertEntityToGpuInstance(self: *@This(), static_entity: renderer_types.RenderableEntity) GpuInstance {
+        const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
 
-            const instance_data = OpaqueSlice{
-                .data = @ptrCast(self.instances.items),
-                .size = self.instances.items.len * @sizeOf(GpuInstance),
-            };
+        const renderable_item = self.renderer.renderable_item_map.get(static_entity.renderable_id.hash).?;
 
-            std.debug.assert(self.instance_buffer.size > instance_data.size + self.instance_buffer.offset);
-            self.renderer.updateBuffer(instance_data, self.instance_buffer.offset, GpuInstance, self.instance_buffer.buffer);
-            self.instance_buffer.offset += instance_data.size;
+        var gpu_instance = std.mem.zeroes(GpuInstance);
+        gpu_instance.renderable_item_id = @intCast(renderable_item.index);
+        gpu_instance.renderable_item_count = renderable_item.count;
+        zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
+        gpu_instance.bounds_origin = renderable_data.bounds_origin;
+        gpu_instance.bounds_extents = renderable_data.bounds_extents;
+        gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
+        if (static_entity.draw_bounds) {
+            gpu_instance.flags.draw_bounds = 1;
         }
+        gpu_instance._pad = [3]u32{ 73, 73, 73 };
+
+        return gpu_instance;
+    }
+
+    fn calculatePrefixSum(source: *std.ArrayList(GpuInstanceRange), destination: *std.ArrayList(GpuInstanceRange)) void {
+        // Sort by index
+        std.mem.sort(GpuInstanceRange, source.items, {}, gpuInstanceRangesSorter);
+
+        // Compact the instance ranges to destroy
+        var current_range = source.items[0];
+        for (1..source.items.len) |i| {
+            const instance_to_destroy = source.items[i];
+            if (current_range.index + current_range.count == instance_to_destroy.index) {
+                current_range.count += instance_to_destroy.count;
+            } else {
+                destination.append(current_range) catch unreachable;
+                current_range.index = instance_to_destroy.index;
+                current_range.count = instance_to_destroy.count;
+            }
+        }
+        destination.append(current_range) catch unreachable;
+    }
+
+    fn gpuInstanceRangesSorter(_: void, a: GpuInstanceRange, b: GpuInstanceRange) bool {
+        return a.index < b.index;
     }
 
     pub fn renderImGui(self: *@This()) void {
