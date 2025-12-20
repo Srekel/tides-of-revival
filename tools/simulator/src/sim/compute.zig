@@ -36,8 +36,18 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
 }
 
 pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, data: anytype) void {
+    const compute_sequence_length: u32 = switch (compute_id) {
+        .erosion1 => 2,
+        else => 1,
+    };
+    const compute_iterations: u32 = switch (compute_id) {
+        .erosion1 => 5,
+        else => 1,
+    };
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
+        .compute_sequence_length = compute_sequence_length,
+        .compute_iterations = compute_iterations,
         .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
         .out_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
         .in_count = @intCast(images_in.len),
@@ -92,6 +102,17 @@ pub fn compute_reduce_f32_1(compute_id: graph.ComputeId, operator_id: graph.Comp
     compute_fn(&compute_info);
 }
 
+fn makeImage(height: u32, width: u32) types.ImageF32 {
+    var buffer_image: types.ImageF32 = .{ .size = .{
+        .height = height,
+        .width = width,
+    } };
+    buffer_image.pixels = std.heap.c_allocator.alloc(f32, buffer_image.size.width * buffer_image.size.height) catch unreachable;
+    return buffer_image;
+}
+
+/////////////////
+///
 pub const GradientData = extern struct {
     g_buffer_width: u32,
     g_buffer_height: u32,
@@ -354,6 +375,32 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
             .height = @intCast(image_in.size.height),
             .curve_keys_count = @intCast(curve.len),
         },
+    );
+}
+
+const ErosionSettings = extern struct {
+    width: u32,
+    height: u32,
+    sediment_capacity: f32 = 0.1,
+    _padding: f32 = undefined,
+};
+
+pub fn erosion(image_in: *types.ImageF32) void {
+    const erosion_data = ErosionSettings{
+        .width = @as(u32, @intCast(image_in.size.width)),
+        .height = @as(u32, @intCast(image_in.size.height)),
+    };
+
+    var water = makeImage(erosion_data.width, erosion_data.height);
+    defer std.heap.c_allocator.free(water.pixels);
+
+    var in_buffers = [_]*types.ImageF32{image_in};
+    var out_buffers = [_]*types.ImageF32{ image_in, &water };
+    compute_f32_n(
+        .erosion1,
+        in_buffers[0..],
+        out_buffers[0..],
+        erosion_data,
     );
 }
 

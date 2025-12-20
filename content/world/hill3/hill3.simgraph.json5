@@ -254,7 +254,8 @@
         "generate_heightmap_mountains",
         "merge_heightmaps",
         "generate_heightmap_gradient",
-        "generate_terrace",
+        // "generate_terrace",
+        "generate_erosion",
         "generate_heightmap_gradient2",
         // "generate_heightmap_gradient",
       ],
@@ -612,6 +613,14 @@
     {
       name: "generate_terrace",
       kind: "terrace",
+      // vars
+      gradient: "gradient_image",
+      heightmap: "heightmap",
+      output: "gradient_image",
+    },
+    {
+      name: "generate_erosion",
+      kind: "erosion",
       // vars
       gradient: "gradient_image",
       heightmap: "heightmap",

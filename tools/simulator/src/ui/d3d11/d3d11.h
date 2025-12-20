@@ -67,6 +67,8 @@ struct ComputeBuffer
 struct ComputeInfo
 {
     unsigned compute_id;
+    unsigned compute_sequence_length;
+    unsigned compute_iterations;
     unsigned compute_operator_id;
     ComputeBuffer in_buffers[8];
     ComputeBuffer out_buffers[8];

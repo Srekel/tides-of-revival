@@ -16,6 +16,9 @@ pub const ComputeId = enum(u32) {
     gaussian_blur_vertical,
     remap_curve_linear,
     gather_points,
+    erosion1, // 15
+    erosion2,
+    // erosion3,
     reduce,
 };
 
@@ -46,6 +49,8 @@ pub const ComputeBuffer = extern struct {
 
 pub const ComputeInfo = extern struct {
     compute_id: ComputeId,
+    compute_sequence_length: u32 = 1,
+    compute_iterations: u32 = 1,
     compute_operator_id: ComputeOperatorId = .none,
     in_buffers: [8]ComputeBuffer,
     out_buffers: [8]ComputeBuffer,

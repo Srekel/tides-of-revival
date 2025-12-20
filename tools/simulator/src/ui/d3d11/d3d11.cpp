@@ -156,6 +156,12 @@ bool D3D11::create_device(HWND hwnd)
     compile_compute_shader(L"shaders/gather_points.hlsl", "CSGatherPoints", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
 
+    // Erosion sequence
+    compile_compute_shader(L"shaders/erosion1.hlsl", "CSErosion_1_rain", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+    compile_compute_shader(L"shaders/erosion2.hlsl", "CSErosion_2_collect_flow", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+
     assert(m_compute_shader_count + 10 < 32);
 
     // Parallel Reduce (Min/Max)
@@ -500,11 +506,6 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     void *shader_settings = job.shader_settings;
     size_t shader_settings_size = job.shader_settings_size;
 
-    ComputeShader &shader = m_compute_shaders[job.compute_id];
-    assert(m_device);
-    assert(m_device_context);
-    assert(shader.compute_shader);
-
     ID3D11Buffer *shader_settings_buffer = nullptr;
     ID3D11Buffer *input_buffers[8];
     ID3D11Buffer *output_buffers[8];
@@ -544,26 +545,36 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
         assert(output_buffers_uav[i_buf]);
     }
 
-    // Run the compute shader
+    // Run the compute shaders
+    for (unsigned i_iter = 0; i_iter < job.compute_iterations; ++i_iter)
     {
-        m_device_context->CSSetShader(shader.compute_shader, nullptr, 0);
-        m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
-        for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+        unsigned shader_count = job.compute_sequence_length;
+        for (unsigned i_shader = 0; i_shader < shader_count; ++i_shader)
         {
-            m_device_context->CSSetShaderResources(i_buf, 1, &input_buffers_srv[i_buf]);
-        }
-        for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
-        {
-            m_device_context->CSSetUnorderedAccessViews(i_buf, 1, &output_buffers_uav[i_buf], nullptr);
-        }
+            ComputeShader &shader = m_compute_shaders[job.compute_id + i_shader];
+            assert(m_device);
+            assert(m_device_context);
+            assert(shader.compute_shader);
 
-        m_device_context->Dispatch(
-            job.dispatch_size[0] / shader.thread_group_size[0],
-            job.dispatch_size[1] / shader.thread_group_size[1],
-            shader.thread_group_size[2]);
+            m_device_context->CSSetShader(shader.compute_shader, nullptr, 0);
+            m_device_context->CSSetConstantBuffers(0, 1, &shader_settings_buffer);
+            for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
+            {
+                m_device_context->CSSetShaderResources(i_buf, 1, &input_buffers_srv[i_buf]);
+            }
+            for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
+            {
+                m_device_context->CSSetUnorderedAccessViews(i_buf, 1, &output_buffers_uav[i_buf], nullptr);
+            }
 
-        cleanup_compute_shader_context(m_device_context);
+            m_device_context->Dispatch(
+                job.dispatch_size[0] / shader.thread_group_size[0],
+                job.dispatch_size[1] / shader.thread_group_size[1],
+                shader.thread_group_size[2]);
+        }
     }
+
+    cleanup_compute_shader_context(m_device_context);
 
     // Read back data
     {

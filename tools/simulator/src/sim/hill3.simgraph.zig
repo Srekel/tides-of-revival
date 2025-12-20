@@ -11,11 +11,11 @@ const c_cpp_nodes = @cImport({
 });
 
 // ============ CONSTANTS ============
-const DRY_RUN = false;
+const DRY_RUN = true;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
-pub const node_count = 49;
+pub const node_count = 50;
 
 // ============ VARS ============
 const world_size: types.Size2D = .{ .width = kilometers * 1024, .height = kilometers * 1024 };
@@ -122,6 +122,7 @@ var preview_image_remap_heightmap_mountains = types.ImageRGBA.square(preview_siz
 var preview_image_merge_heightmaps = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient = types.ImageRGBA.square(preview_size);
 var preview_image_generate_terrace = types.ImageRGBA.square(preview_size);
+var preview_image_generate_erosion = types.ImageRGBA.square(preview_size);
 var preview_image_generate_heightmap_gradient2 = types.ImageRGBA.square(preview_size);
 var preview_image_output_cities = types.ImageRGBA.square(preview_size);
 var preview_image_generate_trees_fbm = types.ImageRGBA.square(preview_size);
@@ -202,6 +203,7 @@ pub fn start(ctx: *Context) void {
     preview_image_merge_heightmaps.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_terrace.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
+    preview_image_generate_erosion.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_heightmap_gradient2.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_output_cities.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
     preview_image_generate_trees_fbm.pixels = std.heap.c_allocator.alloc(types.ColorRGBA, preview_size * preview_size) catch unreachable;
@@ -265,7 +267,7 @@ pub fn main_generate_heightmap(ctx: *Context) void {
     ctx.next_nodes.insert(4, generate_heightmap_mountains) catch unreachable;
     ctx.next_nodes.insert(5, merge_heightmaps) catch unreachable;
     ctx.next_nodes.insert(6, generate_heightmap_gradient) catch unreachable;
-    ctx.next_nodes.insert(7, generate_terrace) catch unreachable;
+    ctx.next_nodes.insert(7, generate_erosion) catch unreachable;
     ctx.next_nodes.insert(8, generate_heightmap_gradient2) catch unreachable;
 }
 
@@ -759,6 +761,26 @@ pub fn generate_terrace(ctx: *Context) void {
     types.image_preview_f32(heightmap, &preview_image_generate_terrace);
     const preview_key_generate_terrace = "generate_terrace.image";
     ctx.previews.putAssumeCapacity(preview_key_generate_terrace, .{ .data = preview_image_generate_terrace.asBytes() });
+
+    // Leaf node
+}
+
+pub fn generate_erosion(ctx: *Context) void {
+    std.log.info("Node: generate_erosion [erosion]", .{});
+
+    heightmap2.copy(heightmap);
+    for (0..1) |_| {
+        for (0..1) |_| {
+            compute.erosion(&heightmap);
+            nodes.math.rerangify(&heightmap);
+            types.saveImageF32(heightmap, "heightmap", false);
+        }
+    }
+
+    types.saveImageF32(heightmap, "generate_erosion", false);
+    types.image_preview_f32(heightmap, &preview_image_generate_erosion);
+    const preview_key_generate_erosion = "generate_erosion.image";
+    ctx.previews.putAssumeCapacity(preview_key_generate_erosion, .{ .data = preview_image_generate_erosion.asBytes() });
 
     // Leaf node
 }

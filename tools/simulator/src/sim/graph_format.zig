@@ -19,6 +19,7 @@ const kind_blur = hash("blur");
 const kind_cities = hash("cities");
 const kind_contours = hash("contours");
 const kind_downsample = hash("downsample");
+const kind_erosion = hash("erosion");
 const kind_fbm = hash("fbm");
 const kind_gather_points = hash("gather_points");
 const kind_gradient = hash("gradient");
@@ -379,6 +380,21 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 }
                 writeLine(writer, "    scratch_image.size = orig_scratch_image_size;", .{});
                 writePreview(writer, image_out, name);
+            },
+            kind_erosion => {
+                const heightmap = j_node.Object.get("heightmap").?.String;
+
+                writeLine(writer, "    heightmap2.copy({s});", .{heightmap});
+                // writeLine(writer, "    types.saveImageF32({s}, \"{s}_b4terrace\", false);", .{ gradient, gradient });
+                // writeLine(writer, "    types.saveImageF32(heightmap, \"{s}_b4terrace\", false);", .{heightmap});
+                writeLine(writer, "    for (0..1) |_| {{", .{});
+                writeLine(writer, "        for (0..1) |_| {{", .{});
+                writeLine(writer, "            compute.erosion(&{s});", .{heightmap});
+                writeLine(writer, "            nodes.math.rerangify(&{s});", .{heightmap});
+                writeLine(writer, "            types.saveImageF32({s}, \"{s}\", false);", .{ heightmap, heightmap });
+                writeLine(writer, "        }}", .{});
+                writeLine(writer, "    }}", .{});
+                writePreview(writer, heightmap, name);
             },
             kind_fbm => {
                 const settings = j_node.Object.get("settings").?.String;
