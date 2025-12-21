@@ -50,6 +50,7 @@ float2 rand2dTo2d(float2 value) {
         g_output_buffer_droplet_sizes[index_in] = 0;
         g_output_buffer_droplet_positions[index_in] = rand2dTo2d(float2(DTid.x, DTid.y));
         g_output_buffer_droplet_energies[index_in] = 1;
+        g_output_buffer_droplet_sediment[index_in] = 0;
 
         const uint inflow_base_index = DTid.x * 8 + DTid.y * 8 * g_in_buffer_width;
         for (uint i_flow = 0; i_flow < 8; i_flow++) {
