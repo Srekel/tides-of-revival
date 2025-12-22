@@ -10,7 +10,6 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
 RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
@@ -33,8 +32,6 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
     const float height = lerp(height_bot, height_top, droplet_pos.y);
     return height;
 }
-
-// struct HeightANdGradient {}
 
 float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float height) {
     const uint index_bl = x + 0 + (y + 0) * g_in_buffer_width;
@@ -109,9 +106,9 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
             const uint target_x = uint(floor(target_pos.x));
             const uint target_y = uint(floor(target_pos.y));
             if (target_x == DTid.x && target_y == DTid.y) {
-                const float2 droplet_pos_new = float2(target_pos.x - DTid.x, target_pos.y - DTid.y);
-                g_output_buffer_droplet_positions_new[droplet_index] = droplet_pos_new;
+                g_output_buffer_droplet_positions_new[droplet_index] = target_pos.x;
 
+                const float2 droplet_pos_new = float2(target_pos.x - DTid.x, target_pos.y - DTid.y);
                 const float target_height = height_at_pos(DTid.x, DTid.y, droplet_pos_new);
                 const float height_difference = target_height - droplet_height; 
                 const bool flowing_downhill = height_difference < 0;

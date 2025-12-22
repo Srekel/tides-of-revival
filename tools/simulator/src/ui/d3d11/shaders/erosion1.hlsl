@@ -40,7 +40,7 @@
 // Write: droplet_positions
 // Write: droplet_energies
 // Write: droplet_sizes
-// 
+// Write: droplet_sediment
 //////////////////////////////
 
 
@@ -48,7 +48,7 @@
 // world space
 // 
 // g_output_buffer_droplet_positions
-// [0-1] offsets into cell
+// position, [0,1] cell offset space
 // 
 // g_output_buffer_droplet_energies
 // "speed" of water
@@ -63,7 +63,7 @@
 // how much sediment should be picked up or dropped off
 // 
 // g_output_buffer_droplet_positions_new
-// where each droplets will move to
+// where each droplets will move to, worldspace
 
 cbuffer constant_buffer_0 : register(b0)
 {
@@ -77,7 +77,6 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
 RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
@@ -103,7 +102,6 @@ float2 rand2dTo2d(float2 value) {
 [numthreads(32, 32, 1)] void CSErosion_1_rain(uint3 DTid : SV_DispatchThreadID)
 {
     const uint index_in = DTid.x + DTid.y * g_in_buffer_width;
-    g_output_buffer_heightmap[index_in] = g_input_buffer_heightmap[index_in];
 
     // Skip edges
     const uint range = 2;
@@ -115,18 +113,18 @@ float2 rand2dTo2d(float2 value) {
         return;
     }
     
-    
-    // Inititialize
+    // Inititialize first time
     if (!all(g_output_buffer_droplet_positions[index_in])) {
         g_output_buffer_droplet_sizes[index_in] = 0;
-        g_output_buffer_droplet_positions[index_in] = rand2dTo2d(float2(DTid.x, DTid.y));
+        g_output_buffer_droplet_positions[index_in] = float2(0,0);
         g_output_buffer_droplet_energies[index_in] = 1;
         g_output_buffer_droplet_sediment[index_in] = 0;
+    }
 
-        const uint inflow_base_index = DTid.x * 8 + DTid.y * 8 * g_in_buffer_width;
-        for (uint i_flow = 0; i_flow < 8; i_flow++) {
-            g_output_buffer_inflow[inflow_base_index + index_in] = 0;
-        }
+    // Clear flow, not sure if necessary...
+    const uint inflow_base_index = DTid.x * 8 + DTid.y * 8 * g_in_buffer_width;
+    for (uint i_flow = 0; i_flow < 8; i_flow++) {
+        g_output_buffer_inflow[inflow_base_index + index_in] = 0;
     }
     
     const float rain_amount = 1;

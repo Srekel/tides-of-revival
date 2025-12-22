@@ -10,7 +10,6 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
 RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
@@ -43,24 +42,24 @@ RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6);
             }
 
             ////////////////////////////////////////////////////////////
-            // Do the outflow (from self)
-            // I.e. we subtract the outflow here and assume that it gets added by the target cell.
-            // It may also be that our droplet is in fact dropping sediment here (i.e. adding).
-            // Same logic regardless.
-            // 
-            // Given this neighbor, we check its inflow buffer. We calculate our index to look up 
-            // how much we have determined should be picked up (or dropped off).
-            const uint outflow_neighbour_index = x * 8 + y * 8 * g_in_buffer_width;
-            const uint self_relative_index = 7 - inflow_offset_index;
-            const float flow_from_self_to_neighbor = g_output_buffer_inflow[outflow_neighbour_index + self_relative_index];
-            const float outflow = -flow_from_self_to_neighbor;
-            total_flow += outflow;
-
-            ////////////////////////////////////////////////////////////
             // Do the inflow (to self)
+            const uint index_neighbor = x + y * g_in_buffer_width;
             const uint inflow_index = inflow_base_index + inflow_offset_index;
             const float inflow = g_output_buffer_inflow[inflow_index];
-            total_flow += inflow;
+            const float droplet_sediment = g_output_buffer_droplet_sediment[index_neighbor];
+            if (inflow > 0) {
+                // Pick up sediment
+                const float sediment_to_pick_up = max(g_droplet_max_sediment - droplet_sediment, inflow);
+                g_output_buffer_heightmap[index_neighbor] -= sediment_to_pick_up;
+                g_output_buffer_droplet_sediment[index_neighbor] += sediment_to_pick_up;
+            }
+            else if (inflow < 0) {
+                // Drop off sediment
+                const float sediment_to_drop = min(droplet_sediment, -inflow);
+                g_output_buffer_heightmap[index_neighbor] += sediment_to_drop;
+                g_output_buffer_droplet_sediment[index_neighbor] -= sediment_to_drop;
+            }
+            // total_flow += inflow;
 
             inflow_offset_index += 1;
         }
@@ -69,8 +68,8 @@ RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6);
     // TODO: "The height change is applied to the terrain through bilinear 
     // interpolation, depending on the droplet’s position within its cell."
 
-    float height = g_output_buffer_heightmap[index_self];
-    height += total_flow;
-    height = max(0, height);
-    g_output_buffer_heightmap[index_self] = height;
+    // float height = g_output_buffer_heightmap[index_self];
+    // height += total_flow;
+    // height = max(0, height);
+    // g_output_buffer_heightmap[index_self] = height;
 }
